@@ -1,0 +1,216 @@
+// prisma/schema.prisma
+
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "sqlite"
+    url      = "file:./dev.db"
+}
+
+model User {
+    id                       String              @id @default(uuid())
+    email                    String              @unique
+    password                 String? // Optional since stakeholders might not need login
+    resetToken               String?
+    resetTokenExpiry         DateTime?
+    firstName                String
+    lastName                 String
+    departmentOrOrganization String?
+    phoneNumber              String?
+    phoneExt                 String?
+    mobile                   String?
+    physicalLocation         String?
+    orgTitle                 String?
+    communicationPreference  String? // EMAIL, PHONE, MOBILE
+    engagementLevel          String? // HIGH, MEDIUM, LOW
+    additionalNotes          String?
+    role                     String // ADMIN, PROJECT_MANAGER, TEAM_MEMBER, STAKEHOLDER
+    createdAt                DateTime            @default(now())
+    updatedAt                DateTime            @updatedAt
+    projects                 Project[] // Projects created by user
+    assignments              Task[] // Tasks assigned to user
+    memberships              ProjectMember[] // Projects user is member of
+    MeetingAttendee          MeetingAttendee[]
+    ActionItem               MeetingActionItem[]
+}
+
+model Project {
+    id          String          @id @default(uuid())
+    name        String
+    description String?
+    startDate   DateTime
+    endDate     DateTime
+    status      String // PLANNING, IN_PROGRESS, ON_HOLD, COMPLETED
+    budget      Float?
+    createdById String
+    createdBy   User            @relation(fields: [createdById], references: [id])
+    createdAt   DateTime        @default(now())
+    updatedAt   DateTime        @updatedAt
+    tasks       Task[]
+    members     ProjectMember[]
+    resources   Resource[]
+    Meeting     Meeting[]
+
+    @@index([createdById])
+}
+
+model ProjectMember {
+    id              String    @id @default(uuid())
+    role            String // CLIENT, PROJECT_MANAGER, TEAM_MEMBER, STAKEHOLDER
+    roleDescription String?
+    project         Project   @relation(fields: [projectId], references: [id])
+    projectId       String
+    user            User      @relation(fields: [userId], references: [id])
+    userId          String
+    joinedAt        DateTime  @default(now())
+    comments        Comment[] // Add this relation
+
+    @@unique([projectId, userId])
+    @@index([projectId])
+    @@index([userId])
+}
+
+model Comment {
+    id              String        @id @default(uuid())
+    content         String
+    projectMember   ProjectMember @relation(fields: [projectMemberId], references: [id])
+    projectMemberId String
+    createdAt       DateTime      @default(now())
+    updatedAt       DateTime      @updatedAt
+
+    @@index([projectMemberId])
+}
+
+model Task {
+    id          String   @id @default(uuid())
+    title       String
+    description String?
+    startDate   DateTime
+    endDate     DateTime
+    status      String // NOT_STARTED, IN_PROGRESS, COMPLETED, ON_HOLD
+    progress    Float    @default(0)
+    priority    String   @default("MEDIUM") // LOW, MEDIUM, HIGH
+
+    // WBS specific fields
+    parentId String?
+    position Int     @default(0)
+    parent   Task?   @relation("TaskHierarchy", fields: [parentId], references: [id])
+    children Task[]  @relation("TaskHierarchy")
+
+    // Gantt specific fields
+    dependencies  String?
+    milestone     Boolean   @default(false)
+    critical      Boolean   @default(false)
+    baselineStart DateTime?
+    baselineEnd   DateTime?
+
+    // Relations
+    project    Project    @relation(fields: [projectId], references: [id])
+    projectId  String
+    assignee   User?      @relation(fields: [assigneeId], references: [id])
+    assigneeId String?
+    resources  Resource[]
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([projectId])
+    @@index([assigneeId])
+    @@index([parentId])
+}
+
+model Resource {
+    id        String   @id @default(uuid())
+    name      String
+    type      String // HUMAN, MATERIAL, EQUIPMENT
+    capacity  Float    @default(100) // Percentage
+    cost      Float? // Cost per hour/unit
+    tasks     Task[]
+    project   Project  @relation(fields: [projectId], references: [id])
+    projectId String
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([projectId])
+}
+
+model Meeting {
+    id          String              @id @default(cuid())
+    projectId   String
+    title       String
+    date        DateTime
+    startTime   DateTime
+    endTime     DateTime
+    location    String
+    status      MeetingStatus       @default(SCHEDULED)
+    agenda      String
+    minutes     String
+    decisions   MeetingDecision[]
+    actionItems MeetingActionItem[]
+    attendees   MeetingAttendee[]
+    project     Project             @relation(fields: [projectId], references: [id])
+    createdAt   DateTime            @default(now())
+    updatedAt   DateTime            @updatedAt
+}
+
+model MeetingAttendee {
+    id        String           @id @default(cuid())
+    meetingId String
+    userId    String
+    status    AttendanceStatus @default(PENDING)
+    meeting   Meeting          @relation(fields: [meetingId], references: [id])
+    user      User             @relation(fields: [userId], references: [id])
+}
+
+model MeetingActionItem {
+    id          String           @id @default(cuid())
+    meetingId   String
+    assignedTo  String
+    title       String
+    description String
+    dueDate     DateTime
+    status      ActionItemStatus @default(OPEN)
+    priority    Priority         @default(MEDIUM)
+    meeting     Meeting          @relation(fields: [meetingId], references: [id])
+    assignee    User             @relation(fields: [assignedTo], references: [id])
+    createdAt   DateTime         @default(now())
+    updatedAt   DateTime         @updatedAt
+}
+
+model MeetingDecision {
+    id          String   @id @default(cuid())
+    meetingId   String
+    title       String
+    description String
+    meeting     Meeting  @relation(fields: [meetingId], references: [id])
+    createdAt   DateTime @default(now())
+}
+
+enum MeetingStatus {
+    SCHEDULED
+    IN_PROGRESS
+    COMPLETED
+    CANCELLED
+}
+
+enum AttendanceStatus {
+    PENDING
+    CONFIRMED
+    DECLINED
+}
+
+enum ActionItemStatus {
+    OPEN
+    IN_PROGRESS
+    COMPLETED
+    BLOCKED
+}
+
+enum Priority {
+    LOW
+    MEDIUM
+    HIGH
+    URGENT
+}

@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+	--background: #ffffff;
+	--foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--background: #0a0a0a;
+		--foreground: #ededed;
+	}
+}
+
+body {
+	color: var(--foreground);
+	background: var(--background);
+	font-family: Arial, Helvetica, sans-serif;
+}
+
+/* src/App.css */
+.grid-container,
+.list-container {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
+.grid-item,
+.list-item {
+	border: 1px solid #ccc;
+	padding: 20px;
+	text-align: center;
+}
+
+.list-container {
+	flex-direction: column;
+}
+
+.grid-item {
+	flex: 1 1 30%; /* Each item will take roughly one-third of the container width */
+}
