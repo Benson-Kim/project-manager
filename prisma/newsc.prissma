@@ -34,35 +34,7 @@ model User {
     memberships              ProjectMember[] // Projects user is member of
     MeetingAttendee          MeetingAttendee[]
     ActionItem               MeetingActionItem[]
-    milestonesLed            Milestone[]         @relation(name: "MilestoneLeader")
-    milestonesAssigned       Milestone[]         @relation(name: "MilestoneAssignee")
-}
-
-model Milestone {
-    id          String   @id @default(uuid())
-    name        String
-    description String?
-    leaderId    String
-    leader      User     @relation(name: "MilestoneLeader", fields: [leaderId], references: [id])
-    startDate   DateTime
-    endDate     DateTime
-    budget      Float?
-    status      String // PLANNED, IN_PROGRESS, COMPLETED, DELAYED
-    progress    Float    @default(0)
-    projectId   String
-    project     Project  @relation(fields: [projectId], references: [id])
-    assigneeId  String?
-    assignee    User?    @relation(name: "MilestoneAssignee", fields: [assigneeId], references: [id])
-
-    // Many-to-Many Relation with Tasks
-    tasks Task[] @relation(name: "MilestoneTasks")
-
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-
-    @@index([projectId])
-    @@index([leaderId])
-    @@index([assigneeId])
+    ledMilestones            Milestone[]         @relation("MilestoneLeader")
 }
 
 model Project {
@@ -80,51 +52,32 @@ model Project {
     tasks       Task[]
     members     ProjectMember[]
     resources   Resource[]
-    meetings    Meeting[]
+    Meeting     Meeting[]
     milestones  Milestone[]
 
     @@index([createdById])
 }
 
-model Task {
+// Add this model to your existing schema
+model Milestone {
     id          String   @id @default(uuid())
-    title       String
+    name        String
     description String?
+    leaderId    String // Stakeholder leading this milestone
+    leader      User     @relation("MilestoneLeader", fields: [leaderId], references: [id])
     startDate   DateTime
     endDate     DateTime
-    status      String // NOT_STARTED, IN_PROGRESS, COMPLETED, ON_HOLD
+    budget      Float?
+    status      String // PLANNED, IN_PROGRESS, COMPLETED, DELAYED
     progress    Float    @default(0)
-    priority    String   @default("MEDIUM") // LOW, MEDIUM, HIGH
-
-    // WBS specific fields
-    parentId String?
-    position Int     @default(0)
-    parent   Task?   @relation("TaskHierarchy", fields: [parentId], references: [id])
-    children Task[]  @relation("TaskHierarchy")
-
-    // Gantt specific fields
-    dependencies  String?
-    milestone     Boolean   @default(false)
-    critical      Boolean   @default(false)
-    baselineStart DateTime?
-    baselineEnd   DateTime?
-
-    // Relations
-    project    Project    @relation(fields: [projectId], references: [id])
-    projectId  String
-    assignee   User?      @relation(fields: [assigneeId], references: [id])
-    assigneeId String?
-    resources  Resource[]
-
-    // Many-to-Many Relation with Milestones
-    milestones Milestone[] @relation(name: "MilestoneTasks")
-
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+    projectId   String
+    project     Project  @relation(fields: [projectId], references: [id])
+    tasks       Task[]
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
 
     @@index([projectId])
-    @@index([assigneeId])
-    @@index([parentId])
+    @@index([leaderId])
 }
 
 model ProjectMember {
@@ -152,6 +105,47 @@ model Comment {
     updatedAt       DateTime      @updatedAt
 
     @@index([projectMemberId])
+}
+
+model Task {
+    id          String   @id @default(uuid())
+    title       String
+    description String?
+    startDate   DateTime
+    endDate     DateTime
+    status      String // NOT_STARTED, IN_PROGRESS, COMPLETED, ON_HOLD
+    progress    Float    @default(0)
+    priority    String   @default("MEDIUM") // LOW, MEDIUM, HIGH
+
+    // WBS specific fields
+    parentId String?
+    position Int     @default(0)
+    parent   Task?   @relation("TaskHierarchy", fields: [parentId], references: [id])
+    children Task[]  @relation("TaskHierarchy")
+
+    // Gantt specific fields
+    dependencies  String?
+    ismilestone   Boolean   @default(false)
+    critical      Boolean   @default(false)
+    baselineStart DateTime?
+    baselineEnd   DateTime?
+
+    // Relations
+    project     Project    @relation(fields: [projectId], references: [id])
+    projectId   String
+    assignee    User?      @relation(fields: [assigneeId], references: [id])
+    assigneeId  String?
+    resources   Resource[]
+    milestoneId String?
+    milestone   Milestone? @relation(fields: [milestoneId], references: [id])
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([milestoneId])
+    @@index([projectId])
+    @@index([assigneeId])
+    @@index([parentId])
 }
 
 model Resource {
