@@ -1,3 +1,4 @@
+// app/dashboard/[section]/page.js
 "use client";
 import Stakeholders from "@/app/projects/[id]/Stakeholders";
 import ProjectsPage from "@/components/Projects";
@@ -8,13 +9,10 @@ const contentData = {
 	users: <UsersPage />,
 	projects: <ProjectsPage />,
 	settings: "Adjust application settings.",
-	orders: "Track customer orders.",
 	reports: "View business reports.",
 	stakeholders: <Stakeholders />,
 	analytics: "Analyze your sales and traffic.",
 	support: "Handle customer support tickets.",
-	billing: "Manage subscriptions and invoices.",
-	notifications: "Configure notification settings.",
 };
 
 export default function SectionPage() {
