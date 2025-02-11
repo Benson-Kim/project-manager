@@ -1,6 +1,5 @@
 // app/dashboard/[section]/page.js
 "use client";
-import Stakeholders from "@/app/projects/[id]/Stakeholders";
 import ProjectsPage from "@/components/Projects";
 import UsersPage from "@/components/Users";
 import { useParams } from "next/navigation";
@@ -10,7 +9,6 @@ const contentData = {
 	projects: <ProjectsPage />,
 	settings: "Adjust application settings.",
 	reports: "View business reports.",
-	stakeholders: <Stakeholders />,
 	analytics: "Analyze your sales and traffic.",
 	support: "Handle customer support tickets.",
 };
