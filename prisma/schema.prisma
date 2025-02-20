@@ -66,22 +66,35 @@ model Milestone {
 }
 
 model Project {
-    id          String          @id @default(uuid())
-    name        String
-    description String?
-    startDate   DateTime
-    endDate     DateTime
-    status      String // PLANNING, IN_PROGRESS, ON_HOLD, COMPLETED
-    budget      Float?
-    createdById String
-    createdBy   User            @relation(fields: [createdById], references: [id])
-    createdAt   DateTime        @default(now())
-    updatedAt   DateTime        @updatedAt
-    tasks       Task[]
-    members     ProjectMember[]
-    resources   Resource[]
-    meetings    Meeting[]
-    milestones  Milestone[]
+    id                    String                 @id @default(uuid())
+    name                  String
+    description           String?
+    startDate             DateTime
+    endDate               DateTime
+    status                String // PLANNING, IN_PROGRESS, ON_HOLD, COMPLETED
+    budget                Float?
+    createdById           String
+    createdBy             User                   @relation(fields: [createdById], references: [id])
+    createdAt             DateTime               @default(now())
+    updatedAt             DateTime               @updatedAt
+    tasks                 Task[]
+    members               ProjectMember[]
+    resources             Resource[]
+    meetings              Meeting[]
+    milestones            Milestone[]
+    stakeholders          Stakeholder[]
+    acronyms              Acronym[]
+    keyDeliverables       KeyDeliverable[]
+    objectives            Objective[]
+    questionAnswers       QuestionAnswer[]
+    suppliers             Supplier[]
+    assumptionConstraints AssumptionConstraint[]
+    parkingLotItems       ParkingLotItem[]
+    itResources           ITResource[]
+    financials            Financial[]
+    issueRisks            IssueRisk[]
+    dailyActivities       DailyActivity[]
+    notes                 Note[]
 
     @@index([createdById])
 }
@@ -219,6 +232,197 @@ model MeetingDecision {
     description String
     meeting     Meeting  @relation(fields: [meetingId], references: [id])
     createdAt   DateTime @default(now())
+}
+
+// Add these models to your existing schema.prisma file
+
+model Stakeholder {
+    id           String   @id @default(uuid())
+    name         String
+    role         String
+    organization String?
+    contactInfo  String?
+    influence    String? // HIGH, MEDIUM, LOW
+    interest     String? // HIGH, MEDIUM, LOW
+    projectId    String
+    project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    createdAt    DateTime @default(now())
+    updatedAt    DateTime @updatedAt
+
+    @@index([projectId])
+}
+
+model Acronym {
+    id         String   @id @default(uuid())
+    acronym    String
+    definition String
+    projectId  String
+    project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
+
+    @@index([projectId])
+}
+
+model KeyDeliverable {
+    id          String    @id @default(uuid())
+    name        String
+    description String?
+    dueDate     DateTime?
+    status      String // PLANNED, IN_PROGRESS, COMPLETED
+    projectId   String
+    project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    createdAt   DateTime  @default(now())
+    updatedAt   DateTime  @updatedAt
+
+    @@index([projectId])
+}
+
+model Objective {
+    id          String   @id @default(uuid())
+    title       String
+    description String?
+    measurable  String?
+    projectId   String
+    project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@index([projectId])
+}
+
+model QuestionAnswer {
+    id         String   @id @default(uuid())
+    question   String
+    answer     String?
+    status     String // OPEN, ANSWERED, CLOSED
+    askedBy    String?
+    answeredBy String?
+    projectId  String
+    project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
+
+    @@index([projectId])
+}
+
+model Supplier {
+    id              String   @id @default(uuid())
+    name            String
+    contactPerson   String?
+    contactInfo     String?
+    serviceProvided String?
+    contractDetails String?
+    projectId       String
+    project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    createdAt       DateTime @default(now())
+    updatedAt       DateTime @updatedAt
+
+    @@index([projectId])
+}
+
+model AssumptionConstraint {
+    id          String   @id @default(uuid())
+    type        String // ASSUMPTION, CONSTRAINT
+    description String
+    impact      String?
+    status      String? // VALID, INVALID, UNCERTAIN
+    projectId   String
+    project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@index([projectId])
+}
+
+model ParkingLotItem {
+    id          String   @id @default(uuid())
+    title       String
+    description String?
+    priority    String? // HIGH, MEDIUM, LOW
+    status      String // PENDING, IN_REVIEW, RESOLVED
+    projectId   String
+    project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@index([projectId])
+}
+
+model ITResource {
+    id         String    @id @default(uuid())
+    name       String
+    type       String // HARDWARE, SOFTWARE, PERSONNEL
+    quantity   Int?
+    allocation String?
+    startDate  DateTime?
+    endDate    DateTime?
+    projectId  String
+    project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    createdAt  DateTime  @default(now())
+    updatedAt  DateTime  @updatedAt
+
+    @@index([projectId])
+}
+
+model Financial {
+    id            String    @id @default(uuid())
+    category      String // BUDGET, EXPENSE, REVENUE
+    amount        Float
+    description   String?
+    date          DateTime?
+    paymentStatus String? // PENDING, PAID
+    projectId     String
+    project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    createdAt     DateTime  @default(now())
+    updatedAt     DateTime  @updatedAt
+
+    @@index([projectId])
+}
+
+model IssueRisk {
+    id          String   @id @default(uuid())
+    type        String // ISSUE, RISK
+    title       String
+    description String?
+    impact      String? // HIGH, MEDIUM, LOW
+    probability String? // HIGH, MEDIUM, LOW
+    mitigation  String?
+    status      String // OPEN, MITIGATED, CLOSED
+    projectId   String
+    project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@index([projectId])
+}
+
+model DailyActivity {
+    id          String   @id @default(uuid())
+    date        DateTime
+    activity    String
+    performedBy String?
+    status      String // PLANNED, COMPLETED, BLOCKED
+    notes       String?
+    projectId   String
+    project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@index([projectId])
+}
+
+model Note {
+    id        String   @id @default(uuid())
+    title     String
+    content   String
+    category  String?
+    projectId String
+    project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([projectId])
 }
 
 enum MeetingStatus {
