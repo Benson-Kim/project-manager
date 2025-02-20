@@ -2,50 +2,57 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { format } from "date-fns";
+import { useParams, useRouter } from "next/navigation";
+import { differenceInCalendarDays, differenceInDays, format } from "date-fns";
 import {
+	Pencil,
 	Calendar,
 	Users,
-	Milestone,
-	Target,
-	FileText,
-	MessageCircle,
-	HelpCircle,
-	Building,
-	AlertTriangle,
-	DollarSign,
-	Settings,
-	Pencil,
+	ListTodo,
+	MessageSquare,
+	CircleDollarSign,
+	Trash2,
+	CalendarClock,
+	Banknote,
+	MessagesSquare,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Permissions } from "@/lib/permissions";
+import Link from "next/link";
+import { useCrud } from "@/hooks/useCrud";
+import { formatCurrency, getStatusColor } from "@/lib/formatting";
+import MemberAvatars from "@/components/MemberAvatars";
+import ProjectActions from "@/components/ProjectActions";
 
 export default function ProjectDetailsPage() {
 	const params = useParams();
 	const router = useRouter();
-	const { data: session } = useSession();
-	const { can } = usePermissions();
-	const [project, setProject] = useState(null);
-	const [isLoading, setIsLoading] = useState(true);
-	const [activeSection, setActiveSection] = useState("overview");
+	const permissions = usePermissions();
+	const {
+		data: project,
+		isLoading,
+		error,
+		fetchAll,
+	} = useCrud(`/api/projects/${params.id}`, false);
 
 	useEffect(() => {
-		fetchProjectDetails();
+		fetchAll();
 	}, [params.id]);
 
-	const fetchProjectDetails = async () => {
-		try {
-			const response = await fetch(`/api/projects/${params.id}`);
-			if (!response.ok) throw new Error("Failed to fetch project details");
-			const data = await response.json();
-			setProject(data);
-		} catch (error) {
-			console.error("Error fetching project:", error);
-		} finally {
-			setIsLoading(false);
-		}
+	const { can } = usePermissions();
+	const [activeTab, setActiveTab] = useState("overview");
+
+	const calculateProgress = () => {
+		if (!project?.tasks?.length) return 0;
+		const completedTasks = project.tasks.filter(
+			(task) => task.status === "COMPLETED"
+		).length;
+		return Math.round((completedTasks / project.tasks.length) * 100);
+	};
+
+	const handleProjectUpdated = async () => {
+		await fetchAll();
 	};
 
 	if (isLoading) {
@@ -56,265 +63,342 @@ export default function ProjectDetailsPage() {
 		);
 	}
 
-	const sections = [
-		{
-			id: "overview",
-			label: "Overview",
-			icon: FileText,
-			content: (
-				<div className="space-y-6">
-					<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-						<div className="bg-white p-6 rounded-lg shadow-sm">
-							<h3 className="text-lg font-semibold mb-4">Project Overview</h3>
-							<div className="space-y-4">
-								<div>
-									<h4 className="text-sm font-medium text-gray-500">
-										Description
-									</h4>
-									<p className="mt-1">{project?.description}</p>
-								</div>
-								<div>
-									<h4 className="text-sm font-medium text-gray-500">
-										Objectives
-									</h4>
-									<ul className="mt-1 space-y-2">
-										{project?.objectives?.map((objective, index) => (
-											<li key={index} className="flex items-start">
-												<span className="mr-2">•</span>
-												{objective}
-											</li>
-										))}
-									</ul>
-								</div>
-							</div>
-						</div>
-						<div className="bg-white p-6 rounded-lg shadow-sm">
-							<h3 className="text-lg font-semibold mb-4">Key Dates</h3>
-							<div className="space-y-4">
-								<div className="flex justify-between">
-									<span className="text-gray-500">Start Date</span>
-									<span>
-										{format(new Date(project?.startDate), "MMM d, yyyy")}
-									</span>
-								</div>
-								<div className="flex justify-between">
-									<span className="text-gray-500">End Date</span>
-									<span>
-										{format(new Date(project?.endDate), "MMM d, yyyy")}
-									</span>
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
-			),
-		},
-		{
-			id: "planning",
-			label: "Planning",
-			icon: Target,
-			content: (
-				<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-					<div className="bg-white p-6 rounded-lg shadow-sm">
-						<h3 className="text-lg font-semibold mb-4">Milestones</h3>
-						{/* Milestones content */}
-					</div>
-					<div className="bg-white p-6 rounded-lg shadow-sm">
-						<h3 className="text-lg font-semibold mb-4">
-							Work Breakdown Structure
-						</h3>
-						{/* WBS content */}
-					</div>
-				</div>
-			),
-		},
-		{
-			id: "stakeholders",
-			label: "Stakeholders & Team",
-			icon: Users,
-			content: (
-				<div className="grid grid-cols-1 gap-6">
-					<div className="bg-white p-6 rounded-lg shadow-sm">
-						<h3 className="text-lg font-semibold mb-4">Project Team</h3>
-						{/* Team members grid */}
-					</div>
-					<div className="bg-white p-6 rounded-lg shadow-sm">
-						<h3 className="text-lg font-semibold mb-4">Stakeholders</h3>
-						{/* Stakeholders list */}
-					</div>
-				</div>
-			),
-		},
-		{
-			id: "documentation",
-			label: "Documentation",
-			icon: FileText,
-			content: (
-				<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-					<div className="bg-white p-6 rounded-lg shadow-sm">
-						<h3 className="text-lg font-semibold mb-4">Key Requirements</h3>
-						{/* Requirements content */}
-					</div>
-					<div className="bg-white p-6 rounded-lg shadow-sm">
-						<h3 className="text-lg font-semibold mb-4">Deliverables</h3>
-						{/* Deliverables content */}
-					</div>
-				</div>
-			),
-		},
-		{
-			id: "meetings",
-			label: "Meetings",
-			icon: MessageCircle,
-			content: (
-				<div className="space-y-6">
-					<div className="bg-white p-6 rounded-lg shadow-sm">
-						<h3 className="text-lg font-semibold mb-4">Upcoming Meetings</h3>
-						{/* Upcoming meetings list */}
-					</div>
-					<div className="bg-white p-6 rounded-lg shadow-sm">
-						<h3 className="text-lg font-semibold mb-4">Meeting Minutes</h3>
-						{/* Meeting minutes list */}
-					</div>
-				</div>
-			),
-		},
-		{
-			id: "resources",
-			label: "Resources",
-			icon: Settings,
-			content: (
-				<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-					<div className="bg-white p-6 rounded-lg shadow-sm">
-						<h3 className="text-lg font-semibold mb-4">IT Resources</h3>
-						{/* IT resources content */}
-					</div>
-					<div className="bg-white p-6 rounded-lg shadow-sm">
-						<h3 className="text-lg font-semibold mb-4">Suppliers</h3>
-						{/* Suppliers content */}
-					</div>
-				</div>
-			),
-		},
-		{
-			id: "financials",
-			label: "Financials",
-			icon: DollarSign,
-			content: (
-				<div className="space-y-6">
-					<div className="bg-white p-6 rounded-lg shadow-sm">
-						<h3 className="text-lg font-semibold mb-4">Budget Tracking</h3>
-						{/* Budget tracking content */}
-					</div>
-					<div className="bg-white p-6 rounded-lg shadow-sm">
-						<h3 className="text-lg font-semibold mb-4">Financial Documents</h3>
-						{/* Financial documents list */}
-					</div>
-				</div>
-			),
-		},
-		{
-			id: "risks",
-			label: "Risks & Issues",
-			icon: AlertTriangle,
-			content: (
-				<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-					<div className="bg-white p-6 rounded-lg shadow-sm">
-						<h3 className="text-lg font-semibold mb-4">Active Issues</h3>
-						{/* Issues list */}
-					</div>
-					<div className="bg-white p-6 rounded-lg shadow-sm">
-						<h3 className="text-lg font-semibold mb-4">Risk Register</h3>
-						{/* Risk register content */}
-					</div>
-				</div>
-			),
-		},
-		{
-			id: "reference",
-			label: "Reference",
-			icon: HelpCircle,
-			content: (
-				<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-					<div className="bg-white p-6 rounded-lg shadow-sm">
-						<h3 className="text-lg font-semibold mb-4">Q&A</h3>
-						{/* Q&A content */}
-					</div>
-					<div className="bg-white p-6 rounded-lg shadow-sm">
-						<h3 className="text-lg font-semibold mb-4">Acronyms</h3>
-						{/* Acronyms list */}
-					</div>
-					<div className="bg-white p-6 rounded-lg shadow-sm">
-						<h3 className="text-lg font-semibold mb-4">
-							Assumptions & Constraints
-						</h3>
-						{/* Assumptions and constraints content */}
-					</div>
-					<div className="bg-white p-6 rounded-lg shadow-sm">
-						<h3 className="text-lg font-semibold mb-4">Parking Lot Items</h3>
-						{/* Parking lot items list */}
-					</div>
-				</div>
-			),
-		},
-	];
+	if (error) {
+		return (
+			<div className="flex items-center justify-center min-h-screen">
+				<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
+			</div>
+		);
+	}
+
+	if (!project) {
+		return (
+			<div className="flex flex-col items-center justify-center min-h-screen">
+				<h1 className="text-2xl font-semibold text-slate-800">
+					Project not found
+				</h1>
+				<button
+					onClick={() => router.push("/projects")}
+					className="mt-4 px-4 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 transition-colors"
+				>
+					Return to Projects
+				</button>
+			</div>
+		);
+	}
 
 	return (
-		<div className="min-h-screen bg-gray-50">
-			{/* Header */}
-			<div className="bg-white border-b">
-				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-					<div className="flex justify-between items-center">
-						<div>
-							<h1 className="text-2xl font-bold text-gray-900">
-								{project?.name}
-							</h1>
-							<div className="flex items-center mt-1 text-sm text-gray-500">
-								<Calendar className="h-4 w-4 mr-1" />
-								<span>
-									Due {format(new Date(project?.endDate), "MMM d, yyyy")}
+		<div className="p-6 space-y-6">
+			{/* Breadcrumbs */}
+			<div className="flex justify-between items-center">
+				<div className="breadcrumbs text-sm">
+					<ul className="flex gap-2">
+						<li>
+							<a href="/dashboard" className="text-indigo-500">
+								Home
+							</a>
+						</li>
+						<li>
+							<a href="/dashboard/projects" className="text-indigo-500">
+								Projects
+							</a>
+						</li>
+						<li className="text-slate-700 font-medium">{project.name}</li>
+					</ul>
+				</div>
+				<div className="flex gap-4 items-center">
+					<Link
+						href={`/projects/${project.id}/expenses`}
+						className="bg-indigo-500 rounded h-5 w-5 tooltip"
+						data-tip="Expenses"
+					>
+						<CircleDollarSign className="" />
+					</Link>
+					<Link
+						href={`/projects/${project.id}/expenses`}
+						className="bg-indigo-500 rounded h-5 w-5 tooltip"
+						data-tip="Expenses"
+					>
+						<CircleDollarSign className="" />
+					</Link>
+					<Link
+						href={`/projects/${project.id}/expenses`}
+						className="bg-indigo-500 rounded h-5 w-5 tooltip"
+						data-tip="Expenses"
+					>
+						<CircleDollarSign className="" />
+					</Link>
+					{can(Permissions.EDIT_PROJECT) && (
+						<Link
+							href={`/projects/${project.id}/expenses`}
+							className="bg-indigo-500 rounded p-1.5 tooltip"
+							data-tip="Expenses"
+						>
+							<CircleDollarSign className="text-slate-50" />
+						</Link>
+					)}
+				</div>
+			</div>
+
+			{/* Header Section */}
+			<div className="bg-indigo-400 rounded-lg shadow-sm px-6 py-4 mb-6">
+				<div className="flex justify-between items-center">
+					<div className="flex flex-col space-y-4">
+						<h1 className="text-3xl font-bold text-slate-50">{project.name}</h1>
+						{/* Progress bar */}
+						<div className="mt-6">
+							<div className="flex justify-between items-center mb-2">
+								<span className="text-sm font-medium text-slate-50">
+									Progress
+								</span>
+								<span className="text-sm text-slate-800">
+									{calculateProgress()}%
 								</span>
 							</div>
+							<div className="w-full bg-slate-50 rounded-full h-2.5">
+								<div
+									className="bg-indigo-500 h-2.5 rounded-full transition-all duration-300"
+									style={{ width: `${calculateProgress()}%` }}
+								></div>
+							</div>
 						</div>
-						{can(Permissions.EDIT_PROJECT) && (
-							<button
-								onClick={() => router.push(`/projects/${project.id}/edit`)}
-								className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+					</div>
+					<div className="space-y-4">
+						<div className="flex items-center space-x-6 text-slate-600">
+							<span className="flex items-center">
+								<Calendar className="h-4 w-4 mr-2" />
+								Due {format(new Date(project.endDate), "MMM d, yyyy")}
+							</span>
+							<span
+								className={`px-3 py-1 rounded-full text-sm ${getStatusColor(
+									project.status
+								)}`}
 							>
-								<Pencil className="h-4 w-4 mr-2" />
-								Edit Project
-							</button>
-						)}
+								{project.status.replace(/_/g, " ")}
+							</span>
+						</div>
+					</div>
+
+					<MemberAvatars members={project.members} maxVisible={5} />
+					<ProjectActions
+						project={project}
+						onProjectUpdated={handleProjectUpdated}
+						permissions={permissions}
+					/>
+				</div>
+			</div>
+
+			<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+				<div className="flex justify-between items-center px-6 py-4 rounded-lg shadow-md">
+					<div className="flex items-center justify-center p-2.5 bg-lime-500 rounded-md">
+						<CalendarClock size={24} className="text-slate-50" />
+					</div>
+					<div className="flex flex-col space-y-1 items-end">
+						<p className="text-slate-500 font-semibold tracking-tighter">
+							Days left
+						</p>
+						<span className="text-slate-800 font-semibold">
+							{differenceInDays(project.endDate, project.startDate)}
+						</span>
+					</div>
+				</div>
+				<div className="flex justify-between items-center px-6 py-4 rounded-lg shadow-md">
+					<div className="flex items-center justify-center p-2.5 bg-cyan-500 rounded-md">
+						<Banknote size={28} className="text-slate-50" />
+					</div>
+					<div className="flex flex-col space-y-1 items-end">
+						<p className="text-slate-500 font-semibold tracking-tighter">
+							Budget
+						</p>
+						<span className="text-slate-800 font-semibold">
+							{formatCurrency(project.budget)}
+						</span>
+					</div>
+				</div>
+				<div className="flex justify-between items-center px-6 py-4 rounded-lg shadow-md">
+					<div className="flex items-center justify-center p-2.5 bg-pink-600 rounded-md">
+						<ListTodo size={24} className="text-slate-50" />
+					</div>
+					<div className="flex flex-col space-y-1 items-end">
+						<p className="text-slate-500 font-semibold tracking-tighter">
+							Total tasks
+						</p>
+						<span className="text-slate-800 font-semibold">
+							{project._count.tasks}
+						</span>
+					</div>
+				</div>
+				<div className="flex justify-between items-center px-6 py-4 rounded-lg shadow-md">
+					<div className="flex items-center justify-center p-2.5 bg-indigo-600 rounded-md">
+						<MessagesSquare size={24} className="text-slate-50" />
+					</div>
+					<div className="flex flex-col space-y-1 items-end">
+						<p className="text-slate-500 font-semibold tracking-tighter">
+							Meetings
+						</p>
+						<span className="text-slate-800 font-semibold">
+							{project._count.meetings}
+						</span>
 					</div>
 				</div>
 			</div>
 
-			{/* Navigation */}
-			<div className="bg-white border-b">
-				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-					<nav className="flex space-x-8 overflow-x-auto">
-						{sections.map(({ id, label, icon: Icon }) => (
-							<button
-								key={id}
-								onClick={() => setActiveSection(id)}
-								className={`flex items-center px-1 py-4 border-b-2 text-sm font-medium ${
-									activeSection === id
-										? "border-indigo-500 text-indigo-600"
-										: "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-								}`}
-							>
-								<Icon className="h-4 w-4 mr-2" />
-								{label}
-							</button>
-						))}
-					</nav>
-				</div>
+			{/* Tabs Navigation */}
+			<div className="border-b border-slate-200 mb-6">
+				<nav className="flex space-x-8">
+					{["overview", "tasks", "meetings", "files"].map((tab) => (
+						<button
+							key={tab}
+							onClick={() => setActiveTab(tab)}
+							className={`py-4 px-1 border-b-2 font-medium text-sm ${
+								activeTab === tab
+									? "border-indigo-500 text-indigo-600"
+									: "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+							}`}
+						>
+							{tab.charAt(0).toUpperCase() + tab.slice(1)}
+						</button>
+					))}
+				</nav>
 			</div>
 
-			{/* Content */}
-			<main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-				{sections.find((section) => section.id === activeSection)?.content}
-			</main>
+			{/* Tab Content */}
+			<div className="bg-white rounded-lg shadow-sm p-6">
+				{activeTab === "overview" && (
+					<div className="space-y-6">
+						<div>
+							<h3 className="text-lg font-semibold mb-2">Description</h3>
+							<p className="text-slate-600">
+								{project.description || "No description provided."}
+							</p>
+						</div>
+
+						<div>
+							<h3 className="text-lg font-semibold mb-2">Key Details</h3>
+							<div className="grid grid-cols-2 gap-4">
+								<div>
+									<p className="text-sm text-slate-500">Start Date</p>
+									<p className="text-slate-900">
+										{format(new Date(project.startDate), "MMM d, yyyy")}
+									</p>
+								</div>
+								<div>
+									<p className="text-sm text-slate-500">End Date</p>
+									<p className="text-slate-900">
+										{format(new Date(project.endDate), "MMM d, yyyy")}
+									</p>
+								</div>
+							</div>
+						</div>
+
+						<div>
+							<h3 className="text-lg font-semibold mb-2">Team Members</h3>
+							<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+								{project.members.map((member) => (
+									<div
+										key={member.user.id}
+										className="flex items-center p-3 bg-slate-50 rounded-lg"
+									>
+										<div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-medium">
+											{member.user.firstName[0]}
+										</div>
+										<div className="ml-3">
+											<p className="text-sm font-medium text-slate-900">
+												{member.user.firstName} {member.user.lastName}
+											</p>
+											<p className="text-sm text-slate-500">{member.role}</p>
+										</div>
+									</div>
+								))}
+							</div>
+						</div>
+					</div>
+				)}
+
+				{activeTab === "tasks" && (
+					<div>
+						<div className="flex justify-between items-center mb-4">
+							<h3 className="text-lg font-semibold">Tasks</h3>
+							{can(Permissions.CREATE_TASK) && (
+								<button
+									onClick={() =>
+										router.push(`/projects/${project.id}/tasks/new`)
+									}
+									className="px-4 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 transition-colors"
+								>
+									Add Task
+								</button>
+							)}
+						</div>
+						{project.tasks.length > 0 ? (
+							<div className="space-y-4">
+								{project.tasks.map((task) => (
+									<div key={task.id} className="border rounded-lg p-4">
+										<div className="flex justify-between items-start">
+											<div>
+												<h4 className="text-lg font-medium">{task.title}</h4>
+												<p className="text-slate-600 mt-1">
+													{task.description}
+												</p>
+											</div>
+											<span
+												className={`px-3 py-1 rounded-full text-sm ${getStatusColor(
+													task.status
+												)}`}
+											>
+												{task.status.replace(/_/g, " ")}
+											</span>
+										</div>
+									</div>
+								))}
+							</div>
+						) : (
+							<p className="text-slate-500 text-center py-8">
+								No tasks have been created yet.
+							</p>
+						)}
+					</div>
+				)}
+
+				{activeTab === "meetings" && (
+					<div>
+						<div className="flex justify-between items-center mb-4">
+							<h3 className="text-lg font-semibold">Meetings</h3>
+							<button className="px-4 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 transition-colors">
+								Schedule Meeting
+							</button>
+						</div>
+						{project.Meeting && project.Meeting.length > 0 ? (
+							<div className="space-y-4">
+								{project.Meeting.map((meeting) => (
+									<div key={meeting.id} className="border rounded-lg p-4">
+										<h4 className="text-lg font-medium">{meeting.title}</h4>
+										<p className="text-slate-600 mt-1">
+											{format(
+												new Date(meeting.scheduledFor),
+												"MMM d, yyyy 'at' h:mm a"
+											)}
+										</p>
+									</div>
+								))}
+							</div>
+						) : (
+							<p className="text-slate-500 text-center py-8">
+								No meetings scheduled.
+							</p>
+						)}
+					</div>
+				)}
+
+				{activeTab === "files" && (
+					<div>
+						<h3 className="text-lg font-semibold mb-4">Files & Documents</h3>
+						<p className="text-slate-500 text-center py-8">
+							No files uploaded yet.
+						</p>
+					</div>
+				)}
+			</div>
 		</div>
 	);
 }
