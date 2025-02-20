@@ -1,193 +1,308 @@
 // app/api/projects/[id]/route.js
+import { apiHandler, APIError, createResponse, getSession } from "@/lib/utils";
+import prisma from "@/lib/prisma";
+import { Permissions, SpecialPermissions } from "@/lib/newpermissions";
+import {
+	validateProjectData,
+	isProjectMember,
+	authorizeProjectAccess,
+} from "@/lib/projectUtils";
 
-import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import { getServerSession } from "next-auth";
-import { hasPermission, Permissions } from "@/lib/permissions";
-import { authOptions } from "@/lib/auth";
+export const GET = apiHandler(
+	async (req, { params }) => {
+		const { id } = await params;
+		const { permissions, session } = req;
 
-const prisma = new PrismaClient();
-
-export async function GET(request, context) {
-	try {
-		const session = await getServerSession(authOptions);
-
-		if (!session) {
-			return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+		// First check if user has general project read permission
+		if (!permissions.can(Permissions.READ_PROJECT)) {
+			throw new APIError("No permission to view projects", 403);
 		}
 
-		const projectId = context.params.id;
-		const userRole = session.user.role;
-
-		// Check if user has permission to view all projects or just assigned ones
-		const canViewAll = hasPermission(userRole, Permissions.VIEW_ALL_PROJECTS);
-		const canViewAssigned = hasPermission(
-			userRole,
-			Permissions.VIEW_ASSIGNED_PROJECTS
-		);
-
-		if (!canViewAll && !canViewAssigned) {
-			return NextResponse.json(
-				{ error: "Not authorized to view projects" },
-				{ status: 403 }
-			);
+		// Check if user can view all projects or is a project member
+		const canViewAll = permissions.can(SpecialPermissions.VIEW_ALL_PROJECTS);
+		if (!canViewAll) {
+			const isMember = await isProjectMember(session.user.id, id);
+			if (!isMember) {
+				throw new APIError("Not authorized to view this project", 403);
+			}
 		}
 
 		const project = await prisma.project.findUnique({
-			where: { id: projectId },
+			where: { id },
 			include: {
 				members: {
 					include: {
-						user: true,
+						user: {
+							select: {
+								id: true,
+								firstName: true,
+								lastName: true,
+								email: true,
+								role: true,
+							},
+						},
 					},
 				},
-				tasks: true,
-				Meeting: true,
+				tasks: {
+					select: {
+						id: true,
+						status: true,
+					},
+				},
+				meetings: true,
+				_count: {
+					select: {
+						tasks: true,
+						milestones: true,
+						meetings: true,
+					},
+				},
 			},
 		});
 
 		if (!project) {
-			return NextResponse.json({ error: "Project not found" }, { status: 404 });
+			throw new APIError("Project not found", 404);
 		}
 
-		// For users with VIEW_ASSIGNED_PROJECTS, verify they are a member
-		if (!canViewAll && canViewAssigned) {
-			const isMember = project.members.some(
-				(member) => member.user.id === session.user.id
-			);
-			if (!isMember) {
-				return NextResponse.json(
-					{ error: "Not authorized to view this project" },
-					{ status: 403 }
+		// Optionally filter sensitive data based on user role
+		const sanitizedProject = {
+			...project,
+			// Remove sensitive fields if user doesn't have sufficient permissions
+			meetings: permissions.can(Permissions.READ_MEETING)
+				? project.meetings
+				: [],
+			tasks: permissions.can(Permissions.READ_TASK) ? project.tasks : [],
+		};
+
+		return createResponse(sanitizedProject);
+	},
+	// Define contextual permission requirements
+	{
+		permission: Permissions.READ_PROJECT,
+		getContext: async (req, session, { params }, permissions) => {
+			const { id } = await params;
+			const isMember = await isProjectMember(session.user.id, id);
+			return {
+				isProjectMember: isMember,
+			};
+		},
+	}
+);
+
+export const PUT = apiHandler(async (req, { params }) => {
+	const { id } = await params;
+	const session = await getSession();
+
+	// Authorize with detailed context
+	const { existingProject, isAdmin, isPM } = await authorizeProjectAccess(
+		id,
+		session,
+		Permissions.UPDATE_PROJECT,
+		"update"
+	);
+
+	// Parse and validate request body
+	let projectData;
+	try {
+		projectData = await req.json();
+	} catch (error) {
+		throw new APIError("Invalid JSON in request body", 400);
+	}
+
+	// Validate project data
+	validateProjectData(projectData);
+
+	const {
+		name,
+		description,
+		startDate,
+		endDate,
+		status,
+		budget,
+		members = [],
+	} = projectData;
+
+	// Update project with members in a transaction
+	try {
+		const project = await prisma.$transaction(async (tx) => {
+			// Update the project
+			const updatedProject = await tx.project.update({
+				where: { id },
+				data: {
+					name,
+					description,
+					startDate: new Date(startDate),
+					endDate: new Date(endDate),
+					status,
+					budget: budget ? parseFloat(budget) : null,
+				},
+			});
+
+			// Handle member updates if user has sufficient permissions
+			if ((isAdmin || isPM) && members.length > 0) {
+				const currentMemberIds = existingProject.members.map((m) => m.userId);
+				const protectedIds = [existingProject.createdBy.id, session.user.id];
+
+				// Add new members
+				const membersToAdd = members.filter(
+					(m) => !currentMemberIds.includes(m.userId)
 				);
-			}
-		}
 
-		return NextResponse.json(project);
-	} catch (error) {
-		console.error("Error fetching project:", error);
-		return NextResponse.json(
-			{ error: "Failed to fetch project details" },
-			{ status: 500 }
-		);
-	}
-}
-
-export async function PUT(request, context) {
-	try {
-		const session = await getServerSession(authOptions);
-
-		if (!session) {
-			return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-		}
-
-		if (!hasPermission(session.user.role, Permissions.EDIT_PROJECT)) {
-			return NextResponse.json(
-				{ error: "Not authorized to edit projects" },
-				{ status: 403 }
-			);
-		}
-
-		const projectId = context.params.id;
-		const data = await request.json();
-
-		// Validate project exists and user has access
-		const existingProject = await prisma.project.findUnique({
-			where: { id: projectId },
-			include: {
-				members: {
-					select: {
-						userId: true,
-					},
-				},
-			},
-		});
-
-		if (!existingProject) {
-			return NextResponse.json({ error: "Project not found" }, { status: 404 });
-		}
-
-		const updatedProject = await prisma.project.update({
-			where: { id: projectId },
-			data: {
-				name: data.name,
-				description: data.description,
-				status: data.status,
-				startDate: data.startDate,
-				endDate: data.endDate,
-				// If updating members, handle it here
-				...(data.members && {
-					members: {
-						deleteMany: {},
-						create: data.members.map((memberId) => ({
-							userId: memberId,
+				if (membersToAdd.length > 0) {
+					await tx.projectMember.createMany({
+						data: membersToAdd.map((member) => ({
+							projectId: id,
+							userId: member.userId,
+							role: member.role || "TEAM_MEMBER",
+							roleDescription: member.roleDescription,
 						})),
+						skipDuplicates: true,
+					});
+				}
+
+				// Update existing members
+				for (const member of members) {
+					if (currentMemberIds.includes(member.userId)) {
+						await tx.projectMember.updateMany({
+							where: {
+								projectId: id,
+								userId: member.userId,
+							},
+							data: {
+								role: member.role,
+								roleDescription: member.roleDescription,
+							},
+						});
+					}
+				}
+
+				// Remove members not in the updated list (except protected users)
+				const memberIdsToKeep = members.map((m) => m.userId);
+				await tx.projectMember.deleteMany({
+					where: {
+						projectId: id,
+						userId: {
+							notIn: [...memberIdsToKeep, ...protectedIds],
+						},
 					},
-				}),
-			},
-			include: {
-				members: {
-					include: {
-						user: true,
+				});
+			}
+
+			// Return updated project with members
+			return tx.project.findUnique({
+				where: { id },
+				include: {
+					members: {
+						include: {
+							user: {
+								select: {
+									id: true,
+									firstName: true,
+									lastName: true,
+									email: true,
+									role: true,
+								},
+							},
+						},
 					},
 				},
-				tasks: true,
-				Meeting: true,
-			},
+			});
 		});
 
-		return NextResponse.json(updatedProject);
+		return createResponse(project);
 	} catch (error) {
-		console.error("Error updating project:", error);
-		return NextResponse.json(
-			{ error: "Failed to update project" },
-			{ status: 500 }
-		);
+		if (error.code === "P2002") {
+			throw new APIError("A project with this name already exists", 400);
+		}
+		if (error.code === "P2003") {
+			throw new APIError("One or more user IDs are invalid", 400);
+		}
+		throw error;
 	}
-}
+}, Permissions.UPDATE_PROJECT);
 
-export async function DELETE(request, context) {
+export const DELETE = apiHandler(async (req, { params }) => {
+	const { id } = await params;
+	const session = await getSession();
+
+	await authorizeProjectAccess(
+		id,
+		session,
+		Permissions.DELETE_PROJECT,
+		"delete"
+	);
+
 	try {
-		const session = await getServerSession(authOptions);
+		await prisma.$transaction(async (tx) => {
+			await tx.projectMember.deleteMany({
+				where: { projectId: id },
+			});
 
-		if (!session) {
-			return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-		}
+			await tx.comment.deleteMany({
+				where: {
+					projectMember: {
+						projectId: id,
+					},
+				},
+			});
 
-		if (!hasPermission(session.user.role, Permissions.DELETE_PROJECT)) {
-			return NextResponse.json(
-				{ error: "Not authorized to delete projects" },
-				{ status: 403 }
-			);
-		}
+			const projectMeetings = await tx.meeting.findMany({
+				where: { projectId: id },
+				select: { id: true },
+			});
 
-		const projectId = context.params.id;
+			const meetingIds = projectMeetings.map((m) => m.id);
 
-		// Verify project exists before deletion
-		const existingProject = await prisma.project.findUnique({
-			where: { id: projectId },
+			if (meetingIds.length > 0) {
+				await tx.meetingAttendee.deleteMany({
+					where: { meetingId: { in: meetingIds } },
+				});
+
+				await tx.meetingActionItem.deleteMany({
+					where: { meetingId: { in: meetingIds } },
+				});
+
+				await tx.meetingDecision.deleteMany({
+					where: { meetingId: { in: meetingIds } },
+				});
+
+				// Delete meetings
+				await tx.meeting.deleteMany({
+					where: { projectId: id },
+				});
+			}
+
+			await tx.milestone.deleteMany({
+				where: { projectId: id },
+			});
+
+			await tx.task.updateMany({
+				where: {
+					projectId: id,
+					parentId: { not: null },
+				},
+				data: { parentId: null },
+			});
+
+			await tx.task.deleteMany({
+				where: { projectId: id },
+			});
+
+			await tx.resource.deleteMany({
+				where: { projectId: id },
+			});
+
+			await tx.project.delete({
+				where: { id },
+			});
 		});
 
-		if (!existingProject) {
-			return NextResponse.json({ error: "Project not found" }, { status: 404 });
-		}
-
-		// Delete associated records first (if not handled by cascade)
-		await prisma.$transaction([
-			prisma.projectMember.deleteMany({
-				where: { projectId },
-			}),
-			prisma.project.delete({
-				where: { id: projectId },
-			}),
-		]);
-
-		return NextResponse.json({ message: "Project deleted successfully" });
+		return createResponse({
+			success: true,
+			message: "Project deleted successfully",
+		});
 	} catch (error) {
-		console.error("Project deletion error:", error);
-		return NextResponse.json(
-			{ error: "Failed to delete project" },
-			{ status: 500 }
-		);
+		console.error("Error deleting project:", error);
+		throw new APIError(`Failed to delete project: ${error.message}`, 500);
 	}
-}
+}, Permissions.DELETE_PROJECT);

@@ -1,5 +1,7 @@
 //components/Projects.jsx
 
+"use client";
+
 import ProjectsPage from "@/components/Projects";
 import { Plus } from "lucide-react";
 
