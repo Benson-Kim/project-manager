@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Plus, UserPlus, GripVertical, X } from "lucide-react";
-import StakeholderModal from "./StakeholderModal";
 
 export default function UsersPage() {
 	const [stakeholders, setStakeholders] = useState([]);
@@ -103,7 +102,6 @@ export default function UsersPage() {
 					>
 						<Plus size={16} />
 					</button>
-					<StakeholderModal />
 				</div>
 			</div>
 
@@ -174,7 +172,6 @@ export default function UsersPage() {
 						<span className="text-sm text-slate-500">
 							(Click to invite user)
 						</span>
-						<StakeholderModal />
 					</div>
 				</div>
 			</div>

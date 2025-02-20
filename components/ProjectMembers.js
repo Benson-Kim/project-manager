@@ -5,7 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { UserRoundPlus, UserRoundPen, Trash2 } from "lucide-react";
-import StakeholderModal from "./StakeholderModal";
+
 import DeleteConfirmationModal from "./DeleteConfirmationModal";
 
 const prisma = new PrismaClient();
@@ -13,7 +13,6 @@ const prisma = new PrismaClient();
 export default function ProjectMembers({ project }) {
 	const router = useRouter();
 	const [isPending, startTransition] = useTransition();
-	const [isStakeholderModalOpen, setIsStakeholderModalOpen] = useState(false);
 	const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 	const [selectedMember, setSelectedMember] = useState(null);
 	const [memberToDelete, setMemberToDelete] = useState(null);
@@ -107,7 +106,6 @@ export default function ProjectMembers({ project }) {
 					<button
 						onClick={() => {
 							setSelectedMember(null);
-							setIsStakeholderModalOpen(true);
 						}}
 						className="bg-indigo-500 p-1.5 rounded-md"
 						title="Invite Stakeholder"
@@ -137,7 +135,6 @@ export default function ProjectMembers({ project }) {
 						<button
 							onClick={() => {
 								setSelectedMember(member);
-								setIsStakeholderModalOpen(true);
 							}}
 							className="bg-lime-500 p-2 rounded"
 							title="Edit"
@@ -159,20 +156,6 @@ export default function ProjectMembers({ project }) {
 					</div>
 				</div>
 			))}
-
-			<StakeholderModal
-				isOpen={isStakeholderModalOpen}
-				onClose={() => {
-					setIsStakeholderModalOpen(false);
-					setSelectedMember(null);
-				}}
-				project={project}
-				existingMember={selectedMember}
-				onSubmit={
-					selectedMember ? handleUpdateStakeholder : handleAddStakeholder
-				}
-				isPending={isPending}
-			/>
 
 			<DeleteConfirmationModal
 				isOpen={isDeleteModalOpen}

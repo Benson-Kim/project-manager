@@ -1,12 +1,30 @@
-// hooks/usePermissions.js
+// hooks/usePermissionsNew.js
+import { useMemo } from "react";
 import { useSession } from "next-auth/react";
-import { hasPermission } from "@/lib/permissions";
+import {
+	checkContextualPermission,
+	hasAnyPermission,
+	hasPermission,
+	hasPermissions,
+} from "@/lib/permissions";
 
-export function usePermissions() {
+export const usePermissions = () => {
 	const { data: session } = useSession();
+	const userRole = session?.user?.role;
 
-	return {
-		can: (permission) => hasPermission(session?.user?.role, permission),
-		role: session?.user?.role,
-	};
-}
+	return useMemo(
+		() => ({
+			can: (permission) => hasPermission(userRole, permission),
+
+			canAll: (permissions) => hasPermissions(userRole, permissions),
+
+			canAny: (permissions) => hasAnyPermission(userRole, permissions),
+
+			canWithContext: (permission, context) =>
+				checkContextualPermission(userRole, permission, context),
+
+			role: userRole,
+		}),
+		[userRole]
+	);
+};

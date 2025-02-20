@@ -1,62 +1,56 @@
 // components/ProjectActions.jsx
 import { useState } from "react";
-import { Pencil, Trash2, AlertTriangle } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import ProjectEditModal from "./ProjectEditModal";
-import { useCrud } from "../hooks/useCrud";
-import { toast } from "react-hot-toast";
 import DeleteConfirmationModal from "./DeleteConfirmationModal";
+import { usePermissionGuardedCrud } from "@/hooks/usePermissionGuardedCrud";
+import { Permissions, ResourceTypes } from "@/lib/permissions";
+import { toast } from "react-hot-toast";
 
-export default function ProjectActions({
-	project,
-	onProjectUpdated,
-	permissions,
-}) {
+export default function ProjectActions({ project, onProjectUpdated }) {
 	const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 	const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
 	const params = useParams();
 	const router = useRouter();
 
-	// Initialize CRUD operations for this specific project
-	const { updateItem, deleteItem } = useCrud(
-		`/api/projects/${params.id}`,
-		false
+	const { updateItem, deleteItem, permissions } = usePermissionGuardedCrud(
+		ResourceTypes.PROJECT,
+		`/api/projects/${params.id}`
 	);
 
-	const handleEdit = () => {
-		setIsEditModalOpen(true);
-	};
-
-	const handleDelete = () => {
-		setIsDeleteModalOpen(true);
-	};
+	const handleEdit = () => setIsEditModalOpen(true);
+	const handleDelete = () => setIsDeleteModalOpen(true);
 
 	const handleEditSubmit = async (updatedProjectData) => {
+		if (!permissions.canUpdate) {
+			toast.error("You don't have permission to edit this project");
+			return;
+		}
 		try {
 			await updateItem(project.id, updatedProjectData);
-			if (onProjectUpdated) {
-				await onProjectUpdated(); // Refresh parent data
-			}
+			await onProjectUpdated(); // Refresh parent data
 			setIsEditModalOpen(false);
 			toast.success("Project updated successfully");
 		} catch (error) {
-			console.error("Update Error:", error);
-			toast.error(`Failed to update project: ${error.message}`);
+			toast.error("Failed to update project");
 		}
 	};
 
 	const handleDeleteConfirm = async () => {
+		if (!permissions.canDelete) {
+			toast.error("You don't have permission to delete this project");
+			return;
+		}
 		setIsDeleting(true);
 		try {
 			await deleteItem(project.id);
 			setIsDeleteModalOpen(false);
 			toast.success("Project deleted successfully");
-
-			// Navigate back to projects list
 			router.push("/dashboard/projects");
 		} catch (error) {
-			toast.error(`Failed to delete project: ${error.message}`);
+			toast.error("Failed to delete project");
 		} finally {
 			setIsDeleting(false);
 		}
@@ -64,8 +58,8 @@ export default function ProjectActions({
 
 	return (
 		<>
-			<div className="flex items-center justify-between space-x-4">
-				{permissions.can("EDIT_PROJECT") && (
+			<div className="flex items-center space-x-4">
+				{permissions.canUpdate && (
 					<button
 						onClick={handleEdit}
 						data-tip="Edit"
@@ -74,8 +68,7 @@ export default function ProjectActions({
 						<Pencil size={16} />
 					</button>
 				)}
-
-				{permissions.can("DELETE_PROJECT") && (
+				{permissions.canDelete && (
 					<button
 						onClick={handleDelete}
 						data-tip="Delete"

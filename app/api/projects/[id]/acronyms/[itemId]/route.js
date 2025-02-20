@@ -1,19 +1,12 @@
 // app/api/projects/[id]/acronyms/[itemId]/route.js
 import { createModuleApiHandlers } from "@/lib/moduleApiHandler";
 import { validateAcronym } from "@/lib/moduleValidators";
-import { ResourceTypes } from "@/lib/newpermissions";
+import { ResourceTypes } from "@/lib/permissions";
 
-const {
-  getHandler,
-  updateHandler,
-  deleteHandler,
-} = createModuleApiHandlers({
-  modelName: "Acronym",
-  resourceType: ResourceTypes.ACRONYM,
-  validateData: validateAcronym,
-  
-  
-  
+const { getHandler, updateHandler, deleteHandler } = createModuleApiHandlers({
+	modelName: "Acronym",
+	resourceType: ResourceTypes.ACRONYM,
+	validateData: validateAcronym,
 });
 
 export const GET = getHandler;

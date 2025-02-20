@@ -1,7 +1,7 @@
 // app/api/projects/route.js
 import { apiHandler, APIError, createResponse, getSession } from "@/lib/utils";
 import prisma from "@/lib/prisma";
-import { Permissions, SpecialPermissions } from "@/lib/newpermissions";
+import { Permissions, SpecialPermissions } from "@/lib/permissions";
 import { validateProjectData } from "@/lib/projectUtils";
 
 // Helper to process query parameters

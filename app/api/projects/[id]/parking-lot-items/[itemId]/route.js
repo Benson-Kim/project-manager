@@ -1,19 +1,12 @@
 // app/api/projects/[id]/parking-lot-items/[itemId]/route.js
 import { createModuleApiHandlers } from "@/lib/moduleApiHandler";
 import { validateParkingLotItem } from "@/lib/moduleValidators";
-import { ResourceTypes } from "@/lib/newpermissions";
+import { ResourceTypes } from "@/lib/permissions";
 
-const {
-  getHandler,
-  updateHandler,
-  deleteHandler,
-} = createModuleApiHandlers({
-  modelName: "ParkingLotItem",
-  resourceType: ResourceTypes.PARKING_LOT_ITEM,
-  validateData: validateParkingLotItem,
-  
-  
-  
+const { getHandler, updateHandler, deleteHandler } = createModuleApiHandlers({
+	modelName: "ParkingLotItem",
+	resourceType: ResourceTypes.PARKING_LOT_ITEM,
+	validateData: validateParkingLotItem,
 });
 
 export const GET = getHandler;

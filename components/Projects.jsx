@@ -1,11 +1,10 @@
-//components/Projects.jsx
-
+// components/Projects.jsx
 import { format } from "date-fns";
 import { toast } from "react-hot-toast";
 import { useSession } from "next-auth/react";
-import React, { useState, useEffect } from "react";
-
+import React, { useState, useEffect, useRef } from "react";
 import ProjectModal from "./ProjectModal";
+import { usePermissionGuardedCrud } from "@/hooks/usePermissionGuardedCrud";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
 	LayoutGrid,
@@ -15,117 +14,121 @@ import {
 	Plus,
 	EllipsisVertical,
 	Folder,
+	Pencil,
+	UserPlus,
+	Copy,
+	Share2,
 } from "lucide-react";
-import { Permissions } from "@/lib/permissions";
+import {
+	Permissions,
+	ResourceTypes,
+	SpecialPermissions,
+} from "@/lib/permissions";
 import Link from "next/link";
+import { getStatusColor } from "@/lib/formatting";
+import MemberAvatars from "./MemberAvatars";
+import ProjectEditModal from "./ProjectEditModal";
 
-const getStatusColor = (status) => {
-	const colors = {
-		PLANNING: "bg-blue-500",
-		IN_PROGRESS: "bg-yellow-500",
-		ON_HOLD: "bg-orange-500",
-		COMPLETED: "bg-green-500",
-	};
-	return colors[status] || "bg-gray-500";
-};
+const SubMenuItem = ({ icon, label, onClick }) => (
+	<li
+		onClick={onClick}
+		className="flex items-center gap-3 px-4 py-2 hover:bg-gray-100 cursor-pointer transition-all"
+	>
+		{icon}
+		<span>{label}</span>
+	</li>
+);
 
-const getInitialBackgroundColor = (initial) => {
-	const colors = [
-		"bg-pink-500",
-		"bg-purple-500",
-		"bg-indigo-500",
-		"bg-blue-500",
-		"bg-green-500",
-		"bg-yellow-500",
-		"bg-red-500",
-		"bg-teal-500",
-	];
-	return colors[initial.charCodeAt(0) % colors.length];
-};
+const ProjectsList = ({ project, onEdit, onDelete }) => {
+	const { id, name, endDate, status, members } = project;
+	const [isSubmenuOpen, setSubMenuOpen] = useState(false);
+	const menuRef = useRef();
 
-const getInitials = (name) => {
-	return name
-		? name
-				.split(" ")
-				.map((n) => n[0])
-				.join("")
-				.toUpperCase()
-		: "?";
-};
-
-const ProjectsList = ({ project }) => {
-	const { id, name, endDate, status, members, tasks, Meeting } = project;
+	// Close submenu on outside click
+	useEffect(() => {
+		const handleClickOutside = (event) => {
+			if (menuRef.current && !menuRef.current.contains(event.target)) {
+				setSubMenuOpen(false);
+			}
+		};
+		document.addEventListener("mousedown", handleClickOutside);
+		return () => document.removeEventListener("mousedown", handleClickOutside);
+	}, []);
 
 	return (
-		<div className="flex flex-row items-center justify-between sm:text-sm sm:my-0 p-2 sm:px-4 sm:py-3 sm:border-b border-y-slate-400 first:sm:border-t sm:hover:bg-slate-200 sm:hover:bg-opacity-75 transition-all ease-in-out duration-200 cursor-pointer">
-			<div className="flex flex-row flex-1 items-center gap-12">
-				<button className="">
-					<Folder />
-				</button>
-				<div className="flex-1 flex flex-col gap-2 sm:items-center sm:flex-row sm:gap-4  md:gap-6">
-					<Link
-						href={`/projects/${id}`}
-						className="text-lg font-semibold cursor-pointer"
-					>
-						{name}
-					</Link>
-					<p className="text-sm ">
-						Due{" "}
-						<span className="text-slate-500">
-							{format(endDate, "MMM d, yyyy")}
-						</span>
-					</p>
-				</div>
-				<div className="hidden sm:flex">
-					<span
-						className={`${getStatusColor(
-							status
-						)} text-white text-xs py-2 px-3 rounded-full`}
-					>
-						{status.replace("_", " ")}
-					</span>
-					<div className="flex items-center -space-x-3">
-						{members.slice(0, 5).map((member, index) => (
-							<div
-								key={member.user.id}
-								className={`relative w-8 h-8 flex items-center justify-center rounded-full border-2 border-white shadow ${
-									member.user.avatar
-										? "bg-cover bg-center"
-										: getInitialBackgroundColor(member.user.firstName[0])
-								}`}
-								style={{
-									backgroundImage: member.user.avatar
-										? `url(${member.user.avatar})`
-										: "none",
-									zIndex: members.length - index,
-								}}
-							>
-								{!member.user.avatar && (
-									<span className="text-white font-bold text-xs">
-										{getInitials(member.user.firstName)}
-									</span>
-								)}
-							</div>
-						))}
-						{members.length > 5 && (
-							<span className="w-8 h-8 flex items-center justify-center bg-gray-200 text-gray-600 text-xs font-semibold rounded-full border-2 border-white">
-								+{members.length - 5}
-							</span>
-						)}
-					</div>
-				</div>
+		<div className="grid grid-cols-[3.5fr_1fr_1fr_1.5fr_50px] items-center py-3 border-b hover:bg-gray-100 transition">
+			{" "}
+			{/* Project Info */}
+			<div className="flex flex-row flex-1 items-center gap-8">
+				<Folder className="w-6 h-6 text-yellow-500" />
+				<Link
+					href={`/projects/${id}`}
+					className="text-base font-semibold hover:underline"
+				>
+					{name}
+				</Link>
 			</div>
-			<div className="">
-				<EllipsisVertical />
+			{/* Due date */}
+			<p className="text-sm font-medium text-slate-500">
+				{format(endDate, "MMM d, yyyy")}
+			</p>
+			{/* Status  */}
+			<span
+				className={`${getStatusColor(
+					status
+				)} text-white text-xs py-1 px-3 rounded-full capitalize hidden sm:block`}
+			>
+				{status.replace("_", " ")}
+			</span>
+			{/* Members */}
+			<div className="hidden sm:block">
+				<MemberAvatars members={members} maxVisible={5} />
+			</div>
+			{/* Ellipsis Dropdown */}
+			<div className="relative" ref={menuRef}>
+				<button
+					onClick={() => setSubMenuOpen(!isSubmenuOpen)}
+					className="p-1 rounded-full hover:bg-gray-200 transition"
+				>
+					<EllipsisVertical className="w-6 h-6 text-gray-600" />
+				</button>
+				{isSubmenuOpen && (
+					<div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10 animate-fadeIn">
+						<ul className="text-sm text-gray-700">
+							<SubMenuItem
+								icon={<Pencil className="w-4 h-4" />}
+								label="Edit"
+								onClick={() => onEdit(project)}
+							/>
+							<SubMenuItem
+								icon={<Trash2 className="w-4 h-4 text-red-500" />}
+								label="Delete"
+								onClick={() => onDelete(project)}
+							/>
+							<SubMenuItem
+								icon={<UserPlus className="w-4 h-4" />}
+								label="Add Members"
+								onClick={() => console.log("Add Members", id)}
+							/>
+							<SubMenuItem
+								icon={<Copy className="w-4 h-4" />}
+								label="Duplicate"
+								onClick={() => console.log("Duplicate", id)}
+							/>
+							<SubMenuItem
+								icon={<Share2 className="w-4 h-4" />}
+								label="Share with Client"
+								onClick={() => console.log("Share", id)}
+							/>
+						</ul>
+					</div>
+				)}
 			</div>
 		</div>
 	);
 };
 
 const ProjectsGrid = ({ project, onEdit, onDelete }) => {
-	const displayMembers = project.members.slice(0, 5);
-	const additionalMembers = project.members.length - 5;
-
 	return (
 		<div className="bg-white rounded-lg shadow p-6 space-y-4 relative group cursor-pointer">
 			<div className="absolute right-2 top-2 hidden group-hover:flex gap-2">
@@ -169,36 +172,7 @@ const ProjectsGrid = ({ project, onEdit, onDelete }) => {
 				Due: {format(new Date(project.endDate), "MMM d, yyyy")}
 			</div>
 
-			<div className="flex items-center">
-				<div className="flex -space-x-2">
-					{displayMembers.map((member, index) => (
-						<div
-							key={member.user.id}
-							className={`${getInitialBackgroundColor(
-								member.user.firstName[0]
-							)} 
-                                w-8 h-8 rounded-full flex items-center justify-center 
-                                text-white text-sm font-medium border-2 border-white
-                                transition-transform hover:scale-110`}
-							style={{ zIndex: displayMembers.length - index }}
-							title={`${member.user.firstName} ${
-								member.user.lastName
-							} (${member.role.replace("_", " ").toLowerCase()})`}
-						>
-							{member.user.firstName[0]}
-						</div>
-					))}
-					{additionalMembers > 0 && (
-						<div
-							className="w-8 h-8 rounded-full flex items-center justify-center 
-                            bg-gray-200 text-gray-600 text-sm border-2 border-white"
-							title={`${additionalMembers} more members`}
-						>
-							+{additionalMembers}
-						</div>
-					)}
-				</div>
-			</div>
+			<MemberAvatars members={project.members} maxVisible={5} />
 
 			<div className="flex justify-between text-sm text-gray-600">
 				<span>{project._count.tasks} tasks</span>
@@ -214,56 +188,84 @@ const ProjectsGrid = ({ project, onEdit, onDelete }) => {
 const ProjectsPage = () => {
 	const { data: session, status } = useSession();
 	const { can } = usePermissions();
-	const [projects, setProjects] = useState([]);
+	const {
+		data: response,
+		isLoading,
+		error,
+		fetchAll,
+	} = usePermissionGuardedCrud(ResourceTypes.PROJECT, "/api/projects", true);
 
+	const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+	const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+	const [selectedProject, setSelectedProject] = useState(null);
+	const [isDeleting, setIsDeleting] = useState(false);
 	const [isGridView, setIsGridView] = useState(true);
 	const [isModalOpen, setIsModalOpen] = useState(false);
 
-	const [isLoading, setIsLoading] = useState(true);
-	const [error, setError] = useState(null);
+	const projects = response?.data || [];
 
-	useEffect(() => {
-		if (session) {
-			fetchProjects();
-		}
-	}, [session]);
+	const selectedProjectCrud = usePermissionGuardedCrud(
+		ResourceTypes.PROJECT,
+		selectedProject ? `/api/projects/${selectedProject.id}` : null,
+		false
+	);
 
-	const fetchProjects = async () => {
+	const handleProjectUpdated = async () => {
+		await fetchAll();
+	};
+
+	const handleEdit = (project) => {
+		setSelectedProject(project);
+		setIsEditModalOpen(true);
+	};
+
+	const handleEditSubmit = async (updatedProjectData) => {
 		try {
-			const response = await fetch("/api/projects");
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
+			if (!selectedProject) {
+				throw new Error("No project selected for editing");
 			}
-			const data = await response.json();
-			setProjects(data);
-			setIsLoading(false);
+
+			await selectedProjectCrud.updateItem(
+				selectedProject.id,
+				updatedProjectData
+			);
+
+			await handleProjectUpdated();
+			setIsEditModalOpen(false);
+			toast.success("Project updated successfully");
 		} catch (error) {
-			console.error("Failed to fetch projects:", error);
-			setIsLoading(false);
+			console.error("Update Error:", error);
+			toast.error(`Failed to update project: ${error.message}`);
 		}
 	};
 
-	const handleDelete = async (projectId) => {
-		if (!can(Permissions.DELETE_PROJECT)) {
-			toast.error("You don't have permission to delete projects");
-			return;
+	useEffect(() => {
+		if (
+			status === "authenticated" &&
+			(can(Permissions.READ_PROJECT) ||
+				can(SpecialPermissions.VIEW_ASSIGNED_PROJECTS))
+		) {
+			fetchAll();
 		}
-		if (window.confirm("Are you sure you want to delete this project?")) {
-			try {
-				const response = await fetch(`/api/projects/${projectId}`, {
-					method: "DELETE",
-				});
+	}, [status, can]);
 
-				if (!response.ok) {
-					throw new Error(`HTTP error! status: ${response.status}`);
-				}
+	const handleDelete = (project) => {
+		setSelectedProject(project);
+		setIsDeleteModalOpen(true);
+	};
 
-				toast.success("Project deleted successfully");
-				fetchProjects();
-			} catch (error) {
-				console.error("Failed to delete project:", error);
-				toast.error("Failed to delete project");
-			}
+	const handleDeleteConfirm = async () => {
+		setIsDeleting(true);
+		try {
+			await selectedProjectCrud.deleteItem(selectedProject.id);
+			setIsDeleteModalOpen(false);
+			await handleProjectUpdated();
+			toast.success("Project deleted successfully");
+		} catch (error) {
+			console.log("Error deleting the project", error);
+			toast.error(`Failed to delete project: ${error.message}`);
+		} finally {
+			setIsDeleting(false);
 		}
 	};
 
@@ -274,12 +276,9 @@ const ProjectsPage = () => {
 		}
 
 		try {
-			setError(null);
 			const response = await fetch("/api/projects", {
 				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(formData),
 			});
 
@@ -288,13 +287,11 @@ const ProjectsPage = () => {
 				throw new Error(errorData.error || "Failed to create project");
 			}
 
-			const newProject = await response.json();
-			setProjects((prev) => [newProject, ...prev]);
+			await fetchAll(); // Refresh project list
 			setIsModalOpen(false);
 			toast.success("Project created successfully");
 		} catch (error) {
 			console.error("Error creating project:", error);
-			setError(error.message);
 			toast.error(error.message);
 		}
 	};
@@ -315,15 +312,28 @@ const ProjectsPage = () => {
 		);
 	}
 
+	if (
+		!can(Permissions.READ_PROJECT) &&
+		!can(SpecialPermissions.VIEW_ASSIGNED_PROJECTS)
+	) {
+		return (
+			<div className="flex justify-center items-center h-64">
+				<p className="text-gray-600">
+					You don't have permission to view projects
+				</p>
+			</div>
+		);
+	}
+
 	return (
 		<div className="p-6 space-y-6">
 			<div className="flex justify-between items-center">
 				<div className="breadcrumbs text-sm">
 					<ul className="flex gap-2">
 						<li>
-							<a href="/dashboard" className="text-indigo-500">
+							<Link href="/dashboard" className="text-indigo-500">
 								Home
-							</a>
+							</Link>
 						</li>
 						<li className="text-slate-700 font-medium">Projects</li>
 					</ul>
@@ -351,7 +361,7 @@ const ProjectsPage = () => {
 							<AlignJustify className="w-5 h-5" />
 						</button>
 					</div>
-					{can("CREATE_PROJECT") && (
+					{can(Permissions.CREATE_PROJECT) && (
 						<button
 							onClick={() => setIsModalOpen(true)}
 							data-tip="Create Project"
@@ -371,29 +381,79 @@ const ProjectsPage = () => {
 						: "flex flex-col space-y-4 sm:space-y-0"
 				}`}
 			>
+				{!isGridView && (
+					<div className="grid grid-cols-[3.5fr_1fr_1fr_1.5fr_50px] items-center py-3 text-sm font-semibold border-b">
+						<span>Project Name</span>
+						<span>Due Date</span>
+						<span>Status</span>
+						<span>Members</span>
+						<span></span>
+					</div>
+				)}
 				{isGridView
 					? projects.map((project) => (
 							<ProjectsGrid
 								key={project.id}
 								project={project}
-								onEdit={(project) => console.log("Edit project:", project)}
+								onEdit={handleEdit}
 								onDelete={handleDelete}
+								canUpdate={can(Permissions.UPDATE_PROJECT)}
+								canDelete={can(Permissions.DELETE_PROJECT)}
 							/>
 					  ))
 					: projects.map((project) => (
 							<ProjectsList
 								key={project.id}
 								project={project}
-								onEdit={(project) => console.log("Edit project:", project)}
+								onEdit={handleEdit}
 								onDelete={handleDelete}
+								canUpdate={can(Permissions.UPDATE_PROJECT)}
+								canDelete={can(Permissions.DELETE_PROJECT)}
 							/>
 					  ))}
 			</div>
-			<ProjectModal
-				isOpen={isModalOpen}
-				onClose={() => setIsModalOpen(false)}
-				onSubmit={handleCreateProject}
-			/>
+			{isDeleteModalOpen && (
+				<div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+					<div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full">
+						<h2 className="text-lg font-semibold mb-4">Confirm Delete</h2>
+						<p>
+							Are you sure you want to delete the project{" "}
+							<strong>{selectedProject?.name}</strong>?
+						</p>
+						<div className="flex justify-end gap-4 mt-6">
+							<button
+								onClick={() => setIsDeleteModalOpen(false)}
+								className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+							>
+								Cancel
+							</button>
+							<button
+								onClick={handleDeleteConfirm}
+								disabled={isDeleting}
+								className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+							>
+								{isDeleting ? "Deleting..." : "Delete"}
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{isModalOpen && (
+				<ProjectModal
+					isOpen={isModalOpen}
+					onClose={() => setIsModalOpen(false)}
+					onSubmit={handleCreateProject}
+				/>
+			)}
+			{isEditModalOpen && (
+				<ProjectEditModal
+					isOpen={isEditModalOpen}
+					onClose={() => setIsEditModalOpen(false)}
+					project={selectedProject}
+					onSubmit={handleEditSubmit}
+				/>
+			)}
 		</div>
 	);
 };

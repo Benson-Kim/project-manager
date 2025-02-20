@@ -1,7 +1,7 @@
 // app/api/projects/[id]/stakeholders/[itemId]/route.js
 import { apiHandler, createResponse, getSession } from "@/lib/utils";
 import prisma from "@/lib/prisma";
-import { Permissions } from "@/lib/newpermissions";
+import { Permissions } from "@/lib/permissions";
 import { authorizeProjectAccess, isProjectMember } from "@/lib/projectUtils";
 
 // Get a specific stakeholder

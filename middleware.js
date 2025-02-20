@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { getSession } from "./lib/utils";
-import { hasPermission, checkContextualPermission } from "@/lib/newpermissions";
+import { hasPermission, checkContextualPermission } from "@/lib/permissions";
 
 export async function middleware(request) {
 	const token = await getToken({ req: request });

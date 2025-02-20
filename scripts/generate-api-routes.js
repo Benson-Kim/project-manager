@@ -118,7 +118,7 @@ async function generateMainRouteFile(module) {
 	const content = `// app/api/projects/[id]/${module.name}/route.js
 import { createModuleApiHandlers } from "@/lib/moduleApiHandler";
 import { ${module.validator} } from "@/lib/moduleValidators";
-import { ResourceTypes } from "@/lib/newpermissions";
+import { ResourceTypes } from "@/lib/permissions";
 
 const {
   listHandler,
@@ -154,7 +154,7 @@ async function generateIdRouteFile(module) {
 	const content = `// app/api/projects/[id]/${module.name}/[itemId]/route.js
 import { createModuleApiHandlers } from "@/lib/moduleApiHandler";
 import { ${module.validator} } from "@/lib/moduleValidators";
-import { ResourceTypes } from "@/lib/newpermissions";
+import { ResourceTypes } from "@/lib/permissions";
 
 const {
   getHandler,

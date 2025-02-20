@@ -1,19 +1,12 @@
 // app/api/projects/[id]/questions-answers/[itemId]/route.js
 import { createModuleApiHandlers } from "@/lib/moduleApiHandler";
 import { validateQuestionAnswer } from "@/lib/moduleValidators";
-import { ResourceTypes } from "@/lib/newpermissions";
+import { ResourceTypes } from "@/lib/permissions";
 
-const {
-  getHandler,
-  updateHandler,
-  deleteHandler,
-} = createModuleApiHandlers({
-  modelName: "QuestionAnswer",
-  resourceType: ResourceTypes.QUESTION_ANSWER,
-  validateData: validateQuestionAnswer,
-  
-  
-  
+const { getHandler, updateHandler, deleteHandler } = createModuleApiHandlers({
+	modelName: "QuestionAnswer",
+	resourceType: ResourceTypes.QUESTION_ANSWER,
+	validateData: validateQuestionAnswer,
 });
 
 export const GET = getHandler;

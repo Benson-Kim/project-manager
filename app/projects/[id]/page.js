@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
-import { differenceInCalendarDays, differenceInDays, format } from "date-fns";
+import { differenceInDays, format } from "date-fns";
 import {
 	Pencil,
 	Calendar,
@@ -17,10 +17,15 @@ import {
 	Banknote,
 	MessagesSquare,
 } from "lucide-react";
+import { usePermissionGuardedCrud } from "@/hooks/usePermissionGuardedCrud";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Permissions } from "@/lib/permissions";
+import {
+	Permissions,
+	ResourceTypes,
+	SpecialPermissions,
+} from "@/lib/permissions";
+import { toast } from "react-hot-toast";
 import Link from "next/link";
-import { useCrud } from "@/hooks/useCrud";
 import { formatCurrency, getStatusColor } from "@/lib/formatting";
 import MemberAvatars from "@/components/MemberAvatars";
 import ProjectActions from "@/components/ProjectActions";
@@ -28,19 +33,30 @@ import ProjectActions from "@/components/ProjectActions";
 export default function ProjectDetailsPage() {
 	const params = useParams();
 	const router = useRouter();
-	const permissions = usePermissions();
+	const { data: session } = useSession();
+	const { can, canWithContext } = usePermissions();
+
 	const {
 		data: project,
 		isLoading,
-		error,
 		fetchAll,
-	} = useCrud(`/api/projects/${params.id}`, false);
+	} = usePermissionGuardedCrud(
+		ResourceTypes.PROJECT,
+		`/api/projects/${params.id}`
+	);
 
 	useEffect(() => {
-		fetchAll();
-	}, [params.id]);
+		if (
+			can(Permissions.READ_PROJECT) ||
+			can(SpecialPermissions.VIEW_ASSIGNED_PROJECTS)
+		) {
+			fetchAll();
+		} else {
+			toast.error("You don't have permission to view this project.");
+			router.push("/dashboard/projects");
+		}
+	}, [params.id, can, router]);
 
-	const { can } = usePermissions();
 	const [activeTab, setActiveTab] = useState("overview");
 
 	const calculateProgress = () => {
@@ -53,17 +69,10 @@ export default function ProjectDetailsPage() {
 
 	const handleProjectUpdated = async () => {
 		await fetchAll();
+		toast.success("Project updated successfully.");
 	};
 
 	if (isLoading) {
-		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
-			</div>
-		);
-	}
-
-	if (error) {
 		return (
 			<div className="flex items-center justify-center min-h-screen">
 				<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
@@ -87,6 +96,15 @@ export default function ProjectDetailsPage() {
 		);
 	}
 
+	const canUpdateTask = (task) =>
+		can(Permissions.UPDATE_TASK) &&
+		canWithContext(Permissions.UPDATE_TASK, {
+			isProjectMember: project.members.some(
+				(m) => m.userId === session?.user?.id
+			),
+			isTaskAssignee: task.assigneeId === session?.user?.id,
+		});
+
 	return (
 		<div className="p-6 space-y-6">
 			{/* Breadcrumbs */}
@@ -94,14 +112,14 @@ export default function ProjectDetailsPage() {
 				<div className="breadcrumbs text-sm">
 					<ul className="flex gap-2">
 						<li>
-							<a href="/dashboard" className="text-indigo-500">
+							<Link href="/dashboard" className="text-indigo-500">
 								Home
-							</a>
+							</Link>
 						</li>
 						<li>
-							<a href="/dashboard/projects" className="text-indigo-500">
+							<Link href="/dashboard/projects" className="text-indigo-500">
 								Projects
-							</a>
+							</Link>
 						</li>
 						<li className="text-slate-700 font-medium">{project.name}</li>
 					</ul>
@@ -109,32 +127,18 @@ export default function ProjectDetailsPage() {
 				<div className="flex gap-4 items-center">
 					<Link
 						href={`/projects/${project.id}/expenses`}
-						className="bg-indigo-500 rounded h-5 w-5 tooltip"
+						className="bg-indigo-500 rounded p-1.5 tooltip"
 						data-tip="Expenses"
 					>
-						<CircleDollarSign className="" />
+						<CircleDollarSign className="text-slate-50 h-5 w-5" />
 					</Link>
-					<Link
-						href={`/projects/${project.id}/expenses`}
-						className="bg-indigo-500 rounded h-5 w-5 tooltip"
-						data-tip="Expenses"
-					>
-						<CircleDollarSign className="" />
-					</Link>
-					<Link
-						href={`/projects/${project.id}/expenses`}
-						className="bg-indigo-500 rounded h-5 w-5 tooltip"
-						data-tip="Expenses"
-					>
-						<CircleDollarSign className="" />
-					</Link>
-					{can(Permissions.EDIT_PROJECT) && (
+					{can(Permissions.UPDATE_PROJECT) && (
 						<Link
-							href={`/projects/${project.id}/expenses`}
+							href={`/projects/${project.id}/edit`}
 							className="bg-indigo-500 rounded p-1.5 tooltip"
-							data-tip="Expenses"
+							data-tip="Edit Project"
 						>
-							<CircleDollarSign className="text-slate-50" />
+							<Pencil className="text-slate-50 h-5 w-5" />
 						</Link>
 					)}
 				</div>
@@ -178,16 +182,16 @@ export default function ProjectDetailsPage() {
 							</span>
 						</div>
 					</div>
-
 					<MemberAvatars members={project.members} maxVisible={5} />
 					<ProjectActions
 						project={project}
 						onProjectUpdated={handleProjectUpdated}
-						permissions={permissions}
+						permissions={{ can }}
 					/>
 				</div>
 			</div>
 
+			{/* Stats Grid */}
 			<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
 				<div className="flex justify-between items-center px-6 py-4 rounded-lg shadow-md">
 					<div className="flex items-center justify-center p-2.5 bg-lime-500 rounded-md">
@@ -198,7 +202,7 @@ export default function ProjectDetailsPage() {
 							Days left
 						</p>
 						<span className="text-slate-800 font-semibold">
-							{differenceInDays(project.endDate, project.startDate)}
+							{differenceInDays(new Date(project.endDate), new Date())}
 						</span>
 					</div>
 				</div>
@@ -272,7 +276,6 @@ export default function ProjectDetailsPage() {
 								{project.description || "No description provided."}
 							</p>
 						</div>
-
 						<div>
 							<h3 className="text-lg font-semibold mb-2">Key Details</h3>
 							<div className="grid grid-cols-2 gap-4">
@@ -290,7 +293,6 @@ export default function ProjectDetailsPage() {
 								</div>
 							</div>
 						</div>
-
 						<div>
 							<h3 className="text-lg font-semibold mb-2">Team Members</h3>
 							<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -333,14 +335,15 @@ export default function ProjectDetailsPage() {
 						{project.tasks.length > 0 ? (
 							<div className="space-y-4">
 								{project.tasks.map((task) => (
-									<div key={task.id} className="border rounded-lg p-4">
-										<div className="flex justify-between items-start">
-											<div>
-												<h4 className="text-lg font-medium">{task.title}</h4>
-												<p className="text-slate-600 mt-1">
-													{task.description}
-												</p>
-											</div>
+									<div
+										key={task.id}
+										className="border rounded-lg p-4 flex justify-between items-start"
+									>
+										<div>
+											<h4 className="text-lg font-medium">{task.title}</h4>
+											<p className="text-slate-600 mt-1">{task.description}</p>
+										</div>
+										<div className="flex items-center space-x-2">
 											<span
 												className={`px-3 py-1 rounded-full text-sm ${getStatusColor(
 													task.status
@@ -348,6 +351,14 @@ export default function ProjectDetailsPage() {
 											>
 												{task.status.replace(/_/g, " ")}
 											</span>
+											{canUpdateTask(task) && (
+												<Link
+													href={`/projects/${project.id}/tasks/${task.id}/edit`}
+													className="text-indigo-500 hover:text-indigo-700"
+												>
+													<Pencil size={16} />
+												</Link>
+											)}
 										</div>
 									</div>
 								))}
@@ -364,18 +375,25 @@ export default function ProjectDetailsPage() {
 					<div>
 						<div className="flex justify-between items-center mb-4">
 							<h3 className="text-lg font-semibold">Meetings</h3>
-							<button className="px-4 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 transition-colors">
-								Schedule Meeting
-							</button>
+							{can(Permissions.CREATE_MEETING) && (
+								<button
+									onClick={() =>
+										router.push(`/projects/${project.id}/meetings/new`)
+									}
+									className="px-4 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 transition-colors"
+								>
+									Schedule Meeting
+								</button>
+							)}
 						</div>
-						{project.Meeting && project.Meeting.length > 0 ? (
+						{project.meetings && project.meetings.length > 0 ? (
 							<div className="space-y-4">
-								{project.Meeting.map((meeting) => (
+								{project.meetings.map((meeting) => (
 									<div key={meeting.id} className="border rounded-lg p-4">
 										<h4 className="text-lg font-medium">{meeting.title}</h4>
 										<p className="text-slate-600 mt-1">
 											{format(
-												new Date(meeting.scheduledFor),
+												new Date(meeting.startTime),
 												"MMM d, yyyy 'at' h:mm a"
 											)}
 										</p>

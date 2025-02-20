@@ -1,6 +1,6 @@
 // middleware/withPermissions.js
 import { NextResponse } from "next/server";
-import { hasPermission, checkContextualPermission } from "@/lib/newpermissions";
+import { hasPermission, checkContextualPermission } from "@/lib/permissions";
 import { getSession } from "@/lib/utils";
 
 export function withPermissions(handler, config) {

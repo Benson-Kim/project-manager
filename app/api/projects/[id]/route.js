@@ -1,12 +1,12 @@
 // app/api/projects/[id]/route.js
 import { apiHandler, APIError, createResponse, getSession } from "@/lib/utils";
 import prisma from "@/lib/prisma";
-import { Permissions, SpecialPermissions } from "@/lib/newpermissions";
 import {
 	validateProjectData,
 	isProjectMember,
 	authorizeProjectAccess,
 } from "@/lib/projectUtils";
+import { Permissions, SpecialPermissions } from "@/lib/permissions";
 
 export const GET = apiHandler(
 	async (req, { params }) => {
@@ -14,7 +14,7 @@ export const GET = apiHandler(
 		const { permissions, session } = req;
 
 		// First check if user has general project read permission
-		if (!permissions.can(Permissions.READ_PROJECT)) {
+		if (!Permissions.can(Permissions.READ_PROJECT)) {
 			throw new APIError("No permission to view projects", 403);
 		}
 

@@ -1,18 +1,12 @@
 // app/api/projects/[id]/suppliers/route.js
 import { createModuleApiHandlers } from "@/lib/moduleApiHandler";
 import { validateSupplier } from "@/lib/moduleValidators";
-import { ResourceTypes } from "@/lib/newpermissions";
+import { ResourceTypes } from "@/lib/permissions";
 
-const {
-  listHandler,
-  createHandler,
-} = createModuleApiHandlers({
-  modelName: "Supplier",
-  resourceType: ResourceTypes.SUPPLIER,
-  validateData: validateSupplier,
-  
-  
-  
+const { listHandler, createHandler } = createModuleApiHandlers({
+	modelName: "Supplier",
+	resourceType: ResourceTypes.SUPPLIER,
+	validateData: validateSupplier,
 });
 
 export const GET = listHandler;

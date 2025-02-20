@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { usePermissionGuardedCrud } from "@/hooks/usePermissionGuardedCrud";
-import { ResourceTypes } from "@/lib/newpermissions";
+import { ResourceTypes } from "@/lib/permissions";
 import { toast } from "react-hot-toast";
 import { Plus, Edit, Trash } from "lucide-react";
 
