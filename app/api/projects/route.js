@@ -33,6 +33,8 @@ export async function GET() {
 				_count: {
 					select: {
 						tasks: true,
+						milestones: true,
+						meetings: true,
 					},
 				},
 			},
