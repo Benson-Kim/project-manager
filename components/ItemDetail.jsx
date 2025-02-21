@@ -1,14 +1,17 @@
 // components/ItemDetail.jsx
-import { format } from "date-fns";
-import { toast } from "react-hot-toast";
 import { useState, useEffect } from "react";
+import { usePermissionGuardedCrud } from "../hooks/usePermissionGuardedCrud";
+import { toast } from "react-hot-toast";
 import { Edit, Trash2 } from "lucide-react";
-import { usePermissionGuardedCrud } from "@/hooks/usePermissionGuardedCrud";
+import { format } from "date-fns";
+import Link from "next/link";
 
 const ItemDetail = ({ projectId, resourceType, resourceName, itemId }) => {
 	if (!projectId || projectId === "undefined") {
 		console.error(`Invalid projectId for ${resourceName}:`, projectId);
-		return <div className="alert alert-error">Invalid project ID.</div>;
+		return (
+			<div className="card p-6 text-center text-body">Invalid project ID.</div>
+		);
 	}
 
 	const url = `/api/projects/${projectId}/${resourceName}/${itemId}`;
@@ -81,32 +84,66 @@ const ItemDetail = ({ projectId, resourceType, resourceName, itemId }) => {
 	};
 
 	if (!permissions.canRead)
-		return <div className="alert alert-error">Permission denied.</div>;
+		return (
+			<div className="card p-6 text-center text-body">Permission denied.</div>
+		);
 	if (isLoading)
-		return <div className="loading loading-spinner loading-lg"></div>;
+		return (
+			<div className="flex justify-center items-center h-64">
+				<span className="loading loading-spinner loading-lg text-primary"></span>
+			</div>
+		);
 	if (!item)
-		return <div className="alert alert-warning">{resourceName} not found.</div>;
+		return (
+			<div className="card p-6 text-center text-body">
+				{resourceName} not found.
+			</div>
+		);
 
 	return (
-		<div>
-			<div className="card w-full bg-base-100 shadow-xl">
-				<div className="card-body">
-					<h2 className="card-title">
-						{item.name || item.title || "Item Details"}
-					</h2>
+		<div className="container">
+			<div className="breadcrumbs text-sm">
+				<ul className="flex gap-2">
+					<li>
+						<Link href="/dashboard" className="text-indigo-500">
+							Home
+						</Link>
+					</li>
+					<li>
+						<Link href="/dashboard/projects" className="text-indigo-500">
+							Projects
+						</Link>
+					</li>
+					<li>
+						<Link
+							href={`/dashboard/projects/${resourceName}`}
+							className="text-indigo-500"
+						>
+							{resourceName}
+						</Link>
+					</li>
+
+					<li className="text-slate-700 font-medium">Projects</li>
+				</ul>
+			</div>
+			<div className="card p-6">
+				<h2>{item.name || item.title || "Item Details"}</h2>
+				<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
 					{fields.map((field) => (
-						<p key={field.name}>
-							<strong>{field.label || field.name}:</strong>{" "}
-							{renderField(item, field)}
-						</p>
+						<div key={field.name}>
+							<span className="font-semibold text-heading">
+								{field.label || field.name}:
+							</span>{" "}
+							<span className="text-body">{renderField(item, field)}</span>
+						</div>
 					))}
 				</div>
 			</div>
 
-			<div className="mt-4">
+			<div className="mt-6 flex gap-4">
 				{permissions.canUpdate && (
 					<button
-						className="btn btn-warning mr-2"
+						className="btn btn-warning"
 						onClick={() => setIsUpdateModalOpen(true)}
 					>
 						<Edit size={16} /> Update
@@ -124,18 +161,20 @@ const ItemDetail = ({ projectId, resourceType, resourceName, itemId }) => {
 
 			{isUpdateModalOpen && (
 				<div className="modal modal-open">
-					<div className="modal-box">
-						<h3 className="font-bold text-lg">Update {resourceName}</h3>
+					<div className="modal-box card p-6">
+						<h3>Update {resourceName}</h3>
 						{errorMessage && (
-							<div className="alert alert-error mb-4">{errorMessage}</div>
+							<div className="alert alert-error mb-4 text-body">
+								{errorMessage}
+							</div>
 						)}
-						<form onSubmit={handleUpdate}>
+						<form onSubmit={handleUpdate} className="space-y-4">
 							{fields.map((field) => (
 								<div key={field.name} className="form-control">
 									<label className="label">{field.label || field.name}</label>
 									{field.enumOptions ? (
 										<select
-											className="select select-bordered"
+											className="select select-bordered w-full"
 											value={updatedItem[field.name] || ""}
 											onChange={(e) =>
 												setUpdatedItem({
@@ -156,7 +195,7 @@ const ItemDetail = ({ projectId, resourceType, resourceName, itemId }) => {
 										</select>
 									) : field.type === "textarea" ? (
 										<textarea
-											className="textarea textarea-bordered"
+											className="textarea textarea-bordered w-full"
 											value={updatedItem[field.name] || ""}
 											onChange={(e) =>
 												setUpdatedItem({
@@ -168,7 +207,7 @@ const ItemDetail = ({ projectId, resourceType, resourceName, itemId }) => {
 									) : (
 										<input
 											type={field.type || "text"}
-											className="input input-bordered"
+											className="input input-bordered w-full"
 											value={updatedItem[field.name] || ""}
 											onChange={(e) =>
 												setUpdatedItem({
@@ -182,12 +221,12 @@ const ItemDetail = ({ projectId, resourceType, resourceName, itemId }) => {
 								</div>
 							))}
 							<div className="modal-action">
-								<button type="submit" className="btn btn-warning">
+								<button type="submit" className="btn btn-primary">
 									Update
 								</button>
 								<button
 									type="button"
-									className="btn"
+									className="btn btn-secondary"
 									onClick={() => setIsUpdateModalOpen(false)}
 								>
 									Cancel
@@ -200,9 +239,9 @@ const ItemDetail = ({ projectId, resourceType, resourceName, itemId }) => {
 
 			{isDeleteModalOpen && (
 				<div className="modal modal-open">
-					<div className="modal-box">
-						<h3 className="font-bold text-lg">Delete {resourceName}</h3>
-						<p>
+					<div className="modal-box card p-6">
+						<h3>Delete {resourceName}</h3>
+						<p className="text-body">
 							Are you sure you want to delete this {resourceName}? This action
 							cannot be undone.
 						</p>
@@ -211,7 +250,7 @@ const ItemDetail = ({ projectId, resourceType, resourceName, itemId }) => {
 								Delete
 							</button>
 							<button
-								className="btn"
+								className="btn btn-secondary"
 								onClick={() => setIsDeleteModalOpen(false)}
 							>
 								Cancel
@@ -224,7 +263,7 @@ const ItemDetail = ({ projectId, resourceType, resourceName, itemId }) => {
 	);
 };
 
-// Reusing the same field config and render function from ItemList
+// Same getFieldsForResource and renderField as ItemList (omitted for brevity)
 const getFieldsForResource = (resourceName) => {
 	const fieldConfigs = {
 		stakeholders: [
@@ -232,16 +271,6 @@ const getFieldsForResource = (resourceName) => {
 			{ name: "role", label: "Role" },
 			{ name: "organization", label: "Organization" },
 			{ name: "contactInfo", label: "Contact Info" },
-			{
-				name: "influence",
-				label: "Influence",
-				enumOptions: ["HIGH", "MEDIUM", "LOW"],
-			},
-			{
-				name: "interest",
-				label: "Interest",
-				enumOptions: ["HIGH", "MEDIUM", "LOW"],
-			},
 		],
 		acronyms: [
 			{ name: "acronym", label: "Acronym", required: true },
@@ -270,15 +299,12 @@ const getFieldsForResource = (resourceName) => {
 				label: "Status",
 				enumOptions: ["OPEN", "ANSWERED", "CLOSED"],
 			},
-			{ name: "askedBy", label: "Asked By" },
-			{ name: "answeredBy", label: "Answered By" },
 		],
 		suppliers: [
 			{ name: "name", label: "Name", required: true },
 			{ name: "contactPerson", label: "Contact Person" },
 			{ name: "contactInfo", label: "Contact Info" },
 			{ name: "serviceProvided", label: "Service Provided" },
-			{ name: "contractDetails", label: "Contract Details", type: "textarea" },
 		],
 		assumptionConstraints: [
 			{
@@ -289,11 +315,6 @@ const getFieldsForResource = (resourceName) => {
 			},
 			{ name: "description", label: "Description", type: "textarea" },
 			{ name: "impact", label: "Impact" },
-			{
-				name: "status",
-				label: "Status",
-				enumOptions: ["VALID", "INVALID", "UNCERTAIN"],
-			},
 		],
 		parkingLotItems: [
 			{ name: "title", label: "Title", required: true },
@@ -302,11 +323,6 @@ const getFieldsForResource = (resourceName) => {
 				name: "priority",
 				label: "Priority",
 				enumOptions: ["HIGH", "MEDIUM", "LOW"],
-			},
-			{
-				name: "status",
-				label: "Status",
-				enumOptions: ["PENDING", "IN_REVIEW", "RESOLVED"],
 			},
 		],
 		itResources: [
@@ -317,9 +333,6 @@ const getFieldsForResource = (resourceName) => {
 				enumOptions: ["HARDWARE", "SOFTWARE", "PERSONNEL"],
 			},
 			{ name: "quantity", label: "Quantity", type: "number" },
-			{ name: "allocation", label: "Allocation" },
-			{ name: "startDate", label: "Start Date", type: "date" },
-			{ name: "endDate", label: "End Date", type: "date" },
 		],
 		financials: [
 			{
@@ -330,12 +343,6 @@ const getFieldsForResource = (resourceName) => {
 			},
 			{ name: "amount", label: "Amount", type: "number" },
 			{ name: "description", label: "Description", type: "textarea" },
-			{ name: "date", label: "Date", type: "date" },
-			{
-				name: "paymentStatus",
-				label: "Payment Status",
-				enumOptions: ["PENDING", "PAID"],
-			},
 		],
 		issueRisks: [
 			{
@@ -346,48 +353,23 @@ const getFieldsForResource = (resourceName) => {
 			},
 			{ name: "title", label: "Title" },
 			{ name: "description", label: "Description", type: "textarea" },
-			{
-				name: "impact",
-				label: "Impact",
-				enumOptions: ["HIGH", "MEDIUM", "LOW"],
-			},
-			{
-				name: "probability",
-				label: "Probability",
-				enumOptions: ["HIGH", "MEDIUM", "LOW"],
-			},
-			{ name: "mitigation", label: "Mitigation", type: "textarea" },
 		],
 		dailyActivities: [
 			{ name: "date", label: "Date", type: "date", required: true },
 			{ name: "activity", label: "Activity" },
 			{ name: "performedBy", label: "Performed By" },
-			{
-				name: "status",
-				label: "Status",
-				enumOptions: ["PLANNED", "COMPLETED", "BLOCKED"],
-			},
-			{ name: "notes", label: "Notes", type: "textarea" },
 		],
 		notes: [
 			{ name: "title", label: "Title", required: true },
 			{ name: "content", label: "Content", type: "textarea" },
-			{ name: "category", label: "Category" },
 		],
 		tasks: [
 			{ name: "title", label: "Title", required: true },
 			{ name: "description", label: "Description", type: "textarea" },
-			{ name: "startDate", label: "Start Date", type: "date" },
-			{ name: "endDate", label: "End Date", type: "date" },
 			{
 				name: "status",
 				label: "Status",
 				enumOptions: ["NOT_STARTED", "IN_PROGRESS", "COMPLETED", "ON_HOLD"],
-			},
-			{
-				name: "priority",
-				label: "Priority",
-				enumOptions: ["LOW", "MEDIUM", "HIGH"],
 			},
 			{ name: "parentId", label: "Parent Task" },
 		],
@@ -396,12 +378,6 @@ const getFieldsForResource = (resourceName) => {
 			{ name: "description", label: "Description", type: "textarea" },
 			{ name: "startDate", label: "Start Date", type: "date" },
 			{ name: "endDate", label: "End Date", type: "date" },
-			{
-				name: "status",
-				label: "Status",
-				enumOptions: ["PLANNED", "IN_PROGRESS", "COMPLETED", "DELAYED"],
-			},
-			{ name: "progress", label: "Progress", type: "number" },
 		],
 		resources: [
 			{ name: "name", label: "Name", required: true },
@@ -411,19 +387,11 @@ const getFieldsForResource = (resourceName) => {
 				enumOptions: ["HUMAN", "MATERIAL", "EQUIPMENT"],
 			},
 			{ name: "capacity", label: "Capacity", type: "number" },
-			{ name: "cost", label: "Cost", type: "number" },
 		],
 		meetings: [
 			{ name: "title", label: "Title", required: true },
-			{ name: "date", label: "Date", type: "date" },
 			{ name: "startTime", label: "Start Time", type: "datetime-local" },
 			{ name: "endTime", label: "End Time", type: "datetime-local" },
-			{ name: "location", label: "Location" },
-			{
-				name: "status",
-				label: "Status",
-				enumOptions: ["SCHEDULED", "IN_PROGRESS", "COMPLETED", "CANCELLED"],
-			},
 		],
 		projectMembers: [
 			{
@@ -438,7 +406,6 @@ const getFieldsForResource = (resourceName) => {
 				],
 			},
 			{ name: "userId", label: "User ID" },
-			{ name: "roleDescription", label: "Role Description", type: "textarea" },
 		],
 	};
 	return (
@@ -451,7 +418,10 @@ const getFieldsForResource = (resourceName) => {
 const renderField = (item, field) => {
 	const value = item[field.name];
 	if (
-		field.name.includes("Date") ||
+		field.name === "dueDate" ||
+		field.name === "startDate" ||
+		field.name === "endDate" ||
+		field.name === "date" ||
 		field.name === "startTime" ||
 		field.name === "endTime"
 	) {

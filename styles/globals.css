@@ -1,44 +1,111 @@
+/* app/globals.css */
+/* No @import needed since we're using system fonts */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-	--background: #ffffff;
-	--foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
 	:root {
-		--background: #0a0a0a;
-		--foreground: #ededed;
+		--primary: #0272b1;
+		--secondary: #7c3aed;
+		--background: #ffffff;
+		--heading: #1f1f1f;
+		--body: #1f1f1f;
+		--border: #053855;
+	}
+
+	body {
+		@apply font-sans font-normal text-[17px] leading-[25px] text-body bg-background;
+	}
+
+	h1 {
+		@apply font-sans font-semibold text-[32px] text-heading leading-8;
+	}
+
+	h2 {
+		@apply font-sans font-semibold text-[24px] text-heading;
+	}
+
+	h3 {
+		@apply font-sans font-semibold text-[20px] text-heading;
+	}
+
+	label {
+		@apply font-sans font-light text-[14px] text-body;
+	}
+
+	code {
+		@apply font-sans text-[14px] text-body;
+	}
+
+	/* Card styling */
+	.card {
+		@apply bg-white rounded-lg shadow-md border border-[var(--border)];
+	}
+
+	/* Grid system */
+	.container {
+		@apply max-w-7xl mx-auto  px-4 sm:p-6 sm:space-y-6 lg:p-8 lg:space-y-8;
+	}
+
+	/* Inputs */
+	.input {
+		@apply border border-[var(--border)] rounded-md px-3 py-2 text-[16px] font-sans font-normal text-body focus:outline-none focus:ring-2 focus:ring-[var(--primary)];
+	}
+
+	.textarea {
+		@apply border border-[var(--border)] rounded-md px-3 py-2 text-[16px] font-sans font-normal text-body focus:outline-none focus:ring-2 focus:ring-[var(--primary)];
+	}
+
+	.select {
+		@apply border border-[var(--border)] rounded-md px-3 py-2 text-[16px] font-sans font-normal text-body focus:outline-none focus:ring-2 focus:ring-[var(--primary)];
+	}
+
+	/* Table */
+	.table {
+		@apply w-full text-[16px] font-sans font-normal text-body;
+	}
+
+	.table thead {
+		@apply bg-[var(--primary)];
+	}
+
+	.table th {
+		@apply px-4 py-2 text-left text-[var(--background)] font-medium tracking-wide border-b border-[var(--border)];
+	}
+
+	.table td {
+		@apply px-4 py-2 border-b border-[var(--border)];
 	}
 }
 
-body {
-	color: var(--foreground);
-	background: var(--background);
-	font-family: Arial, Helvetica, sans-serif;
-}
+@layer components {
+	.btn {
+		@apply px-2 py-1.5 rounded h-10 min-h-8 font-sans font-medium text-[16px] text-white tracking-wide transition-colors border-none;
+	}
 
-/* src/App.css */
-.grid-container,
-.list-container {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 10px;
-}
+	.btn-primary {
+		@apply bg-[var(--primary)] hover:bg-opacity-90;
+	}
 
-.grid-item,
-.list-item {
-	border: 1px solid #ccc;
-	padding: 20px;
-	text-align: center;
-}
+	.btn-secondary {
+		@apply bg-[var(--secondary)] hover:bg-opacity-90;
+	}
 
-.list-container {
-	flex-direction: column;
-}
+	.btn-warning {
+		@apply bg-yellow-500 hover:bg-yellow-600;
+	}
 
-.grid-item {
-	flex: 1 1 30%; /* Each item will take roughly one-third of the container width */
+	.btn-error {
+		@apply bg-red-500 hover:bg-red-600;
+	}
+
+	.btn-success {
+		@apply bg-green-500 hover:bg-green-600;
+	}
+
+	.btn-sm {
+		@apply px-1.5 py-0.5 h-8 min-h-7 text-[14px];
+	}
 }

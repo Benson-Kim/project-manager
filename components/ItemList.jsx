@@ -1,15 +1,17 @@
 // components/ItemList.jsx
-import Link from "next/link";
-import { format } from "date-fns";
-import { Plus } from "lucide-react";
-import { toast } from "react-hot-toast";
 import { useState, useEffect } from "react";
-import { usePermissionGuardedCrud } from "@/hooks/usePermissionGuardedCrud";
+import Link from "next/link";
+import { usePermissionGuardedCrud } from "../hooks/usePermissionGuardedCrud";
+import { toast } from "react-hot-toast";
+import { Plus } from "lucide-react";
+import { format } from "date-fns";
 
 const ItemList = ({ projectId, resourceType, resourceName }) => {
 	if (!projectId || projectId === "undefined") {
 		console.error(`Invalid projectId for ${resourceName}:`, projectId);
-		return <div className="alert alert-error">Invalid project ID.</div>;
+		return (
+			<div className="card p-6 text-center text-body">Invalid project ID.</div>
+		);
 	}
 
 	const url = `/api/projects/${projectId}/${resourceName}`;
@@ -68,75 +70,86 @@ const ItemList = ({ projectId, resourceType, resourceName }) => {
 	};
 
 	if (!permissions.canRead)
-		return <div className="alert alert-error">Permission denied.</div>;
+		return (
+			<div className="card p-6 text-center text-body">Permission denied.</div>
+		);
 	if (isLoading)
-		return <div className="loading loading-spinner loading-lg"></div>;
+		return (
+			<div className="flex justify-center items-center h-screen">
+				<span className="loading loading-spinner loading-lg text-primary"></span>
+			</div>
+		);
 
 	return (
-		<div>
-			{permissions.canCreate && (
-				<button
-					className="btn btn-success mb-4"
-					onClick={() => setIsCreateModalOpen(true)}
-				>
-					<Plus size={16} /> Create New {resourceName}
-				</button>
-			)}
+		<div className="container">
+			<div className="flex justify-between items-center mb-6">
+				<h2>{resourceName.charAt(0).toUpperCase() + resourceName.slice(1)}</h2>
+				{permissions.canCreate && (
+					<button
+						className="btn  btn-primary "
+						onClick={() => setIsCreateModalOpen(true)}
+					>
+						<Plus size={20} /> Create {resourceName.slice(0, -1)}
+					</button>
+				)}
+			</div>
 
-			<div className="overflow-x-auto">
-				<table className="table w-full">
-					<thead>
-						<tr>
-							<th>ID</th>
-							{fields.map((field) => (
-								<th key={field.name}>{field.label || field.name}</th>
-							))}
-							<th>Actions</th>
-						</tr>
-					</thead>
-					<tbody>
-						{items && items.length > 0 ? (
-							items.map((item) => (
-								<tr key={item.id}>
-									<td>{item.id}</td>
-									{fields.map((field) => (
-										<td key={field.name}>{renderField(item, field)}</td>
-									))}
-									<td>
-										<Link
-											href={`/projects/${projectId}/${resourceName}/${item.id}`}
-											className="btn btn-primary btn-sm"
-										>
-											View
-										</Link>
+			<div className="p-6">
+				<div className="overflow-x-auto">
+					<table className="table">
+						<thead>
+							<tr>
+								{fields.map((field) => (
+									<th key={field.name}>{field.label || field.name}</th>
+								))}
+								<th>Actions</th>
+							</tr>
+						</thead>
+						<tbody>
+							{items && items.length > 0 ? (
+								items.map((item) => (
+									<tr key={item.id}>
+										{fields.map((field) => (
+											<td key={field.name}>{renderField(item, field)}</td>
+										))}
+										<td>
+											<Link
+												href={`/projects/${projectId}/${resourceName}/${item.id}`}
+												className="btn btn-primary btn-sm"
+											>
+												View
+											</Link>
+										</td>
+									</tr>
+								))
+							) : (
+								<tr>
+									<td colSpan={fields.length + 2} className="text-center">
+										No {resourceName} found.
 									</td>
 								</tr>
-							))
-						) : (
-							<tr>
-								<td colSpan={fields.length + 2} className="text-center">
-									No {resourceName} found.
-								</td>
-							</tr>
-						)}
-					</tbody>
-				</table>
+							)}
+						</tbody>
+					</table>
+				</div>
 			</div>
 
 			{isCreateModalOpen && (
 				<div className="modal modal-open">
-					<div className="modal-box">
-						<h3 className="font-bold text-lg">Create New {resourceName}</h3>
+					<div className="modal-box card p-6">
+						<h3>Create New {resourceName}</h3>
 						{errorMessage && (
-							<div className="alert alert-error mb-4">{errorMessage}</div>
+							<div className="alert alert-error mb-4 text-body">
+								{errorMessage}
+							</div>
 						)}
-						<form onSubmit={handleCreate}>
+						<form onSubmit={handleCreate} className="space-y-4">
 							{fields.map((field) => (
 								<div key={field.name} className="form-control">
 									<label className="label">{field.label || field.name}</label>
 									{field.enumOptions ? (
 										<select
-											className="select select-bordered"
+											className="select select-bordered w-full"
 											value={newItem[field.name] || ""}
 											onChange={(e) =>
 												setNewItem({ ...newItem, [field.name]: e.target.value })
@@ -154,7 +167,7 @@ const ItemList = ({ projectId, resourceType, resourceName }) => {
 										</select>
 									) : field.type === "textarea" ? (
 										<textarea
-											className="textarea textarea-bordered"
+											className="textarea textarea-bordered w-full"
 											value={newItem[field.name] || ""}
 											onChange={(e) =>
 												setNewItem({ ...newItem, [field.name]: e.target.value })
@@ -163,7 +176,7 @@ const ItemList = ({ projectId, resourceType, resourceName }) => {
 									) : (
 										<input
 											type={field.type || "text"}
-											className="input input-bordered"
+											className="input input-bordered w-full"
 											value={newItem[field.name] || ""}
 											onChange={(e) =>
 												setNewItem({ ...newItem, [field.name]: e.target.value })
@@ -174,12 +187,12 @@ const ItemList = ({ projectId, resourceType, resourceName }) => {
 								</div>
 							))}
 							<div className="modal-action">
-								<button type="submit" className="btn btn-success">
+								<button type="submit" className="btn btn-primary">
 									Create
 								</button>
 								<button
 									type="button"
-									className="btn"
+									className="btn btn-secondary"
 									onClick={() => setIsCreateModalOpen(false)}
 								>
 									Cancel
@@ -193,7 +206,7 @@ const ItemList = ({ projectId, resourceType, resourceName }) => {
 	);
 };
 
-// Helper to define fields per resource with enum options
+// Helper to define fields per resource (unchanged content, styled differently)
 const getFieldsForResource = (resourceName) => {
 	const fieldConfigs = {
 		stakeholders: [
