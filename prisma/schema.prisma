@@ -234,8 +234,6 @@ model MeetingDecision {
     createdAt   DateTime @default(now())
 }
 
-// Add these models to your existing schema.prisma file
-
 model Stakeholder {
     id           String   @id @default(uuid())
     name         String

@@ -1,3 +1,4 @@
+// hooks/usePermissionGuardedCrud.js
 import { useCrud } from "./useCrud";
 import { usePermissions } from "./usePermissions";
 import { Actions } from "@/lib/permissions";
@@ -7,7 +8,7 @@ export const usePermissionGuardedCrud = (
 	url,
 	isCollection = false
 ) => {
-	const crud = useCrud(url, isCollection); // Pass isCollection to useCrud
+	const crud = useCrud(url, isCollection);
 	const { can } = usePermissions();
 
 	const permissions = {
@@ -19,7 +20,7 @@ export const usePermissionGuardedCrud = (
 
 	return {
 		...crud,
-		data: can(permissions.read) ? crud.data : isCollection ? [] : null, // Handle data based on isCollection
+		data: can(permissions.read) ? crud.data : isCollection ? [] : null,
 		isLoading: crud.isLoading,
 		error: crud.error,
 

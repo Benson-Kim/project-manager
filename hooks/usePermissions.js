@@ -1,4 +1,4 @@
-// hooks/usePermissionsNew.js
+// hooks/usePermissions.js
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import {

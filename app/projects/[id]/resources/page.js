@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { ResourceTypes } from "@/lib/permissions";
 import { useEffect } from "react";
 
-export default function NotesListPage() {
+export default function ResourcesListPage() {
   const { id } = useParams();
   const router = useRouter();
 
@@ -21,8 +21,8 @@ export default function NotesListPage() {
   return (
     <ItemList
       projectId={id}
-      resourceType={ResourceTypes.NOTE}
-      resourceName="notes"
+      resourceType={ResourceTypes.RESOURCE}
+      resourceName="resources"
     />
   );
 }

@@ -1,12 +1,12 @@
 
 "use client";
-import ItemList from "@/components/ItemList";
+import ItemDetail from "@/components/ItemDetail";
 import { useParams, useRouter } from "next/navigation";
 import { ResourceTypes } from "@/lib/permissions";
 import { useEffect } from "react";
 
-export default function NotesListPage() {
-  const { id } = useParams();
+export default function DailyActivitiesDetailPage() {
+  const { id, itemId } = useParams();
   const router = useRouter();
 
   useEffect(() => {
@@ -19,10 +19,11 @@ export default function NotesListPage() {
   if (!id || id === "undefined") return null;
 
   return (
-    <ItemList
+    <ItemDetail
       projectId={id}
-      resourceType={ResourceTypes.NOTE}
-      resourceName="notes"
+      resourceType={ResourceTypes.DAILY_ACTIVITY}
+      resourceName="dailyActivities"
+      itemId={itemId}
     />
   );
 }

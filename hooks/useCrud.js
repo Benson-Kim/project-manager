@@ -1,3 +1,4 @@
+// hooks/useCrud.js
 import { useState } from "react";
 
 export const useCrud = (url, isCollection = false) => {
