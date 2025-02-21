@@ -1,10 +1,12 @@
 // app/projects/[id]/page.js
 "use client";
 
+import Link from "next/link";
+import { toast } from "react-hot-toast";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useParams, useRouter } from "next/navigation";
 import { differenceInDays, format } from "date-fns";
+import { useParams, useRouter } from "next/navigation";
 import {
 	Pencil,
 	Calendar,
@@ -24,8 +26,7 @@ import {
 	ResourceTypes,
 	SpecialPermissions,
 } from "@/lib/permissions";
-import { toast } from "react-hot-toast";
-import Link from "next/link";
+
 import { formatCurrency, getStatusColor } from "@/lib/formatting";
 import MemberAvatars from "@/components/MemberAvatars";
 import ProjectActions from "@/components/ProjectActions";
@@ -87,7 +88,7 @@ export default function ProjectDetailsPage() {
 					Project not found
 				</h1>
 				<button
-					onClick={() => router.push("/projects")}
+					onClick={() => router.push("/dashboard/projects")}
 					className="mt-4 px-4 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 transition-colors"
 				>
 					Return to Projects

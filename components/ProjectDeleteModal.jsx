@@ -1,7 +1,7 @@
-// components/DeleteConfirmationModal.jsx
+// components/ProjectDeleteModal.jsx
 import { AlertTriangle } from "lucide-react";
 
-export default function DeleteConfirmationModal({
+export default function ProjectDeleteModal({
 	title,
 	message,
 	isOpen,

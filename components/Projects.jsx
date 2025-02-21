@@ -3,7 +3,8 @@ import { format } from "date-fns";
 import { toast } from "react-hot-toast";
 import { useSession } from "next-auth/react";
 import React, { useState, useEffect, useRef } from "react";
-import ProjectModal from "./ProjectModal";
+import Link from "next/link";
+
 import { usePermissionGuardedCrud } from "@/hooks/usePermissionGuardedCrud";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
@@ -24,10 +25,11 @@ import {
 	ResourceTypes,
 	SpecialPermissions,
 } from "@/lib/permissions";
-import Link from "next/link";
 import { getStatusColor } from "@/lib/formatting";
 import MemberAvatars from "./MemberAvatars";
+import ProjectModal from "./ProjectModal";
 import ProjectEditModal from "./ProjectEditModal";
+import ProjectDeleteModal from "./ProjectDeleteModal";
 
 const SubMenuItem = ({ icon, label, onClick }) => (
 	<li
@@ -144,7 +146,7 @@ const ProjectsGrid = ({ project, onEdit, onDelete }) => {
 				<button
 					onClick={(e) => {
 						e.stopPropagation();
-						onDelete(project.id);
+						onDelete(project);
 					}}
 					className="p-1 hover:bg-gray-100 rounded"
 				>
@@ -412,32 +414,6 @@ const ProjectsPage = () => {
 							/>
 					  ))}
 			</div>
-			{isDeleteModalOpen && (
-				<div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-					<div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full">
-						<h2 className="text-lg font-semibold mb-4">Confirm Delete</h2>
-						<p>
-							Are you sure you want to delete the project{" "}
-							<strong>{selectedProject?.name}</strong>?
-						</p>
-						<div className="flex justify-end gap-4 mt-6">
-							<button
-								onClick={() => setIsDeleteModalOpen(false)}
-								className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
-							>
-								Cancel
-							</button>
-							<button
-								onClick={handleDeleteConfirm}
-								disabled={isDeleting}
-								className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-							>
-								{isDeleting ? "Deleting..." : "Delete"}
-							</button>
-						</div>
-					</div>
-				</div>
-			)}
 
 			{isModalOpen && (
 				<ProjectModal
@@ -452,6 +428,17 @@ const ProjectsPage = () => {
 					onClose={() => setIsEditModalOpen(false)}
 					project={selectedProject}
 					onSubmit={handleEditSubmit}
+				/>
+			)}
+
+			{isDeleteModalOpen && (
+				<ProjectDeleteModal
+					title="Delete Project"
+					message={`Are you sure you want to delete "${selectedProject.name}"? This action cannot be undone and will remove all associated data including tasks, milestones, and meetings.`}
+					isOpen={isDeleteModalOpen}
+					isProcessing={isDeleting}
+					onClose={() => setIsDeleteModalOpen(false)}
+					onConfirm={handleDeleteConfirm}
 				/>
 			)}
 		</div>

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import ProjectEditModal from "./ProjectEditModal";
-import DeleteConfirmationModal from "./DeleteConfirmationModal";
+import ProjectDeleteModal from "./ProjectDeleteModal";
 import { usePermissionGuardedCrud } from "@/hooks/usePermissionGuardedCrud";
 import { Permissions, ResourceTypes } from "@/lib/permissions";
 import { toast } from "react-hot-toast";
@@ -89,7 +89,7 @@ export default function ProjectActions({ project, onProjectUpdated }) {
 			)}
 
 			{isDeleteModalOpen && (
-				<DeleteConfirmationModal
+				<ProjectDeleteModal
 					title="Delete Project"
 					message={`Are you sure you want to delete "${project.name}"? This action cannot be undone and will remove all associated data including tasks, milestones, and meetings.`}
 					isOpen={isDeleteModalOpen}

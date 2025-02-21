@@ -1,20 +1,22 @@
-// app/api/projects/[id]/route.js
 import { apiHandler, APIError, createResponse, getSession } from "@/lib/utils";
 import prisma from "@/lib/prisma";
 import {
 	validateProjectData,
 	isProjectMember,
 	authorizeProjectAccess,
+	syncProjectMembers,
+	deleteProjectWithRelations,
 } from "@/lib/projectUtils";
 import { Permissions, SpecialPermissions } from "@/lib/permissions";
 
+// GET: Fetch a single project
 export const GET = apiHandler(
 	async (req, { params }) => {
 		const { id } = await params;
 		const { permissions, session } = req;
 
-		// First check if user has general project read permission
-		if (!Permissions.can(Permissions.READ_PROJECT)) {
+		// Check if user has permission to read projects
+		if (!permissions.can(Permissions.READ_PROJECT)) {
 			throw new APIError("No permission to view projects", 403);
 		}
 
@@ -27,6 +29,7 @@ export const GET = apiHandler(
 			}
 		}
 
+		// Fetch the project with related data
 		const project = await prisma.project.findUnique({
 			where: { id },
 			include: {
@@ -67,7 +70,6 @@ export const GET = apiHandler(
 		// Optionally filter sensitive data based on user role
 		const sanitizedProject = {
 			...project,
-			// Remove sensitive fields if user doesn't have sufficient permissions
 			meetings: permissions.can(Permissions.READ_MEETING)
 				? project.meetings
 				: [],
@@ -76,7 +78,7 @@ export const GET = apiHandler(
 
 		return createResponse(sanitizedProject);
 	},
-	// Define contextual permission requirements
+	// Contextual permission requirements
 	{
 		permission: Permissions.READ_PROJECT,
 		getContext: async (req, session, { params }, permissions) => {
@@ -89,6 +91,7 @@ export const GET = apiHandler(
 	}
 );
 
+// PUT: Update a project
 export const PUT = apiHandler(async (req, { params }) => {
 	const { id } = await params;
 	const session = await getSession();
@@ -143,49 +146,14 @@ export const PUT = apiHandler(async (req, { params }) => {
 				const currentMemberIds = existingProject.members.map((m) => m.userId);
 				const protectedIds = [existingProject.createdBy.id, session.user.id];
 
-				// Add new members
-				const membersToAdd = members.filter(
-					(m) => !currentMemberIds.includes(m.userId)
+				// Sync project members
+				await syncProjectMembers(
+					tx,
+					id,
+					members,
+					existingProject.members,
+					protectedIds
 				);
-
-				if (membersToAdd.length > 0) {
-					await tx.projectMember.createMany({
-						data: membersToAdd.map((member) => ({
-							projectId: id,
-							userId: member.userId,
-							role: member.role || "TEAM_MEMBER",
-							roleDescription: member.roleDescription,
-						})),
-						skipDuplicates: true,
-					});
-				}
-
-				// Update existing members
-				for (const member of members) {
-					if (currentMemberIds.includes(member.userId)) {
-						await tx.projectMember.updateMany({
-							where: {
-								projectId: id,
-								userId: member.userId,
-							},
-							data: {
-								role: member.role,
-								roleDescription: member.roleDescription,
-							},
-						});
-					}
-				}
-
-				// Remove members not in the updated list (except protected users)
-				const memberIdsToKeep = members.map((m) => m.userId);
-				await tx.projectMember.deleteMany({
-					where: {
-						projectId: id,
-						userId: {
-							notIn: [...memberIdsToKeep, ...protectedIds],
-						},
-					},
-				});
 			}
 
 			// Return updated project with members
@@ -221,10 +189,12 @@ export const PUT = apiHandler(async (req, { params }) => {
 	}
 }, Permissions.UPDATE_PROJECT);
 
+// DELETE: Delete a project
 export const DELETE = apiHandler(async (req, { params }) => {
 	const { id } = await params;
 	const session = await getSession();
 
+	// Authorize with detailed context
 	await authorizeProjectAccess(
 		id,
 		session,
@@ -234,67 +204,8 @@ export const DELETE = apiHandler(async (req, { params }) => {
 
 	try {
 		await prisma.$transaction(async (tx) => {
-			await tx.projectMember.deleteMany({
-				where: { projectId: id },
-			});
-
-			await tx.comment.deleteMany({
-				where: {
-					projectMember: {
-						projectId: id,
-					},
-				},
-			});
-
-			const projectMeetings = await tx.meeting.findMany({
-				where: { projectId: id },
-				select: { id: true },
-			});
-
-			const meetingIds = projectMeetings.map((m) => m.id);
-
-			if (meetingIds.length > 0) {
-				await tx.meetingAttendee.deleteMany({
-					where: { meetingId: { in: meetingIds } },
-				});
-
-				await tx.meetingActionItem.deleteMany({
-					where: { meetingId: { in: meetingIds } },
-				});
-
-				await tx.meetingDecision.deleteMany({
-					where: { meetingId: { in: meetingIds } },
-				});
-
-				// Delete meetings
-				await tx.meeting.deleteMany({
-					where: { projectId: id },
-				});
-			}
-
-			await tx.milestone.deleteMany({
-				where: { projectId: id },
-			});
-
-			await tx.task.updateMany({
-				where: {
-					projectId: id,
-					parentId: { not: null },
-				},
-				data: { parentId: null },
-			});
-
-			await tx.task.deleteMany({
-				where: { projectId: id },
-			});
-
-			await tx.resource.deleteMany({
-				where: { projectId: id },
-			});
-
-			await tx.project.delete({
-				where: { id },
-			});
+			// Delete project and all related entities
+			await deleteProjectWithRelations(tx, id);
 		});
 
 		return createResponse({

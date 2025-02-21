@@ -6,7 +6,7 @@ import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { UserRoundPlus, UserRoundPen, Trash2 } from "lucide-react";
 
-import DeleteConfirmationModal from "./DeleteConfirmationModal";
+import ProjectDeleteModal from "./ProjectDeleteModal";
 
 const prisma = new PrismaClient();
 
@@ -157,7 +157,7 @@ export default function ProjectMembers({ project }) {
 				</div>
 			))}
 
-			<DeleteConfirmationModal
+			<ProjectDeleteModal
 				isOpen={isDeleteModalOpen}
 				onClose={() => {
 					setIsDeleteModalOpen(false);
