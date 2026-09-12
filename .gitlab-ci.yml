@@ -99,6 +99,7 @@ e2e:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
+    - if: $RUN_E2E == "1"                # api-triggered: run automatically
     - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH
       when: manual
@@ -111,6 +112,7 @@ e2e:
 lockfile:generate:
   stage: build
   rules:
+    - if: $LOCKFILE_ONLY == "1"          # api-triggered: run automatically
     - if: $CI_COMMIT_BRANCH
       when: manual
       allow_failure: true
