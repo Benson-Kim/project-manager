@@ -3,12 +3,16 @@
 Source file: `Access_database.mdb` (5,423,104 bytes, ACE format — "Standard ACE DB", version byte `0x03` = Access 2010 file format, 4096-byte pages, 1324 pages).
 
 > Extraction method: the CI environment has no network access to install `mdbtools`, so the file was parsed with a purpose-built pure-Python Jet4/ACE reader (`tools/mdb/mdbread.py`). For **every table the number of extracted rows exactly matches the row count declared in the table definition page**, and no field decoding errors remained. Limitations: VBA module source, form/report layouts (stored in binary `MSysAccessStorage` streams) and index definitions are inventoried by name but their binary payloads are not decompiled.
+>
+> **Verified with mdbtools (independent second pass, see [VERIFICATION.md](VERIFICATION.md)):** the original pass skipped MSysObjects rows whose row-offset slot carries the `0x8000` flag. Most of those are genuinely deleted UI objects, but **three tables and six saved queries are still live** (mdbtools lists and exports them): `tblMeetingMinutes` (5 rows), `tblFinancialDocuments` (9 rows), `Switchboard Items` (0 rows) and queries `qryDailyItemsAndStatusType`, `qryKeyReqDeliverables`, `qryMeetingParticipants`, `qryProject3rdPartySupplier`, `qryProjectfrmQA`, `qryQuesAns`. They are included in §2/§4/§5 below and marked *(recovered)*. All other content was confirmed unchanged (82-check CI verification, both parsers agree byte-for-byte on shared objects).
 
-## 1. Object inventory (from MSysObjects, 244 objects)
+## 1. Object inventory (from MSysObjects, 244 live-slot objects + recovered objects)
 
 ### Type 1 — Local table (52)
 
 `MSysACEs`, `MSysAccessStorage`, `MSysAccessXML`, `MSysComplexColumns`, `MSysComplexType_Attachment`, `MSysComplexType_Decimal`, `MSysComplexType_GUID`, `MSysComplexType_IEEEDouble`, `MSysComplexType_IEEESingle`, `MSysComplexType_Long`, `MSysComplexType_Short`, `MSysComplexType_Text`, `MSysComplexType_UnsignedByte`, `MSysNameMap`, `MSysNavPaneGroupCategories`, `MSysNavPaneGroupToObjects`, `MSysNavPaneGroups`, `MSysNavPaneObjectIDs`, `MSysObjects`, `MSysQueries`, `MSysRelationships`, `MSysResources`, `f_10A507954BDC4AED8B2702AD9617E985_Attachment`, `f_18D99D0B9F2B4EF79FCE40B6F0C89337_Documentation`, `f_3E3EC6ED2D6141538654E4E37770C497_Data`, `tbl3rdPartySupplier`, `tblAcronyms`, `tblActivityStatusType`, `tblAssumptionsConstraints`, `tblDailyActivityList`, `tblExistingSystemsInterfaces`, `tblFinancials`, `tblITResourcePlanning`, `tblITResourcePlanningDetails`, `tblInterviewQuestionsAnswers`, `tblKeyRequirementsDeliverable`, `tblMeetingActionItems`, `tblMeetingAgenda`, `tblMeetingDiscussionPoints`, `tblMeetingParticipants`, `tblNotes`, `tblParkingLotItems`, `tblProjectFinancialDocuments`, `tblProjectFramework`, `tblProjectObjectives`, `tblProjectSummary`, `tblProjectTask`, `tblProjectTaskList`, `tblRisksIssuesTracker`, `tblStakeholders`, `tblTaskFramework`, `tblTodoList`
+
+*(recovered, deleted-flagged slots but still live per mdbtools)*: `Switchboard Items`, `tblFinancialDocuments`, `tblMeetingMinutes` — total **55 local tables / 30 user tables**.
 
 ### Type 2 — Database (1)
 
@@ -20,7 +24,7 @@ Source file: `Access_database.mdb` (5,423,104 bytes, ACE format — "Standard AC
 
 ### Type 5 — Query (QueryDef) (68)
 
-`qryAcronyms`, `qryAssumptionsConstraints`, `qryDailyActivityList`, `qryDailyActivityListExtended`, `qryDailyItemsAndStatusTypeByChoice`, `qryFinancialsExtended`, `qryITResourcePlanning`, `qryInProgressToDo`, `qryMeetingApologies`, `qryMeetingAttendees`, `qryMeetingMinutes`, `qryMeetingMinutes Extended`, `qryMinutes`, `qryObjectives`, `qryParkingLotItems`, `qryProject`, `qryProjectAcronyms`, `qryProjectActivityList`, `qryProjectExistingSystem`, `qryProjectFramework`, `qryProjectKeyRequirementsDeliverable`, `qryProjectObjectives`, `qryProjectReports`, `qryProjectStakeholders`, `qryStakeholders`, `qrySuppliers`, `qryUpcomingAlerts`, `~sq_cActivity List~sq_ccboFilterFavorites`, `~sq_cfrmDailyItemsAndStatusTypeChoice~sq_cProjectNameCopy`, `~sq_cfrmProjectReports~sq_ccboProject`, `~sq_cfrmReportSelector~sq_cListProjects`, `~sq_cfrmSubAcronyms~sq_csubfrmEntryAcronyms`, `~sq_cfrmSubDailyItemsAndStatusType~sq_cProjectID`, `~sq_cfrmSubFinancials~sq_csubfrmEntryAcronyms`, `~sq_cfrmSubMeetingMinutes~sq_caddMeetingMinutesub`, `~sq_cfrmSubMeetingMinutes~sq_csubfrmMeetingActionItems`, `~sq_cfrmSubNotes~sq_csubfrmEntryAcronyms`, `~sq_cfrmSubNotes~sq_csubfrmListAcronyms`, `~sq_cfrmSubObjectives~sq_csubfrmEntryObjectives`, `~sq_cfrmSubParkingLotItems~sq_csubfrmEntryParkingLotItems`, `~sq_cfrmSubParkingLotItems~sq_csubfrmListParkingLotItems`, `~sq_cfrmSubQuestionsAnswers~sq_csubfrmListQuestionsAnswers`, `~sq_cfrmSubStakeholders~sq_csubfrmListStakeholders`, `~sq_cfrmSubSuppliers~sq_csubfrmListSuppliers`, `~sq_csubfrmEntryFinancials~sq_csubformFinancialDocuments`, `~sq_csubfrmEntryITResourcePlanning~sq_csubformResourcesPlanning`, `~sq_csubfrmMeetingAgenda~sq_csubfrmMeetingActionItems`, `~sq_csubfrmMeetingAgenda~sq_csubfrmMeetingDiscussionPoints`, `~sq_drptDetailedProjectReportS~sq_dsubrptMeetingMinutes`, `~sq_drptMeetingMinutes~sq_dsubrptMeetingApologies`, `~sq_dsubrptMeetingMinutes~sq_dsubrptMeetingApologies`, `~sq_fSwitchboard`, `~sq_ffrmSubProjects`, `~sq_fsubfrmEntryITResourcePlanning`, `~sq_fsubfrmEntryQuestionsAnswers`, `~sq_fsubfrmEntrySuppliers`, `~sq_fsubfrmListAcronyms`, `~sq_fsubfrmListFinancials`, `~sq_fsubfrmListKeyReqDeliverables`, `~sq_fsubfrmListParkingLotItems`, `~sq_fsubfrmListResourcesPlanning`, `~sq_fsubfrmListRisksIssuesTracker`, `~sq_fsubfrmListSuppliers`, `~sq_rsubrptFinancials`, `~sq_rsubrptKeyReqDeliverables`, `~sq_rsubrptObjectives`, `~sq_rsubrptParkingLotItems`, `~sq_rsubrptStakeholders`
+`qryAcronyms`, `qryAssumptionsConstraints`, `qryDailyActivityList`, `qryDailyActivityListExtended`, `qryDailyItemsAndStatusTypeByChoice`, `qryFinancialsExtended`, `qryITResourcePlanning`, `qryInProgressToDo`, `qryMeetingApologies`, `qryMeetingAttendees`, `qryMeetingMinutes`, `qryMeetingMinutes Extended`, `qryMinutes`, `qryObjectives`, `qryParkingLotItems`, `qryProject`, `qryProjectAcronyms`, `qryProjectActivityList`, `qryProjectExistingSystem`, `qryProjectFramework`, `qryProjectKeyRequirementsDeliverable`, `qryProjectObjectives`, `qryProjectReports`, `qryProjectStakeholders`, `qryStakeholders`, `qrySuppliers`, `qryUpcomingAlerts`, *(recovered)* `qryDailyItemsAndStatusType`, `qryKeyReqDeliverables`, `qryMeetingParticipants`, `qryProject3rdPartySupplier`, `qryProjectfrmQA`, `qryQuesAns` — **33 named queries** total, plus UI record-source queries: `~sq_cActivity List~sq_ccboFilterFavorites`, `~sq_cfrmDailyItemsAndStatusTypeChoice~sq_cProjectNameCopy`, `~sq_cfrmProjectReports~sq_ccboProject`, `~sq_cfrmReportSelector~sq_cListProjects`, `~sq_cfrmSubAcronyms~sq_csubfrmEntryAcronyms`, `~sq_cfrmSubDailyItemsAndStatusType~sq_cProjectID`, `~sq_cfrmSubFinancials~sq_csubfrmEntryAcronyms`, `~sq_cfrmSubMeetingMinutes~sq_caddMeetingMinutesub`, `~sq_cfrmSubMeetingMinutes~sq_csubfrmMeetingActionItems`, `~sq_cfrmSubNotes~sq_csubfrmEntryAcronyms`, `~sq_cfrmSubNotes~sq_csubfrmListAcronyms`, `~sq_cfrmSubObjectives~sq_csubfrmEntryObjectives`, `~sq_cfrmSubParkingLotItems~sq_csubfrmEntryParkingLotItems`, `~sq_cfrmSubParkingLotItems~sq_csubfrmListParkingLotItems`, `~sq_cfrmSubQuestionsAnswers~sq_csubfrmListQuestionsAnswers`, `~sq_cfrmSubStakeholders~sq_csubfrmListStakeholders`, `~sq_cfrmSubSuppliers~sq_csubfrmListSuppliers`, `~sq_csubfrmEntryFinancials~sq_csubformFinancialDocuments`, `~sq_csubfrmEntryITResourcePlanning~sq_csubformResourcesPlanning`, `~sq_csubfrmMeetingAgenda~sq_csubfrmMeetingActionItems`, `~sq_csubfrmMeetingAgenda~sq_csubfrmMeetingDiscussionPoints`, `~sq_drptDetailedProjectReportS~sq_dsubrptMeetingMinutes`, `~sq_drptMeetingMinutes~sq_dsubrptMeetingApologies`, `~sq_dsubrptMeetingMinutes~sq_dsubrptMeetingApologies`, `~sq_fSwitchboard`, `~sq_ffrmSubProjects`, `~sq_fsubfrmEntryITResourcePlanning`, `~sq_fsubfrmEntryQuestionsAnswers`, `~sq_fsubfrmEntrySuppliers`, `~sq_fsubfrmListAcronyms`, `~sq_fsubfrmListFinancials`, `~sq_fsubfrmListKeyReqDeliverables`, `~sq_fsubfrmListParkingLotItems`, `~sq_fsubfrmListResourcesPlanning`, `~sq_fsubfrmListRisksIssuesTracker`, `~sq_fsubfrmListSuppliers`, `~sq_rsubrptFinancials`, `~sq_rsubrptKeyReqDeliverables`, `~sq_rsubrptObjectives`, `~sq_rsubrptParkingLotItems`, `~sq_rsubrptStakeholders`
 
 ### Type 8 — Relationship layout (28)
 
@@ -401,6 +405,39 @@ Suggested SQL Server type mapping is included per column (used by `db/migrations
 | SnoozeOptions | TEXT | 510 | var | NVARCHAR(255) |
 | IsDismissed | BOOL |  | fixed | BIT |
 
+### `tblMeetingMinutes` (5 rows) *(recovered — deleted-flagged slot, still live per mdbtools)*
+
+| Column | Access type | Size (bytes, UTF-16) | Storage | SQL Server type |
+|---|---|---|---|---|
+| MeetingMinutesID | LONG |  | fixed | INT |
+| ProjectID | LONG |  | fixed | INT |
+| Subject | TEXT | 510 | var | NVARCHAR(255) |
+| Description | MEMO |  | var | NVARCHAR(MAX) |
+| Location | TEXT | 510 | var | NVARCHAR(255) |
+| StartDate | DATETIME |  | fixed | DATETIME2 |
+| StartTime | DATETIME |  | fixed | DATETIME2 |
+| EndTime | DATETIME |  | fixed | DATETIME2 |
+| Conclusion | MEMO |  | var | NVARCHAR(MAX) |
+| NextMeeting | DATETIME |  | fixed | DATETIME2 |
+| FollowupAction | TEXT | 510 | var | NVARCHAR(255) |
+
+### `tblFinancialDocuments` (9 rows) *(recovered — the MSSS document-type lookup)*
+
+| Column | Access type | Size (bytes, UTF-16) | Storage | SQL Server type |
+|---|---|---|---|---|
+| DocumentID | LONG |  | fixed | INT |
+| DocumentType | TEXT | 510 | var | NVARCHAR(255) |
+
+### `Switchboard Items` (0 rows) *(recovered — standard Access switchboard artefact; not migrated)*
+
+| Column | Access type | Size (bytes, UTF-16) | Storage | SQL Server type |
+|---|---|---|---|---|
+| SwitchboardID | LONG |  | fixed | INT |
+| ItemNumber | INT |  | fixed | SMALLINT |
+| ItemText | TEXT | 510 | var | NVARCHAR(255) |
+| Command | INT |  | fixed | SMALLINT |
+| Argument | TEXT | 510 | var | NVARCHAR(255) |
+
 ### Attachment (complex-column) side tables
 
 Access 2010 attachment columns are stored in hidden `f_*` tables (from `MSysComplexColumns`):
@@ -444,7 +481,7 @@ Access 2010 attachment columns are stored in hidden `f_*` tables (from `MSysComp
 | tblRisksIssuesTracker | ProjectID | → | tblProjectFramework | ProjectID | 0 |
 | tblTodoList | ProjectActivityID | → | tblProjectFramework | ProjectID | 2 |
 
-> **Orphaned relationships:** `tblMeetingMinutes` and `tblFinancialDocuments` appear as relationship endpoints but no longer exist as tables — they were deleted/renamed at some point (`tblMeetingAgenda`/`tblProjectFinancialDocuments` are their successors). The rebuild re-instates a proper `MeetingMinutes` parent entity.
+> ~~**Orphaned relationships:** `tblMeetingMinutes` and `tblFinancialDocuments` appear as relationship endpoints but no longer exist as tables~~ **Correction (verification pass):** both tables DO exist — their MSysObjects slots are deleted-flagged but the tables are live (mdbtools lists and exports them; schemas and data above/below). The relationship chains `tblMeetingMinutes → tblMeetingAgenda → …` and `tblFinancials/tblFinancialDocuments → tblProjectFinancialDocuments` are therefore fully intact: `tblProjectFinancialDocuments` is the junction between `tblFinancials` and the `tblFinancialDocuments` document-type lookup.
 
 ## 4. Full data export (all rows, all user tables)
 
@@ -794,6 +831,36 @@ _(empty table)_
 | 26 | 0 | None |  | 2025-01-02 00:00:00 | 2025-01-08 00:00:00 | Medium | Not Started |  | False |  |  |  | 0 |  |  |  |  |  | False |
 | 27 | 0 | Project | Create new slides | 2025-01-01 00:00:00 | 2025-01-09 00:00:00 | High | Not Started |  | False |  |  |  | 0 |  |  |  |  |  | False |
 | 28 | 0 | Daily Activity | J | 2025-01-08 00:00:00 | 2025-01-09 00:00:00 | Medium | Completed |  | False |  |  |  | 0 |  |  |  |  |  | False |
+
+### `tblMeetingMinutes` — 5 rows *(recovered)*
+
+| MeetingMinutesID | ProjectID | Subject | Description | Location | StartDate | StartTime | EndTime | Conclusion | NextMeeting | FollowupAction |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 2 | Progress Achieved | I have achieved success in making sure all items are connected and working. I need to work on the next point now |  | 2024-12-12 00:00:00 | 1899-12-30 17:00:00 | 1899-12-30 18:00:00 | I need to be faster in implementation of the work | 2024-12-17 00:00:00 | What shall we on notes? |
+| 2 | 24 | Effective replenishment processing | \<div\>Discuss ways to ensure we have restocking on time\</div\> | Upper Room | 2024-12-17 00:00:00 | 1899-12-30 16:00:00 | 1899-12-30 19:00:00 | Work on all components |  |  |
+| 3 | 24 | Order point calculations | Determining the most appropriate order cycle from each source of<br>supply. |  | 2024-12-24 00:00:00 | 2024-12-24 00:00:00 | 2024-12-17 00:00:00 | Known when to take advantage of price breaks for a larger purchase. | 2024-12-03 00:00:00 |  |
+| 4 | 24 | When to take advantage of price breaks for a larger purchase. | Determining the target (best size) order with a vendor.<br>Determining the most appropriate order cycle from each source of<br>supply |  |  |  |  | When to take advantage of price breaks for a larger purchase. |  |  |
+| 5 |  | Migration | Platform migration |  | 2025-01-03 00:00:00 | 1899-12-30 10:10:00 | 1899-12-30 12:30:00 | The next meeting | 2025-01-18 00:00:00 | None |
+
+> `MeetingID` values in `tblMeetingAgenda`/`tblMeetingParticipants` (0, 1, 2) reference these meetings; agenda rows with `MeetingID = 2` belong to *Effective replenishment processing*.
+
+### `tblFinancialDocuments` — 9 rows *(recovered — MSSS document-type lookup, referenced by `tblProjectFinancialDocuments.DocumentID`)*
+
+| DocumentID | DocumentType |
+|---|---|
+| 1 | DA |
+| 2 | DAS |
+| 3 | Demande de Signature |
+| 4 | Dossier d'orpportunite |
+| 5 | Appel d'offer/Call for Tender |
+| 6 | Montage Financier |
+| 7 | Requisation |
+| 8 | A1 |
+| 9 | Signed Direct Contract |
+
+### `Switchboard Items` — 0 rows *(recovered)*
+
+_(empty table)_
 
 ## 5. Saved queries (MSysQueries, reconstructed)
 
@@ -1262,6 +1329,42 @@ SELECT tblTodoList.TodoItemId,
        IIf(([DueDate]<Date()),"Overdue",IIf(([DueDate]-2)<=Date(),"Approaching Deadline","Normal")) AS [AlertType]
 FROM tblTodoList
 WHERE (((tblTodoList.Status) Not In ("Completed","Cancelled")) And (([DueDate]-2)<=Date())) Or (((tblTodoList.Status) Not In ("Completed","Cancelled")) And ((tblTodoList.DueDate)<Date()))
+```
+
+### Recovered queries (deleted-flagged slots, SQL via `mdb-queries`)
+
+```sql
+-- qryDailyItemsAndStatusType
+SELECT * FROM [tblDailyActivityList] ORDER BY tblDailyActivityList.RequestDate;
+
+-- qryKeyReqDeliverables
+SELECT tblProjectFramework.ProjectID, tblProjectFramework.ProjectName,
+       tblKeyRequirementsDeliverable.KeyReqDevID, tblKeyRequirementsDeliverable.KeyReq
+FROM [tblProjectFramework], [tblKeyRequirementsDeliverable];
+
+-- qryMeetingParticipants
+SELECT tblMeetingParticipants.Participant, [FirstName] & " " & [LastName],
+       tblMeetingParticipants.Apology, tblMeetingParticipants.[Meeting ID]
+FROM [tblMeetingParticipants], [tblStakeholders];
+
+-- qryProject3rdPartySupplier
+SELECT tbl3rdPartySupplier.ProjectID, tbl3rdPartySupplier.SupplierName,
+       tbl3rdPartySupplier.[Contact Person], tbl3rdPartySupplier.[Email Address],
+       tbl3rdPartySupplier.[Contract Start Date], tbl3rdPartySupplier.[Contract End Date],
+       tbl3rdPartySupplier.Rating, tbl3rdPartySupplier.Address,
+       tbl3rdPartySupplier.[Province or State], tbl3rdPartySupplier.Country,
+       tbl3rdPartySupplier.[Postal Code], tbl3rdPartySupplier.City
+FROM [tbl3rdPartySupplier], [tblProjectFramework];
+
+-- qryProjectfrmQA
+SELECT tblInterviewQuestionsAnswers.ProjectID, tblInterviewQuestionsAnswers.Question,
+       tblInterviewQuestionsAnswers.Answer
+FROM [tblInterviewQuestionsAnswers], [tblProjectFramework];
+
+-- qryQuesAns
+SELECT tblProjectFramework.ProjectID, tblProjectFramework.ProjectName,
+       tblInterviewQuestionsAnswers.Question, tblInterviewQuestionsAnswers.Answer
+FROM [tblProjectFramework], [tblInterviewQuestionsAnswers];
 ```
 
 ### UI record-source queries (`~sq_*`, not expanded)
