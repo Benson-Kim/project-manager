@@ -1,0 +1,15 @@
+# Scheduled Duo flow: dependency & vulnerability maintenance.
+name: dependency-update
+description: >
+  Audits and updates dependencies; opens an MR when changes are needed.
+environment:
+  image: node:22
+prompt: |
+  Maintenance run for the Project Manager app. Follow AGENTS.md conventions.
+  1. git checkout develop && git pull; create branch duo/update/deps-<date>.
+  2. Run `npm outdated` and `npm audit`. Apply `npm audit fix` and safe
+     minor/patch upgrades (`npm update`). For major upgrades, read release
+     notes and apply only when the build stays green.
+  3. Run npm run lint && npm run typecheck && npm run test && npm run build.
+  4. If anything changed, commit and open a draft MR to develop summarising
+     CVEs fixed and packages bumped. If nothing changed, exit without an MR.
