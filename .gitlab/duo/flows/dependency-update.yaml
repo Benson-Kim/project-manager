@@ -1,15 +1,52 @@
-# Scheduled Duo flow: dependency & vulnerability maintenance.
-name: dependency-update
-description: >
-  Audits and updates dependencies; opens an MR when changes are needed.
-environment:
-  image: node:22
-prompt: |
-  Maintenance run for the Project Manager app. Follow AGENTS.md conventions.
-  1. git checkout develop && git pull; create branch duo/update/deps-<date>.
-  2. Run `npm outdated` and `npm audit`. Apply `npm audit fix` and safe
-     minor/patch upgrades (`npm update`). For major upgrades, read release
-     notes and apply only when the build stays green.
-  3. Run npm run lint && npm run typecheck && npm run test && npm run build.
-  4. If anything changed, commit and open a draft MR to develop summarising
-     CVEs fixed and packages bumped. If nothing changed, exit without an MR.
+# Custom flow (flow registry v1): dependency & vulnerability maintenance.
+# Register via the project AI Catalog; trigger on a schedule or manually with
+# goal "Run the dependency/vulnerability maintenance pass".
+# Schema: https://docs.gitlab.com/user/duo_agent_platform/flows/custom/yaml_schema/
+version: v1
+environment: ambient
+
+components:
+  - name: dependency_update
+    type: AgentComponent
+    prompt_id: dependency_update_prompt
+    inputs:
+      - "context:goal"
+    toolset:
+      - read_file
+      - edit_file
+      - list_dir
+      - grep
+      - run_command
+      - run_git_command
+      - create_merge_request
+      - create_merge_request_note
+
+prompts:
+  - prompt_id: dependency_update_prompt
+    prompt_template:
+      system: |
+        You are the dependency-maintenance agent for the Project Manager
+        rebuild. Follow AGENTS.md. Never commit secrets. All work lands via a
+        merge request to develop — never push to develop or main directly.
+      user: |
+        {{goal}}
+
+        1. git fetch origin && create branch duo/update/deps-<yyyymmdd> from
+           origin/develop.
+        2. npm ci, then: npm outdated; npm audit. Apply `npm audit fix` and
+           safe minor/patch bumps (npm update). For majors, read release notes
+           and only apply when lint/typecheck/test/build stay green.
+        3. Run npm run lint && npm run typecheck && npm run test &&
+           npm run build.
+        4. If anything changed: commit (fix(deps): ...), push, open a draft MR
+           to develop summarising CVEs fixed and packages bumped, and wait for
+           the pipeline. If nothing changed, finish without an MR and say so.
+    params:
+      timeout: 300
+
+routers:
+  - from: dependency_update
+    to: end
+
+flow:
+  entry_point: dependency_update

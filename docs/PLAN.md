@@ -53,13 +53,13 @@ Column names are normalised to PascalCase without spaces (e.g. `Contact Person` 
 | tblAcronyms | `Keyword` | renamed per checklist §13 (searchable) |
 | tblKeyRequirementsDeliverable | `KeyDeliverable` | AssignedTo → FK Stakeholder; drives Gantt |
 | tblProjectObjectives | `Objective` | |
-| (orphan) tblMeetingMinutes, tblMeetingAgenda, tblMeetingDiscussionPoints, tblMeetingActionItems, tblMeetingParticipants | `Meeting`, `MeetingAgendaItem`, `MeetingDiscussionPoint`, `MeetingActionItem`, `MeetingParticipant` | re-instated Meeting parent; location/agenda/start/end fields; attended vs apologies flag |
+| tblMeetingMinutes (recovered — 5 rows), tblMeetingAgenda, tblMeetingDiscussionPoints, tblMeetingActionItems, tblMeetingParticipants | `Meeting`, `MeetingAgendaItem`, `MeetingDiscussionPoint`, `MeetingActionItem`, `MeetingParticipant` | Meeting parent EXISTS in the source (subject, description, location, start date, start/end time, conclusion, next meeting, follow-up); + checklist extras: date received, title, objective, participant list from stakeholders |
 | tblInterviewQuestionsAnswers | `QuestionAnswer` | category/priority/assignee |
 | tblAssumptionsConstraints | `AssumptionConstraint` | type/impact/status |
 | tblRisksIssuesTracker | `RiskIssue` | probability/impact/severity/mitigation; UI merges with assumptions (checklist §16) |
 | tblNotes (+attachment) | `Note`, `NoteTab` | rich text (HTML), titled tabs, tables, strikethrough |
 | tblITResourcePlanning + Details | `ItResourceCategory`, `ItResourceItem` | categories: Security, Infrastructure, Local Techs, User Training, Interfaces |
-| tblFinancials, tblProjectFinancialDocuments | `Financial`, `FinancialDocument` | MSSS doc workflow: DO/DA/DAS/A1/AppelDOffres/MontageFinancier/Requisition/DemandeSignature/SignedContract + skip-reason |
+| tblFinancials, tblFinancialDocuments (recovered — 9-row lookup), tblProjectFinancialDocuments | `Financial`, `FinancialDocumentType` (lookup seeded from tblFinancialDocuments: DA, DAS, Demande de Signature, Dossier d'opportunité, Appel d'offres, Montage Financier, Réquisition, A1, Signed Direct Contract), `FinancialDocument` (junction: required flag + skip-reason) | MSSS document workflow exactly as in the source |
 | tblParkingLotItems | `ParkingLotItem` | strikethrough flag, follow-up actions, date added, owner |
 | tblDailyActivityList (+attachment) | `DailyActivity` | status lookup, requester, time spent, assigned-to |
 | tblTodoList | `TodoItem`, `TodoAlert` | alert engine: alert day/time, repeat unit/interval, snooze count/max/options, dismissed |
@@ -95,18 +95,28 @@ keywords, 8 deliverables, 6 objectives, 3 meetings + children, 12 Q&A,
 | 13 | risks-issues | `feature/risks-issues` | 12 |
 | 14 | notes (rich text, tabs, tables) | `feature/notes` | 4 |
 | 15 | it-resource-planning | `feature/it-resource-planning` | 4 |
-| 16 | financials (MSSS document workflow + uploads) | `feature/financials` | 4, 21 |
-| 17 | parking-lot | `feature/parking-lot` | 4 |
-| 18 | daily-activities | `feature/daily-activities` | 4 |
-| 19 | todo-alerts (dynamic to-do, pop-up alerts, snooze, calendar) | `feature/todo-alerts` | 18 |
-| 20 | reports (printable/downloadable, dynamic builder) | `feature/reports` | 4–19 |
-| 21 | file-storage-and-backup (uploads + scheduled backups + restore) | `feature/file-storage-and-backup` | 2 |
-| 22 | admin-management (users/roles/permissions/audit viewer/backup status/settings) | `feature/admin-management` | 3, 21 |
-| 23 | ci-cd-and-security-automation (Renovate, scans, audit-fix schedule) | `feature/ci-cd-and-security-automation` | 1 |
+| 16 | file-storage-and-backup (uploads + scheduled backups + tested restore) | `feature/file-storage-and-backup` | 2 |
+| 17 | financials (MSSS document workflow + uploads) | `feature/financials` | 4, 16 |
+| 18 | parking-lot | `feature/parking-lot` | 4 |
+| 19 | daily-activities | `feature/daily-activities` | 4 |
+| 20 | todo-alerts (dynamic to-do, pop-up alerts, snooze, calendar) | `feature/todo-alerts` | 19 |
+| 21 | reports (printable/downloadable, dynamic builder) | `feature/reports` | 4–20 |
+| 22 | admin-management (users/roles/permissions/audit viewer/backup status/settings) | `feature/admin-management` | 3, 16 |
+| 23 | ci-cd-and-security-automation (Renovate schedule live, scans, audit-fix schedule, hardening) | `feature/ci-cd-and-security-automation` | 1 |
+
+> Ordering fix (review): **file-storage-and-backup now precedes financials**,
+> which needs document uploads. Module numbers = build order; issue IIDs are
+> mapped in `docs/TRACEABILITY.md` and in epic #1.
 
 MR flow: each `feature/*` → MR to `develop` (staging deploy) → release MR
 `develop` → `main` (production, manual deploy). Parallelisable after #4:
-5–9, 12, 14–18 are independent of each other.
+stakeholders, suppliers, acronyms, objectives, assumptions-constraints, notes,
+it-resource-planning, parking-lot, daily-activities are independent of each
+other.
+
+**Phases / milestones**: Phase 1 foundation+db+auth (modules 1–3) · Phase 2
+core domain (4–15) · Phase 3 financials/reporting/alerts (16–21, includes
+file-storage) · Phase 4 admin/hardening/release (22–23 + release MR).
 
 ## 4. Stored-procedure catalogue
 
@@ -132,6 +142,12 @@ Naming: `usp_<Entity>_<Action>`; one file per proc in `db/procs/<entity>/`;
   - `usp_Financial_GetDocumentChecklist`, `usp_KeyDeliverable_GanttData`.
   - `usp_Audit_Insert`, `usp_Audit_Search` (admin viewer).
   - `usp_User_*`, `usp_Role_*`, `usp_Permission_*`, `usp_Session_*` (auth).
+  - `usp_Backup_RecordRun`, `usp_Backup_GetStatus` (admin backup-status panel:
+    last run, size, restore-rehearsal result — written by the scheduled job).
+  - Recovered queries map to: `qryQuesAns`/`qryProjectfrmQA` → `usp_QuestionAnswer_List`,
+    `qryKeyReqDeliverables` → `usp_KeyDeliverable_List`, `qryMeetingParticipants`
+    → `usp_Meeting_GetParticipants`, `qryProject3rdPartySupplier` →
+    `usp_Supplier_List`, `qryDailyItemsAndStatusType` → `usp_DailyActivity_List`.
 
 ## 5. Backup & restore (zero-cost)
 
@@ -143,7 +159,22 @@ Naming: `usp_<Entity>_<Action>`; one file per proc in `db/procs/<entity>/`;
   version = timestamp) — free, versioned, retained by cleanup policy.
   Job artifacts hold the latest backup as a secondary copy.
 - **Uploaded files**: `scripts/backup.sh` tars the uploads volume and ships it in
-  the same package version; content-hash naming gives deduped versioning.
+- Runbook: [`docs/RESTORE-RUNBOOK.md`](RESTORE-RUNBOOK.md) (exists now; extended by the file-storage module).
+
+**RPO / RTO.**
+- RPO: ≤ 24 h against a total loss (daily full+diff+log set shipped off-server
+  to the package registry); ≤ scheduled interval when running the schedule more
+  often (the job is idempotent — run hourly for an RPO of 1 h at zero cost).
+  On-server transaction-log backups make point-in-time recovery possible
+  between shipped sets.
+- RTO: ≤ 30 min — download set + `RESTORE` chain on a fresh SQL Server
+  container (rehearsed automatically: `scripts/restore-rehearsal.sh` runs after
+  every scheduled backup and fails the pipeline if the chain doesn't restore
+  or sanity counts are off).
+- Zero-cost justification: GitLab Generic Package Registry + scheduled CI +
+  job artifacts are all included in the free tier; SQL Server Developer/Express
+  images are free; no external storage or backup service is used. Retention
+  pruning (`BACKUP_RETAIN_DAYS`, default 30) keeps registry usage bounded.d versioning.
 - **Restore**: `scripts/restore.sh <version>` downloads the package, restores
   full+diff+log with `RESTORE DATABASE … WITH NORECOVERY/RECOVERY`;
   `scripts/restore-files.sh <version>` restores the uploads volume. A **restore
@@ -185,19 +216,120 @@ Naming: `usp_<Entity>_<Action>`; one file per proc in `db/procs/<entity>/`;
   project framework and the daily activity list in separate windows/tabs
   (checklist "Items to remember").
 
-## 8. CI/CD
+## 8. CI/CD & automation
 
 Stages: `lint` → `typecheck` → `test` → `build` → `security` → `backup`
 (scheduled only) → `deploy-staging` (develop) → `deploy-prod` (main, manual).
-Feature branches run lint/typecheck/test/build only (rules-based). See
-`.gitlab-ci.yml` (foundation module).
+Feature branches run lint/typecheck/test/build (+ manual e2e); develop/main add
+automatic e2e + SAST + Secret Detection + Dependency Scanning (lockfile-based).
+Manual utility jobs: `verify:sources` (re-verify the extraction),
+`lockfile:generate`.
 
-## 9. This session's deliverables
+**Dependency & vulnerability automation (all zero-cost):**
 
-1. `docs/source-analysis/*` on `develop` ✔
-2. `.gitlab/duo/agent-config.yml`, flows, `AGENTS.md` (this MR)
-3. `docs/PLAN.md` (this file)
-4. Epic-style parent issue + one issue per module (with acceptance criteria and
-   branch names)
-5. `feature/foundation` scaffold + MR to `develop`
-6. This docs/config MR to `develop`
+| Mechanism | Trigger | What it does |
+|---|---|---|
+| Renovate (self-hosted) | pipeline schedule `SCHEDULE_JOB=renovate` (weekly) | `renovate/renovate` image runs against this project (config `renovate.json`, base branch `develop`): MRs for updates, automerge minor/patch, `vulnerabilityAlerts` + `osvVulnerabilityAlerts` open security MRs, lock-file maintenance. Requires `RENOVATE_TOKEN` (project access token: `api`, `write_repository`). |
+| `npm-audit-fix` | pipeline schedule `SCHEDULE_JOB=audit` (daily) | runs `npm audit fix`; when something changed, pushes `duo/update/audit-fix-<date>` and opens an MR to develop. Requires `PROJECT_TOKEN`. |
+| Dependency Scanning / SAST / Secret Detection | every develop/main pipeline | GitLab templates; findings appear in the security report. |
+| `dependency-update` Duo flow | manual/scheduled flow trigger | agent session that also handles majors with release-note reading (`.gitlab/duo/flows/dependency-update.yaml`). |
+
+## 9. Roles & permissions matrix
+
+Roles: **Admin** ▸ **ProjectManager (PM)** ▸ **Contributor** ▸ **Viewer**.
+Enforced in three layers: route guard (proxy + layout), server-action guard,
+and proc-level `@ActorUserId` permission check. All mutations audit-logged.
+
+| Capability | Admin | PM | Contributor | Viewer |
+|---|---|---|---|---|
+| View all modules & reports | ✔ | ✔ | ✔ | ✔ |
+| Export/print/download reports | ✔ | ✔ | ✔ | ✔ |
+| CRUD on own projects (all domain modules) | ✔ | ✔ | ✖ | ✖ |
+| CRUD on assigned module records | ✔ | ✔ | ✔ | ✖ |
+| Manage project assignees (PMs/sponsors/BAs) | ✔ | ✔ | ✖ | ✖ |
+| Upload/delete file attachments | ✔ | ✔ | ✔ | ✖ |
+| Manage users, roles, permissions | ✔ | ✖ | ✖ | ✖ |
+| View audit log / backup status | ✔ | ✖ | ✖ | ✖ |
+| Trigger backup / restore runbook actions | ✔ | ✖ | ✖ | ✖ |
+| Application settings | ✔ | ✖ | ✖ | ✖ |
+
+Full security design: [`docs/SECURITY.md`](SECURITY.md).
+
+## 10. Execution plan — one agent session per module
+
+Every module is implemented by launching the **implement-module flow**
+(`.gitlab/duo/flows/implement-module.yaml`) — or an interactive agent session —
+with the goal text below. Inputs each session MUST read before coding:
+`AGENTS.md`, this file (§2 §4 §10), `docs/TRACEABILITY.md`, the module issue,
+and `docs/source-analysis/` (requirements + the module's tables/queries/rows).
+
+**Goal text template** (replace placeholders):
+
+> Implement module `<module-key>` (issue `#<iid>`) of the Project Manager
+> rebuild. Read AGENTS.md, docs/PLAN.md §2/§4/§10, docs/TRACEABILITY.md, issue
+> `#<iid>` and docs/source-analysis/ first. Create branch
+> `feature/<module-key>` from develop, implement migrations + stored procedures
+> + seeds + repository + mobile-first UI + tests per the issue's acceptance
+> criteria, verify lint/typecheck/test/build, and open a draft MR to develop
+> titled "Draft: feat(<module-key>): …" with "Closes #<iid>". Wait for the
+> pipeline and fix failures.
+
+Per-module outputs & verification (all modules): branch `feature/<module>`;
+draft MR → develop; `db/migrations/NNN_*.sql` + `db/procs/<entity>/*` +
+`db/seed/*`; `src/lib/repositories/<entity>.ts`; `src/app/(app)/<module>/`
+screens (mobile-first, 360 px-first); Vitest + Playwright tests; green
+pipeline. **Merge gate**: pipeline green (incl. proc-only guardrail), review
+notes resolved, acceptance criteria checked off in the issue, un-draft, merge
+to develop, verify staging deploy job, close issue.
+
+| Order | Module key (issue) | Session goal specifics beyond template |
+|---|---|---|
+| 2 | database-schema-and-procs (#3) | All §2 tables + FKs + indexes; CRUD procs per entity; ALL seeds from access-database.md §4 (incl. 5 meetings, 9 document types); `usp_Project_Search`; import mechanism = seeds (checklist row 61) |
+| 3 | auth-and-rbac (#4) | auth.User/Role/UserRole/Session tables + procs; Auth.js credentials + bcrypt/argon2; role guards; login rate limiting; seed admin user (forced password change); audit Login/Logout |
+| 4 | projects (#5) | charter screen, type-ahead search (row 5), M:N assignees (row 6), add-ons (row 69: priority, est. completion, phase, risk level, status) |
+| 5 | stakeholders (#6) | CRUD + comm-preference/engagement dropdowns (row 70) |
+| 6 | suppliers (#7) | CRUD + contact/contract/rating + address block (rows 55, 74) |
+| 7 | acronyms (#8) | rename Keywords + search field (row 58) |
+| 8 | key-deliverables (#9) | CRUD + deadline/assignee/priority/status (row 71) + Gantt from deliverable dates (row 67) |
+| 9 | objectives (#10) | CRUD (row 11) |
+| 10 | meetings (#11) | Meeting parent + agenda/discussion/actions/participants; participants picker from stakeholders (rows 13, 53, 54, 72); attendees vs apologies |
+| 11 | questions-answers (#12) | CRUD + category/priority/assignee (row 73) |
+| 12 | assumptions-constraints (#13) | CRUD + type/impact/mitigation (row 75) |
+| 13 | risks-issues (#14) | full tracker fields (row 38); UI merged with assumptions (§16 of checklist) |
+| 14 | notes (#15) | Word-like editor: tables, titled tabs, bold/italic/bullets/strikethrough/fonts (rows 17–20, 56, 62) |
+| 15 | it-resource-planning (#16) | 5 categories + detail lines + needed flag (PPTX slide 1, rows 21–22) |
+| 16 | file-storage-and-backup (#22) | app.FileAttachment + uploads volume; extend backup to uploads; RESTORE-RUNBOOK finalised; storage-location field (row 44) |
+| 17 | financials (#17) | budget fields per PPTX slide 2; 9 document types checklist + skip-reasons; attachments (rows 23–24, 64) |
+| 18 | parking-lot (#18) | strikethrough, follow-up, date added, owner (rows 25–30; PPTX slide 3) |
+| 19 | daily-activities (#19) | CRUD + time spent/assigned/task type/progress (rows 34–35, 76) |
+| 20 | todo-alerts (#20) | dynamic to-do from daily activities, ordering, filters, pop-up alerts w/ date+time, repeat unit/interval, snooze options, calendar reminders (rows 31–33, 57, 59, 66) |
+| 21 | reports (#21) | printable + downloadable reports over every module, detailed project report, dynamic report builder (rows 36–37, 49) |
+| 22 | admin-management (#23) | users/roles UI, audit viewer, backup status (usp_Backup_GetStatus), settings |
+| 23 | ci-cd-and-security-automation (#24) | schedules live (backup/audit/renovate), protected branches confirmed, security-scan triage, deploy targets |
+
+## 11. Release, schedules & branch protection
+
+**Release develop → main:** open MR `develop` → `main` titled
+`release: <date>`; gate = green develop pipeline + staging verification
+(smoke checklist in the MR) + all phase issues closed; merge (no squash);
+`deploy-prod` is a manual job on the main pipeline; tag `vX.Y.Z`.
+Rollback = revert MR on main + redeploy; DB rollback per RESTORE-RUNBOOK.
+
+**Pipeline schedules to create** (CI/CD ▸ Schedules):
+
+| Schedule | Cron (example) | Variable | Also requires (CI/CD variables) |
+|---|---|---|---|
+| Nightly backup + restore rehearsal | `0 3 * * *` | `SCHEDULE_JOB=backup` | `MSSQL_SA_PASSWORD` (masked); later `DB_SERVER`/`DB_*` of the real host; optional `GITLAB_TOKEN` for pruning, `BACKUP_RETAIN_DAYS` |
+| Daily npm audit fix | `0 5 * * *` | `SCHEDULE_JOB=audit` | `PROJECT_TOKEN` (project access token: api + write_repository) |
+| Weekly Renovate | `0 6 * * 1` | `SCHEDULE_JOB=renovate` | `RENOVATE_TOKEN` (api + write_repository), optional `GITHUB_COM_TOKEN` |
+
+Other CI/CD variables: `AUTH_SECRET` (masked, from module 3 onward).
+**Never commit secrets** — Secret Detection blocks leaks on develop/main.
+
+**Protected branches (Settings ▸ Repository ▸ Protected branches):**
+- `main`: allowed to push **No one**, allowed to merge Maintainers,
+  "Allowed to force push" off; require green pipeline to merge.
+- `develop`: allowed to push **No one** (MRs only), allowed to merge
+  Developers+Maintainers; require green pipeline.
+- Optional: pipeline "skipped pipelines are not considered successful",
+  and resolve-all-threads required for merge.

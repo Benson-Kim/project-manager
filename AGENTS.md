@@ -15,14 +15,18 @@ and printable reports.
 
 ## Architecture
 
-- **Next.js (latest stable, App Router, TypeScript)** — UI + API in one app.
+- **Next.js 16 (latest stable, App Router, TypeScript)** — UI + API in one app.
   Server Actions for mutations, Route Handlers for report downloads/webhooks.
+  Per-request nonce CSP lives in `src/proxy.ts` (Next 16 renamed middleware to
+  proxy — do not add a `middleware.ts`).
 - **Tailwind CSS (latest)** — mobile-first; design starts at small breakpoints;
   touch-friendly targets; PWA manifest.
 - **SQL Server 2022** (`mcr.microsoft.com/mssql/server:2022-latest` in Docker).
 - **Stored procedures ONLY** for data access — no inline SQL, no ORM. The app uses
   the `mssql` npm package through a thin repository layer (`src/lib/repositories/*`)
-  that calls procs with typed, parameterised inputs.
+  that calls procs with typed, parameterised inputs. **Enforced**, not just a
+  convention: ESLint bans `.query()`/`.batch()` and
+  `src/test/no-inline-sql.test.ts` fails CI on raw SQL in `src/`.
 - **Auth.js (NextAuth)** credentials + RBAC (`Admin`, `ProjectManager`,
   `Contributor`, `Viewer`), argon2/bcrypt hashing, zod validation everywhere,
   rate limiting, CSP/HSTS headers, audit-log tables + procs.
@@ -56,10 +60,17 @@ docs/             PLAN.md, source-analysis/, runbooks
   mutation. Migrations and proc scripts must be re-runnable (`CREATE OR ALTER`).
 - **Never commit secrets.** Secrets live in GitLab CI/CD variables; the repo has
   `.env.example` only.
+- **Dependencies**: `package-lock.json` is committed — always `npm ci`, never
+  bare `npm install` (except deliberate dependency changes, which must update
+  the lockfile; use the `lockfile:generate` CI job if the proxy blocks npm).
 - **Verification**: `npm run lint && npm run typecheck && npm run test &&
   npm run build` must pass before any MR is opened; CI must be green.
   Note: the DAP workspace proxy blocks npmjs.org — if installs fail locally, push
   and let CI verify, and say so explicitly in the MR.
+- **Source data**: `docs/source-analysis/` is verified against the raw files
+  (see `VERIFICATION.md` there — incl. the recovered `tblMeetingMinutes` and
+  `tblFinancialDocuments` tables). Seed data comes from `access-database.md` §4
+  only; never re-parse the binary artefacts ad hoc, and never modify them.
 - **Quality**: mutations RBAC-guarded + audit-logged; all inputs zod-validated;
   UI responsive from 360 px up; Playwright smoke test per module.
 
