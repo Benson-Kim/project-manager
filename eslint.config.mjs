@@ -22,6 +22,25 @@ const eslintConfig = [
     ],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript", "prettier"),
+  {
+    // Stored-procedure-only data access: forbid raw SQL execution APIs.
+    // (Backstop unit test: src/test/no-inline-sql.test.ts)
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "CallExpression[callee.property.name='query']",
+          message:
+            "Raw .query() is forbidden — all data access goes through stored procedures (execProc in src/lib/db.ts).",
+        },
+        {
+          selector: "CallExpression[callee.property.name='batch']",
+          message:
+            "Raw .batch() is forbidden — all data access goes through stored procedures (execProc in src/lib/db.ts).",
+        },
+      ],
+    },
+  },
 ];
 
 export default eslintConfig;

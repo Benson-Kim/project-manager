@@ -10,6 +10,17 @@ GO
 
 IF SCHEMA_ID(N'app') IS NULL EXEC (N'CREATE SCHEMA app');
 GO
+
+-- Migration bookkeeping: scripts/db-apply.sh records every applied migration
+-- here and skips files already applied (idempotency is enforced, not assumed).
+IF OBJECT_ID(N'app.SchemaMigrations', N'U') IS NULL
+BEGIN
+    CREATE TABLE app.SchemaMigrations (
+        MigrationId  NVARCHAR(255) NOT NULL CONSTRAINT PK_SchemaMigrations PRIMARY KEY,
+        AppliedAtUtc DATETIME2 NOT NULL CONSTRAINT DF_SchemaMigrations_AppliedAtUtc DEFAULT SYSUTCDATETIME()
+    );
+END;
+GO
 IF SCHEMA_ID(N'auth') IS NULL EXEC (N'CREATE SCHEMA auth');
 GO
 IF SCHEMA_ID(N'audit') IS NULL EXEC (N'CREATE SCHEMA audit');
