@@ -8,3 +8,11 @@ docs/source-analysis
 *.mdb
 *.xlsx
 *.pptx
+# repo infra / generated files not subject to prettier
+.gitlab-ci.yml
+docker-compose.yml
+tools/
+README.md
+db/
+scripts/
+public/sw.js
