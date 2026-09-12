@@ -1,52 +1,86 @@
-# Parameterised Duo Agent Platform flow: implement one module end-to-end.
-# Trigger with the module name as input; the flow follows AGENTS.md conventions.
-name: implement-module
-description: >
-  Implements a single module of the Project Manager rebuild end-to-end:
-  DB migration + stored procedures + seed data, repository layer, server
-  actions/route handlers, mobile-first UI, tests, and an MR to develop.
+# Custom flow (flow registry v1): implement one module of the Project Manager
+# rebuild end-to-end. Register via the project AI Catalog (AI > Flows > New
+# flow) with this YAML as the configuration.
+# Schema: https://docs.gitlab.com/user/duo_agent_platform/flows/custom/yaml_schema/
+#
+# Goal format (pass as the flow goal / mention text):
+#   "Implement module <module-key> (issue #<iid>)"
+# The agent derives everything else from AGENTS.md, docs/PLAN.md §10 and the issue.
+version: v1
+environment: ambient
 
-inputs:
-  module:
-    description: >
-      Module key. One of: foundation, auth-and-rbac, database-schema-and-procs,
-      projects, stakeholders, suppliers, acronyms, key-deliverables, objectives,
-      meetings, questions-answers, assumptions-constraints, risks-issues, notes,
-      it-resource-planning, financials, parking-lot, daily-activities, todo-alerts,
-      reports, file-storage-and-backup, admin-management, ci-cd-and-security-automation
-    required: true
+components:
+  - name: implement_module
+    type: AgentComponent
+    prompt_id: implement_module_prompt
+    inputs:
+      - "context:goal"
+      - from: "context:project_id"
+        as: "project_id"
+    toolset:
+      - read_file
+      - create_file_with_contents
+      - edit_file
+      - list_dir
+      - find_files
+      - grep
+      - mkdir
+      - run_command
+      - run_git_command
+      - get_issue
+      - list_issues
+      - create_merge_request
+      - create_merge_request_note
 
-environment:
-  image: node:22
-  services:
-    - name: mcr.microsoft.com/mssql/server:2022-latest
-      alias: mssql
+prompts:
+  - prompt_id: implement_module_prompt
+    prompt_template:
+      system: |
+        You are an expert full-stack engineer implementing one module of the
+        Project Manager rebuild (Next.js + SQL Server, stored-procedure-only).
 
-prompt: |
-  You are implementing the "{{ module }}" module of the Project Manager rebuild.
+        Non-negotiable conventions (AGENTS.md is authoritative):
+        - Branch feature/<module> is cut FROM develop; the MR targets develop.
+        - ALL data access via stored procedures (usp_<Entity>_<Action>) — no
+          inline SQL, no ORM. ESLint + the guardrail unit test enforce this.
+        - Every mutation is RBAC-guarded, zod-validated and audit-logged.
+        - UI is mobile-first Tailwind from 360px up, touch targets >= 44px.
+        - Never commit secrets; never delete/modify Access_database.mdb,
+          Project_.xlsx or Project_hololens.pptx.
+      user: |
+        {{goal}}
 
-  Context you MUST read first:
-  1. AGENTS.md (repo root) — architecture, conventions, branching model.
-  2. docs/PLAN.md — module breakdown, data model, stored-procedure catalogue.
-  3. docs/source-analysis/requirements.md — business requirements for this module.
-  4. The GitLab issue labelled "module::{{ module }}" — acceptance criteria.
+        Work through these steps:
+        1. READ FIRST (mandatory, in order): AGENTS.md; docs/PLAN.md (§2 data
+           model, §4 proc catalogue, §10 execution plan for this module);
+           docs/TRACEABILITY.md; docs/source-analysis/requirements.md and the
+           sections of docs/source-analysis/access-database.md for this
+           module's tables/queries/data; the module issue (acceptance
+           criteria + definition of done).
+        2. git fetch origin && switch to a new branch feature/<module> based on
+           origin/develop (reuse the branch if it already exists).
+        3. Implement per the issue acceptance criteria:
+           db/migrations/NNN_*.sql (tables/FKs/indexes, tracked in
+           app.SchemaMigrations), db/procs/<entity>/*.sql (CREATE OR ALTER,
+           audit-logged mutations), db/seed/*.sql (data from
+           docs/source-analysis/access-database.md §4),
+           src/lib/repositories/<entity>.ts (zod + execProc only),
+           src/app/(app)/<module>/ pages + server actions (mobile-first),
+           Vitest unit tests + a Playwright smoke test.
+        4. Verify: npm run lint && npm run typecheck && npm run test &&
+           npm run build. If sqlcmd + a SQL Server are available, apply
+           scripts/db-apply.sh; otherwise rely on CI.
+        5. Commit in logical units, push the branch, open a DRAFT merge request
+           to develop titled "Draft: feat(<module>): <summary>" with
+           "Closes #<issue-iid>", then watch the pipeline and fix failures.
+        6. Comment on the issue with the MR link and a checklist of what was
+           delivered vs the acceptance criteria.
+    params:
+      timeout: 300
 
-  Steps:
-  1. git fetch && git checkout develop && git pull, then create branch
-     feature/{{ module }} (or check it out if it already exists).
-  2. Implement per the issue's acceptance criteria:
-     - db/migrations/NNN_*.sql — tables, constraints, indexes (idempotent).
-     - db/procs/<entity>/*.sql — usp_<Entity>_{Create,GetById,List,Update,Delete}
-       plus business-logic procs. ALL data access via stored procedures only.
-     - db/seed/*.sql — data migrated from docs/source-analysis/access-database.md.
-     - src/lib/repositories/<entity>.ts — thin wrappers calling the procs via
-       the shared mssql pool (src/lib/db.ts). zod-validate all inputs.
-     - src/app/(app)/<module>/ — App Router pages, server actions, mobile-first
-       Tailwind UI, touch-friendly, audit-logged mutations, RBAC-guarded.
-     - Vitest unit tests for repositories/validators; Playwright smoke test.
-  3. Run: npm run lint && npm run typecheck && npm run test && npm run build.
-     Apply migrations + procs to the mssql service with scripts/db-apply.sh and
-     verify seeds load.
-  4. Commit in logical units, push, open a draft MR to develop titled
-     "Draft: feat({{ module }}): <summary>", link the module issue with
-     "Closes #<iid>", and ensure the CI pipeline passes. Fix failures.
+routers:
+  - from: implement_module
+    to: end
+
+flow:
+  entry_point: implement_module

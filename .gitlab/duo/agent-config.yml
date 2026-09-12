@@ -1,47 +1,45 @@
-# GitLab Duo Agent Platform — environment & tooling configuration
-# Provisions everything agent flows need to implement the Project Manager rebuild.
-# Docs: https://docs.gitlab.com/user/duo_agent_platform/
+# GitLab Duo Agent Platform — flow execution configuration.
+# Schema: https://docs.gitlab.com/user/duo_agent_platform/flows/execution/agent-config-yaml/
+# Supported keys ONLY: image, setup_script, network_policy, cache.
+# NOTE: this file is read from the DEFAULT BRANCH (main) — changes take effect
+# once merged to main via the develop -> main release flow.
+#
+# SQL Server for local verification is NOT available as a service here (the
+# schema has no `services` key). Agent sessions get sqlcmd via setup_script and
+# may start SQL Server with `docker compose up -d mssql` when Docker is
+# available; otherwise they push and verify migrations/procs in the CI
+# pipeline, which does provision an mssql service (see .gitlab-ci.yml `backup`
+# job pattern). Secrets (MSSQL_SA_PASSWORD, AUTH_SECRET, PROJECT_TOKEN,
+# RENOVATE_TOKEN) live exclusively in GitLab CI/CD variables.
+
 image: node:22
 
 setup_script:
-  # Node toolchain is provided by the image. SQL Server tooling is provided via
-  # the mssql service below; sqlcmd comes from mssql-tools18.
-  - corepack enable || true
-  - npm --version && node --version
+  - node --version && npm --version
   - |
+    # sqlcmd for db/ work (best-effort; skipped when the proxy denies apt)
     if ! command -v sqlcmd >/dev/null 2>&1; then
-      curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg 2>/dev/null || true
-      echo "deb [signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql.list || true
-      apt-get update -qq && ACCEPT_EULA=Y apt-get install -y -qq mssql-tools18 unixodbc-dev python3 && ln -sf /opt/mssql-tools18/bin/sqlcmd /usr/local/bin/sqlcmd || true
+      (curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg \
+        && echo "deb [signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql.list \
+        && apt-get update -qq && ACCEPT_EULA=Y apt-get install -y -qq mssql-tools18 \
+        && ln -sf /opt/mssql-tools18/bin/sqlcmd /usr/local/bin/sqlcmd) || echo "sqlcmd unavailable — verify db changes via CI"
     fi
+  - npm ci --no-audit --no-fund || echo "npm registry blocked — CI verifies installs"
 
-# SQL Server 2022 available to every agent session for migrations, stored
-# procedures, seed data and backup/restore rehearsals.
-services:
-  - name: mcr.microsoft.com/mssql/server:2022-latest
-    alias: mssql
-    variables:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "$MSSQL_SA_PASSWORD"   # CI/CD variable — never committed
-      MSSQL_PID: Developer
+network_policy:
+  include_recommended_allowed: true
+  allowed_domains:
+    - registry.npmjs.org
+    - packages.microsoft.com
+    - mcr.microsoft.com
+    - deb.debian.org
+    - security.debian.org
 
-variables:
-  DB_SERVER: mssql
-  DB_NAME: ProjectManager
-  # Secrets (DB passwords, AUTH_SECRET…) come exclusively from GitLab CI/CD
-  # variables. Never write secrets to the repository.
-
-# Tools the agent needs (DAP grants these to flows running in this project):
-# - read/write repository files, including the binary source artefacts
-#   (Access_database.mdb, Project_.xlsx, Project_hololens.pptx — never delete)
-# - run_command shell access (npm, node, npx, sqlcmd, docker compose, git)
-# - git branch/commit/push and merge request creation via glab
-# - CI pipeline triggering + job log reading (glab ci …)
-# - issue/epic creation and updates (glab issue …, glab api work_items)
-# - dependency vulnerability scanning + automatic remediation (npm audit fix,
-#   Renovate MRs, GitLab Dependency-Scanning/SAST/Secret-Detection templates)
-#
-# Conventions every flow must follow are documented in AGENTS.md at the repo
-# root and in docs/PLAN.md. Branching: feature/<module> from develop; MR back
-# to develop; develop -> main via release MR. Data access in the app is via
-# stored procedures ONLY (no inline SQL / no ORM).
+cache:
+  key:
+    files:
+      - package-lock.json
+    prefix: npm
+  paths:
+    - .npm/
+    - node_modules/
