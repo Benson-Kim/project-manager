@@ -1,0 +1,160 @@
+# CI/CD for the Project Manager rebuild.
+# Feature branches: lint + typecheck + test + build only.
+# develop/main: + security scans, deploys (staging auto / prod manual).
+# Schedules: backup (BACKUP DATABASE -> Generic Package Registry) and npm audit.
+
+stages:
+  - lint
+  - typecheck
+  - test
+  - build
+  - security
+  - backup
+  - deploy
+
+workflow:
+  rules:
+    # Branch pipelines only (avoids MR/branch duplicates), plus schedules.
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH
+
+include:
+  # Security scans only on develop/main (feature branches stay lean).
+  - template: Jobs/SAST.gitlab-ci.yml
+    rules:
+      - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+  - template: Jobs/Secret-Detection.gitlab-ci.yml
+    rules:
+      - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+  - template: Jobs/Dependency-Scanning.gitlab-ci.yml
+    rules:
+      - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+
+default:
+  image: node:22
+  interruptible: true
+
+.node:
+  cache:
+    key:
+      files:
+        - package.json
+    paths:
+      - .npm/
+  before_script:
+    - npm install --no-audit --no-fund --cache .npm --prefer-offline
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_BRANCH
+
+lint:
+  extends: .node
+  stage: lint
+  script:
+    - npm run lint
+
+typecheck:
+  extends: .node
+  stage: typecheck
+  script:
+    - npm run typecheck
+
+test:
+  extends: .node
+  stage: test
+  script:
+    - npm run test
+
+build:
+  extends: .node
+  stage: build
+  script:
+    - npm run build
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - .next/standalone
+      - .next/static
+
+# Optional browser smoke tests (manual: keeps feature pipelines fast).
+e2e:
+  extends: .node
+  stage: test
+  script:
+    - npx playwright install --with-deps chromium
+    - npm run e2e
+  rules:
+    - if: $CI_COMMIT_BRANCH
+      when: manual
+      allow_failure: true
+
+# ---- scheduled maintenance -------------------------------------------------
+# Schedule with SCHEDULE_JOB=audit. MR creation for fixes is handled by the
+# .gitlab/duo/flows/dependency-update.yaml agent flow; this job surfaces the report.
+npm-audit:
+  stage: security
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $SCHEDULE_JOB == "audit"
+  script:
+    - npm install --no-audit --no-fund
+    - npm outdated || true
+    - npm audit --json > npm-audit.json || true
+    - npm audit || true
+  artifacts:
+    expire_in: 30 days
+    paths:
+      - npm-audit.json
+  allow_failure: true
+
+# ---- scheduled backup (zero-cost: Generic Package Registry) ----------------
+# Schedule with SCHEDULE_JOB=backup and set MSSQL_SA_PASSWORD/DB_* CI variables.
+# Completed (incl. restore rehearsal) in the file-storage-and-backup module.
+backup:
+  stage: backup
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $SCHEDULE_JOB == "backup" && $MSSQL_SA_PASSWORD
+  services:
+    - name: mcr.microsoft.com/mssql/server:2022-latest
+      alias: mssql
+      variables:
+        ACCEPT_EULA: "Y"
+        MSSQL_PID: Developer
+  variables:
+    DB_SERVER: mssql
+    DB_USER: sa
+    DB_PASSWORD: $MSSQL_SA_PASSWORD
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq curl gnupg2
+    - curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg
+    - echo "deb [signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql.list
+    - apt-get update -qq && ACCEPT_EULA=Y apt-get install -y -qq mssql-tools18 && ln -sf /opt/mssql-tools18/bin/sqlcmd /usr/local/bin/sqlcmd
+    - sh scripts/db-apply.sh   # ensure DB exists in the ephemeral service before backup demo
+  script:
+    - sh scripts/backup.sh
+  artifacts:
+    expire_in: 14 days
+    paths:
+      - backups/
+
+# ---- deploys ----------------------------------------------------------------
+deploy-staging:
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+  environment:
+    name: staging
+  script:
+    - echo "Deploy to staging (target infra defined in a later module)."
+    - echo "Artifacts from the build stage are ready in .next/standalone."
+
+deploy-prod:
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual
+  environment:
+    name: production
+  script:
+    - echo "Deploy to production (manual gate; target infra defined in a later module)."
