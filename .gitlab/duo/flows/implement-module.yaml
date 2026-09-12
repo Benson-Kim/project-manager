@@ -1,0 +1,52 @@
+# Parameterised Duo Agent Platform flow: implement one module end-to-end.
+# Trigger with the module name as input; the flow follows AGENTS.md conventions.
+name: implement-module
+description: >
+  Implements a single module of the Project Manager rebuild end-to-end:
+  DB migration + stored procedures + seed data, repository layer, server
+  actions/route handlers, mobile-first UI, tests, and an MR to develop.
+
+inputs:
+  module:
+    description: >
+      Module key. One of: foundation, auth-and-rbac, database-schema-and-procs,
+      projects, stakeholders, suppliers, acronyms, key-deliverables, objectives,
+      meetings, questions-answers, assumptions-constraints, risks-issues, notes,
+      it-resource-planning, financials, parking-lot, daily-activities, todo-alerts,
+      reports, file-storage-and-backup, admin-management, ci-cd-and-security-automation
+    required: true
+
+environment:
+  image: node:22
+  services:
+    - name: mcr.microsoft.com/mssql/server:2022-latest
+      alias: mssql
+
+prompt: |
+  You are implementing the "{{ module }}" module of the Project Manager rebuild.
+
+  Context you MUST read first:
+  1. AGENTS.md (repo root) — architecture, conventions, branching model.
+  2. docs/PLAN.md — module breakdown, data model, stored-procedure catalogue.
+  3. docs/source-analysis/requirements.md — business requirements for this module.
+  4. The GitLab issue labelled "module::{{ module }}" — acceptance criteria.
+
+  Steps:
+  1. git fetch && git checkout develop && git pull, then create branch
+     feature/{{ module }} (or check it out if it already exists).
+  2. Implement per the issue's acceptance criteria:
+     - db/migrations/NNN_*.sql — tables, constraints, indexes (idempotent).
+     - db/procs/<entity>/*.sql — usp_<Entity>_{Create,GetById,List,Update,Delete}
+       plus business-logic procs. ALL data access via stored procedures only.
+     - db/seed/*.sql — data migrated from docs/source-analysis/access-database.md.
+     - src/lib/repositories/<entity>.ts — thin wrappers calling the procs via
+       the shared mssql pool (src/lib/db.ts). zod-validate all inputs.
+     - src/app/(app)/<module>/ — App Router pages, server actions, mobile-first
+       Tailwind UI, touch-friendly, audit-logged mutations, RBAC-guarded.
+     - Vitest unit tests for repositories/validators; Playwright smoke test.
+  3. Run: npm run lint && npm run typecheck && npm run test && npm run build.
+     Apply migrations + procs to the mssql service with scripts/db-apply.sh and
+     verify seeds load.
+  4. Commit in logical units, push, open a draft MR to develop titled
+     "Draft: feat({{ module }}): <summary>", link the module issue with
+     "Closes #<iid>", and ensure the CI pipeline passes. Fix failures.

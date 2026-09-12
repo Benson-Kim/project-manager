@@ -1,0 +1,47 @@
+# GitLab Duo Agent Platform — environment & tooling configuration
+# Provisions everything agent flows need to implement the Project Manager rebuild.
+# Docs: https://docs.gitlab.com/user/duo_agent_platform/
+image: node:22
+
+setup_script:
+  # Node toolchain is provided by the image. SQL Server tooling is provided via
+  # the mssql service below; sqlcmd comes from mssql-tools18.
+  - corepack enable || true
+  - npm --version && node --version
+  - |
+    if ! command -v sqlcmd >/dev/null 2>&1; then
+      curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg 2>/dev/null || true
+      echo "deb [signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql.list || true
+      apt-get update -qq && ACCEPT_EULA=Y apt-get install -y -qq mssql-tools18 unixodbc-dev python3 && ln -sf /opt/mssql-tools18/bin/sqlcmd /usr/local/bin/sqlcmd || true
+    fi
+
+# SQL Server 2022 available to every agent session for migrations, stored
+# procedures, seed data and backup/restore rehearsals.
+services:
+  - name: mcr.microsoft.com/mssql/server:2022-latest
+    alias: mssql
+    variables:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "$MSSQL_SA_PASSWORD"   # CI/CD variable — never committed
+      MSSQL_PID: Developer
+
+variables:
+  DB_SERVER: mssql
+  DB_NAME: ProjectManager
+  # Secrets (DB passwords, AUTH_SECRET…) come exclusively from GitLab CI/CD
+  # variables. Never write secrets to the repository.
+
+# Tools the agent needs (DAP grants these to flows running in this project):
+# - read/write repository files, including the binary source artefacts
+#   (Access_database.mdb, Project_.xlsx, Project_hololens.pptx — never delete)
+# - run_command shell access (npm, node, npx, sqlcmd, docker compose, git)
+# - git branch/commit/push and merge request creation via glab
+# - CI pipeline triggering + job log reading (glab ci …)
+# - issue/epic creation and updates (glab issue …, glab api work_items)
+# - dependency vulnerability scanning + automatic remediation (npm audit fix,
+#   Renovate MRs, GitLab Dependency-Scanning/SAST/Secret-Detection templates)
+#
+# Conventions every flow must follow are documented in AGENTS.md at the repo
+# root and in docs/PLAN.md. Branching: feature/<module> from develop; MR back
+# to develop; develop -> main via release MR. Data access in the app is via
+# stored procedures ONLY (no inline SQL / no ORM).
