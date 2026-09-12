@@ -1,0 +1,470 @@
+{
+ "tables": {
+  "tbl3rdPartySupplier": {
+   "row_count": 12,
+   "columns": [
+    "SupplierID",
+    "ProjectID",
+    "SupplierName",
+    "Contact Person",
+    "Email Address",
+    "Contract Start Date",
+    "Contract End Date",
+    "Rating",
+    "Address",
+    "Province or State",
+    "Country",
+    "Postal Code",
+    "City"
+   ]
+  },
+  "tblAcronyms": {
+   "row_count": 29,
+   "columns": [
+    "AcronymID",
+    "ProjectID",
+    "Acronym",
+    "Definition"
+   ]
+  },
+  "tblActivityStatusType": {
+   "row_count": 0,
+   "columns": [
+    "StatusID",
+    "DailyActivityListID",
+    "ActivityStatus",
+    "SortOrder"
+   ]
+  },
+  "tblAssumptionsConstraints": {
+   "row_count": 8,
+   "columns": [
+    "AssumptionsConstraintsID",
+    "ProjectID",
+    "Type",
+    "AssumptionsConstraints",
+    "AssumptionsValidated",
+    "Impact",
+    "Mitigation Plan"
+   ]
+  },
+  "tblDailyActivityList": {
+   "row_count": 13,
+   "columns": [
+    "DailyActivityListID",
+    "ProjectID",
+    "StatusID",
+    "Requester",
+    "Task",
+    "MyActivity",
+    "Date",
+    "Comments",
+    "Attachment",
+    "RequestDate",
+    "Status",
+    "CompleteDate",
+    "Contact Method",
+    "Time Spent",
+    "Assigned To",
+    "Task Type",
+    "Progress"
+   ]
+  },
+  "tblExistingSystemsInterfaces": {
+   "row_count": 0,
+   "columns": [
+    "ExistSysIntID",
+    "ProjectID",
+    "ExistSysInt",
+    "Notes",
+    "Location"
+   ]
+  },
+  "tblFinancials": {
+   "row_count": 2,
+   "columns": [
+    "FinancialID",
+    "ProjectID",
+    "ProjectNumber",
+    "Acquisation",
+    "GlGrandLivre",
+    "BudgetEnvelope",
+    "Budget",
+    "SpendBy",
+    "RecurrentFees",
+    "ContractTimeframe"
+   ]
+  },
+  "tblITResourcePlanning": {
+   "row_count": 15,
+   "columns": [
+    "ITResourceID",
+    "ProjectID",
+    "Resource"
+   ]
+  },
+  "tblITResourcePlanningDetails": {
+   "row_count": 18,
+   "columns": [
+    "ResourcePlanningID",
+    "ITResourceID",
+    "DetailText",
+    "Needed"
+   ]
+  },
+  "tblInterviewQuestionsAnswers": {
+   "row_count": 12,
+   "columns": [
+    "QAID",
+    "ProjectID",
+    "Question",
+    "Answer",
+    "Category",
+    "Priority",
+    "Assigned To"
+   ]
+  },
+  "tblKeyRequirementsDeliverable": {
+   "row_count": 8,
+   "columns": [
+    "KeyReqDevID",
+    "ProjectID",
+    "KeyReq",
+    "Deadline",
+    "Assigned To",
+    "Priority",
+    "Status"
+   ]
+  },
+  "tblMeetingActionItems": {
+   "row_count": 9,
+   "columns": [
+    "Action Item Id",
+    "DiscussionID",
+    "AgendaID",
+    "Action",
+    "AssignedTo",
+    "DueDate"
+   ]
+  },
+  "tblMeetingAgenda": {
+   "row_count": 3,
+   "columns": [
+    "AgendaID",
+    "Agenda Item",
+    "MeetingID"
+   ]
+  },
+  "tblMeetingDiscussionPoints": {
+   "row_count": 3,
+   "columns": [
+    "DiscussionItemID",
+    "AgendaID",
+    "DiscussionPoint"
+   ]
+  },
+  "tblMeetingParticipants": {
+   "row_count": 8,
+   "columns": [
+    "Participant",
+    "Meeting ID",
+    "Apology"
+   ]
+  },
+  "tblNotes": {
+   "row_count": 7,
+   "columns": [
+    "NoteID",
+    "ProjectID",
+    "Title",
+    "Content"
+   ]
+  },
+  "tblParkingLotItems": {
+   "row_count": 12,
+   "columns": [
+    "LotItemID",
+    "ProjectID",
+    "ParkingLotItem",
+    "Participant",
+    "IsStrikethrough"
+   ]
+  },
+  "tblProjectFinancialDocuments": {
+   "row_count": 9,
+   "columns": [
+    "DocumentID",
+    "FinancialID",
+    "IsRequired",
+    "ReasonNotCreated"
+   ]
+  },
+  "tblProjectFramework": {
+   "row_count": 18,
+   "columns": [
+    "ProjectID",
+    "ProjectName",
+    "ProjectManager",
+    "BusinessAnalyst",
+    "ProjectDocs",
+    "ProjectSponsor",
+    "DateOfProject",
+    "ProblemStatement",
+    "CurrentState",
+    "FutureState",
+    "UserImpact",
+    "Mandate",
+    "ProjectStatusCom",
+    "ExistBusMod",
+    "A1",
+    "DA",
+    "DAS",
+    "PurchaseOrder",
+    "Requisition",
+    "DO",
+    "FinancingSource",
+    "FinancingCost",
+    "Recurrent Cost",
+    "PurchaseEquipment",
+    "EquipmentNotes",
+    "StartDate",
+    "EndDate",
+    "SimilarProject"
+   ]
+  },
+  "tblProjectObjectives": {
+   "row_count": 6,
+   "columns": [
+    "ProjectObjID",
+    "ProjectID",
+    "QMeasurable",
+    "QSuccess",
+    "QAlignmentStrategy",
+    "ProjectObjectives"
+   ]
+  },
+  "tblProjectSummary": {
+   "row_count": 0,
+   "columns": [
+    "ProjectSummaryID",
+    "ProjectName",
+    "TaskRequested",
+    "DailyItemsID",
+    "Deliverable",
+    "FollowUpActions",
+    "StartDate",
+    "EndDate",
+    "Status",
+    "Resource/Responsible",
+    "Documentation",
+    "Comments"
+   ]
+  },
+  "tblProjectTask": {
+   "row_count": 0,
+   "columns": [
+    "ProjectOrTask",
+    "DateCreatedInSystem"
+   ]
+  },
+  "tblProjectTaskList": {
+   "row_count": 0,
+   "columns": [
+    "ProjectOrTask"
+   ]
+  },
+  "tblRisksIssuesTracker": {
+   "row_count": 2,
+   "columns": [
+    "RiskIssueID",
+    "ProjectID",
+    "Description",
+    "Category",
+    "Date Identified",
+    "Status",
+    "Priority",
+    "Impact",
+    "Probability",
+    "Mitigation Plan",
+    "Owner",
+    "Due date"
+   ]
+  },
+  "tblStakeholders": {
+   "row_count": 8,
+   "columns": [
+    "StakeholderID",
+    "ProjectID",
+    "FirstName",
+    "LastName",
+    "DepartmentOrganization",
+    "ProjectRole",
+    "Role Description",
+    "PhoneNumber",
+    "Ext#",
+    "Mobile",
+    "Email Address",
+    "PhysicalLocation",
+    "Org Title",
+    "Communication Preference",
+    "Engagement Level",
+    "AdditionalNotes"
+   ]
+  },
+  "tblTaskFramework": {
+   "row_count": 0,
+   "columns": [
+    "TaskName",
+    "ProjectOrTask",
+    "TaskRequested",
+    "TaskRequestByWho",
+    "ExpectedDate",
+    "CurrentDate"
+   ]
+  },
+  "tblTodoList": {
+   "row_count": 16,
+   "columns": [
+    "TodoItemId",
+    "ProjectActivityID",
+    "ProjectOrActivity",
+    "TodoItem",
+    "StartDate",
+    "DueDate",
+    "Priority",
+    "Status",
+    "Notes",
+    "IsAlert",
+    "AlertDay",
+    "AlertTime",
+    "RepeatUnit",
+    "RepeatInterval",
+    "CurrentRepeatInterval",
+    "SnoozeCount",
+    "LastSnoozeTime",
+    "MaxSnoozeCount",
+    "SnoozeOptions",
+    "IsDismissed"
+   ]
+  },
+  "tblMeetingMinutes": {
+   "row_count": 5,
+   "columns": [
+    "MeetingMinutesID",
+    "ProjectID",
+    "Subject",
+    "Description",
+    "Location",
+    "StartDate",
+    "StartTime",
+    "EndTime",
+    "Conclusion",
+    "NextMeeting",
+    "FollowupAction"
+   ]
+  },
+  "tblFinancialDocuments": {
+   "row_count": 9,
+   "columns": [
+    "DocumentID",
+    "DocumentType"
+   ]
+  },
+  "Switchboard Items": {
+   "row_count": 0,
+   "columns": [
+    "SwitchboardID",
+    "ItemNumber",
+    "ItemText",
+    "Command",
+    "Argument"
+   ]
+  }
+ },
+ "queries": [
+  "qryAcronyms",
+  "qryAssumptionsConstraints",
+  "qryDailyActivityList",
+  "qryDailyActivityListExtended",
+  "qryDailyItemsAndStatusType",
+  "qryDailyItemsAndStatusTypeByChoice",
+  "qryFinancialsExtended",
+  "qryITResourcePlanning",
+  "qryInProgressToDo",
+  "qryKeyReqDeliverables",
+  "qryMeetingApologies",
+  "qryMeetingAttendees",
+  "qryMeetingMinutes",
+  "qryMeetingMinutes Extended",
+  "qryMeetingParticipants",
+  "qryMinutes",
+  "qryObjectives",
+  "qryParkingLotItems",
+  "qryProject",
+  "qryProject3rdPartySupplier",
+  "qryProjectAcronyms",
+  "qryProjectActivityList",
+  "qryProjectExistingSystem",
+  "qryProjectFramework",
+  "qryProjectKeyRequirementsDeliverable",
+  "qryProjectObjectives",
+  "qryProjectReports",
+  "qryProjectStakeholders",
+  "qryProjectfrmQA",
+  "qryQuesAns",
+  "qryStakeholders",
+  "qrySuppliers",
+  "qryUpcomingAlerts"
+ ],
+ "spot_checks": [
+  {
+   "table": "tblProjectFramework",
+   "column": "ProjectName",
+   "pk": "ProjectID",
+   "pk_value": "2",
+   "expected": "Upgrade Inventory Management"
+  },
+  {
+   "table": "tblFinancials",
+   "column": "GlGrandLivre",
+   "pk": "FinancialID",
+   "pk_value": "1",
+   "expected": "A1-12345"
+  },
+  {
+   "table": "tblTodoList",
+   "column": "TodoItem",
+   "pk": "TodoItemId",
+   "pk_value": "3",
+   "expected": "Create purchase orders table and queries"
+  },
+  {
+   "table": "tblStakeholders",
+   "column": "FirstName",
+   "pk": "StakeholderID",
+   "pk_value": "1",
+   "expected": "Gary"
+  },
+  {
+   "table": "tblAcronyms",
+   "column": "Definition",
+   "pk": "AcronymID",
+   "pk_value": "16",
+   "expected": "Calcium ammonium Nitrate"
+  },
+  {
+   "table": "tblFinancialDocuments",
+   "column": "DocumentType",
+   "pk": "DocumentID",
+   "pk_value": "6",
+   "expected": "Montage Financier"
+  },
+  {
+   "table": "tblMeetingMinutes",
+   "column": "Subject",
+   "pk": "MeetingMinutesID",
+   "pk_value": "2",
+   "expected": "Effective replenishment processing"
+  }
+ ]
+}

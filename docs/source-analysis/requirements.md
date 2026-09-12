@@ -39,7 +39,7 @@ A single-user Microsoft Access application used by a project manager (healthcare
 All child entities hang off `Project` (`ProjectID`). Additional chains:
 Meeting → Agenda → DiscussionPoints → ActionItems (also linked to Participants);
 Financials → FinancialDocuments; ITResourcePlanning → Details; DailyActivity → TodoList.
-Two orphaned Access relationships (`tblMeetingMinutes`, `tblFinancialDocuments`) are re-instated as proper parents.
+`tblMeetingMinutes` and `tblFinancialDocuments` were recovered in the verification pass (deleted-flagged catalog slots but live tables) — the chains Meeting → Agenda and Financials + FinancialDocuments → ProjectFinancialDocuments are intact in the source and carried over as-is.
 
 ## 4. Functional requirements (Excel checklist, verbatim source in excel-workbook.md)
 
@@ -76,4 +76,4 @@ The Access app is single-user (Admin). The web rebuild introduces: **Admin** (us
 
 ## 7. Migration data inventory
 
-18 projects, 8 stakeholders, 12 suppliers, 29 acronyms, 8 key deliverables, 6 objectives, 3 meetings (3 agenda, 3 discussion, 9 action items, 8 participants), 12 Q&A, 8 assumptions/constraints, 2 risks, 7 notes, 15+18 resource-planning rows, 2 financials + 9 financial documents, 12 parking-lot items, 13 daily activities, 16 to-dos — full row data in `access-database.md`; converted to `db/seed/*.sql`.
+18 projects, 8 stakeholders, 12 suppliers, 29 acronyms, 8 key deliverables, 6 objectives, **5 meetings** (3 agenda, 3 discussion, 9 action items, 8 participants), 12 Q&A, 8 assumptions/constraints, 2 risks, 7 notes, 15+18 resource-planning rows, 2 financials + **9 document types (lookup)** + 9 project-financial-document rows, 12 parking-lot items, 13 daily activities, 16 to-dos — full row data in `access-database.md`; converted to `db/seed/*.sql`.
