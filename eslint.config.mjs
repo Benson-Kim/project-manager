@@ -1,27 +1,21 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
+import nextTypescript from "eslint-config-next/typescript";
+import prettier from "eslint-config-prettier/flat";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
-
-const eslintConfig = [
-  {
-    ignores: [
-      "node_modules/**",
-      ".next/**",
-      "out/**",
-      "coverage/**",
-      "playwright-report/**",
-      "test-results/**",
-      "next-env.d.ts",
-    ],
-  },
-  ...compat.extends("next/core-web-vitals", "next/typescript", "prettier"),
+const eslintConfig = defineConfig([
+  globalIgnores([
+    "node_modules/**",
+    ".next/**",
+    "out/**",
+    "coverage/**",
+    "playwright-report/**",
+    "test-results/**",
+    "next-env.d.ts",
+  ]),
+  ...nextCoreWebVitals,
+  ...nextTypescript,
+  prettier,
   {
     // Stored-procedure-only data access: forbid raw SQL execution APIs.
     // (Backstop unit test: src/test/no-inline-sql.test.ts)
@@ -41,6 +35,6 @@ const eslintConfig = [
       ],
     },
   },
-];
+]);
 
 export default eslintConfig;
