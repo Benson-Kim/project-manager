@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
+import { ServiceWorkerRegistration } from "./sw-register";
 import "./globals.css";
 
 export const metadata: Metadata = {
