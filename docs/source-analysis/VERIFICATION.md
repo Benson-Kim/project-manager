@@ -22,7 +22,7 @@ count) and PPTX structure (slides, titles, key text fragments, properties).
 
 - First CI run (found the discrepancies): pipeline [#2843419146](https://gitlab.com/panga-group2/project-manager/-/pipelines/2843419146) — 82 checks, 2 failures.
 - Missing-object dump: pipeline [#2843422704](https://gitlab.com/panga-group2/project-manager/-/pipelines/2843422704), job `dump:missing-objects`.
-- Final green run after doc corrections: see the verification pipeline linked in the MR that introduced this file.
+- **Final green run after doc corrections: pipeline [#2843428620](https://gitlab.com/panga-group2/project-manager/-/pipelines/2843428620) — 90 checks, 0 failures.**
 
 ## Results
 
