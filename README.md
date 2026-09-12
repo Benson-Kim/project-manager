@@ -23,7 +23,7 @@ zero-cost backups to the Generic Package Registry · Renovate.
 cp .env.example .env          # set a strong MSSQL_SA_PASSWORD
 docker compose up -d mssql    # start SQL Server 2022
 ./scripts/db-apply.sh         # apply migrations + procs + seeds (needs sqlcmd)
-npm install
+npm ci
 npm run dev                   # http://localhost:3000
 ```
 
@@ -38,7 +38,7 @@ Full local stack (app container + DB): `docker compose up --build`.
 | `npm run e2e` | Playwright smoke tests |
 | `npm run build` | Production build (standalone) |
 | `./scripts/db-apply.sh` | Apply `db/` migrations, procs, seeds |
-| `./scripts/backup.sh` / `restore.sh` / `restore-files.sh` | Backup & restore (see docs/PLAN.md §5) |
+| `./scripts/backup.sh` / `restore.sh` / `restore-files.sh` / `restore-rehearsal.sh` | Backup & tested restore (see docs/RESTORE-RUNBOOK.md) |
 
 ## Branching
 
