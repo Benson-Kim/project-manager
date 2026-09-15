@@ -15,7 +15,10 @@ vi.mock("@/modules/auth/repository/users", () => ({
   recordIpLoginAttempt: vi.fn(),
   recordLoginAttempt: vi.fn(),
 }));
-vi.mock("./password", () => ({ verifyPassword: vi.fn() }));
+vi.mock("./password", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./password")>()),
+  verifyPassword: vi.fn(),
+}));
 
 import {
   auditUnknownUsernameLoginFailure,
