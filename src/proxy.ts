@@ -24,9 +24,18 @@ function hasSessionCookie(request: NextRequest): boolean {
 
 export async function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  // React's development build needs eval() for debugging features (rebuilding
+  // callstacks, HMR). It never uses eval() in production, so 'unsafe-eval' is
+  // scoped strictly to dev — shipping it would defeat the point of the policy.
+  const scriptSrc = [
+    "'self'",
+    `'nonce-${nonce}'`,
+    "'strict-dynamic'",
+    ...(process.env.NODE_ENV === "development" ? ["'unsafe-eval'"] : []),
+  ].join(" ");
   const csp = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    `script-src ${scriptSrc}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data:",
     "font-src 'self'",
