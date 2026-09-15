@@ -22,6 +22,7 @@ const nextConfig: NextConfig = {
   // argon2 is a native module (node-gyp-build dynamic requires): keep it an
   // external server package instead of letting the bundler trace it.
   serverExternalPackages: ["argon2"],
+  agentRules: false,
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
