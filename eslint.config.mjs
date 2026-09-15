@@ -18,7 +18,7 @@ const eslintConfig = defineConfig([
   prettier,
   {
     // Stored-procedure-only data access: forbid raw SQL execution APIs.
-    // (Backstop unit test: src/test/no-inline-sql.test.ts)
+    // (Backstop unit tests: src/test/no-inline-sql.test.ts, db-gateway.test.ts)
     rules: {
       "no-restricted-syntax": [
         "error",
@@ -33,6 +33,27 @@ const eslintConfig = defineConfig([
             "Raw .batch() is forbidden — all data access goes through stored procedures (execProc in src/lib/db.ts).",
         },
       ],
+      // STANDARDS §1.4: one ConfirmDialog pattern, no browser prompts.
+      "no-alert": "error",
+      // STANDARDS §2: src/lib/db.ts is the single database gateway.
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "mssql",
+              message:
+                "Import mssql only in src/lib/db.ts — repositories use execProc (docs/STANDARDS.md §2).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/lib/db.ts"],
+    rules: {
+      "no-restricted-imports": "off",
     },
   },
 ]);
