@@ -17,8 +17,9 @@ issue.
 ## What this project is
 
 A rebuild of a single-user Microsoft Access project-management application
-(`Access_database.mdb` — **never delete or modify the three binary source files** at
-the repo root) as a modern, mobile-first web application for tracking IT projects:
+(`docs/source/Access_database.mdb` — **never delete or modify the three binary source
+files** in `docs/source/`) as a modern, mobile-first web application for tracking IT
+projects:
 charter/framework, stakeholders, suppliers, meetings & minutes, financials (Quebec
 MSSS document workflow: DO/DA/DAS/A1/Appel d'Offres), IT resource planning, risks &
 issues, parking-lot items, daily activities, to-do list with alerts, notes, and
