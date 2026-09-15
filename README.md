@@ -7,7 +7,7 @@ alerts, notes and reports) as a **Next.js + SQL Server** web app.
 
 - 📋 Plan & architecture: [`docs/PLAN.md`](docs/PLAN.md)
 - 🔎 Source-system analysis (full extraction of the original Access DB, Excel
-  checklist and mock-up deck): [`docs/source-analysis/`](docs/source-analysis/requirements.md)
+  checklist and mock-up deck): [`docs/source/analysis/`](docs/source/analysis/requirements.md)
 - 🤖 Agent conventions: [`AGENTS.md`](AGENTS.md) · Duo flows: `.gitlab/duo/`
 
 ## Stack
@@ -46,6 +46,6 @@ Full local stack (app container + DB): `docker compose up --build`.
 branch, MR → `develop`, release MRs `develop` → `main`. Module list and
 ordering: [`docs/PLAN.md`](docs/PLAN.md) §3 and the issue board.
 
-> ⚠️ The three binary files at the repo root (`Access_database.mdb`,
+> ⚠️ The three binary files in `docs/source/` (`Access_database.mdb`,
 > `Project_.xlsx`, `Project_hololens.pptx`) are the original source artefacts —
 > never delete or modify them.

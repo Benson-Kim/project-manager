@@ -1,8 +1,8 @@
 # Traceability Matrix — Excel checklist → module → issue → branch
 
-Source of truth: `Project_.xlsx` (78 rows, fully extracted in
-[`source-analysis/excel-workbook.md`](source-analysis/excel-workbook.md), verified
-cell-for-cell in [`source-analysis/VERIFICATION.md`](source-analysis/VERIFICATION.md)).
+Source of truth: `docs/source/Project_.xlsx` (78 rows, fully extracted in
+[`source/analysis/excel-workbook.md`](source/analysis/excel-workbook.md), verified
+cell-for-cell in [`source/analysis/VERIFICATION.md`](source/analysis/VERIFICATION.md)).
 Module ordering & goals: [`PLAN.md`](PLAN.md) §3/§10. Every functional row is
 restated as an acceptance criterion in its module issue.
 
