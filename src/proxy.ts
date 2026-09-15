@@ -57,6 +57,15 @@ export async function proxy(request: NextRequest) {
       redirect.headers.set("Content-Security-Policy", csp);
       return redirect;
     }
+    // Forced first-login password change (STANDARDS §4): the flag travels in
+    // the JWT, so this gate needs no DB access and stays edge-safe.
+    const appToken = token.appToken as { mustChangePassword?: boolean } | undefined;
+    if (appToken?.mustChangePassword && pathname !== "/change-password") {
+      const changeUrl = new URL("/change-password", request.url);
+      const redirect = NextResponse.redirect(changeUrl);
+      redirect.headers.set("Content-Security-Policy", csp);
+      return redirect;
+    }
   }
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
