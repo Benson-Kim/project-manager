@@ -1,12 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
 
 /**
- * Next.js 16 proxy (formerly middleware): per-request nonce-based CSP.
- * The nonce is passed to the framework via the request CSP header; pages
- * read it with headers().get("x-nonce") when they need to nonce their own
- * inline scripts.
+ * Next.js 16 proxy (formerly middleware): per-request nonce-based CSP + the
+ * authentication gate (module #4): unauthenticated requests only reach /login,
+ * the Auth.js routes and the PWA manifest — everything else redirects to
+ * /login. A request that carried a session cookie which no longer decodes gets
+ * /login?reason=expired so the login page announces the expiry politely.
+ * Session integrity (SessionVersion revocation stamp) is enforced per request
+ * in src/lib/auth/provider.ts — this gate is routing, not the last defence.
  */
-export function proxy(request: NextRequest) {
+const PUBLIC_PATHS = ["/login", "/api/auth", "/manifest.webmanifest"];
+
+function isPublic(pathname: string): boolean {
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+function hasSessionCookie(request: NextRequest): boolean {
+  return request.cookies
+    .getAll()
+    .some((c) => c.name.includes("authjs.session-token") && c.value.length > 0);
+}
+
+export async function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const csp = [
     "default-src 'self'",
@@ -26,6 +42,22 @@ export function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", csp);
+
+  const { pathname } = request.nextUrl;
+  if (!isPublic(pathname)) {
+    const token = await getToken({
+      req: request,
+      secret: process.env.AUTH_SECRET,
+      secureCookie: request.nextUrl.protocol === "https:",
+    });
+    if (!token) {
+      const loginUrl = new URL("/login", request.url);
+      if (hasSessionCookie(request)) loginUrl.searchParams.set("reason", "expired");
+      const redirect = NextResponse.redirect(loginUrl);
+      redirect.headers.set("Content-Security-Policy", csp);
+      return redirect;
+    }
+  }
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", csp);

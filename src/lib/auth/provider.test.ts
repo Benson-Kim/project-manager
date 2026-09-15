@@ -1,26 +1,62 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AppError } from "../errors";
+import type { AppToken } from "./config";
+
+vi.mock("./config", () => ({ auth: vi.fn() }));
+vi.mock("./session-stamp", () => ({ getSessionStamp: vi.fn() }));
+
+import { auth as authJs } from "./config";
 import { auth } from "./provider";
+import { getSessionStamp } from "./session-stamp";
 
-describe("dev-stub auth provider (ADR-0015)", () => {
-  const original = process.env.AUTH_DEV_BYPASS;
+const mockAuthJs = vi.mocked(authJs as unknown as () => Promise<unknown>);
+const mockStamp = vi.mocked(getSessionStamp);
 
-  afterEach(() => {
-    if (original === undefined) delete process.env.AUTH_DEV_BYPASS;
-    else process.env.AUTH_DEV_BYPASS = original;
+const appToken: AppToken = {
+  userId: 7,
+  username: "pm",
+  role: "ProjectManager",
+  sessionVersion: 3,
+  mustChangePassword: false,
+};
+
+describe("auth provider (Auth.js-backed, ADR-0017 revocation stamp)", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
   });
 
-  it("returns no session without the dev bypass flag (safe default)", async () => {
-    delete process.env.AUTH_DEV_BYPASS;
-    await expect(auth.getSession()).resolves.toBeNull();
+  it("returns null when Auth.js has no session", async () => {
+    mockAuthJs.mockResolvedValue(null);
+    expect(await auth.getSession()).toBeNull();
   });
 
-  it("requireSession throws UNAUTHENTICATED without a session", async () => {
-    delete process.env.AUTH_DEV_BYPASS;
+  it("returns the contract session when the stamp matches", async () => {
+    mockAuthJs.mockResolvedValue({ appToken });
+    mockStamp.mockResolvedValue({ sessionVersion: 3, isActive: true, mustChangePassword: false });
+    expect(await auth.getSession()).toEqual({ userId: 7, username: "pm", role: "ProjectManager" });
+  });
+
+  it("returns null when the SessionVersion was bumped (revoked)", async () => {
+    mockAuthJs.mockResolvedValue({ appToken });
+    mockStamp.mockResolvedValue({ sessionVersion: 4, isActive: true, mustChangePassword: false });
+    expect(await auth.getSession()).toBeNull();
+  });
+
+  it("returns null when the user was deactivated", async () => {
+    mockAuthJs.mockResolvedValue({ appToken });
+    mockStamp.mockResolvedValue({ sessionVersion: 3, isActive: false, mustChangePassword: false });
+    expect(await auth.getSession()).toBeNull();
+  });
+
+  it("returns null when the user no longer exists", async () => {
+    mockAuthJs.mockResolvedValue({ appToken });
+    mockStamp.mockResolvedValue(null);
+    expect(await auth.getSession()).toBeNull();
+  });
+
+  it("requireSession throws UNAUTHENTICATED when absent", async () => {
+    mockAuthJs.mockResolvedValue(null);
+    await expect(auth.requireSession()).rejects.toThrowError(AppError);
     await expect(auth.requireSession()).rejects.toMatchObject({ code: "UNAUTHENTICATED" });
-  });
-
-  it("returns the Admin dev session only when AUTH_DEV_BYPASS=1", async () => {
-    process.env.AUTH_DEV_BYPASS = "1";
-    await expect(auth.requireSession()).resolves.toMatchObject({ userId: 1, role: "Admin" });
   });
 });
