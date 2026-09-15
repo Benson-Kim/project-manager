@@ -6,8 +6,8 @@
 
 ## Source-of-truth inputs
 
-- `docs/source-analysis/access-database.md` — tables: <!-- tbl… (§2 schema, §4 rows) -->
-- `docs/source-analysis/requirements.md` — rows: <!-- checklist rows -->
+- `docs/source/analysis/access-database.md` — tables: <!-- tbl… (§2 schema, §4 rows) -->
+- `docs/source/analysis/requirements.md` — rows: <!-- checklist rows -->
 
 ## Acceptance criteria
 

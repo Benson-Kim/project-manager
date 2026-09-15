@@ -83,7 +83,7 @@ independent sessions stay navigable and uniform.
   once and recorded in `app.SchemaMigrations` by `scripts/db-apply.sh`. A merged
   migration is immutable — fix forward with a new one.
 - Seeds: `db/seed/NNN_entity.sql`, idempotent (`MERGE` or `IF NOT EXISTS`), data
-  taken ONLY from `docs/source-analysis/access-database.md` §4.
+  taken ONLY from `docs/source/analysis/access-database.md` §4.
 
 ### 2.2 Standard entity table shape
 
@@ -364,7 +364,7 @@ Copy-paste checklist — also embedded in each module issue:
 - [ ] Procs: usp_<Entity>_{Create,GetById,List,Update,Delete} (+ business verbs),
       CREATE OR ALTER, audit rows in-transaction, THROW error contract,
       List proc follows ADR-0016 exactly
-- [ ] Seeds from docs/source-analysis/access-database.md §4, idempotent
+- [ ] Seeds from docs/source/analysis/access-database.md §4, idempotent
 - [ ] Repository: execProc only, zod row parsing, typed inputs
 - [ ] Schemas: zod input schemas shared client/server
 - [ ] Actions: action() wrapper with permission + revalidate; no raw server actions

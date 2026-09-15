@@ -5,7 +5,7 @@ commit-and-push cadence, resume protocol, review-before-continuing, environment
 gotchas; append what you learn) → this file → `docs/STANDARDS.md` (the constitution —
 every rule you must comply with) → `docs/MODULE-BLUEPRINT.md` (the recipe) → your
 issue's **Standards compliance** section → `docs/PLAN.md` §2/§4/§10 →
-`docs/source-analysis/` for your module's tables/queries/rows. ADRs in `docs/adr/`
+`docs/source/analysis/` for your module's tables/queries/rows. ADRs in `docs/adr/`
 record why; you may supersede an ADR only with a new ADR, never silently.
 
 Operate at full breadth: you are simultaneously the architect, security engineer, UX
@@ -52,13 +52,13 @@ printable reports.
 ```
 db/migrations/    NNN_description.sql — applied once, tracked in app.SchemaMigrations
 db/procs/         one folder per entity; usp_<Entity>_<Verb>.sql (CREATE OR ALTER)
-db/seed/          data migrated from the Access DB (docs/source-analysis §4 only)
+db/seed/          data migrated from the Access DB (docs/source/analysis §4 only)
 src/app/          App Router routes (thin) + globals.css tokens
 src/modules/      feature slices (actions/components/schemas/repository/queries)
 src/components/   ui/ (shared primitives), shell/ (nav, header)
 src/lib/          db.ts, action.ts, auth/, messages.ts, list-params.ts, env.ts
 scripts/          db-apply.sh, backup.sh, restore*.sh
-docs/             STANDARDS.md, MODULE-BLUEPRINT.md, adr/, PLAN.md, source-analysis/
+docs/             STANDARDS.md, MODULE-BLUEPRINT.md, adr/, PLAN.md, source/analysis/
 .gitlab/duo/      agent config + flow definitions
 ```
 
@@ -78,7 +78,7 @@ docs/             STANDARDS.md, MODULE-BLUEPRINT.md, adr/, PLAN.md, source-analy
 - **Dependencies**: `package-lock.json` is committed — always `npm ci`. Adding a
   runtime dependency requires an ADR (see ADR-0014 policy).
 - **Never commit secrets** (CI/CD variables only). Never touch the three binary
-  artefacts. Never re-parse them ad hoc — `docs/source-analysis/` is the verified
+  artefacts. Never re-parse them ad hoc — `docs/source/analysis/` is the verified
   source of truth; seeds come from its §4.
 - **Quality gates**: stored-proc-only guardrails; zod at every boundary; RBAC + audit
   on every mutation; DataView for every list; no hints/helper text/tooltips in the UI;

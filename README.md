@@ -7,7 +7,7 @@ alerts, notes and reports) as a **Next.js + SQL Server** web app.
 
 - 📋 Plan & architecture: [`docs/PLAN.md`](docs/PLAN.md)
 - 🔎 Source-system analysis (full extraction of the original Access DB, Excel
-  checklist and mock-up deck): [`docs/source-analysis/`](docs/source-analysis/requirements.md)
+  checklist and mock-up deck): [`docs/source/analysis/`](docs/source/analysis/requirements.md)
 - 🤖 Agent conventions: [`AGENTS.md`](AGENTS.md) · Duo flows: `.gitlab/duo/`
 
 ## Stack

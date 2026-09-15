@@ -4,7 +4,7 @@ Read order (mandatory, before any code): `LESSONS.md` (root — operating rules:
 commit + push every ~2-3 minutes, push before long jobs, resume protocol, STATUS
 notes on the issue) → `AGENTS.md` → `docs/STANDARDS.md` →
 this file → your issue's **Standards compliance** section → `docs/PLAN.md` §2/§4/§10 →
-`docs/source-analysis/requirements.md` + the `access-database.md` sections for your
+`docs/source/analysis/requirements.md` + the `access-database.md` sections for your
 tables/queries/rows → existing code in `src/components/ui/`, `src/lib/` and one merged
 module as reference.
 

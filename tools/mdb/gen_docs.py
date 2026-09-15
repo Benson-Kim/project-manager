@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Generate docs/source-analysis markdown from the JSON dumps produced by
+"""Generate docs/source/analysis markdown from the JSON dumps produced by
 mdbread.py / xlsx_dump.py / pptx_dump.py."""
 import json, sys, re, datetime
 sys.path.insert(0, '.')
 from mdbread import Mdb
 
-OUT = "../../docs/source-analysis"
+OUT = "../../docs/source/analysis"
 
 ACCESS_TO_MSSQL = {
     "BOOL": "BIT", "BYTE": "TINYINT", "INT": "SMALLINT", "LONG": "INT",
