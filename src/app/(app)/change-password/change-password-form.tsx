@@ -40,11 +40,7 @@ export function ChangePasswordForm() {
       >
         <Input name="currentPassword" type="password" autoComplete="current-password" required />
       </Field>
-      <Field
-        label={messages.auth.newPassword}
-        name="newPassword"
-        errors={errorsFor("newPassword")}
-      >
+      <Field label={messages.auth.newPassword} name="newPassword" errors={errorsFor("newPassword")}>
         <Input name="newPassword" type="password" autoComplete="new-password" required />
       </Field>
       <Field
