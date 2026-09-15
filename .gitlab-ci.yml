@@ -113,6 +113,9 @@ e2e:
 # Download the artifact and commit it.
 lockfile:generate:
   stage: build
+  # Run even when earlier stages fail — a fresh lockfile is exactly what an
+  # out-of-sync npm ci failure needs.
+  needs: []
   rules:
     - if: $LOCKFILE_ONLY == "1"          # api-triggered: run automatically
     # Opt-in refresh after editing package.json: "[lockfile]" in the commit message.
