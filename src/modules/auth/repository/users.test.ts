@@ -4,7 +4,8 @@ const execProc = vi.fn();
 vi.mock("@/lib/db", () => ({
   execProc: (...args: unknown[]) => execProc(...args) as Promise<unknown[]>,
 }));
-vi.mock("@/lib/auth/password", () => ({
+vi.mock("@/lib/auth/password", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/auth/password")>()),
   hashPassword: vi.fn(() => Promise.resolve("$argon2id$hashed")),
 }));
 
