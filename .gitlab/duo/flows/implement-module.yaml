@@ -1,0 +1,86 @@
+# Custom flow (flow registry v1): implement one module of the Project Manager
+# rebuild end-to-end. Register via the project AI Catalog (AI > Flows > New
+# flow) with this YAML as the configuration.
+# Schema: https://docs.gitlab.com/user/duo_agent_platform/flows/custom/yaml_schema/
+#
+# Goal format (pass as the flow goal / mention text):
+#   "Implement module <module-key> (issue #<iid>)"
+# The agent derives everything else from AGENTS.md, docs/PLAN.md §10 and the issue.
+version: v1
+environment: ambient
+
+components:
+  - name: implement_module
+    type: AgentComponent
+    prompt_id: implement_module_prompt
+    inputs:
+      - "context:goal"
+      - from: "context:project_id"
+        as: "project_id"
+    toolset:
+      - read_file
+      - create_file_with_contents
+      - edit_file
+      - list_dir
+      - find_files
+      - grep
+      - mkdir
+      - run_command
+      - run_git_command
+      - get_issue
+      - list_issues
+      - create_merge_request
+      - create_merge_request_note
+
+prompts:
+  - prompt_id: implement_module_prompt
+    prompt_template:
+      system: |
+        You are an expert full-stack engineer implementing one module of the
+        Project Manager rebuild (Next.js + SQL Server, stored-procedure-only).
+
+        Non-negotiable conventions (AGENTS.md is authoritative):
+        - Branch feature/<module> is cut FROM develop; the MR targets develop.
+        - ALL data access via stored procedures (usp_<Entity>_<Action>) — no
+          inline SQL, no ORM. ESLint + the guardrail unit test enforce this.
+        - Every mutation is RBAC-guarded, zod-validated and audit-logged.
+        - UI is mobile-first Tailwind from 360px up, touch targets >= 44px.
+        - Never commit secrets; never delete/modify Access_database.mdb,
+          Project_.xlsx or Project_hololens.pptx.
+      user: |
+        {{goal}}
+
+        Work through these steps:
+        1. READ FIRST (mandatory, in order): AGENTS.md; docs/PLAN.md (§2 data
+           model, §4 proc catalogue, §10 execution plan for this module);
+           docs/TRACEABILITY.md; docs/source-analysis/requirements.md and the
+           sections of docs/source-analysis/access-database.md for this
+           module's tables/queries/data; the module issue (acceptance
+           criteria + definition of done).
+        2. git fetch origin && switch to a new branch feature/<module> based on
+           origin/develop (reuse the branch if it already exists).
+        3. Implement per the issue acceptance criteria:
+           db/migrations/NNN_*.sql (tables/FKs/indexes, tracked in
+           app.SchemaMigrations), db/procs/<entity>/*.sql (CREATE OR ALTER,
+           audit-logged mutations), db/seed/*.sql (data from
+           docs/source-analysis/access-database.md §4),
+           src/lib/repositories/<entity>.ts (zod + execProc only),
+           src/app/(app)/<module>/ pages + server actions (mobile-first),
+           Vitest unit tests + a Playwright smoke test.
+        4. Verify: npm run lint && npm run typecheck && npm run test &&
+           npm run build. If sqlcmd + a SQL Server are available, apply
+           scripts/db-apply.sh; otherwise rely on CI.
+        5. Commit in logical units, push the branch, open a DRAFT merge request
+           to develop titled "Draft: feat(<module>): <summary>" with
+           "Closes #<issue-iid>", then watch the pipeline and fix failures.
+        6. Comment on the issue with the MR link and a checklist of what was
+           delivered vs the acceptance criteria.
+    params:
+      timeout: 300
+
+routers:
+  - from: implement_module
+    to: end
+
+flow:
+  entry_point: implement_module

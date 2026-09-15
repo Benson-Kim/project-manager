@@ -1,0 +1,45 @@
+# GitLab Duo Agent Platform — flow execution configuration.
+# Schema: https://docs.gitlab.com/user/duo_agent_platform/flows/execution/agent-config-yaml/
+# Supported keys ONLY: image, setup_script, network_policy, cache.
+# NOTE: this file is read from the DEFAULT BRANCH (main) — changes take effect
+# once merged to main via the develop -> main release flow.
+#
+# SQL Server for local verification is NOT available as a service here (the
+# schema has no `services` key). Agent sessions get sqlcmd via setup_script and
+# may start SQL Server with `docker compose up -d mssql` when Docker is
+# available; otherwise they push and verify migrations/procs in the CI
+# pipeline, which does provision an mssql service (see .gitlab-ci.yml `backup`
+# job pattern). Secrets (MSSQL_SA_PASSWORD, AUTH_SECRET, PROJECT_TOKEN,
+# RENOVATE_TOKEN) live exclusively in GitLab CI/CD variables.
+
+image: node:22
+
+setup_script:
+  - node --version && npm --version
+  - |
+    # sqlcmd for db/ work (best-effort; skipped when the proxy denies apt)
+    if ! command -v sqlcmd >/dev/null 2>&1; then
+      (curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg \
+        && echo "deb [signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql.list \
+        && apt-get update -qq && ACCEPT_EULA=Y apt-get install -y -qq mssql-tools18 \
+        && ln -sf /opt/mssql-tools18/bin/sqlcmd /usr/local/bin/sqlcmd) || echo "sqlcmd unavailable — verify db changes via CI"
+    fi
+  - npm ci --no-audit --no-fund || echo "npm registry blocked — CI verifies installs"
+
+network_policy:
+  include_recommended_allowed: true
+  allowed_domains:
+    - registry.npmjs.org
+    - packages.microsoft.com
+    - mcr.microsoft.com
+    - deb.debian.org
+    - security.debian.org
+
+cache:
+  key:
+    files:
+      - package-lock.json
+    prefix: npm
+  paths:
+    - .npm/
+    - node_modules/
