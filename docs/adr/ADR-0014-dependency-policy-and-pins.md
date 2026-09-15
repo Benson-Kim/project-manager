@@ -29,6 +29,16 @@ workspace proxy blocks npmjs.org, so versions are verified through the
   typescript-eslint declares TS 7 support (Renovate will surface it).
 - **Foundation additions** (this session): `@radix-ui/react-dialog` (runtime —
   ADR-0005), `@axe-core/playwright` + `@vitest/coverage-v8` (dev — ADR-0013).
+- **Module #4 additions (auth-and-rbac)**:
+  - `next-auth@^5` (runtime): Auth.js v5 credentials provider + JWT sessions
+    (ADR-0017). `@auth/core` comes in transitively; not pinned separately.
+  - `argon2@^0.44` (runtime): argon2id password hashing (OWASP-recommended
+    params m=19456 KiB, t=2, p=1). Native module — ships prebuilt binaries via
+    `prebuild-install` for linux-x64/glibc (the `node:22` CI image and the
+    production image), so `npm ci` needs no compiler toolchain. If a target
+    platform ever lacks a prebuild, the fallback is `@node-rs/argon2`
+    (pure-prebuilt N-API); switching requires updating this row + ADR-0017,
+    not a silent swap.
 
 ## Consequences
 
