@@ -61,8 +61,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!parsed.success) return null;
         const { username, password } = parsed.data;
 
-        const ip =
-          request.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+        const ip = request.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 
         // 1. Fixed-window IP rate limit — deny before any credential work.
         const rate = await recordIpLoginAttempt(ip);
