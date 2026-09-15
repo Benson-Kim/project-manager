@@ -19,7 +19,7 @@ foundation module.
 - Password policy: min 12 / max 128, no composition rules, denylist
   (`src/lib/auth/password-denylist.ts`; only 12+-character entries can ever
   match under the length rule — the full SecLists top-10k extraction is
-  tracked on issue #4).
+  tracked on issue #27; include the SecLists MIT licence note when landing it).
 - **JWT sessions** (encrypted, `AUTH_SECRET` ≥ 32 random bytes env-only, 8 h
   maxAge, `SameSite=Lax`/`HttpOnly`/`Secure` Auth.js defaults) with a
   **SessionVersion revocation stamp**: `src/lib/auth/provider.ts` re-checks the
