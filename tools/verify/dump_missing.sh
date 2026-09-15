@@ -1,7 +1,7 @@
 #!/bin/sh
 # Dump the objects that the pure-stdlib parser missed (found by mdbtools).
 set -eu
-MDB=Access_database.mdb
+MDB=docs/source/Access_database.mdb
 OUT=missing-objects
 mkdir -p "$OUT"
 echo "== all tables ==" | tee "$OUT/tables.txt"
