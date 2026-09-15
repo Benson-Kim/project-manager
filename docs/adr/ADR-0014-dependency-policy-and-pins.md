@@ -17,9 +17,13 @@ workspace proxy blocks npmjs.org, so versions are verified through the
   workspace tokens cannot download artifacts.
 - **Verified 2026-09-15** (CI report, pipeline `lockfile:generate`): next 16.3.5,
   react 19.3.0, mssql 12.7.2, zod 4.6.5 — all latest stable.
-- **eslint unpinned to ^10** (was ^9): `typescript-eslint` now declares
-  `eslint ^8.57 || ^9 || ^10` and `eslint-config-next` `>=9`, so the original reason
-  for the pin is gone. Verified green in CI on the standards branch.
+- **eslint stays ^9** (a ^10 unpin was attempted and reverted): eslint 10 removed
+  the deprecated `context.getFilename()` API, and `eslint-plugin-react@7.37.5`
+  (bundled by `eslint-config-next@16.3.5`, peer range `^3 || … || ^9.7`) still calls
+  it — `npm run lint` crashes with `contextOrFilename.getFilename is not a function`
+  (pipeline 2849688226, job 16503252966). Revisit when `eslint-config-next` ships an
+  `eslint-plugin-react` release that declares eslint 10 support (Renovate will
+  surface it).
 - **typescript stays ^6.0.0**: `typescript-eslint` peer range is `>=4.8.4 <6.1.0` —
   TypeScript 7 (native port) is not yet supported by the lint toolchain. Revisit when
   typescript-eslint declares TS 7 support (Renovate will surface it).
