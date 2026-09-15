@@ -66,7 +66,7 @@ Column names are normalised to PascalCase without spaces (e.g. `Contact Person` 
 | tblActivityStatusType | `ActivityStatus` (lookup) | Not Started / In Progress / Completed / Cancelled |
 | tblExistingSystemsInterfaces | `ExistingSystemInterface` | |
 | tblProjectSummary/Task/TaskList/TaskFramework | *(dropped — empty/vestigial)* | recorded in source/analysis |
-| — (new) | `auth.User`, `auth.Role`, `auth.UserRole`, `auth.Permission`, `auth.Session` | web multi-user + RBAC |
+| — (new) | `auth.User`, `auth.Role`, `auth.LoginAttempt` (delivered by module #4, MR !8 — JWT sessions with a SessionVersion revocation stamp replace `auth.Session`; the role matrix lives in code, so no `UserRole`/`Permission` tables; ADR-0017/ADR-0015) | web multi-user + RBAC |
 | — (new) | `audit.AuditLog` | who/what/when/before/after for every mutation |
 | — (new) | `app.FileAttachment` | replaces Access attachment columns; content-hash versioning |
 
@@ -311,7 +311,7 @@ to develop, verify staging deploy job, close issue.
 | Order | Module key (issue) | Session goal specifics beyond template |
 |---|---|---|
 | 2 | database-schema-and-procs (#3) | All §2 tables + FKs + indexes; CRUD procs per entity; ALL seeds from access-database.md §4 (incl. 5 meetings, 9 document types); `usp_Project_Search`; import mechanism = seeds (checklist row 61) |
-| 3 | auth-and-rbac (#4) | auth.User/Role/UserRole/Session tables + procs; Auth.js credentials + bcrypt/argon2; role guards; login rate limiting; seed admin user (forced password change); audit Login/Logout |
+| 3 | auth-and-rbac (#4) | auth.User/Role/UserRole/Session tables + procs; Auth.js credentials + bcrypt/argon2; role guards; login rate limiting; seed admin user (forced password change); audit Login/Logout — **delivered, MR !8**: migration 004 (`auth.Role`/`User`/`LoginAttempt`), 12 procs, Auth.js v5 + argon2id, JWT + SessionVersion revocation (ADR-0017), IP rate limit + lockout, seeded admin (hash from `SEED_ADMIN_PASSWORD` at seed time), Login/Logout audit in-proc; e2e RBAC-denial spec deferred to #26, full SecLists denylist to #27 |
 | 4 | projects (#5) | charter screen, type-ahead search (row 5), M:N assignees (row 6), add-ons (row 69: priority, est. completion, phase, risk level, status) |
 | 5 | stakeholders (#6) | CRUD + comm-preference/engagement dropdowns (row 70) |
 | 6 | suppliers (#7) | CRUD + contact/contract/rating + address block (rows 55, 74) |
