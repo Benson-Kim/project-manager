@@ -46,6 +46,6 @@ Full local stack (app container + DB): `docker compose up --build`.
 branch, MR → `develop`, release MRs `develop` → `main`. Module list and
 ordering: [`docs/PLAN.md`](docs/PLAN.md) §3 and the issue board.
 
-> ⚠️ The three binary files at the repo root (`Access_database.mdb`,
+> ⚠️ The three binary files in `docs/source/` (`Access_database.mdb`,
 > `Project_.xlsx`, `Project_hololens.pptx`) are the original source artefacts —
 > never delete or modify them.
