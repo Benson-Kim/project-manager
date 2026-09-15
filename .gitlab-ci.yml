@@ -203,6 +203,54 @@ verify:sources:
     when: always
     expire_in: 1 week
 
+# Prove the database module on a clean SQL Server 2022 container: apply
+# migrations + procs + seeds via scripts/db-apply.sh (twice — idempotence is
+# asserted, not assumed) and verify row counts match the
+# docs/source/analysis/access-database.md §4 inventory (db/verify/seed_counts.sql).
+# Opt-in: "[db]" in the commit message; automatic on develop/main when db files
+# change; manual utility otherwise.
+db:apply:
+  stage: test
+  needs: []
+  cache: []
+  interruptible: true
+  services:
+    - name: mcr.microsoft.com/mssql/server:2022-latest
+      alias: mssql
+      variables:
+        ACCEPT_EULA: "Y"
+        MSSQL_PID: Developer
+  variables:
+    # Job-scoped throwaway password for the ephemeral service container only
+    # (never a real host — those use the MSSQL_SA_PASSWORD CI variable).
+    MSSQL_SA_PASSWORD: "Ci-Ephemeral!Passw0rd1"
+    DB_SERVER: mssql
+    DB_USER: sa
+    DB_PASSWORD: "Ci-Ephemeral!Passw0rd1"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_BRANCH && $CI_COMMIT_MESSAGE =~ /\[db\]/
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+      changes:
+        paths:
+          - db/**/*
+          - scripts/db-apply.sh
+    - if: $CI_COMMIT_BRANCH
+      when: manual
+      allow_failure: true
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq curl gnupg2
+    - curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg
+    - echo "deb [signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql.list
+    - apt-get update -qq && ACCEPT_EULA=Y apt-get install -y -qq mssql-tools18 && ln -sf /opt/mssql-tools18/bin/sqlcmd /usr/local/bin/sqlcmd
+    # wait for the service container to accept connections
+    - for i in $(seq 1 30); do sqlcmd -S tcp:mssql,1433 -U sa -P "$DB_PASSWORD" -C -Q "SELECT 1" >/dev/null 2>&1 && break; echo "waiting for SQL Server ($i)"; sleep 2; done
+  script:
+    - sh scripts/db-apply.sh
+    - echo "== second run (idempotence) ==" && sh scripts/db-apply.sh
+    - sqlcmd -S tcp:mssql,1433 -U sa -P "$DB_PASSWORD" -C -b -I -i db/verify/seed_counts.sql
+
 # ---- scheduled maintenance ---------------------------------------------------
 
 # SCHEDULE_JOB=audit — automatic vulnerability fixing: runs `npm audit fix`,
