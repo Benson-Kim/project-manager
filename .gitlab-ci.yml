@@ -47,8 +47,7 @@ default:
       - .npm/
   before_script:
     # npm ci for reproducible installs (package-lock.json is committed).
-    # TODO(bootstrap): fallback removed once the lockfile is committed.
-    - npm ci --no-audit --no-fund --cache .npm --prefer-offline || npm install --no-audit --no-fund --cache .npm --prefer-offline
+    - npm ci --no-audit --no-fund --cache .npm --prefer-offline
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
