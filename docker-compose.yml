@@ -34,6 +34,8 @@ services:
       DB_USER: sa
       DB_PASSWORD: "${MSSQL_SA_PASSWORD}"
       AUTH_SECRET: "${AUTH_SECRET:-dev-only-secret}"
+      # Dev-only Admin session stub until module #4 (ADR-0015).
+      AUTH_DEV_BYPASS: "${AUTH_DEV_BYPASS:-1}"
     ports:
       - "3000:3000"
     volumes:
