@@ -32,6 +32,11 @@ IF (SELECT COUNT(*) FROM app.[TodoItem]) <> 16 SET @Errors += N'TodoItem<>16 (go
 IF (SELECT COUNT(*) FROM app.[TodoAlert]) <> 4 SET @Errors += N'TodoAlert<>4 (got ' + CAST((SELECT COUNT(*) FROM app.[TodoAlert]) AS NVARCHAR(12)) + N'); ';
 IF (SELECT COUNT(*) FROM app.[ExistingSystemInterface]) <> 0 SET @Errors += N'ExistingSystemInterface<>0 (got ' + CAST((SELECT COUNT(*) FROM app.[ExistingSystemInterface]) AS NVARCHAR(12)) + N'); ';
 IF (SELECT COUNT(*) FROM app.[ActivityStatus]) <> 4 SET @Errors += N'ActivityStatus<>4 (got ' + CAST((SELECT COUNT(*) FROM app.[ActivityStatus]) AS NVARCHAR(12)) + N'); ';
+-- auth schema (module #4): 4 roles + exactly one seeded admin (e2e users are
+-- opt-in via E2E_SEED=1 and intentionally not asserted here).
+IF (SELECT COUNT(*) FROM auth.[Role]) <> 4 SET @Errors += N'auth.Role<>4 (got ' + CAST((SELECT COUNT(*) FROM auth.[Role]) AS NVARCHAR(12)) + N'); ';
+IF (SELECT COUNT(*) FROM auth.[User] WHERE Username = N'admin' AND IsDeleted = 0) <> 1 SET @Errors += N'auth.User admin<>1 (got ' + CAST((SELECT COUNT(*) FROM auth.[User] WHERE Username = N'admin' AND IsDeleted = 0) AS NVARCHAR(12)) + N'); ';
+IF (SELECT MustChangePassword FROM auth.[User] WHERE Username = N'admin' AND IsDeleted = 0) <> 1 SET @Errors += N'admin MustChangePassword<>1; ';
 IF LEN(@Errors) > 0
 BEGIN
     DECLARE @Msg NVARCHAR(2048) = N'Seed count mismatch: ' + LEFT(@Errors, 2000);

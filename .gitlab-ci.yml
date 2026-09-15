@@ -227,6 +227,10 @@ db:apply:
     DB_SERVER: mssql
     DB_USER: sa
     DB_PASSWORD: "Ci-Ephemeral!Passw0rd1"
+    # Job-scoped throwaway seed password for the ephemeral service DB only
+    # (same rationale as the SA password above — the seeded hash dies with the
+    # container). Real hosts provide SEED_ADMIN_PASSWORD via a masked variable.
+    SEED_ADMIN_PASSWORD: "Throwaway-Admin-Seed-2026"
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
@@ -247,6 +251,8 @@ db:apply:
     # wait for the service container to accept connections
     - for i in $(seq 1 30); do sqlcmd -S tcp:mssql,1433 -U sa -P "$DB_PASSWORD" -C -Q "SELECT 1" >/dev/null 2>&1 && break; echo "waiting for SQL Server ($i)"; sleep 2; done
   script:
+    # argon2 for scripts/hash-password.mjs (seed-time admin hash; node:22 image)
+    - npm install --no-save --no-audit --no-fund argon2
     - sh scripts/db-apply.sh
     - echo "== second run (idempotence) ==" && sh scripts/db-apply.sh
     - sqlcmd -S tcp:mssql,1433 -U sa -P "$DB_PASSWORD" -C -b -I -i db/verify/seed_counts.sql
