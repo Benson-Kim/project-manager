@@ -1,5 +1,6 @@
 import sql from "mssql";
 import { getEnv } from "./env";
+import { AppError, appErrorFromProc } from "./errors";
 
 /**
  * Shared connection pool. ALL data access goes through stored procedures —
@@ -63,7 +64,7 @@ export interface ProcResult<T> {
   rowsAffected: number[];
 }
 
-function bindAndExecute<T>(
+async function bindAndExecute<T>(
   request: sql.Request,
   procName: string,
   params: ProcParams,
@@ -71,7 +72,19 @@ function bindAndExecute<T>(
   for (const [key, value] of Object.entries(params)) {
     request.input(key, value);
   }
-  return request.execute<T>(procName);
+  try {
+    return await request.execute<T>(procName);
+  } catch (err) {
+    // ADR-0012: THROW 50001–50005 from procs → typed AppError; anything else
+    // is logged server-side and surfaced as an opaque INTERNAL error.
+    if (err instanceof sql.RequestError && typeof err.number === "number") {
+      if (err.number >= 50001 && err.number <= 50999) {
+        throw appErrorFromProc(err.number, err.message);
+      }
+    }
+    console.error(`[db] ${procName} failed:`, err);
+    throw new AppError("INTERNAL", "Database operation failed");
+  }
 }
 
 /** Execute a stored procedure with named, parameterised inputs. */
