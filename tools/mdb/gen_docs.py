@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Generate docs/source/analysis markdown from the JSON dumps produced by
-mdbread.py / xlsx_dump.py / pptx_dump.py."""
+mdbread.py / xlsx_dump.py / pptx_dump.py.
+
+Run from this directory (tools/mdb/); paths below are relative to it."""
 import json, sys, re, datetime
 sys.path.insert(0, '.')
 from mdbread import Mdb
