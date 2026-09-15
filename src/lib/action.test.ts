@@ -3,10 +3,10 @@ import { z } from "zod";
 import type { Session } from "./auth/types";
 
 const revalidatePath = vi.fn();
-const expireTag = vi.fn();
+const updateTag = vi.fn();
 vi.mock("next/cache", () => ({
   revalidatePath: (...args: unknown[]) => revalidatePath(...args),
-  expireTag: (...args: unknown[]) => expireTag(...args),
+  updateTag: (...args: unknown[]) => updateTag(...args),
 }));
 
 let session: Session | null = { userId: 1, username: "dev", role: "Admin" };
@@ -42,7 +42,7 @@ describe("action() wrapper (ADR-0003)", () => {
   beforeEach(() => {
     session = { userId: 1, username: "dev", role: "Admin" };
     revalidatePath.mockClear();
-    expireTag.mockClear();
+    updateTag.mockClear();
   });
 
   it("returns VALIDATION with fieldErrors and never calls the handler", async () => {
@@ -87,7 +87,7 @@ describe("action() wrapper (ADR-0003)", () => {
     const run = makeAction(() => Promise.resolve("ok"));
     await run({ name: "Acme" });
     expect(revalidatePath).toHaveBeenCalledWith("/suppliers");
-    expect(expireTag).toHaveBeenCalledWith("suppliers-tag");
+    expect(updateTag).toHaveBeenCalledWith("suppliers-tag");
 
     revalidatePath.mockClear();
     const failing = makeAction(() => Promise.reject(new AppError("NOT_FOUND", "gone")));

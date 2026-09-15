@@ -1,4 +1,4 @@
-import { expireTag, revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { z } from "zod";
 import { auth } from "./auth/provider";
 import { can } from "./auth/rbac";
@@ -83,12 +83,12 @@ export function action<TSchema extends z.ZodType, TOutput>(
       // 4. Execute (procs enforce row-level access and write audit rows).
       const data = await options.handler(parsed.data, { session });
 
-      // 5. Revalidate. Tags expire immediately (read-your-writes after a
-      // mutation): Next 16's two-argument revalidateTag(tag, profile) is the
+      // 5. Revalidate. Tags update immediately (read-your-writes after a
+      // mutation, Next 16 updateTag): revalidateTag(tag, profile) is the
       // stale-while-revalidate variant, not what a mutation wants.
       for (const target of options.revalidate ?? []) {
         if (target.startsWith("/")) revalidatePath(target);
-        else expireTag(target);
+        else updateTag(target);
       }
 
       return { ok: true, data };
