@@ -59,7 +59,7 @@ src/modules/      feature slices (actions/components/schemas/repository/queries)
 src/components/   ui/ (shared primitives), shell/ (nav, header)
 src/lib/          db.ts, action.ts, auth/, messages.ts, list-params.ts, env.ts
 scripts/          db-apply.sh, backup.sh, restore*.sh
-docs/             STANDARDS.md, MODULE-BLUEPRINT.md, adr/, PLAN.md, source/analysis/
+docs/             STANDARDS.md, MODULE-BLUEPRINT.md, adr/, PLAN.md, source/ (binaries + analysis/)
 .gitlab/duo/      agent config + flow definitions
 ```
 
