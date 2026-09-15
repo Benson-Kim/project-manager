@@ -53,8 +53,10 @@ export const DatePicker = forwardRef<
   return <Input ref={ref} type="date" {...props} />;
 });
 
-export interface SwitchProps
-  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "type" | "role"> {
+export interface SwitchProps extends Omit<
+  React.InputHTMLAttributes<HTMLInputElement>,
+  "type" | "role"
+> {
   label: string;
 }
 

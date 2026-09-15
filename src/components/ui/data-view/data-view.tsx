@@ -106,7 +106,11 @@ export function DataView<Row>({
         <p className="text-sm text-ink-muted" data-testid="result-count">
           {messages.feedback.resultsAnnouncement(rows.length, totalCount)}
         </p>
-        <div role="group" aria-label={messages.list.viewToggle} className="flex rounded-md border border-line">
+        <div
+          role="group"
+          aria-label={messages.list.viewToggle}
+          className="flex rounded-md border border-line"
+        >
           <button
             type="button"
             aria-label={messages.list.viewGrid}
@@ -162,7 +166,10 @@ export function DataView<Row>({
       ) : (
         <div ref={containerRef} onKeyDown={onKeyDown}>
           {view === "grid" ? (
-            <ul data-testid="data-view-grid" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <ul
+              data-testid="data-view-grid"
+              className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+            >
               {rows.map((row, index) => {
                 const id = getRowId(row);
                 return (
@@ -187,7 +194,9 @@ export function DataView<Row>({
             <table data-testid="data-view-table" className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-line text-left">
-                  {bulkActions ? <th className="w-11 p-2" aria-label={messages.actions.selectAll} /> : null}
+                  {bulkActions ? (
+                    <th className="w-11 p-2" aria-label={messages.actions.selectAll} />
+                  ) : null}
                   {columns.map((col) => (
                     <th
                       key={col.key}
@@ -237,7 +246,10 @@ export function DataView<Row>({
       )}
 
       {pages > 1 ? (
-        <nav aria-label={messages.list.page(page, pages)} className="flex items-center justify-between">
+        <nav
+          aria-label={messages.list.page(page, pages)}
+          className="flex items-center justify-between"
+        >
           <button
             type="button"
             disabled={page <= 1}

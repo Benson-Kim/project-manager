@@ -49,7 +49,11 @@ export function KitchenSink() {
     <>
       <PageHeader
         title="Kitchen sink"
-        action={<Button onClick={() => toast({ variant: "success", title: messages.feedback.saved })}>Success toast</Button>}
+        action={
+          <Button onClick={() => toast({ variant: "success", title: messages.feedback.saved })}>
+            Success toast
+          </Button>
+        }
       />
 
       <div className="flex flex-col gap-8 pb-8">
@@ -63,7 +67,10 @@ export function KitchenSink() {
             <Button variant="danger">Danger</Button>
             <Button variant="ghost">Ghost</Button>
             <Button pending>Pending</Button>
-            <Button variant="secondary" onClick={() => toast({ variant: "error", title: messages.errors.INTERNAL })}>
+            <Button
+              variant="secondary"
+              onClick={() => toast({ variant: "error", title: messages.errors.INTERNAL })}
+            >
               Error toast
             </Button>
             <Button
@@ -151,7 +158,12 @@ export function KitchenSink() {
               Open confirm
             </Button>
           </div>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen} title="Dialog title" description="One sentence of context.">
+          <Dialog
+            open={dialogOpen}
+            onOpenChange={setDialogOpen}
+            title="Dialog title"
+            description="One sentence of context."
+          >
             <Button onClick={() => setDialogOpen(false)}>{messages.actions.close}</Button>
           </Dialog>
           <Sheet open={sheetOpen} onOpenChange={setSheetOpen} title="Sheet title">
@@ -176,7 +188,10 @@ export function KitchenSink() {
           </h2>
           <div className="flex flex-col gap-3">
             <EmptyState title={messages.list.emptyTitle} body="Create the first record." />
-            <ErrorState title={messages.list.errorTitle} onRetry={() => announce(messages.app.retry)} />
+            <ErrorState
+              title={messages.list.errorTitle}
+              onRetry={() => announce(messages.app.retry)}
+            />
             <ListSkeleton rows={2} />
           </div>
         </section>

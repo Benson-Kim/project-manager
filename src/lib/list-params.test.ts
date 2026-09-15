@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  flattenSearchParams,
-  parseListParams,
-  toProcListParams,
-  totalPages,
-} from "./list-params";
+import { flattenSearchParams, parseListParams, toProcListParams, totalPages } from "./list-params";
 
 describe("list URL params (ADR-0016)", () => {
   it("applies defaults for an empty URL", () => {
