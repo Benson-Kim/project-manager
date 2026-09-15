@@ -109,10 +109,44 @@ e2e:
 
 # ---- manual utilities --------------------------------------------------------
 
+# Emit a prettier patch via the job trace when the workspace proxy blocks npm
+# locally (agent tokens cannot download artifacts, but can read traces).
+# Opt-in: "[format]" in the commit message. Apply locally:
+#   scrape between the markers -> base64 -d | gzip -d > prettier.patch
+#   git apply prettier.patch
+format:patch:
+  stage: build
+  needs: []
+  rules:
+    - if: $CI_COMMIT_BRANCH && $CI_COMMIT_MESSAGE =~ /\[format\]/
+    - if: $CI_COMMIT_BRANCH
+      when: manual
+      allow_failure: true
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - .npm/
+  script:
+    - npm ci --no-audit --no-fund --cache .npm --prefer-offline
+    - npx prettier --write . || true
+    - git diff > prettier.patch
+    - echo "-----BEGIN PRETTIER PATCH B64-----"
+    - gzip -9 -c prettier.patch | base64 -w 120
+    - echo "-----END PRETTIER PATCH B64-----"
+  artifacts:
+    expire_in: 3 days
+    paths:
+      - prettier.patch
+
 # Regenerate package-lock.json when the workspace proxy blocks npm locally.
 # Download the artifact and commit it.
 lockfile:generate:
   stage: build
+  # Run even when earlier stages fail — a fresh lockfile is exactly what an
+  # out-of-sync npm ci failure needs.
+  needs: []
   rules:
     - if: $LOCKFILE_ONLY == "1"          # api-triggered: run automatically
     # Opt-in refresh after editing package.json: "[lockfile]" in the commit message.

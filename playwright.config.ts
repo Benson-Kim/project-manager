@@ -14,5 +14,8 @@ export default defineConfig({
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
+    // E2E=1 keeps the /kitchen-sink gallery reachable in the production build
+    // used for tests (it 404s in real production).
+    env: { E2E: "1" },
   },
 });

@@ -259,20 +259,44 @@ Full security design: [`docs/SECURITY.md`](SECURITY.md).
 
 Every module is implemented by launching the **implement-module flow**
 (`.gitlab/duo/flows/implement-module.yaml`) — or an interactive agent session —
-with the goal text below. Inputs each session MUST read before coding:
-`AGENTS.md`, this file (§2 §4 §10), `docs/TRACEABILITY.md`, the module issue,
-and `docs/source-analysis/` (requirements + the module's tables/queries/rows).
+with the goal text below. Inputs each session MUST read before coding, in
+order: `LESSONS.md` (root — mandatory operating rules: commit + push every
+~2-3 minutes, push before long jobs, resume protocol with STATUS notes on the
+issue, review-before-continuing, environment gotchas; append what you learn),
+`AGENTS.md`, `docs/STANDARDS.md` (the constitution), 
+`docs/MODULE-BLUEPRINT.md`, the module issue — especially its **Standards
+compliance (set by foundation session)** section — this file (§2 §4 §10),
+`docs/TRACEABILITY.md`, `docs/source-analysis/` (requirements + the module's
+tables/queries/rows) and `docs/adr/`. Each session operates at full breadth —
+architect, security engineer, UX designer, accessibility specialist, DBA and
+tech lead at once — decides from first principles, records decisions (ADR) and
+lands complete work: code + tests + docs + green pipeline.
 
 **Goal text template** (replace placeholders):
 
 > Implement module `<module-key>` (issue `#<iid>`) of the Project Manager
-> rebuild. Read AGENTS.md, docs/PLAN.md §2/§4/§10, docs/TRACEABILITY.md, issue
-> `#<iid>` and docs/source-analysis/ first. Create branch
-> `feature/<module-key>` from develop, implement migrations + stored procedures
-> + seeds + repository + mobile-first UI + tests per the issue's acceptance
-> criteria, verify lint/typecheck/test/build, and open a draft MR to develop
-> titled "Draft: feat(<module-key>): …" with "Closes #<iid>". Wait for the
-> pipeline and fix failures.
+> rebuild. Bring the full breadth of an expert architect, security engineer,
+> UX designer, accessibility specialist, DBA and tech lead. Read FIRST, in
+> order: LESSONS.md (root — mandatory operating rules; comply with ALL of
+> them: commit AND push every ~2-3 minutes or after every file edit with
+> "[skip ci]", push before long-running commands, follow the resume protocol
+> with dated STATUS notes on issue `#<iid>` after every push and at every
+> milestone, review a predecessor's pushed diff before continuing, and append
+> what you learn), AGENTS.md, docs/STANDARDS.md, docs/MODULE-BLUEPRINT.md,
+> issue `#<iid>` (especially its "Standards compliance (set by foundation
+> session)" section), docs/PLAN.md §2/§4/§10, docs/TRACEABILITY.md,
+> docs/source-analysis/ for this module's tables/queries/rows, and docs/adr/.
+> Create branch `feature/<module-key>` from develop and implement per the
+> blueprint: migrations + stored procedures (ADR-0016 list contract, ADR-0012
+> errors, audit in-transaction) + seeds + module slice
+> (schemas/repository/queries/actions/components) + DataView list + decided
+> detail/edit pattern + tests (Vitest; Playwright happy path, validation
+> failure, RBAC denial, axe). Comply with every rule in docs/STANDARDS.md —
+> deviations require a superseding ADR merged first. Verify
+> lint/typecheck/test/build (via CI if the workspace proxy blocks npm; final
+> commit message includes "[e2e]"), and open a draft MR to develop titled
+> "Draft: feat(<module-key>): …" with "Closes #<iid>" using the Module.md
+> template. Wait for the pipeline, fix failures, un-draft when green.
 
 Per-module outputs & verification (all modules): branch `feature/<module>`;
 draft MR → develop; `db/migrations/NNN_*.sql` + `db/procs/<entity>/*` +
