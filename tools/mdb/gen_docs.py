@@ -31,7 +31,7 @@ def md_table(headers, rows):
 
 def gen_access():
     d = json.load(open("/tmp/work/mdb_dump.json"))
-    m = Mdb("../../Access_database.mdb")
+    m = Mdb("../../docs/source/Access_database.mdb")
     g = m.data_pages_by_table()
     so = m.read_tdef(2)
     objs = m.table_rows(so, g.get(2, []))
