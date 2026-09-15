@@ -33,7 +33,8 @@ test.describe("kitchen sink — shared primitives", () => {
     await expect(page.getByText("Enter a name")).toBeVisible();
 
     await page.getByTestId("ks-form").getByRole("button", { name: "Save" }).click();
-    const alert = page.getByRole("alert");
+    // Scoped to the form — the gallery page also shows an ErrorState (role=alert).
+    const alert = page.getByTestId("ks-form").getByRole("alert");
     await expect(alert).toBeVisible();
     await expect(alert).toBeFocused();
   });
@@ -56,7 +57,8 @@ test.describe("kitchen sink — shared primitives", () => {
   });
 
   test("combobox filters and selects with the keyboard", async ({ page }) => {
-    const combo = page.getByRole("combobox");
+    // Named — native <select> elements (Category, Theme) are also role=combobox.
+    const combo = page.getByRole("combobox", { name: "Owner" });
     await combo.fill("ra");
     await expect(page.getByRole("option", { name: "Rachid" })).toBeVisible();
     await combo.press("ArrowDown");
