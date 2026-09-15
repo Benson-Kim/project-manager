@@ -15,10 +15,7 @@ function collectStrings(node: unknown, path: string): Array<[string, string]> {
       [2, "records"],
       [3, 10],
     ];
-    return probes.map((args, i) => [
-      `${path}(probe ${i})`,
-      fn(...(args as never[])),
-    ]);
+    return probes.map((args, i) => [`${path}(probe ${i})`, fn(...(args as never[]))]);
   }
   if (node && typeof node === "object") {
     return Object.entries(node).flatMap(([key, value]) =>

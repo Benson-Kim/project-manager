@@ -27,10 +27,7 @@ export default function Home() {
       <PageHeader title={messages.app.name} />
       <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {modules.map((m) => (
-          <li
-            key={m.key}
-            className="rounded-lg border border-line bg-surface-raised p-4"
-          >
+          <li key={m.key} className="rounded-lg border border-line bg-surface-raised p-4">
             <h2 className="text-sm font-semibold text-ink">{m.name}</h2>
             <p className="mt-1 text-xs text-ink-faint">feature/{m.key}</p>
           </li>

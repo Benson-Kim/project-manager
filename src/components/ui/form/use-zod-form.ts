@@ -30,9 +30,7 @@ export function useZodForm<TSchema extends z.ZodType>(schema: TSchema) {
         const key = issue.path.join(".") || "_";
         (next[key] ??= []).push(issue.message);
       }
-      setErrors((prev) =>
-        onlyField ? { ...prev, [onlyField]: next[onlyField] ?? [] } : next,
-      );
+      setErrors((prev) => (onlyField ? { ...prev, [onlyField]: next[onlyField] ?? [] } : next));
       return false;
     },
     [schema],

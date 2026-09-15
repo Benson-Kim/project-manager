@@ -54,8 +54,7 @@ export function action<TSchema extends z.ZodType, TOutput>(
 ): (rawInput: unknown) => Promise<ActionResult<TOutput>> {
   return async function run(rawInput: unknown): Promise<ActionResult<TOutput>> {
     // 1. Validate (FormData is normalised to a plain object first).
-    const input =
-      rawInput instanceof FormData ? Object.fromEntries(rawInput.entries()) : rawInput;
+    const input = rawInput instanceof FormData ? Object.fromEntries(rawInput.entries()) : rawInput;
     const parsed = options.schema.safeParse(input);
     if (!parsed.success) {
       const fieldErrors: Record<string, string[]> = {};

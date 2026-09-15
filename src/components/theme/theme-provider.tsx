@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useSyncExternalStore,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useSyncExternalStore } from "react";
 
 /**
  * Theme = system | light | dark (ADR-0004). The choice persists in
