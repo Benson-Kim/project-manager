@@ -77,3 +77,9 @@ Append under the matching section (or add a section) in the form:
 - 2026-09-15 session 7841296: major-version bumps of toolchain packages (eslint, typescript) are gated by their slowest plugin, not by the package's own peer ranges — `eslint-config-next` bundles `eslint-plugin-react`/`eslint-plugin-jsx-a11y` whose support lags. -> Before a toolchain major bump, check the bundled plugins' peer ranges in the `lockfile:generate` trace (`npm info <pkg> peerDependencies`), and let Renovate propose it with a green pipeline instead of hand-bumping.
 - 2026-09-15 session 7841296: the trace-scrape of `package-lock.json` (§7) works verbatim; strip the runner's `<timestamp> 01O ` line prefix and keep only base64-alphabet lines between the LAST marker pair (the command echo lines also end with the marker text). Validate the decoded lockfile against package.json (all deps present, ranges match) before committing.
 - 2026-09-15 session 7841296: file-editing tools refuse `.gitlab/duo/**` (Duo context exclusion). Edit those files via shell (`python3`/`sed`) — they are not secrets, just excluded from AI context.
+
+## 9. Layout/relocation session (MR !5, 2026-09-15)
+
+- 2026-09-15 MR !5: `verify:sources` was manual-only and agent tokens cannot play manual jobs -> added a `[verify]` commit-message opt-in (same style as `[e2e]`/`[lockfile]`). Use `[verify]` whenever a change touches `docs/source/**` or `tools/verify/**`.
+- 2026-09-15 MR !5: work-item notes authored by another user return 403 on PUT -> post a dated correction comment instead of editing; say explicitly that it supersedes the stale paths.
+- 2026-09-15 MR !5: after a directory moves deeper, relative markdown links inside moved files silently break (docs/source/analysis/VERIFICATION.md needed `../../../tools/…`). Sweep for `](../` inside every moved directory, not just for the old path string.
