@@ -100,7 +100,6 @@ e2e:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
     - if: $RUN_E2E == "1"                # api-triggered: run automatically
-    - if: $CI_COMMIT_BRANCH == "feature/foundation"   # TEMP(bootstrap): prove e2e pre-merge
     - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH
       when: manual
@@ -114,7 +113,6 @@ lockfile:generate:
   stage: build
   rules:
     - if: $LOCKFILE_ONLY == "1"          # api-triggered: run automatically
-    - if: $CI_COMMIT_BRANCH == "feature/foundation"   # TEMP(bootstrap): auto until lockfile lands
     - if: $CI_COMMIT_BRANCH
       when: manual
       allow_failure: true
