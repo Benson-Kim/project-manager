@@ -8,14 +8,14 @@ import { messages } from "../lib/messages";
 function collectStrings(node: unknown, path: string): Array<[string, string]> {
   if (typeof node === "string") return [[path, node]];
   if (typeof node === "function") {
-    const fn = node as (...args: never[]) => string;
+    const fn = node as (...args: unknown[]) => string;
     // Probe message functions with representative arguments.
-    const probes: Array<[unknown, unknown]> = [
+    const probes: unknown[][] = [
       [1, 1],
       [2, "records"],
       [3, 10],
     ];
-    return probes.map((args, i) => [`${path}(probe ${i})`, fn(...(args as never[]))]);
+    return probes.map((args, i) => [`${path}(probe ${i})`, fn(...args)]);
   }
   if (node && typeof node === "object") {
     return Object.entries(node).flatMap(([key, value]) =>

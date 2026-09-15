@@ -45,8 +45,10 @@ independent sessions stay navigable and uniform.
 ### 1.3 Cache revalidation
 
 - After a successful mutation the wrapper revalidates what the handler declares:
-  `revalidatePath("/suppliers")` for list-shaped changes; use `revalidateTag` when a
-  cross-module read is tagged (tag names = module keys).
+  `revalidatePath("/suppliers")` for list-shaped changes; tag targets expire via
+  `expireTag` when a cross-module read is tagged (tag names = module keys) — the
+  immediate read-your-writes call, not Next 16's stale-while-revalidate
+  `revalidateTag(tag, profile)`.
 - Dynamic pages that read session/headers stay dynamic; do not fight the router with
   manual `router.refresh()` — return the right revalidation from the action.
 

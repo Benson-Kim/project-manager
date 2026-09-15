@@ -50,7 +50,11 @@ function readStoredPreference(): ThemePreference {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const preference = useSyncExternalStore(subscribeToStore, readStoredPreference, () => "system");
+  const preference = useSyncExternalStore<ThemePreference>(
+    subscribeToStore,
+    readStoredPreference,
+    () => "system",
+  );
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
