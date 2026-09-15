@@ -249,7 +249,7 @@ db:apply:
   script:
     - sh scripts/db-apply.sh
     - echo "== second run (idempotence) ==" && sh scripts/db-apply.sh
-    - sqlcmd -S tcp:mssql,1433 -U sa -P "$DB_PASSWORD" -C -b -i db/verify/seed_counts.sql
+    - sqlcmd -S tcp:mssql,1433 -U sa -P "$DB_PASSWORD" -C -b -I -i db/verify/seed_counts.sql
 
 # ---- scheduled maintenance ---------------------------------------------------
 
