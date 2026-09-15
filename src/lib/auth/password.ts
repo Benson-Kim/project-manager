@@ -1,11 +1,9 @@
 import argon2 from "argon2";
-import { z } from "zod";
-import { PASSWORD_DENYLIST } from "./password-denylist";
 
 /**
- * Password hashing + policy (STANDARDS §4): argon2id m=19456 KiB, t=2, p=1
- * (OWASP baseline); min length 12, no composition rules, top-10k denylist.
- * Server-only — argon2 is a native module.
+ * Password hashing (STANDARDS §4): argon2id m=19456 KiB, t=2, p=1 (OWASP
+ * baseline). Server-only — argon2 is a native module; the shared zod policy
+ * lives in ./password-policy so client bundles never import this file.
  */
 const ARGON2_OPTIONS = {
   type: argon2.argon2id,
@@ -26,11 +24,3 @@ export async function verifyPassword(hash: string, password: string): Promise<bo
     return false;
   }
 }
-
-export const passwordSchema = z
-  .string()
-  .min(12, "Use at least 12 characters")
-  .max(128, "Use at most 128 characters")
-  .refine((password) => !PASSWORD_DENYLIST.has(password.toLowerCase()), {
-    message: "That password is too common — pick something more unusual",
-  });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { hashPassword, passwordSchema, verifyPassword } from "./password";
+import { hashPassword, verifyPassword } from "./password";
+import { passwordSchema } from "./password-policy";
 
 describe("argon2id hashing (STANDARDS §4)", () => {
   it("roundtrips: hash then verify", async () => {

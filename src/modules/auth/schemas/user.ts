@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ROLES } from "@/lib/auth/types";
-import { passwordSchema } from "@/lib/auth/password";
+import { passwordSchema } from "@/lib/auth/password-policy";
 
 /** tedious returns CAST(RowVer AS BIGINT) as a string — coerce (LESSONS §10). */
 const rowVerSchema = z.coerce.number();
