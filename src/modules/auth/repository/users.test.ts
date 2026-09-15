@@ -67,7 +67,7 @@ describe("users repository", () => {
 
   it("listUsers forwards ADR-0016 params 1:1", async () => {
     execProc.mockResolvedValue([{ ...dbUserRow(), TotalCount: 1 }]);
-    const params = listParamsSchema.parse({ search: "pm", sortBy: "Username", page: 2 });
+    const params = listParamsSchema.parse({ q: "pm", sort: "Username", page: "2" });
     await listUsers(params, 9);
     expect(execProc).toHaveBeenCalledWith(
       "usp_User_List",
