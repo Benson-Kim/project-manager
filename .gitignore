@@ -26,3 +26,6 @@ __pycache__/
 # local db artifacts
 backups/
 uploads/
+
+# playwright auth storage state (contains session cookies)
+/e2e/.auth/
