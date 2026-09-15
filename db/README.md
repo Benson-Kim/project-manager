@@ -20,6 +20,7 @@ CI proof: the `db:apply` job (opt-in `[db]` commit flag; automatic on develop/ma
 | 001 | Database, schemas (`app`/`auth`/`audit`), `app.SchemaMigrations`, `audit.AuditLog`, `app.ActivityStatus` lookup |
 | 002 | `app.ViewPreference` (ADR-0006) |
 | 003 | Full domain schema (module #3): 26 entity tables per STANDARDS §2.2 + `app.FinancialDocumentType` lookup. See the header of `003_domain_schema.sql` for the recorded structural decisions (TodoItem/TodoAlert split, FinancialDocument junction, MeetingParticipant surrogate PK, ProjectAssignee, TIME(0) mapping, dropped attachment refs). |
+| 004 | Auth schema (module #4, ADR-0017): `auth.Role` lookup, `auth.User` (§2.2 cols + `SessionVersion` revocation stamp, lockout counters, filtered-unique `Username`), `auth.LoginAttempt` per-IP fixed-window counters, deferred FK `app.ViewPreference.UserId → auth.User`. |
 
 ## Stored-procedure catalogue (after module #3)
 
@@ -53,4 +54,21 @@ Contracts (uniform, generated together):
 
 **Foundation procs** (modules #1–#2): `usp_ActivityStatus_{Create,List}`, `usp_ViewPreference_{Get,Set}`.
 
-Error registry (ADR-0012): 50001 `NOT_FOUND`, 50002 `CONFLICT`, 50003 `FORBIDDEN_ROW`, 50004 `VALIDATION`, 50005 `DUPLICATE`. Every mutation takes `@ActorUserId`; row-level authorisation activates with module #4.
+**Auth procs** (module #4, ADR-0017 — see the file headers for contracts):
+
+| Proc | Purpose |
+|---|---|
+| `usp_User_Create` | insert + in-tran audit; `50005 DUPLICATE` on live username; returns row WITHOUT `PasswordHash` |
+| `usp_User_GetById` / `usp_User_List` | never return `PasswordHash`; List per ADR-0016 |
+| `usp_User_GetByUsername` | credentials lookup — the ONLY proc returning the hash; empty set (no THROW) for unknown users so the login message stays generic |
+| `usp_User_Update` | profile/role/state; `50002 CONFLICT` on `@RowVer`; bumps `SessionVersion` when role/active changes |
+| `usp_User_Deactivate` | `IsActive = 0` + `SessionVersion` bump (users are deactivated, not soft-deleted — audit attribution survives) |
+| `usp_User_SetPassword` | new hash, resets lockout, bumps `SessionVersion`; audit row carries NO hash |
+| `usp_User_RecordLoginAttempt` | per-user lockout state machine (backoff 30 s·2^n from 5th failure, cap 30 min) + in-proc `Login`/`LoginFailed` audit |
+| `usp_User_BumpSessionVersion` | server-side revocation of all outstanding JWTs |
+| `usp_Role_List` | fixed vocabulary lookup (ActivityStatus pattern) |
+| `usp_LoginAttempt_Check` / `usp_LoginAttempt_Record` | fixed-window 5/min/IP counters (Record is the atomic increment + self-purge) |
+
+Seeds 026–028: roles, admin (hash injected at seed time by `scripts/db-apply.sh` from `SEED_ADMIN_PASSWORD` — nothing committed), e2e users (only with `E2E_SEED=1`).
+
+Error registry (ADR-0012): 50001 `NOT_FOUND`, 50002 `CONFLICT`, 50003 `FORBIDDEN_ROW`, 50004 `VALIDATION`, 50005 `DUPLICATE`. Every mutation takes `@ActorUserId`; row-level authorisation is active from module #4 on.
