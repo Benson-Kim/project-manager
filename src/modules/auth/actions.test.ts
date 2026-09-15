@@ -184,9 +184,7 @@ describe("changePasswordAction", () => {
     const result = await changePasswordAction(null, changeForm());
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
-    expect(result.error.fieldErrors?.currentPassword).toEqual([
-      messages.auth.currentPasswordWrong,
-    ]);
+    expect(result.error.fieldErrors?.currentPassword).toEqual([messages.auth.currentPasswordWrong]);
     expect(mockSetPassword).not.toHaveBeenCalled();
   });
 
@@ -195,9 +193,7 @@ describe("changePasswordAction", () => {
     const result = await changePasswordAction(null, changeForm());
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
-    expect(result.error.fieldErrors?.currentPassword).toEqual([
-      messages.auth.currentPasswordWrong,
-    ]);
+    expect(result.error.fieldErrors?.currentPassword).toEqual([messages.auth.currentPasswordWrong]);
     expect(mockSetPassword).not.toHaveBeenCalled();
   });
 
