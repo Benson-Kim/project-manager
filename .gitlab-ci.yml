@@ -121,7 +121,7 @@ e2e:
     # Fail fast if the seeded hash does not verify against E2E_USER_PASSWORD
     # (job 16520676400: sqlcmd -v mangled argon2 hashes; assert, don't assume).
     - HASH=$(sqlcmd -S tcp:mssql,1433 -U sa -P "$DB_PASSWORD" -C -h -1 -W -Q "SET NOCOUNT ON; SELECT PasswordHash FROM ProjectManager.auth.[User] WHERE Username = N'e2e-pm';")
-    - node -e "require('argon2').verify(process.argv[1], process.env.E2E_USER_PASSWORD).then((ok) => { console.log('seeded e2e-pm hash verifies:', ok); process.exit(ok ? 0 : 1); })" "$HASH"
+    - node -e "require('argon2').verify(process.argv[1], process.env.E2E_USER_PASSWORD).then((ok) => { console.log('seeded e2e-pm hash verifies', ok); process.exit(ok?0:1); })" "$HASH"
     - npx playwright install --with-deps chromium
     - npm run e2e
   artifacts:
