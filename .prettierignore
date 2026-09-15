@@ -4,7 +4,9 @@ out
 coverage
 playwright-report
 test-results
-docs/source-analysis
+# Prose is not code: markdown is hand-formatted (tables, line breaks are meaningful)
+*.md
+docs/
 *.mdb
 *.xlsx
 *.pptx
@@ -12,7 +14,6 @@ docs/source-analysis
 .gitlab-ci.yml
 docker-compose.yml
 tools/
-README.md
 db/
 scripts/
 public/sw.js
