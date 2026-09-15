@@ -11,7 +11,9 @@ DB_USER="${DB_USER:-sa}"
 DB_NAME="${DB_NAME:-ProjectManager}"
 : "${DB_PASSWORD:?DB_PASSWORD is required}"
 
-SQLCMD="sqlcmd -S tcp:${DB_SERVER},${DB_PORT} -U ${DB_USER} -P ${DB_PASSWORD} -C -b"
+# -I: SET QUOTED_IDENTIFIER ON — required for filtered indexes (both creating
+# them and any DML on tables that carry them). sqlcmd defaults it OFF.
+SQLCMD="sqlcmd -S tcp:${DB_SERVER},${DB_PORT} -U ${DB_USER} -P ${DB_PASSWORD} -C -b -I"
 
 run() {
   echo ">> $1"

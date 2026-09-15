@@ -68,7 +68,7 @@ restated as an acceptance criterion in its module issue.
 | 58 | Acronyms: search field + rename to "keywords" | acronyms | #8 | feature/acronyms |
 | 59 | To-do list predicated on daily activities + filters (to-do, requester) | todo-alerts | #20 | feature/todo-alerts |
 | 60 | Portability (installable anywhere) | foundation (Docker/compose/standalone) | #2 | feature/foundation |
-| 61 | Import mechanism from the Access database | database-schema-and-procs (seeds from extraction) | #3 | feature/database-schema-and-procs |
+| 61 | Import mechanism from the Access database | database-schema-and-procs (seeds from extraction — delivered, MR !6) | #3 | feature/database-schema-and-procs |
 | 62 | Font (Microsoft Word) | notes editor (font family/size controls) | #15 | feature/notes |
 | 63 | "Potential Additional Requirements" (header) | — header | — | — |
 | 64 | Financial tracking spreadsheet equivalent | financials (budget breakdown view/export) | #17 | feature/financials |
