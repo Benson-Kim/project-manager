@@ -40,10 +40,15 @@ fi
 
 run() {
   echo ">> $1"
-  $SQLCMD -i "$1" \
-    -v SEED_ADMIN_PASSWORD_HASH="$SEED_ADMIN_PASSWORD_HASH" \
-    -v E2E_SEED="$E2E_SEED" \
-    -v E2E_USER_PASSWORD_HASH="$E2E_USER_PASSWORD_HASH"
+  # The hashes travel as environment variables, NOT -v arguments: sqlcmd
+  # resolves $(VAR) from the environment when no -v override exists, and its
+  # -v argument parsing mangles values containing commas — argon2 encoded
+  # hashes always contain "m=19456,t=2,p=1" (e2e job 16520676400: seeded
+  # users could never log in).
+  SEED_ADMIN_PASSWORD_HASH="$SEED_ADMIN_PASSWORD_HASH" \
+  E2E_SEED="$E2E_SEED" \
+  E2E_USER_PASSWORD_HASH="$E2E_USER_PASSWORD_HASH" \
+  $SQLCMD -i "$1"
 }
 
 applied() { # $1 = migration file basename; prints 1 if already applied

@@ -31,13 +31,18 @@ test("failed sign-in shows ONE generic message for wrong password and unknown us
   await page.getByLabel(messages.auth.username).fill("e2e-pm");
   await page.getByLabel(messages.auth.password).fill("definitely-not-the-password");
   await page.getByRole("button", { name: messages.auth.signIn }).click();
-  await expect(page.getByRole("alert")).toContainText(messages.auth.loginFailed);
+  // Filtered: Next's empty route announcer also carries role=alert.
+  await expect(
+    page.getByRole("alert").filter({ hasText: messages.auth.loginFailed }),
+  ).toBeVisible();
 
   await page.getByLabel(messages.auth.username).fill("no-such-user");
   await page.getByLabel(messages.auth.password).fill("definitely-not-the-password");
   await page.getByRole("button", { name: messages.auth.signIn }).click();
   // Byte-for-byte the same copy — no username enumeration surface.
-  await expect(page.getByRole("alert")).toContainText(messages.auth.loginFailed);
+  await expect(
+    page.getByRole("alert").filter({ hasText: messages.auth.loginFailed }),
+  ).toBeVisible();
 });
 
 test("expired session is announced on arrival at /login", async ({ page, context, baseURL }) => {
@@ -46,7 +51,10 @@ test("expired session is announced on arrival at /login", async ({ page, context
   ]);
   await page.goto("/");
   await page.waitForURL(/\/login\?reason=expired/);
-  await expect(page.getByRole("status")).toContainText(messages.auth.sessionExpired);
+  // Filtered: the app-shell live announcer also carries role=status.
+  await expect(
+    page.getByRole("status").filter({ hasText: messages.auth.sessionExpired }),
+  ).toBeVisible();
 });
 
 test("unauthenticated requests are gated to /login", async ({ page }) => {
