@@ -39,6 +39,56 @@ function requireAuthSecret(): void {
   }
 }
 
+/** Exported for unit tests: the single login gatekeeper (see module JSDoc). */
+export async function authorizeCredentials(
+  credentials: unknown,
+  request: { headers?: Headers },
+): Promise<{ id: string; appToken: AppToken } | null> {
+  requireAuthSecret();
+
+  const parsed = loginInput.safeParse(credentials);
+  if (!parsed.success) return null;
+  const { username, password } = parsed.data;
+
+  const ip = request.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+
+  // 1. Fixed-window IP rate limit — deny before any credential work.
+  const rate = await recordIpLoginAttempt(ip);
+  if (!rate.Allowed) return null;
+
+  // 2. Lookup. Unknown username still audits a LoginFailed row.
+  const user = await getUserByUsername(username);
+  if (!user) {
+    await auditUnknownUsernameLoginFailure(ip);
+    return null;
+  }
+
+  // 3. Per-user lockout (backoff computed in-proc on failures).
+  if (user.LockedUntilUtc && user.LockedUntilUtc.getTime() > Date.now()) {
+    return null;
+  }
+
+  // 4. Verify argon2id hash, then record the outcome (in-proc audit).
+  const ok = await verifyPassword(user.PasswordHash, password);
+  if (!ok || !user.IsActive) {
+    await recordLoginAttempt(user.UserId, false, ip);
+    return null;
+  }
+  await recordLoginAttempt(user.UserId, true, ip);
+
+  return {
+    // Auth.js requires a string id; the numeric id travels in appToken.
+    id: String(user.UserId),
+    appToken: {
+      userId: user.UserId,
+      username: user.Username,
+      role: user.RoleName,
+      sessionVersion: user.SessionVersion,
+      mustChangePassword: user.MustChangePassword,
+    } satisfies AppToken,
+  };
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: {
     strategy: "jwt",
@@ -54,51 +104,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         username: {},
         password: {},
       },
-      async authorize(credentials, request) {
-        requireAuthSecret();
-
-        const parsed = loginInput.safeParse(credentials);
-        if (!parsed.success) return null;
-        const { username, password } = parsed.data;
-
-        const ip = request.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-
-        // 1. Fixed-window IP rate limit — deny before any credential work.
-        const rate = await recordIpLoginAttempt(ip);
-        if (!rate.Allowed) return null;
-
-        // 2. Lookup. Unknown username still audits a LoginFailed row.
-        const user = await getUserByUsername(username);
-        if (!user) {
-          await auditUnknownUsernameLoginFailure(ip);
-          return null;
-        }
-
-        // 3. Per-user lockout (backoff computed in-proc on failures).
-        if (user.LockedUntilUtc && user.LockedUntilUtc.getTime() > Date.now()) {
-          return null;
-        }
-
-        // 4. Verify argon2id hash, then record the outcome (in-proc audit).
-        const ok = await verifyPassword(user.PasswordHash, password);
-        if (!ok || !user.IsActive) {
-          await recordLoginAttempt(user.UserId, false, ip);
-          return null;
-        }
-        await recordLoginAttempt(user.UserId, true, ip);
-
-        return {
-          // Auth.js requires a string id; the numeric id travels in appToken.
-          id: String(user.UserId),
-          appToken: {
-            userId: user.UserId,
-            username: user.Username,
-            role: user.RoleName,
-            sessionVersion: user.SessionVersion,
-            mustChangePassword: user.MustChangePassword,
-          } satisfies AppToken,
-        };
-      },
+      authorize: (credentials, request) => authorizeCredentials(credentials, request),
     }),
   ],
   callbacks: {
