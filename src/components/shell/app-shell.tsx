@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect } from "react";
 import { messages } from "@/lib/messages";
+import { logoutAction } from "@/modules/auth/actions";
 import { useAnnouncer } from "../ui/announcer";
 import { useTheme, type ThemePreference } from "../theme/theme-provider";
 import { navItems } from "./nav-items";
@@ -74,6 +75,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <option value="dark">{messages.app.themeDark}</option>
           </select>
         </label>
+        <form action={logoutAction}>
+          <button
+            type="submit"
+            className="flex min-h-11 w-full items-center rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-surface-sunken"
+          >
+            {messages.auth.signOut}
+          </button>
+        </form>
       </nav>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -101,6 +110,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             </li>
           ))}
+          <li className="flex-1">
+            <form action={logoutAction} className="contents">
+              <button
+                type="submit"
+                className="flex min-h-14 w-full flex-col items-center justify-center gap-0.5 text-xs font-medium text-ink-muted"
+              >
+                {messages.auth.signOut}
+              </button>
+            </form>
+          </li>
         </ul>
       </nav>
     </div>
