@@ -7,6 +7,7 @@ import {
   projectSearchRowSchema,
   updateProjectInput,
   type CreateProjectInput,
+  type CreateProjectParsed,
   type ProjectListRow,
   type ProjectRow,
   type ProjectSearchRow,
@@ -18,7 +19,7 @@ import {
  * at the boundary (STANDARDS §2.5), list params forwarded 1:1 (ADR-0016).
  */
 
-function toProcParams(input: CreateProjectInput) {
+function toProcParams(input: CreateProjectParsed) {
   return {
     ProjectName: input.projectName,
     ProjectManager: input.projectManager ?? null,

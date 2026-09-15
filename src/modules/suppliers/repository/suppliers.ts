@@ -6,6 +6,7 @@ import {
   supplierRowSchema,
   updateSupplierInput,
   type CreateSupplierInput,
+  type CreateSupplierParsed,
   type SupplierListRow,
   type SupplierRow,
   type UpdateSupplierInput,
@@ -16,7 +17,7 @@ import {
  * (STANDARDS §2.5), list params forwarded 1:1 (ADR-0016).
  */
 
-function toProcParams(input: CreateSupplierInput) {
+function toProcParams(input: CreateSupplierParsed) {
   return {
     ProjectId: input.projectId,
     SupplierName: input.supplierName,

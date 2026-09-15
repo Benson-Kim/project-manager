@@ -47,11 +47,12 @@ export const createSupplierInput = z.object({
   city: z.string().trim().max(255).nullish(),
 });
 
-export type CreateSupplierInput = z.infer<typeof createSupplierInput>;
+export type CreateSupplierInput = z.input<typeof createSupplierInput>;
+export type CreateSupplierParsed = z.infer<typeof createSupplierInput>;
 
 export const updateSupplierInput = createSupplierInput.extend({
   supplierId: z.number().int().positive(),
   rowVer: rowVerSchema,
 });
 
-export type UpdateSupplierInput = z.infer<typeof updateSupplierInput>;
+export type UpdateSupplierInput = z.input<typeof updateSupplierInput>;
