@@ -1,6 +1,6 @@
 # Source-Extraction Verification Report
 
-Second-pass verification of `docs/source-analysis/*.md` against the three raw
+Second-pass verification of `docs/source/analysis/*.md` against the three raw
 source artefacts, performed with **independent, industry-standard tooling** —
 the original extraction used a hand-written pure-stdlib Jet/ACE parser
 (`tools/mdb/`) because the agent workspace proxy blocks npm/PyPI/apt.
@@ -13,8 +13,8 @@ the original extraction used a hand-written pure-stdlib Jet/ACE parser
 | `Project_.xlsx` | `tools/mdb/xlsx_dump.py` | **openpyxl** in CI **and** direct stdlib `zipfile`+`ElementTree` XML parse in the workspace |
 | `Project_hololens.pptx` | `tools/mdb/pptx_dump.py` | **python-pptx** in CI **and** direct stdlib `zipfile`+`ElementTree` XML parse in the workspace |
 
-Automated checker: [`tools/verify/verify_sources.py`](../../tools/verify/verify_sources.py)
-with expectations in [`tools/verify/expected_mdb.json`](../../tools/verify/expected_mdb.json)
+Automated checker: [`tools/verify/verify_sources.py`](../../../tools/verify/verify_sources.py)
+with expectations in [`tools/verify/expected_mdb.json`](../../../tools/verify/expected_mdb.json)
 (derived from the docs). It asserts: full table list, every table's column list,
 every table's row count, data spot-checks, the saved-query list, all Excel
 structure (sheet, dimension, validations, merges, cell values, non-empty cell

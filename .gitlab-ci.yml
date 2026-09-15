@@ -2,7 +2,8 @@
 # Feature branches: lint + typecheck + test + build (+ manual e2e).
 # develop/main: + e2e, security scans, deploys (staging auto / prod manual).
 # Schedules (set SCHEDULE_JOB): backup | audit | renovate.
-# Manual utilities: verify:sources (source-extraction re-verification),
+# Manual utilities: verify:sources (source-extraction re-verification, opt-in
+#                   via "[verify]" in the commit message),
 #                   lockfile:generate (bootstrap/refresh package-lock.json).
 
 stages:
@@ -179,13 +180,16 @@ lockfile:generate:
     paths:
       - package-lock.json
 
-# Re-verify docs/source-analysis against the three binary artefacts
-# (mdbtools + openpyxl + python-pptx; see docs/source-analysis/VERIFICATION.md).
+# Re-verify docs/source/analysis against the three binary artefacts
+# (mdbtools + openpyxl + python-pptx; see docs/source/analysis/VERIFICATION.md).
 verify:sources:
   stage: test
   image: python:3.12-bookworm
   cache: []
   rules:
+    # Opt-in: "[verify]" anywhere in the commit message (agent tokens cannot
+    # play manual jobs); still available manually on any branch pipeline.
+    - if: $CI_COMMIT_BRANCH && $CI_COMMIT_MESSAGE =~ /\[verify\]/
     - if: $CI_COMMIT_BRANCH
       when: manual
       allow_failure: true
