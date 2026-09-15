@@ -19,9 +19,9 @@ import json
 import subprocess
 import sys
 
-MDB = "Access_database.mdb"
-XLSX = "Project_.xlsx"
-PPTX = "Project_hololens.pptx"
+MDB = "docs/source/Access_database.mdb"
+XLSX = "docs/source/Project_.xlsx"
+PPTX = "docs/source/Project_hololens.pptx"
 
 report = []
 failures = []
