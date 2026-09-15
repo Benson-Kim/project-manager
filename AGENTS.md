@@ -1,6 +1,8 @@
 # AGENTS.md — Project Manager rebuild (operating manual for agent sessions)
 
-**Read order for EVERY session**: this file → `docs/STANDARDS.md` (the constitution —
+**Read order for EVERY session**: `LESSONS.md` (root — mandatory operating rules:
+commit-and-push cadence, resume protocol, review-before-continuing, environment
+gotchas; append what you learn) → this file → `docs/STANDARDS.md` (the constitution —
 every rule you must comply with) → `docs/MODULE-BLUEPRINT.md` (the recipe) → your
 issue's **Standards compliance** section → `docs/PLAN.md` §2/§4/§10 →
 `docs/source-analysis/` for your module's tables/queries/rows. ADRs in `docs/adr/`

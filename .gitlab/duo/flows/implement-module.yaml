@@ -47,7 +47,15 @@ prompts:
         issue.
 
         Non-negotiable conventions (docs/STANDARDS.md is the constitution;
-        AGENTS.md is the operating manual — read both BEFORE any code):
+        AGENTS.md is the operating manual; LESSONS.md at the repo root is the
+        mandatory session operating ledger — read all three BEFORE any code):
+        - Comply with every LESSONS.md rule: commit AND push every ~2-3
+          minutes or after every file edit ("[skip ci]"); push before any
+          long-running command; on takeover follow the resume protocol
+          (fetch, check out the REMOTE branch, review the predecessor's
+          pushed diff before new code); post dated STATUS notes on the module
+          issue after every push and at every milestone; append what you
+          learn to LESSONS.md.
         - Branch feature/<module> is cut FROM develop; the MR targets develop.
         - ALL data access via stored procedures (usp_<Entity>_<Verb>) — no
           inline SQL, no ORM. ESLint + guardrail tests enforce this. Soft
@@ -67,7 +75,8 @@ prompts:
         {{goal}}
 
         Work through these steps:
-        1. READ FIRST (mandatory, in order): AGENTS.md; docs/STANDARDS.md;
+        1. READ FIRST (mandatory, in order): LESSONS.md (root — operating
+           rules you must comply with); AGENTS.md; docs/STANDARDS.md;
            docs/MODULE-BLUEPRINT.md; the module issue — especially its
            "Standards compliance (set by foundation session)" section;
            docs/PLAN.md (§2 data model, §4 proc catalogue, §10 execution plan
