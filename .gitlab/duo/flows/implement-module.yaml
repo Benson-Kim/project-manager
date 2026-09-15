@@ -68,8 +68,9 @@ prompts:
         - Clean UI, NO HINTS: no helper text, no tooltips, no onboarding.
           Mobile-first from 360px, touch targets >= 44px, WCAG 2.2 AA + axe.
           All copy in src/lib/messages.ts.
-        - Never commit secrets; never delete/modify Access_database.mdb,
-          Project_.xlsx or Project_hololens.pptx.
+        - Never commit secrets; never delete/modify the source binaries in
+          docs/source/ (Access_database.mdb, Project_.xlsx,
+          Project_hololens.pptx).
         - Never weaken a test or guardrail to make CI pass.
       user: |
         {{goal}}
