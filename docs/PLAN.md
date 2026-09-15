@@ -72,9 +72,11 @@ Column names are normalised to PascalCase without spaces (e.g. `Contact Person` 
 
 Seeds: all rows in `source/analysis/access-database.md` §4 are converted to
 `db/seed/*.sql` INSERT scripts (18 projects, 8 stakeholders, 12 suppliers, 29
-keywords, 8 deliverables, 6 objectives, 3 meetings + children, 12 Q&A,
+keywords, 8 deliverables, 6 objectives, 5 meetings + children, 12 Q&A,
 8 assumptions/constraints, 2 risks, 7 notes, 15+18 resource-planning rows,
-2 financials + 9 documents, 12 parking-lot items, 13 daily activities, 16 to-dos).
+2 financials + 9 document types + 9 junction rows, 12 parking-lot items,
+13 daily activities, 16 to-dos + 4 alerts) — idempotent, original IDs preserved
+via `IDENTITY_INSERT` (delivered by module #3; proc catalogue in `db/README.md`).
 
 ## 3. Modules, branches, ordering & dependencies
 
