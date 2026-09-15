@@ -260,7 +260,10 @@ Full security design: [`docs/SECURITY.md`](SECURITY.md).
 Every module is implemented by launching the **implement-module flow**
 (`.gitlab/duo/flows/implement-module.yaml`) — or an interactive agent session —
 with the goal text below. Inputs each session MUST read before coding, in
-order: `AGENTS.md`, `docs/STANDARDS.md` (the constitution), 
+order: `LESSONS.md` (root — mandatory operating rules: commit + push every
+~2-3 minutes, push before long jobs, resume protocol with STATUS notes on the
+issue, review-before-continuing, environment gotchas; append what you learn),
+`AGENTS.md`, `docs/STANDARDS.md` (the constitution), 
 `docs/MODULE-BLUEPRINT.md`, the module issue — especially its **Standards
 compliance (set by foundation session)** section — this file (§2 §4 §10),
 `docs/TRACEABILITY.md`, `docs/source-analysis/` (requirements + the module's
@@ -274,9 +277,14 @@ lands complete work: code + tests + docs + green pipeline.
 > Implement module `<module-key>` (issue `#<iid>`) of the Project Manager
 > rebuild. Bring the full breadth of an expert architect, security engineer,
 > UX designer, accessibility specialist, DBA and tech lead. Read FIRST, in
-> order: AGENTS.md, docs/STANDARDS.md, docs/MODULE-BLUEPRINT.md, issue
-> `#<iid>` (especially its "Standards compliance (set by foundation session)"
-> section), docs/PLAN.md §2/§4/§10, docs/TRACEABILITY.md,
+> order: LESSONS.md (root — mandatory operating rules; comply with ALL of
+> them: commit AND push every ~2-3 minutes or after every file edit with
+> "[skip ci]", push before long-running commands, follow the resume protocol
+> with dated STATUS notes on issue `#<iid>` after every push and at every
+> milestone, review a predecessor's pushed diff before continuing, and append
+> what you learn), AGENTS.md, docs/STANDARDS.md, docs/MODULE-BLUEPRINT.md,
+> issue `#<iid>` (especially its "Standards compliance (set by foundation
+> session)" section), docs/PLAN.md §2/§4/§10, docs/TRACEABILITY.md,
 > docs/source-analysis/ for this module's tables/queries/rows, and docs/adr/.
 > Create branch `feature/<module-key>` from develop and implement per the
 > blueprint: migrations + stored procedures (ADR-0016 list contract, ADR-0012

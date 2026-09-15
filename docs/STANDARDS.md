@@ -3,8 +3,10 @@
 **This document is the constitution.** Every module session (issues #3–#24) complies
 with it; sessions may improve on it via ADR + MR, never silently deviate. Each rule
 below is: decision → rationale → example. Decisions originate in `docs/adr/` (linked).
-Companion documents: `AGENTS.md` (operating manual), `docs/MODULE-BLUEPRINT.md` (the
-per-module recipe), `docs/PLAN.md` (product plan), `docs/SECURITY.md`.
+Companion documents: `LESSONS.md` (root — mandatory session operating rules; read it
+FIRST, before anything else), `AGENTS.md` (operating manual),
+`docs/MODULE-BLUEPRINT.md` (the per-module recipe), `docs/PLAN.md` (product plan),
+`docs/SECURITY.md`.
 
 Rule keywords: **MUST / MUST NOT** are enforced (lint, guardrail test, CI or review
 gate); **SHOULD** requires a written justification in the MR to break.
