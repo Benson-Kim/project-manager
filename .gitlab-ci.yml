@@ -136,6 +136,11 @@ lockfile:generate:
     - npm view eslint version && npm view typescript version || true
     - npm info eslint-config-next@latest peerDependencies || true
     - npm info typescript-eslint@latest peerDependencies || true
+    # Emit the lockfile into the trace too: agent workspace tokens cannot
+    # download artifacts, but they can read job traces (glab api …/trace).
+    - echo "-----BEGIN LOCKFILE B64-----"
+    - gzip -9 -c package-lock.json | base64 -w 120
+    - echo "-----END LOCKFILE B64-----"
   artifacts:
     expire_in: 3 days
     paths:
