@@ -261,8 +261,14 @@ verify:sources:
   image: python:3.12-bookworm
   cache: []
   rules:
-    # Opt-in: "[verify]" anywhere in the commit message (agent tokens cannot
-    # play manual jobs); still available manually on any branch pipeline.
+    # Always re-verify when the artefacts or their analysis/tooling change.
+    - if: $CI_COMMIT_BRANCH
+      changes:
+        - docs/source/**/*
+        - tools/mdb/**/*
+        - tools/verify/**/*
+    # Opt-in on any branch without needing API/variable privileges:
+    # put "[verify]" anywhere in the commit message.
     - if: $CI_COMMIT_BRANCH && $CI_COMMIT_MESSAGE =~ /\[verify\]/
     - if: $CI_COMMIT_BRANCH
       when: manual
