@@ -9,6 +9,19 @@ export default defineConfig({
     baseURL: process.env.BASE_URL ?? "http://localhost:3000",
     trace: "on-first-retry",
   },
+  projects: [
+    // Signs in as the seeded e2e-pm user and saves the storage state.
+    { name: "setup", testMatch: /auth\.setup\.ts/ },
+    // Auth flows + header checks start signed out (no storage state).
+    { name: "public", testMatch: /(auth|security-headers)\.spec\.ts/ },
+    // Everything else runs authenticated (module #4 gates all app routes).
+    {
+      name: "app",
+      testMatch: /(home|kitchen-sink)\.spec\.ts/,
+      dependencies: ["setup"],
+      use: { storageState: "e2e/.auth/pm.json" },
+    },
+  ],
   webServer: {
     command: "npm run build && npm run start",
     url: "http://localhost:3000",

@@ -85,10 +85,43 @@ build:
       - .next/static
 
 # Browser smoke tests: automatic on develop/main, manual on feature branches.
+# Module #4 gates every app route behind login, so the job seeds a real SQL
+# Server 2022 service (E2E_SEED=1 -> db/seed/028 e2e users) and provides the
+# app env. All credential values below are job-scoped throwaways for the
+# ephemeral service container and test users only — they die with the job
+# (same rationale as db:apply); real hosts use masked CI variables.
 e2e:
   extends: .node
   stage: test
+  services:
+    - name: mcr.microsoft.com/mssql/server:2022-latest
+      alias: mssql
+      variables:
+        ACCEPT_EULA: "Y"
+        MSSQL_PID: Developer
+  variables:
+    MSSQL_SA_PASSWORD: "E2e-Throwaway-Sa-2026!"
+    DB_SERVER: mssql
+    DB_USER: sa
+    DB_PASSWORD: "E2e-Throwaway-Sa-2026!"
+    DB_NAME: ProjectManager
+    SEED_ADMIN_PASSWORD: "Throwaway-Admin-Seed-2026"
+    E2E_SEED: "1"
+    E2E_USER_PASSWORD: "E2e-Throwaway-User-2026"
+    AUTH_SECRET: "e2e-throwaway-auth-secret-0123456789abcdefghijklmnopqrstuvwxyz"
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq curl gnupg2
+    - curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg
+    - echo "deb [signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql.list
+    - apt-get update -qq && ACCEPT_EULA=Y apt-get install -y -qq mssql-tools18 && ln -sf /opt/mssql-tools18/bin/sqlcmd /usr/local/bin/sqlcmd
+    - npm ci --no-audit --no-fund --cache .npm --prefer-offline
+    - for i in $(seq 1 30); do sqlcmd -S tcp:mssql,1433 -U sa -P "$DB_PASSWORD" -C -Q "SELECT 1" >/dev/null 2>&1 && break; echo "waiting for SQL Server ($i)"; sleep 2; done
   script:
+    - sh scripts/db-apply.sh
+    # Fail fast if the seeded hash does not verify against E2E_USER_PASSWORD
+    # (job 16520676400: sqlcmd -v mangled argon2 hashes; assert, don't assume).
+    - HASH=$(sqlcmd -S tcp:mssql,1433 -U sa -P "$DB_PASSWORD" -C -h -1 -W -Q "SET NOCOUNT ON; SELECT PasswordHash FROM ProjectManager.auth.[User] WHERE Username = N'e2e-pm';")
+    - node -e "require('argon2').verify(process.argv[1], process.env.E2E_USER_PASSWORD).then((ok) => { console.log('seeded e2e-pm hash verifies', ok); process.exit(ok?0:1); })" "$HASH"
     - npx playwright install --with-deps chromium
     - npm run e2e
   artifacts:
@@ -227,6 +260,10 @@ db:apply:
     DB_SERVER: mssql
     DB_USER: sa
     DB_PASSWORD: "Ci-Ephemeral!Passw0rd1"
+    # Job-scoped throwaway seed password for the ephemeral service DB only
+    # (same rationale as the SA password above — the seeded hash dies with the
+    # container). Real hosts provide SEED_ADMIN_PASSWORD via a masked variable.
+    SEED_ADMIN_PASSWORD: "Throwaway-Admin-Seed-2026"
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
@@ -247,6 +284,8 @@ db:apply:
     # wait for the service container to accept connections
     - for i in $(seq 1 30); do sqlcmd -S tcp:mssql,1433 -U sa -P "$DB_PASSWORD" -C -Q "SELECT 1" >/dev/null 2>&1 && break; echo "waiting for SQL Server ($i)"; sleep 2; done
   script:
+    # argon2 for scripts/hash-password.mjs (seed-time admin hash; node:22 image)
+    - npm install --no-save --no-audit --no-fund argon2
     - sh scripts/db-apply.sh
     - echo "== second run (idempotence) ==" && sh scripts/db-apply.sh
     - sqlcmd -S tcp:mssql,1433 -U sa -P "$DB_PASSWORD" -C -b -I -i db/verify/seed_counts.sql
