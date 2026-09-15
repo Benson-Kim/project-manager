@@ -165,8 +165,9 @@ export const createSupplier = action({
 - Row-level authorisation is ALSO enforced in the proc (`FORBIDDEN_ROW`) — the action
   layer is not the last line of defence.
 - Role→permission matrix lives in `src/lib/auth/rbac.ts` only (source: PLAN.md §9).
-  Until module #4 lands, sessions come from the dev-stub provider
-  (`AUTH_DEV_BYPASS=1`); the contract in `src/lib/auth/types.ts` is final.
+  Sessions come from the Auth.js v5 provider (module #4; the ADR-0015 dev stub
+  and its `AUTH_DEV_BYPASS` flag are gone); the contract in
+  `src/lib/auth/types.ts` is final.
 
 ---
 
