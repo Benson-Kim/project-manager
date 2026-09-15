@@ -120,6 +120,12 @@ lockfile:generate:
   script:
     - npm install --package-lock-only --no-audit --no-fund
     - npm audit --omit dev || true
+    # Version report: is anything pinned behind latest stable? (the agent
+    # workspace proxy blocks npmjs.org, so this job is the version oracle)
+    - npm outdated --long || true
+    - npm view eslint version && npm view typescript version || true
+    - npm info eslint-config-next@latest peerDependencies || true
+    - npm info typescript-eslint@latest peerDependencies || true
   artifacts:
     expire_in: 3 days
     paths:
