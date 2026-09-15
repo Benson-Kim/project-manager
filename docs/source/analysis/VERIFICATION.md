@@ -1,6 +1,6 @@
 # Source-Extraction Verification Report
 
-Second-pass verification of `docs/source-analysis/*.md` against the three raw
+Second-pass verification of `docs/source/analysis/*.md` against the three raw
 source artefacts, performed with **independent, industry-standard tooling** —
 the original extraction used a hand-written pure-stdlib Jet/ACE parser
 (`tools/mdb/`) because the agent workspace proxy blocks npm/PyPI/apt.

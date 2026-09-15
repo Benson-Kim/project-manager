@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Independent verification of docs/source-analysis extraction.
+"""Independent verification of docs/source/analysis extraction.
 
 Cross-checks the three source artefacts with *industry-standard tooling*
 (mdbtools, openpyxl, python-pptx) against the facts recorded in
-docs/source-analysis/*.md (encoded in tools/verify/expected_mdb.json and
+docs/source/analysis/*.md (encoded in tools/verify/expected_mdb.json and
 inline below). The original extraction used a hand-written pure-stdlib
 parser (tools/mdb/), so this script is the independent second opinion.
 
@@ -55,7 +55,7 @@ def verify_mdb():
         check(f"mdb: {tname} row count = {spec['row_count']}", len(data) == spec["row_count"],
               f"got {len(data)}")
 
-    # spot-check individual values recorded in docs/source-analysis/access-database.md
+    # spot-check individual values recorded in docs/source/analysis/access-database.md
     for sc in exp["spot_checks"]:
         out = run(["mdb-export", MDB, sc["table"]])
         rows = list(csv.reader(io.StringIO(out)))

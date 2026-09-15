@@ -1,7 +1,7 @@
 # Project Manager Rebuild — Full Plan
 
 Rebuild of the Access 2010 project-management application as a modern, mobile-first
-web app. Source-of-truth requirements: [`docs/source-analysis/`](source-analysis/requirements.md).
+web app. Source-of-truth requirements: [`docs/source/analysis/`](source/analysis/requirements.md).
 
 ## 1. Architecture
 
@@ -43,7 +43,7 @@ Type mapping: `LONG→INT (IDENTITY for PKs)`, `TEXT(255)→NVARCHAR(255)`,
 `MONEY→MONEY`, attachments → `app.FileAttachment` + module link tables.
 Column names are normalised to PascalCase without spaces (e.g. `Contact Person` →
 `ContactPerson`); original names documented in
-[source-analysis/access-database.md](source-analysis/access-database.md).
+[source/analysis/access-database.md](source/analysis/access-database.md).
 
 | Access table | New table (schema `app`) | Notes |
 |---|---|---|
@@ -65,12 +65,12 @@ Column names are normalised to PascalCase without spaces (e.g. `Contact Person` 
 | tblTodoList | `TodoItem`, `TodoAlert` | alert engine: alert day/time, repeat unit/interval, snooze count/max/options, dismissed |
 | tblActivityStatusType | `ActivityStatus` (lookup) | Not Started / In Progress / Completed / Cancelled |
 | tblExistingSystemsInterfaces | `ExistingSystemInterface` | |
-| tblProjectSummary/Task/TaskList/TaskFramework | *(dropped — empty/vestigial)* | recorded in source-analysis |
+| tblProjectSummary/Task/TaskList/TaskFramework | *(dropped — empty/vestigial)* | recorded in source/analysis |
 | — (new) | `auth.User`, `auth.Role`, `auth.UserRole`, `auth.Permission`, `auth.Session` | web multi-user + RBAC |
 | — (new) | `audit.AuditLog` | who/what/when/before/after for every mutation |
 | — (new) | `app.FileAttachment` | replaces Access attachment columns; content-hash versioning |
 
-Seeds: all rows in `source-analysis/access-database.md` §4 are converted to
+Seeds: all rows in `source/analysis/access-database.md` §4 are converted to
 `db/seed/*.sql` INSERT scripts (18 projects, 8 stakeholders, 12 suppliers, 29
 keywords, 8 deliverables, 6 objectives, 3 meetings + children, 12 Q&A,
 8 assumptions/constraints, 2 risks, 7 notes, 15+18 resource-planning rows,
@@ -266,7 +266,7 @@ issue, review-before-continuing, environment gotchas; append what you learn),
 `AGENTS.md`, `docs/STANDARDS.md` (the constitution), 
 `docs/MODULE-BLUEPRINT.md`, the module issue — especially its **Standards
 compliance (set by foundation session)** section — this file (§2 §4 §10),
-`docs/TRACEABILITY.md`, `docs/source-analysis/` (requirements + the module's
+`docs/TRACEABILITY.md`, `docs/source/analysis/` (requirements + the module's
 tables/queries/rows) and `docs/adr/`. Each session operates at full breadth —
 architect, security engineer, UX designer, accessibility specialist, DBA and
 tech lead at once — decides from first principles, records decisions (ADR) and
@@ -285,7 +285,7 @@ lands complete work: code + tests + docs + green pipeline.
 > what you learn), AGENTS.md, docs/STANDARDS.md, docs/MODULE-BLUEPRINT.md,
 > issue `#<iid>` (especially its "Standards compliance (set by foundation
 > session)" section), docs/PLAN.md §2/§4/§10, docs/TRACEABILITY.md,
-> docs/source-analysis/ for this module's tables/queries/rows, and docs/adr/.
+> docs/source/analysis/ for this module's tables/queries/rows, and docs/adr/.
 > Create branch `feature/<module-key>` from develop and implement per the
 > blueprint: migrations + stored procedures (ADR-0016 list contract, ADR-0012
 > errors, audit in-transaction) + seeds + module slice

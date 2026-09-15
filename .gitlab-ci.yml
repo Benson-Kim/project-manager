@@ -179,8 +179,8 @@ lockfile:generate:
     paths:
       - package-lock.json
 
-# Re-verify docs/source-analysis against the three binary artefacts
-# (mdbtools + openpyxl + python-pptx; see docs/source-analysis/VERIFICATION.md).
+# Re-verify docs/source/analysis against the three binary artefacts
+# (mdbtools + openpyxl + python-pptx; see docs/source/analysis/VERIFICATION.md).
 verify:sources:
   stage: test
   image: python:3.12-bookworm

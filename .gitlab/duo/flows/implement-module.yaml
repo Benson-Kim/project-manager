@@ -81,8 +81,8 @@ prompts:
            "Standards compliance (set by foundation session)" section;
            docs/PLAN.md (§2 data model, §4 proc catalogue, §10 execution plan
            for this module); docs/TRACEABILITY.md;
-           docs/source-analysis/requirements.md and the sections of
-           docs/source-analysis/access-database.md for this module's
+           docs/source/analysis/requirements.md and the sections of
+           docs/source/analysis/access-database.md for this module's
            tables/queries/data; docs/adr/ for prior decisions.
         2. git fetch origin && switch to a new branch feature/<module> based on
            origin/develop (reuse the branch if it already exists).
