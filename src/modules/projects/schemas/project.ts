@@ -94,11 +94,15 @@ export const createProjectInput = z.object({
   estimatedCompletionDate: z.coerce.date().nullish(),
 });
 
-export type CreateProjectInput = z.infer<typeof createProjectInput>;
+/** What callers may pass (defaults still optional). */
+export type CreateProjectInput = z.input<typeof createProjectInput>;
+/** What the schema guarantees after parsing (defaults applied). */
+export type CreateProjectParsed = z.infer<typeof createProjectInput>;
 
 export const updateProjectInput = createProjectInput.extend({
   projectId: z.number().int().positive(),
   rowVer: rowVerSchema,
 });
 
-export type UpdateProjectInput = z.infer<typeof updateProjectInput>;
+export type UpdateProjectInput = z.input<typeof updateProjectInput>;
+export type UpdateProjectParsed = z.infer<typeof updateProjectInput>;
