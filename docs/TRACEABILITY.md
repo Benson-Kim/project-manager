@@ -92,6 +92,14 @@ categories) → #16 · slide 2 (Financials $$$, MSSS document workflow — match
 recovered `tblFinancialDocuments` lookup) → #17 · slide 3 (Parking Lot Items)
 → #18.
 
+**Auth/RBAC (module #4, issue #4):** the checklist has no dedicated auth row —
+multi-user access + RBAC derive from PLAN §2 (new `auth.*` tables) and §7 and
+from cross-cutting rows 46/47. Delivered by MR !8 (`feature/auth-and-rbac`):
+Auth.js v5 credentials + argon2id, JWT sessions with SessionVersion revocation
+(ADR-0017), IP rate limit + lockout, seeded admin with forced password change,
+Login/Logout audit. Deferred: browser-level RBAC-denial spec → #26, full
+SecLists top-10k denylist subset → #27.
+
 **Coverage check:** every non-header, non-empty row (3–38, 40–62, 64–67,
 69–76) is owned by exactly one primary module; cross-cutting rows (41, 47, 50)
 are Definition-of-Done items on every module issue and are tracked on epic #1.

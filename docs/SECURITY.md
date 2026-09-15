@@ -5,25 +5,42 @@ Roles/permissions matrix: [`PLAN.md`](PLAN.md) §9. Runtime pieces land with
 modules 3 (auth) and 22 (admin); the platform pieces below are live from the
 foundation module.
 
-## Authentication & sessions
+## Authentication & sessions (implemented in module #4 — ADR-0017)
 
-- **Auth.js (NextAuth)** credentials provider — module `auth-and-rbac` (#4).
-  Note: `next-auth@4.24.x` is the npm `latest` tag; v5 (`@auth/core`-based) is
-  still beta. The auth module evaluates at implementation time and documents
-  the choice; the requirement "latest packages" is met by taking the latest
-  **stable** dist-tag.
-- Password hashing: **bcrypt (cost ≥ 12) or argon2id** — decided in module 3
-  by what compiles cleanly in the standalone/Alpine build; stored in
-  `auth.User.PasswordHash`, never logged.
-- DB-backed sessions (`auth.Session`), `SameSite=Lax`, `HttpOnly`, `Secure`
-  cookies; absolute + idle expiry; logout revokes server-side.
-- Login rate limiting + lockout with backoff; all auth events audit-logged
-  (Login, LoginFailed, Logout, PasswordChange).
+- **Auth.js v5** (`next-auth@5.0.0-beta.32` — v5 has no stable release; the
+  beta line is what Auth.js documents for v5, recorded in ADR-0014) credentials
+  provider. `authorize()` is the single gatekeeper: IP rate limit → user lookup
+  → lockout check → argon2id verify → audit. Every failure path returns the
+  SAME generic message; username existence is never revealed
+  (`usp_User_GetByUsername` returns an empty set for unknown users, no THROW).
+- Password hashing: **argon2id** (`argon2@0.44`, m=19456 KiB, t=2, p=1 —
+  STANDARDS §4); stored in `auth.User.PasswordHash`, returned ONLY by
+  `usp_User_GetByUsername`, never logged or audited.
+- Password policy: min 12 / max 128, no composition rules, denylist
+  (`src/lib/auth/password-denylist.ts`; only 12+-character entries can ever
+  match under the length rule — the full SecLists top-10k extraction is
+  tracked on issue #27; include the SecLists MIT licence note when landing it).
+- **JWT sessions** (encrypted, `AUTH_SECRET` ≥ 32 random bytes env-only, 8 h
+  maxAge, `SameSite=Lax`/`HttpOnly`/`Secure` Auth.js defaults) with a
+  **SessionVersion revocation stamp**: `src/lib/auth/provider.ts` re-checks the
+  DB value on every request, so password change / role change / deactivation /
+  `usp_User_BumpSessionVersion` revoke all outstanding sessions immediately.
+  No DB session table (ADR-0017 records the trade-off).
+- Login rate limiting: 5/min/IP fixed-window counters in SQL
+  (`auth.LoginAttempt`, `usp_LoginAttempt_Record`, atomic + self-purging) plus
+  per-user lockout with exponential backoff (30 s·2^n from the 5th consecutive
+  failure, capped at 30 min, `usp_User_RecordLoginAttempt`).
+- All auth events audit-logged in-proc: Login, LoginFailed (incl. unknown
+  usernames, without an EntityId), Logout, SetPassword (never the hash).
+- Seeded admin has `MustChangePassword = 1`; the proxy forces
+  `/change-password` (the flag travels in the JWT — edge-safe) until a
+  policy-compliant password is set, which also rotates SessionVersion.
 
 ## Authorization (RBAC)
 
-- Roles Admin / ProjectManager / Contributor / Viewer (`auth.Role`,
-  `auth.UserRole`, `auth.Permission`).
+- Roles Admin / ProjectManager / Contributor / Viewer (`auth.Role`; the single
+  role→permission matrix is `src/lib/auth/rbac.ts`, source PLAN.md §9 — there
+  are no `auth.UserRole`/`auth.Permission` tables, roles are 1:1 on the user).
 - Enforced in three layers:
   1. Route guard — `src/proxy.ts` + protected layouts redirect
      unauthenticated/unauthorised users.

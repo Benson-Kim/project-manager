@@ -15,8 +15,39 @@ DB_NAME="${DB_NAME:-ProjectManager}"
 # them and any DML on tables that carry them). sqlcmd defaults it OFF.
 SQLCMD="sqlcmd -S tcp:${DB_SERVER},${DB_PORT} -U ${DB_USER} -P ${DB_PASSWORD} -C -b -I"
 
+# --- auth seed hashes (module #4) --------------------------------------------
+# The admin/e2e seeds need argon2id hashes computed at seed time — no plaintext
+# or hash is ever committed. Provide SEED_ADMIN_PASSWORD (hashed here via
+# scripts/hash-password.mjs, requires node + the argon2 package) or a
+# precomputed SEED_ADMIN_PASSWORD_HASH. Without either, the admin seed is
+# skipped with a warning ('__SKIP__' sentinel in db/seed/027). E2E users
+# (seed 028) are only inserted when E2E_SEED=1 and E2E_USER_PASSWORD is set.
+hash_env() { # $1 = env var name holding a plaintext password; prints the hash
+  node scripts/hash-password.mjs "$1"
+}
+
+SEED_ADMIN_PASSWORD_HASH="${SEED_ADMIN_PASSWORD_HASH:-}"
+if [ -z "$SEED_ADMIN_PASSWORD_HASH" ] && [ -n "${SEED_ADMIN_PASSWORD:-}" ]; then
+  SEED_ADMIN_PASSWORD_HASH="$(hash_env SEED_ADMIN_PASSWORD)"
+fi
+[ -n "$SEED_ADMIN_PASSWORD_HASH" ] || SEED_ADMIN_PASSWORD_HASH="__SKIP__"
+
+E2E_SEED="${E2E_SEED:-0}"
+E2E_USER_PASSWORD_HASH="__SKIP__"
+if [ "$E2E_SEED" = "1" ] && [ -n "${E2E_USER_PASSWORD:-}" ]; then
+  E2E_USER_PASSWORD_HASH="$(hash_env E2E_USER_PASSWORD)"
+fi
+
 run() {
   echo ">> $1"
+  # The hashes travel as environment variables, NOT -v arguments: sqlcmd
+  # resolves $(VAR) from the environment when no -v override exists, and its
+  # -v argument parsing mangles values containing commas — argon2 encoded
+  # hashes always contain "m=19456,t=2,p=1" (e2e job 16520676400: seeded
+  # users could never log in).
+  SEED_ADMIN_PASSWORD_HASH="$SEED_ADMIN_PASSWORD_HASH" \
+  E2E_SEED="$E2E_SEED" \
+  E2E_USER_PASSWORD_HASH="$E2E_USER_PASSWORD_HASH" \
   $SQLCMD -i "$1"
 }
 
