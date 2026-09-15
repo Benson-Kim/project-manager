@@ -101,6 +101,9 @@ e2e:
       when: never
     - if: $RUN_E2E == "1"                # api-triggered: run automatically
     - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+    # Opt-in on feature branches without needing API/variable privileges:
+    # put "[e2e]" anywhere in the commit message.
+    - if: $CI_COMMIT_BRANCH && $CI_COMMIT_MESSAGE =~ /\[e2e\]/
     - if: $CI_COMMIT_BRANCH
       when: manual
       allow_failure: true
@@ -113,9 +116,16 @@ lockfile:generate:
   stage: build
   rules:
     - if: $LOCKFILE_ONLY == "1"          # api-triggered: run automatically
+    # Opt-in refresh after editing package.json: "[lockfile]" in the commit message.
+    - if: $CI_COMMIT_BRANCH && $CI_COMMIT_MESSAGE =~ /\[lockfile\]/
+    # With a committed lockfile, refreshing is a manual utility…
     - if: $CI_COMMIT_BRANCH
+      exists:
+        paths: [package-lock.json]
       when: manual
       allow_failure: true
+    # …but while no lockfile exists yet, bootstrap it automatically.
+    - if: $CI_COMMIT_BRANCH
   cache: []
   script:
     - npm install --package-lock-only --no-audit --no-fund
