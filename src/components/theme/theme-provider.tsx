@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useSyncExternalStore,
+} from "react";
 
 /**
  * Theme = system | light | dark (ADR-0004). The choice persists in
@@ -26,13 +32,31 @@ function apply(preference: ThemePreference) {
   document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
 }
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [preference, setPreferenceState] = useState<ThemePreference>("system");
+/*
+ * localStorage("theme") as an external store (useSyncExternalStore): the
+ * server snapshot is "system", the client snapshot re-syncs after hydration —
+ * no setState-in-effect, no hydration mismatch.
+ */
+let storeListeners: Array<() => void> = [];
 
-  useEffect(() => {
-    const stored = localStorage.getItem("theme");
-    if (stored === "light" || stored === "dark") setPreferenceState(stored);
-  }, []);
+function subscribeToStore(listener: () => void): () => void {
+  storeListeners.push(listener);
+  return () => {
+    storeListeners = storeListeners.filter((l) => l !== listener);
+  };
+}
+
+function emitStoreChange() {
+  for (const listener of storeListeners) listener();
+}
+
+function readStoredPreference(): ThemePreference {
+  const stored = localStorage.getItem("theme");
+  return stored === "light" || stored === "dark" ? stored : "system";
+}
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const preference = useSyncExternalStore(subscribeToStore, readStoredPreference, () => "system");
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -44,10 +68,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [preference]);
 
   const setPreference = useCallback((next: ThemePreference) => {
-    setPreferenceState(next);
     if (next === "system") localStorage.removeItem("theme");
     else localStorage.setItem("theme", next);
     apply(next);
+    emitStoreChange();
   }, []);
 
   return (
