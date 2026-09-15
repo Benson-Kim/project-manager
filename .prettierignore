@@ -1,0 +1,19 @@
+node_modules
+.next
+out
+coverage
+playwright-report
+test-results
+# Prose is not code: markdown is hand-formatted (tables, line breaks are meaningful)
+*.md
+docs/
+*.mdb
+*.xlsx
+*.pptx
+# repo infra / generated files not subject to prettier
+.gitlab-ci.yml
+docker-compose.yml
+tools/
+db/
+scripts/
+public/sw.js

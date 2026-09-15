@@ -1,0 +1,44 @@
+# Local development: SQL Server 2022 + the Next.js app.
+# Copy .env.example to .env first. Apply the schema with scripts/db-apply.sh.
+services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?set in .env}"
+      MSSQL_PID: Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql-data:/var/opt/mssql
+      - ./backups:/var/opt/mssql/backup
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      mssql:
+        condition: service_healthy
+    environment:
+      DB_SERVER: mssql
+      DB_PORT: "1433"
+      DB_NAME: ProjectManager
+      DB_USER: sa
+      DB_PASSWORD: "${MSSQL_SA_PASSWORD}"
+      AUTH_SECRET: "${AUTH_SECRET:-dev-only-secret}"
+    ports:
+      - "3000:3000"
+    volumes:
+      - uploads:/app/uploads
+
+volumes:
+  mssql-data:
+  uploads:
