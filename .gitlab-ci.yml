@@ -85,10 +85,39 @@ build:
       - .next/static
 
 # Browser smoke tests: automatic on develop/main, manual on feature branches.
+# Module #4 gates every app route behind login, so the job seeds a real SQL
+# Server 2022 service (E2E_SEED=1 -> db/seed/028 e2e users) and provides the
+# app env. All credential values below are job-scoped throwaways for the
+# ephemeral service container and test users only — they die with the job
+# (same rationale as db:apply); real hosts use masked CI variables.
 e2e:
   extends: .node
   stage: test
+  services:
+    - name: mcr.microsoft.com/mssql/server:2022-latest
+      alias: mssql
+      variables:
+        ACCEPT_EULA: "Y"
+        MSSQL_PID: Developer
+  variables:
+    MSSQL_SA_PASSWORD: "E2e-Throwaway-Sa-2026!"
+    DB_SERVER: mssql
+    DB_USER: sa
+    DB_PASSWORD: "E2e-Throwaway-Sa-2026!"
+    DB_NAME: ProjectManager
+    SEED_ADMIN_PASSWORD: "Throwaway-Admin-Seed-2026"
+    E2E_SEED: "1"
+    E2E_USER_PASSWORD: "E2e-Throwaway-User-2026"
+    AUTH_SECRET: "e2e-throwaway-auth-secret-0123456789abcdefghijklmnopqrstuvwxyz"
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq curl gnupg2
+    - curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg
+    - echo "deb [signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql.list
+    - apt-get update -qq && ACCEPT_EULA=Y apt-get install -y -qq mssql-tools18 && ln -sf /opt/mssql-tools18/bin/sqlcmd /usr/local/bin/sqlcmd
+    - npm ci --no-audit --no-fund --cache .npm --prefer-offline
+    - for i in $(seq 1 30); do sqlcmd -S tcp:mssql,1433 -U sa -P "$DB_PASSWORD" -C -Q "SELECT 1" >/dev/null 2>&1 && break; echo "waiting for SQL Server ($i)"; sleep 2; done
   script:
+    - sh scripts/db-apply.sh
     - npx playwright install --with-deps chromium
     - npm run e2e
   artifacts:
