@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CredentialsRow } from "@/modules/auth/schemas/user";
 
+// next-auth's runtime needs next/server, which does not resolve under vitest
+// (node env). authorizeCredentials never touches it — mock the framework away.
+vi.mock("next-auth", () => ({
+  default: () => ({ handlers: {}, auth: vi.fn(), signIn: vi.fn(), signOut: vi.fn() }),
+}));
+vi.mock("next-auth/providers/credentials", () => ({
+  default: (config: unknown) => config,
+}));
 vi.mock("@/modules/auth/repository/users", () => ({
   auditUnknownUsernameLoginFailure: vi.fn(),
   getUserByUsername: vi.fn(),
