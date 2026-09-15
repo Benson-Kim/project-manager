@@ -62,6 +62,7 @@ export const messages = {
     search: "Search",
     sort: "Sort",
     filter: "Filter",
+    viewToggle: "View",
     viewGrid: "Grid view",
     viewList: "List view",
     page: (page: number, pages: number) => `Page ${page} of ${pages}`,
