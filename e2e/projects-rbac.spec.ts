@@ -12,6 +12,8 @@ test("viewer sees no New project affordance on the list", async ({ page }) => {
   await page.goto("/projects");
   await expect(page.getByRole("heading", { name: messages.projects.title })).toBeVisible();
   await expect(page.getByTestId("new-project")).toHaveCount(0);
+  // Shell sidebar hides New project for roles without projects:create (issue #28).
+  await expect(page.getByTestId("shell-new-project")).toHaveCount(0);
 });
 
 test("viewer deep-linking /projects/new is redirected to the list", async ({ page }) => {

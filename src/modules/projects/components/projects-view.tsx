@@ -89,6 +89,7 @@ export function ProjectsView({
       page={page}
       initialView={initialView}
       getRowId={(row) => row.ProjectId}
+      getRowLabel={(row) => row.ProjectName}
       onOpen={(row) => router.push(`/projects/${row.ProjectId}`)}
       renderCard={(row) => (
         <div className="flex flex-col gap-2">

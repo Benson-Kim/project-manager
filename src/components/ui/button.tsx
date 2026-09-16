@@ -6,7 +6,7 @@ import { Spinner } from "./spinner";
 type Variant = "primary" | "secondary" | "danger" | "ghost";
 
 const base =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium " +
+  "inline-flex min-h-9 items-center justify-center gap-2 rounded-md px-6 text-sm font-medium " +
   "transition-colors duration-(--duration-fast) disabled:pointer-events-none disabled:opacity-50";
 
 const variants: Record<Variant, string> = {
