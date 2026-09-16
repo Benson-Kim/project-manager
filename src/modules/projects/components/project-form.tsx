@@ -157,9 +157,7 @@ export function ProjectForm({
 
       <fieldset disabled={!canEdit} className="flex flex-col gap-6">
         <section aria-labelledby="charter-heading" className="flex flex-col gap-4">
-          <SectionHeading id="charter-heading">
-            {messages.projects.charterSection}
-          </SectionHeading>
+          <SectionHeading id="charter-heading">{messages.projects.charterSection}</SectionHeading>
           <Field label={messages.projects.name} name="projectName" errors={form.errors.projectName}>
             <Input name="projectName" defaultValue={project?.ProjectName ?? ""} />
           </Field>

@@ -50,7 +50,9 @@ test("axe scan on the projects list has no serious or critical violations", asyn
   await page.goto("/projects");
   await expect(page.getByRole("heading", { name: messages.projects.title })).toBeVisible();
   const results = await new AxeBuilder({ page }).analyze();
-  const serious = results.violations.filter((v) => ["serious", "critical"].includes(v.impact ?? ""));
+  const serious = results.violations.filter((v) =>
+    ["serious", "critical"].includes(v.impact ?? ""),
+  );
   expect(serious).toEqual([]);
 });
 
@@ -60,6 +62,8 @@ test("axe scan on the charter workspace has no serious or critical violations", 
   await page.goto("/projects/2");
   await expect(page.getByTestId("project-form")).toBeVisible();
   const results = await new AxeBuilder({ page }).analyze();
-  const serious = results.violations.filter((v) => ["serious", "critical"].includes(v.impact ?? ""));
+  const serious = results.violations.filter((v) =>
+    ["serious", "critical"].includes(v.impact ?? ""),
+  );
   expect(serious).toEqual([]);
 });

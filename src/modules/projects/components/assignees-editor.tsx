@@ -88,7 +88,10 @@ export function AssigneesEditor({
 
   return (
     <section aria-labelledby="assignees-heading" className="flex flex-col gap-4 pb-8">
-      <h2 id="assignees-heading" className="border-b border-line pb-2 text-base font-semibold text-ink">
+      <h2
+        id="assignees-heading"
+        className="border-b border-line pb-2 text-base font-semibold text-ink"
+      >
         {messages.projects.assigneesSection}
       </h2>
       <ErrorSummary message={summary} />
