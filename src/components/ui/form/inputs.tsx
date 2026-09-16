@@ -8,7 +8,7 @@ import { useFieldAria } from "./field";
  * UX. All pick up id/aria wiring from the surrounding <Field>.
  */
 const inputBase =
-  "min-h-11 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink " +
+  "min-h-9 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink " +
   "aria-invalid:border-danger";
 
 export const Input = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
