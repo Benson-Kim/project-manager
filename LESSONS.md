@@ -131,3 +131,9 @@ Append under the matching section (or add a section) in the form:
 - 2026-09-16 MR !12: docs-only MRs still run the full lint/typecheck/test pipeline (~4 min) — there is no docs-only fast path; budget the merge wait or add a `rules: changes` docs shortcut in a future CI MR before assuming "skipped".
 - 2026-09-16 MR !12: `docs/adr/README.md` index is missing a row for ADR-0017 (the file exists) — ADR authors: when adding an index row, check the previous ADR made it into the table too; next docs MR should add the 0017 row.
 - 2026-09-16 MR !12: research-type sessions fit comfortably in budget when reads are batched (parallel tool calls) and each deliverable is committed+pushed the moment it is written; the doc/ADR/issue/MR/merge cycle took ~12 minutes wall clock.
+
+## 14. App shell session (MR !13, issues #25/#28, 2026-09-16)
+
+- 2026-09-16 MR !13: adding an axe e2e scan to a page that never had one surfaces PRE-EXISTING violations, not just your own — the new shell scan over "/" failed on the home page's `text-ink-faint` on `bg-surface-raised` (2.45:1, the exact §13 pitfall). -> When a spec adds axe coverage to a new page, budget a contrast sweep of that page's existing markup in the same commit.
+- 2026-09-16 MR !13: the react-hooks lint (Next 16 preset) hard-errors on synchronous setState inside useEffect ("cascading renders") — closing a drawer in a pathname effect failed lint. -> Close overlays via the interaction that navigates (link onClick), not via route-change effects.
+- 2026-09-16 MR !13: the [format]+[e2e] probe on the FIRST commit (tokens+sizing only) was fully green in ~5 min and the prettier patch scrape (§11) applied cleanly for the later shell commit — front-loading the probe meant the only red pipelines cost one round-trip each (lint setState rule, pre-existing axe). Bootstrap-to-merge was ~37 min total; check `date -u` before assuming budget is gone (§11 confirmed again).
