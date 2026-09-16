@@ -102,7 +102,7 @@ export function Sheet({ open, onOpenChange, title, description, children }: Over
         <RadixDialog.Content
           {...focusReturn}
           aria-describedby={description ? undefined : ""}
-          className="fixed inset-x-0 bottom-0 z-(--z-sheet) max-h-[85dvh] overflow-y-auto rounded-t-lg border-t border-line bg-surface p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-xl md:inset-x-auto md:inset-y-0 md:right-0 md:max-h-none md:w-[480px] md:rounded-none md:border-t-0 md:border-l"
+          className="fixed inset-x-0 bottom-0 z-(--z-dialog) max-h-[85dvh] overflow-y-auto rounded-t-lg border-t border-line bg-surface p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-xl md:inset-x-auto md:inset-y-0 md:right-0 md:max-h-none md:w-[480px] md:rounded-none md:border-t-0 md:border-l"
         >
           <RadixDialog.Title className="pr-11 text-base font-semibold text-ink">
             {title}
