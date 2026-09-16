@@ -1,7 +1,8 @@
 -- usp_KeyDeliverable_GanttData — data for the Gantt view built from deliverable
 -- dates (checklist row 67, module #9). Returns each active deliverable of a
 -- project with its deadline, assignee display name and the project window
--- (StartDate/EndDate) as the chart range basis.
+-- (StartDate/EndDate) as the chart range basis. CreatedAtUtc is the bar start
+-- basis (no explicit StartDate column on app.KeyDeliverable — module #9 decision).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_KeyDeliverable_GanttData
@@ -22,6 +23,7 @@ BEGIN
            kd.[Status],
            kd.[AssignedToStakeholderId],
            LTRIM(RTRIM(CONCAT(ISNULL(s.[FirstName], N''), N' ', ISNULL(s.[LastName], N'')))) AS AssignedToName,
+           kd.CreatedAtUtc,
            p.[StartDate] AS ProjectStartDate,
            p.[EndDate]   AS ProjectEndDate,
            CAST(kd.RowVer AS BIGINT) AS RowVer

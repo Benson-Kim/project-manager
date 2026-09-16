@@ -51,7 +51,7 @@ Contracts (uniform, generated together):
 | `usp_Meeting_GetParticipants @MeetingId` | port of `qryMeetingParticipants` (stakeholder display names + apology flag) |
 | `usp_Meeting_GetAttendees @MeetingId` | port of `qryMeetingAttendees` (`IsApology = 0`) |
 | `usp_Meeting_GetApologies @MeetingId` | port of `qryMeetingApologies` (`IsApology = 1`) |
-| `usp_KeyDeliverable_GanttData @ProjectId` | Gantt source rows (checklist row 67): deliverables + deadlines + assignee + project window |
+| `usp_KeyDeliverable_GanttData @ProjectId` | Gantt source rows (checklist row 67): deliverables + deadlines + assignee + CreatedAtUtc (bar start basis, module #9) + project window; `usp_KeyDeliverable_List` additionally filters on `@Status`/`@Priority` (module #9) |
 | `usp_Financial_GetDocumentChecklist @FinancialId` | the 9-type MSSS document checklist with junction state (`qryFinancialsExtended` chain) |
 | `usp_Audit_Insert` | append-only audit helper for app-layer events without a domain transaction (Login/Logout from #4) |
 
