@@ -42,6 +42,9 @@ BEGIN
            [SimilarProject],
            [ProjectPriority],
            [EstimatedCompletionDate],
+           [ProjectStatus],
+           [ProjectPhase],
+           [RiskLevel],
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer
