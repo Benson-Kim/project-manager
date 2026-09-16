@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { guardedHref } from "./unsaved-guard";
 
 /**
@@ -15,16 +15,15 @@ import { guardedHref } from "./unsaved-guard";
 export function useUnsavedChangesGuard(dirty: boolean) {
   const router = useRouter();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
-  const dirtyRef = useRef(dirty);
-  dirtyRef.current = dirty;
 
+  // The listeners exist only while dirty (the effect re-runs on change), so
+  // no ref is needed to read the latest dirty value inside the handlers.
   useEffect(() => {
     if (!dirty) return;
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
     };
     const onClickCapture = (event: MouseEvent) => {
-      if (!dirtyRef.current) return;
       const anchor = (event.target as Element | null)?.closest?.(
         "a[href]",
       ) as HTMLAnchorElement | null;
@@ -43,7 +42,7 @@ export function useUnsavedChangesGuard(dirty: boolean) {
   }, [dirty]);
 
   const requestNavigation = (href: string) => {
-    if (dirtyRef.current) setPendingHref(href);
+    if (dirty) setPendingHref(href);
     else router.push(href);
   };
   const cancel = () => setPendingHref(null);

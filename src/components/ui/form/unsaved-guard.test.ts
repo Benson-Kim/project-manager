@@ -66,6 +66,8 @@ describe("guardedHref", () => {
 
   it("ignores same-page and hash-only navigation", () => {
     expect(guardedHref(click(), anchor("https://app.example/projects/2"), CURRENT)).toBeNull();
-    expect(guardedHref(click(), anchor("https://app.example/projects/2#charter"), CURRENT)).toBeNull();
+    expect(
+      guardedHref(click(), anchor("https://app.example/projects/2#charter"), CURRENT),
+    ).toBeNull();
   });
 });
