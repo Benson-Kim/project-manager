@@ -91,7 +91,7 @@ export function Toaster({ children }: { children: React.ReactNode }) {
             {t.action ? (
               <button
                 type="button"
-                className="min-h-11 px-2 text-sm font-medium text-accent"
+                className="min-h-9 px-2 text-sm font-medium text-accent"
                 onClick={() => {
                   t.action?.onAction();
                   dismiss(t.id);

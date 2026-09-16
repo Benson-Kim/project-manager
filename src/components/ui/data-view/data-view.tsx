@@ -117,7 +117,7 @@ export function DataView<Row>({
             aria-pressed={view === "grid"}
             data-testid="view-grid"
             onClick={() => setView("grid")}
-            className={`flex size-11 items-center justify-center rounded-l-md ${view === "grid" ? "bg-accent-soft text-accent" : "text-ink-muted"}`}
+            className={`flex min-h-9 min-w-9 items-center justify-center rounded-l-md ${view === "grid" ? "bg-accent-soft text-accent" : "text-ink-muted"}`}
           >
             <svg viewBox="0 0 16 16" className="size-4" fill="currentColor" aria-hidden="true">
               <rect x="1" y="1" width="6" height="6" rx="1" />
@@ -132,7 +132,7 @@ export function DataView<Row>({
             aria-pressed={view === "list"}
             data-testid="view-list"
             onClick={() => setView("list")}
-            className={`flex size-11 items-center justify-center rounded-r-md ${view === "list" ? "bg-accent-soft text-accent" : "text-ink-muted"}`}
+            className={`flex min-h-9 min-w-9 items-center justify-center rounded-r-md ${view === "list" ? "bg-accent-soft text-accent" : "text-ink-muted"}`}
           >
             <svg viewBox="0 0 16 16" className="size-4" fill="currentColor" aria-hidden="true">
               <rect x="1" y="2" width="14" height="2.5" rx="1" />
@@ -153,7 +153,7 @@ export function DataView<Row>({
             <button
               type="button"
               onClick={clearSelection}
-              className="min-h-11 px-3 text-sm font-medium text-ink-muted"
+              className="min-h-9 px-6 text-sm font-medium text-ink-muted"
             >
               {messages.actions.clearSelection}
             </button>
@@ -254,7 +254,7 @@ export function DataView<Row>({
             type="button"
             disabled={page <= 1}
             onClick={() => update({ page: String(page - 1) }, { push: true })}
-            className="min-h-11 rounded-md border border-line px-4 text-sm font-medium text-ink disabled:opacity-50"
+            className="min-h-9 rounded-md border border-line px-6 text-sm font-medium text-ink disabled:opacity-50"
           >
             {messages.list.previousPage}
           </button>
@@ -263,7 +263,7 @@ export function DataView<Row>({
             type="button"
             disabled={page >= pages}
             onClick={() => update({ page: String(page + 1) }, { push: true })}
-            className="min-h-11 rounded-md border border-line px-4 text-sm font-medium text-ink disabled:opacity-50"
+            className="min-h-9 rounded-md border border-line px-6 text-sm font-medium text-ink disabled:opacity-50"
           >
             {messages.list.nextPage}
           </button>

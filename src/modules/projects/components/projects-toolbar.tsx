@@ -95,7 +95,7 @@ export function ProjectsToolbar() {
             autoComplete="off"
             placeholder={messages.list.search}
             data-testid="projects-search"
-            className="min-h-11 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink"
+            className="min-h-9 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink"
             value={query}
             onChange={(e) => onChange(e.target.value)}
             onBlur={() => setTimeout(() => setOpen(false), 100)}
@@ -115,7 +115,7 @@ export function ProjectsToolbar() {
               id={`${listboxId}-${row.ProjectId}`}
               role="option"
               aria-selected={index === activeIndex}
-              className={`flex min-h-11 cursor-pointer items-center px-3 text-sm text-ink ${
+              className={`flex min-h-9 cursor-pointer items-center px-6 text-sm text-ink ${
                 index === activeIndex ? "bg-accent-soft" : ""
               }`}
               onMouseDown={(e) => {
