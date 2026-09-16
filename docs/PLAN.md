@@ -316,7 +316,7 @@ to develop, verify staging deploy job, close issue.
 | 5 | stakeholders (#6) | CRUD + comm-preference/engagement dropdowns (row 70) — **delivered, MR !11**: migration 006 (vocab CHECK constraints), `usp_Stakeholder_List` + `@EngagementLevel` filter/EmailAddress search/ProjectRole sort, `/stakeholders` DataView + URL-synced sheet (ADR-0010), charter deep link |
 | 6 | suppliers (#7) | CRUD + contact/contract/rating + address block (rows 55, 74) — **delivered, MR !16**: no DB deltas (table from 003, procs from #3, seed 004), `/projects/[id]/suppliers` project-scoped DataView + URL-synced sheet (ADR-0010/0018, first registered section besides charter), default sort ContractEndDate asc, DatePicker contract dates, rating vocab in UI (DB free-text); contract-end dashboard alert deferred to #20 |
 | 7 | acronyms (#8) | rename Keywords + search field (row 58) |
-| 8 | key-deliverables (#9) | CRUD + deadline/assignee/priority/status (row 71) + Gantt from deliverable dates (row 67) |
+| 8 | key-deliverables (#9) | CRUD + deadline/assignee/priority/status (row 71) + Gantt from deliverable dates (row 67) — **delivered**: list + Sheet + CSS-grid Gantt under `/projects/[id]/deliverables` (ADR-0018 route override; bar start = CreatedAtUtc, print stylesheet as the report view) |
 | 9 | objectives (#10) | CRUD (row 11) |
 | 10 | meetings (#11) | Meeting parent + agenda/discussion/actions/participants; participants picker from stakeholders (rows 13, 53, 54, 72); attendees vs apologies |
 | 11 | questions-answers (#12) | CRUD + category/priority/assignee (row 73) |

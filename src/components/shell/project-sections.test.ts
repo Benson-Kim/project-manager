@@ -35,7 +35,7 @@ describe("isCurrentSection", () => {
     expect(isCurrentSection("/projects/22/meetings", 2, meetings)).toBe(false);
   });
 
-  it("registry lists built sections in ADR-0018 order", () => {
-    expect(projectSections.map((s) => s.segment)).toEqual([".", "suppliers"]);
+  it("registry lists the built sections in ADR-0018 order", () => {
+    expect(projectSections.map((s) => s.segment)).toEqual([".", "deliverables", "suppliers"]);
   });
 });

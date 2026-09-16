@@ -74,11 +74,11 @@ restated as an acceptance criterion in its module issue.
 | 64 | Financial tracking spreadsheet equivalent | financials (budget breakdown view/export) | #17 | feature/financials |
 | 65 | Export & import data (backups) | file-storage-and-backup (+ admin) | #22, #23 | feature/file-storage-and-backup |
 | 66 | Calendar with reminders for to-dos | todo-alerts (calendar view) | #20 | feature/todo-alerts |
-| 67 | Gantt from key-deliverable dates (start date required) | key-deliverables | #9 | feature/key-deliverables |
+| 67 | Gantt from key-deliverable dates (start date required) | key-deliverables (delivered — CSS-grid Gantt at `/projects/[id]/deliverables/gantt`; start = CreatedAtUtc, end = Deadline) | #9 | feature/key-deliverables |
 | 68 | "Add ons" (header) | — header | — | — |
 | 69 | Project screen add-ons (priority, est. completion, phase, risk level, status) | projects | #5 | feature/projects |
 | 70 | Stakeholder screen add-ons (email, comm pref, engagement, role description) | stakeholders | #6 | feature/stakeholders |
-| 71 | Key deliverable add-ons (deadline, assigned-to, priority, status) | key-deliverables | #9 | feature/key-deliverables |
+| 71 | Key deliverable add-ons (deadline, assigned-to, priority, status) | key-deliverables (delivered — Sheet form with date picker, stakeholder Combobox, status/priority) | #9 | feature/key-deliverables |
 | 72 | Meeting minutes add-ons (location, agenda, start/end time, follow-up) | meetings | #11 | feature/meetings |
 | 73 | Q&A add-ons (category, priority, assigned-to) | questions-answers | #12 | feature/questions-answers |
 | 74 | Supplier add-ons (contact, email, contract dates, rating, address) | suppliers | #7 | feature/suppliers |
