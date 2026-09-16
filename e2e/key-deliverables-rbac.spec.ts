@@ -10,17 +10,13 @@ import { messages } from "../src/lib/messages";
 
 test("viewer sees no New deliverable affordance on the list", async ({ page }) => {
   await page.goto("/projects/2/deliverables");
-  await expect(
-    page.getByRole("heading", { name: messages.keyDeliverables.title }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: messages.keyDeliverables.title })).toBeVisible();
   await expect(page.getByTestId("new-deliverable")).toHaveCount(0);
 });
 
 test("viewer deep-linking ?d=new does not open the create sheet", async ({ page }) => {
   await page.goto("/projects/2/deliverables?d=new");
-  await expect(
-    page.getByRole("heading", { name: messages.keyDeliverables.title }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: messages.keyDeliverables.title })).toBeVisible();
   await expect(page.getByTestId("deliverable-form")).toHaveCount(0);
 });
 

@@ -67,7 +67,9 @@ describe("key-deliverables repository", () => {
   });
 
   it("create rejects an empty requirement before touching the database", async () => {
-    await expect(createKeyDeliverable({ projectId: 24, keyRequirement: "  " }, 7)).rejects.toThrow();
+    await expect(
+      createKeyDeliverable({ projectId: 24, keyRequirement: "  " }, 7),
+    ).rejects.toThrow();
     expect(execProc).not.toHaveBeenCalled();
   });
 
@@ -122,7 +124,10 @@ describe("key-deliverables repository", () => {
     });
 
     it("skips rows without a deadline (not drawable)", async () => {
-      execProc.mockResolvedValue([ganttDbRow(), ganttDbRow({ KeyDeliverableId: 8, Deadline: null })]);
+      execProc.mockResolvedValue([
+        ganttDbRow(),
+        ganttDbRow({ KeyDeliverableId: 8, Deadline: null }),
+      ]);
       const bars = await getGanttBars(24, 7, now);
       expect(bars.map((b) => b.id)).toEqual([7]);
     });
