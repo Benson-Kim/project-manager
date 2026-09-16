@@ -1,30 +1,42 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { Sheet } from "@/components/ui/dialog";
 import { messages } from "@/lib/messages";
-import { logoutAction } from "@/modules/auth/actions";
 import { useAnnouncer } from "../ui/announcer";
-import { useTheme, type ThemePreference } from "../theme/theme-provider";
-import { navItems } from "./nav-items";
+import { AvatarMenu, NotificationsBell, ThemeToggle, type ShellAlert } from "./header-actions";
+import { pageTitleFor } from "./nav-items";
 import { OfflineBanner } from "./offline-banner";
 import { RouteProgress } from "./route-progress";
+import { MenuIcon } from "./shell-icons";
+import { SidebarContent } from "./sidebar-content";
 
 /**
- * The ONE navigation pattern (STANDARDS §5.3): bottom tab bar < md, sidebar
- * >= md. Safe-area padded, 44 px targets, current page announced.
+ * App shell (spec in issue #28): desktop sidebar (logo, New project, nav,
+ * Settings + Logout pinned) + header (page title left; bell, theme toggle,
+ * avatar menu right). On < md the sidebar collapses into a drawer (the ONE
+ * overlay engine — Radix Sheet: focus trap, Escape, focus return).
  */
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  username,
+  canCreateProject,
+  alerts,
+  children,
+}: {
+  username: string;
+  canCreateProject: boolean;
+  alerts: ShellAlert[];
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const { announce } = useAnnouncer();
-  const { preference, setPreference } = useTheme();
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
     announce(document.title);
+    setDrawerOpen(false); // close the drawer after navigation
   }, [announce, pathname]);
-
-  const tabs = navItems.slice(0, 4);
 
   return (
     <div className="flex min-h-dvh">
@@ -43,85 +55,44 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Desktop sidebar */}
       <nav
         aria-label={messages.app.menu}
-        className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col border-r border-line bg-surface-raised p-3 md:flex"
+        className="sticky top-0 hidden h-dvh w-60 shrink-0 border-r border-line bg-surface-raised p-3 md:block"
       >
-        <p className="px-3 py-4 text-sm font-semibold text-ink">{messages.app.name}</p>
-        <ul className="flex flex-1 flex-col gap-1">
-          {navItems.map((item) => (
-            <li key={item.href}>
-              <Link
-                href={item.href}
-                aria-current={pathname === item.href ? "page" : undefined}
-                className={`flex min-h-11 items-center rounded-md px-3 text-sm font-medium ${
-                  pathname === item.href
-                    ? "bg-accent-soft text-accent"
-                    : "text-ink-muted hover:bg-surface-sunken"
-                }`}
-              >
-                {item.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
-        <label className="flex flex-col gap-1 px-3 pb-2">
-          <span className="text-xs font-medium text-ink-muted">{messages.app.themeLabel}</span>
-          <select
-            value={preference}
-            onChange={(e) => setPreference(e.target.value as ThemePreference)}
-            className="min-h-11 rounded-md border border-line bg-surface px-2 text-sm text-ink"
-          >
-            <option value="system">{messages.app.themeSystem}</option>
-            <option value="light">{messages.app.themeLight}</option>
-            <option value="dark">{messages.app.themeDark}</option>
-          </select>
-        </label>
-        <form action={logoutAction}>
-          <button
-            type="submit"
-            className="flex min-h-11 w-full items-center rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-surface-sunken"
-          >
-            {messages.auth.signOut}
-          </button>
-        </form>
+        <SidebarContent canCreateProject={canCreateProject} pathname={pathname} />
       </nav>
 
+      {/* Mobile drawer */}
+      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen} title={messages.app.menu}>
+        <nav aria-label={messages.app.menu} className="-mx-1 min-h-[60dvh]">
+          <SidebarContent
+            canCreateProject={canCreateProject}
+            pathname={pathname}
+            onNavigate={() => setDrawerOpen(false)}
+          />
+        </nav>
+      </Sheet>
+
       <div className="flex min-w-0 flex-1 flex-col">
-        <main id="main" className="flex-1 px-4 pb-24 md:pb-8">
+        <header className="sticky top-0 z-(--z-nav) flex h-14 items-center gap-1 border-b border-line bg-surface px-4">
+          <button
+            type="button"
+            aria-label={messages.app.menu}
+            data-testid="open-drawer"
+            className="flex min-h-9 min-w-9 items-center justify-center rounded-md text-ink-muted hover:bg-surface-sunken md:hidden"
+            onClick={() => setDrawerOpen(true)}
+          >
+            <MenuIcon />
+          </button>
+          <p className="flex-1 truncate text-base font-semibold text-ink" data-testid="page-title">
+            {pageTitleFor(pathname)}
+          </p>
+          <NotificationsBell alerts={alerts} />
+          <ThemeToggle />
+          <AvatarMenu username={username} />
+        </header>
+        <main id="main" className="flex-1 px-4 pb-8">
           {children}
         </main>
       </div>
-
-      {/* Mobile bottom tab bar */}
-      <nav
-        aria-label={messages.app.menu}
-        className="fixed inset-x-0 bottom-0 z-(--z-nav) border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
-      >
-        <ul className="flex">
-          {tabs.map((item) => (
-            <li key={item.href} className="flex-1">
-              <Link
-                href={item.href}
-                aria-current={pathname === item.href ? "page" : undefined}
-                className={`flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium ${
-                  pathname === item.href ? "text-accent" : "text-ink-muted"
-                }`}
-              >
-                {item.label}
-              </Link>
-            </li>
-          ))}
-          <li className="flex-1">
-            <form action={logoutAction} className="contents">
-              <button
-                type="submit"
-                className="flex min-h-14 w-full flex-col items-center justify-center gap-0.5 text-xs font-medium text-ink-muted"
-              >
-                {messages.auth.signOut}
-              </button>
-            </form>
-          </li>
-        </ul>
-      </nav>
     </div>
   );
 }
