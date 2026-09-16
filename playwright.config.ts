@@ -20,13 +20,13 @@ export default defineConfig({
     // Everything else runs authenticated (module #4 gates all app routes).
     {
       name: "app",
-      testMatch: /(home|kitchen-sink|projects)\.spec\.ts/,
+      testMatch: /(home|kitchen-sink|projects|stakeholders)\.spec\.ts/,
       dependencies: ["setup"],
       use: { storageState: "e2e/.auth/pm.json" },
     },
     {
       name: "app-viewer",
-      testMatch: /projects-rbac\.spec\.ts/,
+      testMatch: /(projects|stakeholders)-rbac\.spec\.ts/,
       dependencies: ["viewer-setup"],
       use: { storageState: "e2e/.auth/viewer.json" },
     },
