@@ -45,7 +45,7 @@ export function SidebarContent({
           {messages.projects.newProject}
         </Link>
       ) : null}
-      <ul className="flex flex-1 flex-col gap-1 overflow-y-auto">
+      <ul data-testid="nav-primary" className="flex flex-1 flex-col gap-1 overflow-y-auto">
         {navItems.map((item) => (
           <li key={item.href}>
             <Link
@@ -59,7 +59,7 @@ export function SidebarContent({
           </li>
         ))}
       </ul>
-      <ul className="flex flex-col gap-1 border-t border-line pt-2">
+      <ul data-testid="nav-bottom" className="flex flex-col gap-1 border-t border-line pt-2">
         <li>
           <Link
             href={settingsNavItem.href}
