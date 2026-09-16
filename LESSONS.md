@@ -125,3 +125,9 @@ Append under the matching section (or add a section) in the form:
 - 2026-09-16 MR !10: login-budget arithmetic: `usp_LoginAttempt_Record` allows `@Count <= 5`, so 5 real logins/run pass (setup pm + viewer-setup + auth.spec 3). viewer-setup depends on setup to spread the window. Do NOT add a 6th login; reuse e2e/.auth/*.json storage states.
 - 2026-09-16 MR !10: npm ci in the DAP workspace DOES eventually install (slow proxy, ~15+ min, node 20 vs required 22 warnings) but never in time to be useful — treat CI as the only verifier and don't wait on it.
 - 2026-09-16 MR !10: epic #1 is a plain project issue (iid 1) — `PUT projects/:id/issues/1 description=...` works for ticking checklist lines; group epics API returns 403 for this token.
+
+## 14. UX research session (MR !12 / ADR-0018, 2026-09-16)
+
+- 2026-09-16 MR !12: docs-only MRs still run the full lint/typecheck/test pipeline (~4 min) — there is no docs-only fast path; budget the merge wait or add a `rules: changes` docs shortcut in a future CI MR before assuming "skipped".
+- 2026-09-16 MR !12: `docs/adr/README.md` index is missing a row for ADR-0017 (the file exists) — ADR authors: when adding an index row, check the previous ADR made it into the table too; next docs MR should add the 0017 row.
+- 2026-09-16 MR !12: research-type sessions fit comfortably in budget when reads are batched (parallel tool calls) and each deliverable is committed+pushed the moment it is written; the doc/ADR/issue/MR/merge cycle took ~12 minutes wall clock.
