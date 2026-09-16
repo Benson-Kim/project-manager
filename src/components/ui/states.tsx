@@ -35,7 +35,7 @@ export function ErrorState({ title, onRetry }: { title?: string; onRetry?: () =>
         <button
           type="button"
           onClick={onRetry}
-          className="mt-2 inline-flex min-h-11 items-center rounded-md border border-line bg-surface px-4 text-sm font-medium text-ink"
+          className="mt-2 inline-flex min-h-9 items-center rounded-md border border-line bg-surface px-6 text-sm font-medium text-ink"
         >
           {messages.app.retry}
         </button>

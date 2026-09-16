@@ -19,7 +19,7 @@ const newProjectLink = (
   <Link
     href="/projects/new"
     data-testid="new-project"
-    className="inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-sm font-medium text-on-accent"
+    className="inline-flex min-h-9 items-center rounded-md bg-accent px-6 text-sm font-medium text-on-accent"
   >
     {messages.projects.newProject}
   </Link>

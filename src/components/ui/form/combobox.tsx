@@ -81,7 +81,7 @@ export function Combobox({ name, options, defaultValue, onSelect }: ComboboxProp
           open && filtered[activeIndex] ? `${listboxId}-${filtered[activeIndex].value}` : undefined
         }
         autoComplete="off"
-        className="min-h-11 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink aria-invalid:border-danger"
+        className="min-h-9 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink aria-invalid:border-danger"
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -109,7 +109,7 @@ export function Combobox({ name, options, defaultValue, onSelect }: ComboboxProp
             id={`${listboxId}-${option.value}`}
             role="option"
             aria-selected={selected?.value === option.value}
-            className={`flex min-h-11 cursor-pointer items-center px-3 text-sm ${
+            className={`flex min-h-9 cursor-pointer items-center px-6 text-sm ${
               index === activeIndex ? "bg-accent-soft text-ink" : "text-ink"
             }`}
             onMouseDown={(e) => {
