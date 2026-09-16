@@ -29,7 +29,7 @@ export default function Home() {
         {modules.map((m) => (
           <li key={m.key} className="rounded-lg border border-line bg-surface-raised p-4">
             <h2 className="text-sm font-semibold text-ink">{m.name}</h2>
-            <p className="mt-1 text-xs text-ink-faint">feature/{m.key}</p>
+            <p className="mt-1 text-xs text-ink-muted">feature/{m.key}</p>
           </li>
         ))}
       </ul>
