@@ -179,7 +179,9 @@ export function DataView<Row>({
                       index={index}
                       activeIndex={activeIndex}
                       selectable={Boolean(bulkActions)}
-                      selectLabel={rowSelectionLabel(row, getRowLabel) ?? messages.actions.selectAll}
+                      selectLabel={
+                        rowSelectionLabel(row, getRowLabel) ?? messages.actions.selectAll
+                      }
                       selected={selected.includes(id)}
                       onToggleSelect={() => toggleSelected(id)}
                       onOpen={onOpen ? () => onOpen(row) : undefined}
