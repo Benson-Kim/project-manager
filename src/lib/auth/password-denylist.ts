@@ -1,13 +1,16 @@
+import { SECLISTS_DENYLIST_RAW } from "./password-denylist.data";
+
 /**
  * Password denylist (STANDARDS §4: deny top-10k list). Because the policy
  * already requires >= 12 characters, only denylist entries of 12+ characters
  * can ever match — the length rule excludes the rest of the top-10k for free,
- * so this set only needs the 12+-character entries. The set below is a
- * hand-seeded starter; issue #4 tracks replacing it with the verified
- * 12+-character extraction from SecLists “10-million-password-list-top-10000”
- * (MIT licence — record the source + licence in docs/SECURITY.md when landed).
+ * so this set only needs the 12+-character entries. The authoritative data is
+ * the verified SecLists extraction in ./password-denylist.data.ts (issue #27;
+ * source sha256, entry count and MIT attribution recorded there and in
+ * docs/SECURITY.md). The hand-seeded starter entries below are kept as
+ * project additions — none of them appear in the SecLists subset.
  */
-const ENTRIES = [
+const STARTER_ENTRIES = [
   "1234567890123",
   "123456789012345",
   "1234567890123456",
@@ -34,4 +37,13 @@ const ENTRIES = [
   "welcome12345",
 ] as const;
 
-export const PASSWORD_DENYLIST: ReadonlySet<string> = new Set<string>(ENTRIES);
+/**
+ * Normalise entries at build time (trim + lowercase) so stray whitespace or
+ * casing in the data can never cause a lookup miss — the policy looks up
+ * `password.toLowerCase()` against this set.
+ */
+const normalise = (entry: string): string => entry.trim().toLowerCase();
+
+export const PASSWORD_DENYLIST: ReadonlySet<string> = new Set<string>(
+  [...SECLISTS_DENYLIST_RAW.split("\n"), ...STARTER_ENTRIES].map(normalise),
+);

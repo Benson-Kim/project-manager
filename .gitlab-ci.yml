@@ -213,6 +213,47 @@ lockfile:generate:
     paths:
       - package-lock.json
 
+# Fetch the SecLists top-10k password list (MIT licence) and emit its
+# 12+-character subset (lowercased, trimmed, deduped, sorted) into the job
+# trace as gzip+base64 between the DENYLIST markers, plus the source sha256
+# and entry count — same trace-scrape pattern as lockfile:generate (the
+# workspace proxy blocks all downloads; agent tokens can read traces).
+# Opt-in: "[denylist]" in the commit message; manual utility otherwise.
+denylist:generate:
+  stage: build
+  needs: []
+  cache: []
+  rules:
+    - if: $CI_COMMIT_BRANCH && $CI_COMMIT_MESSAGE =~ /\[denylist\]/
+    - if: $CI_COMMIT_BRANCH
+      when: manual
+      allow_failure: true
+  script:
+    # The historical raw path 404s (verified job 16525176408) — resolve the
+    # current filename via the GitHub contents API and fail loudly if no
+    # top-10000 file exists any more. The listing is printed for the trace.
+    - curl -fsSL "https://api.github.com/repos/danielmiessler/SecLists/contents/Passwords/Common-Credentials" -o listing.json
+    - node -e "for (const f of require('./listing.json')) console.log(f.name)"
+    # 10-million-password-list-top-10000.txt was renamed upstream to
+    # xato-net-10-million-passwords-10000.txt (same Xato 10M corpus) — prefer
+    # it, fall back to any other top-10000 list, fail loudly otherwise.
+    - node -e "const l = require('./listing.json'); const f = l.find((x) => x.name === 'xato-net-10-million-passwords-10000.txt') || l.find((x) => x.name.includes('top-10000') && x.name.endsWith('.txt')); if (!f) { console.error('FAIL - no top-10000 file in Common-Credentials'); process.exit(1); } console.log('resolved', f.download_url); require('fs').writeFileSync('url.txt', f.download_url);"
+    - curl -fsSL "$(cat url.txt)" -o top10k.txt
+    - echo "source sha256" && sha256sum top10k.txt
+    - LINES=$(wc -l < top10k.txt)
+    - echo "source line count $LINES"
+    # Sanity: the top-10000 list must actually have ~10000 lines.
+    - test "$LINES" -ge 9000 && test "$LINES" -le 11000
+    - tr '[:upper:]' '[:lower:]' < top10k.txt | sed -e 's/\r$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | awk 'length($0) >= 12' | sort -u > denylist.txt
+    - echo "denylist entry count (12+ chars) $(wc -l < denylist.txt)"
+    - echo "-----BEGIN DENYLIST B64-----"
+    - gzip -9 -c denylist.txt | base64 -w 120
+    - echo "-----END DENYLIST B64-----"
+  artifacts:
+    expire_in: 3 days
+    paths:
+      - denylist.txt
+
 # Re-verify docs/source/analysis against the three binary artefacts
 # (mdbtools + openpyxl + python-pptx; see docs/source/analysis/VERIFICATION.md).
 verify:sources:
