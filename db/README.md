@@ -21,6 +21,7 @@ CI proof: the `db:apply` job (opt-in `[db]` commit flag; automatic on develop/ma
 | 002 | `app.ViewPreference` (ADR-0006) |
 | 003 | Full domain schema (module #3): 26 entity tables per STANDARDS §2.2 + `app.FinancialDocumentType` lookup. See the header of `003_domain_schema.sql` for the recorded structural decisions (TodoItem/TodoAlert split, FinancialDocument junction, MeetingParticipant surrogate PK, ProjectAssignee, TIME(0) mapping, dropped attachment refs). |
 | 004 | Auth schema (module #4, ADR-0017): `auth.Role` lookup, `auth.User` (§2.2 cols + `SessionVersion` revocation stamp, lockout counters, filtered-unique `Username`), `auth.LoginAttempt` per-IP fixed-window counters, deferred FK `app.ViewPreference.UserId → auth.User`. |
+| 005 | Projects refinements (module #5): `app.Project` gains the remaining checklist row-69 add-ons `ProjectStatus`/`ProjectPhase`/`RiskLevel` (NVARCHAR(50) NULL) + filtered index `IX_Project_Status_Priority`. `usp_Project_{Create,GetById,List,Update}` altered in place for the new columns; `usp_Project_List` gains `@Status`/`@Priority` filters, Mandate search and an extended sort whitelist. |
 
 ## Stored-procedure catalogue (after module #3)
 
@@ -44,6 +45,7 @@ Contracts (uniform, generated together):
 | Proc | Source / purpose |
 |---|---|
 | `usp_Project_Search @Prefix` | type-ahead project search (req 0.2, checklist row 5) |
+| `usp_ProjectAssignee_Set @ProjectId, @AssigneesJson` | replace a project's full assignee set (req 0.3) in one transaction — soft-deletes absentees, revives matches, inserts new; audited (module #5) |
 | `usp_Todo_GetUpcomingAlerts` | port of `qryUpcomingAlerts` — overdue / due-in-2-days, excluding Completed/Cancelled, with the original AlertType classification |
 | `usp_Meeting_GetParticipants @MeetingId` | port of `qryMeetingParticipants` (stakeholder display names + apology flag) |
 | `usp_Meeting_GetAttendees @MeetingId` | port of `qryMeetingAttendees` (`IsApology = 0`) |
