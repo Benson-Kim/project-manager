@@ -18,8 +18,21 @@ foundation module.
   `usp_User_GetByUsername`, never logged or audited.
 - Password policy: min 12 / max 128, no composition rules, denylist
   (`src/lib/auth/password-denylist.ts`; only 12+-character entries can ever
-  match under the length rule — the full SecLists top-10k extraction is
-  tracked on issue #27; include the SecLists MIT licence note when landing it).
+  match under the length rule, so the set holds exactly the 12+-character
+  subset). The denylist is the verified SecLists top-10k extraction (issue
+  #27): source
+  `Passwords/Common-Credentials/xato-net-10-million-passwords-10000.txt`
+  (the renamed successor of `10-million-password-list-top-10000.txt`),
+  sha256 `c63d5e4ccc31344d662583cc39ca4bd5bd20517ff1d24501f0c4e0c22d9b722a`,
+  fetched 2026-09-16 by the `denylist:generate` CI job (opt-in via a
+  `[denylist]` commit flag) — 24 SecLists entries + 24 project starter
+  additions, committed in `src/lib/auth/password-denylist.data.ts`. The
+  subset is tiny (<1 KB), so it ships in the shared client/server policy
+  module — no server-only split needed.
+  **Attribution:** the denylist data derives from
+  [SecLists](https://github.com/danielmiessler/SecLists) by Daniel Miessler
+  and Jason Haddix, MIT licence
+  (<https://github.com/danielmiessler/SecLists/blob/master/LICENSE>).
 - **JWT sessions** (encrypted, `AUTH_SECRET` ≥ 32 random bytes env-only, 8 h
   maxAge, `SameSite=Lax`/`HttpOnly`/`Secure` Auth.js defaults) with a
   **SessionVersion revocation stamp**: `src/lib/auth/provider.ts` re-checks the
