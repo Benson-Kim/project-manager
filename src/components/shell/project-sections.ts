@@ -18,6 +18,7 @@ export interface ProjectSection {
 
 export const projectSections: ProjectSection[] = [
   { segment: ".", label: messages.projects.charterSection, match: "exact" },
+  { segment: "deliverables", label: messages.keyDeliverables.title, match: "prefix" },
 ];
 
 export function sectionHref(projectId: number, section: ProjectSection): string {
