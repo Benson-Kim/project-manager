@@ -32,6 +32,9 @@ CREATE OR ALTER PROCEDURE dbo.usp_Project_Create
     @SimilarProject BIT,
     @ProjectPriority NVARCHAR(50) = NULL,
     @EstimatedCompletionDate DATETIME2 = NULL,
+    @ProjectStatus NVARCHAR(50) = NULL,
+    @ProjectPhase NVARCHAR(50) = NULL,
+    @RiskLevel NVARCHAR(50) = NULL,
     @ActorUserId INT
 AS
 BEGIN
@@ -41,14 +44,14 @@ BEGIN
         THROW 50004, N'VALIDATION:ProjectName is required', 1;
     BEGIN TRAN;
 
-    INSERT INTO app.Project ([ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], CreatedBy)
-    VALUES (@ProjectName, @ProjectManager, @BusinessAnalyst, @ProjectDocs, @ProjectSponsor, @DateOfProject, @ProblemStatement, @CurrentState, @FutureState, @UserImpact, @Mandate, @ProjectStatusCom, @ExistBusMod, @A1, @DA, @DAS, @PurchaseOrder, @Requisition, @DO, @FinancingSource, @FinancingCost, @RecurrentCost, @PurchaseEquipment, @EquipmentNotes, @StartDate, @EndDate, @SimilarProject, @ProjectPriority, @EstimatedCompletionDate, @ActorUserId);
+    INSERT INTO app.Project ([ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel], CreatedBy)
+    VALUES (@ProjectName, @ProjectManager, @BusinessAnalyst, @ProjectDocs, @ProjectSponsor, @DateOfProject, @ProblemStatement, @CurrentState, @FutureState, @UserImpact, @Mandate, @ProjectStatusCom, @ExistBusMod, @A1, @DA, @DAS, @PurchaseOrder, @Requisition, @DO, @FinancingSource, @FinancingCost, @RecurrentCost, @PurchaseEquipment, @EquipmentNotes, @StartDate, @EndDate, @SimilarProject, @ProjectPriority, @EstimatedCompletionDate, @ProjectStatus, @ProjectPhase, @RiskLevel, @ActorUserId);
 
     DECLARE @Id INT = SCOPE_IDENTITY();
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, AfterJson)
     VALUES (@ActorUserId, N'Create', N'app.Project', CAST(@Id AS NVARCHAR(64)),
-            (SELECT ProjectId, [ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate]
+            (SELECT ProjectId, [ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel]
              FROM app.Project WHERE ProjectId = @Id
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
@@ -84,6 +87,9 @@ BEGIN
            [SimilarProject],
            [ProjectPriority],
            [EstimatedCompletionDate],
+           [ProjectStatus],
+           [ProjectPhase],
+           [RiskLevel],
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer
