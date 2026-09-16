@@ -7,10 +7,16 @@ import { AppError } from "@/lib/errors";
 import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getViewPreference } from "@/lib/repositories/view-preference";
-import { StakeholderSheet, type ProjectOption } from "@/modules/stakeholders/components/stakeholder-sheet";
+import {
+  StakeholderSheet,
+  type ProjectOption,
+} from "@/modules/stakeholders/components/stakeholder-sheet";
 import { StakeholdersToolbar } from "@/modules/stakeholders/components/stakeholders-toolbar";
 import { StakeholdersView } from "@/modules/stakeholders/components/stakeholders-view";
-import { getStakeholderById, listStakeholders } from "@/modules/stakeholders/repository/stakeholders";
+import {
+  getStakeholderById,
+  listStakeholders,
+} from "@/modules/stakeholders/repository/stakeholders";
 import { stakeholderFiltersSchema } from "@/modules/stakeholders/schemas/stakeholder";
 import { listProjects } from "@/modules/projects/repository/projects";
 
