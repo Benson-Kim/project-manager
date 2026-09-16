@@ -214,6 +214,7 @@ export function KitchenSink() {
               page={1}
               initialView="grid"
               getRowId={(row) => row.id}
+              getRowLabel={(row) => row.name}
               renderCard={(row) => (
                 <div>
                   <p className="text-sm font-semibold text-ink">{row.name}</p>

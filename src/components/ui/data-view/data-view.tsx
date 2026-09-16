@@ -6,7 +6,7 @@ import { messages } from "@/lib/messages";
 import { useAnnouncer } from "../announcer";
 import { EmptyState } from "../states";
 import { saveViewPreference } from "./save-view-preference";
-import { priorityClass, type DataViewProps } from "./types";
+import { priorityClass, rowSelectionLabel, type DataViewProps } from "./types";
 import { useListUrlState } from "./use-list-url-state";
 
 /**
@@ -23,6 +23,7 @@ export function DataView<Row>({
   pageSize = DEFAULT_PAGE_SIZE,
   initialView,
   getRowId,
+  getRowLabel,
   renderCard,
   columns,
   onOpen,
@@ -178,6 +179,7 @@ export function DataView<Row>({
                       index={index}
                       activeIndex={activeIndex}
                       selectable={Boolean(bulkActions)}
+                      selectLabel={rowSelectionLabel(row, getRowLabel) ?? messages.actions.selectAll}
                       selected={selected.includes(id)}
                       onToggleSelect={() => toggleSelected(id)}
                       onOpen={onOpen ? () => onOpen(row) : undefined}
@@ -223,7 +225,7 @@ export function DataView<Row>({
                         <td className="w-11 p-2">
                           <input
                             type="checkbox"
-                            aria-label={String(id)}
+                            aria-label={rowSelectionLabel(row, getRowLabel) ?? String(id)}
                             checked={selected.includes(id)}
                             onClick={(e) => e.stopPropagation()}
                             onChange={() => toggleSelected(id)}
@@ -277,6 +279,7 @@ function DataRowShell({
   index,
   activeIndex,
   selectable,
+  selectLabel,
   selected,
   onToggleSelect,
   onOpen,
@@ -287,6 +290,7 @@ function DataRowShell({
   index: number;
   activeIndex: number;
   selectable: boolean;
+  selectLabel: string;
   selected: boolean;
   onToggleSelect: () => void;
   onOpen?: () => void;
@@ -304,7 +308,7 @@ function DataRowShell({
       {selectable ? (
         <input
           type="checkbox"
-          aria-label={messages.actions.selectAll}
+          aria-label={selectLabel}
           checked={selected}
           onClick={(e) => e.stopPropagation()}
           onChange={onToggleSelect}
