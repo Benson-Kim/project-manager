@@ -200,6 +200,7 @@ export const messages = {
     invalidDate: "Enter a valid date",
     reload: "Reload",
     deliverableFallback: (id: number) => `Deliverable ${id}`,
+  },
   stakeholders: {
     title: "Stakeholders",
     entity: "stakeholder",
