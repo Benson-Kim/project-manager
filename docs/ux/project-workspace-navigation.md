@@ -290,11 +290,11 @@ src/app/(app)/projects/[id]/
 
 | # | Risk / question | Proposed owner |
 |---|---|---|
-| Q1 | Does the ADR-0009 unsaved-changes guard intercept client-side Link navigation (not just `beforeunload`)? Section switching makes this hot. | layout MR (verify + fix), tracked in the new UX issue |
+| Q1 | Does the ADR-0009 unsaved-changes guard intercept client-side Link navigation (not just `beforeunload`)? Section switching makes this hot. | **Resolved (MR !14)**: it did not — the guard was `beforeunload` + the Cancel button only. `useUnsavedChangesGuard` now intercepts internal link clicks at the document capture phase (pure logic unit-tested in `unsaved-guard.test.ts`); `ProjectForm` adopted it. |
 | Q2 | 15 links at 1280 px: is scroll-overflow acceptable to the PO, or is (c) primary+More wanted at ≥ lg? Decide after first usability pass with seeded data. | new UX issue; PO |
-| Q3 | `feature/stakeholders` may land `/(app)/stakeholders` top-level routes before the layout MR. Coordinate the move. | comment on #6's MR; layout MR |
+| Q3 | `feature/stakeholders` may land `/(app)/stakeholders` top-level routes before the layout MR. Coordinate the move. | **Resolved (MR !14)**: MR !11 was still open when the layout landed — nothing registered for stakeholders; comment posted on !11/#6 asking for `projects/[id]/stakeholders/` per ADR-0018. |
 | Q4 | `ExistingSystemInterface` has no module issue — charter field group or resources section? | #16 (it-resource-planning) |
-| Q5 | Shell-scale 36 px vs STANDARDS 44 px touch targets for nav pills needs a one-line STANDARDS clarification when ADR-0018 is accepted. | ADR-0018 acceptance MR |
+| Q5 | Shell-scale 36 px vs STANDARDS 44 px touch targets for nav pills needs a one-line STANDARDS clarification when ADR-0018 is accepted. | **Resolved (MR !14)**: STANDARDS §5.3 clarified — nav/shell controls use the 36 px shell scale (`min-h-9`); `min-h-11` applies to non-button interactive rows in content. |
 | Q6 | Header search doubling as jump-to-SECTION (candidate f) — worth it after ≥ 8 sections exist. | future enhancement issue |
 
 ## Sources

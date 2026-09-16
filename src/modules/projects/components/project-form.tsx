@@ -1,13 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useAnnouncer } from "@/components/ui/announcer";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { DatePicker, Input, Select, Switch, Textarea } from "@/components/ui/form/inputs";
+import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
@@ -61,18 +62,11 @@ export function ProjectForm({
   const [summary, setSummary] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [confirmLeave, setConfirmLeave] = useState(false);
   const [dirty, setDirty] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-
-  useEffect(() => {
-    if (!dirty) return;
-    const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [dirty]);
+  // ADR-0009 guard: beforeunload for full unloads PLUS interception of
+  // client-side <Link> navigation (section nav, sidebar — ADR-0018 Q1).
+  const guard = useUnsavedChangesGuard(dirty);
 
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -126,8 +120,7 @@ export function ProjectForm({
   };
 
   const back = () => {
-    if (dirty) setConfirmLeave(true);
-    else router.push("/projects");
+    guard.requestNavigation("/projects");
   };
 
   return (
@@ -361,15 +354,14 @@ export function ProjectForm({
         />
       ) : null}
       <ConfirmDialog
-        open={confirmLeave}
-        onOpenChange={setConfirmLeave}
+        open={guard.confirmOpen}
+        onOpenChange={(open) => {
+          if (!open) guard.cancel();
+        }}
         title={messages.feedback.unsavedChangesTitle}
         body={messages.feedback.unsavedChangesBody}
         confirmLabel={messages.feedback.discard}
-        onConfirm={() => {
-          setDirty(false);
-          router.push("/projects");
-        }}
+        onConfirm={guard.discard}
       />
     </form>
   );

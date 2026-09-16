@@ -1,6 +1,8 @@
 # ADR-0018 — Project workspace navigation: nested layout + scrollable section links
 
-Status: Proposed · Date: 2026-09-16 · Session: UX research (#29)
+Status: Accepted · Date: 2026-09-16 (proposed and accepted) · Session: UX research (#29);
+accepted in the layout MR
+[!14](https://gitlab.com/shnie/projectmanager/-/merge_requests/14)
 
 Full research (inventory, comparison matrix, wireframes, a11y/mobile spec):
 [`docs/ux/project-workspace-navigation.md`](../ux/project-workspace-navigation.md).
@@ -17,7 +19,7 @@ lists, Reports, Settings, Logout). Modules must reuse DataView (ADR-0006), the l
 proc contract (ADR-0016) and the Sheet/full-route split (ADR-0010); every screen must
 be deep-linkable for multi-window use; mobile-first at 360 px.
 
-## Decision (Proposed)
+## Decision
 
 1. **Nested layout** `src/app/(app)/projects/[id]/layout.tsx` (server component):
    validates the id, fetches the project once, renders `ProjectHeader` (project name,
