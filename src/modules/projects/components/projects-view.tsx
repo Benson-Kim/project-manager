@@ -106,10 +106,7 @@ export function ProjectsView({
       columns={columns}
       empty={
         filtersActive ? (
-          <EmptyState
-            title={messages.list.zeroResultsTitle}
-            body={messages.list.zeroResultsBody}
-          />
+          <EmptyState title={messages.list.zeroResultsTitle} body={messages.list.zeroResultsBody} />
         ) : (
           <EmptyState
             title={messages.list.emptyTitle}

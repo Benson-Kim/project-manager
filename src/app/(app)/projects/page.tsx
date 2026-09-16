@@ -47,10 +47,7 @@ export default async function ProjectsPage({
 
   return (
     <>
-      <PageHeader
-        title={messages.projects.title}
-        action={canCreate ? newProjectLink : undefined}
-      />
+      <PageHeader title={messages.projects.title} action={canCreate ? newProjectLink : undefined} />
       <ProjectsToolbar />
       <div className="mt-3">
         <ProjectsView
