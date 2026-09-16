@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
@@ -9,26 +8,25 @@ import { AssigneesEditor } from "@/modules/projects/components/assignees-editor"
 import { ProjectForm } from "@/modules/projects/components/project-form";
 import { listAssigneeOptions } from "@/modules/projects/repository/assignee-options";
 import { listProjectAssignees } from "@/modules/projects/repository/project-assignees";
-import { getProjectById } from "@/modules/projects/repository/projects";
-
-export const metadata: Metadata = {
-  title: `${messages.projects.title} — ${messages.app.name}`,
-};
+import { getProjectCached } from "./get-project";
+import { parseProjectId } from "./project-id";
 
 /**
  * Charter workspace — full route (ADR-0010 exception): sections Charter,
  * Framework, Financing (ONE form) + Assignees (req 0.3). Deep-linkable so
- * several projects can be open side by side (req 0.1).
+ * several projects can be open side by side (req 0.1). The project header and
+ * section nav come from the nested layout (ADR-0018); the project fetch is
+ * shared with the layout via React cache (no double fetch).
  */
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth.requireSession();
   const { id } = await params;
-  const projectId = Number(id);
-  if (!Number.isInteger(projectId) || projectId < 1) notFound();
+  const projectId = parseProjectId(id);
+  if (projectId === null) notFound();
 
   let project;
   try {
-    project = await getProjectById(projectId, session.userId);
+    project = await getProjectCached(projectId, session.userId);
   } catch (err) {
     if (err instanceof AppError && err.code === "NOT_FOUND") notFound();
     throw err;
@@ -44,7 +42,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="mx-auto w-full max-w-3xl">
-      <PageHeader title={project.ProjectName} />
+      <PageHeader title={messages.projects.charterSection} />
       <ProjectForm project={project} canEdit={canEdit} canDelete={canDelete} />
       <AssigneesEditor
         projectId={projectId}

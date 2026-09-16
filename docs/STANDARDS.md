@@ -233,6 +233,9 @@ system/light/dark via `ThemeProvider`, applied pre-paint (no flash).
   (the `px-6` rule does not apply to them). Non-button interactive rows keep
   `min-h-11`. Accent token: `#102542` light / `#a9c4e8` dark (WCAG AA-verified
   pairings in `src/app/globals.css`).
+- Nav/shell controls (sidebar items, project section nav pills, header actions) use
+  the 36 px shell scale (`min-h-9` — issue #28, ADR-0018); the 44 px `min-h-11` rule
+  applies to non-button interactive rows in content, not to navigation chrome.
 - Safe-area insets respected (`pb-[env(safe-area-inset-bottom)]` on bottom nav/sticky
   bars); PWA display standalone.
 - ONE navigation pattern (issue #28): desktop sidebar (≥ md: logo, New project,
