@@ -1,10 +1,10 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ProjectHeader } from "@/components/shell/project-header";
 import { ProjectSectionNav } from "@/components/shell/project-section-nav";
 import { auth } from "@/lib/auth/provider";
 import { AppError } from "@/lib/errors";
 import { messages } from "@/lib/messages";
-import type { Metadata } from "next";
 import { getProjectCached } from "./get-project";
 import { parseProjectId } from "./project-id";
 
