@@ -5,6 +5,10 @@ import { rowVerSchema } from "@/modules/projects/schemas/project";
  * Supplier (app.Supplier ← tbl3rdPartySupplier) — zod contracts. Row schema
  * mirrors the SELECT shape of usp_Supplier_{Create,GetById,List,Update}.
  */
+
+/** UI rating vocabulary (module #7; seed data uses Excellent/Good — DB column stays free-text). */
+export const SUPPLIER_RATINGS = ["Excellent", "Good", "Fair", "Poor"] as const;
+
 export const supplierRowSchema = z.object({
   SupplierId: z.number().int(),
   ProjectId: z.number().int(),
@@ -56,3 +60,10 @@ export const updateSupplierInput = createSupplierInput.extend({
 });
 
 export type UpdateSupplierInput = z.input<typeof updateSupplierInput>;
+
+export const deleteSupplierInput = z.object({
+  supplierId: z.coerce.number().int().positive(),
+  rowVer: rowVerSchema,
+});
+
+export type DeleteSupplierInput = z.input<typeof deleteSupplierInput>;
