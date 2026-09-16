@@ -18,7 +18,7 @@ export function Badge({ value }: { value: string | null }) {
 
 export function OverdueBadge() {
   return (
-    <span className="inline-flex items-center rounded-full border border-danger px-2 py-0.5 text-xs font-medium text-danger">
+    <span className="inline-flex items-center rounded-full border border-danger bg-danger-soft px-2 py-0.5 text-xs font-medium text-danger">
       {messages.keyDeliverables.overdue}
     </span>
   );
