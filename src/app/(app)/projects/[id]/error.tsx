@@ -1,0 +1,24 @@
+"use client";
+
+import { useEffect } from "react";
+import { ErrorState } from "@/components/ui/states";
+import { messages } from "@/lib/messages";
+
+/** Segment error boundary for the project workspace (/projects/[id]). */
+export default function ProjectWorkspaceError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  useEffect(() => {
+    console.error(error);
+  }, [error]);
+
+  return (
+    <div className="py-8">
+      <ErrorState title={messages.app.errorTitle} onRetry={reset} />
+    </div>
+  );
+}
