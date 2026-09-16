@@ -6,7 +6,7 @@ import { messages } from "@/lib/messages";
 import { useAnnouncer } from "../announcer";
 import { EmptyState } from "../states";
 import { saveViewPreference } from "./save-view-preference";
-import { priorityClass, type DataViewProps } from "./types";
+import { priorityClass, rowSelectionLabel, type DataViewProps } from "./types";
 import { useListUrlState } from "./use-list-url-state";
 
 /**
@@ -23,6 +23,7 @@ export function DataView<Row>({
   pageSize = DEFAULT_PAGE_SIZE,
   initialView,
   getRowId,
+  getRowLabel,
   renderCard,
   columns,
   onOpen,
@@ -117,7 +118,7 @@ export function DataView<Row>({
             aria-pressed={view === "grid"}
             data-testid="view-grid"
             onClick={() => setView("grid")}
-            className={`flex size-11 items-center justify-center rounded-l-md ${view === "grid" ? "bg-accent-soft text-accent" : "text-ink-muted"}`}
+            className={`flex min-h-9 min-w-9 items-center justify-center rounded-l-md ${view === "grid" ? "bg-accent-soft text-accent" : "text-ink-muted"}`}
           >
             <svg viewBox="0 0 16 16" className="size-4" fill="currentColor" aria-hidden="true">
               <rect x="1" y="1" width="6" height="6" rx="1" />
@@ -132,7 +133,7 @@ export function DataView<Row>({
             aria-pressed={view === "list"}
             data-testid="view-list"
             onClick={() => setView("list")}
-            className={`flex size-11 items-center justify-center rounded-r-md ${view === "list" ? "bg-accent-soft text-accent" : "text-ink-muted"}`}
+            className={`flex min-h-9 min-w-9 items-center justify-center rounded-r-md ${view === "list" ? "bg-accent-soft text-accent" : "text-ink-muted"}`}
           >
             <svg viewBox="0 0 16 16" className="size-4" fill="currentColor" aria-hidden="true">
               <rect x="1" y="2" width="14" height="2.5" rx="1" />
@@ -153,7 +154,7 @@ export function DataView<Row>({
             <button
               type="button"
               onClick={clearSelection}
-              className="min-h-11 px-3 text-sm font-medium text-ink-muted"
+              className="min-h-9 px-6 text-sm font-medium text-ink-muted"
             >
               {messages.actions.clearSelection}
             </button>
@@ -178,6 +179,9 @@ export function DataView<Row>({
                       index={index}
                       activeIndex={activeIndex}
                       selectable={Boolean(bulkActions)}
+                      selectLabel={
+                        rowSelectionLabel(row, getRowLabel) ?? messages.actions.selectAll
+                      }
                       selected={selected.includes(id)}
                       onToggleSelect={() => toggleSelected(id)}
                       onOpen={onOpen ? () => onOpen(row) : undefined}
@@ -223,7 +227,7 @@ export function DataView<Row>({
                         <td className="w-11 p-2">
                           <input
                             type="checkbox"
-                            aria-label={String(id)}
+                            aria-label={rowSelectionLabel(row, getRowLabel) ?? String(id)}
                             checked={selected.includes(id)}
                             onClick={(e) => e.stopPropagation()}
                             onChange={() => toggleSelected(id)}
@@ -254,7 +258,7 @@ export function DataView<Row>({
             type="button"
             disabled={page <= 1}
             onClick={() => update({ page: String(page - 1) }, { push: true })}
-            className="min-h-11 rounded-md border border-line px-4 text-sm font-medium text-ink disabled:opacity-50"
+            className="min-h-9 rounded-md border border-line px-6 text-sm font-medium text-ink disabled:opacity-50"
           >
             {messages.list.previousPage}
           </button>
@@ -263,7 +267,7 @@ export function DataView<Row>({
             type="button"
             disabled={page >= pages}
             onClick={() => update({ page: String(page + 1) }, { push: true })}
-            className="min-h-11 rounded-md border border-line px-4 text-sm font-medium text-ink disabled:opacity-50"
+            className="min-h-9 rounded-md border border-line px-6 text-sm font-medium text-ink disabled:opacity-50"
           >
             {messages.list.nextPage}
           </button>
@@ -277,6 +281,7 @@ function DataRowShell({
   index,
   activeIndex,
   selectable,
+  selectLabel,
   selected,
   onToggleSelect,
   onOpen,
@@ -287,6 +292,7 @@ function DataRowShell({
   index: number;
   activeIndex: number;
   selectable: boolean;
+  selectLabel: string;
   selected: boolean;
   onToggleSelect: () => void;
   onOpen?: () => void;
@@ -304,7 +310,7 @@ function DataRowShell({
       {selectable ? (
         <input
           type="checkbox"
-          aria-label={messages.actions.selectAll}
+          aria-label={selectLabel}
           checked={selected}
           onClick={(e) => e.stopPropagation()}
           onChange={onToggleSelect}
