@@ -33,6 +33,9 @@ CREATE OR ALTER PROCEDURE dbo.usp_Project_Update
     @SimilarProject BIT,
     @ProjectPriority NVARCHAR(50) = NULL,
     @EstimatedCompletionDate DATETIME2 = NULL,
+    @ProjectStatus NVARCHAR(50) = NULL,
+    @ProjectPhase NVARCHAR(50) = NULL,
+    @RiskLevel NVARCHAR(50) = NULL,
     @RowVer BIGINT,
     @ActorUserId INT
 AS
@@ -50,7 +53,7 @@ BEGIN
     BEGIN TRAN;
 
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT ProjectId, [ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate]
+        (SELECT ProjectId, [ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel]
          FROM app.Project WHERE ProjectId = @ProjectId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 
@@ -84,13 +87,16 @@ BEGIN
         [SimilarProject] = @SimilarProject,
         [ProjectPriority] = @ProjectPriority,
         [EstimatedCompletionDate] = @EstimatedCompletionDate,
+        [ProjectStatus] = @ProjectStatus,
+        [ProjectPhase] = @ProjectPhase,
+        [RiskLevel] = @RiskLevel,
         UpdatedAtUtc = SYSUTCDATETIME(),
         UpdatedBy    = @ActorUserId
     WHERE ProjectId = @ProjectId AND IsDeleted = 0;
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.Project', CAST(@ProjectId AS NVARCHAR(64)), @Before,
-            (SELECT ProjectId, [ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate]
+            (SELECT ProjectId, [ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel]
              FROM app.Project WHERE ProjectId = @ProjectId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
@@ -126,6 +132,9 @@ BEGIN
            [SimilarProject],
            [ProjectPriority],
            [EstimatedCompletionDate],
+           [ProjectStatus],
+           [ProjectPhase],
+           [RiskLevel],
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer

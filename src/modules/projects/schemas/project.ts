@@ -40,6 +40,9 @@ export const projectRowSchema = z.object({
   SimilarProject: z.boolean(),
   ProjectPriority: z.string().nullable(),
   EstimatedCompletionDate: z.date().nullable(),
+  ProjectStatus: z.string().nullable(),
+  ProjectPhase: z.string().nullable(),
+  RiskLevel: z.string().nullable(),
   CreatedAtUtc: z.date(),
   UpdatedAtUtc: z.date().nullable(),
   RowVer: rowVerSchema,
@@ -92,6 +95,9 @@ export const createProjectInput = z.object({
   similarProject: z.boolean().default(false),
   projectPriority: z.string().trim().max(50).nullish(),
   estimatedCompletionDate: z.coerce.date().nullish(),
+  projectStatus: z.string().trim().max(50).nullish(),
+  projectPhase: z.string().trim().max(50).nullish(),
+  riskLevel: z.string().trim().max(50).nullish(),
 });
 
 /** What callers may pass (defaults still optional). */
@@ -106,3 +112,49 @@ export const updateProjectInput = createProjectInput.extend({
 
 export type UpdateProjectInput = z.input<typeof updateProjectInput>;
 export type UpdateProjectParsed = z.infer<typeof updateProjectInput>;
+
+export const deleteProjectInput = z.object({
+  projectId: z.coerce.number().int().positive(),
+  rowVer: rowVerSchema,
+});
+
+export type DeleteProjectInput = z.input<typeof deleteProjectInput>;
+
+/** Module filter params (URL ⇄ usp_Project_List @Status/@Priority). */
+export const projectFiltersSchema = z.object({
+  status: z.string().trim().max(50).optional(),
+  priority: z.string().trim().max(50).optional(),
+});
+
+export type ProjectFilters = z.infer<typeof projectFiltersSchema>;
+
+/** ProjectAssignee (app.ProjectAssignee — req 0.3 one-or-many PMs/Sponsors/BAs). */
+export const ASSIGNEE_ROLES = ["ProjectManager", "Sponsor", "BusinessAnalyst"] as const;
+export type AssigneeRole = (typeof ASSIGNEE_ROLES)[number];
+
+export const projectAssigneeRowSchema = z.object({
+  ProjectAssigneeId: z.number().int(),
+  ProjectId: z.number().int(),
+  Role: z.enum(ASSIGNEE_ROLES),
+  PersonName: z.string(),
+  UserId: z.number().int().nullable(),
+  CreatedAtUtc: z.date(),
+  UpdatedAtUtc: z.date().nullable(),
+  RowVer: rowVerSchema,
+});
+
+export type ProjectAssigneeRow = z.infer<typeof projectAssigneeRowSchema>;
+
+export const assigneeInput = z.object({
+  role: z.enum(ASSIGNEE_ROLES),
+  personName: z.string().trim().min(1).max(255),
+  userId: z.number().int().positive().nullish(),
+});
+
+export const setProjectAssigneesInput = z.object({
+  projectId: z.coerce.number().int().positive(),
+  assignees: z.array(assigneeInput).max(100),
+});
+
+export type SetProjectAssigneesInput = z.input<typeof setProjectAssigneesInput>;
+export type SetProjectAssigneesParsed = z.infer<typeof setProjectAssigneesInput>;

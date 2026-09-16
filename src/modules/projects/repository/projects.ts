@@ -8,6 +8,7 @@ import {
   updateProjectInput,
   type CreateProjectInput,
   type CreateProjectParsed,
+  type ProjectFilters,
   type ProjectListRow,
   type ProjectRow,
   type ProjectSearchRow,
@@ -50,6 +51,9 @@ function toProcParams(input: CreateProjectParsed) {
     SimilarProject: input.similarProject,
     ProjectPriority: input.projectPriority ?? null,
     EstimatedCompletionDate: input.estimatedCompletionDate ?? null,
+    ProjectStatus: input.projectStatus ?? null,
+    ProjectPhase: input.projectPhase ?? null,
+    RiskLevel: input.riskLevel ?? null,
   };
 }
 
@@ -76,11 +80,14 @@ export async function getProjectById(projectId: number, actorUserId: number): Pr
 export async function listProjects(
   params: ListParams,
   actorUserId: number,
+  filters: ProjectFilters = {},
   pageSize: number = DEFAULT_PAGE_SIZE,
 ): Promise<ProjectListRow[]> {
   const rows = await execProc<ProjectListRow>("usp_Project_List", {
     ActorUserId: actorUserId,
     ProjectId: null,
+    Status: filters.status ?? null,
+    Priority: filters.priority ?? null,
     ...toProcListParams(params, pageSize),
   });
   return rows.map((r) => projectListRowSchema.parse(r));
