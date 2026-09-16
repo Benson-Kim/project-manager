@@ -8,7 +8,7 @@ export default function NotFound() {
       <p className="text-sm text-ink-muted">{messages.app.notFoundBody}</p>
       <Link
         href="/"
-        className="mt-2 inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-sm font-medium text-on-accent"
+        className="mt-2 inline-flex min-h-9 items-center rounded-md bg-accent px-6 text-sm font-medium text-on-accent"
       >
         {messages.app.goHome}
       </Link>
