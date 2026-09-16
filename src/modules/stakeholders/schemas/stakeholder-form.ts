@@ -46,7 +46,10 @@ export const stakeholderFormSchema = z.object({
     .trim()
     .max(255)
     .optional()
-    .refine((v) => !v || z.string().email().safeParse(v).success, messages.stakeholders.invalidEmail)
+    .refine(
+      (v) => !v || z.string().email().safeParse(v).success,
+      messages.stakeholders.invalidEmail,
+    )
     .transform((v) => (v ? v : null)),
   physicalLocation: optionalText(255),
   orgTitle: optionalText(255),
