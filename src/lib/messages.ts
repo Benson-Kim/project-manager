@@ -91,6 +91,7 @@ export const messages = {
     previousPage: "Previous page",
     nextPage: "Next page",
     selectedCount: (n: number) => (n === 1 ? "1 selected" : `${n} selected`),
+    selectRow: (label: string) => `Select ${label}`,
     emptyTitle: "Nothing here yet",
     zeroResultsTitle: "No results",
     zeroResultsBody: "No records match your search or filters.",
