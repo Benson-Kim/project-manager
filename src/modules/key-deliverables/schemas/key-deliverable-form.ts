@@ -31,11 +31,7 @@ const optionalId = z
 
 export const keyDeliverableFormSchema = z.object({
   projectId: z.coerce.number().int().positive(),
-  keyRequirement: z
-    .string()
-    .trim()
-    .min(1, messages.keyDeliverables.requirementRequired)
-    .max(4000),
+  keyRequirement: z.string().trim().min(1, messages.keyDeliverables.requirementRequired).max(4000),
   deadline: dateInput,
   assignedToStakeholderId: optionalId,
   priority: optionalChoice,

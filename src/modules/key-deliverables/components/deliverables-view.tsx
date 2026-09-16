@@ -23,9 +23,7 @@ export function formatDate(value: Date | null | undefined): string {
 }
 
 function rowLabel(row: { KeyRequirement: string | null; KeyDeliverableId: number }): string {
-  return (
-    row.KeyRequirement ?? messages.keyDeliverables.deliverableFallback(row.KeyDeliverableId)
-  );
+  return row.KeyRequirement ?? messages.keyDeliverables.deliverableFallback(row.KeyDeliverableId);
 }
 
 type Row = KeyDeliverableListRow & { AssigneeName: string | null };

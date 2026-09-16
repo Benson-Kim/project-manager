@@ -19,10 +19,7 @@ const DAY_MS = 86_400_000;
 export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: number }) {
   if (bars.length === 0) {
     return (
-      <EmptyState
-        title={messages.list.emptyTitle}
-        body={messages.keyDeliverables.ganttEmptyBody}
-      />
+      <EmptyState title={messages.list.emptyTitle} body={messages.keyDeliverables.ganttEmptyBody} />
     );
   }
 

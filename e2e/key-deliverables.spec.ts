@@ -29,9 +29,7 @@ test("create deliverable happy path — appears in the list", async ({ page }) =
 test("validation failure — empty requirement shows the inline error", async ({ page }) => {
   await page.goto("/projects/2/deliverables?d=new");
   await page.getByTestId("deliverable-save").click();
-  await expect(
-    page.getByText(messages.keyDeliverables.requirementRequired).first(),
-  ).toBeVisible();
+  await expect(page.getByText(messages.keyDeliverables.requirementRequired).first()).toBeVisible();
   await expect(
     page.getByRole("alert").filter({ hasText: messages.errors.summaryTitle }),
   ).toBeVisible();
@@ -66,9 +64,7 @@ test("axe scan on the deliverables list has no serious or critical violations", 
   page,
 }) => {
   await page.goto("/projects/2/deliverables");
-  await expect(
-    page.getByRole("heading", { name: messages.keyDeliverables.title }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: messages.keyDeliverables.title })).toBeVisible();
   const results = await new AxeBuilder({ page }).analyze();
   const serious = results.violations.filter((v) =>
     ["serious", "critical"].includes(v.impact ?? ""),
