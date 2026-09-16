@@ -100,7 +100,7 @@ export function ProjectsView({
           {row.ProjectManager ? (
             <p className="text-xs text-ink-muted">{row.ProjectManager}</p>
           ) : null}
-          {dateRange(row) ? <p className="text-xs text-ink-faint">{dateRange(row)}</p> : null}
+          {dateRange(row) ? <p className="text-xs text-ink-muted">{dateRange(row)}</p> : null}
         </div>
       )}
       columns={columns}
