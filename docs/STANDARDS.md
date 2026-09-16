@@ -228,11 +228,21 @@ system/light/dark via `ThemeProvider`, applied pre-paint (no flash).
 ### 5.3 Layout rules
 
 - Design at 360 px first; enhance upward (`sm/md/lg`). Test at 360/768/1280.
-- Touch targets ≥ 44 × 44 px (`min-h-11` on interactive rows/buttons).
+- Button-like controls use `px-6` + `min-h-9` (36 px minimum hit target — product
+  owner sizing, issue #28); icon-only buttons stay square with `min-h-9 min-w-9`
+  (the `px-6` rule does not apply to them). Non-button interactive rows keep
+  `min-h-11`. Accent token: `#102542` light / `#a9c4e8` dark (WCAG AA-verified
+  pairings in `src/app/globals.css`).
+- Nav/shell controls (sidebar items, project section nav pills, header actions) use
+  the 36 px shell scale (`min-h-9` — issue #28, ADR-0018); the 44 px `min-h-11` rule
+  applies to non-button interactive rows in content, not to navigation chrome.
 - Safe-area insets respected (`pb-[env(safe-area-inset-bottom)]` on bottom nav/sticky
   bars); PWA display standalone.
-- ONE navigation pattern: bottom tab bar (≤ md: Projects, To-Do, +context, Menu) and
-  desktop sidebar (≥ md) — both rendered by `src/components/shell/`.
+- ONE navigation pattern (issue #28): desktop sidebar (≥ md: logo, New project,
+  Dashboard/Projects/Daily activities/To-do lists/Reports, Settings + Logout pinned)
+  and a hamburger drawer (< md, focus-trapped Sheet) — both rendered by
+  `src/components/shell/`. The header shows the page title plus notifications bell,
+  theme toggle and avatar menu.
 - ONE page anatomy: `PageHeader` (title + primary action) → `Toolbar`
   (search/filter/sort/view toggle) → content → sticky primary action on mobile where
   the header scrolled away.

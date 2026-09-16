@@ -313,8 +313,8 @@ to develop, verify staging deploy job, close issue.
 | 2 | database-schema-and-procs (#3) | All §2 tables + FKs + indexes; CRUD procs per entity; ALL seeds from access-database.md §4 (incl. 5 meetings, 9 document types); `usp_Project_Search`; import mechanism = seeds (checklist row 61) |
 | 3 | auth-and-rbac (#4) | auth.User/Role/UserRole/Session tables + procs; Auth.js credentials + bcrypt/argon2; role guards; login rate limiting; seed admin user (forced password change); audit Login/Logout — **delivered, MR !8**: migration 004 (`auth.Role`/`User`/`LoginAttempt`), 12 procs, Auth.js v5 + argon2id, JWT + SessionVersion revocation (ADR-0017), IP rate limit + lockout, seeded admin (hash from `SEED_ADMIN_PASSWORD` at seed time), Login/Logout audit in-proc; e2e RBAC-denial spec deferred to #26, full SecLists denylist to #27 |
 | 4 | projects (#5) | charter screen, type-ahead search (row 5), M:N assignees (row 6), add-ons (row 69: priority, est. completion, phase, risk level, status) |
-| 5 | stakeholders (#6) | CRUD + comm-preference/engagement dropdowns (row 70) |
-| 6 | suppliers (#7) | CRUD + contact/contract/rating + address block (rows 55, 74) |
+| 5 | stakeholders (#6) | CRUD + comm-preference/engagement dropdowns (row 70) — **delivered, MR !11**: migration 006 (vocab CHECK constraints), `usp_Stakeholder_List` + `@EngagementLevel` filter/EmailAddress search/ProjectRole sort, `/stakeholders` DataView + URL-synced sheet (ADR-0010), charter deep link |
+| 6 | suppliers (#7) | CRUD + contact/contract/rating + address block (rows 55, 74) — **delivered, MR !16**: no DB deltas (table from 003, procs from #3, seed 004), `/projects/[id]/suppliers` project-scoped DataView + URL-synced sheet (ADR-0010/0018, first registered section besides charter), default sort ContractEndDate asc, DatePicker contract dates, rating vocab in UI (DB free-text); contract-end dashboard alert deferred to #20 |
 | 7 | acronyms (#8) | rename Keywords + search field (row 58) |
 | 8 | key-deliverables (#9) | CRUD + deadline/assignee/priority/status (row 71) + Gantt from deliverable dates (row 67) |
 | 9 | objectives (#10) | CRUD (row 11) |

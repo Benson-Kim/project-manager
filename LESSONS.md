@@ -157,3 +157,39 @@ Append under the matching section (or add a section) in the form:
   NOT_FOUND (50004 is VALIDATION); it also lives in `dbo.`, not `app.`. Merged
   code is immutable, so follow `usp_ViewPreference_Set` as the ADR-0012 reference
   instead. -> Verify a "reference implementation" against the ADR before copying it.
+
+## 14. UX research session (MR !12 / ADR-0018, 2026-09-16)
+
+- 2026-09-16 MR !12: docs-only MRs still run the full lint/typecheck/test pipeline (~4 min) — there is no docs-only fast path; budget the merge wait or add a `rules: changes` docs shortcut in a future CI MR before assuming "skipped".
+- 2026-09-16 MR !12: `docs/adr/README.md` index is missing a row for ADR-0017 (the file exists) — ADR authors: when adding an index row, check the previous ADR made it into the table too; next docs MR should add the 0017 row.
+- 2026-09-16 MR !12: research-type sessions fit comfortably in budget when reads are batched (parallel tool calls) and each deliverable is committed+pushed the moment it is written; the doc/ADR/issue/MR/merge cycle took ~12 minutes wall clock.
+
+## 14. App shell session (MR !13, issues #25/#28, 2026-09-16)
+
+- 2026-09-16 MR !13: adding an axe e2e scan to a page that never had one surfaces PRE-EXISTING violations, not just your own — the new shell scan over "/" failed on the home page's `text-ink-faint` on `bg-surface-raised` (2.45:1, the exact §13 pitfall). -> When a spec adds axe coverage to a new page, budget a contrast sweep of that page's existing markup in the same commit.
+- 2026-09-16 MR !13: the react-hooks lint (Next 16 preset) hard-errors on synchronous setState inside useEffect ("cascading renders") — closing a drawer in a pathname effect failed lint. -> Close overlays via the interaction that navigates (link onClick), not via route-change effects.
+- 2026-09-16 MR !13: the [format]+[e2e] probe on the FIRST commit (tokens+sizing only) was fully green in ~5 min and the prettier patch scrape (§11) applied cleanly for the later shell commit — front-loading the probe meant the only red pipelines cost one round-trip each (lint setState rule, pre-existing axe). Bootstrap-to-merge was ~37 min total; check `date -u` before assuming budget is gone (§11 confirmed again).
+
+## 15. Project workspace layout session (MR !14 / ADR-0018, 2026-09-16)
+
+- 2026-09-16 MR !14: `react-hooks/refs` (eslint) rejects writing `ref.current` during render (`dirtyRef.current = dirty;` at hook top level). When an effect already re-subscribes on the dep, the listener only exists while the flag is true — drop the ref and read the closure value instead.
+- 2026-09-16 MR !14: Next runs a nested layout and its page in PARALLEL — wrapping the repository call in React `cache()` (`get-project.ts`) gives both ONE proc call per request; the page must still keep its own NOT_FOUND handling because segment renders are independent.
+- 2026-09-16 MR !14: the `format:patch` artifact in the trace is gzip+base64 (gzip FNAME header included) — decode base64 between the LAST `-----BEGIN/END PRETTIER PATCH B64-----` pair, then `gzip.decompress`, then `git apply`.
+- 2026-09-16 MR !14: this repo has no jsdom/@testing-library (ADR-0013) — design client logic as pure, DOM-free decision functions (e.g. `guardedHref` takes structural `{ href, target, hasAttribute }` likes) so vitest node env can cover them; assert the rendered behaviour in Playwright.
+- 2026-09-16 MR !14: full pipeline incl. e2e completed in ~5 min (e2e job 146 s, 38 tests) — the "e2e is the long pole" assumption from earlier sessions no longer costs a session; budget one full [e2e] run per checkpoint instead of avoiding it.
+
+## 16. Stakeholders merge + hand-over lessons (sessions 7982912 → successor, MR !11, 2026-09-16)
+
+- 2026-09-16 MR !11: `develop` moved TWICE (docs MR !12, then the app-shell MR) while the stakeholders pipeline ran — a fully green MR became `conflict` at merge time and needed a re-merge + a second full pipeline (~7 min), pushing session 7982912 past 60 minutes. -> Right before the final `[e2e] [db]` push, `git fetch` and `git merge origin/develop` FIRST so the final pipeline already contains develop; if develop moves again after that, prefer `glab mr merge <iid> --auto-merge` (merge when pipeline succeeds) rather than waiting.
+- 2026-09-16 MR !11: never sleep-poll a pipeline past minute 40. Set auto-merge (`glab mr merge <iid> --auto-merge --yes`, or `PUT /projects/:id/merge_requests/:iid/merge` with `merge_when_pipeline_succeeds=true`) and post the close-out STATUS + successor instruction; the successor verifies the merge (this is exactly how !11 landed).
+- 2026-09-16 MR !11: `PUT /merge_requests/:iid/merge` returns HTTP 405 when the MR is not mergeable (conflicts / pipeline not finished). Check `detailed_merge_status` first; use `glab mr merge <iid> --yes` for the happy path.
+- 2026-09-16 MR !11: `db:apply` had 3 transient `sqlcmd` core dumps on unrelated commits — re-run with an empty commit carrying `[db]` (`git commit --allow-empty`) rather than debugging.
+- 2026-09-16 MR !11: parallel sessions collide on `playwright.config.ts` `testMatch` regex and `src/lib/messages.ts` — when adding a spec, extend the union regex in one place and expect to re-merge.
+
+## 17. Suppliers module session (MR !16, 2026-09-16)
+
+- 2026-09-16 MR !16: e2e validation specs — filling a field and then clicking Save races blur-validation: blur fires on mousedown, the inline-error re-render shifts layout, and the click lands nowhere (submit never fires; the summary never appears; 53/54 with only that spec red). -> `await field.blur()` and assert the inline error BEFORE clicking Save. Empty-form specs (stakeholders) never hit this because no field was touched.
+- 2026-09-16 MR !16: before writing a module's repository/row schemas, `find src/modules/<key>` — the #5 repositories session already shipped `repository/*.ts` + `schemas/*.ts` + Vitest suites for several entities (suppliers had all of it). Only the form contract, actions, components, pages and e2e were missing; duplicating would have cost the session.
+- 2026-09-16 MR !16: modules whose table+procs shipped complete in #3 need ZERO db work — no migration, no proc edits, no seed change; `db:apply` still proves it via the `[db]` flag. Don't invent a migration for a UI vocabulary (suppliers Rating stayed free-text in DB, vocab enforced in the form schema only).
+- 2026-09-16 MR !16: arming `glab mr merge <iid> --auto-merge --yes` right after un-drafting (while e2e still runs) merged the MR ~0 s after the pipeline went green — zero polling wasted; the whole module (orient→merge) fit in ~33 min despite also closing out the predecessor's Task A.
+- 2026-09-16 MR !16: `revalidatePath` cannot revalidate a dynamic-segment page path without the `type:"page"` argument the shared `action()` wrapper doesn't forward — for cookie-gated (always-dynamic) pages, the sheet's `router.refresh()` is sufficient; consider extending `action()` if a static project-scoped page ever appears.
