@@ -12,14 +12,23 @@ export default defineConfig({
   projects: [
     // Signs in as the seeded e2e-pm user and saves the storage state.
     { name: "setup", testMatch: /auth\.setup\.ts/ },
+    // One viewer login for the RBAC denial specs (after setup — spreads the
+    // shared-IP login budget, LESSONS §12).
+    { name: "viewer-setup", testMatch: /viewer\.setup\.ts/, dependencies: ["setup"] },
     // Auth flows + header checks start signed out (no storage state).
     { name: "public", testMatch: /(auth|security-headers)\.spec\.ts/ },
     // Everything else runs authenticated (module #4 gates all app routes).
     {
       name: "app",
-      testMatch: /(home|kitchen-sink)\.spec\.ts/,
+      testMatch: /(home|kitchen-sink|projects)\.spec\.ts/,
       dependencies: ["setup"],
       use: { storageState: "e2e/.auth/pm.json" },
+    },
+    {
+      name: "app-viewer",
+      testMatch: /projects-rbac\.spec\.ts/,
+      dependencies: ["viewer-setup"],
+      use: { storageState: "e2e/.auth/viewer.json" },
     },
   ],
   webServer: {
