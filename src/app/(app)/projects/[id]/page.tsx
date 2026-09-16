@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
@@ -44,7 +45,18 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="mx-auto w-full max-w-3xl">
-      <PageHeader title={project.ProjectName} />
+      <PageHeader
+        title={project.ProjectName}
+        action={
+          <Link
+            href={`/stakeholders?project=${projectId}`}
+            data-testid="view-stakeholders"
+            className="inline-flex min-h-11 items-center rounded-md border border-line bg-surface px-4 text-sm font-medium text-ink"
+          >
+            {messages.stakeholders.viewStakeholders}
+          </Link>
+        }
+      />
       <ProjectForm project={project} canEdit={canEdit} canDelete={canDelete} />
       <AssigneesEditor
         projectId={projectId}
