@@ -1,5 +1,5 @@
--- usp_Stakeholder_List — paged/filtered list per ADR-0016. Search columns: FirstName, LastName, DepartmentOrganization. Sort whitelist: LastName, FirstName, EngagementLevel.
--- Entity app.Stakeholder (source: tblStakeholders). Module: database-schema-and-procs (#3).
+-- usp_Stakeholder_List — paged/filtered list per ADR-0016. Search columns: FirstName, LastName, DepartmentOrganization, EmailAddress. Sort whitelist: LastName, FirstName, ProjectRole, EngagementLevel.
+-- Entity app.Stakeholder (source: tblStakeholders). Module: database-schema-and-procs (#3); search/sort extended per issue #6.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Stakeholder_List
@@ -43,12 +43,15 @@ BEGIN
       AND (@ProjectId IS NULL OR ProjectId = @ProjectId)
       AND (@Search IS NULL OR [FirstName] LIKE N'%' + @Search + N'%'
            OR [LastName] LIKE N'%' + @Search + N'%'
-           OR [DepartmentOrganization] LIKE N'%' + @Search + N'%')
+           OR [DepartmentOrganization] LIKE N'%' + @Search + N'%'
+           OR [EmailAddress] LIKE N'%' + @Search + N'%')
     ORDER BY
         CASE WHEN @SortBy = N'LastName' AND @SortDir = 'asc'  THEN [LastName] END ASC,
         CASE WHEN @SortBy = N'LastName' AND @SortDir = 'desc' THEN [LastName] END DESC,
         CASE WHEN @SortBy = N'FirstName' AND @SortDir = 'asc'  THEN [FirstName] END ASC,
         CASE WHEN @SortBy = N'FirstName' AND @SortDir = 'desc' THEN [FirstName] END DESC,
+        CASE WHEN @SortBy = N'ProjectRole' AND @SortDir = 'asc'  THEN [ProjectRole] END ASC,
+        CASE WHEN @SortBy = N'ProjectRole' AND @SortDir = 'desc' THEN [ProjectRole] END DESC,
         CASE WHEN @SortBy = N'EngagementLevel' AND @SortDir = 'asc'  THEN [EngagementLevel] END ASC,
         CASE WHEN @SortBy = N'EngagementLevel' AND @SortDir = 'desc' THEN [EngagementLevel] END DESC,
         StakeholderId ASC
