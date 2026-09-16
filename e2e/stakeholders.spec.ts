@@ -14,7 +14,7 @@ test("create stakeholder happy path — appears in the list", async ({ page }) =
   await page.getByTestId("new-stakeholder").click();
   const form = page.getByTestId("stakeholder-form");
   await expect(form).toBeVisible();
-  await form.getByLabel(messages.stakeholders.project).selectOption("2");
+  await form.getByLabel(messages.stakeholders.project, { exact: true }).selectOption("2");
   await form.getByLabel(messages.stakeholders.firstName).fill(firstName);
   await form.getByLabel(messages.stakeholders.engagementLevel).selectOption("High");
   await page.getByTestId("stakeholder-save").click();
