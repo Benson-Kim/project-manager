@@ -35,7 +35,6 @@ export function AppShell({
 
   useEffect(() => {
     announce(document.title);
-    setDrawerOpen(false); // close the drawer after navigation
   }, [announce, pathname]);
 
   return (

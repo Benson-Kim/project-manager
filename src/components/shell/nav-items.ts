@@ -29,8 +29,7 @@ export function pageTitleFor(pathname: string): string {
   if (pathname === "/change-password") return messages.auth.changePasswordTitle;
   const all = [...navItems, settingsNavItem];
   const match = all.find(
-    (item) =>
-      pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`)),
+    (item) => pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`)),
   );
   return match?.label ?? messages.app.name;
 }
