@@ -47,6 +47,9 @@ function dbRow(overrides: Record<string, unknown> = {}) {
     SimilarProject: false,
     ProjectPriority: null,
     EstimatedCompletionDate: null,
+    ProjectStatus: "Completed",
+    ProjectPhase: null,
+    RiskLevel: null,
     CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),
     UpdatedAtUtc: null,
     RowVer: "2001", // driver returns CAST(RowVer AS BIGINT) as a string
@@ -93,6 +96,8 @@ describe("projects repository", () => {
     expect(execProc).toHaveBeenCalledWith("usp_Project_List", {
       ActorUserId: 7,
       ProjectId: null,
+      Status: null,
+      Priority: null,
       Search: "Upgrade",
       SortBy: "ProjectName",
       SortDir: "desc",
