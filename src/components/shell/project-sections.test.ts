@@ -35,7 +35,7 @@ describe("isCurrentSection", () => {
     expect(isCurrentSection("/projects/22/meetings", 2, meetings)).toBe(false);
   });
 
-  it("registry ships the charter as the only initial entry", () => {
-    expect(projectSections.map((s) => s.segment)).toEqual(["."]);
+  it("registry lists built sections in ADR-0018 order", () => {
+    expect(projectSections.map((s) => s.segment)).toEqual([".", "suppliers"]);
   });
 });
