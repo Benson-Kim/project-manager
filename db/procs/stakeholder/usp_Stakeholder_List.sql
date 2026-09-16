@@ -5,6 +5,7 @@ GO
 CREATE OR ALTER PROCEDURE dbo.usp_Stakeholder_List
     @ActorUserId INT,
     @ProjectId   INT           = NULL,
+    @EngagementLevel NVARCHAR(255) = NULL,
     @Search      NVARCHAR(100) = NULL,
     @SortBy      NVARCHAR(50)  = NULL,
     @SortDir     VARCHAR(4)    = 'asc',
@@ -41,6 +42,7 @@ BEGIN
     FROM app.Stakeholder
     WHERE IsDeleted = 0
       AND (@ProjectId IS NULL OR ProjectId = @ProjectId)
+      AND (@EngagementLevel IS NULL OR [EngagementLevel] = @EngagementLevel)
       AND (@Search IS NULL OR [FirstName] LIKE N'%' + @Search + N'%'
            OR [LastName] LIKE N'%' + @Search + N'%'
            OR [DepartmentOrganization] LIKE N'%' + @Search + N'%'
