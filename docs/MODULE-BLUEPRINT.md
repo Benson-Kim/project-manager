@@ -72,6 +72,20 @@ src/modules/<module>/repository/<entity>.test.ts
 e2e/<module>.spec.ts
 ```
 
+## Project-scoped modules
+
+> **Project-scoped modules — ProjectSectionLayout convention.** A module whose data
+> hangs off `ProjectId` ships its screens under
+> `src/app/(app)/projects/[id]/<segment>/` (segment per ADR-0018), NOT as a top-level
+> route. Do not fetch the project or render a project header — the shared
+> `projects/[id]/layout.tsx` does both. Register the section by appending to
+> `src/components/shell/project-sections.ts` (label from `messages.ts`). The list
+> page renders `DataView` with the module's list proc scoped by `@ProjectId`; the
+> page `h1` (via `PageHeader`) is the section name and carries the primary action.
+> Global-also modules (daily activities, to-dos) additionally keep their global route
+> registered in `nav-items.ts`, reusing the same DataView/proc without the project
+> filter.
+
 ## Hard rules recap
 
 - DataView for every list; never fork it.
