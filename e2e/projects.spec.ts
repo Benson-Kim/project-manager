@@ -14,7 +14,7 @@ test("create project happy path — appears in the list", async ({ page }) => {
   await page.getByTestId("project-save").click();
   // Success lands on the charter route with a Created toast.
   await expect(
-    page.getByRole("status").filter({ hasText: messages.feedback.created }).first(),
+    page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
   ).toBeVisible();
   await page.waitForURL(/\/projects\/\d+/);
   await expect(page.getByRole("heading", { name })).toBeVisible();
