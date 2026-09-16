@@ -36,9 +36,13 @@ test("validation failure — bad email shows inline error and focuses the summar
   const form = page.getByTestId("supplier-form");
   await expect(form).toBeVisible();
   await form.getByLabel(messages.suppliers.supplierName).fill("Validation probe");
-  await form.getByLabel(messages.suppliers.emailAddress).fill("not-an-email");
-  await page.getByTestId("supplier-save").click();
+  const email = form.getByLabel(messages.suppliers.emailAddress);
+  await email.fill("not-an-email");
+  // Blur first: blur-validation re-renders and shifts layout; clicking Save
+  // while that happens loses the click (submit never fires).
+  await email.blur();
   await expect(page.getByText(messages.suppliers.invalidEmail).first()).toBeVisible();
+  await page.getByTestId("supplier-save").click();
   const summary = page.getByRole("alert").filter({ hasText: messages.errors.summaryTitle });
   await expect(summary).toBeVisible();
   await expect(summary).toBeFocused();
