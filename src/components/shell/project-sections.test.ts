@@ -36,6 +36,6 @@ describe("isCurrentSection", () => {
   });
 
   it("registry lists the built sections in ADR-0018 order", () => {
-    expect(projectSections.map((s) => s.segment)).toEqual([".", "deliverables"]);
+    expect(projectSections.map((s) => s.segment)).toEqual([".", "deliverables", "suppliers"]);
   });
 });
