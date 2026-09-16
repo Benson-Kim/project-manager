@@ -36,6 +36,7 @@ export const messages = {
     todoLists: "To-do lists",
     reports: "Reports",
     settings: "Settings",
+    breadcrumb: "Breadcrumb",
   },
   actions: {
     save: "Save",
@@ -115,6 +116,7 @@ export const messages = {
   projects: {
     title: "Projects",
     entity: "project",
+    sectionsNav: "Project sections",
     newProject: "New project",
     jumpToProject: "Go to project",
     charterSection: "Charter",
