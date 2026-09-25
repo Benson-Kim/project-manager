@@ -80,7 +80,11 @@ test.describe("project workspace (ADR-0018)", () => {
       "href",
       "/projects",
     );
+    // The section nav is grouped: the Overview group button should be expanded (active group
+    // auto-opens on load) and the Charter link inside it carries aria-current="page".
     const nav = page.getByRole("navigation", { name: messages.projects.sectionsNav });
+    const overviewBtn = nav.getByRole("button", { name: messages.projects.charterSection });
+    await expect(overviewBtn).toHaveAttribute("aria-expanded", "true");
     const charter = nav.getByRole("link", { name: messages.projects.charterSection });
     await expect(charter).toHaveAttribute("aria-current", "page");
     await expect(charter).toHaveAttribute("href", "/projects/2");
