@@ -10,7 +10,7 @@ async function scriptSrcFor(nodeEnv: string): Promise<string> {
   vi.stubEnv("NODE_ENV", nodeEnv);
   vi.resetModules();
   const { proxy } = await import("../proxy");
-  const response = proxy(new NextRequest("https://example.test/"));
+  const response = await proxy(new NextRequest("https://example.test/"));
   const csp = response.headers.get("content-security-policy") ?? "";
   const directive = csp
     .split(";")
