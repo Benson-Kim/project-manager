@@ -130,7 +130,7 @@ that no additional migration is needed before the frontend layer is built.
 
 **Expected outcomes**
 - `db/migrations/003_domain_schema.sql` confirmed to include `app.Keyword` table with
-  correct columns: `KeywordId`, `ProjectId` (nullable FK), `Acronym`, `Definition`,
+  correct columns: `KeywordId`, `ProjectId` (nullable FK), `Keyword`, `Definition`,
   `IsDeleted`, audit cols, `RowVer`.
 - All 5 procs in `db/procs/keyword/` confirmed to exist and match the schema.
 - No new migration needed; record this as confirmed in the plan notes.
@@ -157,7 +157,7 @@ that no additional migration is needed before the frontend layer is built.
 
 **Intent**
 Build the TypeScript layer for Keywords following the exact same pattern as Suppliers
-(the closest existing module). Keywords are simpler: only `Acronym` (required) and
+(the closest existing module). Keywords are simpler: only `Keyword` (required) and
 `Definition` (optional). No vocab dropdowns.
 
 **Expected outcomes**
@@ -190,7 +190,7 @@ Build the TypeScript layer for Keywords following the exact same pattern as Supp
 - `src/modules/suppliers/schemas/supplier-form.ts` — form schema pattern
 - `src/modules/suppliers/repository/suppliers.ts` — repository pattern
 - `db/procs/keyword/usp_Keyword_List.sql` — SELECT columns: KeywordId, ProjectId,
-  Acronym, Definition, CreatedAtUtc, UpdatedAtUtc, RowVer, TotalCount
+  Keyword, Definition, CreatedAtUtc, UpdatedAtUtc, RowVer, TotalCount
 - `src/lib/db.ts` — `execProc` import
 
 ---
@@ -238,10 +238,10 @@ a `KeywordSheet` (URL-synced `?id=<n>|new`), a `KeywordsView` (DataView), and a
 
 **Expected outcomes**
 - `src/modules/keywords/components/keywords-view.tsx` — DataView with columns:
-  Acronym (p1, sortable), Definition (p1), CreatedAtUtc (p3).
+  Keyword (p1, sortable), Definition (p1), CreatedAtUtc (p3).
 - `src/modules/keywords/components/keywords-toolbar.tsx` — search toolbar only.
 - `src/modules/keywords/components/keyword-sheet.tsx` — Sheet with form fields:
-  Acronym (required text), Definition (optional textarea). URL-synced `?id=`.
+  Keyword (required text), Definition (optional textarea). URL-synced `?id=`.
 - Components follow the same client/server split and prop contracts as
   `SupplierSheet` / `SuppliersView` / `SuppliersToolbar`.
 

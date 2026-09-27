@@ -28,9 +28,8 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { AppError } from "@/lib/errors";
-import { createKeyDeliverableAction } from "./create-key-deliverable";
-import { deleteKeyDeliverableAction } from "./delete-key-deliverable";
-import { updateKeyDeliverableAction } from "./update-key-deliverable";
+import { createKeyDeliverableAction, updateKeyDeliverableAction, deleteKeyDeliverableAction } from ".";
+
 
 function dbRow(overrides: Record<string, unknown> = {}) {
   return {

@@ -4,11 +4,11 @@ import { forwardRef } from "react";
 import { useFieldAria } from "./field";
 
 /**
- * Native-first inputs (ADR-0005): the platform's controls are the best mobile
+ * Native-first inputs : the platform's controls are the best mobile
  * UX. All pick up id/aria wiring from the surrounding <Field>.
  */
 const inputBase =
-  "min-h-9 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink " +
+  "min-h-10 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink " +
   "aria-invalid:border-danger";
 
 export const Input = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
@@ -69,7 +69,7 @@ export const Switch = forwardRef<HTMLInputElement, SwitchProps>(function Switch(
     <label
       className={`flex min-h-11 cursor-pointer items-center justify-between gap-3 ${className ?? ""}`}
     >
-      <span className="text-sm font-medium text-ink">{label}</span>
+      <span className="text-sm text-ink">{label}</span>
       <span className="relative inline-flex">
         <input ref={ref} type="checkbox" role="switch" className="peer sr-only" {...props} />
         <span

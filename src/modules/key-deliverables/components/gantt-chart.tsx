@@ -1,9 +1,12 @@
 import Link from "next/link";
+
+import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/states";
+
+import { formatDate } from "@/lib/format";
 import { messages } from "@/lib/messages";
-import { formatDate } from "../lib/format";
+
 import type { GanttBar } from "../schemas/key-deliverable";
-import { Badge, OverdueBadge } from "./badges";
 
 const DAY_MS = 86_400_000;
 
@@ -77,7 +80,7 @@ export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: n
                   </span>
                   <span className="flex flex-wrap gap-1">
                     <Badge value={bar.status} />
-                    {bar.overdue ? <OverdueBadge /> : null}
+                    {bar.overdue ? <Badge value={messages.keyDeliverables.overdue} /> : null}
                   </span>
                 </div>
                 <div className="relative h-12">

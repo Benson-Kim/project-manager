@@ -1,5 +1,5 @@
--- usp_Keyword_List — paged/filtered list per ADR-0016. Search columns: Acronym, Definition. Sort whitelist: Acronym.
--- Entity app.Keyword (source: tblAcronyms). Module: database-schema-and-procs (#3).
+-- usp_Keyword_List — paged/filtered list per ADR-0016. Search columns: Keyword, Definition. Sort whitelist: Keyword.
+-- Entity app.Keyword (source: tblKeywords). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Keyword_List
@@ -20,7 +20,7 @@ BEGIN
 
     SELECT KeywordId,
            [ProjectId],
-           [Acronym],
+           [Keyword],
            [Definition],
            CreatedAtUtc,
            UpdatedAtUtc,
@@ -29,11 +29,11 @@ BEGIN
     FROM app.Keyword
     WHERE IsDeleted = 0
       AND (@ProjectId IS NULL OR ProjectId = @ProjectId)
-      AND (@Search IS NULL OR [Acronym] LIKE N'%' + @Search + N'%'
+      AND (@Search IS NULL OR [Keyword] LIKE N'%' + @Search + N'%'
            OR [Definition] LIKE N'%' + @Search + N'%')
     ORDER BY
-        CASE WHEN @SortBy = N'Acronym' AND @SortDir = 'asc'  THEN [Acronym] END ASC,
-        CASE WHEN @SortBy = N'Acronym' AND @SortDir = 'desc' THEN [Acronym] END DESC,
+        CASE WHEN @SortBy = N'Keyword' AND @SortDir = 'asc'  THEN [Keyword] END ASC,
+        CASE WHEN @SortBy = N'Keyword' AND @SortDir = 'desc' THEN [Keyword] END DESC,
         KeywordId ASC
     OFFSET (@Page - 1) * @PageSize ROWS FETCH NEXT @PageSize ROWS ONLY;
 END;

@@ -12,7 +12,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = N'auth')
     EXEC (N'CREATE SCHEMA auth');
 GO
 
--- Role — fixed vocabulary (ADR-0015); lookup table, no soft delete (like app.ActivityStatus).
+-- Role — fixed vocabulary ); lookup table, no soft delete (like app.ActivityStatus).
 IF OBJECT_ID(N'auth.Role', N'U') IS NULL
 BEGIN
     CREATE TABLE auth.Role (

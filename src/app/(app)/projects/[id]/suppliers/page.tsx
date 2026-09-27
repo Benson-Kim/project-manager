@@ -9,27 +9,18 @@ import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getViewPreference } from "@/lib/repositories/view-preference";
 import { SupplierSheet } from "@/modules/suppliers/components/supplier-sheet";
-import { SuppliersToolbar } from "@/modules/suppliers/components/suppliers-toolbar";
 import { SuppliersView } from "@/modules/suppliers/components/suppliers-view";
 import { getSupplierById, listSuppliers } from "@/modules/suppliers/repository/suppliers";
+import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { parseProjectId } from "../project-id";
 
 export const metadata: Metadata = {
   title: `${messages.suppliers.title} — ${messages.app.name}`,
 };
 
-function newSupplierHref(projectId: number, raw: Record<string, string | undefined>): string {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(raw)) {
-    if (value && key !== "id") params.set(key, value);
-  }
-  params.set("id", "new");
-  return `/projects/${projectId}/suppliers?${params.toString()}`;
-}
-
 /**
  * Suppliers list (module #7): project-scoped section under
- * /projects/[id]/suppliers (ADR-0018); DataView + search, detail/edit in the
+ * /projects/[id]/suppliers ; DataView + search, detail/edit in the
  * URL-synced Sheet (?id=<n> | ?id=new, ADR-0010). Default sort: earliest
  * contract end first (requirements row 74 — contract-end visibility).
  */
@@ -68,7 +59,7 @@ export default async function SuppliersPage({
   ]);
 
   // A deep link to a supplier from another project is treated as not found.
-  const selected = selectedRaw && selectedRaw.ProjectId === projectId ? selectedRaw : null;
+  const selected = guardProjectScope(selectedRaw, projectId);
 
   const totalCount = rows[0]?.TotalCount ?? 0;
   const canCreate = can(session.role, "suppliers:create");
@@ -78,7 +69,7 @@ export default async function SuppliersPage({
 
   const newSupplierLink = (
     <Link
-      href={newSupplierHref(projectId, flat)}
+      href={buildNewEntityHref(`/projects/${projectId}/suppliers`, flat)}
       data-testid="new-supplier"
       className="inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-sm font-medium text-on-accent"
     >
@@ -92,8 +83,7 @@ export default async function SuppliersPage({
         title={messages.suppliers.title}
         action={canCreate ? newSupplierLink : undefined}
       />
-      <SuppliersToolbar />
-      <div className="mt-3">
+      <div className="mt-3 flex flex-col flex-1">
         <SuppliersView
           rows={rows}
           totalCount={totalCount}

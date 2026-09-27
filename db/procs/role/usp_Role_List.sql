@@ -1,4 +1,4 @@
--- usp_Role_List — fixed role vocabulary (ADR-0015); lookup list, no paging
+-- usp_Role_List — fixed role vocabulary ); lookup list, no paging
 -- (same pattern as usp_ActivityStatus_List). Module: auth-and-rbac (#4).
 USE ProjectManager;
 GO

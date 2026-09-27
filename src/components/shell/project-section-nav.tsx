@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useReducer } from "react";
+import { useEffect, useRef, useReducer } from "react";
 import { messages } from "@/lib/messages";
 import {
   isCurrentSection,
@@ -12,27 +12,32 @@ import {
   type ProjectSectionGroup,
 } from "./project-sections";
 
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
 
-const pillClass = (active: boolean, open: boolean) =>
+// active = current route is inside this group (drives the accent border)
+// open   = dropdown is visible (drives bg only, not the border)
+const tabClass = (active: boolean, open: boolean) =>
   [
-    "relative inline-flex min-h-10 items-center gap-1",
-    "rounded-md px-3 text-sm font-medium whitespace-nowrap",
-    "transition-colors duration-fast select-none",
-    active || open ? "text-ink bg-surface-raised" : "text-ink-muted hover:text-ink hover:bg-surface-raised",
+    "relative inline-flex min-h-10 items-center gap-1.5",
+    "px-4 text-sm font-medium whitespace-nowrap select-none cursor-pointer",
+    "border-b-2 transition-colors duration-fast",
+    active
+      ? "border-accent text-ink bg-surface-raised"
+      : open
+        ? "border-transparent text-ink bg-surface-raised"
+        : "border-transparent text-ink-muted hover:text-ink hover:bg-surface-raised",
   ].join(" ");
 
 const linkClass = (current: boolean) =>
   [
-    "block px-3 py-2 text-sm rounded-md whitespace-nowrap",
+    "block px-4 py-2.5 text-sm whitespace-nowrap",
     "transition-colors duration-fast",
-    current ? "text-ink font-medium bg-surface-raised" : "text-ink-muted hover:text-ink hover:bg-surface-raised",
+    current
+      ? "text-ink font-medium bg-surface-raised"
+      : "text-ink-muted hover:text-ink hover:bg-surface-raised",
   ].join(" ");
 
 // ---------------------------------------------------------------------------
-// Chevron icon (inline SVG — no icon package dependency per ADR-0014)
+// Chevron icon (inline SVG — no icon package, ADR-0014)
 // ---------------------------------------------------------------------------
 
 function Chevron({ open }: { open: boolean }) {
@@ -47,76 +52,61 @@ function Chevron({ open }: { open: boolean }) {
       strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className={["transition-transform duration-fast", open ? "rotate-180" : ""].join(" ")}
+      className={["shrink-0 transition-transform duration-fast", open ? "rotate-180" : ""].join(" ")}
     >
       <polyline points="2,4 6,8 10,4" />
     </svg>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Group pill + disclosure panel
-// ---------------------------------------------------------------------------
-
-function GroupPill({
+/** Rendered outside the scrolling <ul> so overflow clipping never hides it. */
+function GroupDropdown({
   group,
   projectId,
   pathname,
   open,
-  onToggle,
+  anchorRef,
 }: {
   group: ProjectSectionGroup;
   projectId: number;
   pathname: string;
   open: boolean;
-  onToggle: () => void;
+  anchorRef: React.RefObject<HTMLLIElement | null>;
 }) {
-  const active = isGroupActive(pathname, projectId, group);
   const panelId = `section-group-${group.key}`;
+  if (!open || group.sections.length === 0) return null;
 
-  // Groups with no built sections are omitted entirely (no dead links)
-  if (group.sections.length === 0) return null;
+  // Position relative to the <nav> (position:relative). offsetLeft gives the
+  // left edge of the <li> within its offset parent; offsetHeight gives the tab
+  // strip height so the panel opens directly below.
+  const el = anchorRef.current;
+  const left = el?.offsetLeft ?? 0;
+  const top = el?.offsetTop != null && el?.offsetHeight != null
+    ? el.offsetTop + el.offsetHeight
+    : 40; // fallback: typical tab height
 
   return (
-    <li className="relative shrink-0">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={panelId}
-        onClick={onToggle}
-        className={pillClass(active, open)}
-      >
-        {group.label}
-        <Chevron open={open} />
-      </button>
-
-      {open && (
-        <div
-          id={panelId}
-          role="group"
-          aria-label={group.label}
-          className={[
-            "absolute left-0 top-full z-20 mt-1",
-            "min-w-40 rounded-lg border border-border bg-canvas shadow-md",
-            "py-1",
-          ].join(" ")}
-        >
-          {group.sections.map((section) => {
-            const current = isCurrentSection(pathname, projectId, section);
-            return (
-              <Link
-                key={section.segment}
-                href={sectionHref(projectId, section)}
-                aria-current={current ? "page" : undefined}
-                className={linkClass(current)}
-              >
-                {section.label}
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </li>
+    <div
+      id={panelId}
+      role="group"
+      aria-label={group.label}
+      style={{ position: "absolute", top, left, zIndex: 50 }}
+      className="min-w-44 border border-border bg-canvas shadow-lg py-1"
+    >
+      {group.sections.map((section) => {
+        const current = isCurrentSection(pathname, projectId, section);
+        return (
+          <Link
+            key={section.segment}
+            href={sectionHref(projectId, section)}
+            aria-current={current ? "page" : undefined}
+            className={linkClass(current)}
+          >
+            {section.label}
+          </Link>
+        );
+      })}
+    </div>
   );
 }
 
@@ -125,20 +115,24 @@ function GroupPill({
 // ---------------------------------------------------------------------------
 
 type OpenState = Record<string, boolean>;
-
 type OpenAction =
   | { type: "toggle"; key: string }
+  | { type: "close-all" }
   | { type: "reset"; activeKey: string | null };
 
 function openReducer(state: OpenState, action: OpenAction): OpenState {
   switch (action.type) {
     case "toggle":
-      return { ...state, [action.key]: !state[action.key] };
+      // Close all others, toggle the target
+      return Object.fromEntries(
+        Object.keys(state).map((k) => [k, k === action.key ? !state[k] : false]),
+      );
+    case "close-all":
+      return Object.fromEntries(Object.keys(state).map((k) => [k, false]));
     case "reset": {
-      const next: OpenState = {};
-      for (const k of Object.keys(state)) next[k] = false;
-      if (action.activeKey) next[action.activeKey] = true;
-      return next;
+      return Object.fromEntries(
+        Object.keys(state).map((k) => [k, k === action.activeKey]),
+      );
     }
   }
 }
@@ -156,14 +150,22 @@ function initialOpenState(pathname: string, projectId: number): OpenState {
 // ---------------------------------------------------------------------------
 
 /**
- * Project section navigation (ADR-0018 updated): four group disclosure buttons,
- * each toggling a panel of section links. ARIA disclosure pattern — buttons are
- * aria-expanded, panels are role="group". The active group's panel opens on
- * mount; route changes re-evaluate which group is active.
- * Client component only for the open/close + active-link state.
+ * Project section navigation (ADR-0018 updated): four group tabs with a
+ * bottom-border active indicator and a dropdown panel of section links.
+ * Clicking outside any open panel closes it (click-away). Route changes
+ * re-open only the active group's panel.
+ * Client component for open/close + active-link state only.
  */
 export function ProjectSectionNav({ projectId }: { projectId: number }) {
   const pathname = usePathname();
+  const navRef = useRef<HTMLElement>(null);
+  // One ref per group to measure anchor position for dropdown placement
+  const anchorRefs = useRef<Record<string, React.RefObject<HTMLLIElement | null>>>({});
+  for (const group of projectSectionGroups) {
+    if (!anchorRefs.current[group.key]) {
+      anchorRefs.current[group.key] = { current: null };
+    }
+  }
 
   const [openState, dispatch] = useReducer(
     openReducer,
@@ -171,32 +173,73 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
     () => initialOpenState(pathname, projectId),
   );
 
-  // When the route changes (e.g. user clicks a section link), open the active
-  // group's panel and close the rest so the nav reflects the current location.
+  // Re-open only the active group when the route changes (section link clicked)
   useEffect(() => {
     const activeKey =
       projectSectionGroups.find((g) => isGroupActive(pathname, projectId, g))?.key ?? null;
     dispatch({ type: "reset", activeKey });
   }, [pathname, projectId]);
 
+  // Click-away: close all panels when clicking outside the nav
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (navRef.current && !navRef.current.contains(e.target as Node)) {
+        dispatch({ type: "close-all" });
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
   return (
     <nav
+      ref={navRef}
       aria-label={messages.projects.sectionsNav}
       data-testid="project-section-nav"
-      className="-mx-4"
+      className="-mx-4 bg-surface-raised"
+      style={{ position: "relative" }}
     >
-      <ul className="flex gap-1 overflow-x-auto px-4 py-2 scrollbar-none mask-[linear-gradient(to_right,transparent,black_16px,black_calc(100%-16px),transparent)]">
-        {projectSectionGroups.map((group) => (
-          <GroupPill
-            key={group.key}
-            group={group}
-            projectId={projectId}
-            pathname={pathname}
-            open={!!openState[group.key]}
-            onToggle={() => dispatch({ type: "toggle", key: group.key })}
-          />
-        ))}
-      </ul>
+      {/* Tab strip — overflow-x-auto for scroll, overflow-y visible so dropdowns escape */}
+      <div className="overflow-x-auto scrollbar-none">
+        <ul className="flex px-4" style={{ overflow: "visible" }}>
+          {projectSectionGroups.map((group) => {
+            const ref = anchorRefs.current[group.key]!;
+            return (
+              <li
+                key={group.key}
+                ref={(el) => { ref.current = el; }}
+                className="relative shrink-0 self-stretch flex"
+              >
+                <button
+                  type="button"
+                  aria-expanded={!!openState[group.key]}
+                  aria-controls={`section-group-${group.key}`}
+                  onClick={() => dispatch({ type: "toggle", key: group.key })}
+                  className={tabClass(
+                    isGroupActive(pathname, projectId, group),
+                    !!openState[group.key],
+                  )}
+                >
+                  {group.label}
+                  <Chevron open={!!openState[group.key]} />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      {/* Dropdowns rendered after the strip — outside overflow context */}
+      {projectSectionGroups.map((group) => (
+        <GroupDropdown
+          key={group.key}
+          group={group}
+          projectId={projectId}
+          pathname={pathname}
+          open={!!openState[group.key]}
+          anchorRef={anchorRefs.current[group.key]!}
+        />
+      ))}
     </nav>
   );
 }

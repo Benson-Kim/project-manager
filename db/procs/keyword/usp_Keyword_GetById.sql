@@ -1,5 +1,5 @@
 -- usp_Keyword_GetById — fetch one active app.Keyword row; THROW 50001 when absent/soft-deleted.
--- Entity app.Keyword (source: tblAcronyms). Module: database-schema-and-procs (#3).
+-- Entity app.Keyword (source: tblKeywords). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Keyword_GetById
@@ -14,7 +14,7 @@ BEGIN
 
     SELECT KeywordId,
            [ProjectId],
-           [Acronym],
+           [Keyword],
            [Definition],
            CreatedAtUtc,
            UpdatedAtUtc,

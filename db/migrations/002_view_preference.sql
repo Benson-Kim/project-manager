@@ -1,4 +1,4 @@
--- 002_view_preference.sql — per-user, per-module list view preference (ADR-0006).
+-- 002_view_preference.sql — per-user, per-module list view preference .
 -- No FK to auth.User yet: the auth schema arrives in module #4 (issue #4 adds
 -- the FK in its migration). Preferences are not domain data: no soft delete,
 -- no audit rows (documented exemption, docs/STANDARDS.md §6).

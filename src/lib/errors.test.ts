@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AppError, appErrorFromProc, isAppError } from "./errors";
 
-describe("appErrorFromProc (ADR-0012)", () => {
+describe("appErrorFromProc ", () => {
   it("maps registered THROW numbers to codes and strips the code prefix", () => {
     const err = appErrorFromProc(50001, "NOT_FOUND:Supplier not found");
     expect(err.code).toBe("NOT_FOUND");

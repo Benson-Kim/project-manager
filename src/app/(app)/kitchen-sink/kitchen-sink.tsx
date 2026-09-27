@@ -190,7 +190,7 @@ export function KitchenSink() {
           <Menu
             label="Demo menu"
             trigger={<span>Open menu</span>}
-            triggerClassName="inline-flex min-h-9 items-center justify-center rounded-md border border-line bg-surface px-6 text-sm font-medium text-ink hover:bg-surface-raised"
+            triggerClassName="inline-flex min-h-10 items-center justify-center rounded-md border border-line bg-surface px-6 text-sm font-medium text-ink hover:bg-surface-raised"
           >
             <MenuLink href="/kitchen-sink">Menu link</MenuLink>
             <MenuButton onClick={() => toast({ variant: "info", title: "Menu action" })}>

@@ -64,14 +64,21 @@ describe("projectSectionGroups", () => {
     expect(people.sections.map((s) => s.segment)).toContain("suppliers");
   });
 
+  it("activity group contains keywords", () => {
+    const activity = projectSectionGroups.find((g) => g.key === "activity")!;
+    expect(activity.sections.map((s) => s.segment)).toContain("keywords");
+  });
+
   it("flatMap projectSections contains built segments in ADR-0018 order", () => {
     const segments = projectSections.map((s) => s.segment);
     expect(segments).toContain(".");
     expect(segments).toContain("deliverables");
     expect(segments).toContain("suppliers");
-    // ADR-0018 order: charter before deliverables before suppliers
+    expect(segments).toContain("keywords");
+    // ADR-0018 order: charter before deliverables before suppliers before keywords
     expect(segments.indexOf(".")).toBeLessThan(segments.indexOf("deliverables"));
     expect(segments.indexOf("deliverables")).toBeLessThan(segments.indexOf("suppliers"));
+    expect(segments.indexOf("suppliers")).toBeLessThan(segments.indexOf("keywords"));
   });
 });
 

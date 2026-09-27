@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   title: `${messages.projects.newProject} — ${messages.app.name}`,
 };
 
-/** Create project — full route (ADR-0010 exception decided for this module). */
+/** Create project — full route  exception decided for this module). */
 export default async function NewProjectPage() {
   const session = await auth.requireSession();
   if (!can(session.role, "projects:create")) redirect("/projects");

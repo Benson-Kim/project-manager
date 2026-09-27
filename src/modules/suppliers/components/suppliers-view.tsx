@@ -1,17 +1,19 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
 import { DataView } from "@/components/ui/data-view/data-view";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
-import { EmptyState } from "@/components/ui/states";
+import { listEmptyState } from "@/components/ui/states";
+
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
+import { formatDate } from "@/lib/format";
+
 import type { SupplierListRow } from "../schemas/supplier";
 
-export function formatDate(value: Date | null | undefined): string {
-  if (!value) return "";
-  return new Intl.DateTimeFormat("en-CA", { dateStyle: "medium", timeZone: "UTC" }).format(value);
-}
+import { SuppliersToolbar } from "./suppliers-toolbar";
+
 
 export function contractRange(row: {
   ContractStartDate: Date | null;
@@ -21,15 +23,6 @@ export function contractRange(row: {
   const end = formatDate(row.ContractEndDate);
   if (!start && !end) return "";
   return `${start || "—"} → ${end || "—"}`;
-}
-
-function Badge({ value }: { value: string | null }) {
-  if (!value) return null;
-  return (
-    <span className="inline-flex items-center rounded-full border border-line bg-surface-sunken px-2 py-0.5 text-xs font-medium text-ink">
-      {value}
-    </span>
-  );
 }
 
 const columns: DataViewColumn<SupplierListRow>[] = [
@@ -66,7 +59,7 @@ const columns: DataViewColumn<SupplierListRow>[] = [
   },
 ];
 
-/** Suppliers list (module #7): DataView; opening a row syncs ?id= (ADR-0010 sheet). */
+/** Suppliers list (module #7): DataView; opening a row syncs ?id=. */
 export function SuppliersView({
   rows,
   totalCount,
@@ -107,17 +100,10 @@ export function SuppliersView({
         </div>
       )}
       columns={columns}
-      empty={
-        filtersActive ? (
-          <EmptyState title={messages.list.zeroResultsTitle} body={messages.list.zeroResultsBody} />
-        ) : (
-          <EmptyState
-            title={messages.list.emptyTitle}
-            body={messages.suppliers.emptyBody}
-            action={newSupplierAction}
-          />
-        )
-      }
+      renderToolbar={(viewToggle) => (
+        <SuppliersToolbar>{viewToggle}</SuppliersToolbar>
+      )}
+      empty={listEmptyState(filtersActive, messages.suppliers.emptyBody, newSupplierAction)}
     />
   );
 }

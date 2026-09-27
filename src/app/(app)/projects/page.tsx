@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
 import { can } from "@/lib/auth/rbac";
 import { flattenSearchParams, parseListParams } from "@/lib/list-params";
@@ -19,13 +18,12 @@ const newProjectLink = (
   <Link
     href="/projects/new"
     data-testid="new-project"
-    className="inline-flex min-h-9 items-center rounded-md bg-accent px-6 text-sm font-medium text-on-accent"
+    className="inline-flex min-h-10 items-center rounded-md bg-accent px-6 text-sm font-medium text-on-accent"
   >
     {messages.projects.newProject}
   </Link>
 );
 
-/** Projects list (module #5): DataView + type-ahead toolbar; deep-linkable URL state. */
 export default async function ProjectsPage({
   searchParams,
 }: {
@@ -34,6 +32,7 @@ export default async function ProjectsPage({
   const session = await auth.requireSession();
   const raw = await searchParams;
   const params = parseListParams(raw);
+
   const filtersParsed = projectFiltersSchema.safeParse(flattenSearchParams(raw));
   const filters = filtersParsed.success ? filtersParsed.data : {};
 
@@ -41,14 +40,16 @@ export default async function ProjectsPage({
     listProjects(params, session.userId, filters),
     getViewPreference(session.userId, "projects").catch(() => null),
   ]);
+
   const totalCount = rows[0]?.TotalCount ?? 0;
+
   const canCreate = can(session.role, "projects:create");
+
   const filtersActive = Boolean(params.q || filters.status || filters.priority);
 
   return (
     <>
-      <PageHeader title={messages.projects.title} action={canCreate ? newProjectLink : undefined} />
-      <ProjectsToolbar />
+      {/* <ProjectsToolbar /> */}
       <div className="mt-3">
         <ProjectsView
           rows={rows}

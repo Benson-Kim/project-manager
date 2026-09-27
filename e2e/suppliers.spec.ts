@@ -4,7 +4,7 @@ import { messages } from "../src/lib/messages";
 
 /**
  * Suppliers module (#7) — project-scoped route /projects/2/suppliers
- * (ADR-0018): create happy path in the URL-synced sheet, validation failure
+ * create happy path in the URL-synced sheet, validation failure
  * (bad email), axe scans on list + sheet form. Runs as e2e-pm (storage state
  * from auth.setup.ts — no extra logins, LESSONS §12). Seeded supplier 1 =
  * Fiverr Company on project 2.

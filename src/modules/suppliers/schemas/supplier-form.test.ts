@@ -4,7 +4,7 @@ import { supplierFormSchema, updateSupplierFormSchema } from "./supplier-form";
 /**
  * Supplier form contract (#7): FormData strings → repository input shape.
  * Covers date coercion, optional address fields → null, email validation,
- * rating vocab (ADR-0009 single-schema rule).
+ * rating vocab.
  */
 
 const minimal = { projectId: "2", supplierName: "Fiverr Company" };

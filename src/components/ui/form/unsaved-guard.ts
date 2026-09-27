@@ -1,5 +1,5 @@
 /**
- * Pure decision logic for the unsaved-changes guard (ADR-0009, ADR-0018 Q1):
+ * Pure decision logic for the unsaved-changes guard , ADR-0018 Q1):
  * `beforeunload` only covers full unloads, so client-side <Link> navigation
  * (section nav, sidebar, breadcrumb) is intercepted at the document capture
  * phase. This module decides whether a click must be intercepted; kept free of

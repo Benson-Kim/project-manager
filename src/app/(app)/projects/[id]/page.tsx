@@ -1,9 +1,7 @@
 import { notFound } from "next/navigation";
-import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
 import { can } from "@/lib/auth/rbac";
 import { AppError } from "@/lib/errors";
-import { messages } from "@/lib/messages";
 import { AssigneesEditor } from "@/modules/projects/components/assignees-editor";
 import { ProjectForm } from "@/modules/projects/components/project-form";
 import { listAssigneeOptions } from "@/modules/projects/repository/assignee-options";
@@ -12,10 +10,10 @@ import { getProjectCached } from "./get-project";
 import { parseProjectId } from "./project-id";
 
 /**
- * Charter workspace — full route (ADR-0010 exception): sections Charter,
+ * Charter workspace — full route  exception): sections Charter,
  * Framework, Financing (ONE form) + Assignees (req 0.3). Deep-linkable so
  * several projects can be open side by side (req 0.1). The project header and
- * section nav come from the nested layout (ADR-0018); the project fetch is
+ * section nav come from the nested layout ; the project fetch is
  * shared with the layout via React cache (no double fetch).
  */
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
@@ -41,15 +39,21 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const canDelete = can(session.role, "projects:delete");
 
   return (
-    <div className="mx-auto w-full max-w-3xl">
-      <PageHeader title={messages.projects.charterSection} />
-      <ProjectForm project={project} canEdit={canEdit} canDelete={canDelete} />
-      <AssigneesEditor
-        projectId={projectId}
-        initial={assignees}
-        options={options}
-        canEdit={canEdit}
-      />
+    <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <main className="min-w-0">
+          <ProjectForm project={project} canEdit={canEdit} canDelete={canDelete} />
+        </main>
+
+        <aside className="min-w-0 xl:sticky xl:top-6 xl:self-start">
+          <AssigneesEditor
+            projectId={projectId}
+            initial={assignees}
+            options={options}
+            canEdit={canEdit}
+          />
+        </aside>
+      </div>
     </div>
   );
 }

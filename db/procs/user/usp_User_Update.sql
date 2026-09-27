@@ -1,5 +1,5 @@
 -- usp_User_Update — profile/role/state update (NOT password — usp_User_SetPassword).
--- CONFLICT on @RowVer mismatch (ADR-0011/0012); bumps SessionVersion when RoleId
+-- CONFLICT on @RowVer mismatch /0012); bumps SessionVersion when RoleId
 -- or IsActive changes so live JWT sessions are revoked. Audits before/after
 -- in-transaction. Module: auth-and-rbac (#4).
 USE ProjectManager;

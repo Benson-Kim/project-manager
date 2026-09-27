@@ -28,9 +28,8 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { AppError } from "@/lib/errors";
-import { createProjectAction } from "./create-project";
-import { updateProjectAction } from "./update-project";
-import { setProjectAssigneesAction } from "./set-assignees";
+import { createProjectAction, setProjectAssigneesAction, updateProjectAction } from ".";
+
 
 function dbRow(overrides: Record<string, unknown> = {}) {
   return {

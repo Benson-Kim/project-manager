@@ -25,7 +25,7 @@ export async function listProjectAssignees(
     Page: 1,
     PageSize: 100,
   });
-  // The list proc appends TotalCount (ADR-0016); the row schema strips it.
+  // The list proc appends TotalCount ; the row schema strips it.
   return rows.map((r) => projectAssigneeRowSchema.parse(r));
 }
 

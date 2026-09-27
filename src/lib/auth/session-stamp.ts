@@ -2,7 +2,7 @@ import { getUserById } from "@/modules/auth/repository/users";
 import { isAppError } from "../errors";
 
 /**
- * SessionVersion revocation stamp (ADR-0017): JWTs carry the SessionVersion
+ * SessionVersion revocation stamp : JWTs carry the SessionVersion
  * they were minted with; every request re-reads the current value so bumping
  * it (password change, role change, deactivation, admin revoke) kills all
  * outstanding sessions on their next request.

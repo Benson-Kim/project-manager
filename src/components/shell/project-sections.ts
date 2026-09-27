@@ -37,6 +37,11 @@ export const projectSectionGroups: readonly ProjectSectionGroup[] = [
     label: messages.planning.title,
     sections: [
       {
+        segment: "objectives",
+        label: messages.objectives.title,
+        match: "prefix",
+      },
+      {
         segment: "deliverables",
         label: messages.keyDeliverables.title,
         match: "prefix",
@@ -46,12 +51,27 @@ export const projectSectionGroups: readonly ProjectSectionGroup[] = [
   {
     key: "people",
     label: messages.people.title,
-    sections: [{ segment: "suppliers", label: messages.suppliers.title, match: "prefix" }],
+    sections: [
+      { segment: "stakeholders", label: messages.stakeholders.title, match: "prefix" },
+      { segment: "suppliers", label: messages.suppliers.title, match: "prefix" },
+    ],
   },
   {
     key: "activity",
     label: messages.activity.title,
-    sections: [],
+    sections: [
+      {
+        segment: "daily-activities",
+        label: messages.dailyActivities.title,
+        match: "prefix",
+      },
+      {
+        segment: "todos",
+        label: messages.todoItems.title,
+        match: "prefix",
+      },
+      { segment: "keywords", label: messages.keywords.title, match: "prefix" },
+    ],
   },
 ] as const;
 

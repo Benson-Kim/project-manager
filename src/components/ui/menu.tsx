@@ -99,7 +99,7 @@ export function Menu({
 }
 
 const itemClass =
-  "flex min-h-9 w-full items-center px-6 text-left text-sm text-ink hover:bg-surface-sunken";
+  "flex min-h-10 w-full items-center px-6 text-left text-sm text-ink hover:bg-surface-sunken";
 
 export function MenuLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (

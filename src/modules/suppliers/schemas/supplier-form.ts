@@ -3,7 +3,7 @@ import { messages } from "@/lib/messages";
 import { SUPPLIER_RATINGS } from "./supplier";
 
 /**
- * Supplier form contract (ADR-0009): ONE schema shared by the client sheet
+ * Supplier form contract: ONE schema shared by the client sheet
  * form (blur + submit validation over FormData strings) and the server
  * actions. FormData values are strings — this schema coerces them into the
  * repository input shape ("" → null, "YYYY-MM-DD" → Date, vocab → enum).

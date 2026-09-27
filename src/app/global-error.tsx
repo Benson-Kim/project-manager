@@ -12,7 +12,7 @@ export default function GlobalError({ reset }: { error: Error; reset: () => void
         <button
           type="button"
           onClick={reset}
-          className="mt-2 inline-flex min-h-9 items-center rounded-md border px-6 text-sm font-medium"
+          className="mt-2 inline-flex min-h-10 items-center rounded-md border px-6 text-sm font-medium"
         >
           {messages.app.retry}
         </button>

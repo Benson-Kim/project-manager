@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+
 import { useAnnouncer } from "@/components/ui/announcer";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/form/combobox";
@@ -9,8 +10,9 @@ import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { Select } from "@/components/ui/form/inputs";
 import { useToast } from "@/components/ui/toast";
+
 import { messages } from "@/lib/messages";
-import { setProjectAssigneesAction } from "../actions/set-assignees";
+import { setProjectAssigneesAction } from "../actions";
 import { ASSIGNEE_ROLES, type AssigneeRole, type ProjectAssigneeRow } from "../schemas/project";
 
 const roleLabels: Record<AssigneeRole, string> = {
@@ -87,39 +89,45 @@ export function AssigneesEditor({
   };
 
   return (
-    <section aria-labelledby="assignees-heading" className="flex flex-col gap-4 pb-8">
+    <section
+      aria-labelledby="assignees-heading"
+      className="flex flex-col gap-4 pb-8 border border-line bg-linear-60 rounded-md"
+    >
       <h2
         id="assignees-heading"
-        className="border-b border-line pb-2 text-base font-semibold text-ink"
+        className="border-b border-line px-4 py-2 text-base font-semibold text-ink"
       >
         {messages.projects.assigneesSection}
       </h2>
       <ErrorSummary message={summary} />
-      {assignees.length === 0 ? (
-        <p className="text-sm text-ink-muted">{messages.projects.noAssignees}</p>
-      ) : (
-        <ul className="flex flex-col gap-2" data-testid="assignee-list">
-          {assignees.map((a) => (
-            <li
-              key={`${a.role}:${a.personName}`}
-              className="flex min-h-11 items-center justify-between gap-2 rounded-md border border-line px-3"
-            >
-              <span className="text-sm text-ink">
-                {a.personName}
-                <span className="ml-2 text-xs text-ink-muted">{roleLabels[a.role]}</span>
-              </span>
-              {canEdit ? (
-                <Button type="button" variant="ghost" onClick={() => remove(a)}>
-                  {messages.projects.removeAssignee(a.personName)}
-                </Button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="px-4 py-3">
+        {assignees.length === 0 ? (
+          <p className="text-sm text-ink-muted ">{messages.projects.noAssignees}</p>
+        ) : (
+          <ul className="flex flex-col gap-2 " data-testid="assignee-list">
+            {assignees.map((a) => (
+              <li
+                key={`${a.role}:${a.personName}`}
+                className="flex min-h-11 items-center justify-between gap-2 rounded-md border border-line px-3"
+              >
+                <span className="text-sm text-ink">
+                  {a.personName}
+                  <span className="ml-2 text-xs text-ink-muted">{roleLabels[a.role]}</span>
+                </span>
+                {canEdit ? (
+                  <Button type="button" variant="ghost" onClick={() => remove(a)}>
+                    {messages.projects.removeAssignee(a.personName)}
+                  </Button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       {canEdit ? (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 px-4 py-3">
             <Field label={messages.projects.assigneeName} name="assigneeName">
               <Combobox
                 key={comboboxKey}

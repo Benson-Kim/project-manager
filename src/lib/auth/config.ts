@@ -11,7 +11,7 @@ import { verifyPassword } from "./password";
 import type { Role } from "./types";
 
 /**
- * Auth.js v5 configuration (ADR-0017): credentials provider + JWT session
+ * Auth.js v5 configuration : credentials provider + JWT session
  * strategy with a SessionVersion revocation stamp (no DB session table).
  * authorize() is the single login gatekeeper: IP fixed-window rate limit
  * (5/min, usp_LoginAttempt_Record), per-user lockout with backoff

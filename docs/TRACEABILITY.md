@@ -16,7 +16,7 @@ restated as an acceptance criterion in its module issue.
 | 6 | 0.3 one-or-many PMs / sponsors / BAs | projects (M:N `ProjectAssignee`) | #5 | feature/projects |
 | 7 | 1-Stakeholder(s) | stakeholders | #6 | feature/stakeholders |
 | 8 | (blank sub-row of §1) | stakeholders | #6 | feature/stakeholders |
-| 9 | 2-Acronym(s) | acronyms (keywords) | #8 | feature/acronyms |
+| 9 | 2-Keyword(s) | keywords (keywords) | #8 | feature/keywords |
 | 10 | 3-Key Requirements Deliverables | key-deliverables | #9 | feature/key-deliverables |
 | 11 | 4-Objectives | objectives | #10 | feature/objectives |
 | 12 | 5-Meeting Minutes | meetings | #11 | feature/meetings |
@@ -65,7 +65,7 @@ restated as an acceptance criterion in its module issue.
 | 55 | Supplier address fields | suppliers | #7 | feature/suppliers |
 | 56 | Word-like functions everywhere | notes editor component (shared) | #15 | feature/notes |
 | 57 | To-do pop-up alerts w/ date+time, frequency, snooze | todo-alerts | #20 | feature/todo-alerts |
-| 58 | Acronyms: search field + rename to "keywords" | acronyms | #8 | feature/acronyms |
+| 58 | Keywords: search field + rename to "keywords" | keywords | #8 | feature/keywords |
 | 59 | To-do list predicated on daily activities + filters (to-do, requester) | todo-alerts | #20 | feature/todo-alerts |
 | 60 | Portability (installable anywhere) | foundation (Docker/compose/standalone) | #2 | feature/foundation |
 | 61 | Import mechanism from the Access database | database-schema-and-procs (seeds from extraction — delivered, MR !6) | #3 | feature/database-schema-and-procs |

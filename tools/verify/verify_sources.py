@@ -102,7 +102,7 @@ def verify_xlsx():
         "C5": "0.2-The system must have a responsive field where the actor can type the "
               "beginning of the project name and it will find the name in the drop down list.",
         "B39": "Items to Remember",
-        "B58": "Create a Search field under acronyms …and rename the section keywords.",
+        "B58": "Create a Search field under keywords.",
         "B63": "Potential Additional Requirements",
         "B68": "Add ons",
         "E64": "Will provide the prototype if needed",

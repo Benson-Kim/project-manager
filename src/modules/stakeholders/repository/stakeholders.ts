@@ -14,9 +14,9 @@ import {
 } from "../schemas/stakeholder";
 
 /**
- * Stakeholder repository — stored procedures only (ADR-0002), every row
+ * Stakeholder repository — stored procedures only , every row
  * zod-parsed at the boundary (STANDARDS §2.5), list params forwarded 1:1
- * (ADR-0016).
+ * .
  */
 
 function toProcParams(input: CreateStakeholderParsed) {

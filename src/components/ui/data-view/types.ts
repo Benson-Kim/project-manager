@@ -2,7 +2,7 @@ import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 
 /**
- * DataView contract (ADR-0006). A module supplies rows for ONE server-paged
+ * DataView contract . A module supplies rows for ONE server-paged
  * page, the total count, a card renderer, table columns with priorities, and
  * stable ids. Everything else (toggle, URL state, selection, keyboard nav,
  * states) is shared behaviour.
@@ -37,6 +37,7 @@ export interface DataViewProps<Row> {
   onOpen?: (row: Row) => void;
   /** Enables selection + the bulk bar when provided. */
   bulkActions?: (selectedIds: Array<string | number>, clear: () => void) => React.ReactNode;
+  renderToolbar?: (viewToggle: React.ReactNode) => React.ReactNode;
   /** Rendered when there is no data at all (no search/filter active). */
   empty: React.ReactNode;
 }

@@ -28,9 +28,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { AppError } from "@/lib/errors";
-import { createStakeholderAction } from "./create-stakeholder";
-import { deleteStakeholderAction } from "./delete-stakeholder";
-import { updateStakeholderAction } from "./update-stakeholder";
+import { createStakeholderAction, updateStakeholderAction, deleteStakeholderAction } from ".";
 
 function dbRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -64,7 +62,7 @@ describe("stakeholders actions", () => {
     revalidatePath.mockClear();
   });
 
-  it("create succeeds from FormData and revalidates /stakeholders", async () => {
+  it("create succeeds from FormData", async () => {
     execProc.mockResolvedValue([dbRow()]);
     const fd = new FormData();
     fd.set("projectId", "2");
@@ -77,7 +75,8 @@ describe("stakeholders actions", () => {
     expect(params.ProjectId).toBe(2);
     expect(params.EngagementLevel).toBe("Medium");
     expect(params.ActorUserId).toBe(7);
-    expect(revalidatePath).toHaveBeenCalledWith("/stakeholders");
+    // project-scoped route; sheet calls router.refresh() — no static revalidatePath
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 
   it("create returns VALIDATION with fieldErrors for an empty first name", async () => {
@@ -129,7 +128,7 @@ describe("stakeholders actions", () => {
     if (!result.ok) expect(result.error.code).toBe("CONFLICT");
   });
 
-  it("delete succeeds and revalidates /stakeholders", async () => {
+  it("delete succeeds", async () => {
     execProc.mockResolvedValue([]);
     const result = await deleteStakeholderAction({ stakeholderId: 1, rowVer: 10 });
     expect(result.ok).toBe(true);
@@ -138,6 +137,7 @@ describe("stakeholders actions", () => {
       RowVer: 10,
       ActorUserId: 7,
     });
-    expect(revalidatePath).toHaveBeenCalledWith("/stakeholders");
+    // project-scoped route; sheet calls router.refresh() — no static revalidatePath
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 });

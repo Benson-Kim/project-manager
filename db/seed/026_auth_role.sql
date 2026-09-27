@@ -1,4 +1,4 @@
--- Seed: the four fixed roles (ADR-0015 / docs/PLAN.md §9). Idempotent MERGE.
+-- Seed: the four fixed roles  / docs/PLAN.md §9). Idempotent MERGE.
 USE ProjectManager;
 GO
 MERGE auth.Role AS t

@@ -53,7 +53,7 @@ export const rateLimitStateSchema = z.object({
 });
 export type RateLimitState = z.infer<typeof rateLimitStateSchema>;
 
-/** Login form input (client + server, ADR-0009 single schema). */
+/** Login form input (client + server, single schema). */
 export const loginInput = z.object({
   username: z.string().trim().min(1, "Enter your username").max(100),
   password: z.string().min(1, "Enter your password").max(128),

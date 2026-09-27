@@ -5,7 +5,7 @@ const modules = [
   { name: "Projects", key: "projects" },
   { name: "Stakeholders", key: "stakeholders" },
   { name: "Suppliers", key: "suppliers" },
-  { name: "Keywords", key: "acronyms" },
+  { name: "Keywords", key: "keywords" },
   { name: "Key Deliverables", key: "key-deliverables" },
   { name: "Objectives", key: "objectives" },
   { name: "Meetings", key: "meetings" },

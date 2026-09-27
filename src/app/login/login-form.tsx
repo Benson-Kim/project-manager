@@ -11,7 +11,7 @@ import { loginAction } from "@/modules/auth/actions";
 import { loginInput } from "@/modules/auth/schemas/user";
 
 /**
- * The ONE form pattern (ADR-0009): visible labels, blur+submit validation via
+ * The ONE form pattern ): visible labels, blur+submit validation via
  * the shared zod schema, pending state, error summary that takes focus.
  * The failure message is a single generic sentence — it never reveals whether
  * the username exists (STANDARDS §4).
