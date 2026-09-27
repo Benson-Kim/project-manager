@@ -6,7 +6,7 @@ import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { Select } from "@/components/ui/form/inputs";
 import { Toolbar } from "@/components/ui/toolbar";
 import { messages } from "@/lib/messages";
-import { searchProjectsAction } from "../actions/search-projects";
+import { searchProjectsAction } from "../actions";
 import type { ProjectSearchRow } from "../schemas/project";
 import { PROJECT_PRIORITIES, PROJECT_STATUSES } from "../schemas/project-form";
 
@@ -16,7 +16,7 @@ import { PROJECT_PRIORITIES, PROJECT_STATUSES } from "../schemas/project-form";
  * character; Enter filters the list; picking a suggestion opens the project).
  * Status/priority filters forward 1:1 to usp_Project_List.
  */
-export function ProjectsToolbar() {
+export function ProjectsToolbar({ children }: { children?: React.ReactNode }) {
   const router = useRouter();
   const { searchParams, update } = useListUrlState();
   const listboxId = useId();
@@ -95,39 +95,13 @@ export function ProjectsToolbar() {
             autoComplete="off"
             placeholder={messages.list.search}
             data-testid="projects-search"
-            className="min-h-9 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink"
+            className="min-h-10 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink"
             value={query}
             onChange={(e) => onChange(e.target.value)}
             onBlur={() => setTimeout(() => setOpen(false), 100)}
             onKeyDown={onKeyDown}
           />
         </label>
-        <ul
-          id={listboxId}
-          role="listbox"
-          aria-label={messages.projects.jumpToProject}
-          hidden={!open}
-          className="absolute z-(--z-dialog) mt-1 max-h-60 w-full overflow-auto rounded-md border border-line bg-surface-raised py-1 shadow-lg"
-        >
-          {suggestions.map((row, index) => (
-            <li
-              key={row.ProjectId}
-              id={`${listboxId}-${row.ProjectId}`}
-              role="option"
-              aria-selected={index === activeIndex}
-              className={`flex min-h-9 cursor-pointer items-center px-6 text-sm text-ink ${
-                index === activeIndex ? "bg-accent-soft" : ""
-              }`}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                jumpTo(row);
-              }}
-              onMouseEnter={() => setActiveIndex(index)}
-            >
-              {row.ProjectName}
-            </li>
-          ))}
-        </ul>
       </div>
       <label>
         <span className="sr-only">{messages.projects.status}</span>
@@ -163,6 +137,7 @@ export function ProjectsToolbar() {
           ))}
         </Select>
       </label>
+      {children}
     </Toolbar>
   );
 }

@@ -50,7 +50,7 @@ Column names are normalised to PascalCase without spaces (e.g. `Contact Person` 
 | tblProjectFramework | `Project` | + `ProjectPriority`, `EstimatedCompletionDate` (checklist add-ons); M:N `ProjectAssignee` (PMs/sponsors/BAs — req 0.3 "one or many") |
 | tblStakeholders | `Stakeholder` | FK ProjectId; communication preference & engagement lookups |
 | tbl3rdPartySupplier | `Supplier` | full address block, contract dates, rating |
-| tblAcronyms | `Keyword` | renamed per checklist §13 (searchable) |
+| tblKeywords | `Keyword` | renamed per checklist §13 (searchable) |
 | tblKeyRequirementsDeliverable | `KeyDeliverable` | AssignedTo → FK Stakeholder; drives Gantt |
 | tblProjectObjectives | `Objective` | |
 | tblMeetingMinutes (recovered — 5 rows), tblMeetingAgenda, tblMeetingDiscussionPoints, tblMeetingActionItems, tblMeetingParticipants | `Meeting`, `MeetingAgendaItem`, `MeetingDiscussionPoint`, `MeetingActionItem`, `MeetingParticipant` | Meeting parent EXISTS in the source (subject, description, location, start date, start/end time, conclusion, next meeting, follow-up); + checklist extras: date received, title, objective, participant list from stakeholders |
@@ -88,7 +88,7 @@ via `IDENTITY_INSERT` (delivered by module #3; proc catalogue in `db/README.md`)
 | 4 | projects (framework/charter, search, multi-assignee) | `feature/projects` | 3 |
 | 5 | stakeholders | `feature/stakeholders` | 4 |
 | 6 | suppliers | `feature/suppliers` | 4 |
-| 7 | acronyms (keywords + search) | `feature/acronyms` | 4 |
+| 7 | keywords (keywords + search) | `feature/keywords` | 4 |
 | 8 | key-deliverables (+ Gantt) | `feature/key-deliverables` | 5 |
 | 9 | objectives | `feature/objectives` | 4 |
 | 10 | meetings (minutes/agenda/discussion/actions/participants) | `feature/meetings` | 5 |
@@ -112,7 +112,7 @@ via `IDENTITY_INSERT` (delivered by module #3; proc catalogue in `db/README.md`)
 
 MR flow: each `feature/*` → MR to `develop` (staging deploy) → release MR
 `develop` → `main` (production, manual deploy). Parallelisable after #4:
-stakeholders, suppliers, acronyms, objectives, assumptions-constraints, notes,
+stakeholders, suppliers, keywords, objectives, assumptions-constraints, notes,
 it-resource-planning, parking-lot, daily-activities are independent of each
 other.
 
@@ -315,7 +315,7 @@ to develop, verify staging deploy job, close issue.
 | 4 | projects (#5) | charter screen, type-ahead search (row 5), M:N assignees (row 6), add-ons (row 69: priority, est. completion, phase, risk level, status) |
 | 5 | stakeholders (#6) | CRUD + comm-preference/engagement dropdowns (row 70) — **delivered, MR !11**: migration 006 (vocab CHECK constraints), `usp_Stakeholder_List` + `@EngagementLevel` filter/EmailAddress search/ProjectRole sort, `/stakeholders` DataView + URL-synced sheet (ADR-0010), charter deep link |
 | 6 | suppliers (#7) | CRUD + contact/contract/rating + address block (rows 55, 74) — **delivered, MR !16**: no DB deltas (table from 003, procs from #3, seed 004), `/projects/[id]/suppliers` project-scoped DataView + URL-synced sheet (ADR-0010/0018, first registered section besides charter), default sort ContractEndDate asc, DatePicker contract dates, rating vocab in UI (DB free-text); contract-end dashboard alert deferred to #20 |
-| 7 | acronyms (#8) | rename Keywords + search field (row 58) |
+| 7 | keywords (#8) | rename Keywords + search field (row 58) |
 | 8 | key-deliverables (#9) | CRUD + deadline/assignee/priority/status (row 71) + Gantt from deliverable dates (row 67) — **delivered**: list + Sheet + CSS-grid Gantt under `/projects/[id]/deliverables` (ADR-0018 route override; bar start = CreatedAtUtc, print stylesheet as the report view) |
 | 9 | objectives (#10) | CRUD (row 11) |
 | 10 | meetings (#11) | Meeting parent + agenda/discussion/actions/participants; participants picker from stakeholders (rows 13, 53, 54, 72); attendees vs apologies |

@@ -28,9 +28,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { AppError } from "@/lib/errors";
-import { createSupplierAction } from "./create-supplier";
-import { deleteSupplierAction } from "./delete-supplier";
-import { updateSupplierAction } from "./update-supplier";
+import { createSupplierAction, deleteSupplierAction, updateSupplierAction } from ".";
 
 function dbRow(overrides: Record<string, unknown> = {}) {
   return {

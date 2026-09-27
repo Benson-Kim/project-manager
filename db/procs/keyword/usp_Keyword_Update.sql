@@ -1,11 +1,11 @@
 -- usp_Keyword_Update — full-row update with rowversion concurrency (50002 CONFLICT) + in-transaction audit.
--- Entity app.Keyword (source: tblAcronyms). Module: database-schema-and-procs (#3).
+-- Entity app.Keyword (source: tblKeywords). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Keyword_Update
     @KeywordId INT,
     @ProjectId INT = NULL,
-    @Acronym NVARCHAR(255),
+    @Keyword NVARCHAR(255),
     @Definition NVARCHAR(255) = NULL,
     @RowVer BIGINT,
     @ActorUserId INT
@@ -24,13 +24,13 @@ BEGIN
     BEGIN TRAN;
 
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT KeywordId, [ProjectId], [Acronym], [Definition]
+        (SELECT KeywordId, [ProjectId], [Keyword], [Definition]
          FROM app.Keyword WHERE KeywordId = @KeywordId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 
     UPDATE app.Keyword SET
         [ProjectId] = @ProjectId,
-        [Acronym] = @Acronym,
+        [Keyword] = @Keyword,
         [Definition] = @Definition,
         UpdatedAtUtc = SYSUTCDATETIME(),
         UpdatedBy    = @ActorUserId
@@ -38,7 +38,7 @@ BEGIN
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.Keyword', CAST(@KeywordId AS NVARCHAR(64)), @Before,
-            (SELECT KeywordId, [ProjectId], [Acronym], [Definition]
+            (SELECT KeywordId, [ProjectId], [Keyword], [Definition]
              FROM app.Keyword WHERE KeywordId = @KeywordId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
@@ -46,7 +46,7 @@ BEGIN
 
     SELECT KeywordId,
            [ProjectId],
-           [Acronym],
+           [Keyword],
            [Definition],
            CreatedAtUtc,
            UpdatedAtUtc,

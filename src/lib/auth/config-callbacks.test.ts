@@ -49,7 +49,7 @@ const appToken: AppToken = {
   mustChangePassword: false,
 };
 
-describe("NextAuth config (ADR-0017)", () => {
+describe("NextAuth config ", () => {
   it("uses the JWT strategy with the 8h idle expiry and /login page", () => {
     expect(cfg.session).toEqual({ strategy: "jwt", maxAge: 8 * 60 * 60 });
     expect(cfg.pages).toEqual({ signIn: "/login" });

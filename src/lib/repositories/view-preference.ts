@@ -4,7 +4,7 @@ import { VIEW_MODES, type ViewMode } from "../list-params";
 
 const rowSchema = z.object({ ViewMode: z.enum(VIEW_MODES) });
 
-/** Server-side view preference (ADR-0006); cookie fallback lives in the DataView page helper. */
+/** Server-side view preference ; cookie fallback lives in the DataView page helper. */
 export async function getViewPreference(
   userId: number,
   moduleKey: string,

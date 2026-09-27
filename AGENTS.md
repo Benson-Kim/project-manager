@@ -89,7 +89,7 @@ docs/             STANDARDS.md, MODULE-BLUEPRINT.md, adr/, PLAN.md, source/ (bin
 ## Modules (issue per module; see docs/PLAN.md §3 for ordering/dependencies)
 
 foundation · database-schema-and-procs · auth-and-rbac · projects · stakeholders ·
-suppliers · acronyms · key-deliverables · objectives · meetings ·
+suppliers · keywords · key-deliverables · objectives · meetings ·
 questions-answers · assumptions-constraints · risks-issues · notes ·
 it-resource-planning · financials · parking-lot · daily-activities · todo-alerts ·
 reports · file-storage-and-backup · admin-management · ci-cd-and-security-automation

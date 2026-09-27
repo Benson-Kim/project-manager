@@ -161,13 +161,13 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Supplier_ProjectId' AND object_id = OBJECT_ID(N'app.Supplier'))
     CREATE INDEX IX_Supplier_ProjectId ON app.Supplier (ProjectId, IsDeleted) INCLUDE ([SupplierName]);
 GO
--- Keyword (source: tblAcronyms)
+-- Keyword (source: tblKeywords)
 IF OBJECT_ID(N'app.Keyword', N'U') IS NULL
 BEGIN
     CREATE TABLE app.Keyword (
     KeywordId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Keyword PRIMARY KEY,
     [ProjectId] INT NULL CONSTRAINT FK_Keyword_Project_ProjectId REFERENCES app.Project(ProjectId),
-    [Acronym] NVARCHAR(255) NOT NULL,
+    [Keyword] NVARCHAR(255) NOT NULL,
     [Definition] NVARCHAR(255) NULL,
     IsDeleted     BIT NOT NULL CONSTRAINT DF_Keyword_IsDeleted DEFAULT 0,
     DeletedAtUtc  DATETIME2 NULL,
@@ -181,7 +181,7 @@ BEGIN
 END;
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Keyword_ProjectId' AND object_id = OBJECT_ID(N'app.Keyword'))
-    CREATE INDEX IX_Keyword_ProjectId ON app.Keyword (ProjectId, IsDeleted) INCLUDE ([Acronym]);
+    CREATE INDEX IX_Keyword_ProjectId ON app.Keyword (ProjectId, IsDeleted) INCLUDE ([Keyword]);
 GO
 -- KeyDeliverable (source: tblKeyRequirementsDeliverable)
 IF OBJECT_ID(N'app.KeyDeliverable', N'U') IS NULL

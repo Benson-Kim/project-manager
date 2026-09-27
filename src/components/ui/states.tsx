@@ -1,7 +1,7 @@
 import { messages } from "@/lib/messages";
 
 /**
- * The three list/content states (ADR-0006): empty (no data at all — states the
+ * The three list/content states : empty (no data at all — states the
  * one next action), zero-result (search/filters matched nothing) and error
  * (with retry). No decoration, no hints — one title, one optional line, one
  * optional action.
@@ -35,7 +35,7 @@ export function ErrorState({ title, onRetry }: { title?: string; onRetry?: () =>
         <button
           type="button"
           onClick={onRetry}
-          className="mt-2 inline-flex min-h-9 items-center rounded-md border border-line bg-surface px-6 text-sm font-medium text-ink"
+          className="mt-2 inline-flex min-h-10 items-center rounded-md border border-line bg-surface px-6 text-sm font-medium text-ink"
         >
           {messages.app.retry}
         </button>
@@ -63,4 +63,28 @@ export function ListSkeleton({ rows = 6 }: { rows?: number }) {
       ))}
     </output>
   );
+}
+
+/**
+ * Render helper for list pages: returns the zero-results EmptyState when
+ * filters are active, or the module-specific empty state otherwise.
+ * Eliminates the repeated filtersActive ternary in every view component.
+ *
+ * This is a render helper (returns JSX), not a pure utility — call it only
+ * from Client Component render paths, not from Server Components.
+ */
+export function listEmptyState(
+  filtersActive: boolean,
+  emptyBody: string,
+  newAction?: React.ReactNode,
+): React.ReactNode {
+  if (filtersActive) {
+    return (
+      <EmptyState
+        title={messages.list.zeroResultsTitle}
+        body={messages.list.zeroResultsBody}
+      />
+    );
+  }
+  return <EmptyState title={messages.list.emptyTitle} body={emptyBody} action={newAction} />;
 }

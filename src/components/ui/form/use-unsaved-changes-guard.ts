@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { guardedHref } from "./unsaved-guard";
 
 /**
- * The ONE unsaved-changes guard (ADR-0009, verified for ADR-0018 Q1): while
+ * The ONE unsaved-changes guard , verified for ADR-0018 Q1): while
  * `dirty`, it (a) warns on full unload via `beforeunload` and (b) intercepts
  * client-side clicks on internal links at the document capture phase — before
  * next/link's own handler — and asks for confirmation instead. The caller

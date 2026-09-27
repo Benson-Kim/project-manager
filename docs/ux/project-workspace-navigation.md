@@ -40,7 +40,7 @@ Sources: `docs/PLAN.md` §2/§3, issues #5–#24, `docs/source/analysis/requirem
 | 12 | To-dos (project-filtered; alerts are global) | #20 | Execution | High — daily |
 | 13 | Parking lot | #18 | Execution | Medium |
 | 14 | Notes (rich text, tabs) | #15 | Reference | Medium |
-| 15 | Keywords (acronyms) | #8 | Reference | Low — lookup |
+| 15 | Keywords (keywords) | #8 | Reference | Low — lookup |
 | 16 | Financials (+ MSSS document checklist) | #17 | Money | Medium, bursty |
 
 `ExistingSystemInterface` has a table in PLAN §2 but no module issue; it belongs
@@ -56,10 +56,10 @@ risks+assumptions merge and Gantt nests under deliverables).
 ## Constraints
 
 - Single sidebar only (PO ruling); the #28 sidebar content is fixed and global.
-- Mobile-first 360 px; touch targets ≥ 44 px in content, ≥ 36 px in the shell (#28).
+- Mobile-first 360 px; touch targets ≥ 44 px in content, ≥ 40 px in the shell (#28).
 - Every screen deep-linkable; several projects open in several windows (checklist
   "Items to remember"; charter page already documents this).
-- DataView is mandatory for every list (ADR-0006); URL is the list state — section
+- DataView is mandatory for every list ; URL is the list state — section
   navigation must not clobber `?q=&sort=&view=&page=`.
 - Detail/edit = Sheet, except the six full-route exceptions (ADR-0010): charter,
   meeting workspace, notes editor, financial workflow, Gantt, reports.
@@ -237,12 +237,12 @@ src/app/(app)/projects/[id]/
   inside `main`, after the project header, so skip-to-content lands above it —
   acceptable because the nav is short to traverse; revisit if testing shows pain.
 - Route changes announced by the existing shell announcer via `document.title`.
-- Touch targets: `min-h-9` per #28 shell sizing for the pills (36 px, shell-scale),
+- Touch targets: `min-h-10` per #28 shell sizing for the pills (40 px, shell-scale),
   with ≥ 8 px gaps; 44 px rule (STANDARDS §5.3) applies to content, shell-scale
   applies to nav chrome — flagged in the ADR so #28 and STANDARDS stay consistent.
 - States: the layout has its own `loading.tsx` (project header skeleton) and
   `error.tsx`/`notFound` per STANDARDS §7; section pages keep their own
-  skeleton/empty/zero-result/error states via DataView (ADR-0006).
+  skeleton/empty/zero-result/error states via DataView .
 
 ## Mobile spec (360 px)
 
@@ -294,7 +294,7 @@ src/app/(app)/projects/[id]/
 | Q2 | 15 links at 1280 px: is scroll-overflow acceptable to the PO, or is (c) primary+More wanted at ≥ lg? Decide after first usability pass with seeded data. | new UX issue; PO |
 | Q3 | `feature/stakeholders` may land `/(app)/stakeholders` top-level routes before the layout MR. Coordinate the move. | **Resolved (MR !14)**: MR !11 was still open when the layout landed — nothing registered for stakeholders; comment posted on !11/#6 asking for `projects/[id]/stakeholders/` per ADR-0018. |
 | Q4 | `ExistingSystemInterface` has no module issue — charter field group or resources section? | #16 (it-resource-planning) |
-| Q5 | Shell-scale 36 px vs STANDARDS 44 px touch targets for nav pills needs a one-line STANDARDS clarification when ADR-0018 is accepted. | **Resolved (MR !14)**: STANDARDS §5.3 clarified — nav/shell controls use the 36 px shell scale (`min-h-9`); `min-h-11` applies to non-button interactive rows in content. |
+| Q5 | Shell-scale 40 px vs STANDARDS 44 px touch targets for nav pills needs a one-line STANDARDS clarification when ADR-0018 is accepted. | **Resolved (MR !14)**: STANDARDS §5.3 clarified — nav/shell controls use the 40 px shell scale (`min-h-10`); `min-h-11` applies to non-button interactive rows in content. |
 | Q6 | Header search doubling as jump-to-SECTION (candidate f) — worth it after ≥ 8 sections exist. | future enhancement issue |
 
 ## Sources

@@ -10,7 +10,7 @@ Source file: `Access_database.mdb` (5,423,104 bytes, ACE format — "Standard AC
 
 ### Type 1 — Local table (52)
 
-`MSysACEs`, `MSysAccessStorage`, `MSysAccessXML`, `MSysComplexColumns`, `MSysComplexType_Attachment`, `MSysComplexType_Decimal`, `MSysComplexType_GUID`, `MSysComplexType_IEEEDouble`, `MSysComplexType_IEEESingle`, `MSysComplexType_Long`, `MSysComplexType_Short`, `MSysComplexType_Text`, `MSysComplexType_UnsignedByte`, `MSysNameMap`, `MSysNavPaneGroupCategories`, `MSysNavPaneGroupToObjects`, `MSysNavPaneGroups`, `MSysNavPaneObjectIDs`, `MSysObjects`, `MSysQueries`, `MSysRelationships`, `MSysResources`, `f_10A507954BDC4AED8B2702AD9617E985_Attachment`, `f_18D99D0B9F2B4EF79FCE40B6F0C89337_Documentation`, `f_3E3EC6ED2D6141538654E4E37770C497_Data`, `tbl3rdPartySupplier`, `tblAcronyms`, `tblActivityStatusType`, `tblAssumptionsConstraints`, `tblDailyActivityList`, `tblExistingSystemsInterfaces`, `tblFinancials`, `tblITResourcePlanning`, `tblITResourcePlanningDetails`, `tblInterviewQuestionsAnswers`, `tblKeyRequirementsDeliverable`, `tblMeetingActionItems`, `tblMeetingAgenda`, `tblMeetingDiscussionPoints`, `tblMeetingParticipants`, `tblNotes`, `tblParkingLotItems`, `tblProjectFinancialDocuments`, `tblProjectFramework`, `tblProjectObjectives`, `tblProjectSummary`, `tblProjectTask`, `tblProjectTaskList`, `tblRisksIssuesTracker`, `tblStakeholders`, `tblTaskFramework`, `tblTodoList`
+`MSysACEs`, `MSysAccessStorage`, `MSysAccessXML`, `MSysComplexColumns`, `MSysComplexType_Attachment`, `MSysComplexType_Decimal`, `MSysComplexType_GUID`, `MSysComplexType_IEEEDouble`, `MSysComplexType_IEEESingle`, `MSysComplexType_Long`, `MSysComplexType_Short`, `MSysComplexType_Text`, `MSysComplexType_UnsignedByte`, `MSysNameMap`, `MSysNavPaneGroupCategories`, `MSysNavPaneGroupToObjects`, `MSysNavPaneGroups`, `MSysNavPaneObjectIDs`, `MSysObjects`, `MSysQueries`, `MSysRelationships`, `MSysResources`, `f_10A507954BDC4AED8B2702AD9617E985_Attachment`, `f_18D99D0B9F2B4EF79FCE40B6F0C89337_Documentation`, `f_3E3EC6ED2D6141538654E4E37770C497_Data`, `tbl3rdPartySupplier`, `tblKeywords`, `tblActivityStatusType`, `tblAssumptionsConstraints`, `tblDailyActivityList`, `tblExistingSystemsInterfaces`, `tblFinancials`, `tblITResourcePlanning`, `tblITResourcePlanningDetails`, `tblInterviewQuestionsAnswers`, `tblKeyRequirementsDeliverable`, `tblMeetingActionItems`, `tblMeetingAgenda`, `tblMeetingDiscussionPoints`, `tblMeetingParticipants`, `tblNotes`, `tblParkingLotItems`, `tblProjectFinancialDocuments`, `tblProjectFramework`, `tblProjectObjectives`, `tblProjectSummary`, `tblProjectTask`, `tblProjectTaskList`, `tblRisksIssuesTracker`, `tblStakeholders`, `tblTaskFramework`, `tblTodoList`
 
 *(recovered, deleted-flagged slots but still live per mdbtools)*: `Switchboard Items`, `tblFinancialDocuments`, `tblMeetingMinutes` — total **55 local tables / 30 user tables**.
 
@@ -24,7 +24,7 @@ Source file: `Access_database.mdb` (5,423,104 bytes, ACE format — "Standard AC
 
 ### Type 5 — Query (QueryDef) (68)
 
-`qryAcronyms`, `qryAssumptionsConstraints`, `qryDailyActivityList`, `qryDailyActivityListExtended`, `qryDailyItemsAndStatusTypeByChoice`, `qryFinancialsExtended`, `qryITResourcePlanning`, `qryInProgressToDo`, `qryMeetingApologies`, `qryMeetingAttendees`, `qryMeetingMinutes`, `qryMeetingMinutes Extended`, `qryMinutes`, `qryObjectives`, `qryParkingLotItems`, `qryProject`, `qryProjectAcronyms`, `qryProjectActivityList`, `qryProjectExistingSystem`, `qryProjectFramework`, `qryProjectKeyRequirementsDeliverable`, `qryProjectObjectives`, `qryProjectReports`, `qryProjectStakeholders`, `qryStakeholders`, `qrySuppliers`, `qryUpcomingAlerts`, *(recovered)* `qryDailyItemsAndStatusType`, `qryKeyReqDeliverables`, `qryMeetingParticipants`, `qryProject3rdPartySupplier`, `qryProjectfrmQA`, `qryQuesAns` — **33 named queries** total, plus UI record-source queries: `~sq_cActivity List~sq_ccboFilterFavorites`, `~sq_cfrmDailyItemsAndStatusTypeChoice~sq_cProjectNameCopy`, `~sq_cfrmProjectReports~sq_ccboProject`, `~sq_cfrmReportSelector~sq_cListProjects`, `~sq_cfrmSubAcronyms~sq_csubfrmEntryAcronyms`, `~sq_cfrmSubDailyItemsAndStatusType~sq_cProjectID`, `~sq_cfrmSubFinancials~sq_csubfrmEntryAcronyms`, `~sq_cfrmSubMeetingMinutes~sq_caddMeetingMinutesub`, `~sq_cfrmSubMeetingMinutes~sq_csubfrmMeetingActionItems`, `~sq_cfrmSubNotes~sq_csubfrmEntryAcronyms`, `~sq_cfrmSubNotes~sq_csubfrmListAcronyms`, `~sq_cfrmSubObjectives~sq_csubfrmEntryObjectives`, `~sq_cfrmSubParkingLotItems~sq_csubfrmEntryParkingLotItems`, `~sq_cfrmSubParkingLotItems~sq_csubfrmListParkingLotItems`, `~sq_cfrmSubQuestionsAnswers~sq_csubfrmListQuestionsAnswers`, `~sq_cfrmSubStakeholders~sq_csubfrmListStakeholders`, `~sq_cfrmSubSuppliers~sq_csubfrmListSuppliers`, `~sq_csubfrmEntryFinancials~sq_csubformFinancialDocuments`, `~sq_csubfrmEntryITResourcePlanning~sq_csubformResourcesPlanning`, `~sq_csubfrmMeetingAgenda~sq_csubfrmMeetingActionItems`, `~sq_csubfrmMeetingAgenda~sq_csubfrmMeetingDiscussionPoints`, `~sq_drptDetailedProjectReportS~sq_dsubrptMeetingMinutes`, `~sq_drptMeetingMinutes~sq_dsubrptMeetingApologies`, `~sq_dsubrptMeetingMinutes~sq_dsubrptMeetingApologies`, `~sq_fSwitchboard`, `~sq_ffrmSubProjects`, `~sq_fsubfrmEntryITResourcePlanning`, `~sq_fsubfrmEntryQuestionsAnswers`, `~sq_fsubfrmEntrySuppliers`, `~sq_fsubfrmListAcronyms`, `~sq_fsubfrmListFinancials`, `~sq_fsubfrmListKeyReqDeliverables`, `~sq_fsubfrmListParkingLotItems`, `~sq_fsubfrmListResourcesPlanning`, `~sq_fsubfrmListRisksIssuesTracker`, `~sq_fsubfrmListSuppliers`, `~sq_rsubrptFinancials`, `~sq_rsubrptKeyReqDeliverables`, `~sq_rsubrptObjectives`, `~sq_rsubrptParkingLotItems`, `~sq_rsubrptStakeholders`
+`qryKeywords`, `qryAssumptionsConstraints`, `qryDailyActivityList`, `qryDailyActivityListExtended`, `qryDailyItemsAndStatusTypeByChoice`, `qryFinancialsExtended`, `qryITResourcePlanning`, `qryInProgressToDo`, `qryMeetingApologies`, `qryMeetingAttendees`, `qryMeetingMinutes`, `qryMeetingMinutes Extended`, `qryMinutes`, `qryObjectives`, `qryParkingLotItems`, `qryProject`, `qryProjectKeywords`, `qryProjectActivityList`, `qryProjectExistingSystem`, `qryProjectFramework`, `qryProjectKeyRequirementsDeliverable`, `qryProjectObjectives`, `qryProjectReports`, `qryProjectStakeholders`, `qryStakeholders`, `qrySuppliers`, `qryUpcomingAlerts`, *(recovered)* `qryDailyItemsAndStatusType`, `qryKeyReqDeliverables`, `qryMeetingParticipants`, `qryProject3rdPartySupplier`, `qryProjectfrmQA`, `qryQuesAns` — **33 named queries** total, plus UI record-source queries: `~sq_cActivity List~sq_ccboFilterFavorites`, `~sq_cfrmDailyItemsAndStatusTypeChoice~sq_cProjectNameCopy`, `~sq_cfrmProjectReports~sq_ccboProject`, `~sq_cfrmReportSelector~sq_cListProjects`, `~sq_cfrmSubKeywords~sq_csubfrmEntryKeywords`, `~sq_cfrmSubDailyItemsAndStatusType~sq_cProjectID`, `~sq_cfrmSubFinancials~sq_csubfrmEntryKeywords`, `~sq_cfrmSubMeetingMinutes~sq_caddMeetingMinutesub`, `~sq_cfrmSubMeetingMinutes~sq_csubfrmMeetingActionItems`, `~sq_cfrmSubNotes~sq_csubfrmEntryKeywords`, `~sq_cfrmSubNotes~sq_csubfrmListKeywords`, `~sq_cfrmSubObjectives~sq_csubfrmEntryObjectives`, `~sq_cfrmSubParkingLotItems~sq_csubfrmEntryParkingLotItems`, `~sq_cfrmSubParkingLotItems~sq_csubfrmListParkingLotItems`, `~sq_cfrmSubQuestionsAnswers~sq_csubfrmListQuestionsAnswers`, `~sq_cfrmSubStakeholders~sq_csubfrmListStakeholders`, `~sq_cfrmSubSuppliers~sq_csubfrmListSuppliers`, `~sq_csubfrmEntryFinancials~sq_csubformFinancialDocuments`, `~sq_csubfrmEntryITResourcePlanning~sq_csubformResourcesPlanning`, `~sq_csubfrmMeetingAgenda~sq_csubfrmMeetingActionItems`, `~sq_csubfrmMeetingAgenda~sq_csubfrmMeetingDiscussionPoints`, `~sq_drptDetailedProjectReportS~sq_dsubrptMeetingMinutes`, `~sq_drptMeetingMinutes~sq_dsubrptMeetingApologies`, `~sq_dsubrptMeetingMinutes~sq_dsubrptMeetingApologies`, `~sq_fSwitchboard`, `~sq_ffrmSubProjects`, `~sq_fsubfrmEntryITResourcePlanning`, `~sq_fsubfrmEntryQuestionsAnswers`, `~sq_fsubfrmEntrySuppliers`, `~sq_fsubfrmListKeywords`, `~sq_fsubfrmListFinancials`, `~sq_fsubfrmListKeyReqDeliverables`, `~sq_fsubfrmListParkingLotItems`, `~sq_fsubfrmListResourcesPlanning`, `~sq_fsubfrmListRisksIssuesTracker`, `~sq_fsubfrmListSuppliers`, `~sq_rsubrptFinancials`, `~sq_rsubrptKeyReqDeliverables`, `~sq_rsubrptObjectives`, `~sq_rsubrptParkingLotItems`, `~sq_rsubrptStakeholders`
 
 ### Type 8 — Relationship layout (28)
 
@@ -44,7 +44,7 @@ Source file: `Access_database.mdb` (5,423,104 bytes, ACE format — "Standard AC
 
 ### Type -32764 — Report (25)
 
-`Relationships for Project-Task Framework`, `rptAcronyms`, `rptAssumpConst`, `rptDetailedProjectReport`, `rptDynamicReport`, `rptFinancials`, `rptITResourcePlanning`, `rptKeyReqDeliverables`, `rptMeetingMinutes`, `rptParkingLotItems`, `rptQuesAns`, `rptStakeholders`, `rptSuppliers`, `subrptAcronyms`, `subrptAssumptionsConstraints`, `subrptFinancials`, `subrptITResourcePlanning`, `subrptKeyReqDeliverables`, `subrptMeetingApologies`, `subrptMeetingAttendees`, `subrptMeetingMinutes`, `subrptObjectives`, `subrptQuesAns`, `subrptStakeholders`, `subrptSuppliers`
+`Relationships for Project-Task Framework`, `rptKeywords`, `rptAssumpConst`, `rptDetailedProjectReport`, `rptDynamicReport`, `rptFinancials`, `rptITResourcePlanning`, `rptKeyReqDeliverables`, `rptMeetingMinutes`, `rptParkingLotItems`, `rptQuesAns`, `rptStakeholders`, `rptSuppliers`, `subrptKeywords`, `subrptAssumptionsConstraints`, `subrptFinancials`, `subrptITResourcePlanning`, `subrptKeyReqDeliverables`, `subrptMeetingApologies`, `subrptMeetingAttendees`, `subrptMeetingMinutes`, `subrptObjectives`, `subrptQuesAns`, `subrptStakeholders`, `subrptSuppliers`
 
 ### Type -32766 — Macro (2)
 
@@ -52,7 +52,7 @@ Source file: `Access_database.mdb` (5,423,104 bytes, ACE format — "Standard AC
 
 ### Type -32768 — Form (52)
 
-`Main Menu`, `Switchboard`, `frmCreateNotePages`, `frmProjectFramework`, `frmProjectReports`, `frmReportBuilder`, `frmReportSelector`, `frmSubAcronyms`, `frmSubConstraintsAssumptions`, `frmSubDailyItemsAndStatusType`, `frmSubKeyRequirementDeliverables`, `frmSubMeetingMinutes`, `frmSubNote`, `frmSubNotes`, `frmSubObjectives`, `frmSubParkingLotItems`, `frmSubProjects`, `frmSubQuestionsAnswers`, `frmSubStakeholders`, `frmSubSuppliers`, `subformMinutesList`, `subformResourcesPlanning`, `subformRisksIssuesTracker`, `subfrmEntryAcronyms`, `subfrmEntryConstraintsAssumptions`, `subfrmEntryDailyActivities`, `subfrmEntryFinancials`, `subfrmEntryITResourcePlanning`, `subfrmEntryObjectives`, `subfrmEntryParkingLotItems`, `subfrmEntryQuestionsAnswers`, `subfrmEntryRiskIssues`, `subfrmEntryStakeholders`, `subfrmEntrySuppliers`, `subfrmEntryTodoList`, `subfrmListAcronyms`, `subfrmListConstraintsAssumptions`, `subfrmListKeyReqDeliverables`, `subfrmListMinutes`, `subfrmListObjectives`, `subfrmListParkingLotItems`, `subfrmListQuestionsAnswers`, `subfrmListResourcesPlanning`, `subfrmListRisksIssuesTracker`, `subfrmListSuppliers`, `subfrmListTodoList`, `subfrmMeetingActionItems`, `subfrmMeetingAgenda`, `subfrmMeetingDiscussionPoints`, `subfrmMeetingParticipants`, `subfrmNotes`, `subfrmProjectExistingSystem`
+`Main Menu`, `Switchboard`, `frmCreateNotePages`, `frmProjectFramework`, `frmProjectReports`, `frmReportBuilder`, `frmReportSelector`, `frmSubKeywords`, `frmSubConstraintsAssumptions`, `frmSubDailyItemsAndStatusType`, `frmSubKeyRequirementDeliverables`, `frmSubMeetingMinutes`, `frmSubNote`, `frmSubNotes`, `frmSubObjectives`, `frmSubParkingLotItems`, `frmSubProjects`, `frmSubQuestionsAnswers`, `frmSubStakeholders`, `frmSubSuppliers`, `subformMinutesList`, `subformResourcesPlanning`, `subformRisksIssuesTracker`, `subfrmEntryKeywords`, `subfrmEntryConstraintsAssumptions`, `subfrmEntryDailyActivities`, `subfrmEntryFinancials`, `subfrmEntryITResourcePlanning`, `subfrmEntryObjectives`, `subfrmEntryParkingLotItems`, `subfrmEntryQuestionsAnswers`, `subfrmEntryRiskIssues`, `subfrmEntryStakeholders`, `subfrmEntrySuppliers`, `subfrmEntryTodoList`, `subfrmListKeywords`, `subfrmListConstraintsAssumptions`, `subfrmListKeyReqDeliverables`, `subfrmListMinutes`, `subfrmListObjectives`, `subfrmListParkingLotItems`, `subfrmListQuestionsAnswers`, `subfrmListResourcesPlanning`, `subfrmListRisksIssuesTracker`, `subfrmListSuppliers`, `subfrmListTodoList`, `subfrmMeetingActionItems`, `subfrmMeetingAgenda`, `subfrmMeetingDiscussionPoints`, `subfrmMeetingParticipants`, `subfrmNotes`, `subfrmProjectExistingSystem`
 
 ## 2. Table schemas (data dictionary)
 
@@ -76,13 +76,13 @@ Suggested SQL Server type mapping is included per column (used by `db/migrations
 | Postal Code | TEXT | 510 | var | NVARCHAR(255) |
 | City | TEXT | 510 | var | NVARCHAR(255) |
 
-### `tblAcronyms` (29 rows)
+### `tblKeywords` (29 rows)
 
 | Column | Access type | Size (bytes, UTF-16) | Storage | SQL Server type |
 |---|---|---|---|---|
-| AcronymID | LONG |  | fixed | INT |
+| KeywordID | LONG |  | fixed | INT |
 | ProjectID | LONG |  | fixed | INT |
-| Acronym | TEXT | 100 | var | NVARCHAR(255) |
+| Keyword | TEXT | 100 | var | NVARCHAR(255) |
 | Definition | TEXT | 100 | var | NVARCHAR(255) |
 
 ### `tblActivityStatusType` (0 rows)
@@ -455,7 +455,7 @@ Access 2010 attachment columns are stored in hidden `f_*` tables (from `MSysComp
 | Child table | Child column |  | Parent table | Parent column | grbit |
 |---|---|---|---|---|---|
 | tblMeetingMinutes | ProjectID | → | tblProjectFramework | ProjectID | 16777216 |
-| tblAcronyms | ProjectID | → | tblProjectFramework | ProjectID | 0 |
+| tblKeywords | ProjectID | → | tblProjectFramework | ProjectID | 0 |
 | tblExistingSystemsInterfaces | ProjectID | → | tblProjectFramework | ProjectID | 0 |
 | tblProjectObjectives | ProjectID | → | tblProjectFramework | ProjectID | 0 |
 | tblAssumptionsConstraints | ProjectID | → | tblProjectFramework | ProjectID | 0 |
@@ -502,9 +502,9 @@ Access 2010 attachment columns are stored in hidden `f_*` tables (from `MSysComp
 | 16 | 1 | new |  |  |  |  |  |  |  |  |  |  |
 | 17 | 1 | new |  |  |  |  |  |  |  |  |  |  |
 
-### `tblAcronyms` — 29 rows
+### `tblKeywords` — 29 rows
 
-| AcronymID | ProjectID | Acronym | Definition |
+| KeywordID | ProjectID | Keyword | Definition |
 |---|---|---|---|
 | 2 | 1 | DB | Database |
 | 3 | 2 | DB | Database |
@@ -514,23 +514,23 @@ Access 2010 attachment columns are stored in hidden `f_*` tables (from `MSysComp
 | 10 | 2 | Db | Debit |
 | 12 | 2 | ABS | Anti Locking System |
 | 13 | 2 | New | NEWWWW |
-| 14 | 2 | acn | Acronym |
+| 14 | 2 | acn | Keyword |
 | 16 | 2 | CAN | Calcium ammonium Nitrate |
 | 17 | 2 | Can | calcium ammonium nitrate |
-| 18 | 2 | AC | Acronym |
-| 19 |  | AC | Acronym |
-| 20 | 6 | new | Acronym |
-| 21 |  | AC | Acronym |
-| 22 | 8 | AC | Acronym |
+| 18 | 2 | AC | Keyword |
+| 19 |  | AC | Keyword |
+| 20 | 6 | new | Keyword |
+| 21 |  | AC | Keyword |
+| 22 | 8 | AC | Keyword |
 | 23 |  | hey | new |
-| 24 | 9 | AC | Acronym |
-| 25 | 14 | AC | Acronym |
+| 24 | 9 | AC | Keyword |
+| 25 | 14 | AC | Keyword |
 | 26 | 14 | It worked |  |
-| 27 | 15 | AC | Acronym |
+| 27 | 15 | AC | Keyword |
 | 28 | 20 | Me | Too |
-| 29 | 1 | AC | Acronym |
-| 30 | 2 | NEWC | New Acronym |
-| 31 | 26 | AC | Acronym |
+| 29 | 1 | AC | Keyword |
+| 30 | 2 | NEWC | New Keyword |
+| 31 | 26 | AC | Keyword |
 | 32 | 26 | AD | Advertisement |
 | 33 | 26 | US | United States |
 | 34 | 26 | CA | Canada |
@@ -866,15 +866,15 @@ _(empty table)_
 
 Access stores QueryDefs as attribute rows. Reconstruction below: `5` = FROM table, `6` = SELECT column (Name1 = alias), `7` = JOIN (Flag 1=INNER 2=LEFT 3=RIGHT), `8` = WHERE, `9` = GROUP BY, `11` = HAVING, `12` = ORDER BY, `3` = parameter. UI-generated `~sq_*` record-source queries for forms/reports are listed but not expanded.
 
-### `qryAcronyms`
+### `qryKeywords`
 
 ```sql
 SELECT tblProjectFramework.ProjectID,
        tblProjectFramework.ProjectName,
-       tblAcronyms.Acronym,
-       tblAcronyms.Definition
-FROM tblProjectFramework, tblAcronyms
-  tblProjectFramework LEFT JOIN tblAcronyms ON tblProjectFramework.ProjectID = tblAcronyms.ProjectID
+       tblKeywords.Keyword,
+       tblKeywords.Definition
+FROM tblProjectFramework, tblKeywords
+  tblProjectFramework LEFT JOIN tblKeywords ON tblProjectFramework.ProjectID = tblKeywords.ProjectID
 ```
 
 ### `qryAssumptionsConstraints`
@@ -1150,14 +1150,14 @@ SELECT tblProjectFramework.ProjectID,
 FROM tblProjectFramework
 ```
 
-### `qryProjectAcronyms`
+### `qryProjectKeywords`
 
 ```sql
-SELECT tblAcronyms.ProjectID,
-       tblAcronyms.Acronym,
-       tblAcronyms.Definition,
+SELECT tblKeywords.ProjectID,
+       tblKeywords.Keyword,
+       tblKeywords.Definition,
        Description
-FROM tblAcronyms
+FROM tblKeywords
 ```
 
 ### `qryProjectActivityList`
@@ -1232,7 +1232,7 @@ SELECT tblProjectFramework.ProjectID,
        tblProjectFramework.BusinessAnalyst,
        tblProjectFramework.ProjectDocs,
        tblProjectFramework.DateOfProject,
-       tblProjectFramework.Acronyms,
+       tblProjectFramework.Keywords,
        tblProjectFramework.ProblemStatement,
        tblProjectFramework.CurrentState,
        tblProjectFramework.FutureState,
@@ -1369,4 +1369,4 @@ FROM [tblProjectFramework], [tblInterviewQuestionsAnswers];
 
 ### UI record-source queries (`~sq_*`, not expanded)
 
-`~sq_cActivity List~sq_ccboFilterFavorites`, `~sq_cfrmDailyItemsAndStatusTypeChoice~sq_cProjectNameCopy`, `~sq_cfrmProjectReports~sq_ccboProject`, `~sq_cfrmReportSelector~sq_cListProjects`, `~sq_cfrmSubAcronyms~sq_csubfrmEntryAcronyms`, `~sq_cfrmSubDailyItemsAndStatusType~sq_cProjectID`, `~sq_cfrmSubFinancials~sq_csubfrmEntryAcronyms`, `~sq_cfrmSubMeetingMinutes~sq_caddMeetingMinutesub`, `~sq_cfrmSubMeetingMinutes~sq_csubfrmMeetingActionItems`, `~sq_cfrmSubNotes~sq_csubfrmEntryAcronyms`, `~sq_cfrmSubNotes~sq_csubfrmListAcronyms`, `~sq_cfrmSubObjectives~sq_csubfrmEntryObjectives`, `~sq_cfrmSubParkingLotItems~sq_csubfrmEntryParkingLotItems`, `~sq_cfrmSubParkingLotItems~sq_csubfrmListParkingLotItems`, `~sq_cfrmSubQuestionsAnswers~sq_csubfrmListQuestionsAnswers`, `~sq_cfrmSubStakeholders~sq_csubfrmListStakeholders`, `~sq_cfrmSubSuppliers~sq_csubfrmListSuppliers`, `~sq_csubfrmEntryFinancials~sq_csubformFinancialDocuments`, `~sq_csubfrmEntryITResourcePlanning~sq_csubformResourcesPlanning`, `~sq_csubfrmMeetingAgenda~sq_csubfrmMeetingActionItems`, `~sq_csubfrmMeetingAgenda~sq_csubfrmMeetingDiscussionPoints`, `~sq_drptDetailedProjectReportS~sq_dsubrptMeetingMinutes`, `~sq_drptMeetingMinutes~sq_dsubrptMeetingApologies`, `~sq_dsubrptMeetingMinutes~sq_dsubrptMeetingApologies`, `~sq_fSwitchboard`, `~sq_ffrmSubProjects`, `~sq_fsubfrmEntryITResourcePlanning`, `~sq_fsubfrmEntryQuestionsAnswers`, `~sq_fsubfrmEntrySuppliers`, `~sq_fsubfrmListAcronyms`, `~sq_fsubfrmListFinancials`, `~sq_fsubfrmListKeyReqDeliverables`, `~sq_fsubfrmListParkingLotItems`, `~sq_fsubfrmListResourcesPlanning`, `~sq_fsubfrmListRisksIssuesTracker`, `~sq_fsubfrmListSuppliers`, `~sq_rsubrptFinancials`, `~sq_rsubrptKeyReqDeliverables`, `~sq_rsubrptObjectives`, `~sq_rsubrptParkingLotItems`, `~sq_rsubrptStakeholders`
+`~sq_cActivity List~sq_ccboFilterFavorites`, `~sq_cfrmDailyItemsAndStatusTypeChoice~sq_cProjectNameCopy`, `~sq_cfrmProjectReports~sq_ccboProject`, `~sq_cfrmReportSelector~sq_cListProjects`, `~sq_cfrmSubKeywords~sq_csubfrmEntryKeywords`, `~sq_cfrmSubDailyItemsAndStatusType~sq_cProjectID`, `~sq_cfrmSubFinancials~sq_csubfrmEntryKeywords`, `~sq_cfrmSubMeetingMinutes~sq_caddMeetingMinutesub`, `~sq_cfrmSubMeetingMinutes~sq_csubfrmMeetingActionItems`, `~sq_cfrmSubNotes~sq_csubfrmEntryKeywords`, `~sq_cfrmSubNotes~sq_csubfrmListKeywords`, `~sq_cfrmSubObjectives~sq_csubfrmEntryObjectives`, `~sq_cfrmSubParkingLotItems~sq_csubfrmEntryParkingLotItems`, `~sq_cfrmSubParkingLotItems~sq_csubfrmListParkingLotItems`, `~sq_cfrmSubQuestionsAnswers~sq_csubfrmListQuestionsAnswers`, `~sq_cfrmSubStakeholders~sq_csubfrmListStakeholders`, `~sq_cfrmSubSuppliers~sq_csubfrmListSuppliers`, `~sq_csubfrmEntryFinancials~sq_csubformFinancialDocuments`, `~sq_csubfrmEntryITResourcePlanning~sq_csubformResourcesPlanning`, `~sq_csubfrmMeetingAgenda~sq_csubfrmMeetingActionItems`, `~sq_csubfrmMeetingAgenda~sq_csubfrmMeetingDiscussionPoints`, `~sq_drptDetailedProjectReportS~sq_dsubrptMeetingMinutes`, `~sq_drptMeetingMinutes~sq_dsubrptMeetingApologies`, `~sq_dsubrptMeetingMinutes~sq_dsubrptMeetingApologies`, `~sq_fSwitchboard`, `~sq_ffrmSubProjects`, `~sq_fsubfrmEntryITResourcePlanning`, `~sq_fsubfrmEntryQuestionsAnswers`, `~sq_fsubfrmEntrySuppliers`, `~sq_fsubfrmListKeywords`, `~sq_fsubfrmListFinancials`, `~sq_fsubfrmListKeyReqDeliverables`, `~sq_fsubfrmListParkingLotItems`, `~sq_fsubfrmListResourcesPlanning`, `~sq_fsubfrmListRisksIssuesTracker`, `~sq_fsubfrmListSuppliers`, `~sq_rsubrptFinancials`, `~sq_rsubrptKeyReqDeliverables`, `~sq_rsubrptObjectives`, `~sq_rsubrptParkingLotItems`, `~sq_rsubrptStakeholders`

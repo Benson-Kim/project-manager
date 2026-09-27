@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ProjectHeader } from "@/components/shell/project-header";
 import { ProjectSectionNav } from "@/components/shell/project-section-nav";
 import { auth } from "@/lib/auth/provider";
 import { AppError } from "@/lib/errors";
@@ -13,9 +12,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * Project workspace nested layout (ADR-0018): validates the id, fetches the
- * project ONCE (React cache shared with section pages), renders ProjectHeader
- * (breadcrumb + name + badges) and ProjectSectionNav above every section.
+ * Project workspace nested layout : validates the id, fetches the
+ * project ONCE (React cache shared with section pages), renders the project
+ * switcher and ProjectSectionNav above every section.
  */
 export default async function ProjectWorkspaceLayout({
   params,
@@ -38,14 +37,11 @@ export default async function ProjectWorkspaceLayout({
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <ProjectHeader
-        name={project.ProjectName}
-        status={project.ProjectStatus}
-        priority={project.ProjectPriority}
-      />
-      <ProjectSectionNav projectId={projectId} />
-      {children}
+    <div className="flex flex-col flex-1">
+      <div className="pt-4 sm:pt-6">
+        <ProjectSectionNav projectId={projectId} />
+      </div>
+      <main className="flex flex-col flex-1 py-6 sm:py-8">{children}</main>
     </div>
   );
 }

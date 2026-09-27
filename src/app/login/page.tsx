@@ -7,7 +7,7 @@ import { LoginForm } from "./login-form";
 export const metadata: Metadata = { title: `${messages.auth.loginTitle} — ${messages.app.name}` };
 
 /**
- * Full-route login page (ADR-0009 form pattern; module #4). Mobile-first:
+ * Full-route login page  form pattern; module #4). Mobile-first:
  * a single centred column that works from 360px up.
  */
 export default async function LoginPage({

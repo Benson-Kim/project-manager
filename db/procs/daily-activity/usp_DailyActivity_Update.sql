@@ -49,7 +49,9 @@ BEGIN
         [ActivityDate] = @ActivityDate,
         [Comments] = @Comments,
         [RequestDate] = @RequestDate,
-        [Status] = @Status,
+        -- [Status] is a legacy free-text column from tblDailyActivityList; new records use
+        -- ActivityStatusId (FK). The column is intentionally excluded from UPDATE to preserve
+        -- migrated Access data on first edit. It remains readable via GetById/List.
         [CompleteDate] = @CompleteDate,
         [ContactMethod] = @ContactMethod,
         [TimeSpent] = @TimeSpent,

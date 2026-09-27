@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Poppins } from "next/font/google";
 import { headers } from "next/headers";
 import { LiveAnnouncer } from "@/components/ui/announcer";
 import { Toaster } from "@/components/ui/toast";
@@ -6,6 +7,13 @@ import { ThemeProvider, themeInitScript } from "@/components/theme/theme-provide
 import { messages } from "@/lib/messages";
 import { ServiceWorkerRegistration } from "./sw-register";
 import "./globals.css";
+
+const poppins = Poppins({
+  weight: ["400", "500", "600", "700"],
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-poppins",
+});
 
 export const metadata: Metadata = {
   title: {
@@ -40,7 +48,7 @@ export default async function RootLayout({
       <head>
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body className="min-h-dvh antialiased">
+      <body className={`${poppins.variable} min-h-dvh font-sans antialiased`}>
         <ThemeProvider>
           <LiveAnnouncer>
             <Toaster>{children}</Toaster>

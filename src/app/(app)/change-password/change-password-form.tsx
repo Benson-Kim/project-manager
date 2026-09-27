@@ -10,7 +10,7 @@ import { messages } from "@/lib/messages";
 import { changePasswordAction } from "@/modules/auth/actions";
 import { changePasswordInput } from "@/modules/auth/schemas/user";
 
-/** ADR-0009 form pattern; server fieldErrors are merged into the field rows. */
+/** form pattern; server fieldErrors are merged into the field rows. */
 export function ChangePasswordForm() {
   const [result, formAction, pending] = useActionState(changePasswordAction, null);
   const form = useZodForm(changePasswordInput);

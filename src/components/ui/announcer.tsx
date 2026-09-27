@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
 /**
- * The ONE aria-live announcer (ADR-0008): route changes, result counts, save
+ * The ONE aria-live announcer : route changes, result counts, save
  * confirmations. Visually hidden; polite only — urgent feedback goes through
  * the error toast (assertive).
  */

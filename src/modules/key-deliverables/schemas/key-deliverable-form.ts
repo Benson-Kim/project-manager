@@ -2,7 +2,7 @@ import { z } from "zod";
 import { messages } from "@/lib/messages";
 
 /**
- * Deliverable form contract (ADR-0009): ONE schema shared by the client Sheet
+ * Deliverable form contract ): ONE schema shared by the client Sheet
  * form (blur + submit validation over FormData strings) and the server
  * actions. FormData values are strings — coerced here into the repository
  * input shape.

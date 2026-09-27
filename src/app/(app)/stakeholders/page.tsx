@@ -7,18 +7,13 @@ import { AppError } from "@/lib/errors";
 import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getViewPreference } from "@/lib/repositories/view-preference";
-import {
-  StakeholderSheet,
-  type ProjectOption,
-} from "@/modules/stakeholders/components/stakeholder-sheet";
-import { StakeholdersToolbar } from "@/modules/stakeholders/components/stakeholders-toolbar";
+import { StakeholderSheet } from "@/modules/stakeholders/components/stakeholder-sheet";
 import { StakeholdersView } from "@/modules/stakeholders/components/stakeholders-view";
 import {
   getStakeholderById,
   listStakeholders,
 } from "@/modules/stakeholders/repository/stakeholders";
 import { stakeholderFiltersSchema } from "@/modules/stakeholders/schemas/stakeholder";
-import { listProjects } from "@/modules/projects/repository/projects";
 
 export const metadata: Metadata = {
   title: `${messages.stakeholders.title} — ${messages.app.name}`,
@@ -34,9 +29,9 @@ function newStakeholderHref(raw: Record<string, string | undefined>): string {
 }
 
 /**
- * Stakeholders list (module #6): DataView + project/engagement filters;
- * detail/edit in the URL-synced Sheet (?id=<n> | ?id=new, ADR-0010).
- * Project-scoped via ?project= — deep-linked from the charter workspace.
+ * Stakeholders cross-project list (legacy top-level route, pre-ADR-0018).
+ * New stakeholders should be created via /projects/[id]/stakeholders.
+ * This page is retained for direct search/filtering across all projects.
  */
 export default async function StakeholdersPage({
   searchParams,
@@ -53,10 +48,9 @@ export default async function StakeholdersPage({
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
-  const [rows, preferredView, projectRows, selected] = await Promise.all([
+  const [rows, preferredView, selected] = await Promise.all([
     listStakeholders(params, session.userId, filters),
     getViewPreference(session.userId, "stakeholders").catch(() => null),
-    listProjects(parseListParams({}), session.userId, {}, 100),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? getStakeholderById(selectedId, session.userId).catch((err) => {
           if (err instanceof AppError && err.code === "NOT_FOUND") return null;
@@ -65,15 +59,15 @@ export default async function StakeholdersPage({
       : Promise.resolve(null),
   ]);
 
-  const projects: ProjectOption[] = projectRows.map((p) => ({
-    ProjectId: p.ProjectId,
-    ProjectName: p.ProjectName,
-  }));
   const totalCount = rows[0]?.TotalCount ?? 0;
   const canCreate = can(session.role, "stakeholders:create");
   const canEdit = can(session.role, "stakeholders:update");
   const canDelete = can(session.role, "stakeholders:delete");
   const filtersActive = Boolean(params.q || filters.project || filters.engagement);
+
+  // For the cross-project view the sheet uses the selected row's project, or
+  // the filter project if present, otherwise falls back to 0 (create blocked).
+  const sheetProjectId = selected?.ProjectId ?? filters.project ?? 0;
 
   const newStakeholderLink = (
     <Link
@@ -91,8 +85,7 @@ export default async function StakeholdersPage({
         title={messages.stakeholders.title}
         action={canCreate ? newStakeholderLink : undefined}
       />
-      <StakeholdersToolbar projects={projects} />
-      <div className="mt-3">
+      <div className="mt-3 flex flex-col flex-1">
         <StakeholdersView
           rows={rows}
           totalCount={totalCount}
@@ -105,8 +98,7 @@ export default async function StakeholdersPage({
       <StakeholderSheet
         stakeholder={selected}
         isNew={isNew && canCreate}
-        projects={projects}
-        defaultProjectId={filters.project}
+        projectId={sheetProjectId}
         canEdit={canEdit}
         canDelete={canDelete}
       />

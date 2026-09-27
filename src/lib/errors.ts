@@ -1,5 +1,5 @@
 /**
- * Typed error surface (ADR-0012). Stored procedures signal business failures
+ * Typed error surface . Stored procedures signal business failures
  * with `THROW 5000x, 'CODE:message', 1`; src/lib/db.ts maps them to AppError.
  * The action wrapper (src/lib/action.ts) converts AppError into ActionResult —
  * raw errors never reach a client.
@@ -35,7 +35,7 @@ const CODE_BY_NUMBER: Record<number, AppErrorCode> = {
   50005: "DUPLICATE",
 };
 
-/** Map a THROW from a stored procedure to a typed AppError (ADR-0012). */
+/** Map a THROW from a stored procedure to a typed AppError . */
 export function appErrorFromProc(throwNumber: number, rawMessage: string): AppError {
   const code = CODE_BY_NUMBER[throwNumber];
   if (!code) return new AppError("INTERNAL", "Unexpected database error");

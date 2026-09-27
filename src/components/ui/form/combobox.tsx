@@ -4,7 +4,7 @@ import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { useFieldAria } from "./field";
 
 /**
- * Minimal ARIA 1.2 combobox (ADR-0005): text input + filtered listbox popup.
+ * Minimal ARIA 1.2 combobox : text input + filtered listbox popup.
  * Keyboard complete (↑ ↓ Enter Esc), aria-activedescendant pattern, verified
  * by axe on /kitchen-sink. The selected value is submitted through a hidden
  * input so it participates in FormData like every native control.
@@ -81,7 +81,7 @@ export function Combobox({ name, options, defaultValue, onSelect }: ComboboxProp
           open && filtered[activeIndex] ? `${listboxId}-${filtered[activeIndex].value}` : undefined
         }
         autoComplete="off"
-        className="min-h-9 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink aria-invalid:border-danger"
+        className="min-h-10 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink aria-invalid:border-danger"
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -109,7 +109,7 @@ export function Combobox({ name, options, defaultValue, onSelect }: ComboboxProp
             id={`${listboxId}-${option.value}`}
             role="option"
             aria-selected={selected?.value === option.value}
-            className={`flex min-h-9 cursor-pointer items-center px-6 text-sm ${
+            className={`flex min-h-10 cursor-pointer items-center px-6 text-sm ${
               index === activeIndex ? "bg-accent-soft text-ink" : "text-ink"
             }`}
             onMouseDown={(e) => {

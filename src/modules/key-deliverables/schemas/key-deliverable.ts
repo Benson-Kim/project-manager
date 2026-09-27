@@ -3,7 +3,7 @@ import { z } from "zod";
 /**
  * KeyDeliverable (app.KeyDeliverable ← tblKeyRequirementsDeliverable) — zod
  * contracts for module #9. Row schema mirrors the SELECT shape of
- * usp_KeyDeliverable_{Create,GetById,List,Update} exactly (ADR-0016);
+ * usp_KeyDeliverable_{Create,GetById,List,Update} exactly ;
  * CAST(RowVer AS BIGINT) arrives as a string and is coerced.
  */
 export const rowVerSchema = z.coerce.number().int().nonnegative();

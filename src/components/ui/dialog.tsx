@@ -5,7 +5,7 @@ import { useCallback, useRef } from "react";
 import { messages } from "@/lib/messages";
 
 /**
- * The ONE overlay engine (ADR-0005): Radix Dialog. Two skins —
+ * The ONE overlay engine : Radix Dialog. Two skins —
  * <Dialog> (centred, small content like confirmations) and <Sheet>
  * (bottom sheet < md / right side panel >= md, for record detail/edit,
  * ADR-0010). Focus trapping, Esc and overlay click come from Radix; focus

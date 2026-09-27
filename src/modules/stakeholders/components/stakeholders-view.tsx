@@ -1,24 +1,20 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
 import { DataView } from "@/components/ui/data-view/data-view";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
-import { EmptyState } from "@/components/ui/states";
+import { listEmptyState } from "@/components/ui/states";
+
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
+
 import type { StakeholderListRow } from "../schemas/stakeholder";
+
+import { StakeholdersToolbar } from "./stakeholders-toolbar";
 
 export function fullName(row: { FirstName: string; LastName: string | null }): string {
   return [row.FirstName, row.LastName].filter(Boolean).join(" ");
-}
-
-function Badge({ value }: { value: string | null }) {
-  if (!value) return null;
-  return (
-    <span className="inline-flex items-center rounded-full border border-line bg-surface-sunken px-2 py-0.5 text-xs font-medium text-ink">
-      {value}
-    </span>
-  );
 }
 
 const columns: DataViewColumn<StakeholderListRow>[] = [
@@ -55,7 +51,7 @@ const columns: DataViewColumn<StakeholderListRow>[] = [
   },
 ];
 
-/** Stakeholders list (module #6): DataView; opening a row syncs ?id= (ADR-0010 sheet). */
+/** Stakeholders list (module #6): DataView; opening a row syncs ?id=  sheet). */
 export function StakeholdersView({
   rows,
   totalCount,
@@ -81,7 +77,11 @@ export function StakeholdersView({
       page={page}
       initialView={initialView}
       getRowId={(row) => row.StakeholderId}
+      getRowLabel={(row) => fullName(row)}
       onOpen={(row) => update({ id: String(row.StakeholderId) })}
+      renderToolbar={(viewToggle) => (
+        <StakeholdersToolbar>{viewToggle}</StakeholdersToolbar>
+      )}
       renderCard={(row) => (
         <div className="flex flex-col gap-2">
           <p className="text-sm font-semibold text-ink">{fullName(row)}</p>
@@ -96,17 +96,7 @@ export function StakeholdersView({
         </div>
       )}
       columns={columns}
-      empty={
-        filtersActive ? (
-          <EmptyState title={messages.list.zeroResultsTitle} body={messages.list.zeroResultsBody} />
-        ) : (
-          <EmptyState
-            title={messages.list.emptyTitle}
-            body={messages.stakeholders.emptyBody}
-            action={newStakeholderAction}
-          />
-        )
-      }
+      empty={listEmptyState(filtersActive, messages.stakeholders.emptyBody, newStakeholderAction)}
     />
   );
 }

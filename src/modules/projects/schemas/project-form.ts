@@ -2,7 +2,7 @@ import { z } from "zod";
 import { messages } from "@/lib/messages";
 
 /**
- * Charter form contract (ADR-0009): ONE schema shared by the client form
+ * Charter form contract ): ONE schema shared by the client form
  * (blur + submit validation over FormData strings) and the server action.
  * FormData values are strings — this schema coerces them into the repository
  * input shape (booleans for the MSSS flags, numbers for costs, Dates).

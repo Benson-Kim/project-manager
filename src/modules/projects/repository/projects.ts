@@ -16,8 +16,8 @@ import {
 } from "../schemas/project";
 
 /**
- * Project repository — stored procedures only (ADR-0002), every row zod-parsed
- * at the boundary (STANDARDS §2.5), list params forwarded 1:1 (ADR-0016).
+ * Project repository — stored procedures only , every row zod-parsed
+ * at the boundary (STANDARDS §2.5), list params forwarded 1:1 .
  */
 
 function toProcParams(input: CreateProjectParsed) {
@@ -91,6 +91,11 @@ export async function listProjects(
     ...toProcListParams(params, pageSize),
   });
   return rows.map((r) => projectListRowSchema.parse(r));
+}
+
+export async function listProjectOptions(actorUserId: number) {
+  const rows = await listProjects({ q: undefined, sort: "ProjectName", dir: "asc", view: undefined, page: 1 }, actorUserId, {}, 1000);
+  return rows.map((row) => ({ id: row.ProjectId, name: row.ProjectName }));
 }
 
 export async function updateProject(

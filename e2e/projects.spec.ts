@@ -17,7 +17,7 @@ test("create project happy path — appears in the list", async ({ page }) => {
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
   ).toBeVisible();
   await page.waitForURL(/\/projects\/\d+/);
-  // The project name lives in the workspace header (ADR-0018); the page h1 is the section name.
+  // The project name lives in the workspace header; the page h1 is the section name.
   await expect(page.getByTestId("project-header-name")).toHaveText(name);
 
   await page.goto(`/projects?q=${encodeURIComponent(name)}`);
@@ -69,7 +69,7 @@ test("axe scan on the charter workspace has no serious or critical violations", 
   expect(serious).toEqual([]);
 });
 
-test.describe("project workspace (ADR-0018)", () => {
+test.describe("project workspace", () => {
   test("deep link shows breadcrumb, header and section nav with Charter current", async ({
     page,
   }) => {
@@ -113,7 +113,7 @@ test.describe("project workspace (ADR-0018)", () => {
     });
   });
 
-  test("unsaved changes guard intercepts client-side link navigation (ADR-0018 Q1)", async ({
+  test("unsaved changes guard intercepts client-side link navigation", async ({
     page,
   }) => {
     await page.goto("/projects/2");

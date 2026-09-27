@@ -1,41 +1,26 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { useAnnouncer } from "@/components/ui/announcer";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Sheet } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { DatePicker, Input, Select } from "@/components/ui/form/inputs";
+import { SectionHeading } from "@/components/ui/form/section-heading";
+import { useSheetFormActions } from "@/components/ui/form/use-sheet-form-actions";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
-import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
-import { createSupplierAction } from "../actions/create-supplier";
-import { deleteSupplierAction } from "../actions/delete-supplier";
-import { updateSupplierAction } from "../actions/update-supplier";
+import { toDateInput } from "@/lib/format";
+import { createSupplierAction, deleteSupplierAction, updateSupplierAction } from "../actions";
 import { SUPPLIER_RATINGS, type SupplierRow } from "../schemas/supplier";
 import { supplierFormSchema, updateSupplierFormSchema } from "../schemas/supplier-form";
 
-function toDateInput(value: Date | null | undefined): string {
-  return value ? value.toISOString().slice(0, 10) : "";
-}
-
-function SectionHeading({ id, children }: { id: string; children: React.ReactNode }) {
-  return (
-    <h2 id={id} className="border-b border-line pb-2 text-sm font-semibold text-ink">
-      {children}
-    </h2>
-  );
-}
-
 /**
- * Supplier detail/edit sheet (ADR-0010 default pattern): edit is the default
+ * Supplier detail/edit sheet: edit is the default
  * content, URL-synced via ?id= (numeric id or "new"); closing clears the
  * param and returns focus to the opener row. Project scope comes from the
- * route (ADR-0018) — projectId travels as a hidden field.
+ * route — projectId travels as a hidden field.
  */
 export function SupplierSheet({
   supplier,
@@ -50,69 +35,24 @@ export function SupplierSheet({
   canEdit: boolean;
   canDelete: boolean;
 }) {
-  const router = useRouter();
   const { update } = useListUrlState();
-  const { toast } = useToast();
-  const { announce } = useAnnouncer();
   const schema = supplier ? updateSupplierFormSchema : supplierFormSchema;
   const form = useZodForm(schema);
-  const [pending, startTransition] = useTransition();
-  const [summary, setSummary] = useState<string | null>(null);
-  const [conflict, setConflict] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const open = isNew || supplier !== null;
   const close = () => update({ id: null });
 
-  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const formElement = event.currentTarget;
-    if (!form.validate(formElement)) {
-      setSummary(messages.errors.VALIDATION);
-      return;
-    }
-    setSummary(null);
-    setConflict(false);
-    const formData = new FormData(formElement);
-    startTransition(async () => {
-      const result = supplier
-        ? await updateSupplierAction(formData)
-        : await createSupplierAction(formData);
-      if (result.ok) {
-        toast({
-          variant: "success",
-          title: supplier ? messages.feedback.saved : messages.feedback.created,
-        });
-        announce(supplier ? messages.feedback.saved : messages.feedback.created);
-        close();
-        router.refresh();
-      } else {
-        form.applyResult(result);
-        setSummary(result.error.message);
-        if (result.error.code === "CONFLICT") setConflict(true);
-      }
+  const { pending, summary, conflict, confirmDelete, setConfirmDelete, onSubmit, onDelete } =
+    useSheetFormActions({
+      isEdit: supplier !== null,
+      onSuccess: close,
+      form,
+      createAction: createSupplierAction,
+      updateAction: updateSupplierAction,
+      deleteAction: ({ supplierId, rowVer }: { supplierId: number; rowVer: number }) =>
+        deleteSupplierAction({ supplierId, rowVer }),
     });
-  };
 
-  const onDelete = () => {
-    if (!supplier) return;
-    startTransition(async () => {
-      const result = await deleteSupplierAction({
-        supplierId: supplier.SupplierId,
-        rowVer: supplier.RowVer,
-      });
-      setConfirmDelete(false);
-      if (result.ok) {
-        toast({ variant: "success", title: messages.feedback.deleted });
-        announce(messages.feedback.deleted);
-        close();
-        router.refresh();
-      } else {
-        setSummary(result.error.message);
-        if (result.error.code === "CONFLICT") setConflict(true);
-      }
-    });
-  };
+  const open = isNew || supplier !== null;
 
   return (
     <Sheet
@@ -132,7 +72,7 @@ export function SupplierSheet({
         <ErrorSummary message={summary} />
         {conflict ? (
           <div>
-            <Button type="button" variant="secondary" onClick={() => router.refresh()}>
+            <Button type="button" variant="secondary" onClick={() => window.location.reload()}>
               {messages.suppliers.reload}
             </Button>
           </div>
@@ -237,7 +177,7 @@ export function SupplierSheet({
           </section>
         </fieldset>
 
-        <div className="flex flex-wrap items-center gap-2 pb-2">
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2">
           {canEdit ? (
             <Button type="submit" pending={pending} data-testid="supplier-save">
               {messages.actions.save}
@@ -266,7 +206,9 @@ export function SupplierSheet({
           title={messages.confirmDelete.title(messages.suppliers.entity, supplier.SupplierName)}
           body={messages.confirmDelete.body}
           confirmLabel={messages.actions.delete}
-          onConfirm={onDelete}
+          onConfirm={() =>
+            supplier && onDelete({ supplierId: supplier.SupplierId, rowVer: supplier.RowVer })
+          }
           pending={pending}
         />
       ) : null}

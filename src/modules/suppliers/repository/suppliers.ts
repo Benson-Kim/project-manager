@@ -13,8 +13,8 @@ import {
 } from "../schemas/supplier";
 
 /**
- * Supplier repository — stored procedures only (ADR-0002), zod row parsing
- * (STANDARDS §2.5), list params forwarded 1:1 (ADR-0016).
+ * Supplier repository — stored procedures only, zod row parsing
+ * (STANDARDS §2.5), list params forwarded 1:1.
  */
 
 function toProcParams(input: CreateSupplierParsed) {

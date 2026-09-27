@@ -1,5 +1,5 @@
 -- usp_Keyword_Delete — soft delete with rowversion concurrency + in-transaction audit.
--- Entity app.Keyword (source: tblAcronyms). Module: database-schema-and-procs (#3).
+-- Entity app.Keyword (source: tblKeywords). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Keyword_Delete
@@ -21,7 +21,7 @@ BEGIN
     BEGIN TRAN;
 
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT KeywordId, [ProjectId], [Acronym], [Definition]
+        (SELECT KeywordId, [ProjectId], [Keyword], [Definition]
          FROM app.Keyword WHERE KeywordId = @KeywordId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 

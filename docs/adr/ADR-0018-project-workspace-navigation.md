@@ -15,7 +15,7 @@ risks/assumptions, stakeholders, suppliers, IT resources, meetings, activities,
 to-dos, Q&A, parking lot, financials, notes, keywords). The product owner has ruled
 that **two sidebars are not an option**, and the #28 shell spec fixes the single
 sidebar's content to global items (Dashboard, Projects, Daily activities, To-do
-lists, Reports, Settings, Logout). Modules must reuse DataView (ADR-0006), the list
+lists, Reports, Settings, Logout). Modules must reuse DataView , the list
 proc contract (ADR-0016) and the Sheet/full-route split (ADR-0010); every screen must
 be deep-linkable for multi-window use; mobile-first at 360 px.
 
@@ -77,7 +77,7 @@ be deep-linkable for multi-window use; mobile-first at 360 px.
   multi-window-safe by construction (plain GET routes).
 - Nav is RSC + static links: no client bundle growth, `<Link>` prefetch keeps
   section switching fast.
-- Nav pills use the shell sizing scale (`min-h-9`, #28) rather than the 44 px content
+- Nav pills use the shell sizing scale (`min-h-10`, #28) rather than the 44 px content
   rule — STANDARDS §5.3 needs a one-line clarification when this ADR is accepted.
 - `feature/stakeholders` must place its routes under `projects/[id]/stakeholders/`
   (or accept a mechanical move in the layout MR) — coordination tracked in #29.

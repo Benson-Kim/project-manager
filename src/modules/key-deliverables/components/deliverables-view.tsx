@@ -1,26 +1,27 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
+import { Sheet } from "@/components/ui/dialog";
 import { DataView } from "@/components/ui/data-view/data-view";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
-import { Sheet } from "@/components/ui/dialog";
-import { EmptyState } from "@/components/ui/states";
-import type { ViewMode } from "@/lib/list-params";
+import { listEmptyState } from "@/components/ui/states";
+
+import { formatDate } from "@/lib/format";
 import { messages } from "@/lib/messages";
+import type { ViewMode } from "@/lib/list-params";
+
 import type { StakeholderOption } from "../repository/stakeholder-options";
 import {
   isOverdue,
   type KeyDeliverableListRow,
   type KeyDeliverableRow,
 } from "../schemas/key-deliverable";
-import { Badge, OverdueBadge } from "./badges";
-import { DeliverableForm } from "./deliverable-form";
 
-/** Fixed locale so server and client render identical dates (no hydration drift). */
-export function formatDate(value: Date | null | undefined): string {
-  if (!value) return "";
-  return new Intl.DateTimeFormat("en-CA", { dateStyle: "medium", timeZone: "UTC" }).format(value);
-}
+import { DeliverableForm } from "./deliverable-form";
+import { DeliverablesToolbar } from "./deliverables-toolbar";
+
+
 
 function rowLabel(row: { KeyRequirement: string | null; KeyDeliverableId: number }): string {
   return row.KeyRequirement ?? messages.keyDeliverables.deliverableFallback(row.KeyDeliverableId);
@@ -32,7 +33,7 @@ function StatusCell({ row }: { row: Row }) {
   return (
     <span className="inline-flex flex-wrap gap-1.5">
       <Badge value={row.Status} />
-      {isOverdue(row.Deadline, row.Status) ? <OverdueBadge /> : null}
+      {isOverdue(row.Deadline, row.Status) ? <Badge value={messages.keyDeliverables.overdue} /> : null}
     </span>
   );
 }
@@ -72,7 +73,7 @@ const columns: DataViewColumn<Row>[] = [
 
 /**
  * Deliverables list (module #9): DataView grid + list with a URL-synced Sheet
- * (?d=new | ?d=<id>) for detail/edit — deep-linkable per ADR-0006/0010.
+ * (?d=new | ?d=<id>) for detail/edit — deep-linkable.
  */
 export function DeliverablesView({
   projectId,
@@ -125,13 +126,16 @@ export function DeliverablesView({
         getRowId={(row) => row.KeyDeliverableId}
         getRowLabel={rowLabel}
         onOpen={(row) => update({ d: String(row.KeyDeliverableId) })}
+        renderToolbar={(viewToggle) => (
+          <DeliverablesToolbar>{viewToggle}</DeliverablesToolbar>
+        )}
         renderCard={(row) => (
           <div className="flex flex-col gap-2">
             <p className="line-clamp-2 text-sm font-semibold text-ink">{rowLabel(row)}</p>
             <div className="flex flex-wrap gap-1.5">
               <Badge value={row.Status} />
               <Badge value={row.Priority} />
-              {isOverdue(row.Deadline, row.Status) ? <OverdueBadge /> : null}
+              {isOverdue(row.Deadline, row.Status) ? <Badge value={messages.keyDeliverables.overdue} /> : null}
             </div>
             {row.Deadline ? (
               <p className="text-xs text-ink-muted">{formatDate(row.Deadline)}</p>
@@ -140,20 +144,7 @@ export function DeliverablesView({
           </div>
         )}
         columns={columns}
-        empty={
-          filtersActive ? (
-            <EmptyState
-              title={messages.list.zeroResultsTitle}
-              body={messages.list.zeroResultsBody}
-            />
-          ) : (
-            <EmptyState
-              title={messages.list.emptyTitle}
-              body={messages.keyDeliverables.emptyBody}
-              action={newAction}
-            />
-          )
-        }
+        empty={listEmptyState(filtersActive, messages.keyDeliverables.emptyBody, newAction)}
       />
       <Sheet
         open={sheetOpen}

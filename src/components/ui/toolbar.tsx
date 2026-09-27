@@ -4,7 +4,7 @@
  */
 export function Toolbar({ children }: { children: React.ReactNode }) {
   return (
-    <div className="sticky top-14 z-(--z-nav) -mx-4 flex flex-wrap items-center gap-2 border-b border-line bg-surface px-4 py-2">
+    <div className="sticky top-14 z-(--z-nav) -mx-4 flex flex-wrap items-center gap-2 px-4 py-2">
       {children}
     </div>
   );

@@ -47,7 +47,7 @@ export default async function DeliverablesGanttPage({
             <Link
               href={`/projects/${projectId}/deliverables`}
               data-testid="list-link"
-              className="inline-flex min-h-9 items-center rounded-md border border-line px-6 text-sm font-medium text-ink"
+              className="inline-flex min-h-10 items-center rounded-md border border-line px-6 text-sm font-medium text-ink"
             >
               {messages.keyDeliverables.listLink}
             </Link>

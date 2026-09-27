@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { flattenSearchParams, parseListParams, toProcListParams, totalPages } from "./list-params";
 
-describe("list URL params (ADR-0016)", () => {
+describe("list URL params ", () => {
   it("applies defaults for an empty URL", () => {
     const params = parseListParams({});
     expect(params).toMatchObject({ dir: "asc", page: 1 });

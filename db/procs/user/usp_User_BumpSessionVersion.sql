@@ -1,4 +1,4 @@
--- usp_User_BumpSessionVersion — server-side JWT revocation (ADR-0017): tokens
+-- usp_User_BumpSessionVersion — server-side JWT revocation : tokens
 -- carry the SessionVersion they were minted with; bumping it invalidates every
 -- outstanding session on the next request. Module: auth-and-rbac (#4).
 USE ProjectManager;

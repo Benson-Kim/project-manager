@@ -7,7 +7,6 @@ import { can } from "@/lib/auth/rbac";
 import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getViewPreference } from "@/lib/repositories/view-preference";
-import { DeliverablesToolbar } from "@/modules/key-deliverables/components/deliverables-toolbar";
 import { DeliverablesView } from "@/modules/key-deliverables/components/deliverables-view";
 import {
   getKeyDeliverableById,
@@ -73,7 +72,7 @@ export default async function DeliverablesPage({
     <Link
       href={`/projects/${projectId}/deliverables?d=new`}
       data-testid="new-deliverable"
-      className="inline-flex min-h-9 items-center rounded-md bg-accent px-6 text-sm font-medium text-on-accent"
+      className="inline-flex min-h-10 items-center rounded-md bg-accent px-6 text-sm font-medium text-on-accent"
     >
       {messages.keyDeliverables.newDeliverable}
     </Link>
@@ -82,7 +81,7 @@ export default async function DeliverablesPage({
     <Link
       href={`/projects/${projectId}/deliverables/gantt`}
       data-testid="gantt-link"
-      className="inline-flex min-h-9 items-center rounded-md border border-line px-6 text-sm font-medium text-ink"
+      className="inline-flex min-h-10 items-center rounded-md border border-line px-6 text-sm font-medium text-ink"
     >
       {messages.keyDeliverables.ganttLink}
     </Link>
@@ -99,8 +98,7 @@ export default async function DeliverablesPage({
           </div>
         }
       />
-      <DeliverablesToolbar />
-      <div className="mt-3">
+      <div className="mt-3 flex flex-col flex-1">
         <DeliverablesView
           projectId={projectId}
           rows={rows}

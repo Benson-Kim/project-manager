@@ -14,9 +14,8 @@ export interface ShellAlert {
   dueDate: string;
 }
 
-/** Icon-only header buttons: square 36 px hit target (min-h-9/min-w-9; px-6 exception recorded in the MR). */
 const iconButtonClass =
-  "relative flex min-h-9 min-w-9 items-center justify-center rounded-md text-ink-muted hover:bg-surface-sunken";
+  "relative flex min-h-10 min-w-10 items-center justify-center rounded-md text-ink-muted hover:bg-surface-sunken";
 
 /**
  * Notifications bell (shell spec, issue #28): filled icon + red dot when
@@ -83,7 +82,7 @@ export function NotificationsBell({ alerts }: { alerts: ShellAlert[] }) {
             {alerts.map((alert) => (
               <li
                 key={alert.id}
-                className="flex min-h-9 flex-col justify-center px-6 py-1.5 text-sm"
+                className="flex min-h-10 flex-col justify-center px-6 py-1.5 text-sm"
               >
                 <span className="truncate font-medium text-ink">{alert.title}</span>
                 <span className="text-xs text-ink-muted">{alert.dueDate}</span>
@@ -128,7 +127,7 @@ export function AvatarMenu({ username }: { username: string }) {
     <Menu
       label={messages.app.account}
       testId="avatar-menu"
-      triggerClassName="flex min-h-9 min-w-9 items-center justify-center rounded-md hover:bg-surface-sunken"
+      triggerClassName="flex min-h-10 min-w-9 items-center justify-center rounded-md hover:bg-surface-sunken"
       trigger={
         <span className="flex size-7 items-center justify-center rounded-full bg-accent text-xs font-semibold text-on-accent">
           {initialsFrom(username)}

@@ -44,7 +44,7 @@ Layout: column B = section / requirement, C = sub-requirement detail, D = status
 | 6 |  | 0.3-The system must be able to have one or many project managers, project sponsor, and business analyst  | In progress |  |
 | 7 | 1-Stakeholder(s): |  | In progress |  |
 | 8 |  |  | In progress |  |
-| 9 | 2-Acronym(s): |  | In progress |  |
+| 9 | 2-Keyword(s): |  | In progress |  |
 | 10 | 3-Key Requirements Deliverables: |  | In progress |  |
 | 11 | 4-Objectives: |  | In progress |  |
 | 12 | 5-Meeting Minutes: |  | In progress |  |
@@ -93,7 +93,7 @@ Layout: column B = section / requirement, C = sub-requirement detail, D = status
 | 55 | To elevate you can add fields to capture supplier address:<br>-"Address"<br>-"Province or State"<br>-"Country"<br>-"Postal code" |  | In progress |  |
 | 56 | Where I need it to function as MS Word:<br>Check every form and field, bulleted point, italic, change font, bolded, strikethrough, etc..<br><br> |  | In progress |  |
 | 57 | Pops up: my "To do list" with alerts using date and Time. (Frequency) Can pop back up at certain intervals using a selector Hourly or in multiple days  |  | In progress |  |
-| 58 | Create a Search field under acronyms …and rename the section keywords. |  | In progress |  |
+| 58 | Create a Search field under keywords. |  | In progress |  |
 | 59 | To List preficated on the daily activity list | filter based on "to do","Requester", | In progress |  |
 | 60 | Systems needs to be portable. The application and its database contents should be able to be installed or workable on another computer |  | In progress |  |
 | 61 | Mechanism so I can import the data from my access database to the new application |  | In progress |  |

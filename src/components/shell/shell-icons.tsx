@@ -70,3 +70,80 @@ export function LogoMark() {
     </svg>
   );
 }
+
+export function SidebarIcon({
+  name,
+}: {
+  name:
+    | "dashboard"
+    | "projects"
+    | "dailyActivities"
+    | "todo"
+    | "reports"
+    | "settings"
+    | "logout"
+    | "add";
+}) {
+  const paths = {
+    dashboard: (
+      <>
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+      </>
+    ),
+    projects: (
+      <>
+        <path d="M3 7.5h18M5 4h5l2 2h7a2 2 0 0 1 2 2v9.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
+      </>
+    ),
+    dailyActivities: (
+      <>
+        <path d="M5 4v16M5 6h11l-2 3 2 3H5M5 20h14" />
+      </>
+    ),
+    todo: (
+      <>
+        <rect x="4" y="3" width="16" height="18" rx="2" />
+        <path d="m8 9 1.5 1.5L12 8M14 10h3M8 15l1.5 1.5L12 14M14 16h3" />
+      </>
+    ),
+    reports: (
+      <>
+        <path d="M5 20V10M12 20V4M19 20v-7" />
+      </>
+    ),
+    settings: (
+      <>
+        <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" />
+        <path d="m19.4 15 .1.1a1.8 1.8 0 0 1-2.5 2.5l-.1-.1a1.8 1.8 0 0 0-3.1 1.3v.2a1.8 1.8 0 0 1-3.6 0v-.2a1.8 1.8 0 0 0-3.1-1.3l-.1.1a1.8 1.8 0 0 1-2.5-2.5l.1-.1a1.8 1.8 0 0 0-1.3-3.1h-.2a1.8 1.8 0 0 1 0-3.6h.2a1.8 1.8 0 0 0 1.3-3.1l-.1-.1a1.8 1.8 0 0 1 2.5-2.5l.1.1a1.8 1.8 0 0 0 3.1-1.3V1.2a1.8 1.8 0 0 1 3.6 0v.2a1.8 1.8 0 0 0 3.1 1.3l.1-.1a1.8 1.8 0 0 1 2.5 2.5l-.1.1a1.8 1.8 0 0 0 1.3 3.1h.2a1.8 1.8 0 0 1 0 3.6h-.2a1.8 1.8 0 0 0-1.3 3.1Z" />
+      </>
+    ),
+    logout: (
+      <>
+        <path d="M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5M14 16l4-4-4-4M18 12H9" />
+      </>
+    ),
+    add: (
+      <>
+        <path d="M12 5v14M5 12h14" />
+      </>
+    ),
+  };
+
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="size-5 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {paths[name]}
+    </svg>
+  );
+}

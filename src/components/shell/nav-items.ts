@@ -11,17 +11,22 @@ import { messages } from "@/lib/messages";
 export interface NavItem {
   href: string;
   label: string;
+  icon: "dashboard" | "projects" | "dailyActivities" | "todo" | "reports" | "settings";
 }
 
 export const navItems: NavItem[] = [
-  { href: "/", label: messages.nav.dashboard },
-  { href: "/projects", label: messages.nav.projects },
-  { href: "/daily-activities", label: messages.nav.dailyActivities },
-  { href: "/todo", label: messages.nav.todoLists },
-  { href: "/reports", label: messages.nav.reports },
+  { href: "/", label: messages.nav.dashboard, icon: "dashboard" },
+  { href: "/projects", label: messages.nav.projects, icon: "projects" },
+  { href: "/daily-activities", label: messages.nav.dailyActivities, icon: "dailyActivities" },
+  { href: "/todo", label: messages.nav.todoLists, icon: "todo" },
+  { href: "/reports", label: messages.nav.reports, icon: "reports" },
 ];
 
-export const settingsNavItem: NavItem = { href: "/settings", label: messages.nav.settings };
+export const settingsNavItem: NavItem = {
+  href: "/settings",
+  label: messages.nav.settings,
+  icon: "settings",
+};
 
 /** Header page title for the current pathname (top-level routes from the nav registry). */
 export function pageTitleFor(pathname: string): string {

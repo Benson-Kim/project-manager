@@ -1,21 +1,17 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { useAnnouncer } from "@/components/ui/announcer";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Sheet } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { Input, Select, Textarea } from "@/components/ui/form/inputs";
+import { SectionHeading } from "@/components/ui/form/section-heading";
+import { useSheetFormActions } from "@/components/ui/form/use-sheet-form-actions";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
-import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
-import { createStakeholderAction } from "../actions/create-stakeholder";
-import { deleteStakeholderAction } from "../actions/delete-stakeholder";
-import { updateStakeholderAction } from "../actions/update-stakeholder";
+import { createStakeholderAction, deleteStakeholderAction, updateStakeholderAction } from "../actions";
 import {
   COMMUNICATION_PREFERENCES,
   ENGAGEMENT_LEVELS,
@@ -24,102 +20,48 @@ import {
 import { stakeholderFormSchema, updateStakeholderFormSchema } from "../schemas/stakeholder-form";
 import { fullName } from "./stakeholders-view";
 
-export interface ProjectOption {
-  ProjectId: number;
-  ProjectName: string;
-}
-
-function SectionHeading({ id, children }: { id: string; children: React.ReactNode }) {
-  return (
-    <h2 id={id} className="border-b border-line pb-2 text-sm font-semibold text-ink">
-      {children}
-    </h2>
-  );
-}
-
 /**
- * Stakeholder detail/edit sheet (ADR-0010 default pattern): edit is the
+ * Stakeholder detail/edit sheet  default pattern): edit is the
  * default content, URL-synced via ?id= (numeric id or "new"); closing clears
- * the param and returns focus to the opener row.
+ * the param and returns focus to the opener row. Project scope comes from the
+ * route  — projectId travels as a hidden field.
  */
 export function StakeholderSheet({
   stakeholder,
   isNew,
-  projects,
-  defaultProjectId,
+  projectId,
   canEdit,
   canDelete,
 }: {
   stakeholder: StakeholderRow | null;
   isNew: boolean;
-  projects: ProjectOption[];
-  defaultProjectId?: number;
+  projectId: number;
   canEdit: boolean;
   canDelete: boolean;
 }) {
-  const router = useRouter();
   const { update } = useListUrlState();
-  const { toast } = useToast();
-  const { announce } = useAnnouncer();
   const schema = stakeholder ? updateStakeholderFormSchema : stakeholderFormSchema;
   const form = useZodForm(schema);
-  const [pending, startTransition] = useTransition();
-  const [summary, setSummary] = useState<string | null>(null);
-  const [conflict, setConflict] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const open = isNew || stakeholder !== null;
   const close = () => update({ id: null });
 
-  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const formElement = event.currentTarget;
-    if (!form.validate(formElement)) {
-      setSummary(messages.errors.VALIDATION);
-      return;
-    }
-    setSummary(null);
-    setConflict(false);
-    const formData = new FormData(formElement);
-    startTransition(async () => {
-      const result = stakeholder
-        ? await updateStakeholderAction(formData)
-        : await createStakeholderAction(formData);
-      if (result.ok) {
-        toast({
-          variant: "success",
-          title: stakeholder ? messages.feedback.saved : messages.feedback.created,
-        });
-        announce(stakeholder ? messages.feedback.saved : messages.feedback.created);
-        close();
-        router.refresh();
-      } else {
-        form.applyResult(result);
-        setSummary(result.error.message);
-        if (result.error.code === "CONFLICT") setConflict(true);
-      }
+  const { pending, summary, conflict, confirmDelete, setConfirmDelete, onSubmit, onDelete } =
+    useSheetFormActions({
+      isEdit: stakeholder !== null,
+      onSuccess: close,
+      form,
+      createAction: createStakeholderAction,
+      updateAction: updateStakeholderAction,
+      deleteAction: ({
+        stakeholderId,
+        rowVer,
+      }: {
+        stakeholderId: number;
+        rowVer: number;
+      }) => deleteStakeholderAction({ stakeholderId, rowVer }),
     });
-  };
 
-  const onDelete = () => {
-    if (!stakeholder) return;
-    startTransition(async () => {
-      const result = await deleteStakeholderAction({
-        stakeholderId: stakeholder.StakeholderId,
-        rowVer: stakeholder.RowVer,
-      });
-      setConfirmDelete(false);
-      if (result.ok) {
-        toast({ variant: "success", title: messages.feedback.deleted });
-        announce(messages.feedback.deleted);
-        close();
-        router.refresh();
-      } else {
-        setSummary(result.error.message);
-        if (result.error.code === "CONFLICT") setConflict(true);
-      }
-    });
-  };
+  const open = isNew || stakeholder !== null;
 
   return (
     <Sheet
@@ -139,11 +81,13 @@ export function StakeholderSheet({
         <ErrorSummary message={summary} />
         {conflict ? (
           <div>
-            <Button type="button" variant="secondary" onClick={() => router.refresh()}>
+            <Button type="button" variant="secondary" onClick={() => window.location.reload()}>
               {messages.stakeholders.reload}
             </Button>
           </div>
         ) : null}
+        {/* Project scope always comes from the route */}
+        <input type="hidden" name="projectId" value={stakeholder?.ProjectId ?? projectId} />
         {stakeholder ? (
           <>
             <input type="hidden" name="stakeholderId" value={stakeholder.StakeholderId} />
@@ -156,23 +100,6 @@ export function StakeholderSheet({
             <SectionHeading id="stakeholder-details-heading">
               {messages.stakeholders.detailsSection}
             </SectionHeading>
-            <Field
-              label={messages.stakeholders.project}
-              name="projectId"
-              errors={form.errors.projectId}
-            >
-              <Select
-                name="projectId"
-                defaultValue={stakeholder?.ProjectId ?? defaultProjectId ?? ""}
-              >
-                <option value="">{messages.stakeholders.none}</option>
-                {projects.map((p) => (
-                  <option key={p.ProjectId} value={p.ProjectId}>
-                    {p.ProjectName}
-                  </option>
-                ))}
-              </Select>
-            </Field>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field
                 label={messages.stakeholders.firstName}
@@ -276,7 +203,7 @@ export function StakeholderSheet({
           </section>
         </fieldset>
 
-        <div className="flex flex-wrap items-center gap-2 pb-2">
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2">
           {canEdit ? (
             <Button type="submit" pending={pending} data-testid="stakeholder-save">
               {messages.actions.save}
@@ -305,7 +232,13 @@ export function StakeholderSheet({
           title={messages.confirmDelete.title(messages.stakeholders.entity, fullName(stakeholder))}
           body={messages.confirmDelete.body}
           confirmLabel={messages.actions.delete}
-          onConfirm={onDelete}
+          onConfirm={() =>
+            stakeholder &&
+            onDelete({
+              stakeholderId: stakeholder.StakeholderId,
+              rowVer: stakeholder.RowVer,
+            })
+          }
           pending={pending}
         />
       ) : null}

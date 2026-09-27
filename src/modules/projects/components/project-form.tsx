@@ -12,9 +12,9 @@ import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
-import { createProjectAction } from "../actions/create-project";
-import { deleteProjectAction } from "../actions/delete-project";
-import { updateProjectAction } from "../actions/update-project";
+import { toDateInput } from "@/lib/format";
+import { SectionHeading } from "@/components/ui/form/section-heading";
+import { createProjectAction, deleteProjectAction, updateProjectAction } from "../actions";
 import type { ProjectRow } from "../schemas/project";
 import {
   PROJECT_PHASES,
@@ -25,20 +25,8 @@ import {
   updateProjectFormSchema,
 } from "../schemas/project-form";
 
-function toDateInput(value: Date | null | undefined): string {
-  return value ? value.toISOString().slice(0, 10) : "";
-}
-
-function SectionHeading({ id, children }: { id: string; children: React.ReactNode }) {
-  return (
-    <h2 id={id} className="border-b border-line pb-2 text-base font-semibold text-ink">
-      {children}
-    </h2>
-  );
-}
-
 /**
- * The charter workspace form (ADR-0009 / ADR-0010 full-route exception):
+ * The charter workspace form  / ADR-0010 full-route exception):
  * sections Charter, Framework, Financing grouped with plain headings, ONE
  * submit; blur + submit validation against the same zod schema as the server;
  * CONFLICT surfaces an error summary with a reload affordance; unsaved
@@ -64,7 +52,7 @@ export function ProjectForm({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [dirty, setDirty] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-  // ADR-0009 guard: beforeunload for full unloads PLUS interception of
+// beforeunload for full unloads PLUS interception of
   // client-side <Link> navigation (section nav, sidebar — ADR-0018 Q1).
   const guard = useUnsavedChangesGuard(dirty);
 
@@ -149,175 +137,197 @@ export function ProjectForm({
       ) : null}
 
       <fieldset disabled={!canEdit} className="flex flex-col gap-6">
-        <section aria-labelledby="charter-heading" className="flex flex-col gap-4">
-          <SectionHeading id="charter-heading">{messages.projects.charterSection}</SectionHeading>
-          <Field label={messages.projects.name} name="projectName" errors={form.errors.projectName}>
-            <Input name="projectName" defaultValue={project?.ProjectName ?? ""} />
-          </Field>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label={messages.projects.manager} name="projectManager">
-              <Input name="projectManager" defaultValue={project?.ProjectManager ?? ""} />
+        <section
+          aria-labelledby="charter-heading"
+          className="flex flex-col gap-4  border border-line bg-linear-60 rounded-md"
+        >
+          <SectionHeading id="charter-heading" className="rounded-t-md text-base bg-surface-sunken">Project Identity</SectionHeading>
+          <div className="px-4 py-3 flex flex-col gap-4">
+            <Field
+              label={messages.projects.name}
+              name="projectName"
+              errors={form.errors.projectName}
+            >
+              <Input name="projectName" defaultValue={project?.ProjectName ?? ""} />
             </Field>
-            <Field label={messages.projects.businessAnalyst} name="businessAnalyst">
-              <Input name="businessAnalyst" defaultValue={project?.BusinessAnalyst ?? ""} />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label={messages.projects.manager} name="projectManager">
+                <Input name="projectManager" defaultValue={project?.ProjectManager ?? ""} />
+              </Field>
+              <Field label={messages.projects.businessAnalyst} name="businessAnalyst">
+                <Input name="businessAnalyst" defaultValue={project?.BusinessAnalyst ?? ""} />
+              </Field>
+              <Field label={messages.projects.sponsor} name="projectSponsor">
+                <Input name="projectSponsor" defaultValue={project?.ProjectSponsor ?? ""} />
+              </Field>
+              <Field label={messages.projects.dateOfProject} name="dateOfProject">
+                <DatePicker
+                  name="dateOfProject"
+                  defaultValue={toDateInput(project?.DateOfProject)}
+                />
+              </Field>
+            </div>
+            <Field label={messages.projects.mandate} name="mandate">
+              <Input name="mandate" defaultValue={project?.Mandate ?? ""} />
             </Field>
-            <Field label={messages.projects.sponsor} name="projectSponsor">
-              <Input name="projectSponsor" defaultValue={project?.ProjectSponsor ?? ""} />
+            <Field
+              label={messages.projects.problemStatement}
+              name="problemStatement"
+              errors={form.errors.problemStatement}
+            >
+              <Textarea name="problemStatement" defaultValue={project?.ProblemStatement ?? ""} />
             </Field>
-            <Field label={messages.projects.dateOfProject} name="dateOfProject">
-              <DatePicker name="dateOfProject" defaultValue={toDateInput(project?.DateOfProject)} />
+            <Field label={messages.projects.currentState} name="currentState">
+              <Textarea name="currentState" defaultValue={project?.CurrentState ?? ""} />
+            </Field>
+            <Field label={messages.projects.futureState} name="futureState">
+              <Textarea name="futureState" defaultValue={project?.FutureState ?? ""} />
+            </Field>
+            <Field label={messages.projects.userImpact} name="userImpact">
+              <Textarea name="userImpact" defaultValue={project?.UserImpact ?? ""} />
             </Field>
           </div>
-          <Field label={messages.projects.mandate} name="mandate">
-            <Input name="mandate" defaultValue={project?.Mandate ?? ""} />
-          </Field>
-          <Field
-            label={messages.projects.problemStatement}
-            name="problemStatement"
-            errors={form.errors.problemStatement}
-          >
-            <Textarea name="problemStatement" defaultValue={project?.ProblemStatement ?? ""} />
-          </Field>
-          <Field label={messages.projects.currentState} name="currentState">
-            <Textarea name="currentState" defaultValue={project?.CurrentState ?? ""} />
-          </Field>
-          <Field label={messages.projects.futureState} name="futureState">
-            <Textarea name="futureState" defaultValue={project?.FutureState ?? ""} />
-          </Field>
-          <Field label={messages.projects.userImpact} name="userImpact">
-            <Textarea name="userImpact" defaultValue={project?.UserImpact ?? ""} />
-          </Field>
         </section>
 
-        <section aria-labelledby="framework-heading" className="flex flex-col gap-4">
-          <SectionHeading id="framework-heading">
+        <section
+          aria-labelledby="framework-heading"
+          className="flex flex-col gap-4  border border-line bg-linear-60 rounded-md"
+        >
+          <SectionHeading id="framework-heading" className="rounded-t-md text-base bg-surface-sunken">
             {messages.projects.frameworkSection}
           </SectionHeading>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label={messages.projects.status} name="projectStatus">
-              <Select name="projectStatus" defaultValue={project?.ProjectStatus ?? ""}>
-                <option value="">{messages.projects.none}</option>
-                {PROJECT_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </Select>
+          <div className="px-4 py-3 flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label={messages.projects.status} name="projectStatus">
+                <Select name="projectStatus" defaultValue={project?.ProjectStatus ?? ""}>
+                  <option value="">{messages.projects.none}</option>
+                  {PROJECT_STATUSES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={messages.projects.phase} name="projectPhase">
+                <Select name="projectPhase" defaultValue={project?.ProjectPhase ?? ""}>
+                  <option value="">{messages.projects.none}</option>
+                  {PROJECT_PHASES.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={messages.projects.priority} name="projectPriority">
+                <Select name="projectPriority" defaultValue={project?.ProjectPriority ?? ""}>
+                  <option value="">{messages.projects.none}</option>
+                  {PROJECT_PRIORITIES.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={messages.projects.riskLevel} name="riskLevel">
+                <Select name="riskLevel" defaultValue={project?.RiskLevel ?? ""}>
+                  <option value="">{messages.projects.none}</option>
+                  {RISK_LEVELS.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={messages.projects.startDate} name="startDate">
+                <DatePicker name="startDate" defaultValue={toDateInput(project?.StartDate)} />
+              </Field>
+              <Field label={messages.projects.endDate} name="endDate">
+                <DatePicker name="endDate" defaultValue={toDateInput(project?.EndDate)} />
+              </Field>
+              <Field label={messages.projects.estimatedCompletion} name="estimatedCompletionDate">
+                <DatePicker
+                  name="estimatedCompletionDate"
+                  defaultValue={toDateInput(project?.EstimatedCompletionDate)}
+                />
+              </Field>
+              <Field label={messages.projects.existingBusinessModel} name="existBusMod">
+                <Input name="existBusMod" defaultValue={project?.ExistBusMod ?? ""} />
+              </Field>
+            </div>
+            <Field label={messages.projects.statusComments} name="projectStatusCom">
+              <Textarea name="projectStatusCom" defaultValue={project?.ProjectStatusCom ?? ""} />
             </Field>
-            <Field label={messages.projects.phase} name="projectPhase">
-              <Select name="projectPhase" defaultValue={project?.ProjectPhase ?? ""}>
-                <option value="">{messages.projects.none}</option>
-                {PROJECT_PHASES.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </Select>
+            <Field label={messages.projects.docs} name="projectDocs">
+              <Textarea name="projectDocs" defaultValue={project?.ProjectDocs ?? ""} />
             </Field>
-            <Field label={messages.projects.priority} name="projectPriority">
-              <Select name="projectPriority" defaultValue={project?.ProjectPriority ?? ""}>
-                <option value="">{messages.projects.none}</option>
-                {PROJECT_PRIORITIES.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label={messages.projects.riskLevel} name="riskLevel">
-              <Select name="riskLevel" defaultValue={project?.RiskLevel ?? ""}>
-                <option value="">{messages.projects.none}</option>
-                {RISK_LEVELS.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label={messages.projects.startDate} name="startDate">
-              <DatePicker name="startDate" defaultValue={toDateInput(project?.StartDate)} />
-            </Field>
-            <Field label={messages.projects.endDate} name="endDate">
-              <DatePicker name="endDate" defaultValue={toDateInput(project?.EndDate)} />
-            </Field>
-            <Field label={messages.projects.estimatedCompletion} name="estimatedCompletionDate">
-              <DatePicker
-                name="estimatedCompletionDate"
-                defaultValue={toDateInput(project?.EstimatedCompletionDate)}
-              />
-            </Field>
-            <Field label={messages.projects.existingBusinessModel} name="existBusMod">
-              <Input name="existBusMod" defaultValue={project?.ExistBusMod ?? ""} />
-            </Field>
+            <Switch
+              name="similarProject"
+              label={messages.projects.similarProject}
+              defaultChecked={project?.SimilarProject ?? false}
+            />
           </div>
-          <Field label={messages.projects.statusComments} name="projectStatusCom">
-            <Textarea name="projectStatusCom" defaultValue={project?.ProjectStatusCom ?? ""} />
-          </Field>
-          <Field label={messages.projects.docs} name="projectDocs">
-            <Textarea name="projectDocs" defaultValue={project?.ProjectDocs ?? ""} />
-          </Field>
-          <Switch
-            name="similarProject"
-            label={messages.projects.similarProject}
-            defaultChecked={project?.SimilarProject ?? false}
-          />
         </section>
 
-        <section aria-labelledby="financing-heading" className="flex flex-col gap-4">
-          <SectionHeading id="financing-heading">
+        <section
+          aria-labelledby="financing-heading"
+          className="flex flex-col gap-4  border border-line bg-linear-60 rounded-md"
+        >
+          <SectionHeading id="financing-heading" className="rounded-t-md text-base bg-surface-sunken">
             {messages.projects.financingSection}
           </SectionHeading>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <Switch name="do" label={messages.projects.flagDo} defaultChecked={project?.DO} />
-            <Switch name="da" label={messages.projects.flagDa} defaultChecked={project?.DA} />
-            <Switch name="das" label={messages.projects.flagDas} defaultChecked={project?.DAS} />
-            <Switch name="a1" label={messages.projects.flagA1} defaultChecked={project?.A1} />
-            <Switch
-              name="purchaseOrder"
-              label={messages.projects.flagPurchaseOrder}
-              defaultChecked={project?.PurchaseOrder}
-            />
-            <Switch
-              name="requisition"
-              label={messages.projects.flagRequisition}
-              defaultChecked={project?.Requisition}
-            />
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label={messages.projects.financingSource} name="financingSource">
-              <Input name="financingSource" defaultValue={project?.FinancingSource ?? ""} />
-            </Field>
-            <Field
-              label={messages.projects.financingCost}
-              name="financingCost"
-              errors={form.errors.financingCost}
-            >
-              <Input
+          <div className="px-4 py-3 flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Switch name="do" label={messages.projects.flagDo} defaultChecked={project?.DO} />
+              <Switch name="da" label={messages.projects.flagDa} defaultChecked={project?.DA} />
+              <Switch name="das" label={messages.projects.flagDas} defaultChecked={project?.DAS} />
+              <Switch name="a1" label={messages.projects.flagA1} defaultChecked={project?.A1} />
+              <Switch
+                name="purchaseOrder"
+                label={messages.projects.flagPurchaseOrder}
+                defaultChecked={project?.PurchaseOrder}
+              />
+              <Switch
+                name="requisition"
+                label={messages.projects.flagRequisition}
+                defaultChecked={project?.Requisition}
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label={messages.projects.financingSource} name="financingSource">
+                <Input name="financingSource" defaultValue={project?.FinancingSource ?? ""} />
+              </Field>
+              <Field
+                label={messages.projects.financingCost}
                 name="financingCost"
-                inputMode="decimal"
-                defaultValue={project?.FinancingCost ?? ""}
-              />
-            </Field>
-            <Field
-              label={messages.projects.recurrentCost}
-              name="recurrentCost"
-              errors={form.errors.recurrentCost}
-            >
-              <Input
+                errors={form.errors.financingCost}
+              >
+                <Input
+                  name="financingCost"
+                  inputMode="decimal"
+                  defaultValue={project?.FinancingCost ?? ""}
+                />
+              </Field>
+              <Field
+                label={messages.projects.recurrentCost}
                 name="recurrentCost"
-                inputMode="decimal"
-                defaultValue={project?.RecurrentCost ?? ""}
-              />
+                errors={form.errors.recurrentCost}
+              >
+                <Input
+                  name="recurrentCost"
+                  inputMode="decimal"
+                  defaultValue={project?.RecurrentCost ?? ""}
+                />
+              </Field>
+            </div>
+            <Switch
+              name="purchaseEquipment"
+              label={messages.projects.purchaseEquipment}
+              defaultChecked={project?.PurchaseEquipment}
+            />
+            <Field label={messages.projects.equipmentNotes} name="equipmentNotes">
+              <Textarea name="equipmentNotes" defaultValue={project?.EquipmentNotes ?? ""} />
             </Field>
           </div>
-          <Switch
-            name="purchaseEquipment"
-            label={messages.projects.purchaseEquipment}
-            defaultChecked={project?.PurchaseEquipment}
-          />
-          <Field label={messages.projects.equipmentNotes} name="equipmentNotes">
-            <Textarea name="equipmentNotes" defaultValue={project?.EquipmentNotes ?? ""} />
-          </Field>
         </section>
       </fieldset>
 

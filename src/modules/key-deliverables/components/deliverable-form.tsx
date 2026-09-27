@@ -1,20 +1,17 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { useAnnouncer } from "@/components/ui/announcer";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Combobox } from "@/components/ui/form/combobox";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { DatePicker, Select, Textarea } from "@/components/ui/form/inputs";
+import { useSheetFormActions } from "@/components/ui/form/use-sheet-form-actions";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
-import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
-import { createKeyDeliverableAction } from "../actions/create-key-deliverable";
-import { deleteKeyDeliverableAction } from "../actions/delete-key-deliverable";
-import { updateKeyDeliverableAction } from "../actions/update-key-deliverable";
+import { toDateInput } from "@/lib/format";
+import { createKeyDeliverableAction, deleteKeyDeliverableAction, updateKeyDeliverableAction } from "../actions";
+
 import {
   DELIVERABLE_PRIORITIES,
   DELIVERABLE_STATUSES,
@@ -26,12 +23,8 @@ import {
 } from "../schemas/key-deliverable-form";
 import type { StakeholderOption } from "../repository/stakeholder-options";
 
-function toDateInput(value: Date | null | undefined): string {
-  return value ? value.toISOString().slice(0, 10) : "";
-}
-
 /**
- * ONE deliverable form (ADR-0009) rendered inside the Sheet: blur + submit
+ * ONE deliverable form ) rendered inside the Sheet: blur + submit
  * validation against the same zod schema as the server; CONFLICT surfaces an
  * error summary with a reload affordance.
  */
@@ -50,65 +43,24 @@ export function DeliverableForm({
   canDelete: boolean;
   onDone: () => void;
 }) {
-  const router = useRouter();
-  const { toast } = useToast();
-  const { announce } = useAnnouncer();
   const schema = deliverable ? updateKeyDeliverableFormSchema : keyDeliverableFormSchema;
   const form = useZodForm(schema);
-  const [pending, startTransition] = useTransition();
-  const [summary, setSummary] = useState<string | null>(null);
-  const [conflict, setConflict] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const formElement = event.currentTarget;
-    if (!form.validate(formElement)) {
-      setSummary(messages.errors.VALIDATION);
-      return;
-    }
-    setSummary(null);
-    setConflict(false);
-    const formData = new FormData(formElement);
-    startTransition(async () => {
-      const result = deliverable
-        ? await updateKeyDeliverableAction(formData)
-        : await createKeyDeliverableAction(formData);
-      if (result.ok) {
-        toast({
-          variant: "success",
-          title: deliverable ? messages.feedback.saved : messages.feedback.created,
-        });
-        announce(deliverable ? messages.feedback.saved : messages.feedback.created);
-        router.refresh();
-        onDone();
-      } else {
-        form.applyResult(result);
-        setSummary(result.error.message);
-        if (result.error.code === "CONFLICT") setConflict(true);
-      }
+  const { pending, summary, conflict, confirmDelete, setConfirmDelete, onSubmit, onDelete } =
+    useSheetFormActions({
+      isEdit: deliverable !== undefined,
+      onSuccess: onDone,
+      form,
+      createAction: createKeyDeliverableAction,
+      updateAction: updateKeyDeliverableAction,
+      deleteAction: ({
+        keyDeliverableId,
+        rowVer,
+      }: {
+        keyDeliverableId: number;
+        rowVer: number;
+      }) => deleteKeyDeliverableAction({ keyDeliverableId, rowVer }),
     });
-  };
-
-  const onDelete = () => {
-    if (!deliverable) return;
-    startTransition(async () => {
-      const result = await deleteKeyDeliverableAction({
-        keyDeliverableId: deliverable.KeyDeliverableId,
-        rowVer: deliverable.RowVer,
-      });
-      setConfirmDelete(false);
-      if (result.ok) {
-        toast({ variant: "success", title: messages.feedback.deleted });
-        announce(messages.feedback.deleted);
-        router.refresh();
-        onDone();
-      } else {
-        setSummary(result.error.message);
-        if (result.error.code === "CONFLICT") setConflict(true);
-      }
-    });
-  };
 
   return (
     <form
@@ -121,7 +73,7 @@ export function DeliverableForm({
       <ErrorSummary message={summary} />
       {conflict ? (
         <div>
-          <Button type="button" variant="secondary" onClick={() => router.refresh()}>
+          <Button type="button" variant="secondary" onClick={() => window.location.reload()}>
             {messages.keyDeliverables.reload}
           </Button>
         </div>
@@ -190,7 +142,7 @@ export function DeliverableForm({
       <div className="flex items-center justify-between gap-3">
         <div className="flex gap-2">
           {canEdit ? (
-            <Button type="submit" disabled={pending} data-testid="deliverable-save">
+            <Button type="submit" pending={pending} data-testid="deliverable-save">
               {messages.actions.save}
             </Button>
           ) : null}
@@ -202,7 +154,7 @@ export function DeliverableForm({
           <Button
             type="button"
             variant="danger"
-            disabled={pending}
+            pending={pending}
             data-testid="deliverable-delete"
             onClick={() => setConfirmDelete(true)}
           >
@@ -222,7 +174,13 @@ export function DeliverableForm({
           )}
           body={messages.confirmDelete.body}
           confirmLabel={messages.actions.delete}
-          onConfirm={onDelete}
+          onConfirm={() =>
+            deliverable &&
+            onDelete({
+              keyDeliverableId: deliverable.KeyDeliverableId,
+              rowVer: deliverable.RowVer,
+            })
+          }
           pending={pending}
         />
       ) : null}

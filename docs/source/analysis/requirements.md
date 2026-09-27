@@ -17,7 +17,7 @@ A single-user Microsoft Access application used by a project manager (healthcare
 | Project | `tblProjectFramework` (28 cols) | Charter: name, PM, BA, sponsor, dates, problem statement, current/future state, user impact, mandate, status, financial checkboxes (A1, DA, DAS, PO, Requisition, DO), financing source/cost, recurrent cost, equipment purchase + notes, start/end dates, similar-project flag, document attachments |
 | Stakeholder | `tblStakeholders` (16 cols) | Name, department/org, project role + description, phone/ext/mobile/email, location, org title, communication preference (Email/Phone/Meetings), engagement level (High/Medium/Low), notes |
 | Third-party supplier | `tbl3rdPartySupplier` (13 cols) | Name, contact person, email, contract start/end, rating, full address (address, city, province/state, country, postal code) |
-| Acronym / keyword | `tblAcronyms` | Acronym + meaning per project; requirement 13: add search, rename to "keywords" |
+| Keyword | `tblKeywords` | Keyword + meaning per project; requirement 13: add search|
 | Key requirement / deliverable | `tblKeyRequirementsDeliverable` | Text, deadline, assigned-to (stakeholder FK), priority, status |
 | Objective | `tblProjectObjectives` | Objective text, measurable outcome, target date, owner |
 | Meeting minutes | `tblMeetingAgenda`, `tblMeetingDiscussionPoints`, `tblMeetingActionItems`, `tblMeetingParticipants` (orphaned parent `tblMeetingMinutes`) | Meeting → agenda items → discussion points → action items; participants with attended/apologies flags; desired extra fields: date received, meeting location, agenda, time start/end |
@@ -44,7 +44,7 @@ Financials → FinancialDocuments; ITResourcePlanning → Details; DailyActivity
 ## 4. Functional requirements (Excel checklist, verbatim source in excel-workbook.md)
 
 0. **Projects**: menu items linked to one project; type-ahead project search; a project can have **one or many** project managers, sponsors and business analysts.
-1–8. CRUD screens for Stakeholders, Acronyms, Key Requirement Deliverables, Objectives, Meeting Minutes (Person Responsible dropdown fed by project stakeholders), Q&A, Suppliers, Assumptions/Constraints.
+1–8. CRUD screens for Stakeholders, Keywords, Key Requirement Deliverables, Objectives, Meeting Minutes (Person Responsible dropdown fed by project stakeholders), Q&A, Suppliers, Assumptions/Constraints.
 9. **Notes**: create tables, titled tabs, Word-like editing tools.
 10–11. IT Resource Planning and Financials: all mock-up fields editable (see PPTX).
 12. **Parking lot**: strikethrough content, follow-up actions, date added, owner.
@@ -54,7 +54,7 @@ Financials → FinancialDocuments; ITResourcePlanning → Details; DailyActivity
 16. **Risk & issue tracker** (merged with assumptions/constraints): title, description, category, status, probability, impact, severity, owner, mitigation.
 
 ### "Items to remember" (non-functional / UX)
-form-to-form navigation; verify every field; spell/grammar check; **backups + documented restore**; field capturing file storage locations; virus-scan concern for executables (⇒ web app removes this); enhanced data availability; UX & aesthetics; **downloadable reports**; responsive resizing; multiple screens/windows simultaneously (project framework + daily activity list); multiple projects open at once; multiple meeting minutes per project; richer meeting-minutes fields; supplier address fields; Word-like rich text everywhere; **to-do pop-up alerts with date/time, frequency and snooze intervals**; acronym search renamed "keywords"; to-do list predicated on daily activities with filters (to-do, requester); **portability** (installable anywhere ⇒ Docker); **import mechanism from the Access database** (⇒ `db/seed` generated from this extraction).
+form-to-form navigation; verify every field; spell/grammar check; **backups + documented restore**; field capturing file storage locations; virus-scan concern for executables (⇒ web app removes this); enhanced data availability; UX & aesthetics; **downloadable reports**; responsive resizing; multiple screens/windows simultaneously (project framework + daily activity list); multiple projects open at once; multiple meeting minutes per project; richer meeting-minutes fields; supplier address fields; Word-like rich text everywhere; **to-do pop-up alerts with date/time, frequency and snooze intervals**; to-do list predicated on daily activities with filters (to-do, requester); **portability** (installable anywhere ⇒ Docker); **import mechanism from the Access database** (⇒ `db/seed` generated from this extraction).
 
 ### Potential additional requirements
 financial tracking spreadsheet equivalent; **export/import data (backups)**; calendar with reminders; **Gantt chart** driven by key-requirement deliverable dates (start date required).
@@ -76,4 +76,4 @@ The Access app is single-user (Admin). The web rebuild introduces: **Admin** (us
 
 ## 7. Migration data inventory
 
-18 projects, 8 stakeholders, 12 suppliers, 29 acronyms, 8 key deliverables, 6 objectives, **5 meetings** (3 agenda, 3 discussion, 9 action items, 8 participants), 12 Q&A, 8 assumptions/constraints, 2 risks, 7 notes, 15+18 resource-planning rows, 2 financials + **9 document types (lookup)** + 9 project-financial-document rows, 12 parking-lot items, 13 daily activities, 16 to-dos — full row data in `access-database.md`; converted to `db/seed/*.sql`.
+18 projects, 8 stakeholders, 12 suppliers, 29 keywords, 8 key deliverables, 6 objectives, **5 meetings** (3 agenda, 3 discussion, 9 action items, 8 participants), 12 Q&A, 8 assumptions/constraints, 2 risks, 7 notes, 15+18 resource-planning rows, 2 financials + **9 document types (lookup)** + 9 project-financial-document rows, 12 parking-lot items, 13 daily activities, 16 to-dos — full row data in `access-database.md`; converted to `db/seed/*.sql`.
