@@ -55,6 +55,7 @@ export function QuestionAnswerSheet({
 
   const close = () => {
     setIsDirty(false);
+    setShowUnsaved(false);
     update({ id: null });
   };
 
@@ -202,7 +203,7 @@ export function QuestionAnswerSheet({
                 <option value="">—</option>
                 {CATEGORY_OPTIONS.map((opt) => (
                   <option key={opt} value={opt}>
-                    {opt}
+                    {messages.questionsAnswers.categoryLabels[opt]}
                   </option>
                 ))}
               </Select>
@@ -217,7 +218,7 @@ export function QuestionAnswerSheet({
                 <option value="">—</option>
                 {PRIORITY_OPTIONS.map((opt) => (
                   <option key={opt} value={opt}>
-                    {opt}
+                    {messages.questionsAnswers.priorityLabels[opt]}
                   </option>
                 ))}
               </Select>

@@ -72,6 +72,7 @@ describe("questions-answers actions", () => {
     expect(params.ProjectId).toBe(2);
     expect(params.Question).toBe("What is the scope?");
     expect(params.ActorUserId).toBe(7);
+    expect(params.ActorRole).toBe("ProjectManager");
   });
 
   it("create returns VALIDATION with fieldErrors for an empty question", async () => {
@@ -159,6 +160,7 @@ describe("questions-answers actions", () => {
       QuestionAnswerId: 7,
       RowVer: 42,
       ActorUserId: 7,
+      ActorRole: "ProjectManager",
     });
   });
 

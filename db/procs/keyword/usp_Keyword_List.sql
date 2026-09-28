@@ -1,6 +1,10 @@
 -- usp_Keyword_List — paged/filtered list per ADR-0016. Search columns: Keyword, Definition. Sort whitelist: Keyword.
--- @ProjectId = non-NULL: returns rows for that project PLUS global rows (ProjectId IS NULL).
+-- @ProjectId = non-NULL: returns rows for that project only (project-scoped keywords).
 -- @ProjectId = NULL: returns all non-deleted rows (used by admin/global views).
+-- C9-7 fix: removed OR ProjectId IS NULL from the project-scoped WHERE clause. Global keywords
+--   (ProjectId IS NULL) are not shown in project views because guardProjectScope rejects them and
+--   they become permanently uneditable/unviewable via the project UI. Global keywords will be
+--   managed through the admin/global view (ProjectId = NULL caller) when that module lands.
 -- Entity app.Keyword (source: tblAcronyms → app.Keyword). Module: keywords (#8).
 USE ProjectManager;
 GO
@@ -30,7 +34,7 @@ BEGIN
            TotalCount = COUNT(*) OVER ()
     FROM app.Keyword
     WHERE IsDeleted = 0
-      AND (@ProjectId IS NULL OR ProjectId = @ProjectId OR ProjectId IS NULL)
+      AND (@ProjectId IS NULL OR ProjectId = @ProjectId)
       AND (@Search IS NULL OR [Keyword] LIKE N'%' + @Search + N'%'
            OR [Definition] LIKE N'%' + @Search + N'%')
     ORDER BY

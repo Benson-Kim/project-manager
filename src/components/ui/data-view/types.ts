@@ -43,6 +43,13 @@ export interface DataViewProps<Row> {
   renderToolbar?: (viewToggle: React.ReactNode) => React.ReactNode;
   /** Rendered when there is no data at all (no search/filter active). */
   empty: React.ReactNode;
+  /**
+   * When true, treats the view as having an active filter even if the standard
+   * `q` / `filter` URL params are absent. Use when a module has module-specific
+   * filter params (e.g. `category`, `priority`) so the toolbar remains mounted
+   * and the user can clear the filter when zero rows match.
+   */
+  filtersActive?: boolean;
 }
 
 export const priorityClass: Record<1 | 2 | 3, string> = {

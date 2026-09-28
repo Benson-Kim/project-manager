@@ -17,7 +17,7 @@ export const createQuestionAnswerAction = action({
   name: "questions-answers.create",
   schema: questionAnswerFormSchema,
   permission: "questions-answers:create",
-  handler: (input, ctx) => createQuestionAnswer(input, ctx.session.userId),
+  handler: (input, ctx) => createQuestionAnswer(input, ctx.session.userId, ctx.session.role),
 });
 
 /**
@@ -28,7 +28,7 @@ export const updateQuestionAnswerAction = action({
   name: "questions-answers.update",
   schema: updateQuestionAnswerFormSchema,
   permission: "questions-answers:update",
-  handler: (input, ctx) => updateQuestionAnswer(input, ctx.session.userId),
+  handler: (input, ctx) => updateQuestionAnswer(input, ctx.session.userId, ctx.session.role),
 });
 
 /**
@@ -40,7 +40,7 @@ export const deleteQuestionAnswerAction = action({
   schema: deleteQuestionAnswerInput,
   permission: "questions-answers:delete",
   handler: async (input, ctx) => {
-    await deleteQuestionAnswer(input.questionAnswerId, input.rowVer, ctx.session.userId);
+    await deleteQuestionAnswer(input.questionAnswerId, input.rowVer, ctx.session.userId, ctx.session.role);
     return { questionAnswerId: input.questionAnswerId };
   },
 });

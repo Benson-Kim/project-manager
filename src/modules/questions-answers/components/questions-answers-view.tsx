@@ -67,6 +67,7 @@ export function QuestionsAnswersView({
       initialView={initialView}
       getRowId={(row) => row.QuestionAnswerId}
       getRowLabel={(row) => row.Question}
+      filtersActive={filtersActive}
       onOpen={(row) =>
         update({ id: String(row.QuestionAnswerId), page: searchParams.get("page") ?? null })
       }
