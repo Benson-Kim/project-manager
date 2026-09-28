@@ -53,13 +53,13 @@ export function DeliverableForm({
       form,
       createAction: createKeyDeliverableAction,
       updateAction: updateKeyDeliverableAction,
-      deleteAction: ({
-        keyDeliverableId,
-        rowVer,
-      }: {
-        keyDeliverableId: number;
-        rowVer: number;
-      }) => deleteKeyDeliverableAction({ keyDeliverableId, rowVer }),
+      deleteAction: () =>
+        deliverable
+          ? deleteKeyDeliverableAction({
+              keyDeliverableId: deliverable.KeyDeliverableId,
+              rowVer: deliverable.RowVer,
+            })
+          : Promise.resolve({ ok: false as const, error: { code: "NOT_FOUND" as const, message: "" } }),
     });
 
   return (
@@ -174,13 +174,7 @@ export function DeliverableForm({
           )}
           body={messages.confirmDelete.body}
           confirmLabel={messages.actions.delete}
-          onConfirm={() =>
-            deliverable &&
-            onDelete({
-              keyDeliverableId: deliverable.KeyDeliverableId,
-              rowVer: deliverable.RowVer,
-            })
-          }
+          onConfirm={onDelete}
           pending={pending}
         />
       ) : null}

@@ -1,5 +1,11 @@
 -- usp_Keyword_List — paged/filtered list per ADR-0016. Search columns: Keyword, Definition. Sort whitelist: Keyword.
--- Entity app.Keyword (source: tblKeywords). Module: database-schema-and-procs (#3).
+-- @ProjectId = non-NULL: returns rows for that project only (project-scoped keywords).
+-- @ProjectId = NULL: returns all non-deleted rows (used by admin/global views).
+-- C9-7 fix: removed OR ProjectId IS NULL from the project-scoped WHERE clause. Global keywords
+--   (ProjectId IS NULL) are not shown in project views because guardProjectScope rejects them and
+--   they become permanently uneditable/unviewable via the project UI. Global keywords will be
+--   managed through the admin/global view (ProjectId = NULL caller) when that module lands.
+-- Entity app.Keyword (source: tblAcronyms → app.Keyword). Module: keywords (#8).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Keyword_List
