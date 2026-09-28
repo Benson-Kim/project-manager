@@ -74,6 +74,17 @@ export const messages = {
     zeroResultsBody: "No records match your search or filters.",
     errorTitle: "The list could not be loaded",
   },
+  keywords: {
+    title: "Keywords",
+    entity: "keyword",
+    newKeyword: "New keyword",
+    keyword: "Keyword",
+    keywordRequired: "Enter a keyword",
+    definition: "Definition",
+    addedAt: "Added",
+    emptyBody: "Add the first keyword for this project.",
+    reload: "Reload",
+  },
   confirmDelete: {
     title: (entity: string, name: string) => `Delete ${entity} ${name}?`,
     body: "It will be removed from all lists. An administrator can restore it.",

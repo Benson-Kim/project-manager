@@ -11,6 +11,7 @@ import { getViewPreference } from "@/lib/repositories/view-preference";
 import { KeywordSheet } from "@/modules/keywords/components/keyword-sheet";
 import { KeywordsView } from "@/modules/keywords/components/keywords-view";
 import { listKeywords, getKeywordById } from "@/modules/keywords/repository/keywords";
+import { getProjectById } from "@/modules/projects/repository/projects";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { parseProjectId } from "../project-id";
 
@@ -34,6 +35,16 @@ export default async function KeywordsPage({
   const { id } = await params;
   const projectId = parseProjectId(id);
   if (projectId === null) notFound();
+
+  // Validate that the parent project exists and is accessible before listing
+  // child records. An unknown/soft-deleted project yields 404 rather than an
+  // empty keywords list or a confusing FK error on create (P2 review finding).
+  try {
+    await getProjectById(projectId, session.userId);
+  } catch (err) {
+    if (err instanceof AppError && err.code === "NOT_FOUND") notFound();
+    throw err;
+  }
 
   const raw = await searchParams;
   const flat = flattenSearchParams(raw);
