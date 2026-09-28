@@ -24,12 +24,23 @@ export interface DataViewProps<Row> {
   /** Initial view mode resolved server-side (preference proc / cookie). */
   initialView: ViewMode;
   getRowId: (row: Row) => string | number;
+  /**
+   * Optional accessible label for a row (used by bulkActions checkbox + screen
+   * reader announcements). When omitted, the row id is used as fallback.
+   */
+  getRowLabel?: (row: Row) => string;
   renderCard: (row: Row) => React.ReactNode;
   columns: DataViewColumn<Row>[];
   /** Open the record (Sheet or route per the module's decided pattern). */
   onOpen?: (row: Row) => void;
   /** Enables selection + the bulk bar when provided. */
   bulkActions?: (selectedIds: Array<string | number>, clear: () => void) => React.ReactNode;
+  /**
+   * Renders the toolbar (search, filters, view toggle). Receives the view-
+   * toggle button node so it can be embedded inside the module toolbar layout.
+   * When omitted, the default toggle strip is rendered inline.
+   */
+  renderToolbar?: (viewToggle: React.ReactNode) => React.ReactNode;
   /** Rendered when there is no data at all (no search/filter active). */
   empty: React.ReactNode;
 }

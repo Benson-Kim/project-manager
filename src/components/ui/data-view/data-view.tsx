@@ -23,10 +23,12 @@ export function DataView<Row>({
   pageSize = DEFAULT_PAGE_SIZE,
   initialView,
   getRowId,
+  getRowLabel,
   renderCard,
   columns,
   onOpen,
   bulkActions,
+  renderToolbar,
   empty,
 }: DataViewProps<Row>) {
   const { searchParams, update } = useListUrlState();
@@ -106,48 +108,56 @@ export function DataView<Row>({
     return <>{empty}</>;
   }
 
+  const viewToggle = (
+    <div
+      role="group"
+      aria-label={messages.list.viewToggle}
+      className="flex rounded-md border border-line"
+    >
+      <button
+        type="button"
+        aria-label={messages.list.viewGrid}
+        aria-pressed={view === "grid"}
+        data-testid="view-grid"
+        onClick={() => setView("grid")}
+        className={`flex size-11 items-center justify-center rounded-l-md ${view === "grid" ? "bg-accent-soft text-accent" : "text-ink-muted"}`}
+      >
+        <svg viewBox="0 0 16 16" className="size-4" fill="currentColor" aria-hidden="true">
+          <rect x="1" y="1" width="6" height="6" rx="1" />
+          <rect x="9" y="1" width="6" height="6" rx="1" />
+          <rect x="1" y="9" width="6" height="6" rx="1" />
+          <rect x="9" y="9" width="6" height="6" rx="1" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        aria-label={messages.list.viewList}
+        aria-pressed={view === "list"}
+        data-testid="view-list"
+        onClick={() => setView("list")}
+        className={`flex size-11 items-center justify-center rounded-r-md ${view === "list" ? "bg-accent-soft text-accent" : "text-ink-muted"}`}
+      >
+        <svg viewBox="0 0 16 16" className="size-4" fill="currentColor" aria-hidden="true">
+          <rect x="1" y="2" width="14" height="2.5" rx="1" />
+          <rect x="1" y="7" width="14" height="2.5" rx="1" />
+          <rect x="1" y="12" width="14" height="2.5" rx="1" />
+        </svg>
+      </button>
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-ink-muted" data-testid="result-count">
-          {messages.feedback.resultsAnnouncement(rows.length, totalCount)}
-        </p>
-        <div
-          role="group"
-          aria-label={messages.list.viewToggle}
-          className="flex rounded-md border border-line"
-        >
-          <button
-            type="button"
-            aria-label={messages.list.viewGrid}
-            aria-pressed={view === "grid"}
-            data-testid="view-grid"
-            onClick={() => setView("grid")}
-            className={`flex size-11 items-center justify-center rounded-l-md ${view === "grid" ? "bg-accent-soft text-accent" : "text-ink-muted"}`}
-          >
-            <svg viewBox="0 0 16 16" className="size-4" fill="currentColor" aria-hidden="true">
-              <rect x="1" y="1" width="6" height="6" rx="1" />
-              <rect x="9" y="1" width="6" height="6" rx="1" />
-              <rect x="1" y="9" width="6" height="6" rx="1" />
-              <rect x="9" y="9" width="6" height="6" rx="1" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            aria-label={messages.list.viewList}
-            aria-pressed={view === "list"}
-            data-testid="view-list"
-            onClick={() => setView("list")}
-            className={`flex size-11 items-center justify-center rounded-r-md ${view === "list" ? "bg-accent-soft text-accent" : "text-ink-muted"}`}
-          >
-            <svg viewBox="0 0 16 16" className="size-4" fill="currentColor" aria-hidden="true">
-              <rect x="1" y="2" width="14" height="2.5" rx="1" />
-              <rect x="1" y="7" width="14" height="2.5" rx="1" />
-              <rect x="1" y="12" width="14" height="2.5" rx="1" />
-            </svg>
-          </button>
+      {renderToolbar ? (
+        renderToolbar(viewToggle)
+      ) : (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm text-ink-muted" data-testid="result-count">
+            {messages.feedback.resultsAnnouncement(rows.length, totalCount)}
+          </p>
+          {viewToggle}
         </div>
-      </div>
+      )}
 
       {selected.length > 0 && bulkActions ? (
         <div className="flex items-center justify-between gap-2 rounded-md border border-accent bg-accent-soft p-2">

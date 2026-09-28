@@ -3,9 +3,18 @@
  * logically distinct groups of fields. Renders as an <h3> with a bottom border.
  * No interactive behaviour; purely presentational.
  */
-export function SectionHeading({ children }: { children: React.ReactNode }) {
+export function SectionHeading({
+  id,
+  children,
+}: {
+  id?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <h3 className="mb-3 mt-5 border-b border-line pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted first:mt-0">
+    <h3
+      id={id}
+      className="mb-3 mt-5 border-b border-line pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted first:mt-0"
+    >
       {children}
     </h3>
   );
