@@ -5,14 +5,31 @@ import { messages } from "@/lib/messages";
 
 /**
  * Attaches a beforeunload guard when the form has unsaved changes.
- * Returns a `markDirty` / `markClean` pair for the caller to call on
- * field change and after successful save respectively.
+ *
+ * Two usage patterns are supported:
+ *
+ * 1. **Reactive** — pass a boolean `isDirty` state value directly:
+ *    `useUnsavedChangesGuard(isDirty)`
+ *    The guard activates/deactivates whenever `isDirty` changes.
+ *
+ * 2. **Imperative** — call with no argument; use the returned
+ *    `markDirty` / `markClean` helpers to drive the guard:
+ *    ```
+ *    const { markDirty, markClean } = useUnsavedChangesGuard();
+ *    ```
  *
  * The guard is intentionally lightweight — browsers control the dialog text
  * on modern platforms; we only pass our copy as the deprecated `returnValue`.
  */
-export function useUnsavedChangesGuard() {
-  const dirtyRef = useRef(false);
+export function useUnsavedChangesGuard(isDirty?: boolean) {
+  const dirtyRef = useRef(isDirty ?? false);
+
+  // Keep the ref in sync when the reactive form is used.
+  useEffect(() => {
+    if (isDirty !== undefined) {
+      dirtyRef.current = isDirty;
+    }
+  }, [isDirty]);
 
   const handleBeforeUnload = useCallback((e: BeforeUnloadEvent) => {
     if (!dirtyRef.current) return;
