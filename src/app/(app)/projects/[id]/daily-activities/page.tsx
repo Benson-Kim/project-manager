@@ -1,0 +1,121 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { PageHeader } from "@/components/ui/page-header";
+import { auth } from "@/lib/auth/provider";
+import { can } from "@/lib/auth/rbac";
+import { AppError } from "@/lib/errors";
+import { flattenSearchParams, parseListParams } from "@/lib/list-params";
+import { messages } from "@/lib/messages";
+import { getViewPreference } from "@/lib/repositories/view-preference";
+import { DailyActivitySheet } from "@/modules/daily-activities/components/daily-activity-sheet";
+import { DailyActivitiesView } from "@/modules/daily-activities/components/daily-activities-view";
+import {
+  getDailyActivityById,
+  listActivityStatuses,
+  listDailyActivities,
+  type DailyActivityListFilters,
+} from "@/modules/daily-activities/repository/daily-activities";
+import { buildNewEntityHref } from "../entity-page-helpers";
+import { parseProjectId } from "../project-id";
+
+export const metadata: Metadata = {
+  title: `${messages.dailyActivities.title} — ${messages.app.name}`,
+};
+
+/**
+ * Daily Activities list (project-scoped section under
+ * /projects/[id]/daily-activities, ADR-0018); DataView + search + status/type
+ * filters; detail/edit in the URL-synced Sheet (?id=<n> | ?id=new, ADR-0010).
+ * Default sort: RequestDate desc (most recent first).
+ */
+export default async function DailyActivitiesPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const session = await auth.requireSession();
+  const { id } = await params;
+  const projectId = parseProjectId(id);
+  if (projectId === null) notFound();
+
+  const raw = await searchParams;
+  const flat = flattenSearchParams(raw);
+  const listParams = parseListParams(raw);
+  const effectiveParams = {
+    ...listParams,
+    sort: listParams.sort ?? "RequestDate",
+    dir: (listParams.dir ?? "desc") as "asc" | "desc",
+  };
+
+  const isNew = flat.id === "new";
+  const selectedId = !isNew && flat.id ? Number(flat.id) : null;
+
+  const filters: DailyActivityListFilters = {
+    activityStatusId: flat.statusId ? Number(flat.statusId) : null,
+    taskType: flat.taskType ?? null,
+  };
+
+  const [rows, preferredView, statuses, selectedRaw] = await Promise.all([
+    listDailyActivities(effectiveParams, session.userId, projectId, undefined, filters),
+    getViewPreference(session.userId, "daily-activities").catch(() => null),
+    listActivityStatuses(),
+    selectedId && Number.isInteger(selectedId) && selectedId > 0
+      ? getDailyActivityById(selectedId, session.userId).catch((err) => {
+          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
+          throw err;
+        })
+      : Promise.resolve(null),
+  ]);
+
+  // A deep link to an activity from another project is treated as not found.
+  const selected = selectedRaw && selectedRaw.ProjectId === projectId ? selectedRaw : null;
+
+  const totalCount = rows[0]?.TotalCount ?? 0;
+  const canCreate = can(session.role, "daily-activities:create");
+  const canEdit = can(session.role, "daily-activities:update");
+  const canDelete = can(session.role, "daily-activities:delete");
+  const canCreateTodo = can(session.role, "todo-items:create");
+  const filtersActive = Boolean(effectiveParams.q || flat.statusId || flat.taskType);
+
+  const newActivityLink = (
+    <Link
+      href={buildNewEntityHref(`/projects/${projectId}/daily-activities`, flat)}
+      data-testid="new-daily-activity"
+      className="inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-sm font-medium text-on-accent"
+    >
+      {messages.dailyActivities.newActivity}
+    </Link>
+  );
+
+  return (
+    <>
+      <PageHeader
+        title={messages.dailyActivities.title}
+        action={canCreate ? newActivityLink : undefined}
+      />
+      <div className="mt-3 flex flex-col flex-1">
+        <DailyActivitiesView
+          rows={rows}
+          totalCount={totalCount}
+          page={effectiveParams.page}
+          initialView={effectiveParams.view ?? preferredView ?? "grid"}
+          filtersActive={filtersActive}
+          statuses={statuses}
+          newActivityAction={canCreate ? newActivityLink : undefined}
+        />
+      </div>
+      <DailyActivitySheet
+        activity={selected}
+        isNew={isNew && canCreate}
+        projectId={projectId}
+        statuses={statuses}
+        canEdit={canEdit}
+        canDelete={canDelete}
+        canCreateTodo={canCreateTodo}
+      />
+    </>
+  );
+}
