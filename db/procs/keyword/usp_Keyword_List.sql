@@ -1,5 +1,7 @@
 -- usp_Keyword_List — paged/filtered list per ADR-0016. Search columns: Keyword, Definition. Sort whitelist: Keyword.
--- Entity app.Keyword (source: tblKeywords). Module: database-schema-and-procs (#3).
+-- @ProjectId = non-NULL: returns rows for that project PLUS global rows (ProjectId IS NULL).
+-- @ProjectId = NULL: returns all non-deleted rows (used by admin/global views).
+-- Entity app.Keyword (source: tblAcronyms → app.Keyword). Module: keywords (#8).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Keyword_List
@@ -28,7 +30,7 @@ BEGIN
            TotalCount = COUNT(*) OVER ()
     FROM app.Keyword
     WHERE IsDeleted = 0
-      AND (@ProjectId IS NULL OR ProjectId = @ProjectId)
+      AND (@ProjectId IS NULL OR ProjectId = @ProjectId OR ProjectId IS NULL)
       AND (@Search IS NULL OR [Keyword] LIKE N'%' + @Search + N'%'
            OR [Definition] LIKE N'%' + @Search + N'%')
     ORDER BY
