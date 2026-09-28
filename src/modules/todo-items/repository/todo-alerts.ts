@@ -1,10 +1,10 @@
 import { execProc } from "@/lib/db";
 import { z } from "zod";
-import { rowVerSchema } from "@/modules/projects/schemas/project";
 import {
   createTodoAlertInput,
   todoAlertRowSchema,
   updateTodoAlertInput,
+  rowVerSchema,
   type CreateTodoAlertInput,
   type CreateTodoAlertParsed,
   type TodoAlertRow,

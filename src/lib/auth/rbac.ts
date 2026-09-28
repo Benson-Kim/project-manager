@@ -21,6 +21,7 @@ const CONTRIBUTOR_WRITE_MODULES = [
   "parking-lot",
   "questions-answers",
   "todo-alerts",
+  "todo-items",
 ] as const;
 
 export function can(role: Role, permission: Permission): boolean {

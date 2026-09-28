@@ -45,6 +45,12 @@ export function DataView<Row>({
     // Announce whenever the visible result set changes.
   }, [announce, rows.length, totalCount]);
 
+  // P1 fix: reset active index whenever the row set identity changes (search,
+  // filter, page) so keyboard nav always starts from a valid index.
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [rows]);
+
   const setView = useCallback(
     (next: ViewMode) => {
       const apply = () => update({ view: next });
