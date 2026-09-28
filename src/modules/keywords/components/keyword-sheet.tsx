@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAnnouncer } from "@/components/ui/announcer";
@@ -50,9 +50,30 @@ export function KeywordSheet({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [showUnsaved, setShowUnsaved] = useState(false);
+  const pendingNavRef = useRef<(() => void) | null>(null);
   useUnsavedChangesGuard(isDirty);
 
+  // Intercept same-document navigations (e.g. browser Back) when form is dirty (C11-7).
+  useEffect(() => {
+    function handleBeforeNavigate(e: Event) {
+      if (!isDirty) return;
+      e.preventDefault();
+      const resume = (e as CustomEvent<{ resume: () => void }>).detail.resume;
+      pendingNavRef.current = resume;
+      setShowUnsaved(true);
+    }
+    window.addEventListener("before-navigate", handleBeforeNavigate);
+    return () => window.removeEventListener("before-navigate", handleBeforeNavigate);
+  }, [isDirty]);
+
   const close = () => { setIsDirty(false); setShowUnsaved(false); update({ id: null }); };
+
+  const discardAndNavigate = () => {
+    const resume = pendingNavRef.current;
+    pendingNavRef.current = null;
+    close();
+    resume?.();
+  };
 
   const requestClose = () => {
     if (isDirty) { setShowUnsaved(true); } else { close(); }
@@ -190,7 +211,7 @@ export function KeywordSheet({
       title={messages.feedback.unsavedChangesTitle}
       body={messages.feedback.unsavedChangesBody}
       confirmLabel={messages.feedback.discard}
-      onConfirm={close}
+      onConfirm={discardAndNavigate}
       pending={false}
     />
     </>

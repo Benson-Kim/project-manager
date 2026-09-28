@@ -40,20 +40,21 @@ BEGIN
 
     -- (1) Actor must be assigned to the row's current (owning) project.
     --     Admin role bypasses this check.
-    IF @ActorRole <> N'Admin'
+    IF ISNULL(@ActorRole, '') <> N'Admin'
        AND NOT EXISTS (
            SELECT 1 FROM app.Stakeholder s
            JOIN app.ProjectAssignee pa ON pa.ProjectId = s.ProjectId AND pa.UserId = @ActorUserId
+                                      AND pa.IsDeleted = 0
            WHERE s.StakeholderId = @StakeholderId AND s.IsDeleted = 0
        )
         THROW 50003, N'FORBIDDEN_ROW:You are not assigned to this project', 1;
 
     -- (2) Actor must also be assigned to the destination project when ProjectId is changing.
     --     Admin role bypasses this check.
-    IF @ActorRole <> N'Admin'
+    IF ISNULL(@ActorRole, '') <> N'Admin'
        AND NOT EXISTS (
            SELECT 1 FROM app.ProjectAssignee
-           WHERE ProjectId = @ProjectId AND UserId = @ActorUserId
+           WHERE ProjectId = @ProjectId AND UserId = @ActorUserId AND IsDeleted = 0
        )
         THROW 50003, N'FORBIDDEN_ROW:You are not assigned to the destination project', 1;
 

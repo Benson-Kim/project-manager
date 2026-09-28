@@ -3,7 +3,9 @@
 -- Row 3 (QAID=3) is absent from the source table — omitted deliberately.
 -- QAID 10 and 11 have NULL ProjectID in the source — included here with ProjectId = NULL.
 --   Migration 012 makes ProjectId nullable and adds SourceQAId to allow this.
--- Idempotent: MERGE on SourceQAId (stable idempotency key set by migration 012).
+--   Migration 012 also backfills SourceQAId on rows inserted by the old seed (C11-1 fix).
+-- Idempotent: MERGE on SourceQAId inserts missing rows only — no WHEN MATCHED update
+--   so that user edits to seeded records are never overwritten on re-deployment (C11-2 fix).
 USE ProjectManager;
 GO
 
@@ -38,14 +40,6 @@ USING (VALUES
                N'Answer',                                                          NULL, NULL, NULL)
 ) AS source (SourceQAId, ProjectId, Question, Answer, Category, Priority, AssignedTo)
 ON target.SourceQAId = source.SourceQAId   -- stable idempotency key (migration 012)
-WHEN MATCHED THEN
-    UPDATE SET
-        ProjectId   = source.ProjectId,
-        Question    = source.Question,
-        Answer      = source.Answer,
-        Category    = source.Category,
-        Priority    = source.Priority,
-        AssignedTo  = source.AssignedTo
 WHEN NOT MATCHED THEN
     INSERT (SourceQAId, ProjectId, Question, Answer, Category, Priority, AssignedTo, CreatedBy)
     VALUES (source.SourceQAId, source.ProjectId, source.Question, source.Answer,

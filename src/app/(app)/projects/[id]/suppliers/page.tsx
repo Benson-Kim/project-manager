@@ -11,6 +11,7 @@ import { getViewPreference } from "@/lib/repositories/view-preference";
 import { SupplierSheet } from "@/modules/suppliers/components/supplier-sheet";
 import { SuppliersView } from "@/modules/suppliers/components/suppliers-view";
 import { getSupplierById, listSuppliers } from "@/modules/suppliers/repository/suppliers";
+import { supplierFiltersSchema } from "@/modules/suppliers/schemas/supplier";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { parseProjectId } from "../project-id";
 
@@ -44,11 +45,14 @@ export default async function SuppliersPage({
     sort: listParams.sort ?? "ContractEndDate",
   };
 
+  const filtersParsed = supplierFiltersSchema.safeParse(flat);
+  const filters = filtersParsed.success ? filtersParsed.data : {};
+
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
   const [rows, preferredView, selectedRaw] = await Promise.all([
-    listSuppliers(effectiveParams, session.userId, projectId),
+    listSuppliers(effectiveParams, session.userId, projectId, filters),
     getViewPreference(session.userId, "suppliers").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? getSupplierById(selectedId, session.userId).catch((err) => {
@@ -65,7 +69,7 @@ export default async function SuppliersPage({
   const canCreate = can(session.role, "suppliers:create");
   const canEdit = can(session.role, "suppliers:update");
   const canDelete = can(session.role, "suppliers:delete");
-  const filtersActive = Boolean(effectiveParams.q);
+  const filtersActive = Boolean(effectiveParams.q || filters.rating);
 
   const newSupplierLink = (
     <Link

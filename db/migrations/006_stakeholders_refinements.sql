@@ -4,9 +4,6 @@
 -- lookup tables; the UI vocabulary lives in stakeholder-form.ts).
 -- Idempotent: constraints added only when absent. Seed rows comply
 -- (CommunicationPreference N'Email', EngagementLevel N'Medium').
--- NOTE: CommunicationPreference intentionally uses N'Meetings' (plural) here —
--- this matches the state that was applied to all existing environments.
--- Migration 011 corrects the vocabulary to N'Meeting' (singular) going forward.
 USE ProjectManager;
 GO
 IF NOT EXISTS (
