@@ -30,6 +30,7 @@ export function DataView<Row>({
   bulkActions,
   renderToolbar,
   empty,
+  filtersActive = false,
 }: DataViewProps<Row>) {
   const { searchParams, update } = useListUrlState();
   const { announce } = useAnnouncer();
@@ -40,7 +41,8 @@ export function DataView<Row>({
   const urlView = searchParams.get("view");
   const view: ViewMode = urlView === "grid" || urlView === "list" ? urlView : initialView;
   const pages = totalPages(totalCount, pageSize);
-  const hasQuery = Boolean(searchParams.get("q")) || Boolean(searchParams.get("filter"));
+  const hasQuery =
+    Boolean(searchParams.get("q")) || Boolean(searchParams.get("filter")) || filtersActive;
 
   useEffect(() => {
     announce(messages.feedback.resultsAnnouncement(rows.length, totalCount));
