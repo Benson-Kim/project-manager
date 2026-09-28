@@ -69,11 +69,7 @@ export default async function StakeholdersPage({
   // the filter project if present, otherwise falls back to 0 (create blocked).
   const sheetProjectId = selected?.ProjectId ?? filters.project ?? 0;
 
-  // Only allow creating when we have a resolved project (selected row or filter).
-  // Without one, sheetProjectId is 0 and the schema rejects the submission.
-  const canCreateHere = canCreate && sheetProjectId > 0;
-
-  const newStakeholderLink = canCreateHere ? (
+  const newStakeholderLink = (
     <Link
       href={newStakeholderHref(flat)}
       data-testid="new-stakeholder"
@@ -81,13 +77,13 @@ export default async function StakeholdersPage({
     >
       {messages.stakeholders.newStakeholder}
     </Link>
-  ) : null;
+  );
 
   return (
     <>
       <PageHeader
         title={messages.stakeholders.title}
-        action={newStakeholderLink ?? undefined}
+        action={canCreate ? newStakeholderLink : undefined}
       />
       <div className="mt-3 flex flex-col flex-1">
         <StakeholdersView
@@ -96,12 +92,12 @@ export default async function StakeholdersPage({
           page={params.page}
           initialView={params.view ?? preferredView ?? "grid"}
           filtersActive={filtersActive}
-          newStakeholderAction={newStakeholderLink ?? undefined}
+          newStakeholderAction={canCreate ? newStakeholderLink : undefined}
         />
       </div>
       <StakeholderSheet
         stakeholder={selected}
-        isNew={isNew && canCreateHere}
+        isNew={isNew && canCreate}
         projectId={sheetProjectId}
         canEdit={canEdit}
         canDelete={canDelete}

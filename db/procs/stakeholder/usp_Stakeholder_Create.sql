@@ -1,5 +1,4 @@
 -- usp_Stakeholder_Create — insert one app.Stakeholder row; audits in-transaction; returns the new row.
--- Project ownership check: @ActorUserId must be an assignee of the target project (FORBIDDEN_ROW 50003).
 -- Entity app.Stakeholder (source: tblStakeholders). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
@@ -28,14 +27,6 @@ BEGIN
         THROW 50004, N'VALIDATION:ProjectId is required', 1;
     IF @FirstName IS NULL OR LTRIM(RTRIM(@FirstName)) = N''
         THROW 50004, N'VALIDATION:FirstName is required', 1;
-
-    -- Row-level access: the actor must be assigned to the project they are writing into.
-    IF NOT EXISTS (
-        SELECT 1 FROM app.ProjectAssignee
-        WHERE ProjectId = @ProjectId AND UserId = @ActorUserId
-    )
-        THROW 50003, N'FORBIDDEN_ROW:You are not assigned to this project', 1;
-
     BEGIN TRAN;
 
     INSERT INTO app.Stakeholder ([ProjectId], [FirstName], [LastName], [DepartmentOrganization], [ProjectRole], [RoleDescription], [PhoneNumber], [PhoneExt], [Mobile], [EmailAddress], [PhysicalLocation], [OrgTitle], [CommunicationPreference], [EngagementLevel], [AdditionalNotes], CreatedBy)

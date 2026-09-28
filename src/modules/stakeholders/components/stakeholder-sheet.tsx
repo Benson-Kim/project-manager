@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Sheet } from "@/components/ui/dialog";
@@ -43,22 +42,8 @@ export function StakeholderSheet({
   const { update } = useListUrlState();
   const schema = stakeholder ? updateStakeholderFormSchema : stakeholderFormSchema;
   const form = useZodForm(schema);
-  const [isDirty, setIsDirty] = useState(false);
-  const [showUnsaved, setShowUnsaved] = useState(false);
 
-  const close = () => {
-    setIsDirty(false);
-    setShowUnsaved(false);
-    update({ id: null });
-  };
-
-  const requestClose = () => {
-    if (isDirty) {
-      setShowUnsaved(true);
-    } else {
-      close();
-    }
-  };
+  const close = () => update({ id: null });
 
   const { pending, summary, conflict, confirmDelete, setConfirmDelete, onSubmit, onDelete } =
     useSheetFormActions({
@@ -79,11 +64,10 @@ export function StakeholderSheet({
   const open = isNew || stakeholder !== null;
 
   return (
-    <>
     <Sheet
       open={open}
       onOpenChange={(next) => {
-        if (!next) requestClose();
+        if (!next) close();
       }}
       title={stakeholder ? fullName(stakeholder) : messages.stakeholders.newStakeholder}
     >
@@ -93,7 +77,6 @@ export function StakeholderSheet({
         onSubmit={onSubmit}
         data-testid="stakeholder-form"
         className="flex flex-col gap-5"
-        onChange={() => setIsDirty(true)}
       >
         <ErrorSummary message={summary} />
         {conflict ? (
@@ -125,18 +108,13 @@ export function StakeholderSheet({
               >
                 <Input name="firstName" defaultValue={stakeholder?.FirstName ?? ""} />
               </Field>
-              <Field
-                label={messages.stakeholders.lastName}
-                name="lastName"
-                errors={form.errors.lastName}
-              >
+              <Field label={messages.stakeholders.lastName} name="lastName">
                 <Input name="lastName" defaultValue={stakeholder?.LastName ?? ""} />
               </Field>
             </div>
             <Field
               label={messages.stakeholders.departmentOrganization}
               name="departmentOrganization"
-              errors={form.errors.departmentOrganization}
             >
               <Input
                 name="departmentOrganization"
@@ -144,26 +122,14 @@ export function StakeholderSheet({
               />
             </Field>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field
-                label={messages.stakeholders.projectRole}
-                name="projectRole"
-                errors={form.errors.projectRole}
-              >
+              <Field label={messages.stakeholders.projectRole} name="projectRole">
                 <Input name="projectRole" defaultValue={stakeholder?.ProjectRole ?? ""} />
               </Field>
-              <Field
-                label={messages.stakeholders.orgTitle}
-                name="orgTitle"
-                errors={form.errors.orgTitle}
-              >
+              <Field label={messages.stakeholders.orgTitle} name="orgTitle">
                 <Input name="orgTitle" defaultValue={stakeholder?.OrgTitle ?? ""} />
               </Field>
             </div>
-            <Field
-              label={messages.stakeholders.roleDescription}
-              name="roleDescription"
-              errors={form.errors.roleDescription}
-            >
+            <Field label={messages.stakeholders.roleDescription} name="roleDescription">
               <Input name="roleDescription" defaultValue={stakeholder?.RoleDescription ?? ""} />
             </Field>
           </section>
@@ -173,25 +139,13 @@ export function StakeholderSheet({
               {messages.stakeholders.contactSection}
             </SectionHeading>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field
-                label={messages.stakeholders.phoneNumber}
-                name="phoneNumber"
-                errors={form.errors.phoneNumber}
-              >
+              <Field label={messages.stakeholders.phoneNumber} name="phoneNumber">
                 <Input name="phoneNumber" defaultValue={stakeholder?.PhoneNumber ?? ""} />
               </Field>
-              <Field
-                label={messages.stakeholders.phoneExt}
-                name="phoneExt"
-                errors={form.errors.phoneExt}
-              >
+              <Field label={messages.stakeholders.phoneExt} name="phoneExt">
                 <Input name="phoneExt" defaultValue={stakeholder?.PhoneExt ?? ""} />
               </Field>
-              <Field
-                label={messages.stakeholders.mobile}
-                name="mobile"
-                errors={form.errors.mobile}
-              >
+              <Field label={messages.stakeholders.mobile} name="mobile">
                 <Input name="mobile" defaultValue={stakeholder?.Mobile ?? ""} />
               </Field>
               <Field
@@ -206,11 +160,7 @@ export function StakeholderSheet({
                 />
               </Field>
             </div>
-            <Field
-              label={messages.stakeholders.physicalLocation}
-              name="physicalLocation"
-              errors={form.errors.physicalLocation}
-            >
+            <Field label={messages.stakeholders.physicalLocation} name="physicalLocation">
               <Input name="physicalLocation" defaultValue={stakeholder?.PhysicalLocation ?? ""} />
             </Field>
           </section>
@@ -223,7 +173,6 @@ export function StakeholderSheet({
               <Field
                 label={messages.stakeholders.communicationPreference}
                 name="communicationPreference"
-                errors={form.errors.communicationPreference}
               >
                 <Select
                   name="communicationPreference"
@@ -237,11 +186,7 @@ export function StakeholderSheet({
                   ))}
                 </Select>
               </Field>
-              <Field
-                label={messages.stakeholders.engagementLevel}
-                name="engagementLevel"
-                errors={form.errors.engagementLevel}
-              >
+              <Field label={messages.stakeholders.engagementLevel} name="engagementLevel">
                 <Select name="engagementLevel" defaultValue={stakeholder?.EngagementLevel ?? ""}>
                   <option value="">{messages.stakeholders.none}</option>
                   {ENGAGEMENT_LEVELS.map((level) => (
@@ -252,11 +197,7 @@ export function StakeholderSheet({
                 </Select>
               </Field>
             </div>
-            <Field
-              label={messages.stakeholders.additionalNotes}
-              name="additionalNotes"
-              errors={form.errors.additionalNotes}
-            >
+            <Field label={messages.stakeholders.additionalNotes} name="additionalNotes">
               <Textarea name="additionalNotes" defaultValue={stakeholder?.AdditionalNotes ?? ""} />
             </Field>
           </section>
@@ -268,7 +209,7 @@ export function StakeholderSheet({
               {messages.actions.save}
             </Button>
           ) : null}
-          <Button type="button" variant="secondary" onClick={requestClose}>
+          <Button type="button" variant="secondary" onClick={close}>
             {messages.actions.cancel}
           </Button>
           {stakeholder && canDelete ? (
@@ -302,16 +243,5 @@ export function StakeholderSheet({
         />
       ) : null}
     </Sheet>
-
-    <ConfirmDialog
-      open={showUnsaved}
-      onOpenChange={setShowUnsaved}
-      title={messages.feedback.unsavedChangesTitle}
-      body={messages.feedback.unsavedChangesBody}
-      confirmLabel={messages.feedback.discard}
-      onConfirm={close}
-      pending={false}
-    />
-    </>
   );
 }
