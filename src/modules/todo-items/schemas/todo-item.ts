@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { rowVerSchema } from "@/modules/projects/schemas/project";
+import { rowVerSchema } from "./todo-alert";
 
 /**
  * TodoItem (app.TodoItem ← tblTodoList core columns) — zod contracts.

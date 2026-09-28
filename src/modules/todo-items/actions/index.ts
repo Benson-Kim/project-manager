@@ -19,8 +19,7 @@ import {
 import { todoItemFormSchema, updateTodoItemFormSchema } from "../schemas/todo-item-form";
 import { todoAlertFormSchema, updateTodoAlertFormSchema } from "../schemas/todo-alert-form";
 import { deleteTodoItemInput, reorderTodoItemInput } from "../schemas/todo-item";
-import { deleteTodoAlertInput } from "../schemas/todo-alert";
-import { rowVerSchema } from "@/modules/projects/schemas/project";
+import { deleteTodoAlertInput, rowVerSchema } from "../schemas/todo-alert";
 
 /**
  * Create a to-do item (RBAC todo-items:create — Admin + PM; audited in-proc).

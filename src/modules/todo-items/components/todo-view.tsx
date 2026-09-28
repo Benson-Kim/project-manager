@@ -140,7 +140,7 @@ function buildColumns(
   ];
 }
 
-/** To-do list: DataView; opening a row syncs ?id=. */
+/** To-do list: DataView wrapped in TodoToolbar; opening a row syncs ?id=. */
 export function TodoView({
   rows,
   totalCount,
@@ -164,63 +164,64 @@ export function TodoView({
   const columns = buildColumns(rows, canReorder);
 
   return (
-    <DataView
-      moduleKey="todo-items"
-      rows={rows}
-      totalCount={totalCount}
-      page={page}
-      initialView={initialView}
-      getRowId={(row) => row.TodoItemId}
-      getRowLabel={(row) => row.TodoItem ?? String(row.TodoItemId)}
-      onOpen={(row) => update({ id: String(row.TodoItemId) })}
-      renderCard={(row) => (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm font-semibold text-ink">
-            {row.TodoItem ?? messages.app.untitled}
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            <Badge value={row.Status} />
-            <Badge value={row.Priority} />
-          </div>
-          {row.DueDate ? (
-            <p
-              className={
-                isOverdue(row)
-                  ? "text-xs font-semibold text-red-600"
-                  : isApproachingDeadline(row)
-                    ? "text-xs font-semibold text-amber-700"
-                    : "text-xs text-ink-muted"
-              }
-            >
-              {formatDate(row.DueDate)}
-              {isOverdue(row)
-                ? ` — ${messages.todoItems.overdue}`
-                : isApproachingDeadline(row)
-                  ? ` — ${messages.todoItems.approachingDeadline}`
-                  : ""}
+    <>
+      <TodoToolbar />
+      <DataView
+        moduleKey="todo-items"
+        rows={rows}
+        totalCount={totalCount}
+        page={page}
+        initialView={initialView}
+        getRowId={(row) => row.TodoItemId}
+        onOpen={(row) => update({ id: String(row.TodoItemId) })}
+        renderCard={(row) => (
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-semibold text-ink">
+              {row.TodoItem ?? messages.app.untitled}
             </p>
-          ) : null}
-          {canReorder ? (
-            <ReorderControls row={row} rows={rows} canReorder={canReorder} />
-          ) : null}
-        </div>
-      )}
-      columns={columns}
-      renderToolbar={(viewToggle) => <TodoToolbar>{viewToggle}</TodoToolbar>}
-      empty={
-        filtersActive ? (
-          <EmptyState
-            title={messages.list.zeroResultsTitle}
-            body={messages.list.zeroResultsBody}
-          />
-        ) : (
-          <EmptyState
-            title={messages.list.emptyTitle}
-            body={emptyBody ?? messages.todoItems.emptyBody}
-            action={newTodoAction}
-          />
-        )
-      }
-    />
+            <div className="flex flex-wrap gap-1.5">
+              <Badge value={row.Status} />
+              <Badge value={row.Priority} />
+            </div>
+            {row.DueDate ? (
+              <p
+                className={
+                  isOverdue(row)
+                    ? "text-xs font-semibold text-red-600"
+                    : isApproachingDeadline(row)
+                      ? "text-xs font-semibold text-amber-700"
+                      : "text-xs text-ink-muted"
+                }
+              >
+                {formatDate(row.DueDate)}
+                {isOverdue(row)
+                  ? ` — ${messages.todoItems.overdue}`
+                  : isApproachingDeadline(row)
+                    ? ` — ${messages.todoItems.approachingDeadline}`
+                    : ""}
+              </p>
+            ) : null}
+            {canReorder ? (
+              <ReorderControls row={row} rows={rows} canReorder={canReorder} />
+            ) : null}
+          </div>
+        )}
+        columns={columns}
+        empty={
+          filtersActive ? (
+            <EmptyState
+              title={messages.list.zeroResultsTitle}
+              body={messages.list.zeroResultsBody}
+            />
+          ) : (
+            <EmptyState
+              title={messages.list.emptyTitle}
+              body={emptyBody ?? messages.todoItems.emptyBody}
+              action={newTodoAction}
+            />
+          )
+        }
+      />
+    </>
   );
 }

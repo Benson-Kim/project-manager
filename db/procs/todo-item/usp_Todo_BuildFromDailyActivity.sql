@@ -1,10 +1,10 @@
 -- usp_Todo_BuildFromDailyActivity — create a TodoItem derived from an existing DailyActivity row
 -- (req 13.1 "built from daily activity list").
 -- Copies Task → TodoItem, RequestDate → StartDate, preserves ProjectId and DailyActivityId FK.
--- Status defaults to 'Not Started'; Priority and DueDate are left NULL (caller may override).
--- THROW 50001 when the DailyActivity does not exist or is soft-deleted.
--- THROW 50005 when a non-deleted TodoItem already links to this DailyActivityId
---             (one-to-one guard — prevents duplicates from repeated calls).
+-- Status defaults to 'Not Started'; Priority and DueDate are left NULL.
+-- THROW 50001 NOT_FOUND     : DailyActivity does not exist or is soft-deleted.
+-- THROW 50003 FORBIDDEN_ROW : actor is not the activity creator nor Admin/ProjectManager.
+-- THROW 50005 DUPLICATE     : a non-deleted TodoItem already links to this DailyActivityId.
 -- Audits the creation in-transaction.  Module: todo-alerts (#20).
 USE ProjectManager;
 GO
@@ -16,19 +16,32 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    -- Verify the source activity exists and is not soft-deleted.
     DECLARE @ProjectId    INT;
     DECLARE @Task         NVARCHAR(MAX);
     DECLARE @RequestDate  DATETIME2;
+    DECLARE @ActivityCreatedBy INT;
 
-    SELECT @ProjectId   = ProjectId,
-           @Task        = [Task],
-           @RequestDate = RequestDate
+    SELECT @ProjectId          = ProjectId,
+           @Task               = [Task],
+           @RequestDate        = RequestDate,
+           @ActivityCreatedBy  = CreatedBy
     FROM app.DailyActivity
     WHERE DailyActivityId = @DailyActivityId AND IsDeleted = 0;
 
     IF @ProjectId IS NULL
         THROW 50001, N'NOT_FOUND:DailyActivity not found', 1;
+
+    -- Row-level auth: actor must be the activity creator or Admin/PM.
+    IF @ActivityCreatedBy <> @ActorUserId
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.[User] u
+        WHERE  u.UserId = @ActorUserId
+          AND  u.RoleId IN (
+                   SELECT RoleId FROM auth.[Role]
+                   WHERE  RoleName IN (N'Admin', N'ProjectManager')
+               )
+    )
+        THROW 50003, N'FORBIDDEN_ROW:You do not have access to this record', 1;
 
     -- Prevent duplicate TodoItems linked to the same DailyActivity.
     IF EXISTS (

@@ -1,0 +1,39 @@
+-- usp_KeyDeliverable_GanttData — data for the Gantt view built from deliverable
+-- dates (checklist row 67, module #9). Returns each active deliverable of a
+-- project with its deadline, assignee display name and the project window
+-- (StartDate/EndDate) as the chart range basis. CreatedAtUtc is the bar start
+-- basis (no explicit StartDate column on app.KeyDeliverable — module #9 decision).
+USE ProjectManager;
+GO
+CREATE OR ALTER PROCEDURE dbo.usp_KeyDeliverable_GanttData
+    @ProjectId   INT,
+    @ActorUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM app.Project WHERE ProjectId = @ProjectId AND IsDeleted = 0)
+        THROW 50001, N'NOT_FOUND:Project not found', 1;
+
+    SELECT kd.KeyDeliverableId,
+           kd.ProjectId,
+           kd.[KeyRequirement],
+           kd.[Deadline],
+           kd.[Priority],
+           kd.[Status],
+           kd.[AssignedToStakeholderId],
+           LTRIM(RTRIM(CONCAT(ISNULL(s.[FirstName], N''), N' ', ISNULL(s.[LastName], N'')))) AS AssignedToName,
+           kd.CreatedAtUtc,
+           p.[StartDate] AS ProjectStartDate,
+           p.[EndDate]   AS ProjectEndDate,
+           CAST(kd.RowVer AS BIGINT) AS RowVer
+    FROM app.KeyDeliverable AS kd
+    JOIN app.Project AS p
+        ON p.ProjectId = kd.ProjectId
+    LEFT JOIN app.Stakeholder AS s
+        ON s.StakeholderId = kd.[AssignedToStakeholderId] AND s.IsDeleted = 0
+    WHERE kd.IsDeleted = 0
+      AND kd.ProjectId = @ProjectId
+    ORDER BY kd.[Deadline] ASC, kd.KeyDeliverableId ASC;
+END;
+GO
