@@ -20,10 +20,11 @@ BEGIN
 
     -- Actor project-scope: the actor must be assigned to the owning project.
     -- Admin role bypasses this check.
-    IF @ActorRole <> N'Admin'
+    IF ISNULL(@ActorRole, '') <> N'Admin'
        AND NOT EXISTS (
            SELECT 1 FROM app.Stakeholder s
            JOIN app.ProjectAssignee pa ON pa.ProjectId = s.ProjectId AND pa.UserId = @ActorUserId
+                                      AND pa.IsDeleted = 0
            WHERE s.StakeholderId = @StakeholderId AND s.IsDeleted = 0
        )
         THROW 50003, N'FORBIDDEN_ROW:You are not assigned to this project', 1;

@@ -32,11 +32,12 @@ BEGIN
 
     -- Row-level access: actor must be assigned to the project that owns this record.
     -- Admin users bypass this check (they have unrestricted access by role definition).
-    IF @ActorRole <> N'Admin'
+    IF ISNULL(@ActorRole, '') <> N'Admin'
        AND NOT EXISTS (
            SELECT 1
            FROM app.QuestionAnswer qa
            JOIN app.ProjectAssignee pa ON pa.ProjectId = qa.ProjectId AND pa.UserId = @ActorUserId
+                                      AND pa.IsDeleted = 0
            WHERE qa.QuestionAnswerId = @QuestionAnswerId AND qa.IsDeleted = 0
        )
         THROW 50003, N'FORBIDDEN_ROW:You are not assigned to this project', 1;

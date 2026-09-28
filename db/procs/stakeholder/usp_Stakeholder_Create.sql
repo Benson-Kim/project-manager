@@ -33,10 +33,10 @@ BEGIN
 
     -- Row-level access: the actor must be assigned to the project they are writing into.
     -- Admins bypass this check — they have full access to all projects.
-    IF @ActorRole <> N'Admin'
+    IF ISNULL(@ActorRole, '') <> N'Admin'
        AND NOT EXISTS (
            SELECT 1 FROM app.ProjectAssignee
-           WHERE ProjectId = @ProjectId AND UserId = @ActorUserId
+           WHERE ProjectId = @ProjectId AND UserId = @ActorUserId AND IsDeleted = 0
        )
         THROW 50003, N'FORBIDDEN_ROW:You are not assigned to this project', 1;
 

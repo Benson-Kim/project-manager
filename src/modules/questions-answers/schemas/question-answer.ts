@@ -18,7 +18,7 @@ export type QAPriority = (typeof PRIORITY_OPTIONS)[number];
 
 export const questionAnswerRowSchema = z.object({
   QuestionAnswerId: z.number().int(),
-  ProjectId: z.number().int(),
+  ProjectId: z.number().int().nullable(),
   Question: z.string(),
   Answer: z.string().nullable(),
   Category: z.string().nullable(),
