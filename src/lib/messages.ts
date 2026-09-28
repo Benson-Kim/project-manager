@@ -393,6 +393,20 @@ export const messages = {
     allPriorities: "All priorities",
     emptyBody: "Add the first question for this project.",
     reload: "Reload",
+    /** Display labels for Category enum values (DB key → visible label). */
+    categoryLabels: {
+      General: "General",
+      Technical: "Technical",
+      Budget: "Budget",
+      Other: "Other",
+    },
+    /** Display labels for Priority enum values (DB key → visible label). */
+    priorityLabels: {
+      Critical: "Critical",
+      High: "High",
+      Medium: "Medium",
+      Low: "Low",
+    },
   },
   confirmDelete: {
     title: (entity: string, name: string) => `Delete ${entity} ${name}?`,

@@ -20,6 +20,7 @@ export function QuestionsAnswersToolbar({ children }: { children?: React.ReactNo
     <Toolbar>
       <SearchInput testId="qa-search" />
       <select
+        key={category}
         aria-label={messages.questionsAnswers.allCategories}
         value={category}
         onChange={(e) => update({ category: e.target.value || null, page: null })}
@@ -28,11 +29,12 @@ export function QuestionsAnswersToolbar({ children }: { children?: React.ReactNo
         <option value="">{messages.questionsAnswers.allCategories}</option>
         {CATEGORY_OPTIONS.map((opt) => (
           <option key={opt} value={opt}>
-            {opt}
+            {messages.questionsAnswers.categoryLabels[opt]}
           </option>
         ))}
       </select>
       <select
+        key={priority}
         aria-label={messages.questionsAnswers.allPriorities}
         value={priority}
         onChange={(e) => update({ priority: e.target.value || null, page: null })}
@@ -41,7 +43,7 @@ export function QuestionsAnswersToolbar({ children }: { children?: React.ReactNo
         <option value="">{messages.questionsAnswers.allPriorities}</option>
         {PRIORITY_OPTIONS.map((opt) => (
           <option key={opt} value={opt}>
-            {opt}
+            {messages.questionsAnswers.priorityLabels[opt]}
           </option>
         ))}
       </select>
