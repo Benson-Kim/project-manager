@@ -65,8 +65,8 @@ export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: n
             const width = Math.max(pos(bar.end.getTime()) - left, 1.5);
             const name = messages.keyDeliverables.ganttBarName(
               bar.requirement || messages.keyDeliverables.deliverableFallback(bar.id),
-              formatDate(bar.start),
-              formatDate(bar.end),
+              formatDate(bar.start) ?? "",
+              formatDate(bar.end) ?? "",
               bar.status ?? messages.projects.none,
             );
             return (
@@ -84,15 +84,24 @@ export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: n
                   </span>
                 </div>
                 <div className="relative h-12">
+                  {/*
+                   * Hit-target wrapper: min 44×44 px on touch devices (WCAG 2.5.8 / repo standard).
+                   * The inner span is the visible bar; the link itself is the padded tap target.
+                   * print-color-adjust: exact preserves the bar colour under default print settings.
+                   */}
                   <Link
                     href={`/projects/${projectId}/deliverables?d=${bar.id}`}
                     aria-label={name}
                     data-testid={`gantt-bar-${bar.id}`}
-                    className={`absolute top-1/2 block h-5 min-w-2 -translate-y-1/2 rounded-sm transition-[width] duration-(--duration-base) outline-offset-2 focus-visible:outline-2 focus-visible:outline-focus motion-reduce:transition-none ${
-                      bar.overdue ? "bg-danger" : "bg-accent"
-                    }`}
+                    className="absolute top-1/2 flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center outline-offset-2 focus-visible:outline-2 focus-visible:outline-focus"
                     style={{ left: `${left}%`, width: `${width}%` }}
-                  />
+                  >
+                    <span
+                      className={`block h-5 w-full min-w-2 rounded-sm transition-[width] duration-(--duration-base) motion-reduce:transition-none print:border print:border-current [print-color-adjust:exact] [-webkit-print-color-adjust:exact] ${
+                        bar.overdue ? "bg-danger print:bg-danger" : "bg-accent print:bg-accent"
+                      }`}
+                    />
+                  </Link>
                 </div>
               </li>
             );
