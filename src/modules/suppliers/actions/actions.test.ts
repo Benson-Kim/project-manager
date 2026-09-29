@@ -126,7 +126,7 @@ describe("suppliers actions", () => {
     if (!result.ok) expect(result.error.code).toBe("CONFLICT");
   });
 
-  it("delete succeeds and forwards ids to the proc", async () => {
+  it("delete succeeds and forwards ids and ActorRole to the proc", async () => {
     execProc.mockResolvedValue([]);
     const result = await deleteSupplierAction({ supplierId: 1, rowVer: 10 });
     expect(result.ok).toBe(true);
@@ -134,6 +134,7 @@ describe("suppliers actions", () => {
       SupplierId: 1,
       RowVer: 10,
       ActorUserId: 7,
+      ActorRole: "ProjectManager",
     });
   });
 });
