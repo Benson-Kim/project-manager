@@ -1,12 +1,16 @@
 -- usp_Supplier_List — paged/filtered list per ADR-0016. Search columns: SupplierName, ContactPerson, City.
 -- Sort whitelist: SupplierName, ContractStartDate, ContractEndDate, Rating.
 -- @Rating filter: when supplied, restricts rows to the matching rating value.
+-- Actor project-scope: non-Admin actors only see suppliers in their assigned projects (FORBIDDEN_ROW
+--   defense-in-depth; the page also scopes by @ProjectId but the proc enforces independently).
+-- Admin bypass: @ActorRole = N'Admin' returns all rows (still scoped by @ProjectId when supplied).
 -- ContractEndDate ASC sort: NULLs placed last so known expiring contracts surface first.
 -- Entity app.Supplier (source: tbl3rdPartySupplier). Module: suppliers (#7).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Supplier_List
     @ActorUserId INT,
+    @ActorRole   NVARCHAR(50)  = NULL,
     @ProjectId   INT           = NULL,
     @Rating      NVARCHAR(255) = NULL,
     @Search      NVARCHAR(100) = NULL,
@@ -39,13 +43,25 @@ BEGIN
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer,
            TotalCount = COUNT(*) OVER ()
-    FROM app.Supplier
-    WHERE IsDeleted = 0
-      AND (@ProjectId IS NULL OR ProjectId = @ProjectId)
-      AND (@Rating IS NULL OR [Rating] = @Rating)
-      AND (@Search IS NULL OR [SupplierName] LIKE N'%' + @Search + N'%'
-           OR [ContactPerson] LIKE N'%' + @Search + N'%'
-           OR [City] LIKE N'%' + @Search + N'%')
+    FROM app.Supplier s
+    WHERE s.IsDeleted = 0
+      AND (@ProjectId IS NULL OR s.ProjectId = @ProjectId)
+      AND (@Rating IS NULL OR s.[Rating] = @Rating)
+      AND (@Search IS NULL OR s.[SupplierName] LIKE N'%' + @Search + N'%'
+           OR s.[ContactPerson] LIKE N'%' + @Search + N'%'
+           OR s.[City] LIKE N'%' + @Search + N'%')
+      -- Actor project-scope: restrict to projects the actor is assigned to (Admins bypass).
+      -- pa.ProjectId is compared to the outer s.ProjectId — the alias prevents the
+      -- ambiguous self-join that made this predicate always true (P1 fix).
+      AND (
+          ISNULL(@ActorRole, '') = N'Admin'
+          OR EXISTS (
+              SELECT 1 FROM app.ProjectAssignee pa
+              WHERE pa.ProjectId = s.ProjectId
+                AND pa.UserId    = @ActorUserId
+                AND pa.IsDeleted = 0
+          )
+      )
     ORDER BY
         CASE WHEN @SortBy = N'SupplierName' AND @SortDir = 'asc'  THEN [SupplierName] END ASC,
         CASE WHEN @SortBy = N'SupplierName' AND @SortDir = 'desc' THEN [SupplierName] END DESC,

@@ -67,3 +67,10 @@ export const deleteSupplierInput = z.object({
 });
 
 export type DeleteSupplierInput = z.input<typeof deleteSupplierInput>;
+
+/** URL filter params for the suppliers list (rating facet). */
+export const supplierFiltersSchema = z.object({
+  rating: z.string().trim().optional(),
+});
+
+export type SupplierFilters = z.infer<typeof supplierFiltersSchema>;

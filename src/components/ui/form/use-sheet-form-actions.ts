@@ -75,20 +75,23 @@ export function useSheetFormActions<TCreate, TUpdate, TDelete>({
     [isEdit, createAction, updateAction, onSuccess, form, router],
   );
 
-  const onDelete = useCallback(() => {
-    startTransition(async () => {
-      setSummary(null);
-      const result = await deleteAction(undefined as unknown as TDelete);
-      if (result.ok) {
-        setConfirmDelete(false);
-        onSuccess();
-        router.refresh();
-      } else {
-        setConfirmDelete(false);
-        setSummary(result.error.message ?? messages.errors.INTERNAL);
-      }
-    });
-  }, [deleteAction, onSuccess, router]);
+  const onDelete = useCallback(
+    (args: TDelete) => {
+      startTransition(async () => {
+        setSummary(null);
+        const result = await deleteAction(args);
+        if (result.ok) {
+          setConfirmDelete(false);
+          onSuccess();
+          router.refresh();
+        } else {
+          setConfirmDelete(false);
+          setSummary(result.error.message ?? messages.errors.INTERNAL);
+        }
+      });
+    },
+    [deleteAction, onSuccess, router],
+  );
 
   return { pending, summary, conflict, confirmDelete, setConfirmDelete, onSubmit, onDelete };
 }
