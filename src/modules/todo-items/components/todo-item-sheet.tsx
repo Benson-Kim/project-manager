@@ -87,7 +87,7 @@ export function TodoItemSheet({
 
   const activityOptions: ComboboxOption[] = dailyActivityOptions.map((a) => ({
     value: String(a.DailyActivityId),
-    label: a.Task ?? `Activity ${a.DailyActivityId}`,
+    label: a.Label,
   }));
 
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {

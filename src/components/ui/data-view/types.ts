@@ -1,4 +1,5 @@
 import type { ViewMode } from "@/lib/list-params";
+import { messages } from "@/lib/messages";
 
 /**
  * DataView contract (ADR-0006). A module supplies rows for ONE server-paged
@@ -57,3 +58,14 @@ export const priorityClass: Record<1 | 2 | 3, string> = {
   2: "hidden sm:table-cell",
   3: "hidden lg:table-cell",
 };
+
+/**
+ * Accessible name for a row-selection checkbox: meaningful when the module
+ * supplies getRowLabel, null otherwise (call sites use the row id as fallback).
+ */
+export function rowSelectionLabel<Row>(
+  row: Row,
+  getRowLabel?: (row: Row) => string,
+): string | null {
+  return getRowLabel ? messages.list.selectRow(getRowLabel(row)) : null;
+}
