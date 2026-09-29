@@ -1,18 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PageHeader } from "@/components/ui/page-header";
-import { auth } from "@/lib/auth/provider";
+
 import { can } from "@/lib/auth/rbac";
 import { AppError } from "@/lib/errors";
-import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
+import { auth } from "@/lib/auth/provider";
 import { getViewPreference } from "@/lib/repositories/view-preference";
+import { flattenSearchParams, parseListParams } from "@/lib/list-params";
+import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
+
+import { PageHeader } from "@/components/ui/page-header";
 import { SupplierSheet } from "@/modules/suppliers/components/supplier-sheet";
 import { SuppliersView } from "@/modules/suppliers/components/suppliers-view";
 import { getSupplierById, listSuppliers } from "@/modules/suppliers/repository/suppliers";
 import { supplierFiltersSchema } from "@/modules/suppliers/schemas/supplier";
-import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { parseProjectId } from "../project-id";
 
 export const metadata: Metadata = {
@@ -52,11 +54,15 @@ export default async function SuppliersPage({
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
   const [rows, preferredView, selectedRaw] = await Promise.all([
-    listSuppliers(effectiveParams, session.userId, projectId, filters),
+    listSuppliers(effectiveParams, session.userId, session.role, projectId, filters),
     getViewPreference(session.userId, "suppliers").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getSupplierById(selectedId, session.userId).catch((err) => {
-          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
+      ? getSupplierById(selectedId, session.userId, session.role).catch((err) => {
+          if (
+            err instanceof AppError &&
+            (err.code === "NOT_FOUND" || err.code === "FORBIDDEN_ROW")
+          )
+            return null;
           throw err;
         })
       : Promise.resolve(null),

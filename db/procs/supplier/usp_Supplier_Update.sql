@@ -2,7 +2,9 @@
 --   actor project-scope guard (50003 FORBIDDEN_ROW), and in-transaction audit.
 -- RowVer is included in the UPDATE predicate (not pre-checked) to eliminate the TOCTOU race
 --   where two requests pass the pre-check before either write completes.
--- Admin bypass: @ActorRole = N'Admin' skips the project-scope check.
+-- Admin bypass: @ActorRole = N'Admin' skips both project-scope checks.
+-- Destination-project check: when @ProjectId differs from the row's current ProjectId,
+--   the actor must also be assigned to the destination project.
 -- Entity app.Supplier (source: tbl3rdPartySupplier). Module: suppliers (#7).
 USE ProjectManager;
 GO
@@ -33,8 +35,8 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM app.Supplier WHERE SupplierId = @SupplierId AND IsDeleted = 0)
         THROW 50001, N'NOT_FOUND:Supplier not found', 1;
 
-    -- Actor project-scope: ProjectManagers may only update suppliers that belong to
-    -- one of their assigned projects (FORBIDDEN_ROW 50003). Admins bypass.
+    -- (1) Actor must be assigned to the row's current (owning) project.
+    --     Admin role bypasses this check.
     IF ISNULL(@ActorRole, '') <> N'Admin'
        AND NOT EXISTS (
            SELECT 1 FROM app.Supplier s
@@ -43,6 +45,15 @@ BEGIN
            WHERE s.SupplierId = @SupplierId AND s.IsDeleted = 0
        )
         THROW 50003, N'FORBIDDEN_ROW:You are not assigned to this project', 1;
+
+    -- (2) Actor must also be assigned to the destination project when ProjectId is changing.
+    --     Admin role bypasses this check.
+    IF ISNULL(@ActorRole, '') <> N'Admin'
+       AND NOT EXISTS (
+           SELECT 1 FROM app.ProjectAssignee
+           WHERE ProjectId = @ProjectId AND UserId = @ActorUserId AND IsDeleted = 0
+       )
+        THROW 50003, N'FORBIDDEN_ROW:You are not assigned to the destination project', 1;
 
     BEGIN TRAN;
 
