@@ -25,7 +25,7 @@ const columns: DataViewColumn<KeywordListRow>[] = [
   },
   {
     key: "CreatedAtUtc",
-    header: "Added",
+    header: messages.keywords.addedAt,
     priority: 3,
     render: (r) => formatDate(r.CreatedAtUtc),
   },
@@ -47,7 +47,7 @@ export function KeywordsView({
   filtersActive: boolean;
   newKeywordAction?: React.ReactNode;
 }) {
-  const { update } = useListUrlState();
+  const { update, searchParams } = useListUrlState();
 
   return (
     <DataView
@@ -58,7 +58,9 @@ export function KeywordsView({
       initialView={initialView}
       getRowId={(row) => row.KeywordId}
       getRowLabel={(row) => row.Keyword}
-      onOpen={(row) => update({ id: String(row.KeywordId) })}
+      onOpen={(row) =>
+        update({ id: String(row.KeywordId), page: searchParams.get("page") ?? null })
+      }
       renderCard={(row) => (
         <div className="flex flex-col gap-1">
           <p className="text-sm font-semibold text-ink">{row.Keyword}</p>

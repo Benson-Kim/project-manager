@@ -7,7 +7,7 @@ import { messages } from "@/lib/messages";
 import { isCurrentSection, projectSections, sectionHref } from "./project-sections";
 
 const pillClass = (current: boolean) =>
-  `inline-flex min-h-11 items-center rounded-full px-6 text-sm font-medium whitespace-nowrap ${
+  `inline-flex min-h-9 items-center rounded-full px-6 text-sm font-medium whitespace-nowrap ${
     current ? "bg-accent-soft text-accent" : "text-ink-muted hover:bg-surface-sunken"
   }`;
 

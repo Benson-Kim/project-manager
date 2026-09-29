@@ -1,0 +1,290 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+
+import { useAnnouncer } from "@/components/ui/announcer";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Sheet } from "@/components/ui/dialog";
+import { ErrorSummary } from "@/components/ui/form/error-summary";
+import { Field } from "@/components/ui/form/field";
+import { Input, Select, Textarea } from "@/components/ui/form/inputs";
+import { useZodForm } from "@/components/ui/form/use-zod-form";
+import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
+import { useToast } from "@/components/ui/toast";
+import { messages } from "@/lib/messages";
+import { CATEGORY_OPTIONS, PRIORITY_OPTIONS, type QuestionAnswerRow } from "../schemas/question-answer";
+import { questionAnswerFormSchema, updateQuestionAnswerFormSchema } from "../schemas/question-answer-form";
+import {
+  createQuestionAnswerAction,
+  deleteQuestionAnswerAction,
+  updateQuestionAnswerAction,
+} from "../actions";
+
+/**
+ * Q&A detail/edit sheet (ADR-0010 default pattern): URL-synced via ?id=
+ * (numeric id or "new"); closing clears the param. Project scope travels as a
+ * hidden field. Contributor role can update but not create/delete.
+ */
+export function QuestionAnswerSheet({
+  questionAnswer,
+  isNew,
+  projectId,
+  canEdit,
+  canDelete,
+}: {
+  questionAnswer: QuestionAnswerRow | null;
+  isNew: boolean;
+  projectId: number;
+  canEdit: boolean;
+  canDelete: boolean;
+}) {
+  const router = useRouter();
+  const { update } = useListUrlState();
+  const { toast } = useToast();
+  const { announce } = useAnnouncer();
+  const schema = questionAnswer ? updateQuestionAnswerFormSchema : questionAnswerFormSchema;
+  const form = useZodForm(schema);
+  const [pending, startTransition] = useTransition();
+  const [summary, setSummary] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [showUnsaved, setShowUnsaved] = useState(false);
+
+  const close = () => {
+    setIsDirty(false);
+    setShowUnsaved(false);
+    update({ id: null });
+  };
+
+  const requestClose = () => {
+    if (isDirty) {
+      setShowUnsaved(true);
+    } else {
+      close();
+    }
+  };
+
+  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formEl = e.currentTarget;
+    if (!form.validate(formEl)) {
+      setSummary(messages.errors.summaryTitle);
+      return;
+    }
+    setSummary(null);
+    setConflict(false);
+    const data = new FormData(formEl);
+    startTransition(async () => {
+      const result = questionAnswer
+        ? await updateQuestionAnswerAction(data)
+        : await createQuestionAnswerAction(data);
+      if (result.ok) {
+        toast({
+          variant: "success",
+          title: questionAnswer ? messages.feedback.saved : messages.feedback.created,
+        });
+        announce(questionAnswer ? messages.feedback.saved : messages.feedback.created);
+        close();
+        router.refresh();
+      } else {
+        form.applyResult(result);
+        setSummary(result.error.message);
+        if (result.error.code === "CONFLICT") setConflict(true);
+      }
+    });
+  };
+
+  const onDelete = () => {
+    if (!questionAnswer) return;
+    startTransition(async () => {
+      const result = await deleteQuestionAnswerAction({
+        questionAnswerId: questionAnswer.QuestionAnswerId,
+        rowVer: questionAnswer.RowVer,
+      });
+      setConfirmDelete(false);
+      if (result.ok) {
+        toast({ variant: "success", title: messages.feedback.deleted });
+        announce(messages.feedback.deleted);
+        close();
+        router.refresh();
+      } else {
+        setSummary(result.error.message);
+        if (result.error.code === "CONFLICT") setConflict(true);
+      }
+    });
+  };
+
+  const open = isNew || questionAnswer !== null;
+
+  // Truncate very long questions for the sheet title (no helper text rule —
+  // the title is presentational, not instructional).
+  const sheetTitle = questionAnswer
+    ? questionAnswer.Question.length > 60
+      ? questionAnswer.Question.slice(0, 57) + "…"
+      : questionAnswer.Question
+    : messages.questionsAnswers.newQuestion;
+
+  return (
+    <>
+      <Sheet
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) requestClose();
+        }}
+        title={sheetTitle}
+      >
+        <form
+          noValidate
+          onBlur={canEdit ? form.onBlur : undefined}
+          onSubmit={onSubmit}
+          data-testid="question-answer-form"
+          className="flex flex-col gap-5"
+        >
+          <ErrorSummary message={summary} />
+          {conflict ? (
+            <div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => window.location.reload()}
+              >
+                {messages.questionsAnswers.reload}
+              </Button>
+            </div>
+          ) : null}
+
+          {/* Hidden fields */}
+          <input type="hidden" name="projectId" value={questionAnswer?.ProjectId ?? projectId} />
+          {questionAnswer ? (
+            <>
+              <input type="hidden" name="questionAnswerId" value={questionAnswer.QuestionAnswerId} />
+              <input type="hidden" name="rowVer" value={questionAnswer.RowVer} />
+            </>
+          ) : null}
+
+          <fieldset
+            disabled={!canEdit}
+            className="flex flex-col gap-5"
+            onChange={() => setIsDirty(true)}
+          >
+            <Field
+              label={messages.questionsAnswers.question}
+              name="question"
+              errors={form.errors.question}
+            >
+              <Textarea
+                name="question"
+                rows={4}
+                defaultValue={questionAnswer?.Question ?? ""}
+              />
+            </Field>
+
+            <Field
+              label={messages.questionsAnswers.answer}
+              name="answer"
+              errors={form.errors.answer}
+            >
+              <Textarea
+                name="answer"
+                rows={4}
+                defaultValue={questionAnswer?.Answer ?? ""}
+              />
+            </Field>
+
+            <Field
+              label={messages.questionsAnswers.category}
+              name="category"
+              errors={form.errors.category}
+            >
+              <Select name="category" defaultValue={questionAnswer?.Category ?? ""}>
+                <option value="">—</option>
+                {CATEGORY_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {messages.questionsAnswers.categoryLabels[opt]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            <Field
+              label={messages.questionsAnswers.priority}
+              name="priority"
+              errors={form.errors.priority}
+            >
+              <Select name="priority" defaultValue={questionAnswer?.Priority ?? ""}>
+                <option value="">—</option>
+                {PRIORITY_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {messages.questionsAnswers.priorityLabels[opt]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            <Field
+              label={messages.questionsAnswers.assignedTo}
+              name="assignedTo"
+              errors={form.errors.assignedTo}
+            >
+              <Input
+                name="assignedTo"
+                defaultValue={questionAnswer?.AssignedTo ?? ""}
+              />
+            </Field>
+          </fieldset>
+
+          <div className="flex flex-wrap items-center gap-2 px-4 py-2">
+            {canEdit ? (
+              <Button type="submit" pending={pending} data-testid="qa-save">
+                {messages.actions.save}
+              </Button>
+            ) : null}
+            <Button type="button" variant="secondary" onClick={requestClose}>
+              {messages.actions.cancel}
+            </Button>
+            {questionAnswer && canDelete ? (
+              <Button
+                type="button"
+                variant="danger"
+                data-testid="qa-delete"
+                onClick={() => setConfirmDelete(true)}
+              >
+                {messages.actions.delete}
+              </Button>
+            ) : null}
+          </div>
+        </form>
+
+        {questionAnswer ? (
+          <ConfirmDialog
+            open={confirmDelete}
+            onOpenChange={setConfirmDelete}
+            title={messages.confirmDelete.title(
+              messages.questionsAnswers.entity,
+              questionAnswer.Question.length > 40
+                ? questionAnswer.Question.slice(0, 37) + "…"
+                : questionAnswer.Question,
+            )}
+            body={messages.confirmDelete.body}
+            confirmLabel={messages.actions.delete}
+            onConfirm={onDelete}
+            pending={pending}
+          />
+        ) : null}
+      </Sheet>
+
+      <ConfirmDialog
+        open={showUnsaved}
+        onOpenChange={setShowUnsaved}
+        title={messages.feedback.unsavedChangesTitle}
+        body={messages.feedback.unsavedChangesBody}
+        confirmLabel={messages.feedback.discard}
+        onConfirm={close}
+        pending={false}
+      />
+    </>
+  );
+}
