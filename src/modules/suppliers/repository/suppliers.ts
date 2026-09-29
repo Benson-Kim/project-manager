@@ -7,6 +7,7 @@ import {
   updateSupplierInput,
   type CreateSupplierInput,
   type CreateSupplierParsed,
+  type SupplierFilters,
   type SupplierListRow,
   type SupplierRow,
   type UpdateSupplierInput,
@@ -37,11 +38,13 @@ function toProcParams(input: CreateSupplierParsed) {
 export async function createSupplier(
   input: CreateSupplierInput,
   actorUserId: number,
+  actorRole: string,
 ): Promise<SupplierRow> {
   const parsed = createSupplierInput.parse(input);
   const rows = await execProc<SupplierRow>("usp_Supplier_Create", {
     ...toProcParams(parsed),
     ActorUserId: actorUserId,
+    ActorRole: actorRole,
   });
   return supplierRowSchema.parse(rows[0]);
 }
@@ -49,10 +52,12 @@ export async function createSupplier(
 export async function getSupplierById(
   supplierId: number,
   actorUserId: number,
+  actorRole: string,
 ): Promise<SupplierRow> {
   const rows = await execProc<SupplierRow>("usp_Supplier_GetById", {
     SupplierId: supplierId,
     ActorUserId: actorUserId,
+    ActorRole: actorRole,
   });
   return supplierRowSchema.parse(rows[0]);
 }
@@ -60,12 +65,16 @@ export async function getSupplierById(
 export async function listSuppliers(
   params: ListParams,
   actorUserId: number,
+  actorRole: string,
   projectId: number | null = null,
+  filters: SupplierFilters = {},
   pageSize: number = DEFAULT_PAGE_SIZE,
 ): Promise<SupplierListRow[]> {
   const rows = await execProc<SupplierListRow>("usp_Supplier_List", {
     ActorUserId: actorUserId,
+    ActorRole: actorRole,
     ProjectId: projectId,
+    Rating: filters.rating ?? null,
     ...toProcListParams(params, pageSize),
   });
   return rows.map((r) => supplierListRowSchema.parse(r));
@@ -74,6 +83,7 @@ export async function listSuppliers(
 export async function updateSupplier(
   input: UpdateSupplierInput,
   actorUserId: number,
+  actorRole: string,
 ): Promise<SupplierRow> {
   const parsed = updateSupplierInput.parse(input);
   const rows = await execProc<SupplierRow>("usp_Supplier_Update", {
@@ -81,6 +91,7 @@ export async function updateSupplier(
     ...toProcParams(parsed),
     RowVer: parsed.rowVer,
     ActorUserId: actorUserId,
+    ActorRole: actorRole,
   });
   return supplierRowSchema.parse(rows[0]);
 }
@@ -89,10 +100,12 @@ export async function deleteSupplier(
   supplierId: number,
   rowVer: number,
   actorUserId: number,
+  actorRole: string,
 ): Promise<void> {
   await execProc("usp_Supplier_Delete", {
     SupplierId: supplierId,
     RowVer: rowVer,
     ActorUserId: actorUserId,
+    ActorRole: actorRole,
   });
 }
