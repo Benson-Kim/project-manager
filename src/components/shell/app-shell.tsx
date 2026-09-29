@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { Sheet } from "@/components/ui/dialog";
 import { messages } from "@/lib/messages";
+import { useAlertPoller } from "@/modules/todo-items/components/use-alert-poller";
 import { useAnnouncer } from "../ui/announcer";
 import { AvatarMenu, NotificationsBell, ThemeToggle, type ShellAlert } from "./header-actions";
 import { pageTitleFor } from "./nav-items";
@@ -39,6 +40,7 @@ export function AppShell({
   const pathname = usePathname();
   const { announce } = useAnnouncer();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  useAlertPoller();
   const projectMatch = pathname.match(/^\/projects\/(\d+)(\/.*)?$/);
   const projectId = projectMatch ? Number(projectMatch[1]) : null;
 

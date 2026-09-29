@@ -14,11 +14,29 @@ export const rowVerSchema = z.union([z.string(), z.number()]).transform((v) => N
 /** Repeat unit vocabulary (Hour/Day/Week/Month). */
 export const REPEAT_UNITS = ["Hour", "Day", "Week", "Month"] as const;
 
+/**
+ * mssql returns SQL TIME(0) columns as JS Date objects (midnight base date +
+ * the time offset). Normalise to "HH:mm:ss" string for consistent transport,
+ * while also accepting a plain string (e.g. from test fixtures).
+ */
+export const alertTimeSchema = z
+  .union([z.date(), z.string()])
+  .nullable()
+  .transform((v) => {
+    if (v == null) return null;
+    if (typeof v === "string") return v;
+    // Date from mssql: extract UTC HH:mm:ss
+    const hh = String(v.getUTCHours()).padStart(2, "0");
+    const mm = String(v.getUTCMinutes()).padStart(2, "0");
+    const ss = String(v.getUTCSeconds()).padStart(2, "0");
+    return `${hh}:${mm}:${ss}`;
+  });
+
 export const todoAlertRowSchema = z.object({
   TodoAlertId: z.number().int(),
   TodoItemId: z.number().int(),
   AlertDay: z.date().nullable(),
-  AlertTime: z.string().nullable(), // TIME(0) comes back as "HH:mm:ss" string
+  AlertTime: alertTimeSchema,
   RepeatUnit: z.string().nullable(),
   RepeatInterval: z.number().int().nullable(),
   CurrentRepeatInterval: z.number().int().nullable(),
