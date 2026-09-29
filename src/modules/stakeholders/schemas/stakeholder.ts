@@ -8,7 +8,7 @@ import { rowVerSchema } from "@/modules/projects/schemas/project";
  */
 
 /** Dropdown vocabularies (req row 70; CHECK-constrained in migration 006). */
-export const COMMUNICATION_PREFERENCES = ["Email", "Phone", "Meetings"] as const;
+export const COMMUNICATION_PREFERENCES = ["Email", "Phone", "Meeting"] as const;
 export const ENGAGEMENT_LEVELS = ["High", "Medium", "Low"] as const;
 
 export const stakeholderRowSchema = z.object({
