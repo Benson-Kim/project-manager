@@ -2,37 +2,34 @@ import { execProc } from "@/lib/db";
 import { z } from "zod";
 
 /**
- * Lightweight daily-activity options helper (ISP boundary): the
- * todo-items module depends on this file — NOT on the full daily-activities
- * module — to populate the linked-activity combobox in the TodoItemSheet.
- *
- * Returns a stable {value, label} shape for use with the Combobox component.
+ * Lightweight option shape used to populate the "Linked daily activity"
+ * combobox inside TodoItemSheet.  Only the columns needed for display +
+ * selection are fetched — never the full DailyActivity row.
  */
-
 export const dailyActivityOptionSchema = z.object({
   DailyActivityId: z.number().int(),
-  Task: z.string().nullable(),
+  /** Human-readable label built by the proc: Task (YYYY-MM-DD). */
+  Label: z.string(),
 });
 
 export type DailyActivityOption = z.infer<typeof dailyActivityOptionSchema>;
 
 /**
- * Fetches up to 200 active activities for the combobox — enough for any real
- * project. Uses usp_DailyActivity_List; all other params default to no-filter,
- * page 1, size 200.
+ * Returns a lightweight option list for all non-deleted daily activities
+ * belonging to the given project, ordered by RequestDate DESC so the most
+ * recent tasks appear first in the combobox.
+ *
+ * Calls usp_DailyActivity_ListOptions — a thin read-only proc that returns
+ * only DailyActivityId + Label.  Falls back to an empty array on any error
+ * so the sheet still renders; the combobox will simply show no options.
  */
 export async function listDailyActivityOptions(
   projectId: number,
   actorUserId: number,
 ): Promise<DailyActivityOption[]> {
-  const rows = await execProc<DailyActivityOption>("usp_DailyActivity_List", {
-    ActorUserId: actorUserId,
+  const rows = await execProc<DailyActivityOption>("usp_DailyActivity_ListOptions", {
     ProjectId: projectId,
-    Search: null,
-    SortBy: "RequestDate",
-    SortDir: "desc",
-    Page: 1,
-    PageSize: 200,
+    ActorUserId: actorUserId,
   });
   return rows.map((r) => dailyActivityOptionSchema.parse(r));
 }

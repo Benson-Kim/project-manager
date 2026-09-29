@@ -1,29 +1,21 @@
-import type { ReactNode } from "react";
-
 /**
- * Shared section heading for Sheet forms and full-page forms.
- * No "use client" directive — compatible with Server and Client component trees.
- * Renders an h2 with a bottom border; pass className for variant styles
- * (e.g. the charter form uses "rounded-t-md text-base bg-surface-sunken").
- *
- * The `id` prop is used for `aria-labelledby` on the enclosing `<section>`.
- * Each rendered instance on a page must use a unique id string.
+ * SectionHeading — lightweight visual divider used inside Sheets to separate
+ * logically distinct groups of fields. Renders as an <h3> with a bottom border.
+ * No interactive behaviour; purely presentational.
  */
 export function SectionHeading({
   id,
   children,
-  className,
 }: {
-  id: string;
-  children: ReactNode;
-  className?: string;
+  id?: string;
+  children: React.ReactNode;
 }) {
   return (
-    <h2
+    <h3
       id={id}
-      className={`border-b border-line px-4 py-2 text-sm font-semibold text-ink${className ? ` ${className}` : ""}`}
+      className="mb-3 mt-5 border-b border-line pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted first:mt-0"
     >
       {children}
-    </h2>
+    </h3>
   );
 }

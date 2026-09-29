@@ -13,6 +13,7 @@ import { TodoView } from "@/modules/todo-items/components/todo-view";
 import {
   getTodoItemById,
   listTodoItems,
+  type TodoListFilters,
 } from "@/modules/todo-items/repository/todo-items";
 import { getTodoAlertByTodoItemId } from "@/modules/todo-items/repository/todo-alerts";
 import { listDailyActivityOptions } from "@/modules/todo-items/repository/daily-activity-options";
@@ -52,8 +53,14 @@ export default async function TodosPage({
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
+  const filters: TodoListFilters = {
+    status: flat.status ?? null,
+    priority: flat.priority ?? null,
+    projectOrActivity: flat.projectOrActivity ?? null,
+  };
+
   const [rows, preferredView, activityOptions, selectedRaw] = await Promise.all([
-    listTodoItems(effectiveParams, session.userId, projectId),
+    listTodoItems(effectiveParams, session.userId, projectId, undefined, filters),
     getViewPreference(session.userId, "todo-items").catch(() => null),
     listDailyActivityOptions(projectId, session.userId).catch(() => []),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
@@ -76,7 +83,8 @@ export default async function TodosPage({
   const canCreate = can(session.role, "todo-items:create");
   const canEdit = can(session.role, "todo-items:update");
   const canDelete = can(session.role, "todo-items:delete");
-  const filtersActive = Boolean(effectiveParams.q ?? flat.status ?? flat.priority);
+  const canReorder = can(session.role, "todo-items:update");
+  const filtersActive = Boolean(effectiveParams.q || flat.status || flat.priority || flat.projectOrActivity);
 
   const newTodoLink = (
     <Link
@@ -101,6 +109,7 @@ export default async function TodosPage({
           page={effectiveParams.page}
           initialView={effectiveParams.view ?? preferredView ?? "list"}
           filtersActive={filtersActive}
+          canReorder={canReorder}
           newTodoAction={canCreate ? newTodoLink : undefined}
         />
       </div>

@@ -12,7 +12,7 @@ export const createStakeholderAction = action({
   permission: "stakeholders:create",
   // Dynamic project-scoped path — the sheet calls router.refresh() on success
   revalidate: [],
-  handler: (input, ctx) => createStakeholder(input, ctx.session.userId),
+  handler: (input, ctx) => createStakeholder(input, ctx.session.userId, ctx.session.role),
 });
 
 /** Update a stakeholder (RBAC stakeholders:update — Admin + PM; audited in-proc). */
@@ -21,7 +21,7 @@ export const updateStakeholderAction = action({
   schema: updateStakeholderFormSchema,
   permission: "stakeholders:update",
   revalidate: [],
-  handler: (input, ctx) => updateStakeholder(input, ctx.session.userId),
+  handler: (input, ctx) => updateStakeholder(input, ctx.session.userId, ctx.session.role),
 });
 
 /** Soft-delete a stakeholder (RBAC stakeholders:delete — Admin + PM; audited in-proc). */
@@ -31,7 +31,7 @@ export const deleteStakeholderAction = action({
   permission: "stakeholders:delete",
   revalidate: [],
   handler: async (input, ctx) => {
-    await deleteStakeholder(input.stakeholderId, input.rowVer, ctx.session.userId);
+    await deleteStakeholder(input.stakeholderId, input.rowVer, ctx.session.userId, ctx.session.role);
     return { stakeholderId: input.stakeholderId };
   },
 });

@@ -1,8 +1,7 @@
 import type { ViewMode } from "@/lib/list-params";
-import { messages } from "@/lib/messages";
 
 /**
- * DataView contract . A module supplies rows for ONE server-paged
+ * DataView contract (ADR-0006). A module supplies rows for ONE server-paged
  * page, the total count, a card renderer, table columns with priorities, and
  * stable ids. Everything else (toggle, URL state, selection, keyboard nav,
  * states) is shared behaviour.
@@ -26,9 +25,8 @@ export interface DataViewProps<Row> {
   initialView: ViewMode;
   getRowId: (row: Row) => string | number;
   /**
-   * Human-meaningful name for a row (issue #25) — selection checkboxes get
-   * `messages.list.selectRow(label)` as their accessible name. Falls back to
-   * the row id when absent.
+   * Optional accessible label for a row (used by bulkActions checkbox + screen
+   * reader announcements). When omitted, the row id is used as fallback.
    */
   getRowLabel?: (row: Row) => string;
   renderCard: (row: Row) => React.ReactNode;
@@ -37,21 +35,21 @@ export interface DataViewProps<Row> {
   onOpen?: (row: Row) => void;
   /** Enables selection + the bulk bar when provided. */
   bulkActions?: (selectedIds: Array<string | number>, clear: () => void) => React.ReactNode;
+  /**
+   * Renders the toolbar (search, filters, view toggle). Receives the view-
+   * toggle button node so it can be embedded inside the module toolbar layout.
+   * When omitted, the default toggle strip is rendered inline.
+   */
   renderToolbar?: (viewToggle: React.ReactNode) => React.ReactNode;
   /** Rendered when there is no data at all (no search/filter active). */
   empty: React.ReactNode;
-}
-
-/**
- * Accessible name for a row-selection checkbox (issue #25): meaningful when
- * the module supplies getRowLabel, null otherwise (call sites keep their
- * previous fallback).
- */
-export function rowSelectionLabel<Row>(
-  row: Row,
-  getRowLabel?: (row: Row) => string,
-): string | null {
-  return getRowLabel ? messages.list.selectRow(getRowLabel(row)) : null;
+  /**
+   * When true, treats the view as having an active filter even if the standard
+   * `q` / `filter` URL params are absent. Use when a module has module-specific
+   * filter params (e.g. `category`, `priority`) so the toolbar remains mounted
+   * and the user can clear the filter when zero rows match.
+   */
+  filtersActive?: boolean;
 }
 
 export const priorityClass: Record<1 | 2 | 3, string> = {

@@ -3,12 +3,14 @@ import { AppError } from "@/lib/errors";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
 import {
   createTodoItemInput,
+  reorderTodoItemInput,
   todoItemListRowSchema,
   todoItemRowSchema,
   updateTodoItemInput,
   upcomingAlertRowSchema,
   type CreateTodoItemInput,
   type CreateTodoItemParsed,
+  type ReorderTodoItemInput,
   type TodoItemListRow,
   type TodoItemRow,
   type UpdateTodoItemInput,
@@ -58,16 +60,27 @@ export async function getTodoItemById(
   return todoItemRowSchema.parse(rows[0]);
 }
 
+/** Module-specific filter params forwarded to usp_TodoItem_List. */
+export interface TodoListFilters {
+  status?: string | null;
+  priority?: string | null;
+  projectOrActivity?: string | null;
+}
+
 export async function listTodoItems(
   params: ListParams,
   actorUserId: number,
   projectId: number | null = null,
   pageSize: number = DEFAULT_PAGE_SIZE,
+  filters: TodoListFilters = {},
 ): Promise<TodoItemListRow[]> {
   const rows = await execProc<TodoItemListRow>("usp_TodoItem_List", {
     ActorUserId: actorUserId,
     ProjectId: projectId,
     ...toProcListParams(params, pageSize),
+    Status: filters.status ?? null,
+    Priority: filters.priority ?? null,
+    ProjectOrActivity: filters.projectOrActivity ?? null,
   });
   return rows.map((r) => todoItemListRowSchema.parse(r));
 }
@@ -107,9 +120,41 @@ export async function deleteTodoItem(
  * @/lib/repositories/upcoming-alerts.ts#getUpcomingAlerts which returns the
  * lightweight UpcomingAlert shape used by the shell header bell.
  */
+export async function reorderTodoItem(
+  input: ReorderTodoItemInput,
+  actorUserId: number,
+): Promise<TodoItemRow> {
+  const parsed = reorderTodoItemInput.parse(input);
+  const rows = await execProc<TodoItemRow>("usp_TodoItem_Reorder", {
+    TodoItemId: parsed.todoItemId,
+    NewSortKey: parsed.newSortKey,
+    RowVer: parsed.rowVer,
+    ActorUserId: actorUserId,
+  });
+  if (!rows[0]) throw new AppError("NOT_FOUND", "TodoItem not found");
+  return todoItemRowSchema.parse(rows[0]);
+}
+
 export async function getUpcomingAlertRows(actorUserId: number): Promise<UpcomingAlertRow[]> {
   const rows = await execProc<UpcomingAlertRow>("usp_Todo_GetUpcomingAlerts", {
     ActorUserId: actorUserId,
   });
   return rows.map((r) => upcomingAlertRowSchema.parse(r));
+}
+
+/**
+ * Create a TodoItem from a DailyActivity row (req 13.1 — "built from daily activity list").
+ * Calls usp_Todo_BuildFromDailyActivity which copies Task → TodoItem, RequestDate → StartDate,
+ * and enforces the one-to-one guard (DUPLICATE when a todo already links this activity).
+ */
+export async function buildTodoFromDailyActivity(
+  dailyActivityId: number,
+  actorUserId: number,
+): Promise<TodoItemRow> {
+  const rows = await execProc<TodoItemRow>("usp_Todo_BuildFromDailyActivity", {
+    DailyActivityId: dailyActivityId,
+    ActorUserId: actorUserId,
+  });
+  if (!rows[0]) throw new AppError("NOT_FOUND", "TodoItem not found after build");
+  return todoItemRowSchema.parse(rows[0]);
 }

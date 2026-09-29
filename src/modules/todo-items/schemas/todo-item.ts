@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { rowVerSchema } from "@/modules/projects/schemas/project";
+import { rowVerSchema } from "./todo-alert";
 
 /**
  * TodoItem (app.TodoItem ← tblTodoList core columns) — zod contracts.
@@ -38,6 +38,8 @@ export const todoItemRowSchema = z.object({
   Priority: z.string().nullable(),
   Status: z.string().nullable(),
   Notes: z.string().nullable(),
+  /** Manual sort position (req 13.2). Added by migration 007; defaults to TodoItemId on legacy rows. */
+  SortKey: z.number().int().default(0),
   CreatedAtUtc: z.date(),
   UpdatedAtUtc: z.date().nullable(),
   RowVer: rowVerSchema,
@@ -62,6 +64,14 @@ export const createTodoItemInput = z.object({
   status: z.string().trim().max(255).nullish(),
   notes: z.string().trim().nullish(),
 });
+
+export const reorderTodoItemInput = z.object({
+  todoItemId: z.number().int().positive(),
+  newSortKey: z.number().int().min(0),
+  rowVer: rowVerSchema,
+});
+
+export type ReorderTodoItemInput = z.input<typeof reorderTodoItemInput>;
 
 export type CreateTodoItemInput = z.input<typeof createTodoItemInput>;
 export type CreateTodoItemParsed = z.infer<typeof createTodoItemInput>;

@@ -1,5 +1,7 @@
 "use client";
 
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Sheet } from "@/components/ui/dialog";
@@ -10,6 +12,7 @@ import { SectionHeading } from "@/components/ui/form/section-heading";
 import { useSheetFormActions } from "@/components/ui/form/use-sheet-form-actions";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
+import { useToast } from "@/components/ui/toast";
 import { toDateInput } from "@/lib/format";
 import { messages } from "@/lib/messages";
 import {
@@ -22,6 +25,7 @@ import {
   dailyActivityFormSchema,
   updateDailyActivityFormSchema,
 } from "../schemas/daily-activity-form";
+import { buildTodoFromDailyActivityAction } from "@/modules/todo-items/actions";
 
 /**
  * Daily Activity detail/edit sheet  default pattern): edit is the
@@ -35,6 +39,7 @@ export function DailyActivitySheet({
   statuses,
   canEdit,
   canDelete,
+  canCreateTodo,
 }: {
   activity: DailyActivityRow | null;
   isNew: boolean;
@@ -42,10 +47,15 @@ export function DailyActivitySheet({
   statuses: ActivityStatus[];
   canEdit: boolean;
   canDelete: boolean;
+  canCreateTodo?: boolean;
 }) {
+  const router = useRouter();
+  const { toast } = useToast();
   const { update } = useListUrlState();
   const schema = activity ? updateDailyActivityFormSchema : dailyActivityFormSchema;
   const form = useZodForm(schema);
+  const [buildPending, startBuildTransition] = useTransition();
+  const [buildSummary, setBuildSummary] = useState<string | null>(null);
 
   const close = () => update({ id: null });
 
@@ -62,6 +72,21 @@ export function DailyActivitySheet({
           rowVer: activity!.RowVer,
         }),
     });
+
+  const onBuildTodo = () => {
+    if (!activity) return;
+    startBuildTransition(async () => {
+      const result = await buildTodoFromDailyActivityAction({
+        dailyActivityId: activity.DailyActivityId,
+      });
+      if (result.ok) {
+        toast({ variant: "success", title: messages.dailyActivities.todoCreated });
+        router.refresh();
+      } else {
+        setBuildSummary(result.error.message);
+      }
+    });
+  };
 
   const open = isNew || activity !== null;
   const title = activity
@@ -264,6 +289,24 @@ export function DailyActivitySheet({
           ) : null}
         </div>
       </form>
+
+      {/* ── Build to-do section (req 13.1) — shown when viewing an existing activity and canCreateTodo ── */}
+      {activity && canCreateTodo ? (
+        <div className="flex flex-col gap-2 border-t border-line pt-4 px-4">
+          {buildSummary ? (
+            <p className="text-sm text-red-600" role="alert">{buildSummary}</p>
+          ) : null}
+          <Button
+            type="button"
+            variant="secondary"
+            pending={buildPending}
+            data-testid="build-todo-from-activity"
+            onClick={onBuildTodo}
+          >
+            {messages.dailyActivities.buildTodo}
+          </Button>
+        </div>
+      ) : null}
 
       {activity ? (
         <ConfirmDialog

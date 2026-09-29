@@ -22,6 +22,7 @@ BEGIN
            [Priority],
            [Status],
            [Notes],
+           [SortKey],
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer

@@ -1,20 +1,13 @@
 import { z } from "zod";
 import { messages } from "@/lib/messages";
 import { PROJECT_OR_ACTIVITY, TODO_PRIORITIES, TODO_STATUSES } from "./todo-item";
+import { rowVerSchema } from "./todo-alert";
 
 /**
  * TodoItem form contract: ONE schema shared by the client sheet
  * form (blur + submit validation over FormData strings) and the server actions.
  * FormData values are strings — coerced to typed values here.
  */
-
-const optionalText = (max: number) =>
-  z
-    .string()
-    .trim()
-    .max(max)
-    .optional()
-    .transform((v) => (v ? v : null));
 
 const optionalLongText = () =>
   z
@@ -59,7 +52,7 @@ export type TodoItemFormValues = z.output<typeof todoItemFormSchema>;
 
 export const updateTodoItemFormSchema = todoItemFormSchema.extend({
   todoItemId: z.coerce.number().int().positive(),
-  rowVer: z.coerce.number().int().nonnegative(),
+  rowVer: rowVerSchema,
 });
 
 export type UpdateTodoItemFormValues = z.output<typeof updateTodoItemFormSchema>;

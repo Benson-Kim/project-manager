@@ -6,11 +6,11 @@ import { messages } from "@/lib/messages";
 import { useAnnouncer } from "../announcer";
 import { EmptyState } from "../states";
 import { saveViewPreference } from "./save-view-preference";
-import { priorityClass, rowSelectionLabel, type DataViewProps } from "./types";
+import { priorityClass, type DataViewProps } from "./types";
 import { useListUrlState } from "./use-list-url-state";
 
 /**
- * The ONE list component : grid/list toggle (persisted per user per
+ * The ONE list component (ADR-0006): grid/list toggle (persisted per user per
  * module + URL-synced), server-side paging, selection + bulk bar, roving
  * keyboard navigation, empty/zero-result states. Server Components fetch the
  * page and pass rows down — this component never fetches data.
@@ -30,6 +30,7 @@ export function DataView<Row>({
   bulkActions,
   renderToolbar,
   empty,
+  filtersActive = false,
 }: DataViewProps<Row>) {
   const { searchParams, update } = useListUrlState();
   const { announce } = useAnnouncer();
@@ -40,17 +41,24 @@ export function DataView<Row>({
   const urlView = searchParams.get("view");
   const view: ViewMode = urlView === "grid" || urlView === "list" ? urlView : initialView;
   const pages = totalPages(totalCount, pageSize);
-  const hasQuery = Boolean(searchParams.get("q")) || Boolean(searchParams.get("filter"));
+  const hasQuery =
+    Boolean(searchParams.get("q")) || Boolean(searchParams.get("filter")) || filtersActive;
 
   useEffect(() => {
     announce(messages.feedback.resultsAnnouncement(rows.length, totalCount));
     // Announce whenever the visible result set changes.
   }, [announce, rows.length, totalCount]);
 
+  // P1 fix: reset active index whenever the row set identity changes (search,
+  // filter, page) so keyboard nav always starts from a valid index.
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [rows]);
+
   const setView = useCallback(
     (next: ViewMode) => {
       const apply = () => update({ view: next });
-      // View Transitions API for the grid<->list morph , CSS-free fallback.
+      // View Transitions API for the grid<->list morph (ADR-0007), CSS-free fallback.
       if ("startViewTransition" in document) {
         (
           document as Document & { startViewTransition: (cb: () => void) => void }
@@ -98,60 +106,54 @@ export function DataView<Row>({
     active?.scrollIntoView({ block: "nearest" });
   }, [activeIndex]);
 
-  const viewToggle = (
-    <div
-      role="group"
-      aria-label={messages.list.viewToggle}
-      className="flex shrink-0 rounded-md border border-line"
-    >
-      <div
-        role="group"
-        aria-label={messages.list.viewToggle}
-        className="flex rounded-md border border-line"
-      >
-        <button
-          type="button"
-          aria-label={messages.list.viewGrid}
-          aria-pressed={view === "grid"}
-          data-testid="view-grid"
-          onClick={() => setView("grid")}
-          className={`flex min-h-10 min-w-9 items-center justify-center rounded-l-md ${view === "grid" ? "bg-accent-soft text-accent" : "text-ink-muted"}`}
-        >
-          <svg viewBox="0 0 16 16" className="size-4" fill="currentColor" aria-hidden="true">
-            <rect x="1" y="1" width="6" height="6" rx="1" />
-            <rect x="9" y="1" width="6" height="6" rx="1" />
-            <rect x="1" y="9" width="6" height="6" rx="1" />
-            <rect x="9" y="9" width="6" height="6" rx="1" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          aria-label={messages.list.viewList}
-          aria-pressed={view === "list"}
-          data-testid="view-list"
-          onClick={() => setView("list")}
-          className={`flex min-h-10 min-w-9 items-center justify-center rounded-r-md ${view === "list" ? "bg-accent-soft text-accent" : "text-ink-muted"}`}
-        >
-          <svg viewBox="0 0 16 16" className="size-4" fill="currentColor" aria-hidden="true">
-            <rect x="1" y="2" width="14" height="2.5" rx="1" />
-            <rect x="1" y="7" width="14" height="2.5" rx="1" />
-            <rect x="1" y="12" width="14" height="2.5" rx="1" />
-          </svg>
-        </button>
-      </div>
-    </div>
-  );
-
-  const toolbar = renderToolbar?.(viewToggle);
-
   if (totalCount === 0 && !hasQuery) {
     return <>{empty}</>;
   }
 
+  const viewToggle = (
+    <div
+      role="group"
+      aria-label={messages.list.viewToggle}
+      className="flex rounded-md border border-line"
+    >
+      <button
+        type="button"
+        aria-label={messages.list.viewGrid}
+        aria-pressed={view === "grid"}
+        data-testid="view-grid"
+        onClick={() => setView("grid")}
+        className={`flex size-11 items-center justify-center rounded-l-md ${view === "grid" ? "bg-accent-soft text-accent" : "text-ink-muted"}`}
+      >
+        <svg viewBox="0 0 16 16" className="size-4" fill="currentColor" aria-hidden="true">
+          <rect x="1" y="1" width="6" height="6" rx="1" />
+          <rect x="9" y="1" width="6" height="6" rx="1" />
+          <rect x="1" y="9" width="6" height="6" rx="1" />
+          <rect x="9" y="9" width="6" height="6" rx="1" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        aria-label={messages.list.viewList}
+        aria-pressed={view === "list"}
+        data-testid="view-list"
+        onClick={() => setView("list")}
+        className={`flex size-11 items-center justify-center rounded-r-md ${view === "list" ? "bg-accent-soft text-accent" : "text-ink-muted"}`}
+      >
+        <svg viewBox="0 0 16 16" className="size-4" fill="currentColor" aria-hidden="true">
+          <rect x="1" y="2" width="14" height="2.5" rx="1" />
+          <rect x="1" y="7" width="14" height="2.5" rx="1" />
+          <rect x="1" y="12" width="14" height="2.5" rx="1" />
+        </svg>
+      </button>
+    </div>
+  );
+
   return (
-    <div className="flex flex-col flex-1 p-4 bg-white gap-4 border border-line rounded-2xl">
-      {toolbar ?? (
-        <div className="flex items-center gap-2">
+    <div className="flex flex-col gap-3">
+      {renderToolbar ? (
+        renderToolbar(viewToggle)
+      ) : (
+        <div className="flex items-center justify-between gap-2">
           <p className="text-sm text-ink-muted" data-testid="result-count">
             {messages.feedback.resultsAnnouncement(rows.length, totalCount)}
           </p>
@@ -169,7 +171,7 @@ export function DataView<Row>({
             <button
               type="button"
               onClick={clearSelection}
-              className="min-h-10 px-6 text-sm font-medium text-ink-muted"
+              className="min-h-11 px-3 text-sm font-medium text-ink-muted"
             >
               {messages.actions.clearSelection}
             </button>
@@ -194,9 +196,6 @@ export function DataView<Row>({
                       index={index}
                       activeIndex={activeIndex}
                       selectable={Boolean(bulkActions)}
-                      selectLabel={
-                        rowSelectionLabel(row, getRowLabel) ?? messages.actions.selectAll
-                      }
                       selected={selected.includes(id)}
                       onToggleSelect={() => toggleSelected(id)}
                       onOpen={onOpen ? () => onOpen(row) : undefined}
@@ -210,10 +209,7 @@ export function DataView<Row>({
               })}
             </ul>
           ) : (
-            <table
-              data-testid="data-view-table"
-              className="w-full table-fixed border-collapse text-sm"
-            >
+            <table data-testid="data-view-table" className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-line text-left">
                   {bulkActions ? (
@@ -222,7 +218,7 @@ export function DataView<Row>({
                   {columns.map((col) => (
                     <th
                       key={col.key}
-                      className={`px-3 py-3 text-xs font-semibold tracking-[0.01em] text-ink-muted ${priorityClass[col.priority]}`}
+                      className={`p-2 font-medium text-ink-muted ${priorityClass[col.priority]}`}
                     >
                       {col.header}
                     </th>
@@ -239,17 +235,13 @@ export function DataView<Row>({
                       tabIndex={index === activeIndex ? 0 : -1}
                       onFocus={() => setActiveIndex(index)}
                       onClick={onOpen ? () => onOpen(row) : undefined}
-                      className={`
-                        border-b border-line transition-colors duration-fast
-                        ${onOpen ? "cursor-pointer hover:bg-surface-raised" : ""}
-                        ${index === activeIndex ? "bg-surface-raised" : ""}
-                      `}
+                      className={`min-h-11 border-b border-line ${onOpen ? "cursor-pointer" : ""} ${index === activeIndex ? "bg-surface-raised" : ""}`}
                     >
                       {bulkActions ? (
                         <td className="w-11 p-2">
                           <input
                             type="checkbox"
-                            aria-label={rowSelectionLabel(row, getRowLabel) ?? String(id)}
+                            aria-label={String(id)}
                             checked={selected.includes(id)}
                             onClick={(e) => e.stopPropagation()}
                             onChange={() => toggleSelected(id)}
@@ -258,10 +250,7 @@ export function DataView<Row>({
                         </td>
                       ) : null}
                       {columns.map((col) => (
-                        <td
-                          key={col.key}
-                          className={`px-3 py-3.5 align-middle ${priorityClass[col.priority]}`}
-                        >
+                        <td key={col.key} className={`p-2 ${priorityClass[col.priority]}`}>
                           {col.render(row)}
                         </td>
                       ))}
@@ -283,7 +272,7 @@ export function DataView<Row>({
             type="button"
             disabled={page <= 1}
             onClick={() => update({ page: String(page - 1) }, { push: true })}
-            className="min-h-10 rounded-md border border-line px-6 text-sm font-medium text-ink disabled:opacity-50"
+            className="min-h-11 rounded-md border border-line px-4 text-sm font-medium text-ink disabled:opacity-50"
           >
             {messages.list.previousPage}
           </button>
@@ -292,7 +281,7 @@ export function DataView<Row>({
             type="button"
             disabled={page >= pages}
             onClick={() => update({ page: String(page + 1) }, { push: true })}
-            className="min-h-10 rounded-md border border-line px-6 text-sm font-medium text-ink disabled:opacity-50"
+            className="min-h-11 rounded-md border border-line px-4 text-sm font-medium text-ink disabled:opacity-50"
           >
             {messages.list.nextPage}
           </button>
@@ -306,7 +295,6 @@ function DataRowShell({
   index,
   activeIndex,
   selectable,
-  selectLabel,
   selected,
   onToggleSelect,
   onOpen,
@@ -317,7 +305,6 @@ function DataRowShell({
   index: number;
   activeIndex: number;
   selectable: boolean;
-  selectLabel: string;
   selected: boolean;
   onToggleSelect: () => void;
   onOpen?: () => void;
@@ -335,7 +322,7 @@ function DataRowShell({
       {selectable ? (
         <input
           type="checkbox"
-          aria-label={selectLabel}
+          aria-label={messages.actions.selectAll}
           checked={selected}
           onClick={(e) => e.stopPropagation()}
           onChange={onToggleSelect}

@@ -5,7 +5,7 @@ import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { Select } from "@/components/ui/form/inputs";
 import { Toolbar } from "@/components/ui/toolbar";
 import { messages } from "@/lib/messages";
-import { TODO_PRIORITIES, TODO_STATUSES } from "../schemas/todo-item";
+import { PROJECT_OR_ACTIVITY, TODO_PRIORITIES, TODO_STATUSES } from "../schemas/todo-item";
 
 /**
  * To-do toolbar: search + status filter + priority filter + view toggle.
@@ -73,6 +73,25 @@ export function TodoToolbar({ children }: { children?: React.ReactNode }) {
           {TODO_PRIORITIES.map((p) => (
             <option key={p} value={p}>
               {p}
+            </option>
+          ))}
+        </Select>
+      </label>
+
+      {/* Type filter (Project / Daily Activity / None) */}
+      <label>
+        <span className="sr-only">{messages.todoItems.projectOrActivity}</span>
+        <Select
+          name="projectOrActivity"
+          data-testid="filter-type"
+          value={searchParams.get("projectOrActivity") ?? ""}
+          onChange={(e) => update({ projectOrActivity: e.target.value || null })}
+          className="w-auto"
+        >
+          <option value="">{messages.todoItems.allTypes}</option>
+          {PROJECT_OR_ACTIVITY.map((t) => (
+            <option key={t} value={t}>
+              {t}
             </option>
           ))}
         </Select>

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { messages } from "@/lib/messages";
 import { REPEAT_UNITS } from "./todo-alert";
+import { rowVerSchema } from "./todo-alert";
 
 /**
  * TodoAlert form contract: ONE schema shared by the client alert
@@ -64,7 +65,7 @@ export type TodoAlertFormValues = z.output<typeof todoAlertFormSchema>;
 
 export const updateTodoAlertFormSchema = todoAlertFormSchema.extend({
   todoAlertId: z.coerce.number().int().positive(),
-  rowVer: z.coerce.number().int().nonnegative(),
+  rowVer: rowVerSchema,
 });
 
 export type UpdateTodoAlertFormValues = z.output<typeof updateTodoAlertFormSchema>;

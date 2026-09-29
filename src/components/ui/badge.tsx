@@ -1,76 +1,38 @@
+/**
+ * Badge — inline pill that colour-codes a status or priority value.
+ * Designed to be context-free: callers pass any string and the component
+ * picks a variant based on known vocabulary; unknowns fall back to neutral.
+ */
 
-/* Status/priority badges */
-
-import type { HTMLAttributes } from "react";
-
-type BadgeTone = "neutral" | "success" | "warning" | "danger" | "info";
-
-type BadgeProps = Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
-  value: string | null | undefined;
-  tone?: BadgeTone;
-  showDot?: boolean;
-  bordered?: boolean;
+const VARIANT_MAP: Record<string, string> = {
+  // Status
+  "Not Started": "bg-surface-raised border-line text-ink-muted",
+  "In Progress": "bg-blue-50 border-blue-200 text-blue-700",
+  "In Review": "bg-purple-50 border-purple-200 text-purple-700",
+  Completed: "bg-green-50 border-green-200 text-green-700",
+  Cancelled: "bg-surface-raised border-line text-ink-muted line-through",
+  // Priority
+  Critical: "bg-red-50 border-red-200 text-red-700",
+  High: "bg-orange-50 border-orange-200 text-orange-700",
+  Medium: "bg-amber-50 border-amber-200 text-amber-700",
+  Low: "bg-surface-raised border-line text-ink-muted",
+  // Type
+  Project: "bg-blue-50 border-blue-200 text-blue-700",
+  "Daily Activity": "bg-teal-50 border-teal-200 text-teal-700",
+  None: "bg-surface-raised border-line text-ink-muted",
 };
 
-const toneClasses: Record<
-  BadgeTone,
-  { text: string; dot: string }
-> = {
-  neutral: {
-    text: "text-ink-muted",
-    dot: "bg-ink-muted",
-  },
-  success: {
-    text: "text-success-700",
-    dot: "bg-success-600",
-  },
-  warning: {
-    text: "text-warning-700",
-    dot: "bg-warning-600",
-  },
-  danger: {
-    text: "text-danger-700",
-    dot: "bg-danger-600",
-  },
-  info: {
-    text: "text-info-700",
-    dot: "bg-info-600",
-  },
-};
+const DEFAULT_CLASS =
+  "bg-surface-raised border-line text-ink-muted";
 
-export function Badge({
-  value,
-  tone = "neutral",
-  showDot = true,
-  bordered = false,
-  className = "",
-  ...props
-}: BadgeProps) {
-  const label = value?.trim();
-
-  if (!label) return null;
-
-  const colors = toneClasses[tone];
-
+export function Badge({ value }: { value: string | null | undefined }) {
+  if (!value) return null;
+  const cls = VARIANT_MAP[value] ?? DEFAULT_CLASS;
   return (
     <span
-      {...props}
-      className={[
-        "inline-flex items-center gap-1.5 text-xs font-medium leading-5",
-        colors.text,
-        bordered && "rounded-full border border-line px-2 py-0.5",
-        className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}
     >
-      {showDot && (
-        <span
-          aria-hidden="true"
-          className={`size-1.5 shrink-0 rounded-full ${colors.dot}`}
-        />
-      )}
-      {label}
+      {value}
     </span>
   );
 }

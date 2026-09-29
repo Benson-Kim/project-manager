@@ -53,6 +53,23 @@ export function Skeleton({ className }: { className?: string }) {
   );
 }
 
+/**
+ * Convenience helper — returns the correct empty state for a list page.
+ * Uses the zero-result state when filters/search are active, otherwise the
+ * primary empty state with an optional create action.
+ */
+export function listEmptyState(
+  filtersActive: boolean,
+  emptyBody: string,
+  action?: React.ReactNode,
+) {
+  return filtersActive ? (
+    <EmptyState title={messages.list.zeroResultsTitle} body={messages.list.zeroResultsBody} />
+  ) : (
+    <EmptyState title={messages.list.emptyTitle} body={emptyBody} action={action} />
+  );
+}
+
 /** Standard list-page skeleton for loading.tsx templates. */
 export function ListSkeleton({ rows = 6 }: { rows?: number }) {
   return (

@@ -29,11 +29,15 @@ vi.mock("@/lib/db", () => ({
 
 import { AppError } from "@/lib/errors";
 import {
-  createTodoItemAction,
-  updateTodoItemAction,
-  deleteTodoItemAction,
+  buildTodoFromDailyActivityAction,
   createTodoAlertAction,
+  createTodoItemAction,
+  deleteTodoItemAction,
+  dismissTodoAlertAction,
+  reorderTodoItemAction,
+  snoozeTodoAlertAction,
   updateTodoAlertAction,
+  updateTodoItemAction,
 } from ".";
 
 function todoRow(overrides: Record<string, unknown> = {}) {
@@ -48,6 +52,7 @@ function todoRow(overrides: Record<string, unknown> = {}) {
     Priority: "High",
     Status: "Not Started",
     Notes: null,
+    SortKey: 4,
     CreatedAtUtc: new Date("2025-06-01T00:00:00Z"),
     UpdatedAtUtc: null,
     RowVer: "20",
@@ -182,6 +187,31 @@ describe("todo-items actions", () => {
     expect(proc).toBe("usp_TodoAlert_Create");
   });
 
+  it("reorderTodoItemAction succeeds for a PM", async () => {
+    execProc.mockResolvedValue([todoRow({ SortKey: 2 })]);
+    const result = await reorderTodoItemAction({ todoItemId: 4, newSortKey: 2, rowVer: 20 });
+    expect(result.ok).toBe(true);
+    const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(proc).toBe("usp_TodoItem_Reorder");
+    expect(params.NewSortKey).toBe(2);
+    expect(params.ActorUserId).toBe(7);
+  });
+
+  it("reorderTodoItemAction is FORBIDDEN for a Viewer", async () => {
+    session = { userId: 9, username: "viewer", role: "Viewer" };
+    const result = await reorderTodoItemAction({ todoItemId: 4, newSortKey: 2, rowVer: 20 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
+    expect(execProc).not.toHaveBeenCalled();
+  });
+
+  it("reorderTodoItemAction maps CONFLICT when RowVer stale", async () => {
+    execProc.mockRejectedValue(new AppError("CONFLICT", "TodoItem was modified"));
+    const result = await reorderTodoItemAction({ todoItemId: 4, newSortKey: 1, rowVer: 19 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("CONFLICT");
+  });
+
   it("updateTodoAlertAction maps CONFLICT", async () => {
     execProc.mockRejectedValue(new AppError("CONFLICT", "TodoAlert was modified"));
     const fd = new FormData();
@@ -192,5 +222,56 @@ describe("todo-items actions", () => {
     const result = await updateTodoAlertAction(fd);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("CONFLICT");
+  });
+
+  it("snoozeTodoAlertAction succeeds for a PM", async () => {
+    execProc.mockResolvedValue([alertRow({ SnoozeCount: 1 })]);
+    const result = await snoozeTodoAlertAction({ todoAlertId: 2, snoozeMinutes: 5, rowVer: 5 });
+    expect(result.ok).toBe(true);
+    const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(proc).toBe("usp_Todo_Snooze");
+    expect(params.SnoozeMinutes).toBe(5);
+    expect(params.ActorUserId).toBe(7);
+  });
+
+  it("snoozeTodoAlertAction is FORBIDDEN for a Viewer", async () => {
+    session = { userId: 9, username: "viewer", role: "Viewer" };
+    const result = await snoozeTodoAlertAction({ todoAlertId: 2, snoozeMinutes: 5, rowVer: 5 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
+    expect(execProc).not.toHaveBeenCalled();
+  });
+
+  it("dismissTodoAlertAction succeeds for a PM", async () => {
+    execProc.mockResolvedValue([alertRow({ IsDismissed: true })]);
+    const result = await dismissTodoAlertAction({ todoAlertId: 2, rowVer: 5 });
+    expect(result.ok).toBe(true);
+    const [proc] = execProc.mock.calls[0] as [string];
+    expect(proc).toBe("usp_Todo_Dismiss");
+  });
+
+  it("buildTodoFromDailyActivityAction succeeds for a PM", async () => {
+    execProc.mockResolvedValue([todoRow({ DailyActivityId: 5, ProjectOrActivity: "Daily Activity" })]);
+    const result = await buildTodoFromDailyActivityAction({ dailyActivityId: 5 });
+    expect(result.ok).toBe(true);
+    const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(proc).toBe("usp_Todo_BuildFromDailyActivity");
+    expect(params.DailyActivityId).toBe(5);
+    expect(params.ActorUserId).toBe(7);
+  });
+
+  it("buildTodoFromDailyActivityAction is FORBIDDEN for a Viewer", async () => {
+    session = { userId: 9, username: "viewer", role: "Viewer" };
+    const result = await buildTodoFromDailyActivityAction({ dailyActivityId: 5 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
+    expect(execProc).not.toHaveBeenCalled();
+  });
+
+  it("buildTodoFromDailyActivityAction maps DUPLICATE to a VALIDATION error", async () => {
+    execProc.mockRejectedValue(new AppError("DUPLICATE", "A to-do item already exists for this activity"));
+    const result = await buildTodoFromDailyActivityAction({ dailyActivityId: 5 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("DUPLICATE");
   });
 });
