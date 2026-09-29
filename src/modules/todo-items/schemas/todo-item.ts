@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { rowVerSchema } from "./todo-alert";
+import { alertTimeSchema, rowVerSchema } from "./todo-alert";
 
 /**
  * TodoItem (app.TodoItem ← tblTodoList core columns) — zod contracts.
@@ -142,7 +142,7 @@ export const upcomingAlertRowSchema = z.object({
   AlertType: z.string(),
   TodoAlertId: z.number().int().nullable(),
   AlertDay: z.date().nullable(),
-  AlertTime: z.string().nullable(),
+  AlertTime: alertTimeSchema,
   SnoozeCount: z.number().int().nullable(),
   MaxSnoozeCount: z.number().int().nullable(),
   IsDismissed: z.boolean().nullable(),
@@ -150,3 +150,22 @@ export const upcomingAlertRowSchema = z.object({
 });
 
 export type UpcomingAlertRow = z.infer<typeof upcomingAlertRowSchema>;
+
+/**
+ * Slim row returned by usp_Todo_GetDueAlerts (the 60-s alert poller).
+ * Only carries what the browser notification needs: the title and the IDs
+ * required to dismiss/snooze.
+ */
+export const dueAlertRowSchema = z.object({
+  TodoAlertId: z.number().int(),
+  TodoItemId: z.number().int(),
+  TodoItem: z.string().nullable(),
+  AlertDay: z.date().nullable(),
+  AlertTime: alertTimeSchema,
+  SnoozeCount: z.number().int().nullable(),
+  MaxSnoozeCount: z.number().int().nullable(),
+  IsDismissed: z.boolean(),
+  RowVer: rowVerSchema,
+});
+
+export type DueAlertRow = z.infer<typeof dueAlertRowSchema>;

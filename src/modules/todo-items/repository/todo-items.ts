@@ -3,6 +3,7 @@ import { AppError } from "@/lib/errors";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
 import {
   createTodoItemInput,
+  dueAlertRowSchema,
   reorderTodoItemInput,
   todoItemListRowSchema,
   todoItemRowSchema,
@@ -10,6 +11,7 @@ import {
   upcomingAlertRowSchema,
   type CreateTodoItemInput,
   type CreateTodoItemParsed,
+  type DueAlertRow,
   type ReorderTodoItemInput,
   type TodoItemListRow,
   type TodoItemRow,
@@ -140,6 +142,18 @@ export async function getUpcomingAlertRows(actorUserId: number): Promise<Upcomin
     ActorUserId: actorUserId,
   });
   return rows.map((r) => upcomingAlertRowSchema.parse(r));
+}
+
+/**
+ * Returns alerts whose AlertDay = today (UTC) and AlertTime <= now (UTC).
+ * Used by the 60-second client poller to fire browser notifications.
+ * Reuses the UpcomingAlertRow shape — proc returns the same columns.
+ */
+export async function getDueAlerts(actorUserId: number): Promise<DueAlertRow[]> {
+  const rows = await execProc<DueAlertRow>("usp_Todo_GetDueAlerts", {
+    ActorUserId: actorUserId,
+  });
+  return rows.map((r) => dueAlertRowSchema.parse(r));
 }
 
 /**
