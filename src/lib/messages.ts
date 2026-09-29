@@ -391,6 +391,18 @@ export const messages = {
     assignedTo: "Assigned to",
     allCategories: "All categories",
     allPriorities: "All priorities",
+    categoryLabels: {
+      General: "General",
+      Technical: "Technical",
+      Budget: "Budget",
+      Other: "Other",
+    },
+    priorityLabels: {
+      Critical: "Critical",
+      High: "High",
+      Medium: "Medium",
+      Low: "Low",
+    },
     emptyBody: "Add the first question for this project.",
     reload: "Reload",
   },

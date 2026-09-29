@@ -16,6 +16,13 @@ export interface ProjectSection {
   match: "exact" | "prefix";
 }
 
+/** A named group of sections shown as a collapsible disclosure in the nav. */
+export interface ProjectSectionGroup {
+  key: string;
+  label: string;
+  sections: ProjectSection[];
+}
+
 export const projectSections: ProjectSection[] = [
   { segment: ".", label: messages.projects.charterSection, match: "exact" },
   { segment: "objectives", label: messages.projects.objectivesSection, match: "prefix" },
@@ -26,6 +33,36 @@ export const projectSections: ProjectSection[] = [
   { segment: "todos", label: messages.projects.todosSection, match: "prefix" },
   { segment: "keywords", label: messages.projects.keywordsSection, match: "prefix" },
   { segment: "questions-answers", label: messages.projects.questionsAnswersSection, match: "prefix" },
+];
+
+/** Sections grouped for the disclosure nav (ADR-0018). */
+export const projectSectionGroups: ProjectSectionGroup[] = [
+  {
+    key: "overview",
+    label: messages.projects.charterSection,
+    sections: projectSections.filter((s) => s.segment === "."),
+  },
+  {
+    key: "planning",
+    label: messages.planning.title,
+    sections: projectSections.filter((s) =>
+      ["objectives", "deliverables", "questions-answers"].includes(s.segment),
+    ),
+  },
+  {
+    key: "people",
+    label: messages.people.title,
+    sections: projectSections.filter((s) =>
+      ["stakeholders", "suppliers"].includes(s.segment),
+    ),
+  },
+  {
+    key: "activity",
+    label: messages.activity.title,
+    sections: projectSections.filter((s) =>
+      ["daily-activities", "todos", "keywords"].includes(s.segment),
+    ),
+  },
 ];
 
 export function sectionHref(projectId: number, section: ProjectSection): string {
@@ -43,4 +80,17 @@ export function isCurrentSection(
   const path = pathname.replace(/\/+$/, "") || "/";
   if (section.match === "exact") return path === href;
   return path === href || path.startsWith(`${href}/`);
+}
+
+/**
+ * Returns true when any section in the group is the current route.
+ * Used by the disclosure nav to keep a group open when one of its sections
+ * is active.
+ */
+export function isGroupActive(
+  pathname: string,
+  projectId: number,
+  group: ProjectSectionGroup,
+): boolean {
+  return group.sections.some((s) => isCurrentSection(pathname, projectId, s));
 }

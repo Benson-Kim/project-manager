@@ -19,7 +19,7 @@ function dateRange(row: ProjectListRow): string {
   const start = formatDate(row.StartDate);
   const end = formatDate(row.EndDate);
   if (start && end) return `${start} to ${end}`;
-  return start || end;
+  return start ?? end ?? "";
 }
 
 function StatusBadge({ value }: { value: string | null }) {

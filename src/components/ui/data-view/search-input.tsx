@@ -18,11 +18,13 @@ export function SearchInput({
   const { searchParams, update } = useListUrlState();
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Sync controlled value if the URL param changes externally (e.g. clear-filters).
-  useEffect(() => {
+  // Sync controlled value when URL param changes externally (e.g. clear-filters).
+  // React-recommended setState-during-render pattern (avoids cascading renders).
+  const [prevSearchParams, setPrevSearchParams] = useState(searchParams);
+  if (prevSearchParams !== searchParams) {
+    setPrevSearchParams(searchParams);
     setQuery(searchParams.get("q") ?? "");
-  }, [searchParams]);
+  }
 
   useEffect(() => () => clearTimeout(debounceRef.current ?? undefined), []);
 
