@@ -58,7 +58,11 @@ export default async function SuppliersPage({
     getViewPreference(session.userId, "suppliers").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? getSupplierById(selectedId, session.userId, session.role).catch((err) => {
-          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
+          if (
+            err instanceof AppError &&
+            (err.code === "NOT_FOUND" || err.code === "FORBIDDEN_ROW")
+          )
+            return null;
           throw err;
         })
       : Promise.resolve(null),

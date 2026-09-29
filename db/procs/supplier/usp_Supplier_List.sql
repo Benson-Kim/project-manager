@@ -43,19 +43,21 @@ BEGIN
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer,
            TotalCount = COUNT(*) OVER ()
-    FROM app.Supplier
-    WHERE IsDeleted = 0
-      AND (@ProjectId IS NULL OR ProjectId = @ProjectId)
-      AND (@Rating IS NULL OR [Rating] = @Rating)
-      AND (@Search IS NULL OR [SupplierName] LIKE N'%' + @Search + N'%'
-           OR [ContactPerson] LIKE N'%' + @Search + N'%'
-           OR [City] LIKE N'%' + @Search + N'%')
+    FROM app.Supplier s
+    WHERE s.IsDeleted = 0
+      AND (@ProjectId IS NULL OR s.ProjectId = @ProjectId)
+      AND (@Rating IS NULL OR s.[Rating] = @Rating)
+      AND (@Search IS NULL OR s.[SupplierName] LIKE N'%' + @Search + N'%'
+           OR s.[ContactPerson] LIKE N'%' + @Search + N'%'
+           OR s.[City] LIKE N'%' + @Search + N'%')
       -- Actor project-scope: restrict to projects the actor is assigned to (Admins bypass).
+      -- pa.ProjectId is compared to the outer s.ProjectId — the alias prevents the
+      -- ambiguous self-join that made this predicate always true (P1 fix).
       AND (
           ISNULL(@ActorRole, '') = N'Admin'
           OR EXISTS (
               SELECT 1 FROM app.ProjectAssignee pa
-              WHERE pa.ProjectId = ProjectId
+              WHERE pa.ProjectId = s.ProjectId
                 AND pa.UserId    = @ActorUserId
                 AND pa.IsDeleted = 0
           )
