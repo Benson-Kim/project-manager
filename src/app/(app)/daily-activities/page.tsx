@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
 import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
@@ -19,7 +18,7 @@ export const metadata: Metadata = {
 };
 
 /**
- * Global daily activities page (top-level nav, /daily-activities): cross-project
+ * Global daily activities page (top-level nav, /daily-activities): Header applied in the navbar. cross-project
  * view of all activities for the current user. Creation requires a project —
  * the sheet opens read-only (canEdit=false, canDelete=false). Filter params
  * (@ActivityStatusId, @TaskType) forwarded server-side per module gap closure (#19).
@@ -64,7 +63,6 @@ export default async function GlobalDailyActivitiesPage({
 
   return (
     <>
-      <PageHeader title={messages.dailyActivities.title} />
       <div className="mt-3 flex flex-col flex-1">
         <DailyActivitiesView
           rows={rows}
