@@ -67,7 +67,7 @@ export function StakeholdersView({
   filtersActive: boolean;
   newStakeholderAction?: React.ReactNode;
 }) {
-  const { update } = useListUrlState();
+  const { update, searchParams } = useListUrlState();
 
   return (
     <DataView
@@ -78,7 +78,9 @@ export function StakeholdersView({
       initialView={initialView}
       getRowId={(row) => row.StakeholderId}
       getRowLabel={(row) => fullName(row)}
-      onOpen={(row) => update({ id: String(row.StakeholderId) })}
+      onOpen={(row) =>
+        update({ id: String(row.StakeholderId), page: searchParams.get("page") ?? null })
+      }
       renderToolbar={(viewToggle) => (
         <StakeholdersToolbar>{viewToggle}</StakeholdersToolbar>
       )}
