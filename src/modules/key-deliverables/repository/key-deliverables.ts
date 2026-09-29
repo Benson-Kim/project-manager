@@ -102,9 +102,10 @@ export async function deleteKeyDeliverable(
 
 /**
  * Gantt data (usp_KeyDeliverable_GanttData): map rows to drawable bars.
- * Start = CreatedAtUtc (no explicit StartDate column — module #9 decision),
- * clamped to the deadline when the row was created after it (imported data);
- * rows without a deadline are not drawable and are skipped.
+ * Bar start = ProjectStartDate when available (the intended chart-window basis
+ * returned by the procedure), falling back to CreatedAtUtc clamped to the
+ * deadline so imported rows with a past deadline never produce start > end.
+ * Rows without a deadline are not drawable and are skipped.
  */
 export async function getGanttBars(
   projectId: number,
@@ -118,14 +119,26 @@ export async function getGanttBars(
   return rows
     .map((r) => ganttRowSchema.parse(r))
     .filter((r): r is GanttRow & { Deadline: Date } => r.Deadline !== null)
-    .map((r) => ({
-      id: r.KeyDeliverableId,
-      requirement: r.KeyRequirement ?? "",
-      start: r.CreatedAtUtc.getTime() <= r.Deadline.getTime() ? r.CreatedAtUtc : r.Deadline,
-      end: r.Deadline,
-      status: r.Status,
-      priority: r.Priority,
-      assignedToName: r.AssignedToName?.trim() ? r.AssignedToName.trim() : null,
-      overdue: isOverdue(r.Deadline, r.Status, now),
-    }));
+    .map((r) => {
+      // Prefer the project's StartDate as the bar origin so that historical
+      // (imported) deadlines produce meaningful durations rather than
+      // zero-width markers caused by CreatedAtUtc > Deadline.
+      const projectStart = r.ProjectStartDate;
+      const fallback =
+        r.CreatedAtUtc.getTime() <= r.Deadline.getTime() ? r.CreatedAtUtc : r.Deadline;
+      const start =
+        projectStart !== null && projectStart.getTime() <= r.Deadline.getTime()
+          ? projectStart
+          : fallback;
+      return {
+        id: r.KeyDeliverableId,
+        requirement: r.KeyRequirement ?? "",
+        start,
+        end: r.Deadline,
+        status: r.Status,
+        priority: r.Priority,
+        assignedToName: r.AssignedToName?.trim() ? r.AssignedToName.trim() : null,
+        overdue: isOverdue(r.Deadline, r.Status, now),
+      };
+    });
 }
