@@ -14,6 +14,7 @@ import {
   getDailyActivityById,
   listActivityStatuses,
   listDailyActivities,
+  type DailyActivityListFilters,
 } from "@/modules/daily-activities/repository/daily-activities";
 import { buildNewEntityHref } from "../entity-page-helpers";
 import { parseProjectId } from "../project-id";
@@ -52,8 +53,13 @@ export default async function DailyActivitiesPage({
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
+  const filters: DailyActivityListFilters = {
+    activityStatusId: flat.statusId ? Number(flat.statusId) : null,
+    taskType: flat.taskType ?? null,
+  };
+
   const [rows, preferredView, statuses, selectedRaw] = await Promise.all([
-    listDailyActivities(effectiveParams, session.userId, projectId),
+    listDailyActivities(effectiveParams, session.userId, projectId, undefined, filters),
     getViewPreference(session.userId, "daily-activities").catch(() => null),
     listActivityStatuses(),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
@@ -71,7 +77,8 @@ export default async function DailyActivitiesPage({
   const canCreate = can(session.role, "daily-activities:create");
   const canEdit = can(session.role, "daily-activities:update");
   const canDelete = can(session.role, "daily-activities:delete");
-  const filtersActive = Boolean(effectiveParams.q ?? flat.statusId ?? flat.taskType);
+  const canCreateTodo = can(session.role, "todo-items:create");
+  const filtersActive = Boolean(effectiveParams.q || flat.statusId || flat.taskType);
 
   const newActivityLink = (
     <Link
@@ -107,6 +114,7 @@ export default async function DailyActivitiesPage({
         statuses={statuses}
         canEdit={canEdit}
         canDelete={canDelete}
+        canCreateTodo={canCreateTodo}
       />
     </>
   );

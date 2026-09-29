@@ -88,6 +88,8 @@ describe("daily-activities repository", () => {
       SortDir: "asc",
       Page: 1,
       PageSize: 25,
+      ActivityStatusId: null,
+      TaskType: null,
     });
   });
 
@@ -96,6 +98,26 @@ describe("daily-activities repository", () => {
     await listDailyActivities(listParamsSchema.parse({}), 7, null);
     const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(params.ProjectId).toBeNull();
+  });
+
+  it("list forwards activityStatusId and taskType filter params to the proc", async () => {
+    execProc.mockResolvedValue([dbRow({ TotalCount: 1 })]);
+    await listDailyActivities(listParamsSchema.parse({}), 7, 3, 25, {
+      activityStatusId: 2,
+      taskType: "Technical",
+    });
+    const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(proc).toBe("usp_DailyActivity_List");
+    expect(params.ActivityStatusId).toBe(2);
+    expect(params.TaskType).toBe("Technical");
+  });
+
+  it("list sends null filter params when filters object is omitted", async () => {
+    execProc.mockResolvedValue([dbRow({ TotalCount: 1 })]);
+    await listDailyActivities(listParamsSchema.parse({}), 7, 3);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params.ActivityStatusId).toBeNull();
+    expect(params.TaskType).toBeNull();
   });
 
   it("list rejects contract-breaking rows", async () => {

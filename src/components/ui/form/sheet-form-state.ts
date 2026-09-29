@@ -3,7 +3,7 @@
  * DOM-free — testable in vitest node env. The "use client" hook in
  * use-sheet-form-actions.ts wires these to React state + context.
  */
-import type { ActionResult, ActionErrorCode } from "@/lib/action";
+import type { ActionResult } from "@/lib/action";
 
 export interface SheetFormStateConfig {
   onSuccess: () => void;

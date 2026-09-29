@@ -7,11 +7,13 @@ vi.mock("@/lib/db", () => ({
 
 import { listParamsSchema } from "@/lib/list-params";
 import {
+  buildTodoFromDailyActivity,
   createTodoItem,
   deleteTodoItem,
   getTodoItemById,
   getUpcomingAlertRows,
   listTodoItems,
+  reorderTodoItem,
   updateTodoItem,
 } from "./todo-items";
 
@@ -27,6 +29,7 @@ function dbRow(overrides: Record<string, unknown> = {}) {
     Priority: "High",
     Status: "Not Started",
     Notes: null,
+    SortKey: 4,
     CreatedAtUtc: new Date("2025-06-01T00:00:00Z"),
     UpdatedAtUtc: null,
     RowVer: "20",
@@ -87,6 +90,9 @@ describe("todo-items repository", () => {
       SortDir: "asc",
       Page: 1,
       PageSize: 25,
+      Status: null,
+      Priority: null,
+      ProjectOrActivity: null,
     });
   });
 
@@ -95,6 +101,29 @@ describe("todo-items repository", () => {
     await listTodoItems(listParamsSchema.parse({}), 7, null);
     const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(params.ProjectId).toBeNull();
+  });
+
+  it("list forwards status and priority filter params to the proc", async () => {
+    execProc.mockResolvedValue([dbRow({ TotalCount: 1 })]);
+    await listTodoItems(listParamsSchema.parse({}), 7, 3, 25, {
+      status: "In Progress",
+      priority: "High",
+      projectOrActivity: "Project",
+    });
+    const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(proc).toBe("usp_TodoItem_List");
+    expect(params.Status).toBe("In Progress");
+    expect(params.Priority).toBe("High");
+    expect(params.ProjectOrActivity).toBe("Project");
+  });
+
+  it("list sends null filter params when filters object is empty", async () => {
+    execProc.mockResolvedValue([dbRow({ TotalCount: 1 })]);
+    await listTodoItems(listParamsSchema.parse({}), 7, 3);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params.Status).toBeNull();
+    expect(params.Priority).toBeNull();
+    expect(params.ProjectOrActivity).toBeNull();
   });
 
   it("list rejects contract-breaking rows", async () => {
@@ -123,6 +152,23 @@ describe("todo-items repository", () => {
     expect(params.RowVer).toBe(20);
   });
 
+  it("reorderTodoItem calls usp_TodoItem_Reorder and parses the returned row", async () => {
+    execProc.mockResolvedValue([dbRow({ SortKey: 2 })]);
+    const row = await reorderTodoItem({ todoItemId: 4, newSortKey: 2, rowVer: 20 }, 7);
+    expect(row.SortKey).toBe(2);
+    const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(proc).toBe("usp_TodoItem_Reorder");
+    expect(params.TodoItemId).toBe(4);
+    expect(params.NewSortKey).toBe(2);
+    expect(params.RowVer).toBe(20);
+    expect(params.ActorUserId).toBe(7);
+  });
+
+  it("reorderTodoItem throws NOT_FOUND when proc returns no row", async () => {
+    execProc.mockResolvedValue([]);
+    await expect(reorderTodoItem({ todoItemId: 99, newSortKey: 1, rowVer: 1 }, 7)).rejects.toThrow();
+  });
+
   it("getUpcomingAlertRows parses upcoming alert rows", async () => {
     execProc.mockResolvedValue([
       {
@@ -145,5 +191,21 @@ describe("todo-items repository", () => {
     expect(alerts).toHaveLength(1);
     expect(alerts[0].AlertType).toBe("Overdue");
     expect(execProc).toHaveBeenCalledWith("usp_Todo_GetUpcomingAlerts", { ActorUserId: 7 });
+  });
+
+  it("buildTodoFromDailyActivity calls usp_Todo_BuildFromDailyActivity and parses the row", async () => {
+    execProc.mockResolvedValue([dbRow({ DailyActivityId: 5, ProjectOrActivity: "Daily Activity" })]);
+    const row = await buildTodoFromDailyActivity(5, 7);
+    expect(row.DailyActivityId).toBe(5);
+    expect(row.ProjectOrActivity).toBe("Daily Activity");
+    const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(proc).toBe("usp_Todo_BuildFromDailyActivity");
+    expect(params.DailyActivityId).toBe(5);
+    expect(params.ActorUserId).toBe(7);
+  });
+
+  it("buildTodoFromDailyActivity throws NOT_FOUND when proc returns no row", async () => {
+    execProc.mockResolvedValue([]);
+    await expect(buildTodoFromDailyActivity(99, 7)).rejects.toThrow();
   });
 });

@@ -1,14 +1,20 @@
 "use client";
 
+import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+
+import { useAnnouncer } from "@/components/ui/announcer";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Sheet } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { Input, Textarea } from "@/components/ui/form/inputs";
-import { useSheetFormActions } from "@/components/ui/form/use-sheet-form-actions";
+import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
+
+import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
 import { type KeywordRow } from "../schemas/keyword";
 import { keywordFormSchema, updateKeywordFormSchema } from "../schemas/keyword-form";
@@ -32,30 +38,96 @@ export function KeywordSheet({
   canEdit: boolean;
   canDelete: boolean;
 }) {
+  const router = useRouter();
   const { update } = useListUrlState();
+  const { toast } = useToast();
+  const { announce } = useAnnouncer();
   const schema = keyword ? updateKeywordFormSchema : keywordFormSchema;
   const form = useZodForm(schema);
+  const [pending, startTransition] = useTransition();
+  const [summary, setSummary] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [showUnsaved, setShowUnsaved] = useState(false);
+  const pendingNavRef = useRef<(() => void) | null>(null);
+  useUnsavedChangesGuard(isDirty);
 
-  const close = () => update({ id: null });
+  // Intercept same-document navigations (e.g. browser Back) when form is dirty (C11-7).
+  useEffect(() => {
+    function handleBeforeNavigate(e: Event) {
+      if (!isDirty) return;
+      e.preventDefault();
+      const resume = (e as CustomEvent<{ resume: () => void }>).detail.resume;
+      pendingNavRef.current = resume;
+      setShowUnsaved(true);
+    }
+    window.addEventListener("before-navigate", handleBeforeNavigate);
+    return () => window.removeEventListener("before-navigate", handleBeforeNavigate);
+  }, [isDirty]);
 
-  const { pending, summary, conflict, confirmDelete, setConfirmDelete, onSubmit, onDelete } =
-    useSheetFormActions({
-      isEdit: keyword !== null,
-      onSuccess: close,
-      form,
-      createAction: createKeywordAction,
-      updateAction: updateKeywordAction,
-      deleteAction: ({ keywordId, rowVer }: { keywordId: number; rowVer: number }) =>
-        deleteKeywordAction({ keywordId, rowVer }),
+  const close = () => { setIsDirty(false); setShowUnsaved(false); update({ id: null }); };
+
+  const discardAndNavigate = () => {
+    const resume = pendingNavRef.current;
+    pendingNavRef.current = null;
+    close();
+    resume?.();
+  };
+
+  const requestClose = () => {
+    if (isDirty) { setShowUnsaved(true); } else { close(); }
+  };
+
+  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formEl = e.currentTarget;
+    if (!form.validate(formEl)) { setSummary(messages.errors.summaryTitle); return; }
+    setSummary(null);
+    setConflict(false);
+    const data = new FormData(formEl);
+    startTransition(async () => {
+      const result = keyword
+        ? await updateKeywordAction(data)
+        : await createKeywordAction(data);
+      if (result.ok) {
+        toast({ variant: "success", title: keyword ? messages.feedback.saved : messages.feedback.created });
+        announce(keyword ? messages.feedback.saved : messages.feedback.created);
+        close();
+        router.refresh();
+      } else {
+        form.applyResult(result);
+        setSummary(result.error.message);
+        if (result.error.code === "CONFLICT") setConflict(true);
+      }
     });
+  };
+
+  const onDelete = () => {
+    if (!keyword) return;
+    startTransition(async () => {
+      const result = await deleteKeywordAction({ keywordId: keyword.KeywordId, rowVer: keyword.RowVer });
+      setConfirmDelete(false);
+      if (result.ok) {
+        toast({ variant: "success", title: messages.feedback.deleted });
+        announce(messages.feedback.deleted);
+        close();
+        router.refresh();
+      } else {
+        setSummary(result.error.message);
+        if (result.error.code === "CONFLICT") setConflict(true);
+      }
+    });
+  };
 
   const open = isNew || keyword !== null;
 
   return (
+    <>
     <Sheet
       open={open}
       onOpenChange={(next) => {
-        if (!next) close();
+        if (!next) requestClose();
       }}
       title={keyword ? keyword.Keyword : messages.keywords.newKeyword}
     >
@@ -82,7 +154,7 @@ export function KeywordSheet({
           </>
         ) : null}
 
-        <fieldset disabled={!canEdit} className="flex flex-col gap-5">
+        <fieldset disabled={!canEdit} className="flex flex-col gap-5" onChange={() => setIsDirty(true)}>
           <Field
             label={messages.keywords.keyword}
             name="keyword"
@@ -90,7 +162,11 @@ export function KeywordSheet({
           >
             <Input name="keyword" defaultValue={keyword?.Keyword ?? ""} />
           </Field>
-          <Field label={messages.keywords.definition} name="definition">
+          <Field
+            label={messages.keywords.definition}
+            name="definition"
+            errors={form.errors.definition}
+          >
             <Textarea name="definition" rows={3} defaultValue={keyword?.Definition ?? ""} />
           </Field>
         </fieldset>
@@ -101,7 +177,7 @@ export function KeywordSheet({
               {messages.actions.save}
             </Button>
           ) : null}
-          <Button type="button" variant="secondary" onClick={close}>
+          <Button type="button" variant="secondary" onClick={requestClose}>
             {messages.actions.cancel}
           </Button>
           {keyword && canDelete ? (
@@ -124,10 +200,20 @@ export function KeywordSheet({
           title={messages.confirmDelete.title(messages.keywords.entity, keyword.Keyword)}
           body={messages.confirmDelete.body}
           confirmLabel={messages.actions.delete}
-          onConfirm={() => onDelete({ keywordId: keyword.KeywordId, rowVer: keyword.RowVer })}
+          onConfirm={onDelete}
           pending={pending}
         />
       ) : null}
     </Sheet>
+    <ConfirmDialog
+      open={showUnsaved}
+      onOpenChange={setShowUnsaved}
+      title={messages.feedback.unsavedChangesTitle}
+      body={messages.feedback.unsavedChangesBody}
+      confirmLabel={messages.feedback.discard}
+      onConfirm={discardAndNavigate}
+      pending={false}
+    />
+    </>
   );
 }

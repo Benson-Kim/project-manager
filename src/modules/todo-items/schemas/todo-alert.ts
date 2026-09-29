@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { rowVerSchema } from "@/modules/projects/schemas/project";
+
+/**
+ * Shared rowVer schema — bigint from SQL ROWVERSION cast to BIGINT, returned as
+ * a numeric string by mssql; coerced to number for transport.
+ */
+export const rowVerSchema = z.union([z.string(), z.number()]).transform((v) => Number(v));
 
 /**
  * TodoAlert (app.TodoAlert ← tblTodoList alert columns, 1:1 with TodoItem) — zod contracts.

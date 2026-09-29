@@ -14,6 +14,12 @@ import {
   type UpdateDailyActivityInput,
 } from "../schemas/daily-activity";
 
+/** Module-specific filter params forwarded to usp_DailyActivity_List. */
+export interface DailyActivityListFilters {
+  activityStatusId?: number | null;
+  taskType?: string | null;
+}
+
 export type { ActivityStatus } from "@/lib/repositories/activity-status";
 export { listActivityStatuses };
 
@@ -71,11 +77,14 @@ export async function listDailyActivities(
   actorUserId: number,
   projectId: number | null = null,
   pageSize: number = DEFAULT_PAGE_SIZE,
+  filters: DailyActivityListFilters = {},
 ): Promise<DailyActivityListRow[]> {
   const rows = await execProc<DailyActivityListRow>("usp_DailyActivity_List", {
     ActorUserId: actorUserId,
     ProjectId: projectId,
     ...toProcListParams(params, pageSize),
+    ActivityStatusId: filters.activityStatusId ?? null,
+    TaskType: filters.taskType ?? null,
   });
   return rows.map((r) => dailyActivityListRowSchema.parse(r));
 }

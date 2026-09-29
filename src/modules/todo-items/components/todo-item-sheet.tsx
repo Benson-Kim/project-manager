@@ -21,6 +21,8 @@ import {
   createTodoAlertAction,
   deleteTodoAlertAction,
   deleteTodoItemAction,
+  dismissTodoAlertAction,
+  snoozeTodoAlertAction,
   updateTodoAlertAction,
   updateTodoItemAction,
 } from "../actions";
@@ -72,6 +74,7 @@ export function TodoItemSheet({
   const alertForm = useZodForm(alertSchema);
   const [itemPending, startItemTransition] = useTransition();
   const [alertPending, startAlertTransition] = useTransition();
+  const [snoozePending, startSnoozeTransition] = useTransition();
   const [itemSummary, setItemSummary] = useState<string | null>(null);
   const [alertSummary, setAlertSummary] = useState<string | null>(null);
   const [itemConflict, setItemConflict] = useState(false);
@@ -155,6 +158,41 @@ export function TodoItemSheet({
         setAlertOpen(false);
         toast({ variant: "success", title: messages.feedback.deleted });
         announce(messages.feedback.deleted);
+        router.refresh();
+      } else {
+        setAlertSummary(result.error.message);
+      }
+    });
+  };
+
+  const onSnooze = (minutes: number) => {
+    if (!todoAlert) return;
+    startSnoozeTransition(async () => {
+      const result = await snoozeTodoAlertAction({
+        todoAlertId: todoAlert.TodoAlertId,
+        snoozeMinutes: minutes,
+        rowVer: todoAlert.RowVer,
+      });
+      if (result.ok) {
+        toast({ variant: "success", title: messages.todoItems.snoozed });
+        announce(messages.todoItems.snoozed);
+        router.refresh();
+      } else {
+        setAlertSummary(result.error.message);
+      }
+    });
+  };
+
+  const onDismiss = () => {
+    if (!todoAlert) return;
+    startSnoozeTransition(async () => {
+      const result = await dismissTodoAlertAction({
+        todoAlertId: todoAlert.TodoAlertId,
+        rowVer: todoAlert.RowVer,
+      });
+      if (result.ok) {
+        toast({ variant: "success", title: messages.todoItems.dismissed });
+        announce(messages.todoItems.dismissed);
         router.refresh();
       } else {
         setAlertSummary(result.error.message);
@@ -342,6 +380,36 @@ export function TodoItemSheet({
               ) : null
             )}
           </div>
+          {/* Snooze / dismiss row — only shown when a saved alert exists */}
+          {todoAlert && !todoAlert.IsDismissed ? (
+            <div className="flex flex-wrap items-center gap-2 px-4">
+              {(todoAlert.SnoozeOptions ?? "5,10,15")
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean)
+                .map((mins) => (
+                  <Button
+                    key={mins}
+                    type="button"
+                    variant="secondary"
+                    pending={snoozePending}
+                    data-testid={`snooze-${mins}`}
+                    onClick={() => onSnooze(Number(mins))}
+                  >
+                    {messages.todoItems.snoozeMinutes(mins)}
+                  </Button>
+                ))}
+              <Button
+                type="button"
+                variant="secondary"
+                pending={snoozePending}
+                data-testid="dismiss-alert"
+                onClick={onDismiss}
+              >
+                {messages.todoItems.dismiss}
+              </Button>
+            </div>
+          ) : null}
           {alertOpen ? (
             <form
               noValidate

@@ -8,7 +8,10 @@ vi.mock("@/lib/db", () => ({
 import {
   createTodoAlert,
   deleteTodoAlert,
+  dismissTodoAlert,
   getTodoAlertById,
+  getTodoAlertByTodoItemId,
+  snoozeTodoAlert,
   updateTodoAlert,
 } from "./todo-alerts";
 
@@ -89,5 +92,50 @@ describe("todo-alerts repository", () => {
     expect(proc).toBe("usp_TodoAlert_Delete");
     expect(params.TodoAlertId).toBe(2);
     expect(params.RowVer).toBe(5);
+  });
+
+  it("getTodoAlertByTodoItemId returns null when no alert exists", async () => {
+    execProc.mockResolvedValue([]);
+    const result = await getTodoAlertByTodoItemId(99, 7);
+    expect(result).toBeNull();
+    const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(proc).toBe("usp_TodoAlert_List");
+    expect(params.TodoItemId).toBe(99);
+  });
+
+  it("getTodoAlertByTodoItemId returns the alert row when one exists", async () => {
+    execProc.mockResolvedValue([{ ...alertRow(), TotalCount: 1 }]);
+    const result = await getTodoAlertByTodoItemId(4, 7);
+    expect(result).not.toBeNull();
+    expect(result?.TodoAlertId).toBe(2);
+  });
+
+  it("snoozeTodoAlert calls usp_Todo_Snooze and parses the updated row", async () => {
+    const snoozedRow = { ...alertRow(), SnoozeCount: 1 };
+    execProc.mockResolvedValue([snoozedRow]);
+    const row = await snoozeTodoAlert({ todoAlertId: 2, snoozeMinutes: 5, rowVer: 5 }, 7);
+    expect(row.SnoozeCount).toBe(1);
+    const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(proc).toBe("usp_Todo_Snooze");
+    expect(params.TodoAlertId).toBe(2);
+    expect(params.SnoozeMinutes).toBe(5);
+    expect(params.RowVer).toBe(5);
+    expect(params.ActorUserId).toBe(7);
+  });
+
+  it("snoozeTodoAlert rejects snoozeMinutes = 0 (below minimum)", async () => {
+    await expect(snoozeTodoAlert({ todoAlertId: 2, snoozeMinutes: 0, rowVer: 5 }, 7)).rejects.toThrow();
+    expect(execProc).not.toHaveBeenCalled();
+  });
+
+  it("dismissTodoAlert calls usp_Todo_Dismiss and parses the updated row", async () => {
+    execProc.mockResolvedValue([{ ...alertRow(), IsDismissed: true }]);
+    const row = await dismissTodoAlert({ todoAlertId: 2, rowVer: 5 }, 7);
+    expect(row.IsDismissed).toBe(true);
+    const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(proc).toBe("usp_Todo_Dismiss");
+    expect(params.TodoAlertId).toBe(2);
+    expect(params.RowVer).toBe(5);
+    expect(params.ActorUserId).toBe(7);
   });
 });

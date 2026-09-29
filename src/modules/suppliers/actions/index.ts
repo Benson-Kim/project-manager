@@ -15,7 +15,7 @@ export const createSupplierAction = action({
   name: "suppliers.create",
   schema: supplierFormSchema,
   permission: "suppliers:create",
-  handler: (input, ctx) => createSupplier(input, ctx.session.userId),
+  handler: (input, ctx) => createSupplier(input, ctx.session.userId, ctx.session.role),
 });
 
 /** Update a supplier (RBAC suppliers:update — Admin + PM; audited in-proc). */
@@ -23,7 +23,7 @@ export const updateSupplierAction = action({
   name: "suppliers.update",
   schema: updateSupplierFormSchema,
   permission: "suppliers:update",
-  handler: (input, ctx) => updateSupplier(input, ctx.session.userId),
+  handler: (input, ctx) => updateSupplier(input, ctx.session.userId, ctx.session.role),
 });
 
 /** Soft-delete a supplier (RBAC suppliers:delete — Admin + PM; audited in-proc). */
@@ -32,7 +32,7 @@ export const deleteSupplierAction = action({
   schema: deleteSupplierInput,
   permission: "suppliers:delete",
   handler: async (input, ctx) => {
-    await deleteSupplier(input.supplierId, input.rowVer, ctx.session.userId);
+    await deleteSupplier(input.supplierId, input.rowVer, ctx.session.userId, ctx.session.role);
     return { supplierId: input.supplierId };
   },
 });

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { messages } from "@/lib/messages";
+import { DELIVERABLE_STATUSES, DELIVERABLE_PRIORITIES } from "./key-deliverable";
 
 /**
  * Deliverable form contract ): ONE schema shared by the client Sheet
@@ -14,12 +15,22 @@ const dateInput = z
   .refine((v) => !v || !Number.isNaN(Date.parse(v)), messages.keyDeliverables.invalidDate)
   .transform((v) => (v ? new Date(v) : null));
 
-const optionalChoice = z
-  .string()
-  .trim()
-  .max(255)
-  .optional()
-  .transform((v) => (v ? v : null));
+/**
+ * Optional enum field: empty string → null; non-empty values must be one of
+ * the declared vocabulary so stale or forged payloads cannot persist
+ * unrecognised strings (e.g. misspelled terminal statuses treated as overdue).
+ */
+function optionalEnum<T extends string>(values: readonly T[]) {
+  return z
+    .string()
+    .trim()
+    .optional()
+    .refine(
+      (v) => !v || (values as readonly string[]).includes(v),
+      messages.errors.VALIDATION,
+    )
+    .transform((v): T | null => (v ? (v as T) : null));
+}
 
 /** Combobox hidden input submits the stakeholder id as a string ("" = none). */
 const optionalId = z
@@ -34,8 +45,8 @@ export const keyDeliverableFormSchema = z.object({
   keyRequirement: z.string().trim().min(1, messages.keyDeliverables.requirementRequired).max(4000),
   deadline: dateInput,
   assignedToStakeholderId: optionalId,
-  priority: optionalChoice,
-  status: optionalChoice,
+  priority: optionalEnum(DELIVERABLE_PRIORITIES),
+  status: optionalEnum(DELIVERABLE_STATUSES),
 });
 
 export type KeyDeliverableFormValues = z.output<typeof keyDeliverableFormSchema>;

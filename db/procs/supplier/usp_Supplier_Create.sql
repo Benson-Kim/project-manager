@@ -1,5 +1,7 @@
 -- usp_Supplier_Create — insert one app.Supplier row; audits in-transaction; returns the new row.
--- Entity app.Supplier (source: tbl3rdPartySupplier). Module: database-schema-and-procs (#3).
+-- Actor project-scope: @ActorUserId must be an assignee of @ProjectId (FORBIDDEN_ROW 50003).
+-- Admin bypass: @ActorRole = N'Admin' skips the project-scope check.
+-- Entity app.Supplier (source: tbl3rdPartySupplier). Module: suppliers (#7).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Supplier_Create
@@ -15,7 +17,8 @@ CREATE OR ALTER PROCEDURE dbo.usp_Supplier_Create
     @Country NVARCHAR(255) = NULL,
     @PostalCode NVARCHAR(255) = NULL,
     @City NVARCHAR(255) = NULL,
-    @ActorUserId INT
+    @ActorUserId INT,
+    @ActorRole NVARCHAR(50) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -24,6 +27,16 @@ BEGIN
         THROW 50004, N'VALIDATION:ProjectId is required', 1;
     IF @SupplierName IS NULL OR LTRIM(RTRIM(@SupplierName)) = N''
         THROW 50004, N'VALIDATION:SupplierName is required', 1;
+
+    -- Row-level access: the actor must be assigned to the project they are writing into.
+    -- Admin users bypass this check — they have full access to all projects.
+    IF ISNULL(@ActorRole, '') <> N'Admin'
+       AND NOT EXISTS (
+           SELECT 1 FROM app.ProjectAssignee
+           WHERE ProjectId = @ProjectId AND UserId = @ActorUserId AND IsDeleted = 0
+       )
+        THROW 50003, N'FORBIDDEN_ROW:You are not assigned to this project', 1;
+
     BEGIN TRAN;
 
     INSERT INTO app.Supplier ([ProjectId], [SupplierName], [ContactPerson], [EmailAddress], [ContractStartDate], [ContractEndDate], [Rating], [Address], [ProvinceOrState], [Country], [PostalCode], [City], CreatedBy)

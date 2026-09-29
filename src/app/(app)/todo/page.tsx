@@ -2,15 +2,21 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
-import { parseListParams } from "@/lib/list-params";
+import { can } from "@/lib/auth/rbac";
+import { AppError } from "@/lib/errors";
+import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getViewPreference } from "@/lib/repositories/view-preference";
 import { formatDate } from "@/lib/format";
 import { TodoView } from "@/modules/todo-items/components/todo-view";
+import { TodoItemSheet } from "@/modules/todo-items/components/todo-item-sheet";
 import {
   getUpcomingAlertRows,
   listTodoItems,
+  getTodoItemById,
+  type TodoListFilters,
 } from "@/modules/todo-items/repository/todo-items";
+import { getTodoAlertByTodoItemId } from "@/modules/todo-items/repository/todo-alerts";
 
 export const metadata: Metadata = {
   title: `${messages.todoItems.title} — ${messages.app.name}`,
@@ -18,9 +24,9 @@ export const metadata: Metadata = {
 
 /**
  * Global to-do page (top-level nav, /todo): cross-project list + upcoming
- * alerts panel. Creation always happens inside a project context — no new-todo
- * action here. Upcoming alerts use usp_Todo_GetUpcomingAlerts which mirrors
- * the Access qryUpcomingAlerts business rule.
+ * alerts panel + URL-synced Sheet for detail/edit. Sheet is read-only when
+ * the user lacks edit permissions. Creation links back to a project context.
+ * Filter params (@Status, @Priority) forwarded server-side per module gap closure (#20).
  */
 export default async function GlobalTodoPage({
   searchParams,
@@ -29,20 +35,44 @@ export default async function GlobalTodoPage({
 }) {
   const session = await auth.requireSession();
   const raw = await searchParams;
+  const flat = flattenSearchParams(raw);
   const listParams = parseListParams(raw);
   const effectiveParams = {
     ...listParams,
     sort: listParams.sort ?? "DueDate",
   };
 
-  const [rows, preferredView, alerts] = await Promise.all([
-    listTodoItems(effectiveParams, session.userId, null),
+  const selectedId = flat.id && flat.id !== "new" ? Number(flat.id) : null;
+
+  const filters: TodoListFilters = {
+    status: flat.status ?? null,
+    priority: flat.priority ?? null,
+    projectOrActivity: flat.projectOrActivity ?? null,
+  };
+
+  const [rows, preferredView, alerts, selectedRaw] = await Promise.all([
+    listTodoItems(effectiveParams, session.userId, null, undefined, filters),
     getViewPreference(session.userId, "todo-items").catch(() => null),
     getUpcomingAlertRows(session.userId).catch(() => []),
+    selectedId && Number.isInteger(selectedId) && selectedId > 0
+      ? getTodoItemById(selectedId, session.userId).catch((err) => {
+          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
+          throw err;
+        })
+      : Promise.resolve(null),
   ]);
 
+  const selected = selectedRaw ?? null;
+
+  // Fetch the alert only when a specific todo is selected.
+  const selectedAlert = selected
+    ? await getTodoAlertByTodoItemId(selected.TodoItemId, session.userId).catch(() => null)
+    : null;
+
   const totalCount = rows[0]?.TotalCount ?? 0;
-  const filtersActive = Boolean(effectiveParams.q);
+  const canEdit = can(session.role, "todo-items:update");
+  const canDelete = can(session.role, "todo-items:delete");
+  const filtersActive = Boolean(effectiveParams.q || flat.status || flat.priority || flat.projectOrActivity);
 
   return (
     <>
@@ -102,6 +132,17 @@ export default async function GlobalTodoPage({
           emptyBody={messages.todoItems.emptyGlobalBody}
         />
       </div>
+
+      {/* Sheet: no create (project-scoped); edit/alert management when canEdit */}
+      <TodoItemSheet
+        todoItem={selected}
+        todoAlert={selectedAlert}
+        isNew={false}
+        projectId={selected?.ProjectId ?? 0}
+        dailyActivityOptions={[]}
+        canEdit={canEdit}
+        canDelete={canDelete}
+      />
     </>
   );
 }

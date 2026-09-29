@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ALL user-facing copy lives here . One tone: short, sentence case,
  * plain words, no exclamation marks, no jargon, no helper text.
  * Guardrail: src/test/messages-tone.test.ts.
@@ -71,7 +71,7 @@ export const messages = {
     signOut: "Sign out",
     signedOut: "You are signed out.",
     // Generic on purpose: never reveals whether the username exists,
-    // is locked or is inactive (STANDARDS §4).
+    // is locked or is inactive (STANDARDS ┬º4).
     loginFailed: "Sign in failed. Check your username and password and try again.",
     loginErrorTitle: "You could not be signed in",
     sessionExpired: "Your session has expired. Sign in again.",
@@ -123,6 +123,13 @@ export const messages = {
     frameworkSection: "Framework",
     financingSection: "Financing",
     assigneesSection: "Assignees",
+    objectivesSection: "Objectives",
+    deliverablesSection: "Deliverables",
+    stakeholdersSection: "Stakeholders",
+    suppliersSection: "Suppliers",
+    dailyActivitiesSection: "Activities",
+    todosSection: "To-do",
+    keywordsSection: "Keywords",
     name: "Project name",
     nameRequired: "Enter a project name",
     manager: "Project manager",
@@ -171,6 +178,7 @@ export const messages = {
     roleSponsor: "Sponsor",
     roleBusinessAnalyst: "Business analyst",
     reload: "Reload",
+    questionsAnswersSection: "Q&A",
   },
   dailyActivities: {
     title: "Daily activities",
@@ -202,6 +210,8 @@ export const messages = {
     emptyBody: "Log the first activity for this project.",
     reload: "Reload",
     noStatus: "No status",
+    buildTodo: "Create to-do from this activity",
+    todoCreated: "To-do created",
   },
   todoItems: {
     title: "To-do list",
@@ -240,6 +250,13 @@ export const messages = {
     reload: "Reload",
     noDueDate: "No due date",
     unlinked: "Not linked",
+    reorderLabel: "Reorder",
+    moveUp: "Move up",
+    moveDown: "Move down",
+    snoozed: "Alert snoozed",
+    dismissed: "Alert dismissed",
+    dismiss: "Dismiss",
+    snoozeMinutes: (mins: string) => `Snooze ${mins} min`,
   },
   planning: {
     title: "Planning",
@@ -353,12 +370,28 @@ export const messages = {
   },
   keywords: {
     title: "Keywords",
-    entity: "Keyword",
+    entity: "keyword",
     newKeyword: "New keyword",
     keyword: "Keyword",
-    keywordRequired: "Enter an keyword",
+    keywordRequired: "Enter a keyword",
     definition: "Definition",
+    addedAt: "Added",
     emptyBody: "Add the first keyword for this project.",
+    reload: "Reload",
+  },
+  questionsAnswers: {
+    title: "Questions & Answers",
+    entity: "question",
+    newQuestion: "New question",
+    question: "Question",
+    questionRequired: "Enter a question",
+    answer: "Answer",
+    category: "Category",
+    priority: "Priority",
+    assignedTo: "Assigned to",
+    allCategories: "All categories",
+    allPriorities: "All priorities",
+    emptyBody: "Add the first question for this project.",
     reload: "Reload",
   },
   confirmDelete: {

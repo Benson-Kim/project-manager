@@ -1,101 +1,97 @@
 "use client";
 
+import { useCallback, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { useAnnouncer } from "@/components/ui/announcer";
-import { useToast } from "@/components/ui/toast";
-import type { ActionResult } from "@/lib/action";
 import { messages } from "@/lib/messages";
-import {
-  handleActionResult,
-  handleDeleteResult,
-  type SheetFormStateConfig,
-} from "./sheet-form-state";
 import type { useZodForm } from "./use-zod-form";
 
-/**
- * Thin "use client" hook that wires the pure sheet-form-state helpers to
- * React state, useRouter, useToast and useAnnouncer.
- *
- * Usage:
- *   const actions = useSheetFormActions({
- *     entity: keyword,           // existing row or null/undefined for new
- *     onSuccess: close,          // called after successful save or delete
- *     form,                      // from useZodForm(schema)
- *     createAction, updateAction, deleteAction,
- *   });
- *   // Spread or destructure: actions.onSubmit, actions.onDelete, actions.pending, …
- */
-export interface UseSheetFormActionsOptions<TCreate, TDelete> {
-  /**
-   * Pass `true` when editing an existing record, `false` when creating.
-   * Computed at the call site where the entity type is known — avoids
-   * widening to `unknown` and makes the mode explicit (Tell-Don't-Ask).
-   */
-  isEdit: boolean;
-  /** Called after a successful save or delete — typically closes the Sheet. */
-  onSuccess: () => void;
-  /** useZodForm return value — used for client validation + field error mapping. */
-  form: ReturnType<typeof useZodForm>;
-  createAction: (fd: FormData) => Promise<ActionResult<TCreate>>;
-  updateAction: (fd: FormData) => Promise<ActionResult<TCreate>>;
-  deleteAction: (args: TDelete) => Promise<ActionResult<unknown>>;
-}
+type ZodFormHandle = ReturnType<typeof useZodForm>;
 
-export function useSheetFormActions<TCreate, TDelete>({
+type ActionResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: { code: string; message: string; fieldErrors?: Record<string, string[]> } };
+
+/**
+ * Shared form-action plumbing for Sheet components:
+ *   - handles pending state
+ *   - maps action errors → form.setErrors / summary message
+ *   - surfaces the CONFLICT reload prompt
+ *   - wires the delete confirmation flow
+ *
+ * Usage: destructure the returned values and wire them to buttons / ConfirmDialog.
+ */
+export function useSheetFormActions<TCreate, TUpdate, TDelete>({
   isEdit,
   onSuccess,
   form,
   createAction,
   updateAction,
   deleteAction,
-}: UseSheetFormActionsOptions<TCreate, TDelete>) {
+}: {
+  isEdit: boolean;
+  onSuccess: () => void;
+  form: ZodFormHandle;
+  createAction: (data: FormData) => Promise<ActionResult<TCreate>>;
+  updateAction: (data: FormData) => Promise<ActionResult<TUpdate>>;
+  deleteAction: (args: TDelete) => Promise<ActionResult<unknown>>;
+}) {
   const router = useRouter();
-  const { toast } = useToast();
-  const { announce } = useAnnouncer();
   const [pending, startTransition] = useTransition();
   const [summary, setSummary] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const cfg: SheetFormStateConfig = {
-    onSuccess,
-    setSummary,
-    setConflict,
-    toast: (msg) => toast({ variant: "success", title: msg }),
-    announce,
-    refresh: () => router.refresh(),
-    applyResult: (r) => form.applyResult(r as ActionResult<unknown>),
-  };
+  const onSubmit = useCallback(
+    (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      const data = new FormData(e.currentTarget);
+      const valid = form.validate(data);
+      if (!valid) return;
 
-  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const formElement = event.currentTarget;
-    if (!form.validate(formElement)) {
-      setSummary(messages.errors.VALIDATION);
-      return;
-    }
-    setSummary(null);
-    setConflict(false);
-    const formData = new FormData(formElement);
-    startTransition(async () => {
-      const result = isEdit
-        ? await updateAction(formData)
-        : await createAction(formData);
-      handleActionResult(
-        result as ActionResult<unknown>,
-        isEdit ? messages.feedback.saved : messages.feedback.created,
-        cfg,
-      );
-    });
-  };
+      startTransition(async () => {
+        setSummary(null);
+        setConflict(false);
+        const result = isEdit
+          ? await updateAction(data)
+          : await createAction(data);
 
-  const onDelete = (deleteArgs: TDelete) => {
-    startTransition(async () => {
-      const result = await deleteAction(deleteArgs);
-      handleDeleteResult(result, messages.feedback.deleted, setConfirmDelete, cfg);
-    });
-  };
+        if (result.ok) {
+          onSuccess();
+          router.refresh();
+        } else {
+          const { code, message, fieldErrors } = result.error;
+          if (code === "CONFLICT") {
+            setConflict(true);
+            setSummary(messages.errors.CONFLICT);
+          } else if (code === "VALIDATION" && fieldErrors) {
+            form.setErrors(fieldErrors);
+            setSummary(messages.errors.summaryTitle);
+          } else {
+            setSummary(message ?? messages.errors.INTERNAL);
+          }
+        }
+      });
+    },
+    [isEdit, createAction, updateAction, onSuccess, form, router],
+  );
+
+  const onDelete = useCallback(
+    (args: TDelete) => {
+      startTransition(async () => {
+        setSummary(null);
+        const result = await deleteAction(args);
+        if (result.ok) {
+          setConfirmDelete(false);
+          onSuccess();
+          router.refresh();
+        } else {
+          setConfirmDelete(false);
+          setSummary(result.error.message ?? messages.errors.INTERNAL);
+        }
+      });
+    },
+    [deleteAction, onSuccess, router],
+  );
 
   return { pending, summary, conflict, confirmDelete, setConfirmDelete, onSubmit, onDelete };
 }
