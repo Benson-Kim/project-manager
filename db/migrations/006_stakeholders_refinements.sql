@@ -13,7 +13,7 @@ IF NOT EXISTS (
 )
     ALTER TABLE app.Stakeholder ADD CONSTRAINT CK_Stakeholder_CommunicationPreference
         CHECK ([CommunicationPreference] IS NULL
-               OR [CommunicationPreference] IN (N'Email', N'Phone', N'Meetings'));
+               OR [CommunicationPreference] IN (N'Email', N'Phone', N'Meeting'));
 GO
 IF NOT EXISTS (
     SELECT 1 FROM sys.check_constraints
