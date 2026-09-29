@@ -5,6 +5,8 @@
 -- Category and Priority are constrained to vocabulary values at both the DB layer
 -- (CHECK constraints) and the action layer (z.enum), so invalid strings can never
 -- be persisted by any path (direct SQL, forged payload, or future proc).
+-- NOTE: Migration 012 adds SourceQAId (seed idempotency key) and makes ProjectId
+-- nullable so QAID 10 and 11 (null ProjectID in source) can be seeded faithfully.
 -- Idempotent: wrapped in IF NOT EXISTS guard.
 USE ProjectManager;
 GO

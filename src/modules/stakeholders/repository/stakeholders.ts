@@ -42,11 +42,13 @@ function toProcParams(input: CreateStakeholderParsed) {
 export async function createStakeholder(
   input: CreateStakeholderInput,
   actorUserId: number,
+  actorRole: string,
 ): Promise<StakeholderRow> {
   const parsed = createStakeholderInput.parse(input);
   const rows = await execProc<StakeholderRow>("usp_Stakeholder_Create", {
     ...toProcParams(parsed),
     ActorUserId: actorUserId,
+    ActorRole: actorRole,
   });
   return stakeholderRowSchema.parse(rows[0]);
 }
@@ -80,6 +82,7 @@ export async function listStakeholders(
 export async function updateStakeholder(
   input: UpdateStakeholderInput,
   actorUserId: number,
+  actorRole: string,
 ): Promise<StakeholderRow> {
   const parsed = updateStakeholderInput.parse(input);
   const rows = await execProc<StakeholderRow>("usp_Stakeholder_Update", {
@@ -87,6 +90,7 @@ export async function updateStakeholder(
     ...toProcParams(parsed),
     RowVer: parsed.rowVer,
     ActorUserId: actorUserId,
+    ActorRole: actorRole,
   });
   return stakeholderRowSchema.parse(rows[0]);
 }
@@ -95,10 +99,12 @@ export async function deleteStakeholder(
   stakeholderId: number,
   rowVer: number,
   actorUserId: number,
+  actorRole: string,
 ): Promise<void> {
   await execProc("usp_Stakeholder_Delete", {
     StakeholderId: stakeholderId,
     RowVer: rowVer,
     ActorUserId: actorUserId,
+    ActorRole: actorRole,
   });
 }

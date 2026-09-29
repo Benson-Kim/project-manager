@@ -75,6 +75,7 @@ describe("stakeholders actions", () => {
     expect(params.ProjectId).toBe(2);
     expect(params.EngagementLevel).toBe("Medium");
     expect(params.ActorUserId).toBe(7);
+    expect(params.ActorRole).toBe("ProjectManager");
     // project-scoped route; sheet calls router.refresh() — no static revalidatePath
     expect(revalidatePath).not.toHaveBeenCalled();
   });
@@ -136,6 +137,7 @@ describe("stakeholders actions", () => {
       StakeholderId: 1,
       RowVer: 10,
       ActorUserId: 7,
+      ActorRole: "ProjectManager",
     });
     // project-scoped route; sheet calls router.refresh() — no static revalidatePath
     expect(revalidatePath).not.toHaveBeenCalled();
