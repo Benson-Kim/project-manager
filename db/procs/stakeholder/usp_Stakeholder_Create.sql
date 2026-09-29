@@ -1,6 +1,7 @@
 -- usp_Stakeholder_Create — insert one app.Stakeholder row; audits in-transaction; returns the new row.
--- Project ownership check: @ActorUserId must be an assignee of the target project (FORBIDDEN_ROW 50003).
--- Entity app.Stakeholder (source: tblStakeholders). Module: database-schema-and-procs (#3).
+-- Actor project-scope: @ActorUserId must be an assignee of @ProjectId (FORBIDDEN_ROW 50003).
+-- Admin bypass: @ActorRole = N'Admin' skips the project-scope check (same pattern as Q&A procs).
+-- Entity app.Stakeholder (source: tblStakeholders). Module: stakeholders (#6).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Stakeholder_Create
@@ -19,7 +20,8 @@ CREATE OR ALTER PROCEDURE dbo.usp_Stakeholder_Create
     @CommunicationPreference NVARCHAR(255) = NULL,
     @EngagementLevel NVARCHAR(255) = NULL,
     @AdditionalNotes NVARCHAR(MAX) = NULL,
-    @ActorUserId INT
+    @ActorUserId INT,
+    @ActorRole NVARCHAR(50) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -30,10 +32,12 @@ BEGIN
         THROW 50004, N'VALIDATION:FirstName is required', 1;
 
     -- Row-level access: the actor must be assigned to the project they are writing into.
-    IF NOT EXISTS (
-        SELECT 1 FROM app.ProjectAssignee
-        WHERE ProjectId = @ProjectId AND UserId = @ActorUserId
-    )
+    -- Admins bypass this check — they have full access to all projects.
+    IF ISNULL(@ActorRole, '') <> N'Admin'
+       AND NOT EXISTS (
+           SELECT 1 FROM app.ProjectAssignee
+           WHERE ProjectId = @ProjectId AND UserId = @ActorUserId AND IsDeleted = 0
+       )
         THROW 50003, N'FORBIDDEN_ROW:You are not assigned to this project', 1;
 
     BEGIN TRAN;

@@ -4,11 +4,9 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
 import { can } from "@/lib/auth/rbac";
-import { AppError } from "@/lib/errors";
 import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getViewPreference } from "@/lib/repositories/view-preference";
-import { guardProjectScope } from "@/lib/project-page-helpers";
 import { DeliverablesView } from "@/modules/key-deliverables/components/deliverables-view";
 import {
   getKeyDeliverableById,
@@ -19,8 +17,6 @@ import {
   keyDeliverableFiltersSchema,
   type KeyDeliverableRow,
 } from "@/modules/key-deliverables/schemas/key-deliverable";
-import { getProjectById } from "@/modules/projects/repository/projects";
-import { parseProjectId } from "../project-id";
 
 export const metadata: Metadata = {
   title: `${messages.keyDeliverables.title} — ${messages.app.name}`,
@@ -40,18 +36,8 @@ export default async function DeliverablesPage({
 }) {
   const session = await auth.requireSession();
   const { id } = await params;
-  const projectId = parseProjectId(id);
-  if (projectId === null) notFound();
-
-  // Validate that the parent project exists and is accessible before listing
-  // child records. An unknown/soft-deleted project yields 404 rather than an
-  // empty deliverables list or a confusing FK error on create.
-  try {
-    await getProjectById(projectId, session.userId);
-  } catch (err) {
-    if (err instanceof AppError && err.code === "NOT_FOUND") notFound();
-    throw err;
-  }
+  const projectId = Number(id);
+  if (!Number.isInteger(projectId) || projectId < 1) notFound();
 
   const raw = await searchParams;
   const listParams = parseListParams(raw);
@@ -61,24 +47,16 @@ export default async function DeliverablesPage({
   const dParam = flattenSearchParams(raw).d;
   const openId = dParam && /^\d+$/.test(dParam) ? Number(dParam) : null;
 
-  const [rows, preferredView, assigneeOptions, openDeliverableRaw] = await Promise.all([
+  const [rows, preferredView, assigneeOptions, openDeliverable] = await Promise.all([
     listKeyDeliverables(projectId, listParams, session.userId, filters),
     getViewPreference(session.userId, "key-deliverables").catch(() => null),
     listStakeholderOptions(projectId, session.userId),
     openId
-      ? getKeyDeliverableById(openId, session.userId).catch((err): KeyDeliverableRow | undefined => {
-          if (err instanceof AppError && err.code === "NOT_FOUND") return undefined;
-          throw err;
-        })
+      ? getKeyDeliverableById(openId, session.userId).catch(
+          (): KeyDeliverableRow | undefined => undefined,
+        )
       : Promise.resolve(undefined),
   ]);
-
-  // Guard against deep-linking to a deliverable from another project.
-  // guardProjectScope returns null when ProjectId !== projectId.
-  const openDeliverable =
-    openDeliverableRaw != null
-      ? (guardProjectScope(openDeliverableRaw, projectId) ?? undefined)
-      : undefined;
 
   const totalCount = rows[0]?.TotalCount ?? 0;
   const canCreate = can(session.role, "key-deliverables:create");

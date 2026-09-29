@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAnnouncer } from "@/components/ui/announcer";
@@ -10,6 +10,7 @@ import { Sheet } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { Input, Select, Textarea } from "@/components/ui/form/inputs";
+import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { useToast } from "@/components/ui/toast";
@@ -52,11 +53,33 @@ export function QuestionAnswerSheet({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [showUnsaved, setShowUnsaved] = useState(false);
+  const pendingNavRef = useRef<(() => void) | null>(null);
+  useUnsavedChangesGuard(isDirty);
+
+  // Intercept same-document navigations (e.g. browser Back) when form is dirty (C11-7).
+  useEffect(() => {
+    function handleBeforeNavigate(e: Event) {
+      if (!isDirty) return;
+      e.preventDefault();
+      const resume = (e as CustomEvent<{ resume: () => void }>).detail.resume;
+      pendingNavRef.current = resume;
+      setShowUnsaved(true);
+    }
+    window.addEventListener("before-navigate", handleBeforeNavigate);
+    return () => window.removeEventListener("before-navigate", handleBeforeNavigate);
+  }, [isDirty]);
 
   const close = () => {
     setIsDirty(false);
     setShowUnsaved(false);
     update({ id: null });
+  };
+
+  const discardAndNavigate = () => {
+    const resume = pendingNavRef.current;
+    pendingNavRef.current = null;
+    close();
+    resume?.();
   };
 
   const requestClose = () => {
@@ -282,7 +305,7 @@ export function QuestionAnswerSheet({
         title={messages.feedback.unsavedChangesTitle}
         body={messages.feedback.unsavedChangesBody}
         confirmLabel={messages.feedback.discard}
-        onConfirm={close}
+        onConfirm={discardAndNavigate}
         pending={false}
       />
     </>
