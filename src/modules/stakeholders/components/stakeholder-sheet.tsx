@@ -149,6 +149,7 @@ export function StakeholderSheet({
         onSubmit={onSubmit}
         data-testid="stakeholder-form"
         className="flex flex-col gap-5"
+        onChange={() => setIsDirty(true)}
       >
         <ErrorSummary message={summary} />
         {conflict ? (
