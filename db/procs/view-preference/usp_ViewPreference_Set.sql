@@ -2,7 +2,7 @@
 -- audit logging (docs/STANDARDS.md §6): not domain data.
 USE ProjectManager;
 GO
-CREATE OR ALTER PROCEDURE app.usp_ViewPreference_Set
+CREATE OR ALTER PROCEDURE dbo.usp_ViewPreference_Set
     @UserId    INT,
     @ModuleKey NVARCHAR(50),
     @ViewMode  VARCHAR(10)
