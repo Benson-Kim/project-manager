@@ -10,7 +10,7 @@ import { getToken } from "next-auth/jwt";
  * Session integrity (SessionVersion revocation stamp) is enforced per request
  * in src/lib/auth/provider.ts — this gate is routing, not the last defence.
  */
-const PUBLIC_PATHS = ["/login", "/api/auth", "/manifest.webmanifest"];
+const PUBLIC_PATHS = ["/login", "/api/auth", "/manifest.webmanifest", "/sw.js", "/favicon.ico"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));

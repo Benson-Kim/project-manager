@@ -1,35 +1,64 @@
-/* Minimal PWA service worker: cache the app shell, network-first for pages.
-   Modules extend the precache list as screens land. */
-const CACHE = "pm-shell-v1";
-const SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
+// Service Worker — Alert poller for Project Manager
+// Polls /api/due-alerts every 60 seconds and fires OS notifications even
+// when no app tab is open (as long as the browser runs in the background).
+// The SW is registered once by AppShell and stays alive across tab closes.
 
-self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
+const POLL_INTERVAL_MS = 60_000;
+
+/** Alert IDs notified in this SW lifetime — prevents duplicate notifications
+ *  across rapid poll ticks. Cleared only when the SW is terminated. */
+const notified = new Set();
+
+async function poll() {
+  let alerts;
+  try {
+    const res = await fetch("/api/due-alerts", { credentials: "include" });
+    if (!res.ok) return; // unauthenticated / server error — silently skip
+    alerts = await res.json();
+  } catch {
+    return; // network error — skip this tick
+  }
+
+  if (!Array.isArray(alerts) || alerts.length === 0) return;
+
+  for (const alert of alerts) {
+    if (notified.has(alert.todoAlertId)) continue;
+    notified.add(alert.todoAlertId);
+    self.registration.showNotification(alert.title, {
+      body: "Your to-do alert is due. Click to open.",
+      icon: "/favicon.ico",
+      tag: `todo-alert-${alert.todoAlertId}`,
+      requireInteraction: false,
+      data: { url: "/todo" },
+    });
+  }
+}
+
+self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim()),
-  );
+  event.waitUntil(self.clients.claim());
+  // Start polling immediately after activation.
+  setInterval(poll, POLL_INTERVAL_MS);
+  void poll();
 });
 
-self.addEventListener("fetch", (event) => {
-  const { request } = event;
-  if (request.method !== "GET") return;
-  // Network-first with cache fallback (keeps data fresh, works offline).
-  event.respondWith(
-    fetch(request)
-      .then((res) => {
-        if (res.ok && new URL(request.url).origin === self.location.origin) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(request, copy));
+// Open or focus the /todo tab when the user clicks the notification.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/todo";
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clients) => {
+        for (const client of clients) {
+          if (client.url.includes(url) && "focus" in client) {
+            return client.focus();
+          }
         }
-        return res;
-      })
-      .catch(() => caches.match(request).then((hit) => hit ?? caches.match("/"))),
+        return self.clients.openWindow(url);
+      }),
   );
 });

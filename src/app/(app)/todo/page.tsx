@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
 import { can } from "@/lib/auth/rbac";
 import { AppError } from "@/lib/errors";
@@ -76,7 +75,6 @@ export default async function GlobalTodoPage({
 
   return (
     <>
-      <PageHeader title={messages.todoItems.title} />
 
       {/* Upcoming alerts panel */}
       {alerts.length > 0 ? (

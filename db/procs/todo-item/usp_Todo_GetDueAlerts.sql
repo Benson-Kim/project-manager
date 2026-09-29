@@ -11,8 +11,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    DECLARE @NowDate DATE = CAST(SYSUTCDATETIME() AS DATE);
-    DECLARE @NowTime TIME(0) = CAST(SYSUTCDATETIME() AS TIME(0));
+    DECLARE @NowDate DATE     = CAST(SYSUTCDATETIME() AS DATE);
+    DECLARE @NowTime TIME(0)  = CAST(SYSUTCDATETIME() AS TIME(0));
 
     SELECT a.TodoAlertId,
            a.TodoItemId,
@@ -30,7 +30,13 @@ BEGIN
       AND a.IsDismissed = 0
       AND t.CreatedBy = @ActorUserId
       AND t.[Status] NOT IN (N'Completed', N'Cancelled')
-      AND a.AlertDay = @NowDate
-      AND a.AlertTime <= @NowTime;
+      AND a.AlertDay IS NOT NULL
+      AND (
+            -- Past-due: the alert day has already passed
+            a.AlertDay < @NowDate
+            OR
+            -- Due today at or before the current time
+            (a.AlertDay = @NowDate AND (a.AlertTime IS NULL OR a.AlertTime <= @NowTime))
+          );
 END;
 GO
