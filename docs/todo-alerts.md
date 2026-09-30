@@ -18,11 +18,13 @@ due alerts and sends encrypted VAPID payloads through `web-push`, for example:
 The stable notification tag makes retries replace the same notification. A
 push event does not require an open app tab; clicking opens or focuses `/todo`.
 
-Chromium and Firefox support Web Push on supported platforms; Safari supports
-it from 16.4, with iOS/iPadOS requiring the web app to be added to the Home
-Screen. Permission, browser policy, private browsing, missing VAPID
-configuration, or unavailable subscription storage can still prevent
-background delivery. The client detects those cases and falls back to a
+Web Push requires a secure context (HTTPS in production; localhost is the
+development exception) and a user-visible permission grant. Chromium and
+Firefox support it on supported platforms; Safari supports it from 16.4, with
+iOS/iPadOS requiring the web app to be added to the Home Screen. Some browsers
+also require a user gesture before showing the permission prompt. Private
+browsing, missing VAPID configuration, or unavailable subscription storage can
+still prevent background delivery. The client detects those cases and falls back to a
 60-second foreground poll while a tab is open. With no open tab, the todo page's
 normal due-alert rendering is the final fallback; closed-tab delivery is not
 claimed where Web Push is unavailable.
