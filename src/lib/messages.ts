@@ -294,6 +294,10 @@ export const messages = {
     ganttAxis: "Timeline",
     ganttBarName: (requirement: string, start: string, end: string, status: string) =>
       `${requirement}, ${start} to ${end}, ${status}`,
+    ganttDuration: (elapsed: number, total: number) =>
+      `${elapsed} of ${total} day${total === 1 ? "" : "s"}`,
+    ganttElapsed: "Duration so far",
+    allAssignees: "All assignees",
     print: "Print",
     emptyBody: "Create the first deliverable.",
     invalidDate: "Enter a valid date",

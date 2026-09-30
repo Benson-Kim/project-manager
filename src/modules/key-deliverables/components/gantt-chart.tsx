@@ -117,7 +117,7 @@ export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: n
           aria-hidden="true"
         >
           {/* Label column header */}
-          <div className="sticky left-0 border-r border-line bg-surface px-3 py-2 text-xs font-medium text-ink-muted">
+          <div className="sticky left-0 z-10 border-r border-line bg-surface px-3 py-2 text-xs font-medium text-ink-muted">
             {messages.keyDeliverables.ganttAxis}
           </div>
 
@@ -198,20 +198,15 @@ export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: n
                   i % 2 === 0 ? "bg-surface" : "bg-surface-raised"
                 }`}
               >
-                {/* Sticky label column */}
+                {/* Sticky label column — requirement name only; assignees are right of bar */}
                 <div
-                  className={`sticky left-0 flex flex-col justify-center border-r border-line px-3 py-2 ${
+                  className={`sticky left-0 z-10 flex items-center border-r border-line px-3 py-2 ${
                     i % 2 === 0 ? "bg-surface" : "bg-surface-raised"
                   }`}
                 >
                   <span className="line-clamp-2 text-sm font-medium text-ink">
                     {bar.requirement || messages.keyDeliverables.deliverableFallback(bar.id)}
                   </span>
-                  {bar.assigneeNames ? (
-                    <span className="mt-0.5 truncate text-xs text-ink-muted">
-                      {bar.assigneeNames}
-                    </span>
-                  ) : null}
                 </div>
 
                 {/* Bar track */}
@@ -246,6 +241,7 @@ export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: n
                     href={`/projects/${projectId}/deliverables?d=${bar.id}`}
                     aria-label={ariaLabel}
                     data-testid={`gantt-bar-${bar.id}`}
+                    data-gantt-bar={bar.id}
                     className="absolute top-1/2 flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center outline-offset-2 focus-visible:outline-2 focus-visible:outline-focus"
                     style={{ left: `${barLeft}%`, width: `${barWidth}%` }}
                   >
@@ -263,15 +259,16 @@ export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: n
                     </span>
                   </Link>
 
-                  {/* Inline label right of bar */}
-                  <span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-xs text-ink-muted"
-                    style={{ left: `calc(${labelLeft}% + 4px)` }}
-                  >
-                    {bar.requirement}
-                    {bar.assigneeNames ? ` — ${bar.assigneeNames}` : ""}
-                  </span>
+                  {/* Inline label right of bar — assignees only (name is in sticky column) */}
+                  {bar.assigneeNames ? (
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-xs text-ink-muted"
+                      style={{ left: `calc(${labelLeft}% + 4px)` }}
+                    >
+                      {bar.assigneeNames}
+                    </span>
+                  ) : null}
                 </div>
               </li>
             );
