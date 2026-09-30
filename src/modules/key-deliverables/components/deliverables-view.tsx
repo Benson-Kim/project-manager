@@ -27,7 +27,7 @@ function rowLabel(row: { KeyRequirement: string | null; KeyDeliverableId: number
   return row.KeyRequirement ?? messages.keyDeliverables.deliverableFallback(row.KeyDeliverableId);
 }
 
-type Row = KeyDeliverableListRow & { AssigneeName: string | null };
+type Row = KeyDeliverableListRow;
 
 function StatusCell({ row }: { row: Row }) {
   return (
@@ -65,9 +65,9 @@ const columns: DataViewColumn<Row>[] = [
   },
   {
     key: "AssignedTo",
-    header: messages.keyDeliverables.assignedTo,
+    header: messages.keyDeliverables.assignees,
     priority: 3,
-    render: (r) => r.AssigneeName ?? "",
+    render: (r) => r.AssigneeNames ?? "",
   },
 ];
 
@@ -85,7 +85,6 @@ export function DeliverablesView({
   openDeliverable,
   sheetOpen,
   assigneeOptions,
-  assigneeNames,
   canEdit,
   canDelete,
   newAction,
@@ -100,7 +99,6 @@ export function DeliverablesView({
   openDeliverable?: KeyDeliverableRow;
   sheetOpen: boolean;
   assigneeOptions: StakeholderOption[];
-  assigneeNames: Record<number, string>;
   canEdit: boolean;
   canDelete: boolean;
   newAction?: React.ReactNode;
@@ -108,18 +106,11 @@ export function DeliverablesView({
   const { update } = useListUrlState();
   const close = () => update({ d: null });
 
-  const withNames: Row[] = rows.map((r) => ({
-    ...r,
-    AssigneeName: r.AssignedToStakeholderId
-      ? (assigneeNames[r.AssignedToStakeholderId] ?? null)
-      : null,
-  }));
-
   return (
     <>
       <DataView
         moduleKey="key-deliverables"
-        rows={withNames}
+        rows={rows}
         totalCount={totalCount}
         page={page}
         initialView={initialView}
@@ -140,7 +131,7 @@ export function DeliverablesView({
             {row.Deadline ? (
               <p className="text-xs text-ink-muted">{formatDate(row.Deadline)}</p>
             ) : null}
-            {row.AssigneeName ? <p className="text-xs text-ink-muted">{row.AssigneeName}</p> : null}
+            {row.AssigneeNames ? <p className="text-xs text-ink-muted">{row.AssigneeNames}</p> : null}
           </div>
         )}
         columns={columns}

@@ -65,9 +65,6 @@ export default async function DeliverablesPage({
   const filtersActive = Boolean(listParams.q || filters.status || filters.priority);
   const sheetOpen = dParam === "new" ? canCreate : Boolean(openDeliverable);
 
-  const assigneeNames: Record<number, string> = {};
-  for (const o of assigneeOptions) assigneeNames[o.stakeholderId] = o.name;
-
   const newDeliverableLink = (
     <Link
       href={`/projects/${projectId}/deliverables?d=new`}
@@ -109,7 +106,6 @@ export default async function DeliverablesPage({
           openDeliverable={openDeliverable}
           sheetOpen={sheetOpen}
           assigneeOptions={assigneeOptions}
-          assigneeNames={assigneeNames}
           canEdit={dParam === "new" ? canCreate : canEdit}
           canDelete={canDelete}
           newAction={canCreate ? newDeliverableLink : undefined}
