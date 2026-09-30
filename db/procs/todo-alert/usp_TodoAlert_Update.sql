@@ -22,10 +22,35 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    DECLARE @CurrentVer BIGINT =
-        (SELECT CAST(RowVer AS BIGINT) FROM app.TodoAlert WHERE TodoAlertId = @TodoAlertId AND IsDeleted = 0);
+    DECLARE @CurrentVer BIGINT;
+    DECLARE @CurrentTodoItemId INT;
+    SELECT @CurrentVer = CAST(a.RowVer AS BIGINT),
+           @CurrentTodoItemId = a.TodoItemId
+    FROM app.TodoAlert a
+    WHERE a.TodoAlertId = @TodoAlertId AND a.IsDeleted = 0;
+
     IF @CurrentVer IS NULL
         THROW 50001, N'NOT_FOUND:TodoAlert not found', 1;
+
+    DECLARE @CanManageAll BIT = CASE WHEN EXISTS (
+        SELECT 1
+        FROM auth.[User] u
+        INNER JOIN auth.[Role] r ON r.RoleId = u.RoleId
+        WHERE u.UserId = @ActorUserId
+          AND u.IsDeleted = 0
+          AND u.IsActive = 1
+          AND r.Name IN (N'Admin', N'ProjectManager')
+    ) THEN 1 ELSE 0 END;
+
+    IF @CanManageAll = 0 AND NOT EXISTS (
+        SELECT 1 FROM app.TodoItem
+        WHERE TodoItemId = @CurrentTodoItemId
+          AND IsDeleted = 0
+          AND CreatedBy = @ActorUserId
+    )
+        THROW 50003, N'FORBIDDEN_ROW:You do not have access to this record', 1;
+    IF @TodoItemId <> @CurrentTodoItemId
+        THROW 50004, N'VALIDATION:TodoItemId cannot be changed', 1;
     IF @CurrentVer <> @RowVer
         THROW 50002, N'CONFLICT:TodoAlert was modified by someone else', 1;
 
@@ -37,7 +62,6 @@ BEGIN
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 
     UPDATE app.TodoAlert SET
-        [TodoItemId] = @TodoItemId,
         [AlertDay] = @AlertDay,
         [AlertTime] = @AlertTime,
         [RepeatUnit] = @RepeatUnit,

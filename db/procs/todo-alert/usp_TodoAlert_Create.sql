@@ -21,6 +21,30 @@ BEGIN
     SET XACT_ABORT ON;
     IF @TodoItemId IS NULL
         THROW 50004, N'VALIDATION:TodoItemId is required', 1;
+    IF NOT EXISTS (
+        SELECT 1 FROM app.TodoItem
+        WHERE TodoItemId = @TodoItemId AND IsDeleted = 0
+    )
+        THROW 50001, N'NOT_FOUND:TodoItem not found', 1;
+
+    DECLARE @CanManageAll BIT = CASE WHEN EXISTS (
+        SELECT 1
+        FROM auth.[User] u
+        INNER JOIN auth.[Role] r ON r.RoleId = u.RoleId
+        WHERE u.UserId = @ActorUserId
+          AND u.IsDeleted = 0
+          AND u.IsActive = 1
+          AND r.Name IN (N'Admin', N'ProjectManager')
+    ) THEN 1 ELSE 0 END;
+
+    IF @CanManageAll = 0 AND NOT EXISTS (
+        SELECT 1 FROM app.TodoItem
+        WHERE TodoItemId = @TodoItemId
+          AND IsDeleted = 0
+          AND CreatedBy = @ActorUserId
+    )
+        THROW 50003, N'FORBIDDEN_ROW:You do not have access to this record', 1;
+
     BEGIN TRAN;
 
     INSERT INTO app.TodoAlert ([TodoItemId], [AlertDay], [AlertTime], [RepeatUnit], [RepeatInterval], [CurrentRepeatInterval], [SnoozeCount], [LastSnoozeTime], [MaxSnoozeCount], [SnoozeOptions], [IsDismissed], CreatedBy)
