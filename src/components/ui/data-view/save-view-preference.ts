@@ -17,7 +17,7 @@ const inputSchema = z.object({
 });
 
 /**
- * Preference write (ADR-0006). Documented exemption from the action() wrapper
+ * Preference write . Documented exemption from the action() wrapper
  * and audit log (STANDARDS §6): per-user UI preference, not domain data — zod
  * still validates, sessions still scope it, and the cookie fallback keeps it
  * working for anonymous users until auth (#4).

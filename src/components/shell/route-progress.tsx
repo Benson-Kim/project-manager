@@ -3,7 +3,7 @@
 import { usePathname, useSearchParams } from "next/navigation";
 
 /**
- * Top progress bar for route transitions (ADR-0008): a thin accent bar that
+ * Top progress bar for route transitions : a thin accent bar that
  * flashes briefly after each navigation completes rendering. Stateless — the
  * element is re-keyed per navigation and a CSS animation (route-progress-flash
  * in globals.css, killed by prefers-reduced-motion) does the rest.

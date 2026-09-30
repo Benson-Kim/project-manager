@@ -5,7 +5,7 @@ const modules = [
   { name: "Projects", key: "projects" },
   { name: "Stakeholders", key: "stakeholders" },
   { name: "Suppliers", key: "suppliers" },
-  { name: "Keywords", key: "acronyms" },
+  { name: "Keywords", key: "keywords" },
   { name: "Key Deliverables", key: "key-deliverables" },
   { name: "Objectives", key: "objectives" },
   { name: "Meetings", key: "meetings" },
@@ -29,7 +29,7 @@ export default function Home() {
         {modules.map((m) => (
           <li key={m.key} className="rounded-lg border border-line bg-surface-raised p-4">
             <h2 className="text-sm font-semibold text-ink">{m.name}</h2>
-            <p className="mt-1 text-xs text-ink-faint">feature/{m.key}</p>
+            <p className="mt-1 text-xs text-ink-muted">feature/{m.key}</p>
           </li>
         ))}
       </ul>

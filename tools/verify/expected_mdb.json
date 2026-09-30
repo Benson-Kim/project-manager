@@ -18,12 +18,12 @@
     "City"
    ]
   },
-  "tblAcronyms": {
+  "tblKeywords": {
    "row_count": 29,
    "columns": [
-    "AcronymID",
+    "KeywordID",
     "ProjectID",
-    "Acronym",
+    "Keyword",
     "Definition"
    ]
   },
@@ -382,7 +382,7 @@
   }
  },
  "queries": [
-  "qryAcronyms",
+  "qryKeywords",
   "qryAssumptionsConstraints",
   "qryDailyActivityList",
   "qryDailyActivityListExtended",
@@ -402,7 +402,7 @@
   "qryParkingLotItems",
   "qryProject",
   "qryProject3rdPartySupplier",
-  "qryProjectAcronyms",
+  "qryProjectKeywords",
   "qryProjectActivityList",
   "qryProjectExistingSystem",
   "qryProjectFramework",
@@ -446,9 +446,9 @@
    "expected": "Gary"
   },
   {
-   "table": "tblAcronyms",
+   "table": "tblKeywords",
    "column": "Definition",
-   "pk": "AcronymID",
+   "pk": "KeywordID",
    "pk_value": "16",
    "expected": "Calcium ammonium Nitrate"
   },

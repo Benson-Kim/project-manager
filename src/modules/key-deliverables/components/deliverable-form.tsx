@@ -53,13 +53,13 @@ export function DeliverableForm({
       form,
       createAction: createKeyDeliverableAction,
       updateAction: updateKeyDeliverableAction,
-      deleteAction: ({
-        keyDeliverableId,
-        rowVer,
-      }: {
-        keyDeliverableId: number;
-        rowVer: number;
-      }) => deleteKeyDeliverableAction({ keyDeliverableId, rowVer }),
+      deleteAction: () =>
+        deliverable
+          ? deleteKeyDeliverableAction({
+              keyDeliverableId: deliverable.KeyDeliverableId,
+              rowVer: deliverable.RowVer,
+            })
+          : Promise.resolve({ ok: false as const, error: { code: "NOT_FOUND" as const, message: "" } }),
     });
 
   return (
@@ -102,7 +102,7 @@ export function DeliverableForm({
           >
             <DatePicker name="deadline" defaultValue={toDateInput(deliverable?.Deadline)} />
           </Field>
-          <Field label={messages.keyDeliverables.assignedTo} name="assignedToStakeholderId">
+          <Field label={messages.keyDeliverables.assignedTo} name="assignedToStakeholderId" errors={form.errors.assignedToStakeholderId}>
             <Combobox
               name="assignedToStakeholderId"
               options={assigneeOptions.map((o) => ({
@@ -116,7 +116,7 @@ export function DeliverableForm({
               }
             />
           </Field>
-          <Field label={messages.keyDeliverables.status} name="status">
+          <Field label={messages.keyDeliverables.status} name="status" errors={form.errors.status}>
             <Select name="status" defaultValue={deliverable?.Status ?? ""}>
               <option value="">{messages.projects.none}</option>
               {DELIVERABLE_STATUSES.map((s) => (
@@ -126,7 +126,7 @@ export function DeliverableForm({
               ))}
             </Select>
           </Field>
-          <Field label={messages.keyDeliverables.priority} name="priority">
+          <Field label={messages.keyDeliverables.priority} name="priority" errors={form.errors.priority}>
             <Select name="priority" defaultValue={deliverable?.Priority ?? ""}>
               <option value="">{messages.projects.none}</option>
               {DELIVERABLE_PRIORITIES.map((p) => (
@@ -174,13 +174,7 @@ export function DeliverableForm({
           )}
           body={messages.confirmDelete.body}
           confirmLabel={messages.actions.delete}
-          onConfirm={() =>
-            deliverable &&
-            onDelete({
-              keyDeliverableId: deliverable.KeyDeliverableId,
-              rowVer: deliverable.RowVer,
-            })
-          }
+          onConfirm={onDelete}
           pending={pending}
         />
       ) : null}

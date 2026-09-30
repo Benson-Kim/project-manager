@@ -38,7 +38,7 @@ function makeAction(handler: (input: { name: string }) => Promise<string>) {
   });
 }
 
-describe("action() wrapper (ADR-0003)", () => {
+describe("action() wrapper ", () => {
   beforeEach(() => {
     session = { userId: 1, username: "dev", role: "Admin" };
     revalidatePath.mockClear();

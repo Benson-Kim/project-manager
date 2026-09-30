@@ -1,8 +1,8 @@
 # Traceability Matrix — Excel checklist → module → issue → branch
 
-Source of truth: `Project_.xlsx` (78 rows, fully extracted in
-[`source-analysis/excel-workbook.md`](source-analysis/excel-workbook.md), verified
-cell-for-cell in [`source-analysis/VERIFICATION.md`](source-analysis/VERIFICATION.md)).
+Source of truth: `docs/source/Project_.xlsx` (78 rows, fully extracted in
+[`source/analysis/excel-workbook.md`](source/analysis/excel-workbook.md), verified
+cell-for-cell in [`source/analysis/VERIFICATION.md`](source/analysis/VERIFICATION.md)).
 Module ordering & goals: [`PLAN.md`](PLAN.md) §3/§10. Every functional row is
 restated as an acceptance criterion in its module issue.
 
@@ -16,7 +16,7 @@ restated as an acceptance criterion in its module issue.
 | 6 | 0.3 one-or-many PMs / sponsors / BAs | projects (M:N `ProjectAssignee`) | #5 | feature/projects |
 | 7 | 1-Stakeholder(s) | stakeholders | #6 | feature/stakeholders |
 | 8 | (blank sub-row of §1) | stakeholders | #6 | feature/stakeholders |
-| 9 | 2-Acronym(s) | acronyms (keywords) | #8 | feature/acronyms |
+| 9 | 2-Keyword(s) | keywords (keywords) | #8 | feature/keywords |
 | 10 | 3-Key Requirements Deliverables | key-deliverables | #9 | feature/key-deliverables |
 | 11 | 4-Objectives | objectives | #10 | feature/objectives |
 | 12 | 5-Meeting Minutes | meetings | #11 | feature/meetings |
@@ -65,20 +65,20 @@ restated as an acceptance criterion in its module issue.
 | 55 | Supplier address fields | suppliers | #7 | feature/suppliers |
 | 56 | Word-like functions everywhere | notes editor component (shared) | #15 | feature/notes |
 | 57 | To-do pop-up alerts w/ date+time, frequency, snooze | todo-alerts | #20 | feature/todo-alerts |
-| 58 | Acronyms: search field + rename to "keywords" | acronyms | #8 | feature/acronyms |
+| 58 | Keywords: search field + rename to "keywords" | keywords | #8 | feature/keywords |
 | 59 | To-do list predicated on daily activities + filters (to-do, requester) | todo-alerts | #20 | feature/todo-alerts |
 | 60 | Portability (installable anywhere) | foundation (Docker/compose/standalone) | #2 | feature/foundation |
-| 61 | Import mechanism from the Access database | database-schema-and-procs (seeds from extraction) | #3 | feature/database-schema-and-procs |
+| 61 | Import mechanism from the Access database | database-schema-and-procs (seeds from extraction — delivered, MR !6) | #3 | feature/database-schema-and-procs |
 | 62 | Font (Microsoft Word) | notes editor (font family/size controls) | #15 | feature/notes |
 | 63 | "Potential Additional Requirements" (header) | — header | — | — |
 | 64 | Financial tracking spreadsheet equivalent | financials (budget breakdown view/export) | #17 | feature/financials |
 | 65 | Export & import data (backups) | file-storage-and-backup (+ admin) | #22, #23 | feature/file-storage-and-backup |
 | 66 | Calendar with reminders for to-dos | todo-alerts (calendar view) | #20 | feature/todo-alerts |
-| 67 | Gantt from key-deliverable dates (start date required) | key-deliverables | #9 | feature/key-deliverables |
+| 67 | Gantt from key-deliverable dates (start date required) | key-deliverables (delivered — CSS-grid Gantt at `/projects/[id]/deliverables/gantt`; start = CreatedAtUtc, end = Deadline) | #9 | feature/key-deliverables |
 | 68 | "Add ons" (header) | — header | — | — |
 | 69 | Project screen add-ons (priority, est. completion, phase, risk level, status) | projects | #5 | feature/projects |
 | 70 | Stakeholder screen add-ons (email, comm pref, engagement, role description) | stakeholders | #6 | feature/stakeholders |
-| 71 | Key deliverable add-ons (deadline, assigned-to, priority, status) | key-deliverables | #9 | feature/key-deliverables |
+| 71 | Key deliverable add-ons (deadline, assigned-to, priority, status) | key-deliverables (delivered — Sheet form with date picker, stakeholder Combobox, status/priority) | #9 | feature/key-deliverables |
 | 72 | Meeting minutes add-ons (location, agenda, start/end time, follow-up) | meetings | #11 | feature/meetings |
 | 73 | Q&A add-ons (category, priority, assigned-to) | questions-answers | #12 | feature/questions-answers |
 | 74 | Supplier add-ons (contact, email, contract dates, rating, address) | suppliers | #7 | feature/suppliers |
@@ -91,6 +91,14 @@ restated as an acceptance criterion in its module issue.
 categories) → #16 · slide 2 (Financials $$$, MSSS document workflow — matches
 recovered `tblFinancialDocuments` lookup) → #17 · slide 3 (Parking Lot Items)
 → #18.
+
+**Auth/RBAC (module #4, issue #4):** the checklist has no dedicated auth row —
+multi-user access + RBAC derive from PLAN §2 (new `auth.*` tables) and §7 and
+from cross-cutting rows 46/47. Delivered by MR !8 (`feature/auth-and-rbac`):
+Auth.js v5 credentials + argon2id, JWT sessions with SessionVersion revocation
+(ADR-0017), IP rate limit + lockout, seeded admin with forced password change,
+Login/Logout audit. Deferred: browser-level RBAC-denial spec → #26, full
+SecLists top-10k denylist subset → #27.
 
 **Coverage check:** every non-header, non-empty row (3–38, 40–62, 64–67,
 69–76) is owned by exactly one primary module; cross-cutting rows (41, 47, 50)

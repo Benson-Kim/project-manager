@@ -68,8 +68,9 @@ prompts:
         - Clean UI, NO HINTS: no helper text, no tooltips, no onboarding.
           Mobile-first from 360px, touch targets >= 44px, WCAG 2.2 AA + axe.
           All copy in src/lib/messages.ts.
-        - Never commit secrets; never delete/modify Access_database.mdb,
-          Project_.xlsx or Project_hololens.pptx.
+        - Never commit secrets; never delete/modify the source binaries in
+          docs/source/ (Access_database.mdb, Project_.xlsx,
+          Project_hololens.pptx).
         - Never weaken a test or guardrail to make CI pass.
       user: |
         {{goal}}
@@ -81,8 +82,8 @@ prompts:
            "Standards compliance (set by foundation session)" section;
            docs/PLAN.md (§2 data model, §4 proc catalogue, §10 execution plan
            for this module); docs/TRACEABILITY.md;
-           docs/source-analysis/requirements.md and the sections of
-           docs/source-analysis/access-database.md for this module's
+           docs/source/analysis/requirements.md and the sections of
+           docs/source/analysis/access-database.md for this module's
            tables/queries/data; docs/adr/ for prior decisions.
         2. git fetch origin && switch to a new branch feature/<module> based on
            origin/develop (reuse the branch if it already exists).
