@@ -13,7 +13,7 @@ export function SectionHeading({
   return (
     <h3
       id={id}
-      className="mb-3 mt-5 border-b border-line pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted first:mt-0"
+      className="mb-3 mt-5 border-b border-line px-4 py-3 text-xs font-semibold uppercase tracking-wide text-ink-muted first:mt-0"
     >
       {children}
     </h3>

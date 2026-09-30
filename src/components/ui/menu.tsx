@@ -86,7 +86,7 @@ export function Menu({
         role="menu"
         aria-label={label}
         hidden={!open}
-        className="absolute right-0 z-(--z-dialog) mt-1 min-w-48 rounded-md border border-line bg-surface-raised py-1 shadow-lg"
+        className="absolute right-0 z-(--z-dropdown) mt-1 min-w-48 rounded-md border border-line bg-surface-raised py-1 shadow-lg"
         onClickCapture={(event) => {
           const target = event.target as HTMLElement;
           if (target.closest('[role="menuitem"]')) setOpen(false);
