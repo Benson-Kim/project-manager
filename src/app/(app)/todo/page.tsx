@@ -72,6 +72,9 @@ export default async function GlobalTodoPage({
   const totalCount = rows[0]?.TotalCount ?? 0;
   const canEdit = can(session.role, "todo-items:update");
   const canDelete = can(session.role, "todo-items:delete");
+  const canCreateAlert = can(session.role, "todo-alerts:create");
+  const canUpdateAlert = can(session.role, "todo-alerts:update");
+  const canDeleteAlert = can(session.role, "todo-alerts:delete");
   const filtersActive = Boolean(effectiveParams.q || flat.status || flat.priority || flat.projectOrActivity);
 
   return (
@@ -133,15 +136,18 @@ export default async function GlobalTodoPage({
         />
       </div>
 
-      {/* Sheet: no create (project-scoped); edit/alert management when canEdit */}
+      {/* Sheet: no create (project-scoped); item and alert permissions are independent. */}
       <TodoItemSheet
         todoItem={selected}
         todoAlert={selectedAlert}
         isNew={false}
-        projectId={selected?.ProjectId ?? 0}
+        projectId={selected?.ProjectId ?? null}
         dailyActivityOptions={[]}
         canEdit={canEdit}
         canDelete={canDelete}
+        canCreateAlert={canCreateAlert}
+        canUpdateAlert={canUpdateAlert}
+        canDeleteAlert={canDeleteAlert}
       />
     </>
   );

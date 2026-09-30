@@ -83,6 +83,9 @@ export default async function TodosPage({
   const canCreate = can(session.role, "todo-items:create");
   const canEdit = can(session.role, "todo-items:update");
   const canDelete = can(session.role, "todo-items:delete");
+  const canCreateAlert = can(session.role, "todo-alerts:create");
+  const canUpdateAlert = can(session.role, "todo-alerts:update");
+  const canDeleteAlert = can(session.role, "todo-alerts:delete");
   const canReorder = can(session.role, "todo-items:update");
   const filtersActive = Boolean(effectiveParams.q || flat.status || flat.priority || flat.projectOrActivity);
 
@@ -121,6 +124,9 @@ export default async function TodosPage({
         dailyActivityOptions={activityOptions}
         canEdit={canEdit}
         canDelete={canDelete}
+        canCreateAlert={canCreateAlert}
+        canUpdateAlert={canUpdateAlert}
+        canDeleteAlert={canDeleteAlert}
       />
     </>
   );
