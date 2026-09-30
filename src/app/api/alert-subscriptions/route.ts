@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/provider";
+import { getPushConfig } from "@/lib/push/config";
 import { upsertAlertSubscription } from "@/modules/todo-items/repository/alert-subscriptions";
 import { pushSubscriptionInput } from "@/modules/todo-items/schemas/alert-subscription";
 
@@ -16,6 +17,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!sameOrigin(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const session = await auth.getSession();
   if (!session) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
+  if (!getPushConfig()) return NextResponse.json({ error: "Web Push is not configured" }, { status: 503 });
 
   let body: unknown;
   try {
