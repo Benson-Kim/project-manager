@@ -1,7 +1,6 @@
--- usp_Todo_GetDueAlerts — returns TodoAlert rows whose AlertDay is today (UTC) and
--- AlertTime has been reached or passed (UTC), are not dismissed, and whose to-do
--- is not Completed or Cancelled. Used by the 60-second client poll to fire browser
--- notifications. Scoped to @ActorUserId via TodoItem.CreatedBy.
+-- usp_Todo_GetDueAlerts — returns due and past-due TodoAlert rows in UTC,
+-- including all-day alerts with no AlertTime. Excludes dismissed alerts and
+-- completed/cancelled to-dos. Scoped to @ActorUserId via TodoItem.CreatedBy.
 -- Module: todo-alerts (#20).
 USE ProjectManager;
 GO
@@ -30,7 +29,10 @@ BEGIN
       AND a.IsDismissed = 0
       AND t.CreatedBy = @ActorUserId
       AND t.[Status] NOT IN (N'Completed', N'Cancelled')
-      AND a.AlertDay = @NowDate
-      AND a.AlertTime <= @NowTime;
+      AND a.AlertDay IS NOT NULL
+      AND (
+            a.AlertDay < @NowDate
+            OR (a.AlertDay = @NowDate AND (a.AlertTime IS NULL OR a.AlertTime <= @NowTime))
+          );
 END;
 GO
