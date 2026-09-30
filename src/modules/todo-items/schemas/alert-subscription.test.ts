@@ -14,6 +14,7 @@ describe("push subscription boundary", () => {
 
   it.each([
     ["invalid endpoint", { ...validSubscription, endpoint: "not-a-url" }],
+    ["insecure endpoint", { ...validSubscription, endpoint: "http://push.example.test/send/abc" }],
     ["missing encryption keys", { endpoint: validSubscription.endpoint, keys: {} }],
     ["unexpected field", { ...validSubscription, extra: "must be rejected" }],
   ])("rejects %s", (_label, value) => {
