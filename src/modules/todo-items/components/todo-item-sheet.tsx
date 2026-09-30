@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useAnnouncer } from "@/components/ui/announcer";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Field } from "@/components/ui/form/field";
 import { Combobox, type ComboboxOption } from "@/components/ui/form/combobox";
 import { DatePicker, Input, Select, Textarea } from "@/components/ui/form/inputs";
 import { SectionHeading } from "@/components/ui/form/section-heading";
+import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { useToast } from "@/components/ui/toast";
@@ -55,14 +56,20 @@ export function TodoItemSheet({
   dailyActivityOptions,
   canEdit,
   canDelete,
+  canCreateAlert,
+  canUpdateAlert,
+  canDeleteAlert,
 }: {
   todoItem: TodoItemRow | null;
   todoAlert: TodoAlertRow | null;
   isNew: boolean;
-  projectId: number;
+  projectId: number | null;
   dailyActivityOptions: DailyActivityOption[];
   canEdit: boolean;
   canDelete: boolean;
+  canCreateAlert: boolean;
+  canUpdateAlert: boolean;
+  canDeleteAlert: boolean;
 }) {
   const router = useRouter();
   const { update } = useListUrlState();
@@ -80,10 +87,97 @@ export function TodoItemSheet({
   const [itemConflict, setItemConflict] = useState(false);
   const [alertConflict, setAlertConflict] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmRemoveAlert, setConfirmRemoveAlert] = useState(false);
   const [alertOpen, setAlertOpen] = useState(todoAlert !== null);
+  const [itemDirty, setItemDirty] = useState(false);
+  const [alertDirty, setAlertDirty] = useState(false);
+  const [showUnsaved, setShowUnsaved] = useState(false);
+  const itemDirtyRef = useRef(false);
+  const alertDirtyRef = useRef(false);
+  const pendingNavRef = useRef<(() => void) | null>(null);
+  const { markDirty, markClean } = useUnsavedChangesGuard(itemDirty || alertDirty);
 
   const open = isNew || todoItem !== null;
-  const close = () => update({ id: null });
+  const canSaveAlert = todoAlert ? canUpdateAlert : canCreateAlert;
+  const showAlertSection =
+    todoItem !== null && (canSaveAlert || (todoAlert !== null && canDeleteAlert));
+  const canSnooze =
+    todoAlert !== null &&
+    (todoAlert.MaxSnoozeCount === null ||
+      (todoAlert.SnoozeCount ?? 0) < todoAlert.MaxSnoozeCount);
+
+  const resetDirty = () => {
+    itemDirtyRef.current = false;
+    alertDirtyRef.current = false;
+    setItemDirty(false);
+    setAlertDirty(false);
+    markClean();
+  };
+
+  const close = () => {
+    pendingNavRef.current = null;
+    resetDirty();
+    setShowUnsaved(false);
+    update({ id: null });
+  };
+
+  const markItemFormDirty = () => {
+    itemDirtyRef.current = true;
+    setItemDirty(true);
+    markDirty();
+  };
+
+  const markAlertFormDirty = () => {
+    alertDirtyRef.current = true;
+    setAlertDirty(true);
+    markDirty();
+  };
+
+  const clearAlertDirty = () => {
+    alertDirtyRef.current = false;
+    setAlertDirty(false);
+    if (!itemDirtyRef.current) markClean();
+  };
+
+  useEffect(() => {
+    function handleBeforeNavigate(event: Event) {
+      if (!itemDirtyRef.current && !alertDirtyRef.current) return;
+      event.preventDefault();
+      pendingNavRef.current = (
+        event as CustomEvent<{ resume: () => void }>
+      ).detail.resume;
+      setShowUnsaved(true);
+    }
+
+    window.addEventListener("before-navigate", handleBeforeNavigate);
+    return () => window.removeEventListener("before-navigate", handleBeforeNavigate);
+  }, []);
+
+  const requestClose = () => {
+    if (itemDirtyRef.current || alertDirtyRef.current) {
+      pendingNavRef.current = null;
+      setShowUnsaved(true);
+    } else {
+      close();
+    }
+  };
+
+  const discardAndNavigate = () => {
+    const resume = pendingNavRef.current;
+    pendingNavRef.current = null;
+    resetDirty();
+    setShowUnsaved(false);
+    if (resume) {
+      resume();
+    } else {
+      update({ id: null });
+    }
+  };
+
+  const onUnsavedOpenChange = (next: boolean) => {
+    setShowUnsaved(next);
+    if (!next) pendingNavRef.current = null;
+  };
 
   const activityOptions: ComboboxOption[] = dailyActivityOptions.map((a) => ({
     value: String(a.DailyActivityId),
@@ -136,6 +230,7 @@ export function TodoItemSheet({
         ? await updateTodoAlertAction(formData)
         : await createTodoAlertAction(formData);
       if (result.ok) {
+        clearAlertDirty();
         toast({ variant: "success", title: messages.feedback.saved });
         announce(messages.feedback.saved);
         router.refresh();
@@ -154,7 +249,9 @@ export function TodoItemSheet({
         todoAlertId: todoAlert.TodoAlertId,
         rowVer: todoAlert.RowVer,
       });
+      setConfirmRemoveAlert(false);
       if (result.ok) {
+        clearAlertDirty();
         setAlertOpen(false);
         toast({ variant: "success", title: messages.feedback.deleted });
         announce(messages.feedback.deleted);
@@ -221,10 +318,11 @@ export function TodoItemSheet({
   };
 
   return (
-    <Sheet
+    <>
+      <Sheet
       open={open}
       onOpenChange={(next) => {
-        if (!next) close();
+        if (!next) requestClose();
       }}
       title={todoItem ? (todoItem.TodoItem ?? messages.app.untitled) : messages.todoItems.newTodoItem}
     >
@@ -232,6 +330,7 @@ export function TodoItemSheet({
       <form
         noValidate
         onBlur={canEdit ? form.onBlur : undefined}
+        onChange={canEdit ? markItemFormDirty : undefined}
         onSubmit={onSubmit}
         data-testid="todo-item-form"
         className="flex flex-col gap-5"
@@ -244,7 +343,11 @@ export function TodoItemSheet({
             </Button>
           </div>
         ) : null}
-        <input type="hidden" name="projectId" value={todoItem?.ProjectId ?? projectId} />
+        <input
+          type="hidden"
+          name="projectId"
+          value={todoItem?.ProjectId ?? projectId ?? ""}
+        />
         {todoItem ? (
           <>
             <input type="hidden" name="todoItemId" value={todoItem.TodoItemId} />
@@ -335,7 +438,7 @@ export function TodoItemSheet({
               {messages.actions.save}
             </Button>
           ) : null}
-          <Button type="button" variant="secondary" onClick={close}>
+          <Button type="button" variant="secondary" onClick={requestClose}>
             {messages.actions.cancel}
           </Button>
           {todoItem && canDelete ? (
@@ -352,7 +455,7 @@ export function TodoItemSheet({
       </form>
 
       {/* ── Alert section (separate form, only shown when editing an existing item) ── */}
-      {todoItem && canEdit ? (
+      {todoItem && showAlertSection ? (
         <div className="flex flex-col gap-4 border-t border-line pt-4">
           <div className="flex items-center justify-between px-4">
             <button
@@ -363,42 +466,42 @@ export function TodoItemSheet({
             >
               {messages.todoItems.alertSection}
             </button>
-            {todoAlert ? (
+            {todoAlert && canDeleteAlert ? (
               <Button
                 type="button"
-                variant="secondary"
-                pending={alertPending}
-                onClick={onRemoveAlert}
+                variant="danger"
+                onClick={() => setConfirmRemoveAlert(true)}
               >
                 {messages.todoItems.removeAlert}
               </Button>
-            ) : (
-              !alertOpen ? (
-                <Button type="button" variant="secondary" onClick={() => setAlertOpen(true)}>
-                  {messages.todoItems.configureAlert}
-                </Button>
-              ) : null
-            )}
+            ) : null}
+            {!todoAlert && canCreateAlert && !alertOpen ? (
+              <Button type="button" variant="secondary" onClick={() => setAlertOpen(true)}>
+                {messages.todoItems.configureAlert}
+              </Button>
+            ) : null}
           </div>
           {/* Snooze / dismiss row — only shown when a saved alert exists */}
-          {todoAlert && !todoAlert.IsDismissed ? (
+          {todoAlert && canUpdateAlert && !todoAlert.IsDismissed ? (
             <div className="flex flex-wrap items-center gap-2 px-4">
-              {(todoAlert.SnoozeOptions ?? "5,10,15")
-                .split(",")
-                .map((s) => s.trim())
-                .filter(Boolean)
-                .map((mins) => (
-                  <Button
-                    key={mins}
-                    type="button"
-                    variant="secondary"
-                    pending={snoozePending}
-                    data-testid={`snooze-${mins}`}
-                    onClick={() => onSnooze(Number(mins))}
-                  >
-                    {messages.todoItems.snoozeMinutes(mins)}
-                  </Button>
-                ))}
+              {canSnooze
+                ? (todoAlert.SnoozeOptions ?? "5,10,15")
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                    .map((mins) => (
+                      <Button
+                        key={mins}
+                        type="button"
+                        variant="secondary"
+                        pending={snoozePending}
+                        data-testid={`snooze-${mins}`}
+                        onClick={() => onSnooze(Number(mins))}
+                      >
+                        {messages.todoItems.snoozeMinutes(mins)}
+                      </Button>
+                    ))
+                : null}
               <Button
                 type="button"
                 variant="secondary"
@@ -410,10 +513,11 @@ export function TodoItemSheet({
               </Button>
             </div>
           ) : null}
-          {alertOpen ? (
+          {alertOpen && canSaveAlert ? (
             <form
               noValidate
               onBlur={alertForm.onBlur}
+              onChange={markAlertFormDirty}
               onSubmit={onAlertSubmit}
               data-testid="todo-alert-form"
               className="flex flex-col gap-4 px-4"
@@ -498,11 +602,15 @@ export function TodoItemSheet({
                     min={0}
                     max={99}
                     defaultValue={
-                      todoAlert?.MaxSnoozeCount ? String(todoAlert.MaxSnoozeCount) : ""
+                      todoAlert?.MaxSnoozeCount != null ? String(todoAlert.MaxSnoozeCount) : ""
                     }
                   />
                 </Field>
-                <Field label={messages.todoItems.snoozeOptions} name="snoozeOptions">
+                <Field
+                  label={messages.todoItems.snoozeOptions}
+                  name="snoozeOptions"
+                  errors={alertForm.errors.snoozeOptions}
+                >
                   <Input
                     name="snoozeOptions"
                     placeholder="5,10,15"
@@ -534,6 +642,26 @@ export function TodoItemSheet({
           pending={itemPending}
         />
       ) : null}
-    </Sheet>
+      {todoItem && todoAlert && canDeleteAlert ? (
+        <ConfirmDialog
+          open={confirmRemoveAlert}
+          onOpenChange={setConfirmRemoveAlert}
+          title={messages.todoItems.removeAlertTitle}
+          body={messages.todoItems.removeAlertBody}
+          confirmLabel={messages.todoItems.removeAlert}
+          onConfirm={onRemoveAlert}
+          pending={alertPending}
+        />
+      ) : null}
+      </Sheet>
+      <ConfirmDialog
+        open={showUnsaved}
+        onOpenChange={onUnsavedOpenChange}
+        title={messages.feedback.unsavedChangesTitle}
+        body={messages.feedback.unsavedChangesBody}
+        confirmLabel={messages.feedback.discard}
+        onConfirm={discardAndNavigate}
+      />
+    </>
   );
 }

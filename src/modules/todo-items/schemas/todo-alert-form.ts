@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { messages } from "@/lib/messages";
-import { REPEAT_UNITS } from "./todo-alert";
-import { rowVerSchema } from "./todo-alert";
+import { REPEAT_UNITS, rowVerSchema, snoozeOptionsSchema } from "./todo-alert";
 
 /**
  * TodoAlert form contract: ONE schema shared by the client alert
@@ -21,7 +20,9 @@ const optionalInt = (min = 0, max = 999) =>
     .trim()
     .optional()
     .refine(
-      (v) => !v || (!Number.isNaN(Number(v)) && Number(v) >= min && Number(v) <= max),
+      (v) =>
+        !v ||
+        (Number.isInteger(Number(v)) && Number(v) >= min && Number(v) <= max),
       messages.errors.VALIDATION,
     )
     .transform((v) => (v ? Number(v) : null));
@@ -52,9 +53,9 @@ export const todoAlertFormSchema = z.object({
   snoozeOptions: z
     .string()
     .trim()
-    .max(255)
     .optional()
-    .transform((v) => (v ? v : null)),
+    .transform((v) => (v ? v : null))
+    .pipe(snoozeOptionsSchema.nullable()),
   isDismissed: z
     .string()
     .optional()

@@ -31,8 +31,18 @@ const vocab = <T extends readonly [string, ...string[]]>(values: T) =>
     .refine((v) => !v || (values as readonly string[]).includes(v), messages.errors.VALIDATION)
     .transform((v) => (v ? (v as T[number]) : null));
 
+const nullableProjectId = z.union([
+  z.null(),
+  z.number().int().positive(),
+  z
+    .string()
+    .trim()
+    .transform((value) => (value === "" ? null : Number(value)))
+    .pipe(z.number().int().positive().nullable()),
+]);
+
 export const todoItemFormSchema = z.object({
-  projectId: z.coerce.number().int().nullable(),
+  projectId: nullableProjectId,
   dailyActivityId: z
     .string()
     .trim()

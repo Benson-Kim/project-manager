@@ -103,6 +103,16 @@ describe("todoItemFormSchema", () => {
     const parsed = todoItemFormSchema.parse({ projectId: null, todoItem: "Global task" });
     expect(parsed.projectId).toBeNull();
   });
+
+  it("coerces an empty projectId field to null", () => {
+    const parsed = todoItemFormSchema.parse({ projectId: "", todoItem: "Global task" });
+    expect(parsed.projectId).toBeNull();
+  });
+
+  it("rejects zero as a projectId", () => {
+    const result = todoItemFormSchema.safeParse({ projectId: "0", todoItem: "Global task" });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("updateTodoItemFormSchema", () => {

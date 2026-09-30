@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { messages } from "@/lib/messages";
 
 /**
  * Shared rowVer schema — bigint from SQL ROWVERSION cast to BIGINT, returned as
@@ -13,6 +14,33 @@ export const rowVerSchema = z.union([z.string(), z.number()]).transform((v) => N
 
 /** Repeat unit vocabulary (Hour/Day/Week/Month). */
 export const REPEAT_UNITS = ["Hour", "Day", "Week", "Month"] as const;
+
+export function normalizeSnoozeOptions(value: string): string | null {
+  const tokens = value.split(",").map((token) => token.trim());
+  if (
+    tokens.length === 0 ||
+    tokens.some((token) => !/^\d+$/.test(token))
+  ) {
+    return null;
+  }
+
+  const minutes = tokens.map(Number);
+  if (minutes.some((minute) => minute < 1 || minute > 1440)) {
+    return null;
+  }
+
+  return [...new Set(minutes)].join(",");
+}
+
+export const snoozeOptionsSchema = z
+  .string()
+  .trim()
+  .max(255)
+  .refine(
+    (value) => normalizeSnoozeOptions(value) !== null,
+    messages.todoItems.invalidSnoozeOptions,
+  )
+  .transform((value) => normalizeSnoozeOptions(value)!);
 
 /**
  * mssql returns SQL TIME(0) columns as JS Date objects (midnight base date +
@@ -61,8 +89,8 @@ export const createTodoAlertInput = z.object({
   currentRepeatInterval: z.number().int().positive().nullish(),
   snoozeCount: z.number().int().min(0).nullish(),
   lastSnoozeTime: z.coerce.date().nullish(),
-  maxSnoozeCount: z.number().int().positive().nullish(),
-  snoozeOptions: z.string().trim().max(255).nullish(),
+  maxSnoozeCount: z.number().int().min(0).nullish(),
+  snoozeOptions: snoozeOptionsSchema.nullish(),
   isDismissed: z.boolean(),
 });
 

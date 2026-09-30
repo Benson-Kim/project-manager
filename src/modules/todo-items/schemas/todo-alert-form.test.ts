@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createTodoAlertInput } from "./todo-alert";
 import { todoAlertFormSchema, updateTodoAlertFormSchema } from "./todo-alert-form";
 
 /**
@@ -66,6 +67,40 @@ describe("todoAlertFormSchema", () => {
     expect(parsed.repeatInterval).toBeNull();
   });
 
+  it("accepts zero as the maximum snooze count", () => {
+    const parsed = todoAlertFormSchema.parse({ ...minimal, maxSnoozeCount: "0" });
+    expect(parsed.maxSnoozeCount).toBe(0);
+  });
+
+  it("rejects a fractional maximum snooze count", () => {
+    const result = todoAlertFormSchema.safeParse({
+      ...minimal,
+      maxSnoozeCount: "1.5",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("normalizes valid snooze options and removes duplicates", () => {
+    const parsed = todoAlertFormSchema.parse({
+      ...minimal,
+      snoozeOptions: " 05, 10,5, 1440 ",
+    });
+    expect(parsed.snoozeOptions).toBe("5,10,1440");
+  });
+
+  it.each(["abc", "0", "2000", "5,,10", "1.5"])(
+    "rejects invalid snooze options %s",
+    (snoozeOptions) => {
+      const result = todoAlertFormSchema.safeParse({ ...minimal, snoozeOptions });
+      expect(result.success).toBe(false);
+    },
+  );
+
+  it("coerces empty snooze options to null", () => {
+    const parsed = todoAlertFormSchema.parse({ ...minimal, snoozeOptions: "" });
+    expect(parsed.snoozeOptions).toBeNull();
+  });
+
   it("coerces isDismissed true string", () => {
     const parsed = todoAlertFormSchema.parse({ ...minimal, isDismissed: "true" });
     expect(parsed.isDismissed).toBe(true);
@@ -81,5 +116,19 @@ describe("updateTodoAlertFormSchema", () => {
     });
     expect(parsed.todoAlertId).toBe(9);
     expect(parsed.rowVer).toBe(55);
+  });
+});
+
+describe("createTodoAlertInput", () => {
+  it("accepts zero snoozes and normalizes options at the repository boundary", () => {
+    const parsed = createTodoAlertInput.parse({
+      todoItemId: 5,
+      maxSnoozeCount: 0,
+      snoozeOptions: " 5, 10, 5 ",
+      isDismissed: false,
+    });
+
+    expect(parsed.maxSnoozeCount).toBe(0);
+    expect(parsed.snoozeOptions).toBe("5,10");
   });
 });
