@@ -2,10 +2,13 @@
 
 import { z } from "zod";
 import { action } from "@/lib/action";
+import { auth } from "@/lib/auth/provider";
+import { messages } from "@/lib/messages";
 import {
   buildTodoFromDailyActivity,
   createTodoItem,
   deleteTodoItem,
+  getDueAlerts,
   reorderTodoItem,
   updateTodoItem,
 } from "../repository/todo-items";
@@ -133,3 +136,23 @@ export const buildTodoFromDailyActivityAction = action({
   permission: "todo-items:create",
   handler: (input, ctx) => buildTodoFromDailyActivity(input.dailyActivityId, ctx.session.userId),
 });
+
+/**
+ * Poll for alerts that are due right now (AlertDay = today UTC, AlertTime <=
+ * current UTC time). Called every 60 s by useAlertPoller on the client.
+ * Returns a plain array — not wrapped in ActionResult — so the poller can
+ * call it directly without the action() overhead (it's a read, not a mutation).
+ */
+export async function pollDueAlertsAction(): Promise<
+  Array<{ todoAlertId: number; todoItemId: number; title: string; rowVer: number }>
+> {
+  const session = await auth.getSession();
+  if (!session) return [];
+  const rows = await getDueAlerts(session.userId).catch(() => []);
+  return rows.map((r) => ({
+    todoAlertId: r.TodoAlertId,
+    todoItemId: r.TodoItemId,
+    title: r.TodoItem ?? messages.app.untitled,
+    rowVer: r.RowVer,
+  }));
+}

@@ -1,0 +1,31 @@
+-- usp_Meeting_GetParticipants — port of Access qryMeetingParticipants:
+-- every participant of a meeting with the stakeholder's display name and
+-- attendee/apology status.
+USE ProjectManager;
+GO
+CREATE OR ALTER PROCEDURE dbo.usp_Meeting_GetParticipants
+    @MeetingId   INT,
+    @ActorUserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM app.Meeting WHERE MeetingId = @MeetingId AND IsDeleted = 0)
+        THROW 50001, N'NOT_FOUND:Meeting not found', 1;
+
+    SELECT mp.MeetingParticipantId,
+           mp.MeetingId,
+           mp.StakeholderId,
+           s.[FirstName],
+           s.[LastName],
+           LTRIM(RTRIM(CONCAT(s.[FirstName], N' ', ISNULL(s.[LastName], N'')))) AS ParticipantName,
+           mp.[IsApology],
+           CAST(mp.RowVer AS BIGINT) AS RowVer
+    FROM app.MeetingParticipant AS mp
+    JOIN app.Stakeholder AS s
+        ON s.StakeholderId = mp.StakeholderId
+    WHERE mp.IsDeleted = 0
+      AND mp.MeetingId = @MeetingId
+    ORDER BY s.[FirstName], s.[LastName];
+END;
+GO

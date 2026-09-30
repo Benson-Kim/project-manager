@@ -7,9 +7,9 @@ import { AppError, type AppErrorCode } from "./errors";
 import { messages } from "./messages";
 
 /**
- * Typed Server Action wrapper (ADR-0003): validate → authenticate → authorise
+ * Typed Server Action wrapper : validate → authenticate → authorise
  * → execute → map errors → revalidate. Handlers pass ctx.session.userId to the
- * repository; mutation procs write the audit row in-transaction (ADR-0011).
+ * repository; mutation procs write the audit row in-transaction ).
  * Never throws to the client (redirect() excepted — Next rethrows it).
  */
 export type ActionErrorCode = AppErrorCode;
@@ -30,7 +30,7 @@ export interface ActionOptions<TSchema extends z.ZodType, TOutput> {
   name: string;
   /** Input schema — the single validation source (shared with the client form). */
   schema: TSchema;
-  /** RBAC permission, e.g. "suppliers:create" (ADR-0015). */
+  /** RBAC permission, e.g. "suppliers:create" ). */
   permission: Permission;
   /** Paths (starting with "/") and tags to revalidate on success. */
   revalidate?: string[];

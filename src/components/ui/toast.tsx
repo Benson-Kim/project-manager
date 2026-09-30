@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState } fro
 import { messages } from "@/lib/messages";
 
 /**
- * The ONE toast system (ADR-0008). success/info 4 s, warning 6 s, error sticky.
+ * The ONE toast system . success/info 4 s, warning 6 s, error sticky.
  * Max 3 visible (older ones drop first). Optional single action (e.g. undo).
  */
 export type ToastVariant = "success" | "info" | "warning" | "error";
@@ -91,7 +91,7 @@ export function Toaster({ children }: { children: React.ReactNode }) {
             {t.action ? (
               <button
                 type="button"
-                className="min-h-11 px-2 text-sm font-medium text-accent"
+                className="min-h-10 px-2 text-sm font-medium text-accent"
                 onClick={() => {
                   t.action?.onAction();
                   dismiss(t.id);

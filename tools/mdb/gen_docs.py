@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Generate docs/source-analysis markdown from the JSON dumps produced by
-mdbread.py / xlsx_dump.py / pptx_dump.py."""
+"""Generate docs/source/analysis markdown from the JSON dumps produced by
+mdbread.py / xlsx_dump.py / pptx_dump.py.
+
+Run from this directory (tools/mdb/); paths below are relative to it."""
 import json, sys, re, datetime
 sys.path.insert(0, '.')
 from mdbread import Mdb
 
-OUT = "../../docs/source-analysis"
+OUT = "../../docs/source/analysis"
 
 ACCESS_TO_MSSQL = {
     "BOOL": "BIT", "BYTE": "TINYINT", "INT": "SMALLINT", "LONG": "INT",
@@ -31,7 +33,7 @@ def md_table(headers, rows):
 
 def gen_access():
     d = json.load(open("/tmp/work/mdb_dump.json"))
-    m = Mdb("../../Access_database.mdb")
+    m = Mdb("../../docs/source/Access_database.mdb")
     g = m.data_pages_by_table()
     so = m.read_tdef(2)
     objs = m.table_rows(so, g.get(2, []))

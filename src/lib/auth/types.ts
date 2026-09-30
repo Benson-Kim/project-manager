@@ -1,5 +1,5 @@
 /**
- * Final auth contract (ADR-0015). Module #4 replaces the provider
+ * Final auth contract ). Module #4 replaces the provider
  * implementation (src/lib/auth/provider.ts) with Auth.js — this file and all
  * call sites stay unchanged.
  */

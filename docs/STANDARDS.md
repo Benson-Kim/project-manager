@@ -83,7 +83,7 @@ independent sessions stay navigable and uniform.
   once and recorded in `app.SchemaMigrations` by `scripts/db-apply.sh`. A merged
   migration is immutable — fix forward with a new one.
 - Seeds: `db/seed/NNN_entity.sql`, idempotent (`MERGE` or `IF NOT EXISTS`), data
-  taken ONLY from `docs/source-analysis/access-database.md` §4.
+  taken ONLY from `docs/source/analysis/access-database.md` §4.
 
 ### 2.2 Standard entity table shape
 
@@ -165,8 +165,9 @@ export const createSupplier = action({
 - Row-level authorisation is ALSO enforced in the proc (`FORBIDDEN_ROW`) — the action
   layer is not the last line of defence.
 - Role→permission matrix lives in `src/lib/auth/rbac.ts` only (source: PLAN.md §9).
-  Until module #4 lands, sessions come from the dev-stub provider
-  (`AUTH_DEV_BYPASS=1`); the contract in `src/lib/auth/types.ts` is final.
+  Sessions come from the Auth.js v5 provider (module #4; the ADR-0015 dev stub
+  and its `AUTH_DEV_BYPASS` flag are gone); the contract in
+  `src/lib/auth/types.ts` is final.
 
 ---
 
@@ -227,11 +228,21 @@ system/light/dark via `ThemeProvider`, applied pre-paint (no flash).
 ### 5.3 Layout rules
 
 - Design at 360 px first; enhance upward (`sm/md/lg`). Test at 360/768/1280.
-- Touch targets ≥ 44 × 44 px (`min-h-11` on interactive rows/buttons).
+- Button-like controls use `px-6` + `min-h-10` (40 px minimum hit target — product
+  owner sizing); icon-only buttons stay square with `min-h-10 min-w-9`
+  (the `px-6` rule does not apply to them). Non-button interactive rows keep
+  `min-h-11`. Accent token: `#102542` light / `#a9c4e8` dark (WCAG AA-verified
+  pairings in `src/app/globals.css`).
+- Nav/shell controls (sidebar items, project section nav pills, header actions) use
+  the 40 px shell scale (`min-h-10`); the 44 px `min-h-11` rule
+  applies to non-button interactive rows in content, not to navigation chrome.
 - Safe-area insets respected (`pb-[env(safe-area-inset-bottom)]` on bottom nav/sticky
   bars); PWA display standalone.
-- ONE navigation pattern: bottom tab bar (≤ md: Projects, To-Do, +context, Menu) and
-  desktop sidebar (≥ md) — both rendered by `src/components/shell/`.
+- ONE navigation pattern: desktop sidebar (≥ md: logo, New project,
+  Dashboard/Projects/Daily activities/To-do lists/Reports, Settings + Logout pinned)
+  and a hamburger drawer (< md, focus-trapped Sheet) — both rendered by
+  `src/components/shell/`. The header shows the page title plus notifications bell,
+  theme toggle and avatar menu.
 - ONE page anatomy: `PageHeader` (title + primary action) → `Toolbar`
   (search/filter/sort/view toggle) → content → sticky primary action on mobile where
   the header scrolled away.
@@ -364,7 +375,7 @@ Copy-paste checklist — also embedded in each module issue:
 - [ ] Procs: usp_<Entity>_{Create,GetById,List,Update,Delete} (+ business verbs),
       CREATE OR ALTER, audit rows in-transaction, THROW error contract,
       List proc follows ADR-0016 exactly
-- [ ] Seeds from docs/source-analysis/access-database.md §4, idempotent
+- [ ] Seeds from docs/source/analysis/access-database.md §4, idempotent
 - [ ] Repository: execProc only, zod row parsing, typed inputs
 - [ ] Schemas: zod input schemas shared client/server
 - [ ] Actions: action() wrapper with permission + revalidate; no raw server actions

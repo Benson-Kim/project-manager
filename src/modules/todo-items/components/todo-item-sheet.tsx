@@ -59,7 +59,7 @@ export function TodoItemSheet({
   todoItem: TodoItemRow | null;
   todoAlert: TodoAlertRow | null;
   isNew: boolean;
-  projectId: number;
+  projectId: number | null;
   dailyActivityOptions: DailyActivityOption[];
   canEdit: boolean;
   canDelete: boolean;
@@ -87,7 +87,7 @@ export function TodoItemSheet({
 
   const activityOptions: ComboboxOption[] = dailyActivityOptions.map((a) => ({
     value: String(a.DailyActivityId),
-    label: a.Task ?? `Activity ${a.DailyActivityId}`,
+    label: a.Label,
   }));
 
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -244,7 +244,7 @@ export function TodoItemSheet({
             </Button>
           </div>
         ) : null}
-        <input type="hidden" name="projectId" value={todoItem?.ProjectId ?? projectId} />
+        <input type="hidden" name="projectId" value={todoItem?.ProjectId ?? projectId ?? 0} />
         {todoItem ? (
           <>
             <input type="hidden" name="todoItemId" value={todoItem.TodoItemId} />
@@ -266,7 +266,7 @@ export function TodoItemSheet({
               <Input name="todoItem" defaultValue={todoItem?.TodoItem ?? ""} />
             </Field>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label={messages.todoItems.status} name="status">
+              <Field label={messages.todoItems.status} name="status" errors={form.errors.status}>
                 <Select name="status" defaultValue={todoItem?.Status ?? ""}>
                   <option value="">{messages.todoItems.allStatuses}</option>
                   {TODO_STATUSES.map((s) => (
@@ -276,7 +276,7 @@ export function TodoItemSheet({
                   ))}
                 </Select>
               </Field>
-              <Field label={messages.todoItems.priority} name="priority">
+              <Field label={messages.todoItems.priority} name="priority" errors={form.errors.priority}>
                 <Select name="priority" defaultValue={todoItem?.Priority ?? ""}>
                   <option value="">{messages.todoItems.allPriorities}</option>
                   {TODO_PRIORITIES.map((p) => (
@@ -295,7 +295,7 @@ export function TodoItemSheet({
                 <DatePicker name="dueDate" defaultValue={toDateInput(todoItem?.DueDate)} />
               </Field>
             </div>
-            <Field label={messages.todoItems.projectOrActivity} name="projectOrActivity">
+            <Field label={messages.todoItems.projectOrActivity} name="projectOrActivity" errors={form.errors.projectOrActivity}>
               <Select name="projectOrActivity" defaultValue={todoItem?.ProjectOrActivity ?? ""}>
                 <option value="">{messages.todoItems.allTypes}</option>
                 {PROJECT_OR_ACTIVITY.map((t) => (
@@ -305,7 +305,7 @@ export function TodoItemSheet({
                 ))}
               </Select>
             </Field>
-            <Field label={messages.todoItems.notes} name="notes">
+            <Field label={messages.todoItems.notes} name="notes" errors={form.errors.notes}>
               <Textarea name="notes" rows={3} defaultValue={todoItem?.Notes ?? ""} />
             </Field>
           </section>
@@ -462,7 +462,7 @@ export function TodoItemSheet({
                 </Field>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label={messages.todoItems.repeatUnit} name="repeatUnit">
+                <Field label={messages.todoItems.repeatUnit} name="repeatUnit" errors={alertForm.errors.repeatUnit}>
                   <Select name="repeatUnit" defaultValue={todoAlert?.RepeatUnit ?? ""}>
                     <option value=""></option>
                     {REPEAT_UNITS.map((u) => (
@@ -502,7 +502,7 @@ export function TodoItemSheet({
                     }
                   />
                 </Field>
-                <Field label={messages.todoItems.snoozeOptions} name="snoozeOptions">
+                <Field label={messages.todoItems.snoozeOptions} name="snoozeOptions" errors={alertForm.errors.snoozeOptions}>
                   <Input
                     name="snoozeOptions"
                     placeholder="5,10,15"

@@ -8,7 +8,6 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { DatePicker, Input, Select, Switch, Textarea } from "@/components/ui/form/inputs";
-import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
@@ -50,12 +49,7 @@ export function ProjectForm({
   const [summary, setSummary] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [dirty, setDirty] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-// beforeunload for full unloads PLUS interception of
-  // client-side <Link> navigation (section nav, sidebar — ADR-0018 Q1).
-  const guard = useUnsavedChangesGuard(dirty);
-
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formElement = event.currentTarget;
@@ -71,7 +65,6 @@ export function ProjectForm({
         ? await updateProjectAction(formData)
         : await createProjectAction(formData);
       if (result.ok) {
-        setDirty(false);
         toast({
           variant: "success",
           title: project ? messages.feedback.saved : messages.feedback.created,
@@ -96,7 +89,6 @@ export function ProjectForm({
       });
       setConfirmDelete(false);
       if (result.ok) {
-        setDirty(false);
         toast({ variant: "success", title: messages.feedback.deleted });
         announce(messages.feedback.deleted);
         router.push("/projects");
@@ -108,7 +100,7 @@ export function ProjectForm({
   };
 
   const back = () => {
-    guard.requestNavigation("/projects");
+    router.push("/projects");
   };
 
   return (
@@ -117,7 +109,6 @@ export function ProjectForm({
       noValidate
       onBlur={canEdit ? form.onBlur : undefined}
       onSubmit={onSubmit}
-      onChange={() => setDirty(true)}
       data-testid="project-form"
       className="flex flex-col gap-6 pb-8"
     >
@@ -141,7 +132,7 @@ export function ProjectForm({
           aria-labelledby="charter-heading"
           className="flex flex-col gap-4  border border-line bg-linear-60 rounded-md"
         >
-          <SectionHeading id="charter-heading" className="rounded-t-md text-base bg-surface-sunken">Project Identity</SectionHeading>
+          <SectionHeading id="charter-heading">Project Identity</SectionHeading>
           <div className="px-4 py-3 flex flex-col gap-4">
             <Field
               label={messages.projects.name}
@@ -151,23 +142,23 @@ export function ProjectForm({
               <Input name="projectName" defaultValue={project?.ProjectName ?? ""} />
             </Field>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label={messages.projects.manager} name="projectManager">
+              <Field label={messages.projects.manager} name="projectManager" errors={form.errors.projectManager}>
                 <Input name="projectManager" defaultValue={project?.ProjectManager ?? ""} />
               </Field>
-              <Field label={messages.projects.businessAnalyst} name="businessAnalyst">
+              <Field label={messages.projects.businessAnalyst} name="businessAnalyst" errors={form.errors.businessAnalyst}>
                 <Input name="businessAnalyst" defaultValue={project?.BusinessAnalyst ?? ""} />
               </Field>
-              <Field label={messages.projects.sponsor} name="projectSponsor">
+              <Field label={messages.projects.sponsor} name="projectSponsor" errors={form.errors.projectSponsor}>
                 <Input name="projectSponsor" defaultValue={project?.ProjectSponsor ?? ""} />
               </Field>
-              <Field label={messages.projects.dateOfProject} name="dateOfProject">
+              <Field label={messages.projects.dateOfProject} name="dateOfProject" errors={form.errors.dateOfProject}>
                 <DatePicker
                   name="dateOfProject"
                   defaultValue={toDateInput(project?.DateOfProject)}
                 />
               </Field>
             </div>
-            <Field label={messages.projects.mandate} name="mandate">
+            <Field label={messages.projects.mandate} name="mandate" errors={form.errors.mandate}>
               <Input name="mandate" defaultValue={project?.Mandate ?? ""} />
             </Field>
             <Field
@@ -193,12 +184,12 @@ export function ProjectForm({
           aria-labelledby="framework-heading"
           className="flex flex-col gap-4  border border-line bg-linear-60 rounded-md"
         >
-          <SectionHeading id="framework-heading" className="rounded-t-md text-base bg-surface-sunken">
+          <SectionHeading id="framework-heading">
             {messages.projects.frameworkSection}
           </SectionHeading>
           <div className="px-4 py-3 flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label={messages.projects.status} name="projectStatus">
+              <Field label={messages.projects.status} name="projectStatus" errors={form.errors.projectStatus}>
                 <Select name="projectStatus" defaultValue={project?.ProjectStatus ?? ""}>
                   <option value="">{messages.projects.none}</option>
                   {PROJECT_STATUSES.map((s) => (
@@ -208,7 +199,7 @@ export function ProjectForm({
                   ))}
                 </Select>
               </Field>
-              <Field label={messages.projects.phase} name="projectPhase">
+              <Field label={messages.projects.phase} name="projectPhase" errors={form.errors.projectPhase}>
                 <Select name="projectPhase" defaultValue={project?.ProjectPhase ?? ""}>
                   <option value="">{messages.projects.none}</option>
                   {PROJECT_PHASES.map((p) => (
@@ -218,7 +209,7 @@ export function ProjectForm({
                   ))}
                 </Select>
               </Field>
-              <Field label={messages.projects.priority} name="projectPriority">
+              <Field label={messages.projects.priority} name="projectPriority" errors={form.errors.projectPriority}>
                 <Select name="projectPriority" defaultValue={project?.ProjectPriority ?? ""}>
                   <option value="">{messages.projects.none}</option>
                   {PROJECT_PRIORITIES.map((p) => (
@@ -228,7 +219,7 @@ export function ProjectForm({
                   ))}
                 </Select>
               </Field>
-              <Field label={messages.projects.riskLevel} name="riskLevel">
+              <Field label={messages.projects.riskLevel} name="riskLevel" errors={form.errors.riskLevel}>
                 <Select name="riskLevel" defaultValue={project?.RiskLevel ?? ""}>
                   <option value="">{messages.projects.none}</option>
                   {RISK_LEVELS.map((r) => (
@@ -238,19 +229,19 @@ export function ProjectForm({
                   ))}
                 </Select>
               </Field>
-              <Field label={messages.projects.startDate} name="startDate">
+              <Field label={messages.projects.startDate} name="startDate" errors={form.errors.startDate}>
                 <DatePicker name="startDate" defaultValue={toDateInput(project?.StartDate)} />
               </Field>
-              <Field label={messages.projects.endDate} name="endDate">
+              <Field label={messages.projects.endDate} name="endDate" errors={form.errors.endDate}>
                 <DatePicker name="endDate" defaultValue={toDateInput(project?.EndDate)} />
               </Field>
-              <Field label={messages.projects.estimatedCompletion} name="estimatedCompletionDate">
+              <Field label={messages.projects.estimatedCompletion} name="estimatedCompletionDate" errors={form.errors.estimatedCompletionDate}>
                 <DatePicker
                   name="estimatedCompletionDate"
                   defaultValue={toDateInput(project?.EstimatedCompletionDate)}
                 />
               </Field>
-              <Field label={messages.projects.existingBusinessModel} name="existBusMod">
+              <Field label={messages.projects.existingBusinessModel} name="existBusMod" errors={form.errors.existBusMod}>
                 <Input name="existBusMod" defaultValue={project?.ExistBusMod ?? ""} />
               </Field>
             </div>
@@ -272,7 +263,7 @@ export function ProjectForm({
           aria-labelledby="financing-heading"
           className="flex flex-col gap-4  border border-line bg-linear-60 rounded-md"
         >
-          <SectionHeading id="financing-heading" className="rounded-t-md text-base bg-surface-sunken">
+          <SectionHeading id="financing-heading">
             {messages.projects.financingSection}
           </SectionHeading>
           <div className="px-4 py-3 flex flex-col gap-4">
@@ -293,7 +284,7 @@ export function ProjectForm({
               />
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label={messages.projects.financingSource} name="financingSource">
+              <Field label={messages.projects.financingSource} name="financingSource" errors={form.errors.financingSource}>
                 <Input name="financingSource" defaultValue={project?.FinancingSource ?? ""} />
               </Field>
               <Field
@@ -363,16 +354,6 @@ export function ProjectForm({
           pending={pending}
         />
       ) : null}
-      <ConfirmDialog
-        open={guard.confirmOpen}
-        onOpenChange={(open) => {
-          if (!open) guard.cancel();
-        }}
-        title={messages.feedback.unsavedChangesTitle}
-        body={messages.feedback.unsavedChangesBody}
-        confirmLabel={messages.feedback.discard}
-        onConfirm={guard.discard}
-      />
     </form>
   );
 }

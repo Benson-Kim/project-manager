@@ -1,13 +1,15 @@
 @import "tailwindcss";
 
 /*
- * Design tokens (ADR-0004). Semantic only — components never use raw palette
+ * Design tokens. Semantic only — components never use raw palette
  * values. Light values live in :root, dark overrides in [data-theme="dark"].
  * Contrast verified for WCAG 2.2 AA (body >= 4.5:1, UI >= 3:1) and re-checked
  * by the axe scan over /kitchen-sink in CI.
  */
 
 @theme {
+  --font-sans: var(--font-poppins), sans-serif;
+
   /* Semantic colours reference the runtime variables below so dark mode is a
      variable swap, not a class swap in every component. */
   --color-surface: var(--surface);
@@ -35,7 +37,7 @@
   --radius-md: 0.625rem;
   --radius-lg: 1rem;
 
-  /* Motion (ADR-0007): all transition durations come from these. */
+  /* Motion: all transition durations come from these. */
   --duration-fast: 150ms;
   --duration-base: 200ms;
   --duration-slow: 250ms;
@@ -52,16 +54,16 @@
    set pre-paint by the ThemeProvider inline script (no flash). */
 :root {
   --surface: #ffffff;
-  --surface-raised: #f8fafc;
+  --surface-raised: #f2f4f7;
   --surface-sunken: #f1f5f9;
   --ink: #0f172a;
   --ink-muted: #475569;
   --ink-faint: #94a3b8;
   --line: #e2e8f0;
-  --accent: #1d4ed8;
+  --accent: #102542;
   --accent-strong: #1e40af;
   --on-accent: #ffffff;
-  --accent-soft: #dbeafe;
+  --accent-soft: #dce4ef;
   --danger: #b91c1c;
   --danger-soft: #fee2e2;
   --on-danger: #ffffff;
@@ -69,7 +71,7 @@
   --success-soft: #dcfce7;
   --warning: #a16207;
   --warning-soft: #fef9c3;
-  --focus: #1d4ed8;
+  --focus: #102542;
   color-scheme: light;
 }
 
@@ -81,10 +83,10 @@
   --ink-muted: #9fb0c9;
   --ink-faint: #64748b;
   --line: #22304a;
-  --accent: #60a5fa;
+  --accent: #ebf2fa;
   --accent-strong: #93c5fd;
   --on-accent: #0b1220;
-  --accent-soft: #172946;
+  --accent-soft: #1a2c49;
   --danger: #f87171;
   --danger-soft: #3b1214;
   --on-danger: #0b1220;
@@ -92,7 +94,7 @@
   --success-soft: #0d2818;
   --warning: #facc15;
   --warning-soft: #2d2306;
-  --focus: #60a5fa;
+  --focus: #ebf2fa;
   color-scheme: dark;
 }
 
@@ -104,13 +106,29 @@ body {
   color: var(--ink);
 }
 
-/* Visible focus everywhere (WCAG 2.2). */
+/* Keep the focus state purely visual and non-layout-affecting. The outline sits
+   inside the border so the element keeps the same measured size while indicating
+   focus. */
 :focus-visible {
   outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
-/* Route-transition top bar (ADR-0008): re-keyed per navigation, flashes once.
+input,
+textarea,
+select,
+button {
+  outline: none;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  box-shadow: none;
+}
+
+/* Route-transition top bar: re-keyed per navigation, flashes once.
    Reduced motion collapses the animation via the global override below. */
 .route-progress {
   animation: route-progress-flash 600ms var(--ease-out-soft) both;
@@ -131,7 +149,7 @@ body {
   }
 }
 
-/* View Transitions (ADR-0007): quick crossfade; skipped by reduced motion. */
+/* View Transitions: quick crossfade; skipped by reduced motion. */
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation-duration: var(--duration-base);

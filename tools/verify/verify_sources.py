@@ -1,27 +1,34 @@
 #!/usr/bin/env python3
-"""Independent verification of docs/source-analysis extraction.
+"""Independent verification of docs/source/analysis extraction.
 
 Cross-checks the three source artefacts with *industry-standard tooling*
 (mdbtools, openpyxl, python-pptx) against the facts recorded in
-docs/source-analysis/*.md (encoded in tools/verify/expected_mdb.json and
+docs/source/analysis/*.md (encoded in tools/verify/expected_mdb.json and
 inline below). The original extraction used a hand-written pure-stdlib
 parser (tools/mdb/), so this script is the independent second opinion.
 
-Run in CI (needs network to install tooling):
+Run from the REPOSITORY ROOT (needs network to install tooling):
     apt-get install -y mdbtools && pip install openpyxl python-pptx
     python tools/verify/verify_sources.py
 
+The three artefacts default to docs/source/; override for an out-of-tree copy:
+    python tools/verify/verify_sources.py --mdb /path/to/Access_database.mdb
+
 Exit code 0 = all checks passed. A report is written to verify-report.txt.
 """
+import argparse
 import csv
 import io
 import json
+import os
 import subprocess
 import sys
 
-MDB = "Access_database.mdb"
-XLSX = "Project_.xlsx"
-PPTX = "Project_hololens.pptx"
+# Defaults resolve from the repository root (docs/source/); override on the CLI.
+SOURCE_DIR = "docs/source"
+MDB = f"{SOURCE_DIR}/Access_database.mdb"
+XLSX = f"{SOURCE_DIR}/Project_.xlsx"
+PPTX = f"{SOURCE_DIR}/Project_hololens.pptx"
 
 report = []
 failures = []
@@ -55,7 +62,7 @@ def verify_mdb():
         check(f"mdb: {tname} row count = {spec['row_count']}", len(data) == spec["row_count"],
               f"got {len(data)}")
 
-    # spot-check individual values recorded in docs/source-analysis/access-database.md
+    # spot-check individual values recorded in docs/source/analysis/access-database.md
     for sc in exp["spot_checks"]:
         out = run(["mdb-export", MDB, sc["table"]])
         rows = list(csv.reader(io.StringIO(out)))
@@ -95,7 +102,7 @@ def verify_xlsx():
         "C5": "0.2-The system must have a responsive field where the actor can type the "
               "beginning of the project name and it will find the name in the drop down list.",
         "B39": "Items to Remember",
-        "B58": "Create a Search field under acronyms …and rename the section keywords.",
+        "B58": "Create a Search field under keywords.",
         "B63": "Potential Additional Requirements",
         "B68": "Add ons",
         "E64": "Will provide the prototype if needed",
@@ -131,13 +138,28 @@ def verify_pptx():
           "Project Dossier Medical Electronic (DME)", prs.core_properties.title)
 
 
+def _parse_args(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--mdb", default=MDB, help=f"Access database (default: {MDB})")
+    ap.add_argument("--xlsx", default=XLSX, help=f"Excel workbook (default: {XLSX})")
+    ap.add_argument("--pptx", default=PPTX, help=f"PowerPoint deck (default: {PPTX})")
+    ap.add_argument("--report", default="verify-report.txt",
+                    help="report output path (default: verify-report.txt)")
+    return ap.parse_args(argv)
+
+
 if __name__ == "__main__":
+    args = _parse_args()
+    MDB, XLSX, PPTX = args.mdb, args.xlsx, args.pptx
+    for label, path in (("mdb", MDB), ("xlsx", XLSX), ("pptx", PPTX)):
+        if not os.path.exists(path):
+            sys.exit(f"{label} artefact not found: {path} (run from the repository root)")
     verify_mdb()
     verify_xlsx()
     verify_pptx()
     report.append("")
     report.append(f"TOTAL: {len(report) - 2} checks, {len(failures)} failures")
     print(report[-1])
-    with open("verify-report.txt", "w") as f:
+    with open(args.report, "w") as f:
         f.write("\n".join(report) + "\n")
     sys.exit(1 if failures else 0)

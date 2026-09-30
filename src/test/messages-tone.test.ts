@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { messages } from "../lib/messages";
 
 /**
- * Guardrail (ADR-0008): one tone — short, sentence case, no exclamation
+ * Guardrail: one tone — short, sentence case, no exclamation
  * marks, no jargon markers. Walks every leaf including message functions.
  */
 function collectStrings(node: unknown, path: string): Array<[string, string]> {

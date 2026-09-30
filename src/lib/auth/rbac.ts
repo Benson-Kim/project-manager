@@ -2,7 +2,7 @@ import type { Permission, Role } from "./types";
 
 /**
  * The single role→permission matrix (source: docs/PLAN.md §9). Row-level
- * checks live in stored procedures (ADR-0012 FORBIDDEN_ROW) — this matrix is
+ * checks live in stored procedures  FORBIDDEN_ROW) — this matrix is
  * the action-layer gate only.
  *
  * Semantics:

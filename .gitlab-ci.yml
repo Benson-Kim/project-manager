@@ -2,7 +2,8 @@
 # Feature branches: lint + typecheck + test + build (+ manual e2e).
 # develop/main: + e2e, security scans, deploys (staging auto / prod manual).
 # Schedules (set SCHEDULE_JOB): backup | audit | renovate.
-# Manual utilities: verify:sources (source-extraction re-verification),
+# Manual utilities: verify:sources (source-extraction re-verification, opt-in
+#                   via "[verify]" in the commit message),
 #                   lockfile:generate (bootstrap/refresh package-lock.json).
 
 stages:
@@ -84,10 +85,43 @@ build:
       - .next/static
 
 # Browser smoke tests: automatic on develop/main, manual on feature branches.
+# Module #4 gates every app route behind login, so the job seeds a real SQL
+# Server 2022 service (E2E_SEED=1 -> db/seed/028 e2e users) and provides the
+# app env. All credential values below are job-scoped throwaways for the
+# ephemeral service container and test users only — they die with the job
+# (same rationale as db:apply); real hosts use masked CI variables.
 e2e:
   extends: .node
   stage: test
+  services:
+    - name: mcr.microsoft.com/mssql/server:2022-latest
+      alias: mssql
+      variables:
+        ACCEPT_EULA: "Y"
+        MSSQL_PID: Developer
+  variables:
+    MSSQL_SA_PASSWORD: "E2e-Throwaway-Sa-2026!"
+    DB_SERVER: mssql
+    DB_USER: sa
+    DB_PASSWORD: "E2e-Throwaway-Sa-2026!"
+    DB_NAME: ProjectManager
+    SEED_ADMIN_PASSWORD: "Throwaway-Admin-Seed-2026"
+    E2E_SEED: "1"
+    E2E_USER_PASSWORD: "E2e-Throwaway-User-2026"
+    AUTH_SECRET: "e2e-throwaway-auth-secret-0123456789abcdefghijklmnopqrstuvwxyz"
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq curl gnupg2
+    - curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg
+    - echo "deb [signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql.list
+    - apt-get update -qq && ACCEPT_EULA=Y apt-get install -y -qq mssql-tools18 && ln -sf /opt/mssql-tools18/bin/sqlcmd /usr/local/bin/sqlcmd
+    - npm ci --no-audit --no-fund --cache .npm --prefer-offline
+    - for i in $(seq 1 30); do sqlcmd -S tcp:mssql,1433 -U sa -P "$DB_PASSWORD" -C -Q "SELECT 1" >/dev/null 2>&1 && break; echo "waiting for SQL Server ($i)"; sleep 2; done
   script:
+    - sh scripts/db-apply.sh
+    # Fail fast if the seeded hash does not verify against E2E_USER_PASSWORD
+    # (job 16520676400: sqlcmd -v mangled argon2 hashes; assert, don't assume).
+    - HASH=$(sqlcmd -S tcp:mssql,1433 -U sa -P "$DB_PASSWORD" -C -h -1 -W -Q "SET NOCOUNT ON; SELECT PasswordHash FROM ProjectManager.auth.[User] WHERE Username = N'e2e-pm';")
+    - node -e "require('argon2').verify(process.argv[1], process.env.E2E_USER_PASSWORD).then((ok) => { console.log('seeded e2e-pm hash verifies', ok); process.exit(ok?0:1); })" "$HASH"
     - npx playwright install --with-deps chromium
     - npm run e2e
   artifacts:
@@ -179,13 +213,63 @@ lockfile:generate:
     paths:
       - package-lock.json
 
-# Re-verify docs/source-analysis against the three binary artefacts
-# (mdbtools + openpyxl + python-pptx; see docs/source-analysis/VERIFICATION.md).
+# Fetch the SecLists top-10k password list (MIT licence) and emit its
+# 12+-character subset (lowercased, trimmed, deduped, sorted) into the job
+# trace as gzip+base64 between the DENYLIST markers, plus the source sha256
+# and entry count — same trace-scrape pattern as lockfile:generate (the
+# workspace proxy blocks all downloads; agent tokens can read traces).
+# Opt-in: "[denylist]" in the commit message; manual utility otherwise.
+denylist:generate:
+  stage: build
+  needs: []
+  cache: []
+  rules:
+    - if: $CI_COMMIT_BRANCH && $CI_COMMIT_MESSAGE =~ /\[denylist\]/
+    - if: $CI_COMMIT_BRANCH
+      when: manual
+      allow_failure: true
+  script:
+    # The historical raw path 404s (verified job 16525176408) — resolve the
+    # current filename via the GitHub contents API and fail loudly if no
+    # top-10000 file exists any more. The listing is printed for the trace.
+    - curl -fsSL "https://api.github.com/repos/danielmiessler/SecLists/contents/Passwords/Common-Credentials" -o listing.json
+    - node -e "for (const f of require('./listing.json')) console.log(f.name)"
+    # 10-million-password-list-top-10000.txt was renamed upstream to
+    # xato-net-10-million-passwords-10000.txt (same Xato 10M corpus) — prefer
+    # it, fall back to any other top-10000 list, fail loudly otherwise.
+    - node -e "const l = require('./listing.json'); const f = l.find((x) => x.name === 'xato-net-10-million-passwords-10000.txt') || l.find((x) => x.name.includes('top-10000') && x.name.endsWith('.txt')); if (!f) { console.error('FAIL - no top-10000 file in Common-Credentials'); process.exit(1); } console.log('resolved', f.download_url); require('fs').writeFileSync('url.txt', f.download_url);"
+    - curl -fsSL "$(cat url.txt)" -o top10k.txt
+    - echo "source sha256" && sha256sum top10k.txt
+    - LINES=$(wc -l < top10k.txt)
+    - echo "source line count $LINES"
+    # Sanity: the top-10000 list must actually have ~10000 lines.
+    - test "$LINES" -ge 9000 && test "$LINES" -le 11000
+    - tr '[:upper:]' '[:lower:]' < top10k.txt | sed -e 's/\r$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | awk 'length($0) >= 12' | sort -u > denylist.txt
+    - echo "denylist entry count (12+ chars) $(wc -l < denylist.txt)"
+    - echo "-----BEGIN DENYLIST B64-----"
+    - gzip -9 -c denylist.txt | base64 -w 120
+    - echo "-----END DENYLIST B64-----"
+  artifacts:
+    expire_in: 3 days
+    paths:
+      - denylist.txt
+
+# Re-verify docs/source/analysis against the three binary artefacts
+# (mdbtools + openpyxl + python-pptx; see docs/source/analysis/VERIFICATION.md).
 verify:sources:
   stage: test
   image: python:3.12-bookworm
   cache: []
   rules:
+    # Always re-verify when the artefacts or their analysis/tooling change.
+    - if: $CI_COMMIT_BRANCH
+      changes:
+        - docs/source/**/*
+        - tools/mdb/**/*
+        - tools/verify/**/*
+    # Opt-in on any branch without needing API/variable privileges:
+    # put "[verify]" anywhere in the commit message.
+    - if: $CI_COMMIT_BRANCH && $CI_COMMIT_MESSAGE =~ /\[verify\]/
     - if: $CI_COMMIT_BRANCH
       when: manual
       allow_failure: true
@@ -198,6 +282,60 @@ verify:sources:
     paths: [verify-report.txt]
     when: always
     expire_in: 1 week
+
+# Prove the database module on a clean SQL Server 2022 container: apply
+# migrations + procs + seeds via scripts/db-apply.sh (twice — idempotence is
+# asserted, not assumed) and verify row counts match the
+# docs/source/analysis/access-database.md §4 inventory (db/verify/seed_counts.sql).
+# Opt-in: "[db]" in the commit message; automatic on develop/main when db files
+# change; manual utility otherwise.
+db:apply:
+  stage: test
+  needs: []
+  cache: []
+  interruptible: true
+  services:
+    - name: mcr.microsoft.com/mssql/server:2022-latest
+      alias: mssql
+      variables:
+        ACCEPT_EULA: "Y"
+        MSSQL_PID: Developer
+  variables:
+    # Job-scoped throwaway password for the ephemeral service container only
+    # (never a real host — those use the MSSQL_SA_PASSWORD CI variable).
+    MSSQL_SA_PASSWORD: "Ci-Ephemeral!Passw0rd1"
+    DB_SERVER: mssql
+    DB_USER: sa
+    DB_PASSWORD: "Ci-Ephemeral!Passw0rd1"
+    # Job-scoped throwaway seed password for the ephemeral service DB only
+    # (same rationale as the SA password above — the seeded hash dies with the
+    # container). Real hosts provide SEED_ADMIN_PASSWORD via a masked variable.
+    SEED_ADMIN_PASSWORD: "Throwaway-Admin-Seed-2026"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_BRANCH && $CI_COMMIT_MESSAGE =~ /\[db\]/
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"
+      changes:
+        paths:
+          - db/**/*
+          - scripts/db-apply.sh
+    - if: $CI_COMMIT_BRANCH
+      when: manual
+      allow_failure: true
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq curl gnupg2
+    - curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg
+    - echo "deb [signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql.list
+    - apt-get update -qq && ACCEPT_EULA=Y apt-get install -y -qq mssql-tools18 && ln -sf /opt/mssql-tools18/bin/sqlcmd /usr/local/bin/sqlcmd
+    # wait for the service container to accept connections
+    - for i in $(seq 1 30); do sqlcmd -S tcp:mssql,1433 -U sa -P "$DB_PASSWORD" -C -Q "SELECT 1" >/dev/null 2>&1 && break; echo "waiting for SQL Server ($i)"; sleep 2; done
+  script:
+    # argon2 for scripts/hash-password.mjs (seed-time admin hash; node:22 image)
+    - npm install --no-save --no-audit --no-fund argon2
+    - sh scripts/db-apply.sh
+    - echo "== second run (idempotence) ==" && sh scripts/db-apply.sh
+    - sqlcmd -S tcp:mssql,1433 -U sa -P "$DB_PASSWORD" -C -b -I -i db/verify/seed_counts.sql
 
 # ---- scheduled maintenance ---------------------------------------------------
 

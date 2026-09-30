@@ -13,7 +13,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/lib/**", "src/modules/**"],
-      // UI primitives are covered by Playwright over /kitchen-sink (ADR-0013).
+      // UI primitives are covered by Playwright over /kitchen-sink .
       exclude: ["src/lib/db.ts", "**/*.test.ts"],
       thresholds: {
         lines: 80,

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
+import { can } from "@/lib/auth/rbac";
 import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getViewPreference } from "@/lib/repositories/view-preference";
@@ -20,9 +20,11 @@ export const metadata: Metadata = {
 
 /**
  * Global daily activities page (top-level nav, /daily-activities): cross-project
- * view of all activities for the current user. Creation requires a project —
- * the sheet opens read-only (canEdit=false, canDelete=false). Filter params
- * (@ActivityStatusId, @TaskType) forwarded server-side per module gap closure (#19).
+ * view of all activities for the current user. Daily activities may be
+ * project-unscoped (ProjectId nullable via migration 014), so creation is
+ * allowed here via ?id=new when the user has daily-activities:create permission.
+ * Filter params (@ActivityStatusId, @TaskType) forwarded server-side per module
+ * gap closure (#19).
  */
 export default async function GlobalDailyActivitiesPage({
   searchParams,
@@ -39,8 +41,8 @@ export default async function GlobalDailyActivitiesPage({
     dir: (listParams.dir ?? "desc") as "asc" | "desc",
   };
 
-  // Creation requires a project — not available from global page.
-  const selectedId = flat.id && flat.id !== "new" ? Number(flat.id) : null;
+  const isNew = flat.id === "new";
+  const selectedId = flat.id && !isNew ? Number(flat.id) : null;
 
   const filters: DailyActivityListFilters = {
     activityStatusId: flat.statusId ? Number(flat.statusId) : null,
@@ -60,11 +62,13 @@ export default async function GlobalDailyActivitiesPage({
   ]);
 
   const totalCount = rows[0]?.TotalCount ?? 0;
+  const canCreate = can(session.role, "daily-activities:create");
+  const canEdit = can(session.role, "daily-activities:update");
+  const canDelete = can(session.role, "daily-activities:delete");
   const filtersActive = Boolean(effectiveParams.q || flat.statusId || flat.taskType);
 
   return (
     <>
-      <PageHeader title={messages.dailyActivities.title} />
       <div className="mt-3 flex flex-col flex-1">
         <DailyActivitiesView
           rows={rows}
@@ -75,14 +79,14 @@ export default async function GlobalDailyActivitiesPage({
           statuses={statuses}
         />
       </div>
-      {/* Sheet: read-only in global context — creation is project-scoped */}
+      {/* Sheet: create (project-unscoped, projectId=null) or edit/view */}
       <DailyActivitySheet
         activity={selected}
-        isNew={false}
-        projectId={selected?.ProjectId ?? 0}
+        isNew={isNew && canCreate}
+        projectId={selected?.ProjectId ?? null}
         statuses={statuses}
-        canEdit={false}
-        canDelete={false}
+        canEdit={canEdit}
+        canDelete={canDelete}
       />
     </>
   );

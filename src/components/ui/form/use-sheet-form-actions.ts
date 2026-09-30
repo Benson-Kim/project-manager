@@ -2,14 +2,11 @@
 
 import { useCallback, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import type { ActionResult } from "@/lib/action";
 import { messages } from "@/lib/messages";
 import type { useZodForm } from "./use-zod-form";
 
 type ZodFormHandle = ReturnType<typeof useZodForm>;
-
-type ActionResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: { code: string; message: string; fieldErrors?: Record<string, string[]> } };
 
 /**
  * Shared form-action plumbing for Sheet components:
@@ -20,7 +17,7 @@ type ActionResult<T> =
  *
  * Usage: destructure the returned values and wire them to buttons / ConfirmDialog.
  */
-export function useSheetFormActions<TCreate, TUpdate, TDelete>({
+export function useSheetFormActions<TCreate, TUpdate, TDelete = void>({
   isEdit,
   onSuccess,
   form,
@@ -44,10 +41,11 @@ export function useSheetFormActions<TCreate, TUpdate, TDelete>({
   const onSubmit = useCallback(
     (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
-      const data = new FormData(e.currentTarget);
-      const valid = form.validate(data);
+      const formElement = e.currentTarget;
+      const valid = form.validate(formElement);
       if (!valid) return;
 
+      const data = new FormData(formElement);
       startTransition(async () => {
         setSummary(null);
         setConflict(false);
@@ -59,12 +57,12 @@ export function useSheetFormActions<TCreate, TUpdate, TDelete>({
           onSuccess();
           router.refresh();
         } else {
-          const { code, message, fieldErrors } = result.error;
+          const { code, message } = result.error;
           if (code === "CONFLICT") {
             setConflict(true);
             setSummary(messages.errors.CONFLICT);
-          } else if (code === "VALIDATION" && fieldErrors) {
-            form.setErrors(fieldErrors);
+          } else if (code === "VALIDATION") {
+            form.applyResult(result);
             setSummary(messages.errors.summaryTitle);
           } else {
             setSummary(message ?? messages.errors.INTERNAL);

@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { messages } from "@/lib/messages";
 
 /**
- * Server-failure summary (ADR-0009): appears above the form and takes focus so
+ * Server-failure summary ): appears above the form and takes focus so
  * keyboard and screen-reader users land on the explanation.
  */
 export function ErrorSummary({ message }: { message: string | null }) {
