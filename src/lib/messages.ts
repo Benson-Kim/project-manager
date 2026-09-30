@@ -172,6 +172,7 @@ export const messages = {
     assigneeRole: "Role",
     assigneeName: "Name",
     addAssignee: "Add assignee",
+    assigneeNameRequired: "Enter a name before saving",
     removeAssignee: (name: string) => `Remove ${name}`,
     noAssignees: "No assignees yet",
     roleProjectManager: "Project manager",

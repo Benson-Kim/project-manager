@@ -40,7 +40,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_30rem]">
         <main className="min-w-0">
           <ProjectForm project={project} canEdit={canEdit} canDelete={canDelete} />
         </main>
