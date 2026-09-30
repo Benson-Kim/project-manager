@@ -32,16 +32,18 @@ export const assigneeEntrySchema = z.object({
 });
 export type AssigneeEntry = z.infer<typeof assigneeEntrySchema>;
 
-/** Parse the AssigneesJson column returned by all procs. */
+/** Parse the AssigneesJson column returned by all procs.
+ *  Only null / empty string maps to []; any parse or schema error propagates
+ *  so that database drift or malformed data surfaces at the repository boundary
+ *  rather than silently replacing valid assignees with an empty set. */
 function parseAssigneesJson(raw: unknown): AssigneeEntry[] {
-  if (!raw || typeof raw !== "string" || raw.trim() === "") return [];
-  try {
-    const arr = JSON.parse(raw);
-    if (!Array.isArray(arr)) return [];
-    return arr.map((a) => assigneeEntrySchema.parse(a));
-  } catch {
-    return [];
-  }
+  if (raw === null || raw === undefined || raw === "") return [];
+  if (typeof raw !== "string") throw new Error(`AssigneesJson must be a string, got ${typeof raw}`);
+  const trimmed = raw.trim();
+  if (trimmed === "") return [];
+  const arr: unknown = JSON.parse(trimmed); // throws on malformed JSON
+  if (!Array.isArray(arr)) throw new Error(`AssigneesJson must be a JSON array, got ${JSON.stringify(arr)}`);
+  return arr.map((a) => assigneeEntrySchema.parse(a)); // throws on schema mismatch
 }
 
 export const keyDeliverableRowSchema = z

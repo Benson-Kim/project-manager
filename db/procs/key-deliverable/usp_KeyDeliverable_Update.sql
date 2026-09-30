@@ -1,5 +1,5 @@
 -- usp_KeyDeliverable_Update — full-row update with rowversion concurrency (50002 CONFLICT),
--- replaces assignee set atomically, in-transaction audit.
+-- replaces assignee set atomically, in-transaction audit (includes assignee delta).
 -- Entity app.KeyDeliverable (source: tblKeyRequirementsDeliverable). Module: key-deliverables (#9).
 USE ProjectManager;
 GO
@@ -30,7 +30,11 @@ BEGIN
     BEGIN TRAN;
 
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT KeyDeliverableId, [ProjectId], [KeyRequirement], [RequestedDate], [Deadline], [Priority], [Status]
+        (SELECT KeyDeliverableId, [ProjectId], [KeyRequirement], [RequestedDate], [Deadline], [Priority], [Status],
+                (SELECT CAST(a.StakeholderId AS NVARCHAR(20)) AS id
+                 FROM app.KeyDeliverableAssignee AS a
+                 WHERE a.KeyDeliverableId = @KeyDeliverableId
+                 FOR JSON PATH) AS Assignees
          FROM app.KeyDeliverable WHERE KeyDeliverableId = @KeyDeliverableId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 
@@ -43,23 +47,39 @@ BEGIN
         [Status]        = @Status,
         UpdatedAtUtc    = SYSUTCDATETIME(),
         UpdatedBy       = @ActorUserId
-    WHERE KeyDeliverableId = @KeyDeliverableId AND IsDeleted = 0;
+    WHERE KeyDeliverableId = @KeyDeliverableId AND IsDeleted = 0
+      AND CAST(RowVer AS BIGINT) = @RowVer;
 
-    -- Replace assignee set atomically: delete old rows, insert new ones
+    IF @@ROWCOUNT = 0
+        THROW 50002, N'CONFLICT:KeyDeliverable was modified by someone else', 1;
+
+    -- Replace assignee set atomically: delete old rows, insert validated new ones.
     DELETE FROM app.KeyDeliverableAssignee
     WHERE KeyDeliverableId = @KeyDeliverableId;
 
     IF @AssigneeIds IS NOT NULL AND LEN(@AssigneeIds) > 2
     BEGIN
+        -- Only insert assignees whose active stakeholder belongs to @ProjectId,
+        -- preventing cross-project stakeholder injection.
         INSERT INTO app.KeyDeliverableAssignee (KeyDeliverableId, StakeholderId, CreatedBy)
         SELECT @KeyDeliverableId, CAST(j.[value] AS INT), @ActorUserId
         FROM OPENJSON(@AssigneeIds) AS j
-        WHERE ISNUMERIC(j.[value]) = 1;
+        WHERE ISNUMERIC(j.[value]) = 1
+          AND EXISTS (
+              SELECT 1 FROM app.Stakeholder AS s
+              WHERE s.StakeholderId = CAST(j.[value] AS INT)
+                AND s.ProjectId     = @ProjectId
+                AND s.IsDeleted     = 0
+          );
     END;
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.KeyDeliverable', CAST(@KeyDeliverableId AS NVARCHAR(64)), @Before,
-            (SELECT KeyDeliverableId, [ProjectId], [KeyRequirement], [RequestedDate], [Deadline], [Priority], [Status]
+            (SELECT KeyDeliverableId, [ProjectId], [KeyRequirement], [RequestedDate], [Deadline], [Priority], [Status],
+                    (SELECT CAST(a.StakeholderId AS NVARCHAR(20)) AS id
+                     FROM app.KeyDeliverableAssignee AS a
+                     WHERE a.KeyDeliverableId = @KeyDeliverableId
+                     FOR JSON PATH) AS Assignees
              FROM app.KeyDeliverable WHERE KeyDeliverableId = @KeyDeliverableId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
@@ -77,7 +97,7 @@ BEGIN
            CAST(kd.RowVer AS BIGINT) AS RowVer,
            (
                SELECT STRING_AGG(
-                   LTRIM(RTRIM(CONCAT(ISNULL(s.FirstName,''), N' ', ISNULL(s.LastName,'')))),
+                   CAST(LTRIM(RTRIM(CONCAT(ISNULL(s.FirstName,''), N' ', ISNULL(s.LastName,'')))) AS NVARCHAR(MAX)),
                    N', '
                )
                FROM app.KeyDeliverableAssignee AS a

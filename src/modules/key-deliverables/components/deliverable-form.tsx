@@ -4,7 +4,7 @@ import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
-import { Field } from "@/components/ui/form/field";
+import { Field, useFieldContext } from "@/components/ui/form/field";
 import { DatePicker, Select, Textarea } from "@/components/ui/form/inputs";
 import { useSheetFormActions } from "@/components/ui/form/use-sheet-form-actions";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
@@ -48,7 +48,7 @@ function AssigneeChip({
         <button
           type="button"
           aria-label={messages.keyDeliverables.removeAssignee(name)}
-          className="ml-0.5 text-ink-muted hover:text-danger focus-visible:outline-2 focus-visible:outline-focus"
+          className="ml-0.5 inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-ink-muted hover:text-danger focus-visible:outline-2 focus-visible:outline-focus"
           onClick={() => onRemove(id)}
         >
           ×
@@ -81,6 +81,7 @@ function MultiAssigneeSelect({
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fieldCtx = useFieldContext();
 
   const selectedIds = useMemo(() => new Set(selected.map((s) => s.id)), [selected]);
 
@@ -141,6 +142,7 @@ function MultiAssigneeSelect({
         <div className="relative">
           <input
             ref={inputRef}
+            id={fieldCtx?.inputId}
             role="combobox"
             aria-expanded={open}
             aria-controls={listboxId}
@@ -150,6 +152,8 @@ function MultiAssigneeSelect({
                 ? `${listboxId}-${filtered[activeIndex].stakeholderId}`
                 : undefined
             }
+            aria-invalid={fieldCtx?.invalid || undefined}
+            aria-describedby={fieldCtx?.invalid ? fieldCtx.errorId : undefined}
             autoComplete="off"
             placeholder={options.length === 0 ? messages.keyDeliverables.unassigned : ""}
             className="min-h-11 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink"
