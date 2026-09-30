@@ -17,10 +17,7 @@ export const REPEAT_UNITS = ["Hour", "Day", "Week", "Month"] as const;
 
 export function normalizeSnoozeOptions(value: string): string | null {
   const tokens = value.split(",").map((token) => token.trim());
-  if (
-    tokens.length === 0 ||
-    tokens.some((token) => !/^\d+$/.test(token))
-  ) {
+  if (tokens.length === 0 || tokens.some((token) => !/^\d+$/.test(token))) {
     return null;
   }
 

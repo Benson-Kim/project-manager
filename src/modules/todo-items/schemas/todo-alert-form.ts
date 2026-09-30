@@ -20,9 +20,7 @@ const optionalInt = (min = 0, max = 999) =>
     .trim()
     .optional()
     .refine(
-      (v) =>
-        !v ||
-        (Number.isInteger(Number(v)) && Number(v) >= min && Number(v) <= max),
+      (v) => !v || (Number.isInteger(Number(v)) && Number(v) >= min && Number(v) <= max),
       messages.errors.VALIDATION,
     )
     .transform((v) => (v ? Number(v) : null));
