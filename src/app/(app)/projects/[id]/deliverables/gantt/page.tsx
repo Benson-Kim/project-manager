@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
 import { AppError } from "@/lib/errors";
 import { messages } from "@/lib/messages";
-import { GanttChart } from "@/modules/key-deliverables/components/gantt-chart";
+import { GanttClient } from "@/modules/key-deliverables/components/gantt-client";
 import { PrintButton } from "@/modules/key-deliverables/components/print-button";
 import { getGanttBars } from "@/modules/key-deliverables/repository/key-deliverables";
 
@@ -18,6 +19,9 @@ export const metadata: Metadata = {
  * ADR-0018 project workspace): Server Component CSS-grid bar chart from
  * usp_KeyDeliverable_GanttData. The print stylesheet (`print:` variants) is
  * the report/downloadable view.
+ *
+ * Filtering (status / priority / assignee) is applied client-side inside
+ * GanttClient; the full bar list is fetched once server-side.
  */
 export default async function DeliverablesGanttPage({
   params,
@@ -37,6 +41,15 @@ export default async function DeliverablesGanttPage({
     throw err;
   }
 
+  // Derive unique individual assignee names for the filter select.
+  const allAssigneeNames = Array.from(
+    new Set(
+      bars
+        .flatMap((b) => (b.assigneeNames ? b.assigneeNames.split(",").map((n) => n.trim()) : []))
+        .filter(Boolean),
+    ),
+  ).sort();
+
   return (
     <>
       <PageHeader
@@ -54,9 +67,14 @@ export default async function DeliverablesGanttPage({
           </div>
         }
       />
-      <div className="mt-3 pb-8">
-        <GanttChart bars={bars} projectId={projectId} />
-      </div>
+      {/* Suspense required: GanttClient calls useSearchParams */}
+      <Suspense>
+        <GanttClient
+          allBars={bars}
+          projectId={projectId}
+          allAssigneeNames={allAssigneeNames}
+        />
+      </Suspense>
     </>
   );
 }
