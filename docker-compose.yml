@@ -36,6 +36,10 @@ services:
       # >= 32 random bytes (openssl rand -base64 32); no default — real
       # sessions require a real secret even in local dev (module #4).
       AUTH_SECRET: "${AUTH_SECRET:?set AUTH_SECRET in .env — openssl rand -base64 32}"
+      NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY: "${NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY:-}"
+      WEB_PUSH_VAPID_PRIVATE_KEY: "${WEB_PUSH_VAPID_PRIVATE_KEY:-}"
+      WEB_PUSH_VAPID_SUBJECT: "${WEB_PUSH_VAPID_SUBJECT:-mailto:admin@example.test}"
+      ALERT_PUSH_DISPATCH_TOKEN: "${ALERT_PUSH_DISPATCH_TOKEN:-}"
     ports:
       - "3000:3000"
     volumes:

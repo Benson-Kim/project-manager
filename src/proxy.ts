@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 
-/**
- * Next.js 16 proxy (formerly middleware): per-request nonce-based CSP + the
- * authentication gate (module #4): unauthenticated requests only reach /login,
- * the Auth.js routes and the PWA manifest — everything else redirects to
- * /login. A request that carried a session cookie which no longer decodes gets
- * /login?reason=expired so the login page announces the expiry politely.
- * Session integrity (SessionVersion revocation stamp) is enforced per request
- * in src/lib/auth/provider.ts — this gate is routing, not the last defence.
- */
-const PUBLIC_PATHS = ["/login", "/api/auth", "/manifest.webmanifest"];
+const PUBLIC_PATHS = ["/login", "/api/auth", "/manifest.webmanifest", "/api/internal/todo-alerts/dispatch"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -24,9 +15,6 @@ function hasSessionCookie(request: NextRequest): boolean {
 
 export async function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-  // React's development build needs eval() for debugging features (rebuilding
-  // callstacks, HMR). It never uses eval() in production, so 'unsafe-eval' is
-  // scoped strictly to dev — shipping it would defeat the point of the policy.
   const scriptSrc = [
     "'self'",
     `'nonce-${nonce}'`,
@@ -66,8 +54,6 @@ export async function proxy(request: NextRequest) {
       redirect.headers.set("Content-Security-Policy", csp);
       return redirect;
     }
-    // Forced first-login password change (STANDARDS §4): the flag travels in
-    // the JWT, so this gate needs no DB access and stays edge-safe.
     const appToken = token.appToken as { mustChangePassword?: boolean } | undefined;
     if (appToken?.mustChangePassword && pathname !== "/change-password") {
       const changeUrl = new URL("/change-password", request.url);
@@ -84,7 +70,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Everything except static assets and prebuilt files.
     {
       source: "/((?!_next/static|_next/image|favicon.ico|icons/|sw.js|robots.txt).*)",
       missing: [

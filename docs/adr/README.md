@@ -25,4 +25,4 @@ the full rules and examples derived from these decisions.
 | [0014](ADR-0014-dependency-policy-and-pins.md) | Dependency policy and the eslint/typescript pins | Accepted |
 | [0015](ADR-0015-auth-stub-contract.md) | Auth provider interface stubbed until module #4; contract final now | Accepted |
 | [0016](ADR-0016-list-proc-contract.md) | List stored-procedure contract (paging, sorting, search, TotalCount) | Accepted |
-| [0018](ADR-0018-project-workspace-navigation.md) | Project workspace navigation: nested layout + scrollable section links | Accepted |
+| [0018](ADR-0018-project-workspace-navigation.md) | Project workspace navigation: nested layout + scrollable section links | Accepted |\n| [0019](ADR-0019-web-push-todo-alert-delivery.md) | Event-driven Web Push todo-alert delivery | Proposed |
