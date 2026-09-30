@@ -1,8 +1,9 @@
 -- usp_KeyDeliverable_GanttData — data for the Gantt view built from deliverable
 -- dates (checklist row 67, module #9). Returns each active deliverable of a
--- project with its deadline, assignee display name and the project window
--- (StartDate/EndDate) as the chart range basis. CreatedAtUtc is the bar start
--- basis (no explicit StartDate column on app.KeyDeliverable — module #9 decision).
+-- project with its deadline, assignee display names and the project window
+-- (StartDate/EndDate) as the chart range basis. RequestedDate and Deadline
+-- are both returned; the bar start logic in the repository uses RequestedDate
+-- when present, falling back to CreatedAtUtc.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_KeyDeliverable_GanttData
@@ -18,20 +19,27 @@ BEGIN
     SELECT kd.KeyDeliverableId,
            kd.ProjectId,
            kd.[KeyRequirement],
+           kd.[RequestedDate],
            kd.[Deadline],
            kd.[Priority],
            kd.[Status],
-           kd.[AssignedToStakeholderId],
-           LTRIM(RTRIM(CONCAT(ISNULL(s.[FirstName], N''), N' ', ISNULL(s.[LastName], N'')))) AS AssignedToName,
            kd.CreatedAtUtc,
            p.[StartDate] AS ProjectStartDate,
            p.[EndDate]   AS ProjectEndDate,
-           CAST(kd.RowVer AS BIGINT) AS RowVer
+           CAST(kd.RowVer AS BIGINT) AS RowVer,
+           (
+               SELECT STRING_AGG(
+                   LTRIM(RTRIM(CONCAT(ISNULL(s.FirstName,''), N' ', ISNULL(s.LastName,'')))),
+                   N', '
+               )
+               FROM app.KeyDeliverableAssignee AS a
+               JOIN app.Stakeholder AS s
+                   ON s.StakeholderId = a.StakeholderId AND s.IsDeleted = 0
+               WHERE a.KeyDeliverableId = kd.KeyDeliverableId
+           ) AS AssigneeNames
     FROM app.KeyDeliverable AS kd
     JOIN app.Project AS p
         ON p.ProjectId = kd.ProjectId
-    LEFT JOIN app.Stakeholder AS s
-        ON s.StakeholderId = kd.[AssignedToStakeholderId] AND s.IsDeleted = 0
     WHERE kd.IsDeleted = 0
       AND kd.ProjectId = @ProjectId
     ORDER BY kd.[Deadline] ASC, kd.KeyDeliverableId ASC;
