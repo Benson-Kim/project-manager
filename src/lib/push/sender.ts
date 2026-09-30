@@ -2,14 +2,15 @@ import webpush from "web-push";
 import type { PushDeliveryRow } from "@/modules/todo-items/schemas/alert-subscription";
 import { getPushConfig } from "./config";
 
-let configuredPublicKey: string | undefined;
+let configuredFingerprint: string | undefined;
 
 function getWebPushClient(): typeof webpush {
   const config = getPushConfig();
   if (!config) throw new Error("Web Push configuration is incomplete");
-  if (configuredPublicKey !== config.publicKey) {
+  const fingerprint = `${config.subject}\n${config.publicKey}\n${config.privateKey}`;
+  if (configuredFingerprint !== fingerprint) {
     webpush.setVapidDetails(config.subject, config.publicKey, config.privateKey);
-    configuredPublicKey = config.publicKey;
+    configuredFingerprint = fingerprint;
   }
   return webpush;
 }
