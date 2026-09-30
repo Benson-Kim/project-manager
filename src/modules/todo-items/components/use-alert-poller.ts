@@ -5,6 +5,7 @@ import { useEffect } from "react";
 const POLL_INTERVAL_MS = 60_000;
 const PUSH_PUBLIC_KEY = process.env.NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY;
 type DueAlert = { todoAlertId: number; title: string; body?: string };
+const foregroundNotifiedIds = new Set<number>();
 
 function base64UrlToBytes(value: string): Uint8Array {
   const padding = "=".repeat((4 - (value.length % 4)) % 4);
@@ -19,6 +20,8 @@ async function pollInOpenTab(): Promise<void> {
     if (!response.ok) return;
     const alerts = (await response.json()) as DueAlert[];
     for (const alert of alerts) {
+      if (foregroundNotifiedIds.has(alert.todoAlertId)) continue;
+      foregroundNotifiedIds.add(alert.todoAlertId);
       new Notification(alert.title, {
         body: alert.body || "Your to-do alert is due. Click to open.",
         icon: "/favicon.ico",
