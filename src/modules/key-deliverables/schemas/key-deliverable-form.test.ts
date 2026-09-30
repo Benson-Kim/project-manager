@@ -7,28 +7,40 @@ describe("keyDeliverableFormSchema", () => {
     const parsed = keyDeliverableFormSchema.parse({
       projectId: "2",
       keyRequirement: "  Fast reports generation  ",
+      requestedDate: "2026-10-01",
       deadline: "2026-12-26",
-      assignedToStakeholderId: "5",
+      "assigneeIds[]": ["5", "6"],
       priority: "Important",
       status: "In Progress",
     });
     expect(parsed.projectId).toBe(2);
     expect(parsed.keyRequirement).toBe("Fast reports generation");
+    expect(parsed.requestedDate).toEqual(new Date("2026-10-01"));
     expect(parsed.deadline).toEqual(new Date("2026-12-26"));
-    expect(parsed.assignedToStakeholderId).toBe(5);
+    expect(parsed.assigneeIds).toEqual([5, 6]);
+  });
+
+  it("accepts a single assigneeId[] string (FormData single-value case)", () => {
+    const parsed = keyDeliverableFormSchema.parse({
+      projectId: "2",
+      keyRequirement: "R",
+      "assigneeIds[]": "5",
+    });
+    expect(parsed.assigneeIds).toEqual([5]);
   });
 
   it("turns empty optional strings into null", () => {
     const parsed = keyDeliverableFormSchema.parse({
       projectId: "2",
       keyRequirement: "Requirement",
+      requestedDate: "",
       deadline: "",
-      assignedToStakeholderId: "",
       priority: "",
       status: "",
     });
+    expect(parsed.requestedDate).toBeNull();
     expect(parsed.deadline).toBeNull();
-    expect(parsed.assignedToStakeholderId).toBeNull();
+    expect(parsed.assigneeIds).toBeNull();
     expect(parsed.priority).toBeNull();
     expect(parsed.status).toBeNull();
   });
