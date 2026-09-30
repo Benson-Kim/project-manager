@@ -126,7 +126,7 @@ export async function getGanttBars(
     .filter((r): r is GanttRow & { Deadline: Date } => r.Deadline !== null)
     .map((r) => {
       let start: Date;
-      if (r.RequestedDate !== null && r.RequestedDate.getTime() <= r.Deadline.getTime()) {
+      if (r.RequestedDate != null && r.RequestedDate.getTime() <= r.Deadline.getTime()) {
         start = r.RequestedDate;
       } else if (r.CreatedAtUtc.getTime() <= r.Deadline.getTime()) {
         start = r.CreatedAtUtc;
