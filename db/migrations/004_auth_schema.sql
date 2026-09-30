@@ -70,8 +70,17 @@ END;
 GO
 
 -- Deferred FK from migration 002: preferences belong to real users now.
+-- On an upgrade auth.User was just created and is empty, so any ViewPreference
+-- rows that pre-date the auth schema have no matching user and would cause the
+-- FK to fail. They reference IDs that never existed in auth.User and carry no
+-- recoverable data; delete them before adding the constraint.
 IF OBJECT_ID(N'FK_ViewPreference_User_UserId', N'F') IS NULL
+BEGIN
+    DELETE FROM app.ViewPreference
+    WHERE UserId NOT IN (SELECT UserId FROM auth.[User]);
+
     ALTER TABLE app.ViewPreference
         ADD CONSTRAINT FK_ViewPreference_User_UserId
         FOREIGN KEY (UserId) REFERENCES auth.[User] (UserId);
+END;
 GO

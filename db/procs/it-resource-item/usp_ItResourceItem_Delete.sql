@@ -1,4 +1,4 @@
--- usp_ItResourceItem_Delete — soft delete with rowversion concurrency + in-transaction audit.
+﻿-- usp_ItResourceItem_Delete — soft delete with rowversion concurrency + in-transaction audit.
 -- Entity app.ItResourceItem (source: tblITResourcePlanningDetails). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
@@ -29,7 +29,14 @@ BEGIN
         IsDeleted    = 1,
         DeletedAtUtc = SYSUTCDATETIME(),
         DeletedBy    = @ActorUserId
-    WHERE ItResourceItemId = @ItResourceItemId AND IsDeleted = 0;
+    WHERE ItResourceItemId = @ItResourceItemId AND IsDeleted = 0
+      AND CAST(RowVer AS BIGINT) = @RowVer;
+    IF @@ROWCOUNT = 0
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM app.ItResourceItem WHERE ItResourceItemId = @ItResourceItemId AND IsDeleted = 0)
+            THROW 50001, N'NOT_FOUND:ItResourceItem not found', 1;
+        THROW 50002, N'CONFLICT:ItResourceItem was modified by someone else', 1;
+    END
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson)
     VALUES (@ActorUserId, N'Delete', N'app.ItResourceItem', CAST(@ItResourceItemId AS NVARCHAR(64)), @Before);

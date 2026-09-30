@@ -1,5 +1,7 @@
 -- usp_TodoAlert_Create — insert one app.TodoAlert row; audits in-transaction; returns the new row.
 -- Entity app.TodoAlert (source: tblTodoList (alert engine columns, 1:1)). Module: database-schema-and-procs (#3).
+-- THROW 50001 NOT_FOUND     : @TodoItemId does not exist or is soft-deleted.
+-- THROW 50003 FORBIDDEN_ROW : actor is not the TodoItem owner nor Admin/ProjectManager.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_TodoAlert_Create
@@ -21,6 +23,32 @@ BEGIN
     SET XACT_ABORT ON;
     IF @TodoItemId IS NULL
         THROW 50004, N'VALIDATION:TodoItemId is required', 1;
+
+    -- Ownership guard: actor must own the parent TodoItem or be Admin/ProjectManager.
+    IF NOT EXISTS (
+        SELECT 1
+        FROM   app.TodoItem AS ti
+        WHERE  ti.TodoItemId = @TodoItemId
+          AND  ti.IsDeleted  = 0
+          AND  (
+                   ti.CreatedBy = @ActorUserId
+                   OR EXISTS (
+                       SELECT 1 FROM auth.[User] u
+                       WHERE  u.UserId = @ActorUserId
+                         AND  u.RoleId IN (
+                                  SELECT RoleId FROM auth.[Role]
+                                  WHERE  Name IN (N'Admin', N'ProjectManager')
+                              )
+                   )
+               )
+    )
+    BEGIN
+        -- Distinguish NOT_FOUND from FORBIDDEN_ROW so the caller gets the right error code.
+        IF NOT EXISTS (SELECT 1 FROM app.TodoItem WHERE TodoItemId = @TodoItemId AND IsDeleted = 0)
+            THROW 50001, N'NOT_FOUND:TodoItem not found', 1;
+        THROW 50003, N'FORBIDDEN_ROW:You do not have access to this record', 1;
+    END
+
     BEGIN TRAN;
 
     INSERT INTO app.TodoAlert ([TodoItemId], [AlertDay], [AlertTime], [RepeatUnit], [RepeatInterval], [CurrentRepeatInterval], [SnoozeCount], [LastSnoozeTime], [MaxSnoozeCount], [SnoozeOptions], [IsDismissed], CreatedBy)
