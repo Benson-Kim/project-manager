@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { messages } from "@/lib/messages";
+import { DELIVERABLE_STATUSES, DELIVERABLE_PRIORITIES } from "./key-deliverable";
 
 /**
  * Deliverable form contract: ONE schema shared by the client Sheet
@@ -20,12 +21,16 @@ const dateInput = z
   .refine((v) => !v || !Number.isNaN(Date.parse(v)), messages.keyDeliverables.invalidDate)
   .transform((v) => (v ? new Date(v) : null));
 
-const optionalChoice = z
-  .string()
-  .trim()
-  .max(255)
+/** Validated enum choice — empty string maps to null, invalid values are rejected. */
+const statusChoice = z
+  .enum(["", ...DELIVERABLE_STATUSES])
   .optional()
-  .transform((v) => (v ? v : null));
+  .transform((v) => (v ? (v as (typeof DELIVERABLE_STATUSES)[number]) : null));
+
+const priorityChoice = z
+  .enum(["", ...DELIVERABLE_PRIORITIES])
+  .optional()
+  .transform((v) => (v ? (v as (typeof DELIVERABLE_PRIORITIES)[number]) : null));
 
 /** Single "assigneeIds[]" entry — numeric string or empty. */
 const assigneeIdEntry = z
@@ -42,8 +47,8 @@ export const keyDeliverableFormSchema = z
     deadline: dateInput,
     /** FormData submits repeating fields as string[]. May arrive as a single string too. */
     "assigneeIds[]": z.union([z.string(), z.array(z.string())]).optional(),
-    priority: optionalChoice,
-    status: optionalChoice,
+    priority: priorityChoice,
+    status: statusChoice,
   })
   .transform((raw) => {
     const raw_ = raw["assigneeIds[]"];

@@ -25,7 +25,7 @@ BEGIN
            CAST(kd.RowVer AS BIGINT) AS RowVer,
            (
                SELECT STRING_AGG(
-                   LTRIM(RTRIM(CONCAT(ISNULL(s.FirstName,''), N' ', ISNULL(s.LastName,'')))),
+                   CAST(LTRIM(RTRIM(CONCAT(ISNULL(s.FirstName,''), N' ', ISNULL(s.LastName,'')))) AS NVARCHAR(MAX)),
                    N', '
                )
                FROM app.KeyDeliverableAssignee AS a

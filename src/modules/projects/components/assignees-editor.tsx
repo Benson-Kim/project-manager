@@ -79,10 +79,6 @@ export function AssigneesEditor({
           return exists ? assignees : [...assignees, { role, personName: picked, userId: null }];
         })()
       : assignees;
-    if (pending_list.length === 0) {
-      setSummary(messages.projects.assigneeNameRequired);
-      return;
-    }
     setPicked(null);
     setComboboxKey((k) => k + 1);
     setSummary(null);

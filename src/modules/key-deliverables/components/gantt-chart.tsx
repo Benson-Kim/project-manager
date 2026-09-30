@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { EmptyState } from "@/components/ui/states";
 import { messages } from "@/lib/messages";
 import { formatDate } from "@/lib/format";
@@ -74,6 +74,10 @@ const DAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
  * - Sticky label column + sticky timeline header
  * - Keyboard-accessible Link bars; print styles
  */
+/** Maximum chart window: 730 days (2 years). Beyond this the granularity
+ *  switches to weekly ticks only to avoid tens-of-thousands of DOM nodes. */
+const MAX_CHART_DAYS = 730;
+
 export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: number }) {
   if (bars.length === 0) {
     return (
@@ -87,8 +91,14 @@ export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: n
   const minMs = Math.min(...bars.map((b) => b.start.getTime()));
   const maxMs = Math.max(...bars.map((b) => b.end.getTime()));
   // Pad 2 days each side so edge bars and labels are never clipped.
-  const rangeStart = new Date(minMs - 2 * DAY_MS);
-  const rangeEnd   = new Date(maxMs + 2 * DAY_MS);
+  // Cap total window at MAX_CHART_DAYS to bound DOM node count.
+  const rawStart = new Date(minMs - 2 * DAY_MS);
+  const rawEnd   = new Date(maxMs + 2 * DAY_MS);
+  const windowMs = rawEnd.getTime() - rawStart.getTime();
+  const rangeStart = rawStart;
+  const rangeEnd   = windowMs > MAX_CHART_DAYS * DAY_MS
+    ? new Date(rawStart.getTime() + MAX_CHART_DAYS * DAY_MS)
+    : rawEnd;
   const span = Math.max(rangeEnd.getTime() - rangeStart.getTime(), DAY_MS);
 
   const pct = (ms: number) =>
@@ -99,10 +109,12 @@ export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: n
   const showToday   = todayLeft >= 0 && todayLeft <= 100;
 
   const weeks = weekStarts(rangeStart, rangeEnd);
-  const days  = allDays(rangeStart, rangeEnd);
+  // Only render day ticks when the window is small enough to be readable.
+  const dayCount = Math.round((rangeEnd.getTime() - rangeStart.getTime()) / DAY_MS);
+  const days  = dayCount <= 90 ? allDays(rangeStart, rangeEnd) : [];
 
-  // Minimum chart width: 1 px per day so bars are always readable.
-  const minWidthPx = Math.max(days.length * 28, 640);
+  // Minimum chart width: 28 px per day (capped window) or 14 px per day (wide window).
+  const minWidthPx = Math.max(dayCount * (dayCount <= 90 ? 28 : 14), 640);
 
   return (
     <div
@@ -198,14 +210,27 @@ export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: n
                   i % 2 === 0 ? "bg-surface" : "bg-surface-raised"
                 }`}
               >
-                {/* Sticky label column — requirement name only; assignees are right of bar */}
+                {/* Sticky label column — requirement + status/dates detail */}
                 <div
-                  className={`sticky left-0 z-10 flex items-center border-r border-line px-3 py-2 ${
+                  className={`sticky left-0 z-10 flex flex-col justify-center border-r border-line px-3 py-2 ${
                     i % 2 === 0 ? "bg-surface" : "bg-surface-raised"
                   }`}
                 >
                   <span className="line-clamp-2 text-sm font-medium text-ink">
                     {bar.requirement || messages.keyDeliverables.deliverableFallback(bar.id)}
+                  </span>
+                  <span className="mt-0.5 text-[11px] leading-snug text-ink-muted">
+                    {[bar.status, bar.priority].filter(Boolean).join(" · ")}
+                    {bar.overdue ? (
+                      <span className="ml-1 font-medium text-danger">
+                        {" "}{messages.keyDeliverables.overdue}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="text-[11px] leading-snug text-ink-muted">
+                    {formatDate(bar.start)}
+                    {" – "}
+                    {formatDate(bar.end)}
                   </span>
                 </div>
 

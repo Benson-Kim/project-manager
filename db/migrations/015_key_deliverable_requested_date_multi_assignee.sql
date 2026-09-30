@@ -5,6 +5,8 @@
 -- compatibility during the transition; procs now read from the junction
 -- table exclusively.
 -- Module: key-deliverables (#9).
+USE ProjectManager;
+GO
 
 -- Check guard
 IF NOT EXISTS (
@@ -48,6 +50,28 @@ BEGIN
     )
         CREATE INDEX IX_KDA_StakeholderId
             ON app.KeyDeliverableAssignee (StakeholderId);
+
+    -- 3. Migrate legacy single-assignee into the junction table.
+    --    AssignedToStakeholderId was the pre-015 column; copy any non-NULL
+    --    values that are not already in the junction table (idempotent).
+    IF EXISTS (
+        SELECT 1 FROM sys.columns
+        WHERE object_id = OBJECT_ID(N'app.KeyDeliverable')
+          AND name = N'AssignedToStakeholderId'
+    )
+    BEGIN
+        INSERT INTO app.KeyDeliverableAssignee
+            (KeyDeliverableId, StakeholderId, CreatedBy)
+        SELECT kd.KeyDeliverableId, kd.AssignedToStakeholderId, 0
+        FROM app.KeyDeliverable AS kd
+        WHERE kd.AssignedToStakeholderId IS NOT NULL
+          AND kd.IsDeleted = 0
+          AND NOT EXISTS (
+              SELECT 1 FROM app.KeyDeliverableAssignee AS a
+              WHERE a.KeyDeliverableId = kd.KeyDeliverableId
+                AND a.StakeholderId    = kd.AssignedToStakeholderId
+          );
+    END;
 
     INSERT INTO app.SchemaMigrations (MigrationId, AppliedAtUtc)
     VALUES ('015', SYSUTCDATETIME());

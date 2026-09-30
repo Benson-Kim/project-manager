@@ -26,13 +26,19 @@ BEGIN
 
     DECLARE @Id INT = SCOPE_IDENTITY();
 
-    -- Upsert assignees from JSON array
+    -- Insert assignees validated to belong to @ProjectId (prevents cross-project injection).
     IF @AssigneeIds IS NOT NULL AND LEN(@AssigneeIds) > 2
     BEGIN
         INSERT INTO app.KeyDeliverableAssignee (KeyDeliverableId, StakeholderId, CreatedBy)
         SELECT @Id, CAST(j.[value] AS INT), @ActorUserId
         FROM OPENJSON(@AssigneeIds) AS j
         WHERE ISNUMERIC(j.[value]) = 1
+          AND EXISTS (
+              SELECT 1 FROM app.Stakeholder AS s
+              WHERE s.StakeholderId = CAST(j.[value] AS INT)
+                AND s.ProjectId     = @ProjectId
+                AND s.IsDeleted     = 0
+          )
           AND NOT EXISTS (
               SELECT 1 FROM app.KeyDeliverableAssignee
               WHERE KeyDeliverableId = @Id AND StakeholderId = CAST(j.[value] AS INT)
@@ -59,7 +65,7 @@ BEGIN
            CAST(kd.RowVer AS BIGINT) AS RowVer,
            (
                SELECT STRING_AGG(
-                   LTRIM(RTRIM(CONCAT(ISNULL(s.FirstName,''), N' ', ISNULL(s.LastName,'')))),
+                   CAST(LTRIM(RTRIM(CONCAT(ISNULL(s.FirstName,''), N' ', ISNULL(s.LastName,'')))) AS NVARCHAR(MAX)),
                    N', '
                )
                FROM app.KeyDeliverableAssignee AS a
