@@ -4,7 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 
 /**
- * URL is the list state (ADR-0006): q / sort / dir / view / page + module
+ * URL is the list state : q / sort / dir / view / page + module
  * filters. Updates replace history (no back-button spam) except page changes,
  * which push so back returns to the previous page.
  */

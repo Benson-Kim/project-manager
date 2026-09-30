@@ -7,7 +7,7 @@ vi.mock("../db", () => ({
 
 import { getViewPreference, setViewPreference } from "./view-preference";
 
-describe("view-preference repository (ADR-0006)", () => {
+describe("view-preference repository ", () => {
   beforeEach(() => execProc.mockReset());
 
   it("returns the stored mode", async () => {

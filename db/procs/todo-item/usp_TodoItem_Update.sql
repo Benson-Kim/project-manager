@@ -36,7 +36,7 @@ BEGIN
                        WHERE  u.UserId = @ActorUserId
                          AND  u.RoleId IN (
                                   SELECT RoleId FROM auth.[Role]
-                                  WHERE  RoleName IN (N'Admin', N'ProjectManager')
+                                  WHERE  Name IN (N'Admin', N'ProjectManager')
                               )
                    )
                )

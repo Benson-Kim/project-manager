@@ -1,7 +1,7 @@
 # Project Manager Rebuild — Full Plan
 
 Rebuild of the Access 2010 project-management application as a modern, mobile-first
-web app. Source-of-truth requirements: [`docs/source-analysis/`](source-analysis/requirements.md).
+web app. Source-of-truth requirements: [`docs/source/analysis/`](source/analysis/requirements.md).
 
 ## 1. Architecture
 
@@ -43,14 +43,14 @@ Type mapping: `LONG→INT (IDENTITY for PKs)`, `TEXT(255)→NVARCHAR(255)`,
 `MONEY→MONEY`, attachments → `app.FileAttachment` + module link tables.
 Column names are normalised to PascalCase without spaces (e.g. `Contact Person` →
 `ContactPerson`); original names documented in
-[source-analysis/access-database.md](source-analysis/access-database.md).
+[source/analysis/access-database.md](source/analysis/access-database.md).
 
 | Access table | New table (schema `app`) | Notes |
 |---|---|---|
 | tblProjectFramework | `Project` | + `ProjectPriority`, `EstimatedCompletionDate` (checklist add-ons); M:N `ProjectAssignee` (PMs/sponsors/BAs — req 0.3 "one or many") |
 | tblStakeholders | `Stakeholder` | FK ProjectId; communication preference & engagement lookups |
 | tbl3rdPartySupplier | `Supplier` | full address block, contract dates, rating |
-| tblAcronyms | `Keyword` | renamed per checklist §13 (searchable) |
+| tblKeywords | `Keyword` | renamed per checklist §13 (searchable) |
 | tblKeyRequirementsDeliverable | `KeyDeliverable` | AssignedTo → FK Stakeholder; drives Gantt |
 | tblProjectObjectives | `Objective` | |
 | tblMeetingMinutes (recovered — 5 rows), tblMeetingAgenda, tblMeetingDiscussionPoints, tblMeetingActionItems, tblMeetingParticipants | `Meeting`, `MeetingAgendaItem`, `MeetingDiscussionPoint`, `MeetingActionItem`, `MeetingParticipant` | Meeting parent EXISTS in the source (subject, description, location, start date, start/end time, conclusion, next meeting, follow-up); + checklist extras: date received, title, objective, participant list from stakeholders |
@@ -65,16 +65,18 @@ Column names are normalised to PascalCase without spaces (e.g. `Contact Person` 
 | tblTodoList | `TodoItem`, `TodoAlert` | alert engine: alert day/time, repeat unit/interval, snooze count/max/options, dismissed |
 | tblActivityStatusType | `ActivityStatus` (lookup) | Not Started / In Progress / Completed / Cancelled |
 | tblExistingSystemsInterfaces | `ExistingSystemInterface` | |
-| tblProjectSummary/Task/TaskList/TaskFramework | *(dropped — empty/vestigial)* | recorded in source-analysis |
-| — (new) | `auth.User`, `auth.Role`, `auth.UserRole`, `auth.Permission`, `auth.Session` | web multi-user + RBAC |
+| tblProjectSummary/Task/TaskList/TaskFramework | *(dropped — empty/vestigial)* | recorded in source/analysis |
+| — (new) | `auth.User`, `auth.Role`, `auth.LoginAttempt` (delivered by module #4, MR !8 — JWT sessions with a SessionVersion revocation stamp replace `auth.Session`; the role matrix lives in code, so no `UserRole`/`Permission` tables; ADR-0017/ADR-0015) | web multi-user + RBAC |
 | — (new) | `audit.AuditLog` | who/what/when/before/after for every mutation |
 | — (new) | `app.FileAttachment` | replaces Access attachment columns; content-hash versioning |
 
-Seeds: all rows in `source-analysis/access-database.md` §4 are converted to
+Seeds: all rows in `source/analysis/access-database.md` §4 are converted to
 `db/seed/*.sql` INSERT scripts (18 projects, 8 stakeholders, 12 suppliers, 29
-keywords, 8 deliverables, 6 objectives, 3 meetings + children, 12 Q&A,
+keywords, 8 deliverables, 6 objectives, 5 meetings + children, 12 Q&A,
 8 assumptions/constraints, 2 risks, 7 notes, 15+18 resource-planning rows,
-2 financials + 9 documents, 12 parking-lot items, 13 daily activities, 16 to-dos).
+2 financials + 9 document types + 9 junction rows, 12 parking-lot items,
+13 daily activities, 16 to-dos + 4 alerts) — idempotent, original IDs preserved
+via `IDENTITY_INSERT` (delivered by module #3; proc catalogue in `db/README.md`).
 
 ## 3. Modules, branches, ordering & dependencies
 
@@ -86,7 +88,7 @@ keywords, 8 deliverables, 6 objectives, 3 meetings + children, 12 Q&A,
 | 4 | projects (framework/charter, search, multi-assignee) | `feature/projects` | 3 |
 | 5 | stakeholders | `feature/stakeholders` | 4 |
 | 6 | suppliers | `feature/suppliers` | 4 |
-| 7 | acronyms (keywords + search) | `feature/acronyms` | 4 |
+| 7 | keywords (keywords + search) | `feature/keywords` | 4 |
 | 8 | key-deliverables (+ Gantt) | `feature/key-deliverables` | 5 |
 | 9 | objectives | `feature/objectives` | 4 |
 | 10 | meetings (minutes/agenda/discussion/actions/participants) | `feature/meetings` | 5 |
@@ -110,7 +112,7 @@ keywords, 8 deliverables, 6 objectives, 3 meetings + children, 12 Q&A,
 
 MR flow: each `feature/*` → MR to `develop` (staging deploy) → release MR
 `develop` → `main` (production, manual deploy). Parallelisable after #4:
-stakeholders, suppliers, acronyms, objectives, assumptions-constraints, notes,
+stakeholders, suppliers, keywords, objectives, assumptions-constraints, notes,
 it-resource-planning, parking-lot, daily-activities are independent of each
 other.
 
@@ -266,7 +268,7 @@ issue, review-before-continuing, environment gotchas; append what you learn),
 `AGENTS.md`, `docs/STANDARDS.md` (the constitution), 
 `docs/MODULE-BLUEPRINT.md`, the module issue — especially its **Standards
 compliance (set by foundation session)** section — this file (§2 §4 §10),
-`docs/TRACEABILITY.md`, `docs/source-analysis/` (requirements + the module's
+`docs/TRACEABILITY.md`, `docs/source/analysis/` (requirements + the module's
 tables/queries/rows) and `docs/adr/`. Each session operates at full breadth —
 architect, security engineer, UX designer, accessibility specialist, DBA and
 tech lead at once — decides from first principles, records decisions (ADR) and
@@ -285,7 +287,7 @@ lands complete work: code + tests + docs + green pipeline.
 > what you learn), AGENTS.md, docs/STANDARDS.md, docs/MODULE-BLUEPRINT.md,
 > issue `#<iid>` (especially its "Standards compliance (set by foundation
 > session)" section), docs/PLAN.md §2/§4/§10, docs/TRACEABILITY.md,
-> docs/source-analysis/ for this module's tables/queries/rows, and docs/adr/.
+> docs/source/analysis/ for this module's tables/queries/rows, and docs/adr/.
 > Create branch `feature/<module-key>` from develop and implement per the
 > blueprint: migrations + stored procedures (ADR-0016 list contract, ADR-0012
 > errors, audit in-transaction) + seeds + module slice
@@ -309,12 +311,12 @@ to develop, verify staging deploy job, close issue.
 | Order | Module key (issue) | Session goal specifics beyond template |
 |---|---|---|
 | 2 | database-schema-and-procs (#3) | All §2 tables + FKs + indexes; CRUD procs per entity; ALL seeds from access-database.md §4 (incl. 5 meetings, 9 document types); `usp_Project_Search`; import mechanism = seeds (checklist row 61) |
-| 3 | auth-and-rbac (#4) | auth.User/Role/UserRole/Session tables + procs; Auth.js credentials + bcrypt/argon2; role guards; login rate limiting; seed admin user (forced password change); audit Login/Logout |
+| 3 | auth-and-rbac (#4) | auth.User/Role/UserRole/Session tables + procs; Auth.js credentials + bcrypt/argon2; role guards; login rate limiting; seed admin user (forced password change); audit Login/Logout — **delivered, MR !8**: migration 004 (`auth.Role`/`User`/`LoginAttempt`), 12 procs, Auth.js v5 + argon2id, JWT + SessionVersion revocation (ADR-0017), IP rate limit + lockout, seeded admin (hash from `SEED_ADMIN_PASSWORD` at seed time), Login/Logout audit in-proc; e2e RBAC-denial spec deferred to #26, full SecLists denylist to #27 |
 | 4 | projects (#5) | charter screen, type-ahead search (row 5), M:N assignees (row 6), add-ons (row 69: priority, est. completion, phase, risk level, status) |
-| 5 | stakeholders (#6) | CRUD + comm-preference/engagement dropdowns (row 70) |
-| 6 | suppliers (#7) | CRUD + contact/contract/rating + address block (rows 55, 74) |
-| 7 | acronyms (#8) | rename Keywords + search field (row 58) |
-| 8 | key-deliverables (#9) | CRUD + deadline/assignee/priority/status (row 71) + Gantt from deliverable dates (row 67) |
+| 5 | stakeholders (#6) | CRUD + comm-preference/engagement dropdowns (row 70) — **delivered, MR !11**: migration 006 (vocab CHECK constraints), `usp_Stakeholder_List` + `@EngagementLevel` filter/EmailAddress search/ProjectRole sort, `/stakeholders` DataView + URL-synced sheet (ADR-0010), charter deep link |
+| 6 | suppliers (#7) | CRUD + contact/contract/rating + address block (rows 55, 74) — **delivered, MR !16**: no DB deltas (table from 003, procs from #3, seed 004), `/projects/[id]/suppliers` project-scoped DataView + URL-synced sheet (ADR-0010/0018, first registered section besides charter), default sort ContractEndDate asc, DatePicker contract dates, rating vocab in UI (DB free-text); contract-end dashboard alert deferred to #20 |
+| 7 | keywords (#8) | rename Keywords + search field (row 58) |
+| 8 | key-deliverables (#9) | CRUD + deadline/assignee/priority/status (row 71) + Gantt from deliverable dates (row 67) — **delivered**: list + Sheet + CSS-grid Gantt under `/projects/[id]/deliverables` (ADR-0018 route override; bar start = CreatedAtUtc, print stylesheet as the report view) |
 | 9 | objectives (#10) | CRUD (row 11) |
 | 10 | meetings (#11) | Meeting parent + agenda/discussion/actions/participants; participants picker from stakeholders (rows 13, 53, 54, 72); attendees vs apologies |
 | 11 | questions-answers (#12) | CRUD + category/priority/assignee (row 73) |

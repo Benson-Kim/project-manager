@@ -1,8 +1,10 @@
 #!/bin/sh
 # Dump the objects that the pure-stdlib parser missed (found by mdbtools).
 set -eu
-MDB=Access_database.mdb
-OUT=missing-objects
+# Run from the repository root; override MDB/OUT via the environment.
+MDB="${MDB:-docs/source/Access_database.mdb}"
+OUT="${OUT:-missing-objects}"
+[ -f "$MDB" ] || { echo "mdb not found: $MDB (run from the repository root)" >&2; exit 1; }
 mkdir -p "$OUT"
 echo "== all tables ==" | tee "$OUT/tables.txt"
 mdb-tables -1 "$MDB" | tee -a "$OUT/tables.txt"

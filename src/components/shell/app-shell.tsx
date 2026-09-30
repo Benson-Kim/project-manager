@@ -1,32 +1,55 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { Sheet } from "@/components/ui/dialog";
 import { messages } from "@/lib/messages";
+import { useAlertPoller } from "@/modules/todo-items/components/use-alert-poller";
 import { useAnnouncer } from "../ui/announcer";
-import { useTheme, type ThemePreference } from "../theme/theme-provider";
-import { navItems } from "./nav-items";
+import { AvatarMenu, NotificationsBell, ThemeToggle, type ShellAlert } from "./header-actions";
+import { pageTitleFor } from "./nav-items";
 import { OfflineBanner } from "./offline-banner";
 import { RouteProgress } from "./route-progress";
+import { MenuIcon } from "./shell-icons";
+import { SidebarContent } from "./sidebar-content";
+import { ProjectHeader, type ProjectOption } from "./project-header";
 
 /**
- * The ONE navigation pattern (STANDARDS §5.3): bottom tab bar < md, sidebar
- * >= md. Safe-area padded, 44 px targets, current page announced.
+ * App shell (spec in issue #28): desktop sidebar (logo, New project, nav,
+ * Settings + Logout pinned) + header (page title left; bell, theme toggle,
+ * avatar menu right). On < md the sidebar collapses into a drawer (the ONE
+ * overlay engine — Radix Sheet: focus trap, Escape, focus return).
  */
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  username,
+  canCreateProject,
+  canCreateDailyActivity,
+  canCreateTodo,
+  projectOptions,
+  alerts,
+  children,
+}: {
+  username: string;
+  canCreateProject: boolean;
+  canCreateDailyActivity: boolean;
+  canCreateTodo: boolean;
+  projectOptions: ProjectOption[];
+  alerts: ShellAlert[];
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const { announce } = useAnnouncer();
-  const { preference, setPreference } = useTheme();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  useAlertPoller();
+  const projectMatch = pathname.match(/^\/projects\/(\d+)(\/.*)?$/);
+  const projectId = projectMatch ? Number(projectMatch[1]) : null;
 
   useEffect(() => {
     announce(document.title);
   }, [announce, pathname]);
 
-  const tabs = navItems.slice(0, 4);
-
   return (
-    <div className="flex min-h-dvh">
+    <div className="flex min-h-dvh bg-surface-raised">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-(--z-toast) focus:rounded-md focus:bg-surface focus:p-3"
@@ -42,67 +65,62 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Desktop sidebar */}
       <nav
         aria-label={messages.app.menu}
-        className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col border-r border-line bg-surface-raised p-3 md:flex"
+        className="sticky top-0 hidden h-dvh w-60 shrink-0 bg-surface-raised p-3 md:block"
       >
-        <p className="px-3 py-4 text-sm font-semibold text-ink">{messages.app.name}</p>
-        <ul className="flex flex-1 flex-col gap-1">
-          {navItems.map((item) => (
-            <li key={item.href}>
-              <Link
-                href={item.href}
-                aria-current={pathname === item.href ? "page" : undefined}
-                className={`flex min-h-11 items-center rounded-md px-3 text-sm font-medium ${
-                  pathname === item.href
-                    ? "bg-accent-soft text-accent"
-                    : "text-ink-muted hover:bg-surface-sunken"
-                }`}
-              >
-                {item.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
-        <label className="flex flex-col gap-1 px-3 pb-2">
-          <span className="text-xs font-medium text-ink-muted">{messages.app.themeLabel}</span>
-          <select
-            value={preference}
-            onChange={(e) => setPreference(e.target.value as ThemePreference)}
-            className="min-h-11 rounded-md border border-line bg-surface px-2 text-sm text-ink"
-          >
-            <option value="system">{messages.app.themeSystem}</option>
-            <option value="light">{messages.app.themeLight}</option>
-            <option value="dark">{messages.app.themeDark}</option>
-          </select>
-        </label>
+        <SidebarContent
+          canCreateProject={canCreateProject}
+          canCreateDailyActivity={canCreateDailyActivity}
+          canCreateTodo={canCreateTodo}
+          pathname={pathname}
+        />
       </nav>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <main id="main" className="flex-1 px-4 pb-24 md:pb-8">
-          {children}
-        </main>
+      {/* Mobile drawer */}
+      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen} title={messages.app.menu}>
+        <nav aria-label={messages.app.menu} className="-mx-1 min-h-[60dvh]">
+          <SidebarContent
+            canCreateProject={canCreateProject}
+            canCreateDailyActivity={canCreateDailyActivity}
+            canCreateTodo={canCreateTodo}
+            pathname={pathname}
+            onNavigate={() => setDrawerOpen(false)}
+          />
+        </nav>
+      </Sheet>
+
+      <div className="flex min-w-0 flex-1 flex-col bg-surface-raised pt-2 pr-2 pb-2">
+        <div className="flex flex-col flex-1 p-3 pb-4 rounded-2xl bg-gray-50 border border-line min-h-[calc(100dvh-1rem)]">
+          <header className="sticky top-0 z-(--z-nav) flex h-14 items-center gap-1 border border-line bg-linear-60 px-4 py-3 rounded-t-md">
+            <button
+              type="button"
+              aria-label={messages.app.menu}
+              data-testid="open-drawer"
+              className="flex min-h-9 min-w-9 items-center justify-center rounded-md text-ink-muted hover:bg-surface-sunken md:hidden"
+              onClick={() => setDrawerOpen(true)}
+            >
+              <MenuIcon />
+            </button>
+            {projectId !== null ? (
+              <ProjectHeader projectId={projectId} options={projectOptions} />
+            ) : (
+              <p
+                className="flex-1 truncate text-base font-semibold text-ink"
+                data-testid="page-title"
+              >
+                {pageTitleFor(pathname)}
+              </p>
+            )}
+            <div className="ml-auto flex items-center gap-2">
+              <NotificationsBell alerts={alerts} />
+              <ThemeToggle />
+              <AvatarMenu username={username} />
+            </div>
+          </header>
+          <main id="main" className="flex flex-col flex-1 px-4">
+            {children}
+          </main>
+        </div>
       </div>
-
-      {/* Mobile bottom tab bar */}
-      <nav
-        aria-label={messages.app.menu}
-        className="fixed inset-x-0 bottom-0 z-(--z-nav) border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
-      >
-        <ul className="flex">
-          {tabs.map((item) => (
-            <li key={item.href} className="flex-1">
-              <Link
-                href={item.href}
-                aria-current={pathname === item.href ? "page" : undefined}
-                className={`flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium ${
-                  pathname === item.href ? "text-accent" : "text-ink-muted"
-                }`}
-              >
-                {item.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
     </div>
   );
 }

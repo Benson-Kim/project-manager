@@ -6,7 +6,7 @@ import { messages } from "@/lib/messages";
 import { useAnnouncer } from "../announcer";
 import { EmptyState } from "../states";
 import { saveViewPreference } from "./save-view-preference";
-import { priorityClass, type DataViewProps } from "./types";
+import { priorityClass, rowSelectionLabel, type DataViewProps } from "./types";
 import { useListUrlState } from "./use-list-url-state";
 
 /**
@@ -37,6 +37,9 @@ export function DataView<Row>({
   const [selected, setSelected] = useState<Array<string | number>>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Track previous rows identity to reset activeIndex on page/search changes
+  // (React-recommended setState-during-render pattern — not an effect).
+  const [prevRows, setPrevRows] = useState(rows);
 
   const urlView = searchParams.get("view");
   const view: ViewMode = urlView === "grid" || urlView === "list" ? urlView : initialView;
@@ -51,9 +54,11 @@ export function DataView<Row>({
 
   // P1 fix: reset active index whenever the row set identity changes (search,
   // filter, page) so keyboard nav always starts from a valid index.
-  useEffect(() => {
+  // React-recommended setState-during-render pattern (avoids cascading renders).
+  if (prevRows !== rows) {
+    setPrevRows(rows);
     setActiveIndex(0);
-  }, [rows]);
+  }
 
   const setView = useCallback(
     (next: ViewMode) => {
@@ -196,6 +201,7 @@ export function DataView<Row>({
                       index={index}
                       activeIndex={activeIndex}
                       selectable={Boolean(bulkActions)}
+                      selectLabel={rowSelectionLabel(row, getRowLabel) ?? String(id)}
                       selected={selected.includes(id)}
                       onToggleSelect={() => toggleSelected(id)}
                       onOpen={onOpen ? () => onOpen(row) : undefined}
@@ -241,7 +247,7 @@ export function DataView<Row>({
                         <td className="w-11 p-2">
                           <input
                             type="checkbox"
-                            aria-label={String(id)}
+                            aria-label={rowSelectionLabel(row, getRowLabel) ?? String(id)}
                             checked={selected.includes(id)}
                             onClick={(e) => e.stopPropagation()}
                             onChange={() => toggleSelected(id)}
@@ -295,6 +301,7 @@ function DataRowShell({
   index,
   activeIndex,
   selectable,
+  selectLabel,
   selected,
   onToggleSelect,
   onOpen,
@@ -305,6 +312,7 @@ function DataRowShell({
   index: number;
   activeIndex: number;
   selectable: boolean;
+  selectLabel: string;
   selected: boolean;
   onToggleSelect: () => void;
   onOpen?: () => void;
@@ -322,7 +330,7 @@ function DataRowShell({
       {selectable ? (
         <input
           type="checkbox"
-          aria-label={messages.actions.selectAll}
+          aria-label={selectLabel}
           checked={selected}
           onClick={(e) => e.stopPropagation()}
           onChange={onToggleSelect}

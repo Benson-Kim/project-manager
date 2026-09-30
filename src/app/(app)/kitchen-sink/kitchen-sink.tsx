@@ -11,6 +11,7 @@ import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { DatePicker, Input, Select, Switch, Textarea } from "@/components/ui/form/inputs";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
+import { Menu, MenuButton, MenuLink } from "@/components/ui/menu";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/ui/states";
 import { Toolbar } from "@/components/ui/toolbar";
@@ -182,6 +183,22 @@ export function KitchenSink() {
           />
         </section>
 
+        <section aria-labelledby="ks-menu">
+          <h2 id="ks-menu" className="mb-3 text-base font-semibold text-ink">
+            Menu
+          </h2>
+          <Menu
+            label="Demo menu"
+            trigger={<span>Open menu</span>}
+            triggerClassName="inline-flex min-h-10 items-center justify-center rounded-md border border-line bg-surface px-6 text-sm font-medium text-ink hover:bg-surface-raised"
+          >
+            <MenuLink href="/kitchen-sink">Menu link</MenuLink>
+            <MenuButton onClick={() => toast({ variant: "info", title: "Menu action" })}>
+              Menu action
+            </MenuButton>
+          </Menu>
+        </section>
+
         <section aria-labelledby="ks-states">
           <h2 id="ks-states" className="mb-3 text-base font-semibold text-ink">
             States
@@ -214,6 +231,7 @@ export function KitchenSink() {
               page={1}
               initialView="grid"
               getRowId={(row) => row.id}
+              getRowLabel={(row) => row.name}
               renderCard={(row) => (
                 <div>
                   <p className="text-sm font-semibold text-ink">{row.name}</p>

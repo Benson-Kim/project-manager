@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * URL ⇄ list-proc contract (ADR-0006 / ADR-0016). Every list page parses its
+ * URL ⇄ list-proc contract. Every list page parses its
  * searchParams with this schema (extended by module filter params) and
  * forwards the values 1:1 to its usp_<Entity>_List proc.
  */

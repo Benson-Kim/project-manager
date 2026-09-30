@@ -1,5 +1,6 @@
 -- usp_TodoItem_List — paged/filtered list per ADR-0016. Search columns: TodoItem. Sort whitelist: DueDate, Priority, Status, StartDate.
 -- Filter params: @Status (exact match), @Priority (exact match), @ProjectOrActivity (exact match).
+-- Actor scope: only rows whose CreatedBy = @ActorUserId are returned (Admin/PM see all).
 -- Entity app.TodoItem (source: tblTodoList (core; alert columns → TodoAlert)). Module: todo-items (#20).
 USE ProjectManager;
 GO
@@ -44,6 +45,17 @@ BEGIN
       AND (@Status            IS NULL OR [Status]           = @Status)
       AND (@Priority          IS NULL OR [Priority]         = @Priority)
       AND (@ProjectOrActivity IS NULL OR [ProjectOrActivity] = @ProjectOrActivity)
+      AND (
+              CreatedBy = @ActorUserId
+              OR EXISTS (
+                  SELECT 1 FROM auth.[User] u
+                  WHERE  u.UserId = @ActorUserId
+                    AND  u.RoleId IN (
+                             SELECT RoleId FROM auth.[Role]
+                             WHERE  Name IN (N'Admin', N'ProjectManager')
+                         )
+              )
+          )
     ORDER BY
         CASE WHEN @SortBy = N'DueDate'    AND @SortDir = 'asc'  THEN [DueDate]    END ASC,
         CASE WHEN @SortBy = N'DueDate'    AND @SortDir = 'desc' THEN [DueDate]    END DESC,

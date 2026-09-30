@@ -25,7 +25,7 @@ Closes #<!-- issue iid -->
 
 - [ ] Migrations idempotent, tracked in `app.SchemaMigrations`; audit cols + RowVer + soft delete
 - [ ] Procs `CREATE OR ALTER`, audit in-transaction, THROW error contract, List per ADR-0016
-- [ ] Seeds from `docs/source-analysis/access-database.md` §4 only
+- [ ] Seeds from `docs/source/analysis/access-database.md` §4 only
 - [ ] Repository `execProc`-only with zod row parsing
 - [ ] All mutations via `action()` wrapper (permission + revalidate)
 - [ ] Copy in `src/lib/messages.ts`; no hints/tooltips/helper text

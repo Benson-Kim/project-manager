@@ -3,7 +3,7 @@
 import { createContext, useContext, useId } from "react";
 
 /**
- * Field wiring (ADR-0009): always-visible label, inline error below, ids and
+ * Field wiring ): always-visible label, inline error below, ids and
  * aria attributes shared with the input through context. No helper text —
  * the label carries the meaning.
  */
@@ -36,7 +36,7 @@ export function Field({ label, name, errors, children }: FieldProps) {
   return (
     <FieldContext.Provider value={{ inputId, errorId, invalid }}>
       <div className="flex flex-col gap-1" data-field={name}>
-        <label htmlFor={inputId} className="text-sm font-medium text-ink">
+        <label htmlFor={inputId} className="text-sm text-ink leading-6">
           {label}
         </label>
         {children}
