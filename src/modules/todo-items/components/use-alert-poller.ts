@@ -1,105 +1,95 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
-import { pollDueAlertsAction } from "../actions";
+import { useEffect } from "react";
 
-const POLL_INTERVAL_MS = 60_000; // 1 minute
+const POLL_INTERVAL_MS = 60_000;
+const PUSH_PUBLIC_KEY = process.env.NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY;
+type DueAlert = { todoAlertId: number; title: string; body?: string };
 
-/**
- * Tracks which alert IDs have already been notified in this browser session
- * so we don't fire the same notification twice within the same poll window.
- * Cleared on page reload (intentional — a reload means the user returned).
- */
-const notifiedIds = new Set<number>();
+function base64UrlToBytes(value: string): Uint8Array {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const decoded = atob((value + padding).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(decoded, (character) => character.charCodeAt(0));
+}
 
-/**
- * Request browser notification permission the first time an alert fires.
- * Returns true if notifications may be shown (granted or already granted).
- */
-async function ensurePermission(): Promise<boolean> {
-  if (!("Notification" in window)) return false;
-  if (Notification.permission === "granted") return true;
-  if (Notification.permission === "denied") return false;
-  const result = await Notification.requestPermission();
-  return result === "granted";
+async function pollInOpenTab(): Promise<void> {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  try {
+    const response = await fetch("/api/due-alerts", { credentials: "include" });
+    if (!response.ok) return;
+    const alerts = (await response.json()) as DueAlert[];
+    for (const alert of alerts) {
+      new Notification(alert.title, {
+        body: alert.body || "Your to-do alert is due. Click to open.",
+        icon: "/favicon.ico",
+        tag: `todo-alert-${alert.todoAlertId}`,
+      });
+    }
+  } catch {
+    // The todo page remains the authoritative in-app fallback.
+  }
 }
 
 /**
- * Fire a browser notification for a single due alert.
- * Falls back gracefully when the Notification API is unavailable or denied.
- */
-function fireNotification(title: string, todoItemId: number): void {
-  const body = "Your to-do item is due now. Click to open.";
-  const notification = new Notification(title, {
-    body,
-    icon: "/favicon.ico",
-    tag: `todo-alert-${todoItemId}`, // collapses duplicates per item
-    requireInteraction: false,
-  });
-  notification.onclick = () => {
-    window.focus();
-    // Notification.onclick runs outside React — useRouter is unavailable here.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.href = "/todo";
-    notification.close();
-  };
-}
-
-type DueAlert = { todoAlertId: number; todoItemId: number; title: string; rowVer: number };
-
-/**
- * useAlertPoller — mounts a 60-second interval that polls usp_Todo_GetDueAlerts
- * (via pollDueAlertsAction) and fires browser Notification API calls for any
- * alert that is due and has not yet been notified this session.
- *
- * Lifecycle:
- *  1. Permission is requested lazily on the first due alert (not on mount).
- *  2. Once granted, each due alert fires ONE notification per session (tracked
- *     in the module-level `notifiedIds` Set).
- *  3. The interval is cleared on unmount (shell navigation / sign-out).
- *
- * The hook is intentionally side-effect only — it has no return value and
- * mounts silently. Place it in a Client Component that stays mounted for the
- * whole session (AppShell).
+ * Uses Web Push for closed-tab delivery. Push wakes a stopped worker for each
+ * event; it never assumes that a worker or an interval survives. The server
+ * must persist /api/alert-subscriptions and send a payload containing an alert.
+ * Unsupported/denied/unconfigured/failed Push falls back to foreground-only
+ * polling. Without Web Push, no browser API guarantees a no-tab notification.
  */
 export function useAlertPoller(): void {
-  // Stable ref to the poll function so the interval closure stays fresh.
-  const pollRef = useRef<(() => Promise<void>) | undefined>(undefined);
+  useEffect(() => {
+    let fallbackTimer: ReturnType<typeof setInterval> | undefined;
+    const startForegroundFallback = (): void => {
+      if (fallbackTimer) return;
+      void pollInOpenTab();
+      fallbackTimer = setInterval(() => void pollInOpenTab(), POLL_INTERVAL_MS);
+    };
 
-  const poll = useCallback(async () => {
-    let alerts: DueAlert[];
-    try {
-      alerts = await pollDueAlertsAction();
-    } catch {
-      // Network error / server restart — silently skip this tick.
-      return;
-    }
+    const registerPush = async (): Promise<void> => {
+      if (!("serviceWorker" in navigator) || !("Notification" in window)) {
+        startForegroundFallback();
+        return;
+      }
+      if (Notification.permission === "default") {
+        try {
+          await Notification.requestPermission();
+        } catch {
+          startForegroundFallback();
+          return;
+        }
+      }
+      if (Notification.permission !== "granted" || !PUSH_PUBLIC_KEY || !("PushManager" in window)) {
+        startForegroundFallback();
+        return;
+      }
 
-    if (alerts.length === 0) return;
+      try {
+        const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+        const pushManager = registration.pushManager;
+        if (!pushManager) throw new Error("PushManager unavailable");
+        const subscription =
+          (await pushManager.getSubscription()) ||
+          (await pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: base64UrlToBytes(PUSH_PUBLIC_KEY),
+          }));
+        const response = await fetch("/api/alert-subscriptions", {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(subscription),
+        });
+        if (!response.ok) throw new Error("subscription endpoint unavailable");
+      } catch (error) {
+        console.warn("[alerts] Web Push unavailable; using foreground fallback:", error);
+        startForegroundFallback();
+      }
+    };
 
-    // Request permission once, lazily, only when there is actually something to show.
-    const canNotify = await ensurePermission();
-    if (!canNotify) return;
-
-    for (const alert of alerts) {
-      if (notifiedIds.has(alert.todoAlertId)) continue;
-      notifiedIds.add(alert.todoAlertId);
-      fireNotification(alert.title, alert.todoItemId);
-    }
+    void registerPush();
+    return () => {
+      if (fallbackTimer) clearInterval(fallbackTimer);
+    };
   }, []);
-
-  useEffect(() => {
-    pollRef.current = poll;
-  }, [poll]);
-
-  useEffect(() => {
-    // Run immediately on mount so the user gets notified on page load too,
-    // then repeat every POLL_INTERVAL_MS.
-    void poll();
-    const id = setInterval(() => {
-      void pollRef.current?.();
-    }, POLL_INTERVAL_MS);
-    return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // mount-once — the interval captures pollRef, not poll directly
 }
