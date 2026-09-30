@@ -1,4 +1,4 @@
--- usp_Meeting_Update — full-row update with rowversion concurrency (50002 CONFLICT) + in-transaction audit.
+﻿-- usp_Meeting_Update — full-row update with rowversion concurrency (50002 CONFLICT) + in-transaction audit.
 -- Entity app.Meeting (source: tblMeetingMinutes (recovered)). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
@@ -48,7 +48,14 @@ BEGIN
         [FollowupAction] = @FollowupAction,
         UpdatedAtUtc = SYSUTCDATETIME(),
         UpdatedBy    = @ActorUserId
-    WHERE MeetingId = @MeetingId AND IsDeleted = 0;
+    WHERE MeetingId = @MeetingId AND IsDeleted = 0
+      AND CAST(RowVer AS BIGINT) = @RowVer;
+    IF @@ROWCOUNT = 0
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM app.Meeting WHERE MeetingId = @MeetingId AND IsDeleted = 0)
+            THROW 50001, N'NOT_FOUND:Meeting not found', 1;
+        THROW 50002, N'CONFLICT:Meeting was modified by someone else', 1;
+    END
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.Meeting', CAST(@MeetingId AS NVARCHAR(64)), @Before,

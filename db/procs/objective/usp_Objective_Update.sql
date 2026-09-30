@@ -1,4 +1,4 @@
--- usp_Objective_Update — full-row update with rowversion concurrency (50002 CONFLICT) + in-transaction audit.
+﻿-- usp_Objective_Update — full-row update with rowversion concurrency (50002 CONFLICT) + in-transaction audit.
 -- Entity app.Objective (source: tblProjectObjectives). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
@@ -38,7 +38,14 @@ BEGIN
         [ObjectiveText] = @ObjectiveText,
         UpdatedAtUtc = SYSUTCDATETIME(),
         UpdatedBy    = @ActorUserId
-    WHERE ObjectiveId = @ObjectiveId AND IsDeleted = 0;
+    WHERE ObjectiveId = @ObjectiveId AND IsDeleted = 0
+      AND CAST(RowVer AS BIGINT) = @RowVer;
+    IF @@ROWCOUNT = 0
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM app.Objective WHERE ObjectiveId = @ObjectiveId AND IsDeleted = 0)
+            THROW 50001, N'NOT_FOUND:Objective not found', 1;
+        THROW 50002, N'CONFLICT:Objective was modified by someone else', 1;
+    END
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.Objective', CAST(@ObjectiveId AS NVARCHAR(64)), @Before,

@@ -1,4 +1,4 @@
--- usp_Financial_Delete — soft delete with rowversion concurrency + in-transaction audit.
+﻿-- usp_Financial_Delete — soft delete with rowversion concurrency + in-transaction audit.
 -- Entity app.Financial (source: tblFinancials). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
@@ -29,7 +29,14 @@ BEGIN
         IsDeleted    = 1,
         DeletedAtUtc = SYSUTCDATETIME(),
         DeletedBy    = @ActorUserId
-    WHERE FinancialId = @FinancialId AND IsDeleted = 0;
+    WHERE FinancialId = @FinancialId AND IsDeleted = 0
+      AND CAST(RowVer AS BIGINT) = @RowVer;
+    IF @@ROWCOUNT = 0
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM app.Financial WHERE FinancialId = @FinancialId AND IsDeleted = 0)
+            THROW 50001, N'NOT_FOUND:Financial not found', 1;
+        THROW 50002, N'CONFLICT:Financial was modified by someone else', 1;
+    END
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson)
     VALUES (@ActorUserId, N'Delete', N'app.Financial', CAST(@FinancialId AS NVARCHAR(64)), @Before);
