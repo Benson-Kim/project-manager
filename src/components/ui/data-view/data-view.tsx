@@ -6,7 +6,7 @@ import { messages } from "@/lib/messages";
 import { useAnnouncer } from "../announcer";
 import { EmptyState } from "../states";
 import { saveViewPreference } from "./save-view-preference";
-import { priorityClass, type DataViewProps } from "./types";
+import { priorityClass, rowSelectionLabel, type DataViewProps } from "./types";
 import { useListUrlState } from "./use-list-url-state";
 
 /**
@@ -23,27 +23,42 @@ export function DataView<Row>({
   pageSize = DEFAULT_PAGE_SIZE,
   initialView,
   getRowId,
+  getRowLabel,
   renderCard,
   columns,
   onOpen,
   bulkActions,
+  renderToolbar,
   empty,
+  filtersActive = false,
 }: DataViewProps<Row>) {
   const { searchParams, update } = useListUrlState();
   const { announce } = useAnnouncer();
   const [selected, setSelected] = useState<Array<string | number>>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Track previous rows identity to reset activeIndex on page/search changes
+  // (React-recommended setState-during-render pattern — not an effect).
+  const [prevRows, setPrevRows] = useState(rows);
 
   const urlView = searchParams.get("view");
   const view: ViewMode = urlView === "grid" || urlView === "list" ? urlView : initialView;
   const pages = totalPages(totalCount, pageSize);
-  const hasQuery = Boolean(searchParams.get("q")) || Boolean(searchParams.get("filter"));
+  const hasQuery =
+    Boolean(searchParams.get("q")) || Boolean(searchParams.get("filter")) || filtersActive;
 
   useEffect(() => {
     announce(messages.feedback.resultsAnnouncement(rows.length, totalCount));
     // Announce whenever the visible result set changes.
   }, [announce, rows.length, totalCount]);
+
+  // P1 fix: reset active index whenever the row set identity changes (search,
+  // filter, page) so keyboard nav always starts from a valid index.
+  // React-recommended setState-during-render pattern (avoids cascading renders).
+  if (prevRows !== rows) {
+    setPrevRows(rows);
+    setActiveIndex(0);
+  }
 
   const setView = useCallback(
     (next: ViewMode) => {
@@ -100,48 +115,56 @@ export function DataView<Row>({
     return <>{empty}</>;
   }
 
+  const viewToggle = (
+    <div
+      role="group"
+      aria-label={messages.list.viewToggle}
+      className="flex rounded-md border border-line"
+    >
+      <button
+        type="button"
+        aria-label={messages.list.viewGrid}
+        aria-pressed={view === "grid"}
+        data-testid="view-grid"
+        onClick={() => setView("grid")}
+        className={`flex size-11 items-center justify-center rounded-l-md ${view === "grid" ? "bg-accent-soft text-accent" : "text-ink-muted"}`}
+      >
+        <svg viewBox="0 0 16 16" className="size-4" fill="currentColor" aria-hidden="true">
+          <rect x="1" y="1" width="6" height="6" rx="1" />
+          <rect x="9" y="1" width="6" height="6" rx="1" />
+          <rect x="1" y="9" width="6" height="6" rx="1" />
+          <rect x="9" y="9" width="6" height="6" rx="1" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        aria-label={messages.list.viewList}
+        aria-pressed={view === "list"}
+        data-testid="view-list"
+        onClick={() => setView("list")}
+        className={`flex size-11 items-center justify-center rounded-r-md ${view === "list" ? "bg-accent-soft text-accent" : "text-ink-muted"}`}
+      >
+        <svg viewBox="0 0 16 16" className="size-4" fill="currentColor" aria-hidden="true">
+          <rect x="1" y="2" width="14" height="2.5" rx="1" />
+          <rect x="1" y="7" width="14" height="2.5" rx="1" />
+          <rect x="1" y="12" width="14" height="2.5" rx="1" />
+        </svg>
+      </button>
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-ink-muted" data-testid="result-count">
-          {messages.feedback.resultsAnnouncement(rows.length, totalCount)}
-        </p>
-        <div
-          role="group"
-          aria-label={messages.list.viewToggle}
-          className="flex rounded-md border border-line"
-        >
-          <button
-            type="button"
-            aria-label={messages.list.viewGrid}
-            aria-pressed={view === "grid"}
-            data-testid="view-grid"
-            onClick={() => setView("grid")}
-            className={`flex size-11 items-center justify-center rounded-l-md ${view === "grid" ? "bg-accent-soft text-accent" : "text-ink-muted"}`}
-          >
-            <svg viewBox="0 0 16 16" className="size-4" fill="currentColor" aria-hidden="true">
-              <rect x="1" y="1" width="6" height="6" rx="1" />
-              <rect x="9" y="1" width="6" height="6" rx="1" />
-              <rect x="1" y="9" width="6" height="6" rx="1" />
-              <rect x="9" y="9" width="6" height="6" rx="1" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            aria-label={messages.list.viewList}
-            aria-pressed={view === "list"}
-            data-testid="view-list"
-            onClick={() => setView("list")}
-            className={`flex size-11 items-center justify-center rounded-r-md ${view === "list" ? "bg-accent-soft text-accent" : "text-ink-muted"}`}
-          >
-            <svg viewBox="0 0 16 16" className="size-4" fill="currentColor" aria-hidden="true">
-              <rect x="1" y="2" width="14" height="2.5" rx="1" />
-              <rect x="1" y="7" width="14" height="2.5" rx="1" />
-              <rect x="1" y="12" width="14" height="2.5" rx="1" />
-            </svg>
-          </button>
+      {renderToolbar ? (
+        renderToolbar(viewToggle)
+      ) : (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm text-ink-muted" data-testid="result-count">
+            {messages.feedback.resultsAnnouncement(rows.length, totalCount)}
+          </p>
+          {viewToggle}
         </div>
-      </div>
+      )}
 
       {selected.length > 0 && bulkActions ? (
         <div className="flex items-center justify-between gap-2 rounded-md border border-accent bg-accent-soft p-2">
@@ -178,6 +201,7 @@ export function DataView<Row>({
                       index={index}
                       activeIndex={activeIndex}
                       selectable={Boolean(bulkActions)}
+                      selectLabel={rowSelectionLabel(row, getRowLabel) ?? String(id)}
                       selected={selected.includes(id)}
                       onToggleSelect={() => toggleSelected(id)}
                       onOpen={onOpen ? () => onOpen(row) : undefined}
@@ -223,7 +247,7 @@ export function DataView<Row>({
                         <td className="w-11 p-2">
                           <input
                             type="checkbox"
-                            aria-label={String(id)}
+                            aria-label={rowSelectionLabel(row, getRowLabel) ?? String(id)}
                             checked={selected.includes(id)}
                             onClick={(e) => e.stopPropagation()}
                             onChange={() => toggleSelected(id)}
@@ -277,6 +301,7 @@ function DataRowShell({
   index,
   activeIndex,
   selectable,
+  selectLabel,
   selected,
   onToggleSelect,
   onOpen,
@@ -287,6 +312,7 @@ function DataRowShell({
   index: number;
   activeIndex: number;
   selectable: boolean;
+  selectLabel: string;
   selected: boolean;
   onToggleSelect: () => void;
   onOpen?: () => void;
@@ -304,7 +330,7 @@ function DataRowShell({
       {selectable ? (
         <input
           type="checkbox"
-          aria-label={messages.actions.selectAll}
+          aria-label={selectLabel}
           checked={selected}
           onClick={(e) => e.stopPropagation()}
           onChange={onToggleSelect}

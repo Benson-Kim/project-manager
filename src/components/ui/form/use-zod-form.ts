@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { ActionResult } from "@/lib/action";
 
 /**
- * Client-side half of the form pattern (ADR-0009): validate the SAME zod
+ * Client-side half of the form pattern ): validate the SAME zod
  * schema as the server on blur and on submit, and merge server fieldErrors
  * from the ActionResult. The server stays authoritative.
  *

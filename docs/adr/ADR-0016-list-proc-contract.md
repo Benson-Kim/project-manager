@@ -4,7 +4,7 @@ Status: Accepted · Date: 2026-09-15 · Session: foundation (#2)
 
 ## Context
 
-DataView (ADR-0006) needs identical paging/sorting/search semantics from every list
+DataView  needs identical paging/sorting/search semantics from every list
 proc; ad-hoc signatures would push logic into the app layer.
 
 ## Decision

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { can } from "./rbac";
 
-describe("role→permission matrix (ADR-0015 / PLAN §9)", () => {
+describe("role→permission matrix  / PLAN §9)", () => {
   it("Admin can do everything including admin module", () => {
     expect(can("Admin", "suppliers:delete")).toBe(true);
     expect(can("Admin", "admin:update")).toBe(true);

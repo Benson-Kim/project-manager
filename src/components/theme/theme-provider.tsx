@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useSyncExternalStore } from "react";
 
 /**
- * Theme = system | light | dark (ADR-0004). The choice persists in
+ * Theme = system | light | dark . The choice persists in
  * localStorage("theme"); html[data-theme] is applied pre-paint by the inline
  * script in the root layout (see themeInitScript) so there is no flash.
  */

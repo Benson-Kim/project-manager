@@ -17,7 +17,7 @@ function subscribeToConnectivity(listener: () => void): () => void {
   };
 }
 
-/** PWA connectivity banner (ADR-0008): offline warning, brief back-online note. */
+/** PWA connectivity banner : offline warning, brief back-online note. */
 export function OfflineBanner() {
   const online = useSyncExternalStore(
     subscribeToConnectivity,

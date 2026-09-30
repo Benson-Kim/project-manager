@@ -4,7 +4,7 @@ Read order (mandatory, before any code): `LESSONS.md` (root — operating rules:
 commit + push every ~2-3 minutes, push before long jobs, resume protocol, STATUS
 notes on the issue) → `AGENTS.md` → `docs/STANDARDS.md` →
 this file → your issue's **Standards compliance** section → `docs/PLAN.md` §2/§4/§10 →
-`docs/source-analysis/requirements.md` + the `access-database.md` sections for your
+`docs/source/analysis/requirements.md` + the `access-database.md` sections for your
 tables/queries/rows → existing code in `src/components/ui/`, `src/lib/` and one merged
 module as reference.
 
@@ -71,6 +71,20 @@ src/modules/<module>/schemas/<entity>.test.ts
 src/modules/<module>/repository/<entity>.test.ts
 e2e/<module>.spec.ts
 ```
+
+## Project-scoped modules
+
+> **Project-scoped modules — ProjectSectionLayout convention.** A module whose data
+> hangs off `ProjectId` ships its screens under
+> `src/app/(app)/projects/[id]/<segment>/` (segment per ADR-0018), NOT as a top-level
+> route. Do not fetch the project or render a project header — the shared
+> `projects/[id]/layout.tsx` does both. Register the section by appending to
+> `src/components/shell/project-sections.ts` (label from `messages.ts`). The list
+> page renders `DataView` with the module's list proc scoped by `@ProjectId`; the
+> page `h1` (via `PageHeader`) is the section name and carries the primary action.
+> Global-also modules (daily activities, to-dos) additionally keep their global route
+> registered in `nav-items.ts`, reusing the same DataView/proc without the project
+> filter.
 
 ## Hard rules recap
 

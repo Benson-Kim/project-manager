@@ -1,4 +1,4 @@
--- usp_Keyword_Delete — soft delete with rowversion concurrency + in-transaction audit.
+﻿-- usp_Keyword_Delete — soft delete with rowversion concurrency + in-transaction audit.
 -- Entity app.Keyword (source: tblKeywords). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
@@ -29,7 +29,14 @@ BEGIN
         IsDeleted    = 1,
         DeletedAtUtc = SYSUTCDATETIME(),
         DeletedBy    = @ActorUserId
-    WHERE KeywordId = @KeywordId AND IsDeleted = 0;
+    WHERE KeywordId = @KeywordId AND IsDeleted = 0
+      AND CAST(RowVer AS BIGINT) = @RowVer;
+    IF @@ROWCOUNT = 0
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM app.Keyword WHERE KeywordId = @KeywordId AND IsDeleted = 0)
+            THROW 50001, N'NOT_FOUND:Keyword not found', 1;
+        THROW 50002, N'CONFLICT:Keyword was modified by someone else', 1;
+    END
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson)
     VALUES (@ActorUserId, N'Delete', N'app.Keyword', CAST(@KeywordId AS NVARCHAR(64)), @Before);
