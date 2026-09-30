@@ -98,7 +98,7 @@ export function SupplierSheet({
               <Input name="supplierName" defaultValue={supplier?.SupplierName ?? ""} />
             </Field>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label={messages.suppliers.contactPerson} name="contactPerson">
+              <Field label={messages.suppliers.contactPerson} name="contactPerson" errors={form.errors.contactPerson}>
                 <Input name="contactPerson" defaultValue={supplier?.ContactPerson ?? ""} />
               </Field>
               <Field
@@ -141,7 +141,7 @@ export function SupplierSheet({
                 />
               </Field>
             </div>
-            <Field label={messages.suppliers.rating} name="rating">
+            <Field label={messages.suppliers.rating} name="rating" errors={form.errors.rating}>
               <Select name="rating" defaultValue={supplier?.Rating ?? ""}>
                 <option value="">{messages.suppliers.none}</option>
                 {SUPPLIER_RATINGS.map((r) => (
@@ -157,20 +157,20 @@ export function SupplierSheet({
             <SectionHeading id="supplier-address-heading">
               {messages.suppliers.addressSection}
             </SectionHeading>
-            <Field label={messages.suppliers.address} name="address">
+            <Field label={messages.suppliers.address} name="address" errors={form.errors.address}>
               <Input name="address" defaultValue={supplier?.Address ?? ""} />
             </Field>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label={messages.suppliers.city} name="city">
+              <Field label={messages.suppliers.city} name="city" errors={form.errors.city}>
                 <Input name="city" defaultValue={supplier?.City ?? ""} />
               </Field>
-              <Field label={messages.suppliers.provinceOrState} name="provinceOrState">
+              <Field label={messages.suppliers.provinceOrState} name="provinceOrState" errors={form.errors.provinceOrState}>
                 <Input name="provinceOrState" defaultValue={supplier?.ProvinceOrState ?? ""} />
               </Field>
-              <Field label={messages.suppliers.country} name="country">
+              <Field label={messages.suppliers.country} name="country" errors={form.errors.country}>
                 <Input name="country" defaultValue={supplier?.Country ?? ""} />
               </Field>
-              <Field label={messages.suppliers.postalCode} name="postalCode">
+              <Field label={messages.suppliers.postalCode} name="postalCode" errors={form.errors.postalCode}>
                 <Input name="postalCode" defaultValue={supplier?.PostalCode ?? ""} />
               </Field>
             </div>

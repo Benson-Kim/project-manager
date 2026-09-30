@@ -147,6 +147,21 @@ describe("logoutAction", () => {
     expect(mockAuditLogout).not.toHaveBeenCalled();
     expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/login" });
   });
+
+  it("getSession DB failure: audit is skipped but signOut still executes", async () => {
+    mockGetSession.mockRejectedValue(new Error("DB connection refused"));
+    await logoutAction();
+    expect(mockAuditLogout).not.toHaveBeenCalled();
+    expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/login" });
+  });
+
+  it("auditLogout DB failure: audit throws but signOut still executes", async () => {
+    mockGetSession.mockResolvedValue(session);
+    mockAuditLogout.mockRejectedValue(new Error("DB timeout"));
+    await logoutAction();
+    expect(mockAuditLogout).toHaveBeenCalledWith(7);
+    expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/login" });
+  });
 });
 
 describe("changePasswordAction", () => {

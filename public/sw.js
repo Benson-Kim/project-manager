@@ -2,6 +2,18 @@
 // Polls /api/due-alerts every 60 seconds and fires OS notifications even
 // when no app tab is open (as long as the browser runs in the background).
 // The SW is registered once by AppShell and stays alive across tab closes.
+//
+// INTENTIONALLY NO FETCH HANDLER AND NO CACHE API USAGE.
+// This SW is a notification poller only.  Adding a fetch event listener or
+// any caches.open() / cache.put() call would risk storing authenticated page
+// responses or session data (/api/auth/session, RSC payloads, project data)
+// in CacheStorage, which is NOT partitioned by user and is NOT cleared by
+// logoutAction.  On a shared device that would allow an offline request after
+// logout to receive the previous user's data.  If offline support is ever
+// required, implement a separate, user-aware caching strategy that:
+//   1. Excludes /api/auth/*, /api/due-alerts and all authenticated routes.
+//   2. Purges private cache entries in the SW's "message" handler when
+//      logoutAction posts a { type: "PURGE_PRIVATE_CACHE" } message.
 
 const POLL_INTERVAL_MS = 60_000;
 
