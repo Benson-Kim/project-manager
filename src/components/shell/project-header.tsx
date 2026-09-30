@@ -1,7 +1,7 @@
 "use client";
 
+import { useId, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
 import { messages } from "@/lib/messages";
 
 export interface ProjectOption {
@@ -16,11 +16,14 @@ export function ProjectHeader({
   projectId: number;
   options: ProjectOption[];
 }) {
+  const listboxId = useId();
   const pathname = usePathname();
   const router = useRouter();
   const selectedProject = options.find((option) => option.id === projectId) ?? null;
   const [query, setQuery] = useState(selectedProject?.name ?? "");
   const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return normalized
@@ -35,7 +38,33 @@ export function ProjectHeader({
       : `/projects/${nextProjectId}`;
     setQuery(options.find((option) => option.id === nextProjectId)?.name ?? "");
     setOpen(false);
+    setActiveIndex(0);
     router.push(nextPath);
+  }
+
+  function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (!open) {
+        setOpen(true);
+      } else {
+        setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+      }
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, 0));
+    } else if (event.key === "Enter") {
+      if (open && filtered[activeIndex]) {
+        event.preventDefault();
+        selectProject(filtered[activeIndex].id);
+      }
+    } else if (event.key === "Escape") {
+      if (open) {
+        event.stopPropagation();
+        setOpen(false);
+        setActiveIndex(0);
+      }
+    }
   }
 
   return (
@@ -46,23 +75,36 @@ export function ProjectHeader({
       <input
         id="project-switcher"
         role="combobox"
-        aria-controls="project-switcher-options"
+        aria-controls={listboxId}
         aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-autocomplete="list"
+        aria-activedescendant={
+          open && filtered[activeIndex]
+            ? `${listboxId}-${filtered[activeIndex].id}`
+            : undefined
+        }
         aria-label={messages.projects.jumpToProject}
         autoComplete="off"
         className="min-h-11 w-full rounded-full border border-line bg-surface px-4 pr-11 text-base font-medium text-ink"
         value={query}
         onChange={(event) => {
           setQuery(event.target.value);
+          setActiveIndex(0);
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 100)}
+        onBlur={() => {
+          // Allow option mousedown to win over blur-close (same guard as Combobox).
+          setTimeout(() => setOpen(false), 100);
+        }}
+        onKeyDown={onKeyDown}
       />
       <button
         type="button"
         aria-label={messages.projects.jumpToProject}
         aria-expanded={open}
+        tabIndex={-1}
         className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-ink-muted hover:bg-surface-sunken"
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => setOpen((current) => !current)}
@@ -78,25 +120,25 @@ export function ProjectHeader({
         </svg>
       </button>
       <ul
-        id="project-switcher-options"
+        id={listboxId}
         role="listbox"
         hidden={!open}
         className="absolute z-(--z-dialog) mt-1 max-h-60 w-full overflow-auto rounded-xl border border-line bg-surface-raised py-1 shadow-lg"
       >
-        {filtered.map((option) => (
-          <li key={option.id} role="option" aria-selected={option.id === projectId}>
-            <button
-              type="button"
-              className={`flex w-full items-center px-4 py-2 text-left text-sm ${
-                option.id === projectId
-                  ? "bg-accent-soft text-accent"
-                  : "text-ink hover:bg-surface-sunken"
-              }`}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => selectProject(option.id)}
-            >
-              {option.name}
-            </button>
+        {filtered.map((option, index) => (
+          <li
+            key={option.id}
+            id={`${listboxId}-${option.id}`}
+            role="option"
+            aria-selected={option.id === projectId}
+            className={`flex min-h-11 cursor-pointer items-center px-4 text-sm ${
+              index === activeIndex ? "bg-accent-soft text-ink" : "text-ink hover:bg-surface-sunken"
+            }`}
+            onMouseDown={(event) => event.preventDefault()}
+            onMouseEnter={() => setActiveIndex(index)}
+            onClick={() => selectProject(option.id)}
+          >
+            {option.name}
           </li>
         ))}
       </ul>

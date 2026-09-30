@@ -43,7 +43,7 @@ export function DailyActivitySheet({
 }: {
   activity: DailyActivityRow | null;
   isNew: boolean;
-  projectId: number;
+  projectId: number | null;
   statuses: ActivityStatus[];
   canEdit: boolean;
   canDelete: boolean;
@@ -116,7 +116,7 @@ export function DailyActivitySheet({
             </Button>
           </div>
         ) : null}
-        <input type="hidden" name="projectId" value={activity?.ProjectId ?? projectId} />
+        <input type="hidden" name="projectId" value={activity?.ProjectId ?? projectId ?? 0} />
         {activity ? (
           <>
             <input type="hidden" name="dailyActivityId" value={activity.DailyActivityId} />
@@ -140,6 +140,7 @@ export function DailyActivitySheet({
             <Field
               label={messages.dailyActivities.myActivity}
               name="myActivity"
+              errors={form.errors.myActivity}
             >
               <Textarea name="myActivity" rows={3} defaultValue={activity?.MyActivity ?? ""} />
             </Field>
@@ -175,7 +176,7 @@ export function DailyActivitySheet({
                 />
               </Field>
             </div>
-            <Field label={messages.dailyActivities.activityStatus} name="activityStatusId">
+            <Field label={messages.dailyActivities.activityStatus} name="activityStatusId" errors={form.errors.activityStatusId}>
               <Select
                 name="activityStatusId"
                 defaultValue={activity?.ActivityStatusId ? String(activity.ActivityStatusId) : ""}
@@ -196,15 +197,15 @@ export function DailyActivitySheet({
               {messages.dailyActivities.detailsSection}
             </SectionHeading>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label={messages.dailyActivities.requester} name="requester">
+              <Field label={messages.dailyActivities.requester} name="requester" errors={form.errors.requester}>
                 <Input name="requester" defaultValue={activity?.Requester ?? ""} />
               </Field>
-              <Field label={messages.dailyActivities.assignedTo} name="assignedTo">
+              <Field label={messages.dailyActivities.assignedTo} name="assignedTo" errors={form.errors.assignedTo}>
                 <Input name="assignedTo" defaultValue={activity?.AssignedTo ?? ""} />
               </Field>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label={messages.dailyActivities.contactMethod} name="contactMethod">
+              <Field label={messages.dailyActivities.contactMethod} name="contactMethod" errors={form.errors.contactMethod}>
                 <Select name="contactMethod" defaultValue={activity?.ContactMethod ?? ""}>
                   <option value="">{messages.dailyActivities.noStatus}</option>
                   {CONTACT_METHODS.map((c) => (
@@ -214,7 +215,7 @@ export function DailyActivitySheet({
                   ))}
                 </Select>
               </Field>
-              <Field label={messages.dailyActivities.taskType} name="taskType">
+              <Field label={messages.dailyActivities.taskType} name="taskType" errors={form.errors.taskType}>
                 <Select name="taskType" defaultValue={activity?.TaskType ?? ""}>
                   <option value="">{messages.dailyActivities.allTaskTypes}</option>
                   {TASK_TYPES.map((t) => (
@@ -262,7 +263,7 @@ export function DailyActivitySheet({
                 />
               </Field>
             </div>
-            <Field label={messages.dailyActivities.comments} name="comments">
+            <Field label={messages.dailyActivities.comments} name="comments" errors={form.errors.comments}>
               <Textarea name="comments" rows={3} defaultValue={activity?.Comments ?? ""} />
             </Field>
           </section>
