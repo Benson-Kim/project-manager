@@ -224,10 +224,13 @@ describe("changePasswordAction", () => {
     });
   });
 
-  it("password changed but re-login failed: UNAUTHENTICATED (user lands on /login)", async () => {
+  it("password changed but re-login failed: signOut clears the stale cookie, returns UNAUTHENTICATED", async () => {
     mockSignIn.mockRejectedValue(new AuthError("CredentialsSignin"));
     const result = await changePasswordAction(null, changeForm());
     expect(mockSetPassword).toHaveBeenCalledWith(7, NEW_PASSWORD, 7);
+    // signOut MUST be called before returning so the stale SessionVersion
+    // cookie is cleared; without it every subsequent request is rejected.
+    expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
     expect(result).toEqual({
       ok: false,
       error: { code: "UNAUTHENTICATED", message: messages.errors.UNAUTHENTICATED },
