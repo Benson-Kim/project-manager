@@ -75,7 +75,7 @@ export function NotificationsBell({ alerts }: { alerts: ShellAlert[] }) {
       <div
         id={panelId}
         hidden={!open}
-        className="absolute right-0 z-(--z-dialog) mt-1 w-72 rounded-md border border-line bg-surface-raised py-1 shadow-lg"
+        className="absolute right-0 z-(--z-dropdown) mt-1 w-72 rounded-md border border-line bg-surface-raised py-1 shadow-lg"
       >
         {hasAlerts ? (
           <ul aria-label={messages.app.notifications}>
