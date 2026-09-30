@@ -1,35 +1,69 @@
-/* Minimal PWA service worker: cache the app shell, network-first for pages.
-   Modules extend the precache list as screens land. */
-const CACHE = "pm-shell-v1";
-const SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
+// Service Worker — event-driven todo alerts for Project Manager.
+//
+// A service worker is an event handler, not a background process. Browsers may
+// stop it at any time, so this file deliberately contains no timer. The server
+// push gateway sends one Web Push message per due alert; the browser starts a
+// fresh worker for the push event even when the site has no open tabs.
 
-self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
+function readPushPayload(event) {
+  if (!event.data) return null;
+  try {
+    return event.data.json();
+  } catch {
+    return null;
+  }
+}
+
+function alertsFromPayload(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (payload && Array.isArray(payload.alerts)) return payload.alerts;
+  if (payload && payload.todoAlertId != null) return [payload];
+  return [];
+}
+
+async function showAlerts(alerts) {
+  await Promise.all(
+    alerts
+      .filter((alert) => alert && alert.todoAlertId != null && alert.title)
+      .map((alert) =>
+        self.registration.showNotification(alert.title, {
+          body: alert.body || "Your to-do alert is due. Click to open.",
+          icon: "/favicon.ico",
+          // A stable tag makes a retried push replace the same notification.
+          tag: `todo-alert-${alert.todoAlertId}`,
+          requireInteraction: false,
+          data: { url: "/todo", todoAlertId: alert.todoAlertId },
+        }),
+      ),
+  );
+}
+
+self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim()),
-  );
+  // claim() is lifecycle housekeeping only; it is not a keep-alive mechanism.
+  event.waitUntil(self.clients.claim());
 });
 
-self.addEventListener("fetch", (event) => {
-  const { request } = event;
-  if (request.method !== "GET") return;
-  // Network-first with cache fallback (keeps data fresh, works offline).
-  event.respondWith(
-    fetch(request)
-      .then((res) => {
-        if (res.ok && new URL(request.url).origin === self.location.origin) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(request, copy));
+self.addEventListener("push", (event) => {
+  // waitUntil keeps this one event alive until its notification is shown. A
+  // later push gets a new worker instance, which is the supported lifecycle.
+  event.waitUntil(showAlerts(alertsFromPayload(readPushPayload(event))));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/todo";
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clients) => {
+        for (const client of clients) {
+          if (client.url.includes(url) && "focus" in client) return client.focus();
         }
-        return res;
-      })
-      .catch(() => caches.match(request).then((hit) => hit ?? caches.match("/"))),
+        return self.clients.openWindow(url);
+      }),
   );
 });
