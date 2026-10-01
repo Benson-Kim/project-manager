@@ -16,6 +16,17 @@ const envSchema = z.object({
    * Never set above the number of proxies you actually control.
    */
   TRUSTED_PROXY_COUNT: z.coerce.number().int().min(0).default(0),
+  /**
+   * Set to "true" to trust the SQL Server TLS certificate unconditionally —
+   * needed when the bundled Docker service uses the stock self-signed cert
+   * (docker-compose + SQL Server image).  Defaults to false, which means only
+   * non-production environments trust it.  Never set in production unless a
+   * trusted CA cert is mounted instead.
+   */
+  TRUST_SERVER_CERT: z
+    .string()
+    .optional()
+    .transform((v) => v === "true"),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -29,5 +40,6 @@ export function getEnv(): Env {
     DB_USER: process.env.DB_USER,
     DB_PASSWORD: process.env.DB_PASSWORD,
     TRUSTED_PROXY_COUNT: process.env.TRUSTED_PROXY_COUNT,
+    TRUST_SERVER_CERT: process.env.TRUST_SERVER_CERT,
   });
 }

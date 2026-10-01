@@ -56,7 +56,9 @@ export const keyDeliverableFormSchema = z
     const raw_ = raw["assigneeIds[]"];
     // After validation each entry is already number | null; flatten single → array.
     const entries: (number | null)[] = raw_ === undefined ? [] : Array.isArray(raw_) ? raw_ : [raw_];
-    const assigneeIds = entries.filter((v): v is number => v !== null);
+    // Deduplicate before reaching the proc — a forged payload with repeated IDs
+    // would otherwise cause a primary-key violation in the junction table.
+    const assigneeIds = [...new Set(entries.filter((v): v is number => v !== null))];
     return {
       projectId: raw.projectId,
       keyRequirement: raw.keyRequirement,
