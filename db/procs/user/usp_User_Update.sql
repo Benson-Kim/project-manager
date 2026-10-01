@@ -1,7 +1,7 @@
 -- usp_User_Update — profile/role/state update (NOT password — usp_User_SetPassword).
--- CONFLICT on @RowVer mismatch /0012); bumps SessionVersion when RoleId
--- or IsActive changes so live JWT sessions are revoked. Audits before/after
--- in-transaction. Module: auth-and-rbac (#4).
+-- CONFLICT on @RowVer mismatch (ADR-0012); bumps SessionVersion when RoleId,
+-- IsActive, or MustChangePassword changes so live JWT sessions are revoked.
+-- Audits before/after in-transaction. Module: auth-and-rbac (#4).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_User_Update
@@ -41,7 +41,10 @@ BEGIN
         IsActive = @IsActive,
         MustChangePassword = @MustChangePassword,
         SessionVersion = SessionVersion
-            + CASE WHEN RoleId <> @RoleId OR IsActive <> @IsActive THEN 1 ELSE 0 END,
+            + CASE WHEN RoleId <> @RoleId
+                        OR IsActive <> @IsActive
+                        OR MustChangePassword <> @MustChangePassword
+                   THEN 1 ELSE 0 END,
         UpdatedAtUtc = SYSUTCDATETIME(),
         UpdatedBy = @ActorUserId
     WHERE UserId = @UserId AND IsDeleted = 0

@@ -20,12 +20,12 @@ function getCreateAction(
 ) {
   if (pathname === "/daily-activities" || pathname.startsWith("/daily-activities/")) {
     return permissions.canCreateDailyActivity
-      ? { href: "/daily-activities/new", label: messages.dailyActivities.newActivity }
+      ? { href: "/daily-activities?id=new", label: messages.dailyActivities.newActivity }
       : null;
   }
   if (pathname === "/todo" || pathname.startsWith("/todo/")) {
     return permissions.canCreateTodo
-      ? { href: "/todo/new", label: messages.todoItems.newTodoItem }
+      ? { href: "/todo?id=new", label: messages.todoItems.newTodoItem }
       : null;
   }
   return permissions.canCreateProject
@@ -41,8 +41,15 @@ const navLinkClass = (current: boolean, href: string) =>
 
 /**
  * Sidebar body (shell spec, issue #28), shared by the desktop sidebar and the
- * mobile drawer: logo, New project (RBAC projects:create), nav items, then
- * Settings and Logout pinned at the bottom.
+ * mobile drawer: logo, context-aware create button, nav items, then Settings
+ * and Logout pinned at the bottom.
+ *
+ * The create button is route-sensitive:
+ * - `/daily-activities*` → "New activity"  (requires dailyActivities:create)
+ * - `/todo*`             → "New to-do item" (requires todoItems:create)
+ * - anything else        → "New project"    (requires projects:create)
+ *
+ * If the current user lacks the required permission the button is hidden.
  */
 export function SidebarContent({
   canCreateProject,

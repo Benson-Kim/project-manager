@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -330,7 +330,7 @@ export function TodoItemSheet({
             : messages.todoItems.newTodoItem
         }
       >
-        {/* ── To-do item form ── */}
+        {/* ΓöÇΓöÇ To-do item form ΓöÇΓöÇ */}
         <form
           noValidate
           onBlur={canEdit ? form.onBlur : undefined}
@@ -360,7 +360,7 @@ export function TodoItemSheet({
           ) : null}
 
           <fieldset disabled={!canEdit} className="flex flex-col gap-5">
-            {/* ── To-do section ── */}
+            {/* ΓöÇΓöÇ To-do section ΓöÇΓöÇ */}
             <section aria-labelledby="todo-section-heading" className="flex flex-col gap-4">
               <SectionHeading id="todo-section-heading">
                 {messages.todoItems.todoSection}
@@ -417,7 +417,7 @@ export function TodoItemSheet({
               </Field>
             </section>
 
-            {/* ── Link section ── */}
+            {/* ΓöÇΓöÇ Link section ΓöÇΓöÇ */}
             {activityOptions.length > 0 ? (
               <section aria-labelledby="todo-link-heading" className="flex flex-col gap-4">
                 <SectionHeading id="todo-link-heading">
@@ -458,7 +458,7 @@ export function TodoItemSheet({
           </div>
         </form>
 
-        {/* ── Alert section (separate form, only shown when editing an existing item) ── */}
+        {/* ΓöÇΓöÇ Alert section (separate form, only shown when editing an existing item) ΓöÇΓöÇ */}
         {todoItem && showAlertSection ? (
           <div className="flex flex-col gap-4 border-t border-line pt-4">
             <div className="flex items-center justify-between px-4">
@@ -485,7 +485,7 @@ export function TodoItemSheet({
                 </Button>
               ) : null}
             </div>
-            {/* Snooze / dismiss row — only shown when a saved alert exists */}
+            {/* Snooze / dismiss row ΓÇö only shown when a saved alert exists */}
             {todoAlert && canUpdateAlert && !todoAlert.IsDismissed ? (
               <div className="flex flex-wrap items-center gap-2 px-4">
                 {canSnooze

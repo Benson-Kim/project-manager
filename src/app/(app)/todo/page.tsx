@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
 import { can } from "@/lib/auth/rbac";
 import { AppError } from "@/lib/errors";
@@ -24,8 +23,9 @@ export const metadata: Metadata = {
 
 /**
  * Global to-do page (top-level nav, /todo): cross-project list + upcoming
- * alerts panel + URL-synced Sheet for detail/edit. Sheet is read-only when
- * the user lacks edit permissions. Creation links back to a project context.
+ * alerts panel + URL-synced Sheet for detail/edit/create. Todo items may be
+ * project-unscoped (ProjectId nullable), so creation is allowed here via
+ * ?id=new when the user has todo-items:create permission.
  * Filter params (@Status, @Priority) forwarded server-side per module gap closure (#20).
  */
 export default async function GlobalTodoPage({
@@ -42,7 +42,8 @@ export default async function GlobalTodoPage({
     sort: listParams.sort ?? "DueDate",
   };
 
-  const selectedId = flat.id && flat.id !== "new" ? Number(flat.id) : null;
+  const isNew = flat.id === "new";
+  const selectedId = flat.id && !isNew ? Number(flat.id) : null;
 
   const filters: TodoListFilters = {
     status: flat.status ?? null,
@@ -70,6 +71,7 @@ export default async function GlobalTodoPage({
     : null;
 
   const totalCount = rows[0]?.TotalCount ?? 0;
+  const canCreate = can(session.role, "todo-items:create");
   const canEdit = can(session.role, "todo-items:update");
   const canDelete = can(session.role, "todo-items:delete");
   const canCreateAlert = can(session.role, "todo-alerts:create");
@@ -79,7 +81,6 @@ export default async function GlobalTodoPage({
 
   return (
     <>
-      <PageHeader title={messages.todoItems.title} />
 
       {/* Upcoming alerts panel */}
       {alerts.length > 0 ? (
@@ -136,11 +137,11 @@ export default async function GlobalTodoPage({
         />
       </div>
 
-      {/* Sheet: no create (project-scoped); item and alert permissions are independent. */}
+      {/* Sheet: create (project-unscoped, projectId=null) or edit when canEdit */}
       <TodoItemSheet
         todoItem={selected}
         todoAlert={selectedAlert}
-        isNew={false}
+        isNew={isNew && canCreate}
         projectId={selected?.ProjectId ?? null}
         dailyActivityOptions={[]}
         canEdit={canEdit}

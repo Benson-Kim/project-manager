@@ -75,7 +75,7 @@ export function Dialog({ open, onOpenChange, title, description, children }: Ove
         <RadixDialog.Content
           {...focusReturn}
           aria-describedby={description ? undefined : ""}
-          className="fixed top-1/2 left-1/2 z-(--z-dialog) w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg border border-line bg-surface p-4 shadow-xl"
+          className="fixed top-1/2 left-1/2 z-(--z-dialog) w-[calc(100vw-2rem)] max-w-[480px] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-line bg-surface p-4 shadow-xl"
         >
           <RadixDialog.Title className="pr-11 text-base font-semibold text-ink">
             {title}

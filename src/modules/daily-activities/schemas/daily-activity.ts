@@ -30,7 +30,7 @@ export const CONTACT_METHODS = [
 
 export const dailyActivityRowSchema = z.object({
   DailyActivityId: z.number().int(),
-  ProjectId: z.number().int(),
+  ProjectId: z.number().int().nullable(),
   ActivityStatusId: z.number().int().nullable(),
   Requester: z.string().nullable(),
   Task: z.string().nullable(),
@@ -67,7 +67,7 @@ export const activityStatusSchema = z.object({
 export type ActivityStatus = z.infer<typeof activityStatusSchema>;
 
 export const createDailyActivityInput = z.object({
-  projectId: z.number().int().positive(),
+  projectId: z.number().int().positive().nullable(),
   activityStatusId: z.number().int().positive().nullish(),
   requester: z.string().trim().max(255).nullish(),
   task: z.string().trim().nullish(),

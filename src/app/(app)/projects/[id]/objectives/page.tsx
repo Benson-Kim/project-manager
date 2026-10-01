@@ -66,7 +66,7 @@ export default async function ObjectivesPage({
     <Link
       href={buildNewEntityHref(`/projects/${projectId}/objectives`, flat)}
       data-testid="new-objective"
-      className="inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-sm font-medium text-on-accent"
+      className="inline-flex min-h-10 items-center rounded-md border border-line bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-raised"
     >
       {messages.objectives.newObjective}
     </Link>

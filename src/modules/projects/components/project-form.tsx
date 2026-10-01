@@ -130,7 +130,7 @@ export function ProjectForm({
       <fieldset disabled={!canEdit} className="flex flex-col gap-6">
         <section
           aria-labelledby="charter-heading"
-          className="flex flex-col gap-4  border border-line bg-linear-60 rounded-md"
+          className="flex flex-col gap-4  border border-line rounded-md bg-surface [background-image:linear-gradient(to_bottom,var(--surface-raised),var(--surface)_40%)]"
         >
           <SectionHeading id="charter-heading">Project Identity</SectionHeading>
           <div className="px-4 py-3 flex flex-col gap-4">
@@ -142,23 +142,23 @@ export function ProjectForm({
               <Input name="projectName" defaultValue={project?.ProjectName ?? ""} />
             </Field>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label={messages.projects.manager} name="projectManager">
+              <Field label={messages.projects.manager} name="projectManager" errors={form.errors.projectManager}>
                 <Input name="projectManager" defaultValue={project?.ProjectManager ?? ""} />
               </Field>
-              <Field label={messages.projects.businessAnalyst} name="businessAnalyst">
+              <Field label={messages.projects.businessAnalyst} name="businessAnalyst" errors={form.errors.businessAnalyst}>
                 <Input name="businessAnalyst" defaultValue={project?.BusinessAnalyst ?? ""} />
               </Field>
-              <Field label={messages.projects.sponsor} name="projectSponsor">
+              <Field label={messages.projects.sponsor} name="projectSponsor" errors={form.errors.projectSponsor}>
                 <Input name="projectSponsor" defaultValue={project?.ProjectSponsor ?? ""} />
               </Field>
-              <Field label={messages.projects.dateOfProject} name="dateOfProject">
+              <Field label={messages.projects.dateOfProject} name="dateOfProject" errors={form.errors.dateOfProject}>
                 <DatePicker
                   name="dateOfProject"
                   defaultValue={toDateInput(project?.DateOfProject)}
                 />
               </Field>
             </div>
-            <Field label={messages.projects.mandate} name="mandate">
+            <Field label={messages.projects.mandate} name="mandate" errors={form.errors.mandate}>
               <Input name="mandate" defaultValue={project?.Mandate ?? ""} />
             </Field>
             <Field
@@ -182,14 +182,14 @@ export function ProjectForm({
 
         <section
           aria-labelledby="framework-heading"
-          className="flex flex-col gap-4  border border-line bg-linear-60 rounded-md"
+          className="flex flex-col gap-4  border border-line rounded-md bg-surface [background-image:linear-gradient(to_bottom,var(--surface-raised),var(--surface)_40%)]"
         >
           <SectionHeading id="framework-heading">
             {messages.projects.frameworkSection}
           </SectionHeading>
           <div className="px-4 py-3 flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label={messages.projects.status} name="projectStatus">
+              <Field label={messages.projects.status} name="projectStatus" errors={form.errors.projectStatus}>
                 <Select name="projectStatus" defaultValue={project?.ProjectStatus ?? ""}>
                   <option value="">{messages.projects.none}</option>
                   {PROJECT_STATUSES.map((s) => (
@@ -199,7 +199,7 @@ export function ProjectForm({
                   ))}
                 </Select>
               </Field>
-              <Field label={messages.projects.phase} name="projectPhase">
+              <Field label={messages.projects.phase} name="projectPhase" errors={form.errors.projectPhase}>
                 <Select name="projectPhase" defaultValue={project?.ProjectPhase ?? ""}>
                   <option value="">{messages.projects.none}</option>
                   {PROJECT_PHASES.map((p) => (
@@ -209,7 +209,7 @@ export function ProjectForm({
                   ))}
                 </Select>
               </Field>
-              <Field label={messages.projects.priority} name="projectPriority">
+              <Field label={messages.projects.priority} name="projectPriority" errors={form.errors.projectPriority}>
                 <Select name="projectPriority" defaultValue={project?.ProjectPriority ?? ""}>
                   <option value="">{messages.projects.none}</option>
                   {PROJECT_PRIORITIES.map((p) => (
@@ -219,7 +219,7 @@ export function ProjectForm({
                   ))}
                 </Select>
               </Field>
-              <Field label={messages.projects.riskLevel} name="riskLevel">
+              <Field label={messages.projects.riskLevel} name="riskLevel" errors={form.errors.riskLevel}>
                 <Select name="riskLevel" defaultValue={project?.RiskLevel ?? ""}>
                   <option value="">{messages.projects.none}</option>
                   {RISK_LEVELS.map((r) => (
@@ -229,19 +229,19 @@ export function ProjectForm({
                   ))}
                 </Select>
               </Field>
-              <Field label={messages.projects.startDate} name="startDate">
+              <Field label={messages.projects.startDate} name="startDate" errors={form.errors.startDate}>
                 <DatePicker name="startDate" defaultValue={toDateInput(project?.StartDate)} />
               </Field>
-              <Field label={messages.projects.endDate} name="endDate">
+              <Field label={messages.projects.endDate} name="endDate" errors={form.errors.endDate}>
                 <DatePicker name="endDate" defaultValue={toDateInput(project?.EndDate)} />
               </Field>
-              <Field label={messages.projects.estimatedCompletion} name="estimatedCompletionDate">
+              <Field label={messages.projects.estimatedCompletion} name="estimatedCompletionDate" errors={form.errors.estimatedCompletionDate}>
                 <DatePicker
                   name="estimatedCompletionDate"
                   defaultValue={toDateInput(project?.EstimatedCompletionDate)}
                 />
               </Field>
-              <Field label={messages.projects.existingBusinessModel} name="existBusMod">
+              <Field label={messages.projects.existingBusinessModel} name="existBusMod" errors={form.errors.existBusMod}>
                 <Input name="existBusMod" defaultValue={project?.ExistBusMod ?? ""} />
               </Field>
             </div>
@@ -261,7 +261,7 @@ export function ProjectForm({
 
         <section
           aria-labelledby="financing-heading"
-          className="flex flex-col gap-4  border border-line bg-linear-60 rounded-md"
+          className="flex flex-col gap-4  border border-line rounded-md bg-surface [background-image:linear-gradient(to_bottom,var(--surface-raised),var(--surface)_40%)]"
         >
           <SectionHeading id="financing-heading">
             {messages.projects.financingSection}
@@ -284,7 +284,7 @@ export function ProjectForm({
               />
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label={messages.projects.financingSource} name="financingSource">
+              <Field label={messages.projects.financingSource} name="financingSource" errors={form.errors.financingSource}>
                 <Input name="financingSource" defaultValue={project?.FinancingSource ?? ""} />
               </Field>
               <Field

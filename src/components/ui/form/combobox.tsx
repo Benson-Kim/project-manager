@@ -101,7 +101,7 @@ export function Combobox({ name, options, defaultValue, onSelect }: ComboboxProp
         id={listboxId}
         role="listbox"
         hidden={!open || filtered.length === 0}
-        className="absolute z-(--z-dialog) mt-1 max-h-60 w-full overflow-auto rounded-md border border-line bg-surface-raised py-1 shadow-lg"
+        className="absolute z-(--z-dropdown) mt-1 max-h-60 w-full overflow-auto rounded-md border border-line bg-surface-raised py-1 shadow-lg"
       >
         {filtered.map((option, index) => (
           <li

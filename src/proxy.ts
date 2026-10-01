@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 
-const PUBLIC_PATHS = ["/login", "/api/auth", "/manifest.webmanifest", "/api/internal/todo-alerts/dispatch"];
+/**
+ * Next.js 16 proxy (formerly middleware): per-request nonce-based CSP + the
+ * authentication gate (module #4): unauthenticated requests only reach /login,
+ * the Auth.js routes and the PWA manifest — everything else redirects to
+ * /login. A request that carried a session cookie which no longer decodes gets
+ * /login?reason=expired so the login page announces the expiry politely.
+ * Session integrity (SessionVersion revocation stamp) is enforced per request
+ * in src/lib/auth/provider.ts — this gate is routing, not the last defence.
+ */
+const PUBLIC_PATHS = ["/login", "/api/auth", "/manifest.webmanifest", "/sw.js", "/favicon.ico"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
