@@ -13,8 +13,10 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/lib/**", "src/modules/**"],
-      // UI primitives are covered by Playwright over /kitchen-sink .
-      exclude: ["src/lib/db.ts", "**/*.test.ts"],
+      // UI primitives (.tsx) are covered by Playwright over /kitchen-sink
+      // and per-module axe + happy-path specs; exclude them from the vitest
+      // coverage so the 80% threshold reflects logic (schemas/actions/repos).
+      exclude: ["src/lib/db.ts", "**/*.test.ts", "**/*.tsx"],
       thresholds: {
         lines: 80,
         functions: 80,
