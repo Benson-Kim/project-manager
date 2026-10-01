@@ -77,10 +77,22 @@ export default async function SuppliersPage({
   const canDelete = can(session.role, "suppliers:delete");
   const filtersActive = Boolean(effectiveParams.q || filters.rating);
 
-  const newSupplierLink = (
+  const newHref = buildNewEntityHref(`/projects/${projectId}/suppliers`, flat);
+  // Toolbar link carries the testid used by Playwright; the empty-state copy
+  // intentionally omits it to avoid a strict-mode violation (two identical
+  // testids when the list is empty and both render simultaneously).
+  const newSupplierToolbarLink = (
     <Link
-      href={buildNewEntityHref(`/projects/${projectId}/suppliers`, flat)}
+      href={newHref}
       data-testid="new-supplier"
+      className="inline-flex min-h-10 items-center rounded-md border border-line bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-raised"
+    >
+      {messages.suppliers.newSupplier}
+    </Link>
+  );
+  const newSupplierEmptyLink = (
+    <Link
+      href={newHref}
       className="inline-flex min-h-10 items-center rounded-md border border-line bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-raised"
     >
       {messages.suppliers.newSupplier}
@@ -91,7 +103,7 @@ export default async function SuppliersPage({
     <>
       <PageHeader
         title={messages.suppliers.title}
-        action={canCreate ? newSupplierLink : undefined}
+        action={canCreate ? newSupplierToolbarLink : undefined}
       />
       <div className="mt-3 flex flex-col flex-1">
         <SuppliersView
@@ -100,7 +112,7 @@ export default async function SuppliersPage({
           page={effectiveParams.page}
           initialView={effectiveParams.view ?? preferredView ?? "grid"}
           filtersActive={filtersActive}
-          newSupplierAction={canCreate ? newSupplierLink : undefined}
+          newSupplierAction={canCreate ? newSupplierEmptyLink : undefined}
         />
       </div>
       <SupplierSheet
