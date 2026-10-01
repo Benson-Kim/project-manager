@@ -110,7 +110,9 @@ export async function deleteKeyDeliverable(
  * Bar start priority:
  *   1. RequestedDate (the date the deliverable was formally requested)
  *   2. CreatedAtUtc clamped to <= deadline (legacy / imported rows)
- *   3. deadline itself (degenerate: all dates in the past)
+ *   3. ProjectStartDate (imported/seed rows whose CreatedAtUtc > deadline because
+ *      the row was seeded after the project started — preserves project-duration bars)
+ *   4. deadline itself (degenerate: all dates in the past with no project start)
  * Rows without a deadline are not drawable and are skipped.
  */
 export async function getGanttBars(
@@ -131,6 +133,11 @@ export async function getGanttBars(
         start = r.RequestedDate;
       } else if (r.CreatedAtUtc.getTime() <= r.Deadline.getTime()) {
         start = r.CreatedAtUtc;
+      } else if (r.ProjectStartDate != null && r.ProjectStartDate.getTime() <= r.Deadline.getTime()) {
+        // Imported/seed rows: CreatedAtUtc is the seed timestamp (later than the
+        // deadline), so fall back to the project start date to preserve the
+        // project-duration bar.
+        start = r.ProjectStartDate;
       } else {
         start = r.Deadline;
       }

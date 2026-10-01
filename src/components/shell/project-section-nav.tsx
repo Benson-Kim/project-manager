@@ -198,6 +198,15 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
     () => initialOpenState(pathname, projectId),
   );
 
+  // Resync the active group when the route or project changes (the reducer
+  // initializer runs only on first mount; this component is persistent across
+  // navigations within the project layout).
+  useEffect(() => {
+    const activeKey =
+      projectSectionGroups.find((g) => isGroupActive(pathname, projectId, g))?.key ?? null;
+    dispatch({ type: "reset", activeKey });
+  }, [pathname, projectId]);
+
   // Close all panels on outside click.
   useEffect(() => {
     const onPointerDown = (e: PointerEvent) => {

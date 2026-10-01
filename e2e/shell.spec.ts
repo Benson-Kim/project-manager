@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { messages } from "@/lib/messages";
 
 /**
  * App shell (issue #28): sidebar order, header actions (bell, theme toggle,
@@ -26,10 +27,11 @@ test("sidebar renders the specified items in order with Settings and Logout pinn
   await expect(page.getByTestId("shell-new-project")).toBeVisible();
 });
 
-test("placeholder routes render the module title and a way back", async ({ page }) => {
+test("/todo renders the To-do lists page with the module heading", async ({ page }) => {
   await page.goto("/todo");
-  await expect(page.getByRole("heading", { name: "To-do lists" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Go to projects" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: messages.todoItems.title, level: 1 }),
+  ).toBeVisible();
 });
 
 test("theme toggle flips html[data-theme] and persists across reload", async ({ page }) => {
