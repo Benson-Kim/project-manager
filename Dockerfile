@@ -6,6 +6,13 @@ RUN npm ci --no-audit --no-fund
 
 FROM node:22-alpine AS build
 WORKDIR /app
+# NEXT_PUBLIC_* values are inlined into client bundles at build time by Next.js.
+# The VAPID public key is not a secret (it is the public half of an asymmetric
+# key pair), so passing it as a build ARG is safe.  The private key and
+# dispatch token stay in runtime-only environment variables and are never baked
+# into the image.
+ARG NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY=""
+ENV NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY=${NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY}
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

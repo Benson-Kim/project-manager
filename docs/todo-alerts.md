@@ -32,3 +32,33 @@ claimed where Web Push is unavailable.
 Configure `NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY`,
 `WEB_PUSH_VAPID_PRIVATE_KEY`, `WEB_PUSH_VAPID_SUBJECT`, and a random
 `ALERT_PUSH_DISPATCH_TOKEN`. Keep the private key and dispatch token server-side.
+
+## Push-service endpoint allowlist
+
+Subscription endpoints are validated against an explicit hostname allowlist in
+`src/modules/todo-items/schemas/alert-subscription.ts` (`PUSH_SERVICE_HOSTS`).
+This prevents an authenticated caller from registering an arbitrary HTTPS URL
+and weaponising the scheduler's outbound HTTP request (SSRF).
+
+The allowlist currently covers:
+
+| Browser / engine | Push service hostname |
+|---|---|
+| Chrome, Edge, Opera | `fcm.googleapis.com` |
+| Firefox | `updates.push.services.mozilla.com`, `push.services.mozilla.com` |
+| Safari / WebKit | `web.push.apple.com` |
+
+### Maintenance procedure
+
+When a major browser ships support for Web Push through a **new** hostname:
+
+1. Confirm the new hostname in the browser vendor's release notes or Push API
+   spec (do not accept a user-reported hostname as authoritative).
+2. Add the hostname to `PUSH_SERVICE_HOSTS` in
+   `src/modules/todo-items/schemas/alert-subscription.ts`.
+3. Add a corresponding positive test case in
+   `src/modules/todo-items/schemas/alert-subscription.test.ts`.
+4. Update the table above and the inline JSDoc comment in the schema file.
+
+Do **not** broaden the allowlist to accept wildcard domains or non-`https:`
+protocols. Unknown endpoints must remain rejected rather than trusted.

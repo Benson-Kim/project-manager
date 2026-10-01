@@ -79,10 +79,8 @@ export function AssigneesEditor({
           return exists ? assignees : [...assignees, { role, personName: picked, userId: null }];
         })()
       : assignees;
-    if (pending_list.length === 0) {
-      setSummary(messages.projects.assigneeNameRequired);
-      return;
-    }
+    // An empty pending_list is intentional: the proc accepts it and
+    // soft-deletes all existing assignees (clearing the project is allowed).
     setPicked(null);
     setComboboxKey((k) => k + 1);
     setSummary(null);

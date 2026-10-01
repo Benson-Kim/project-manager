@@ -257,6 +257,7 @@ export const messages = {
     reorderLabel: "Reorder",
     moveUp: "Move up",
     moveDown: "Move down",
+    alertDayRequired: "Enter an alert date",
     snoozed: "Alert snoozed",
     dismissed: "Alert dismissed",
     dismiss: "Dismiss",
