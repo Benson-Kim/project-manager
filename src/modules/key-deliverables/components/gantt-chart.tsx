@@ -36,8 +36,25 @@ function fillBgClass(priority: string | null, overdue: boolean): string {
 // Timeline helpers
 // ---------------------------------------------------------------------------
 
-/** All Monday dates (week starts) within [start, end]. */
+/** Maximum number of week-tick labels rendered in the timeline header.
+ *  Above this the header switches to monthly labels to bound DOM node count. */
+const WEEK_TICK_LIMIT = 104; // ~2 years of weeks
+
+/** All Monday dates (week starts) within [start, end], capped at WEEK_TICK_LIMIT.
+ *  For very large ranges the set is coarsened to one label per month so the DOM
+ *  stays bounded even across year-0001 → 9999 spans. */
 function weekStarts(start: Date, end: Date): Date[] {
+  const spanDays = Math.round((end.getTime() - start.getTime()) / DAY_MS);
+  // For spans > 2 years emit one label per month instead of per week.
+  if (spanDays > WEEK_TICK_LIMIT * 7) {
+    const months: Date[] = [];
+    const d = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+    while (d.getTime() <= end.getTime()) {
+      months.push(new Date(d));
+      d.setUTCMonth(d.getUTCMonth() + 1);
+    }
+    return months;
+  }
   const weeks: Date[] = [];
   // Advance to first Monday at or after start
   const d = new Date(start);
@@ -159,7 +176,7 @@ export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: n
                   className="absolute top-1 text-xs font-semibold text-danger"
                   style={{ left: `${todayLeft}%`, transform: "translateX(-50%)" }}
                 >
-                  Today
+                  {messages.keyDeliverables.ganttToday}
                 </span>
               ) : null}
             </div>

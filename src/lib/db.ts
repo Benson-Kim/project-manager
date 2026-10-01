@@ -26,7 +26,7 @@ function config(): sql.config {
       // environments. In production without TRUST_SERVER_CERT, mount a
       // trusted CA cert instead.
       trustServerCertificate:
-        process.env.TRUST_SERVER_CERT === "true" || process.env.NODE_ENV !== "production",
+        env.TRUST_SERVER_CERT || process.env.NODE_ENV !== "production",
     },
     pool: { max: 10, min: 0, idleTimeoutMillis: 30_000 },
   };
