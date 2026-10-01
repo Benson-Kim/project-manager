@@ -13,8 +13,8 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/lib/**", "src/modules/**"],
-      // UI primitives are covered by Playwright over /kitchen-sink .
-      exclude: ["src/lib/db.ts", "**/*.test.ts"],
+      // Components (.tsx) are covered by Playwright — exclude from unit-test thresholds.
+      exclude: ["src/lib/db.ts", "**/*.test.ts", "**/*.tsx"],
       thresholds: {
         lines: 80,
         functions: 80,
