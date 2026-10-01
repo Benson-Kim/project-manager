@@ -9,6 +9,7 @@ import { messages } from "@/lib/messages";
 import { GanttClient } from "@/modules/key-deliverables/components/gantt-client";
 import { PrintButton } from "@/modules/key-deliverables/components/print-button";
 import { getGanttBars } from "@/modules/key-deliverables/repository/key-deliverables";
+import type { AssigneeEntry } from "@/modules/key-deliverables/schemas/key-deliverable";
 
 export const metadata: Metadata = {
   title: `${messages.keyDeliverables.ganttTitle} — ${messages.app.name}`,
@@ -41,14 +42,18 @@ export default async function DeliverablesGanttPage({
     throw err;
   }
 
-  // Derive unique individual assignee names for the filter select.
-  const allAssigneeNames = Array.from(
-    new Set(
-      bars
-        .flatMap((b) => (b.assigneeNames ? b.assigneeNames.split(",").map((n) => n.trim()) : []))
-        .filter(Boolean),
-    ),
-  ).sort();
+  // Derive unique assignees by id across all bars — safe for names containing commas.
+  const seenIds = new Set<number>();
+  const allAssignees: AssigneeEntry[] = [];
+  for (const bar of bars) {
+    for (const a of bar.assignees) {
+      if (!seenIds.has(a.id)) {
+        seenIds.add(a.id);
+        allAssignees.push(a);
+      }
+    }
+  }
+  allAssignees.sort((a, b) => a.name.localeCompare(b.name, "en-CA"));
 
   return (
     <>
@@ -72,7 +77,7 @@ export default async function DeliverablesGanttPage({
         <GanttClient
           allBars={bars}
           projectId={projectId}
-          allAssigneeNames={allAssigneeNames}
+          allAssignees={allAssignees}
         />
       </Suspense>
     </>

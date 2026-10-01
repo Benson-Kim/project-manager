@@ -6,6 +6,7 @@ import {
   isOverdue,
   keyDeliverableListRowSchema,
   keyDeliverableRowSchema,
+  parseAssigneesJson,
   statusToCompletion,
   updateKeyDeliverableInput,
   type CreateKeyDeliverableInput,
@@ -142,6 +143,7 @@ export async function getGanttBars(
         status: r.Status,
         priority: r.Priority,
         assigneeNames: rawNames || null,
+        assignees: parseAssigneesJson(r.AssigneesJson),
         overdue: isOverdue(r.Deadline, r.Status, now),
         completionPct: statusToCompletion(r.Status),
       };

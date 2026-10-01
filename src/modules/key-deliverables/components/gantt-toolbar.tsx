@@ -4,11 +4,11 @@ import { Select } from "@/components/ui/form/inputs";
 import { Toolbar } from "@/components/ui/toolbar";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { messages } from "@/lib/messages";
-import { DELIVERABLE_PRIORITIES, DELIVERABLE_STATUSES } from "../schemas/key-deliverable";
+import { DELIVERABLE_PRIORITIES, DELIVERABLE_STATUSES, type AssigneeEntry } from "../schemas/key-deliverable";
 
 interface GanttToolbarProps {
-  /** Unique assignee names derived from bar data for the assignee filter. */
-  assigneeNames: string[];
+  /** Unique assignees (by id) derived from bar data for the assignee filter. */
+  assignees: AssigneeEntry[];
   children?: React.ReactNode;
 }
 
@@ -16,10 +16,10 @@ interface GanttToolbarProps {
  * Gantt-specific toolbar: status, priority and assignee filters.
  * Filter changes update URL search params (replace, no push) so the server
  * re-renders with the filtered bar list on navigation.
- * The `assignee` filter is the plain display name of a comma-delimited
- * AssigneeNames string — matched with client-side includes().
+ * The `assignee` param carries the numeric stakeholder id for exact identity
+ * matching — immune to commas or other punctuation in display names.
  */
-export function GanttToolbar({ assigneeNames, children }: GanttToolbarProps) {
+export function GanttToolbar({ assignees, children }: GanttToolbarProps) {
   const { searchParams, update } = useListUrlState();
 
   return (
@@ -63,8 +63,8 @@ export function GanttToolbar({ assigneeNames, children }: GanttToolbarProps) {
         </Select>
       </label>
 
-      {/* Assignee filter (populated from actual bar data) */}
-      {assigneeNames.length > 0 ? (
+      {/* Assignee filter (populated from actual bar data; value = stakeholder id) */}
+      {assignees.length > 0 ? (
         <label>
           <span className="sr-only">{messages.keyDeliverables.assignees}</span>
           <Select
@@ -75,9 +75,9 @@ export function GanttToolbar({ assigneeNames, children }: GanttToolbarProps) {
             className="w-auto"
           >
             <option value="">{messages.keyDeliverables.allAssignees}</option>
-            {assigneeNames.map((name) => (
-              <option key={name} value={name}>
-                {name}
+            {assignees.map((a) => (
+              <option key={a.id} value={String(a.id)}>
+                {a.name}
               </option>
             ))}
           </Select>

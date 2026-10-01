@@ -32,7 +32,7 @@ const priorityChoice = z
   .optional()
   .transform((v) => (v ? (v as (typeof DELIVERABLE_PRIORITIES)[number]) : null));
 
-/** Single "assigneeIds[]" entry — numeric string or empty. */
+/** Single "assigneeIds[]" entry — numeric string or empty, validated inside the schema. */
 const assigneeIdEntry = z
   .string()
   .trim()
@@ -45,17 +45,18 @@ export const keyDeliverableFormSchema = z
     keyRequirement: z.string().trim().min(1, messages.keyDeliverables.requirementRequired).max(4000),
     requestedDate: dateInput,
     deadline: dateInput,
-    /** FormData submits repeating fields as string[]. May arrive as a single string too. */
-    "assigneeIds[]": z.union([z.string(), z.array(z.string())]).optional(),
+    /** FormData submits repeating fields as string[]. May arrive as a single string too.
+     *  Each entry is validated by assigneeIdEntry here so that a malformed value
+     *  produces a safeParse failure rather than a thrown ZodError from inside a transform. */
+    "assigneeIds[]": z.union([assigneeIdEntry, z.array(assigneeIdEntry)]).optional(),
     priority: priorityChoice,
     status: statusChoice,
   })
   .transform((raw) => {
     const raw_ = raw["assigneeIds[]"];
-    const entries = raw_ === undefined ? [] : Array.isArray(raw_) ? raw_ : [raw_];
-    const assigneeIds = entries
-      .map((v) => assigneeIdEntry.parse(v))
-      .filter((v): v is number => v !== null);
+    // After validation each entry is already number | null; flatten single → array.
+    const entries: (number | null)[] = raw_ === undefined ? [] : Array.isArray(raw_) ? raw_ : [raw_];
+    const assigneeIds = entries.filter((v): v is number => v !== null);
     return {
       projectId: raw.projectId,
       keyRequirement: raw.keyRequirement,

@@ -59,6 +59,23 @@ describe("keyDeliverableFormSchema", () => {
     }
   });
 
+  it("safeParse returns failure (not throw) for a malformed assigneeIds[] entry", () => {
+    // A non-numeric entry must be caught by the schema, not escape as a thrown ZodError.
+    expect(() =>
+      keyDeliverableFormSchema.safeParse({
+        projectId: "2",
+        keyRequirement: "R",
+        "assigneeIds[]": "abc",
+      }),
+    ).not.toThrow();
+    const result = keyDeliverableFormSchema.safeParse({
+      projectId: "2",
+      keyRequirement: "R",
+      "assigneeIds[]": ["5", "abc"],
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("update variant requires id and rowVer", () => {
     expect(
       updateKeyDeliverableFormSchema.safeParse({

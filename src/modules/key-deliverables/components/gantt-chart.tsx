@@ -74,9 +74,11 @@ const DAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
  * - Sticky label column + sticky timeline header
  * - Keyboard-accessible Link bars; print styles
  */
-/** Maximum chart window: 730 days (2 years). Beyond this the granularity
- *  switches to weekly ticks only to avoid tens-of-thousands of DOM nodes. */
-const MAX_CHART_DAYS = 730;
+/** Day threshold above which day-of-week ticks are suppressed to bound DOM
+ *  node count.  Only affects tick rendering — never the bar coordinate range. */
+const DAY_TICK_THRESHOLD = 90;
+/** Day threshold above which only weekly (not daily) ticks are rendered. */
+const WEEK_ONLY_THRESHOLD = 365;
 
 export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: number }) {
   if (bars.length === 0) {
@@ -91,14 +93,9 @@ export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: n
   const minMs = Math.min(...bars.map((b) => b.start.getTime()));
   const maxMs = Math.max(...bars.map((b) => b.end.getTime()));
   // Pad 2 days each side so edge bars and labels are never clipped.
-  // Cap total window at MAX_CHART_DAYS to bound DOM node count.
-  const rawStart = new Date(minMs - 2 * DAY_MS);
-  const rawEnd   = new Date(maxMs + 2 * DAY_MS);
-  const windowMs = rawEnd.getTime() - rawStart.getTime();
-  const rangeStart = rawStart;
-  const rangeEnd   = windowMs > MAX_CHART_DAYS * DAY_MS
-    ? new Date(rawStart.getTime() + MAX_CHART_DAYS * DAY_MS)
-    : rawEnd;
+  const rangeStart = new Date(minMs - 2 * DAY_MS);
+  const rangeEnd   = new Date(maxMs + 2 * DAY_MS);
+  // span is always the full bar coordinate range — never capped.
   const span = Math.max(rangeEnd.getTime() - rangeStart.getTime(), DAY_MS);
 
   const pct = (ms: number) =>
@@ -108,13 +105,14 @@ export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: n
   const todayLeft   = pct(today.getTime());
   const showToday   = todayLeft >= 0 && todayLeft <= 100;
 
+  const totalDays = Math.round(span / DAY_MS);
+  // Suppress day ticks for large windows to bound DOM node count.
   const weeks = weekStarts(rangeStart, rangeEnd);
-  // Only render day ticks when the window is small enough to be readable.
-  const dayCount = Math.round((rangeEnd.getTime() - rangeStart.getTime()) / DAY_MS);
-  const days  = dayCount <= 90 ? allDays(rangeStart, rangeEnd) : [];
+  const days  = totalDays <= DAY_TICK_THRESHOLD ? allDays(rangeStart, rangeEnd) : [];
 
-  // Minimum chart width: 28 px per day (capped window) or 14 px per day (wide window).
-  const minWidthPx = Math.max(dayCount * (dayCount <= 90 ? 28 : 14), 640);
+  // Minimum chart width scales with total days; px-per-day shrinks for wide windows.
+  const pxPerDay = totalDays <= DAY_TICK_THRESHOLD ? 28 : totalDays <= WEEK_ONLY_THRESHOLD ? 14 : 4;
+  const minWidthPx = Math.max(totalDays * pxPerDay, 640);
 
   return (
     <div
@@ -201,6 +199,7 @@ export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: n
               formatDate(bar.start) ?? "",
               formatDate(bar.end) ?? "",
               bar.status ?? messages.projects.none,
+              bar.assigneeNames ?? undefined,
             );
 
             return (

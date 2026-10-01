@@ -1,4 +1,5 @@
 import { execProc } from "@/lib/db";
+import { AppError } from "@/lib/errors";
 import { hashPassword } from "@/lib/auth/password";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
 import {
@@ -35,6 +36,7 @@ export async function getUserById(userId: number, actorUserId: number): Promise<
     UserId: userId,
     ActorUserId: actorUserId,
   });
+  if (!rows[0]) throw new AppError("NOT_FOUND", "User not found");
   return userRowSchema.parse(rows[0]);
 }
 
