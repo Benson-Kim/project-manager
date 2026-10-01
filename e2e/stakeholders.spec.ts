@@ -3,18 +3,18 @@ import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 
 /**
- * Stakeholders module (#6) — create happy path in the URL-synced sheet,
- * validation failure, axe scans on list + sheet form. Runs as e2e-pm
- * (storage state from auth.setup.ts — no extra logins, LESSONS §12).
+ * Stakeholders module (#6) — project-scoped route /projects/2/stakeholders.
+ * Create happy path in the URL-synced sheet, validation failure, axe scans on
+ * list + sheet form. Runs as e2e-pm (storage state from auth.setup.ts — no
+ * extra logins, LESSONS §12). Seeded stakeholder 1 = Gary on project 2.
  */
 
 test("create stakeholder happy path — appears in the list", async ({ page }) => {
   const firstName = `E2E stakeholder ${Date.now()}`;
-  await page.goto("/stakeholders");
+  await page.goto("/projects/2/stakeholders");
   await page.getByTestId("new-stakeholder").click();
   const form = page.getByTestId("stakeholder-form");
   await expect(form).toBeVisible();
-  await form.getByLabel(messages.stakeholders.project, { exact: true }).selectOption("2");
   await form.getByLabel(messages.stakeholders.firstName).fill(firstName);
   await form.getByLabel(messages.stakeholders.engagementLevel).selectOption("High");
   await page.getByTestId("stakeholder-save").click();
@@ -23,14 +23,14 @@ test("create stakeholder happy path — appears in the list", async ({ page }) =
   ).toBeVisible();
   await expect(form).toHaveCount(0); // sheet closed, ?id= cleared
 
-  await page.goto(`/stakeholders?q=${encodeURIComponent(firstName)}`);
+  await page.goto(`/projects/2/stakeholders?q=${encodeURIComponent(firstName)}`);
   await expect(page.getByText(firstName).first()).toBeVisible();
 });
 
 test("validation failure — empty first name shows inline error and focuses the summary", async ({
   page,
 }) => {
-  await page.goto("/stakeholders?id=new");
+  await page.goto("/projects/2/stakeholders?id=new");
   const form = page.getByTestId("stakeholder-form");
   await expect(form).toBeVisible();
   await page.getByTestId("stakeholder-save").click();
@@ -41,7 +41,7 @@ test("validation failure — empty first name shows inline error and focuses the
 });
 
 test("sheet is URL-synced — deep link ?id= opens the seeded stakeholder", async ({ page }) => {
-  await page.goto("/stakeholders?id=1");
+  await page.goto("/projects/2/stakeholders?id=1");
   const form = page.getByTestId("stakeholder-form");
   await expect(form).toBeVisible();
   await expect(form.getByLabel(messages.stakeholders.firstName)).toHaveValue("Gary");
@@ -50,7 +50,7 @@ test("sheet is URL-synced — deep link ?id= opens the seeded stakeholder", asyn
 test("axe scan on the stakeholders list has no serious or critical violations", async ({
   page,
 }) => {
-  await page.goto("/stakeholders");
+  await page.goto("/projects/2/stakeholders");
   await expect(page.getByRole("heading", { name: messages.stakeholders.title })).toBeVisible();
   const results = await new AxeBuilder({ page }).analyze();
   const serious = results.violations.filter((v) =>
@@ -62,7 +62,7 @@ test("axe scan on the stakeholders list has no serious or critical violations", 
 test("axe scan on the stakeholder sheet has no serious or critical violations", async ({
   page,
 }) => {
-  await page.goto("/stakeholders?id=1");
+  await page.goto("/projects/2/stakeholders?id=1");
   await expect(page.getByTestId("stakeholder-form")).toBeVisible();
   const results = await new AxeBuilder({ page }).analyze();
   const serious = results.violations.filter((v) =>
