@@ -99,16 +99,15 @@ describe("questions-answers actions", () => {
     expect(execProc).not.toHaveBeenCalled();
   });
 
-  it("create succeeds for a Contributor (Contributor can create per CONTRIBUTOR_WRITE_MODULES)", async () => {
+  it("create is FORBIDDEN for a Contributor (Admin + PM only)", async () => {
     session = { userId: 8, username: "contrib", role: "Contributor" };
-    execProc.mockResolvedValue([dbRow()]);
     const fd = new FormData();
     fd.set("projectId", "2");
     fd.set("question", "What is the scope?");
     const result = await createQuestionAnswerAction(fd);
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.data.QuestionAnswerId).toBe(7);
-    expect(execProc).toHaveBeenCalledWith("usp_QuestionAnswer_Create", expect.objectContaining({ ActorRole: "Contributor" }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
+    expect(execProc).not.toHaveBeenCalled();
   });
 
   // ── update ───────────────────────────────────────────────────────────────
