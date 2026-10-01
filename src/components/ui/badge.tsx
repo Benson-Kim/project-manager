@@ -5,21 +5,21 @@
  */
 
 const VARIANT_MAP: Record<string, string> = {
-  // Status
+  // Status — design tokens only (verified WCAG 2.2 AA in globals.css)
   "Not Started": "bg-surface-raised border-line text-ink-muted",
-  "In Progress": "bg-blue-50 border-blue-200 text-blue-700",
-  "In Review": "bg-purple-50 border-purple-200 text-purple-700",
-  Completed: "bg-green-50 border-green-200 text-green-700",
-  Cancelled: "bg-surface-raised border-line text-ink-muted line-through",
+  "In Progress": "bg-accent-soft border-accent text-accent-strong",
+  "In Review":   "bg-accent-soft border-accent text-accent-strong",
+  Completed:     "bg-success border-success text-on-success",
+  Cancelled:     "bg-surface-raised border-line text-ink-muted line-through",
   // Priority
-  Critical: "bg-red-50 border-red-200 text-red-700",
-  High: "bg-orange-50 border-orange-200 text-orange-700",
-  Medium: "bg-amber-50 border-amber-200 text-amber-700",
-  Low: "bg-surface-raised border-line text-ink-muted",
+  Critical: "bg-danger border-danger text-on-danger",
+  High:     "bg-danger-soft border-danger text-danger",
+  Medium:   "bg-warning-soft border-warning text-warning",
+  Low:      "bg-surface-raised border-line text-ink-muted",
   // Type
-  Project: "bg-blue-50 border-blue-200 text-blue-700",
-  "Daily Activity": "bg-teal-50 border-teal-200 text-teal-700",
-  None: "bg-surface-raised border-line text-ink-muted",
+  Project:          "bg-accent-soft border-accent text-accent-strong",
+  "Daily Activity": "bg-accent-soft border-accent text-accent-strong",
+  None:             "bg-surface-raised border-line text-ink-muted",
 };
 
 const DEFAULT_CLASS =
