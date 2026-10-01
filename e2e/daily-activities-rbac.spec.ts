@@ -26,5 +26,5 @@ test("viewer sheet is read-only — no save or delete, fields disabled", async (
   await expect(form).toBeVisible();
   await expect(page.getByTestId("daily-activity-save")).toHaveCount(0);
   await expect(page.getByTestId("daily-activity-delete")).toHaveCount(0);
-  await expect(form.getByLabel(messages.dailyActivities.task)).toBeDisabled();
+  await expect(form.getByLabel(messages.dailyActivities.task, { exact: true })).toBeDisabled();
 });

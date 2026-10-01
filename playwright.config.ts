@@ -21,14 +21,14 @@ export default defineConfig({
     {
       name: "app",
       testMatch:
-        /(home|kitchen-sink|projects|key-deliverables|shell|stakeholders|suppliers|daily-activities|todo-items|questions-answers|parking-lot)\.spec\.ts/,
+        /(home|kitchen-sink|projects|key-deliverables|shell|stakeholders|suppliers|daily-activities|todo-items|questions-answers|parking-lot|assumptions-constraints)\.spec\.ts/,
       dependencies: ["setup"],
       use: { storageState: "e2e/.auth/pm.json" },
     },
     {
       name: "app-viewer",
       testMatch:
-        /(projects-rbac|key-deliverables-rbac|stakeholders-rbac|suppliers-rbac|daily-activities-rbac|todo-items-rbac|questions-answers-rbac|parking-lot-rbac)\.spec\.ts/,
+        /(projects-rbac|key-deliverables-rbac|stakeholders-rbac|suppliers-rbac|daily-activities-rbac|todo-items-rbac|questions-answers-rbac|parking-lot-rbac|assumptions-constraints-rbac)\.spec\.ts/,
       dependencies: ["viewer-setup"],
       use: { storageState: "e2e/.auth/viewer.json" },
     },

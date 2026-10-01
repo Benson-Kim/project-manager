@@ -15,7 +15,7 @@ test("create daily activity happy path — appears in the list", async ({ page }
   await page.getByTestId("new-daily-activity").click();
   const form = page.getByTestId("daily-activity-form");
   await expect(form).toBeVisible();
-  await form.getByLabel(messages.dailyActivities.task).fill(task);
+  await form.getByLabel(messages.dailyActivities.task, { exact: true }).fill(task);
   await form.getByLabel(messages.dailyActivities.requester).fill("E2E Tester");
   await form.getByLabel(messages.dailyActivities.taskType).selectOption("Technical");
   await page.getByTestId("daily-activity-save").click();

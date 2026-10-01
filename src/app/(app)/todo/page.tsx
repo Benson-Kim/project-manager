@@ -7,6 +7,7 @@ import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getViewPreference } from "@/lib/repositories/view-preference";
 import { formatDate } from "@/lib/format";
+import { PageHeader } from "@/components/ui/page-header";
 import { TodoView } from "@/modules/todo-items/components/todo-view";
 import { TodoItemSheet } from "@/modules/todo-items/components/todo-item-sheet";
 import {
@@ -78,6 +79,7 @@ export default async function GlobalTodoPage({
 
   return (
     <>
+      <PageHeader title={messages.todoItems.title} />
 
       {/* Upcoming alerts panel */}
       {alerts.length > 0 ? (
