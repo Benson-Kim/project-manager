@@ -1,5 +1,6 @@
 -- usp_AssumptionConstraint_List — paged/filtered list per ADR-0016. Search columns: Description, Type. Sort whitelist: Type, Impact.
--- Entity app.AssumptionConstraint (source: tblAssumptionsConstraints). Module: database-schema-and-procs (#3).
+-- Entity app.AssumptionConstraint (source: tblAssumptionsConstraints). Module: assumptions-constraints (#13).
+-- Updated: added @Type filter parameter.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_AssumptionConstraint_List
@@ -9,7 +10,8 @@ CREATE OR ALTER PROCEDURE dbo.usp_AssumptionConstraint_List
     @SortBy      NVARCHAR(50)  = NULL,
     @SortDir     VARCHAR(4)    = 'asc',
     @Page        INT           = 1,
-    @PageSize    INT           = 25
+    @PageSize    INT           = 25,
+    @Type        NVARCHAR(50)  = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -32,6 +34,7 @@ BEGIN
     FROM app.AssumptionConstraint
     WHERE IsDeleted = 0
       AND (@ProjectId IS NULL OR ProjectId = @ProjectId)
+      AND (@Type IS NULL OR [Type] = @Type)
       AND (@Search IS NULL OR [Description] LIKE N'%' + @Search + N'%'
            OR [Type] LIKE N'%' + @Search + N'%')
     ORDER BY
