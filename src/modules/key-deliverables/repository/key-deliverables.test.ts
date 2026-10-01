@@ -41,6 +41,7 @@ function ganttDbRow(overrides: Record<string, unknown> = {}) {
     Priority: "Important",
     Status: "In Progress",
     AssigneeNames: "Maggy Yerlan",
+    AssigneesJson: JSON.stringify([{ id: 3, name: "Maggy Yerlan" }]),
     CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),
     ProjectStartDate: new Date("2026-01-01"),
     ProjectEndDate: new Date("2027-01-01"),
@@ -119,6 +120,7 @@ describe("key-deliverables repository", () => {
         end: new Date("2026-12-26"),
         status: "In Progress",
         assigneeNames: "Maggy Yerlan",
+        assignees: [{ id: 3, name: "Maggy Yerlan" }],
         overdue: false,
       });
       const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
@@ -149,9 +151,27 @@ describe("key-deliverables repository", () => {
     });
 
     it("normalises an empty assignee name to null", async () => {
-      execProc.mockResolvedValue([ganttDbRow({ AssigneeNames: " " })]);
+      execProc.mockResolvedValue([ganttDbRow({ AssigneeNames: " ", AssigneesJson: null })]);
       const bars = await getGanttBars(24, 7, now);
       expect(bars[0].assigneeNames).toBeNull();
+      expect(bars[0].assignees).toEqual([]);
+    });
+
+    it("parses assignees with commas in names without splitting", async () => {
+      execProc.mockResolvedValue([
+        ganttDbRow({
+          AssigneeNames: "Ministry of Education, Science and Technology",
+          AssigneesJson: JSON.stringify([
+            { id: 5, name: "Ministry of Education, Science and Technology" },
+          ]),
+        }),
+      ]);
+      const bars = await getGanttBars(24, 7, now);
+      expect(bars[0].assignees).toHaveLength(1);
+      expect(bars[0].assignees[0]).toEqual({
+        id: 5,
+        name: "Ministry of Education, Science and Technology",
+      });
     });
 
     it("uses RequestedDate as bar start when set and before the deadline", async () => {

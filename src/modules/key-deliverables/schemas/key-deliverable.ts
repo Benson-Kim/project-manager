@@ -36,7 +36,7 @@ export type AssigneeEntry = z.infer<typeof assigneeEntrySchema>;
  *  Only null / empty string maps to []; any parse or schema error propagates
  *  so that database drift or malformed data surfaces at the repository boundary
  *  rather than silently replacing valid assignees with an empty set. */
-function parseAssigneesJson(raw: unknown): AssigneeEntry[] {
+export function parseAssigneesJson(raw: unknown): AssigneeEntry[] {
   if (raw === null || raw === undefined || raw === "") return [];
   if (typeof raw !== "string") throw new Error(`AssigneesJson must be a string, got ${typeof raw}`);
   const trimmed = raw.trim();
@@ -87,6 +87,7 @@ export const ganttRowSchema = z.object({
   Priority: z.string().nullable(),
   Status: z.string().nullable(),
   AssigneeNames: z.string().nullable().optional(),
+  AssigneesJson: z.unknown().optional(),
   CreatedAtUtc: z.date(),
   ProjectStartDate: z.date().nullable(),
   ProjectEndDate: z.date().nullable(),
@@ -104,8 +105,10 @@ export interface GanttBar {
   end: Date;
   status: string | null;
   priority: string | null;
-  /** Comma-separated assignee names for display. */
+  /** Comma-separated display string — kept for the visible bar label only. */
   assigneeNames: string | null;
+  /** Structured assignees parsed from AssigneesJson — use for filtering. */
+  assignees: AssigneeEntry[];
   overdue: boolean;
   /** 0–100: visual completion fill derived from status. */
   completionPct: number;

@@ -32,7 +32,7 @@ BEGIN
         INSERT INTO app.KeyDeliverableAssignee (KeyDeliverableId, StakeholderId, CreatedBy)
         SELECT @Id, CAST(j.[value] AS INT), @ActorUserId
         FROM OPENJSON(@AssigneeIds) AS j
-        WHERE ISNUMERIC(j.[value]) = 1
+        WHERE TRY_CAST(j.[value] AS INT) IS NOT NULL
           AND EXISTS (
               SELECT 1 FROM app.Stakeholder AS s
               WHERE s.StakeholderId = CAST(j.[value] AS INT)
@@ -47,7 +47,11 @@ BEGIN
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, AfterJson)
     VALUES (@ActorUserId, N'Create', N'app.KeyDeliverable', CAST(@Id AS NVARCHAR(64)),
-            (SELECT KeyDeliverableId, [ProjectId], [KeyRequirement], [RequestedDate], [Deadline], [Priority], [Status]
+            (SELECT KeyDeliverableId, [ProjectId], [KeyRequirement], [RequestedDate], [Deadline], [Priority], [Status],
+                    (SELECT CAST(a.StakeholderId AS NVARCHAR(20)) AS id
+                     FROM app.KeyDeliverableAssignee AS a
+                     WHERE a.KeyDeliverableId = @Id
+                     FOR JSON PATH) AS Assignees
              FROM app.KeyDeliverable WHERE KeyDeliverableId = @Id
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
@@ -67,7 +71,7 @@ BEGIN
                SELECT STRING_AGG(
                    CAST(LTRIM(RTRIM(CONCAT(ISNULL(s.FirstName,''), N' ', ISNULL(s.LastName,'')))) AS NVARCHAR(MAX)),
                    N', '
-               )
+               ) WITHIN GROUP (ORDER BY s.FirstName, s.LastName)
                FROM app.KeyDeliverableAssignee AS a
                JOIN app.Stakeholder AS s
                    ON s.StakeholderId = a.StakeholderId AND s.IsDeleted = 0

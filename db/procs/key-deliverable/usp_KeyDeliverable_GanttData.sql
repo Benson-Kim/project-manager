@@ -31,12 +31,21 @@ BEGIN
                SELECT STRING_AGG(
                    CAST(LTRIM(RTRIM(CONCAT(ISNULL(s.FirstName,''), N' ', ISNULL(s.LastName,'')))) AS NVARCHAR(MAX)),
                    N', '
-               )
+               ) WITHIN GROUP (ORDER BY s.FirstName, s.LastName)
                FROM app.KeyDeliverableAssignee AS a
                JOIN app.Stakeholder AS s
                    ON s.StakeholderId = a.StakeholderId AND s.IsDeleted = 0
                WHERE a.KeyDeliverableId = kd.KeyDeliverableId
-           ) AS AssigneeNames
+           ) AS AssigneeNames,
+           (
+               SELECT CAST(a.StakeholderId AS NVARCHAR(20)) AS id,
+                      LTRIM(RTRIM(CONCAT(ISNULL(s.FirstName,''), N' ', ISNULL(s.LastName,'')))) AS name
+               FROM app.KeyDeliverableAssignee AS a
+               JOIN app.Stakeholder AS s
+                   ON s.StakeholderId = a.StakeholderId AND s.IsDeleted = 0
+               WHERE a.KeyDeliverableId = kd.KeyDeliverableId
+               FOR JSON PATH
+           ) AS AssigneesJson
     FROM app.KeyDeliverable AS kd
     JOIN app.Project AS p
         ON p.ProjectId = kd.ProjectId

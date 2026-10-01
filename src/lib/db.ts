@@ -20,7 +20,7 @@ function config(): sql.config {
     password: env.DB_PASSWORD,
     options: {
       encrypt: true,
-      trustServerCertificate: true, // local/dev containers; use proper certs in prod
+      trustServerCertificate: process.env.NODE_ENV !== "production",
     },
     pool: { max: 10, min: 0, idleTimeoutMillis: 30_000 },
   };

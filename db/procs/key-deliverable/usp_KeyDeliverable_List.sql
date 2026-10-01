@@ -36,7 +36,7 @@ BEGIN
                SELECT STRING_AGG(
                    CAST(LTRIM(RTRIM(CONCAT(ISNULL(s.FirstName,''), N' ', ISNULL(s.LastName,'')))) AS NVARCHAR(MAX)),
                    N', '
-               )
+               ) WITHIN GROUP (ORDER BY s.FirstName, s.LastName)
                FROM app.KeyDeliverableAssignee AS a
                JOIN app.Stakeholder AS s
                    ON s.StakeholderId = a.StakeholderId AND s.IsDeleted = 0
