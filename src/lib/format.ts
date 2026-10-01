@@ -5,13 +5,13 @@
 
 /**
  * Format a date for display (e.g. "15 Jan 2025").
- * Returns null when the value is null or undefined so callers can render a
- * fallback without a separate null-check.
+ * Returns an empty string when the value is null, undefined or invalid so
+ * callers can render it directly without a separate null-check.
  */
-export function formatDate(value: Date | string | null | undefined): string | null {
-  if (value == null) return null;
+export function formatDate(value: Date | string | null | undefined): string {
+  if (value == null) return "";
   const d = value instanceof Date ? value : new Date(value);
-  if (isNaN(d.getTime())) return null;
+  if (isNaN(d.getTime())) return "";
   return d.toLocaleDateString("en-CA", {
     year: "numeric",
     month: "short",
