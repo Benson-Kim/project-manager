@@ -81,7 +81,7 @@ export default async function StakeholdersPage({
     <Link
       href={buildNewEntityHref(`/projects/${projectId}/stakeholders`, flat)}
       data-testid="new-stakeholder"
-      className="inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-sm font-medium text-on-accent"
+      className="inline-flex min-h-10 items-center rounded-md border border-line bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-raised"
     >
       {messages.stakeholders.newStakeholder}
     </Link>

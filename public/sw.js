@@ -1,63 +1,173 @@
-// Service Worker — Alert poller for Project Manager
-// Polls /api/due-alerts every 60 seconds and fires OS notifications even
-// when no app tab is open (as long as the browser runs in the background).
-// The SW is registered once by AppShell and stays alive across tab closes.
+// Service Worker — PWA offline shell + event-driven todo alerts.
 //
-// INTENTIONALLY NO FETCH HANDLER AND NO CACHE API USAGE.
-// This SW is a notification poller only.  Adding a fetch event listener or
-// any caches.open() / cache.put() call would risk storing authenticated page
-// responses or session data (/api/auth/session, RSC payloads, project data)
-// in CacheStorage, which is NOT partitioned by user and is NOT cleared by
-// logoutAction.  On a shared device that would allow an offline request after
-// logout to receive the previous user's data.  If offline support is ever
-// required, implement a separate, user-aware caching strategy that:
-//   1. Excludes /api/auth/*, /api/due-alerts and all authenticated routes.
-//   2. Purges private cache entries in the SW's "message" handler when
-//      logoutAction posts a { type: "PURGE_PRIVATE_CACHE" } message.
+// Lifecycle:
+//   install   → precache the app shell (navigation skeleton + static assets)
+//               so the application loads from cache when the network is absent,
+//               then skipWaiting() so the new worker activates immediately.
+//   activate  → delete stale caches from previous versions, then claim all
+//               clients so the fresh worker controls existing tabs.
+//   fetch     → navigation requests: network-first with cache fallback so users
+//               always see fresh data when online; cached skeleton when offline.
+//               Static assets (JS/CSS/images): cache-first (content-hashed names
+//               mean a new file name on every deploy).
+//   push      → wake this worker for each due alert and show an OS notification.
+//               Browsers may stop an idle worker at any time; each push event
+//               is independent and handled by a fresh instance.
+//   notificationclick → open or focus /todo.
 
-const POLL_INTERVAL_MS = 60_000;
+// ── Cache versioning ──────────────────────────────────────────────────────────
+//
+// Bump CACHE_VERSION on every deploy that changes the app-shell skeleton or
+// precache list.  The activate handler deletes all caches whose name does not
+// match SHELL_CACHE, so old entries are cleaned up automatically.
+//
+// Bump policy:
+//   • Content-hashed JS/CSS never need a bump (new filenames bust themselves).
+//   • Bump when / (the nav skeleton) or /favicon.ico changes visually.
+//   • Bump when adding or removing a URL from PRECACHE_URLS.
+//   • Use a short date stamp or incrementing integer, e.g. "v2", "v3", "2026-10".
+//   • After bumping, `skipWaiting()` in the install handler activates the new
+//     worker immediately; existing tabs call `clients.claim()` and switch over.
+const CACHE_VERSION = "v1";
+const SHELL_CACHE = `shell-${CACHE_VERSION}`;
 
-/** Alert IDs notified in this SW lifetime — prevents duplicate notifications
- *  across rapid poll ticks. Cleared only when the SW is terminated. */
-const notified = new Set();
+// App-shell assets to precache.  Next.js content-hashes JS/CSS filenames so
+// stale entries are never served for those; the navigation fallback ("/") is
+// the only entry whose content can silently become stale — it is re-fetched
+// network-first on every navigation when online.
+const PRECACHE_URLS = ["/", "/favicon.ico", "/manifest.webmanifest"];
 
-async function poll() {
-  let alerts;
-  try {
-    const res = await fetch("/api/due-alerts", { credentials: "include" });
-    if (!res.ok) return; // unauthenticated / server error — silently skip
-    alerts = await res.json();
-  } catch {
-    return; // network error — skip this tick
+// ─── Install ─────────────────────────────────────────────────────────────────
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches
+      .open(SHELL_CACHE)
+      .then((cache) => cache.addAll(PRECACHE_URLS))
+      .then(() => self.skipWaiting()),
+  );
+});
+
+// ─── Activate ────────────────────────────────────────────────────────────────
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((key) => key !== SHELL_CACHE)
+            .map((key) => caches.delete(key)),
+        ),
+      )
+      .then(() => self.clients.claim()),
+  );
+});
+
+// ─── Fetch ───────────────────────────────────────────────────────────────────
+
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+
+  // Only intercept GET requests on our own origin.
+  if (request.method !== "GET") return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+
+  // API routes and internal routes are never cached — always pass through.
+  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/_next/")) {
+    // For _next/static assets (content-hashed), use cache-first so repeat
+    // visits are instant.  For everything else (_next/data, etc.) skip.
+    if (url.pathname.startsWith("/_next/static/")) {
+      event.respondWith(
+        caches.match(request).then(
+          (cached) => cached || fetch(request).then((response) => {
+            if (response.ok) {
+              const clone = response.clone();
+              caches.open(SHELL_CACHE).then((cache) => cache.put(request, clone));
+            }
+            return response;
+          }),
+        ),
+      );
+    }
+    return;
   }
 
-  if (!Array.isArray(alerts) || alerts.length === 0) return;
+  // Navigation requests (HTML): network-first, fall back to cached "/" shell.
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(SHELL_CACHE).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request).then((cached) => cached || caches.match("/"))),
+    );
+    return;
+  }
 
-  for (const alert of alerts) {
-    if (notified.has(alert.todoAlertId)) continue;
-    notified.add(alert.todoAlertId);
-    self.registration.showNotification(alert.title, {
-      body: "Your to-do alert is due. Click to open.",
-      icon: "/favicon.ico",
-      tag: `todo-alert-${alert.todoAlertId}`,
-      requireInteraction: false,
-      data: { url: "/todo" },
-    });
+  // All other same-origin GETs (images, icons, manifest): cache-first.
+  event.respondWith(
+    caches.match(request).then(
+      (cached) => cached || fetch(request).then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(SHELL_CACHE).then((cache) => cache.put(request, clone));
+        }
+        return response;
+      }),
+    ),
+  );
+});
+
+// ─── Push ─────────────────────────────────────────────────────────────────────
+
+function readPushPayload(event) {
+  if (!event.data) return null;
+  try {
+    return event.data.json();
+  } catch {
+    return null;
   }
 }
 
-self.addEventListener("install", () => {
-  self.skipWaiting();
+function alertsFromPayload(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (payload && Array.isArray(payload.alerts)) return payload.alerts;
+  if (payload && payload.todoAlertId != null) return [payload];
+  return [];
+}
+
+async function showAlerts(alerts) {
+  await Promise.all(
+    alerts
+      .filter((alert) => alert && alert.todoAlertId != null && alert.title)
+      .map((alert) =>
+        self.registration.showNotification(alert.title, {
+          body: alert.body || "Your to-do alert is due. Click to open.",
+          icon: "/favicon.ico",
+          // A stable tag makes a retried push replace the same notification.
+          tag: `todo-alert-${alert.todoAlertId}`,
+          requireInteraction: false,
+          data: { url: "/todo", todoAlertId: alert.todoAlertId },
+        }),
+      ),
+  );
+}
+
+self.addEventListener("push", (event) => {
+  // waitUntil keeps this one event alive until its notification is shown. A
+  // later push gets a new worker instance, which is the supported lifecycle.
+  event.waitUntil(showAlerts(alertsFromPayload(readPushPayload(event))));
 });
 
-self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
-  // Start polling immediately after activation.
-  setInterval(poll, POLL_INTERVAL_MS);
-  void poll();
-});
+// ─── Notification click ───────────────────────────────────────────────────────
 
-// Open or focus the /todo tab when the user clicks the notification.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = (event.notification.data && event.notification.data.url) || "/todo";
@@ -66,9 +176,7 @@ self.addEventListener("notificationclick", (event) => {
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clients) => {
         for (const client of clients) {
-          if (client.url.includes(url) && "focus" in client) {
-            return client.focus();
-          }
+          if (client.url.includes(url) && "focus" in client) return client.focus();
         }
         return self.clients.openWindow(url);
       }),

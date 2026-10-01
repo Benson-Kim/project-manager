@@ -24,9 +24,6 @@ function hasSessionCookie(request: NextRequest): boolean {
 
 export async function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-  // React's development build needs eval() for debugging features (rebuilding
-  // callstacks, HMR). It never uses eval() in production, so 'unsafe-eval' is
-  // scoped strictly to dev — shipping it would defeat the point of the policy.
   const scriptSrc = [
     "'self'",
     `'nonce-${nonce}'`,
@@ -66,8 +63,6 @@ export async function proxy(request: NextRequest) {
       redirect.headers.set("Content-Security-Policy", csp);
       return redirect;
     }
-    // Forced first-login password change (STANDARDS §4): the flag travels in
-    // the JWT, so this gate needs no DB access and stays edge-safe.
     const appToken = token.appToken as { mustChangePassword?: boolean } | undefined;
     if (appToken?.mustChangePassword && pathname !== "/change-password") {
       const changeUrl = new URL("/change-password", request.url);
@@ -84,7 +79,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Everything except static assets and prebuilt files.
     {
       source: "/((?!_next/static|_next/image|favicon.ico|icons/|sw.js|robots.txt).*)",
       missing: [

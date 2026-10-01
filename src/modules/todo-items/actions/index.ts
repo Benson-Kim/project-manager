@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { action } from "@/lib/action";
 import { auth } from "@/lib/auth/provider";
+import { getPushConfig } from "@/lib/push/config";
 import { messages } from "@/lib/messages";
 import {
   buildTodoFromDailyActivity,
@@ -19,8 +20,10 @@ import {
   snoozeTodoAlert,
   updateTodoAlert,
 } from "../repository/todo-alerts";
+import { upsertAlertSubscription } from "../repository/alert-subscriptions";
 import { todoItemFormSchema, updateTodoItemFormSchema } from "../schemas/todo-item-form";
 import { todoAlertFormSchema, updateTodoAlertFormSchema } from "../schemas/todo-alert-form";
+import { pushSubscriptionInput } from "../schemas/alert-subscription";
 import { deleteTodoItemInput, reorderTodoItemInput } from "../schemas/todo-item";
 import { deleteTodoAlertInput, rowVerSchema } from "../schemas/todo-alert";
 
@@ -156,3 +159,26 @@ export async function pollDueAlertsAction(): Promise<
     rowVer: r.RowVer,
   }));
 }
+
+/**
+ * Register or refresh a Web Push subscription for the current user.
+ * RBAC: todo-alerts:create — all roles that can manage to-do alerts
+ * (Admin, PM, Contributor) may register a push subscription. Viewers
+ * cannot create alerts and therefore cannot subscribe to push delivery.
+ *
+ * Returns null when Web Push is not configured server-side so the caller
+ * can gracefully fall back to foreground polling.
+ */
+export const registerPushSubscriptionAction = action({
+  name: "todo-alerts.registerPush",
+  schema: pushSubscriptionInput,
+  permission: "todo-alerts:create",
+  handler: async (input, ctx) => {
+    if (!getPushConfig()) {
+      // Push is not configured — signal that to the caller without an error.
+      return null;
+    }
+    await upsertAlertSubscription(input, ctx.session.userId);
+    return null;
+  },
+});

@@ -6,7 +6,8 @@ import { messages } from "@/lib/messages";
 /**
  * GET /api/due-alerts
  *
- * Polled by the Service Worker every 60 s (even when no app tab is open).
+ * Called by the Web Push dispatch server to retrieve due alerts for a user, and
+ * used as a foreground fallback for browsers where Web Push is unavailable.
  * Returns a JSON array of alerts whose AlertDay has been reached and
  * AlertTime ≤ now (UTC), scoped to the authenticated user.
  * Returns 401 when unauthenticated (SW skips silently).

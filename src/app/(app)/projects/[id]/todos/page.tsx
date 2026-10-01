@@ -83,6 +83,9 @@ export default async function TodosPage({
   const canCreate = can(session.role, "todo-items:create");
   const canEdit = can(session.role, "todo-items:update");
   const canDelete = can(session.role, "todo-items:delete");
+  const canCreateAlert = can(session.role, "todo-alerts:create");
+  const canUpdateAlert = can(session.role, "todo-alerts:update");
+  const canDeleteAlert = can(session.role, "todo-alerts:delete");
   const canReorder = can(session.role, "todo-items:update");
   const filtersActive = Boolean(effectiveParams.q || flat.status || flat.priority || flat.projectOrActivity);
 
@@ -90,7 +93,7 @@ export default async function TodosPage({
     <Link
       href={buildNewEntityHref(`/projects/${projectId}/todos`, flat)}
       data-testid="new-todo-item"
-      className="inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-sm font-medium text-on-accent"
+      className="inline-flex min-h-10 items-center rounded-md border border-line bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-raised"
     >
       {messages.todoItems.newTodoItem}
     </Link>
@@ -121,6 +124,9 @@ export default async function TodosPage({
         dailyActivityOptions={activityOptions}
         canEdit={canEdit}
         canDelete={canDelete}
+        canCreateAlert={canCreateAlert}
+        canUpdateAlert={canUpdateAlert}
+        canDeleteAlert={canDeleteAlert}
       />
     </>
   );

@@ -72,9 +72,20 @@ export function AssigneesEditor({
   };
 
   const save = () => {
+    // Auto-add any name that's been typed/picked but not yet added.
+    const pending_list = picked
+      ? (() => {
+          const exists = assignees.some((a) => a.role === role && a.personName === picked);
+          return exists ? assignees : [...assignees, { role, personName: picked, userId: null }];
+        })()
+      : assignees;
+    // An empty pending_list is intentional: the proc accepts it and
+    // soft-deletes all existing assignees (clearing the project is allowed).
+    setPicked(null);
+    setComboboxKey((k) => k + 1);
     setSummary(null);
     startTransition(async () => {
-      const result = await setProjectAssigneesAction({ projectId, assignees });
+      const result = await setProjectAssigneesAction({ projectId, assignees: pending_list });
       if (result.ok) {
         setAssignees(
           result.data.map((a) => ({ role: a.Role, personName: a.PersonName, userId: a.UserId })),
@@ -91,20 +102,22 @@ export function AssigneesEditor({
   return (
     <section
       aria-labelledby="assignees-heading"
-      className="flex flex-col gap-4 pb-8 border border-line bg-linear-60 rounded-md"
+      className="flex flex-col gap-4 border border-line rounded-md bg-surface [background-image:linear-gradient(to_bottom,var(--surface-raised),var(--surface)_40%)]"
     >
       <h2
         id="assignees-heading"
-        className="border-b border-line px-4 py-2 text-base font-semibold text-ink"
+        className="border-b border-line px-4 py-3 text-base font-semibold text-ink"
       >
         {messages.projects.assigneesSection}
       </h2>
-      <ErrorSummary message={summary} />
-      <div className="px-4 py-3">
+      <div className="px-4">
+        <ErrorSummary message={summary} />
+      </div>
+      <div className="px-4">
         {assignees.length === 0 ? (
-          <p className="text-sm text-ink-muted ">{messages.projects.noAssignees}</p>
+          <p className="text-sm text-ink-muted">{messages.projects.noAssignees}</p>
         ) : (
-          <ul className="flex flex-col gap-2 " data-testid="assignee-list">
+          <ul className="flex flex-col gap-2" data-testid="assignee-list">
             {assignees.map((a) => (
               <li
                 key={`${a.role}:${a.personName}`}
@@ -127,13 +140,16 @@ export function AssigneesEditor({
 
       {canEdit ? (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 px-4 py-3">
+          <div className="grid grid-cols-1 gap-4 px-4 sm:grid-cols-2">
             <Field label={messages.projects.assigneeName} name="assigneeName">
               <Combobox
                 key={comboboxKey}
                 name="assigneeName"
                 options={options.map((o) => ({ value: o, label: o }))}
-                onSelect={(option) => setPicked(option?.value ?? null)}
+                onSelect={(option) => {
+                  setPicked(option?.value ?? null);
+                  if (option?.value) setSummary(null);
+                }}
               />
             </Field>
             <Field label={messages.projects.assigneeRole} name="assigneeRole">
@@ -150,8 +166,8 @@ export function AssigneesEditor({
               </Select>
             </Field>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" onClick={add} disabled={!picked}>
+          <div className="flex flex-wrap gap-2 px-4 pb-4">
+            <Button type="button" variant="secondary" onClick={add}>
               {messages.projects.addAssignee}
             </Button>
             <Button type="button" pending={pending} onClick={save} data-testid="assignees-save">

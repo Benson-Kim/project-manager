@@ -52,7 +52,7 @@ function ReorderControls({
         disabled={isFirst || pending}
         onClick={(e) => { e.stopPropagation(); move(idx - 1); }}
         aria-label={messages.todoItems.moveUp}
-        className="flex h-5 w-5 items-center justify-center rounded text-ink-muted hover:bg-surface-hover disabled:opacity-30"
+        className="flex size-11 items-center justify-center rounded text-xs text-ink-muted hover:bg-surface-hover disabled:opacity-30"
       >
         ▲
       </button>
@@ -61,7 +61,7 @@ function ReorderControls({
         disabled={isLast || pending}
         onClick={(e) => { e.stopPropagation(); move(idx + 1); }}
         aria-label={messages.todoItems.moveDown}
-        className="flex h-5 w-5 items-center justify-center rounded text-ink-muted hover:bg-surface-hover disabled:opacity-30"
+        className="flex size-11 items-center justify-center rounded text-xs text-ink-muted hover:bg-surface-hover disabled:opacity-30"
       >
         ▼
       </button>
