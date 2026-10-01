@@ -22,6 +22,13 @@ interface GanttToolbarProps {
 export function GanttToolbar({ assignees, children }: GanttToolbarProps) {
   const { searchParams, update } = useListUrlState();
 
+  // Render the assignee select whenever there are options OR when a (now-stale)
+  // assignee parameter is active.  Without this, a bookmarked ?assignee=<id>
+  // whose last assignee was removed shows an empty chart with no way to clear
+  // the filter.
+  const activeAssignee = searchParams.get("assignee") ?? "";
+  const showAssigneeFilter = assignees.length > 0 || activeAssignee !== "";
+
   return (
     <div data-gantt-toolbar="">
     <Toolbar>
@@ -63,14 +70,16 @@ export function GanttToolbar({ assignees, children }: GanttToolbarProps) {
         </Select>
       </label>
 
-      {/* Assignee filter (populated from actual bar data; value = stakeholder id) */}
-      {assignees.length > 0 ? (
+      {/* Assignee filter (populated from actual bar data; value = stakeholder id).
+          Always rendered when a stale ?assignee param is active so the user can
+          clear it even after the last assignee is removed. */}
+      {showAssigneeFilter ? (
         <label>
           <span className="sr-only">{messages.keyDeliverables.assignees}</span>
           <Select
             name="assignee"
             data-testid="gantt-filter-assignee"
-            value={searchParams.get("assignee") ?? ""}
+            value={activeAssignee}
             onChange={(e) => update({ assignee: e.target.value || null })}
             className="w-auto"
           >
