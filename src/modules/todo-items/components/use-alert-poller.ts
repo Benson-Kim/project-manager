@@ -1,13 +1,14 @@
-﻿"use client";
+"use client";
 
 import { useEffect } from "react";
+import { registerPushSubscriptionAction } from "../actions";
 
 const POLL_INTERVAL_MS = 60_000;
 const PUSH_PUBLIC_KEY = process.env.NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY;
 type DueAlert = { todoAlertId: number; title: string; body?: string };
 const foregroundNotifiedIds = new Set<number>();
 
-function base64UrlToBytes(value: string): Uint8Array {
+function base64UrlToBytes(value: string): Uint8Array<ArrayBuffer> {
   const padding = "=".repeat((4 - (value.length % 4)) % 4);
   const decoded = atob((value + padding).replace(/-/g, "+").replace(/_/g, "/"));
   return Uint8Array.from(decoded, (character) => character.charCodeAt(0));
@@ -19,14 +20,28 @@ async function pollInOpenTab(): Promise<void> {
     const response = await fetch("/api/due-alerts", { credentials: "include" });
     if (!response.ok) return;
     const alerts = (await response.json()) as DueAlert[];
+
+    // Reconcile the notified-ID set against the server's current due list.
+    // IDs that are no longer due (snoozed, dismissed, completed) are removed
+    // so a re-triggered alert will fire a new notification on the next tick
+    // without requiring a page reload.
+    const dueIds = new Set(alerts.map((a) => a.todoAlertId));
+    for (const id of foregroundNotifiedIds) {
+      if (!dueIds.has(id)) foregroundNotifiedIds.delete(id);
+    }
+
     for (const alert of alerts) {
       if (foregroundNotifiedIds.has(alert.todoAlertId)) continue;
       foregroundNotifiedIds.add(alert.todoAlertId);
-      new Notification(alert.title, {
+      const notification = new Notification(alert.title, {
         body: alert.body || "Your to-do alert is due. Click to open.",
         icon: "/favicon.ico",
         tag: `todo-alert-${alert.todoAlertId}`,
       });
+      notification.onclick = () => {
+        window.focus();
+        window.location.href = "/todo";
+      };
     }
   } catch {
     // The todo page remains the authoritative in-app fallback.
@@ -77,13 +92,8 @@ export function useAlertPoller(): void {
             userVisibleOnly: true,
             applicationServerKey: base64UrlToBytes(PUSH_PUBLIC_KEY),
           }));
-        const response = await fetch("/api/alert-subscriptions", {
-          method: "POST",
-          credentials: "include",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(subscription),
-        });
-        if (!response.ok) throw new Error("subscription endpoint unavailable");
+        const result = await registerPushSubscriptionAction(subscription.toJSON());
+        if (!result.ok) throw new Error(result.error.message);
       } catch (error) {
         console.warn("[alerts] Web Push unavailable; using foreground fallback:", error);
         startForegroundFallback();

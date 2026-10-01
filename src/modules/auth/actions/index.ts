@@ -6,6 +6,7 @@ import { signIn, signOut } from "@/lib/auth/config";
 import { verifyPassword } from "@/lib/auth/password";
 import { messages } from "@/lib/messages";
 import type { ActionResult } from "@/lib/action";
+import { deactivateAlertSubscriptionsByUser } from "@/modules/todo-items/repository/alert-subscriptions";
 import { auditLogout, getUserByUsername, setPassword } from "../repository/users";
 import { changePasswordInput, loginInput } from "../schemas/user";
 
@@ -48,11 +49,16 @@ export async function loginAction(
 
 export async function logoutAction(): Promise<void> {
   try {
-    // Best-effort audit: a transient DB outage must not leave the cookie
+    // Best-effort cleanup: a transient DB outage must not leave the cookie
     // intact (especially dangerous on a shared device).  Both getSession()
-    // and auditLogout() require the database; either can throw.
+    // and the DB calls require the database; any of them can throw.
     const session = await authProvider.getSession();
-    if (session) await auditLogout(session.userId);
+    if (session) {
+      // Retire push subscriptions first so the browser stops receiving this
+      // user's to-do notifications the moment they sign out.
+      await deactivateAlertSubscriptionsByUser(session.userId, session.userId);
+      await auditLogout(session.userId);
+    }
   } catch {
     // Intentionally swallowed — proceed to sign out regardless.
   } finally {
@@ -113,8 +119,13 @@ export async function changePasswordAction(
       // Password was changed but re-login failed.  The old cookie is now
       // stale (SessionVersion was bumped), so clear it before returning —
       // otherwise requireSession() will reject every subsequent request and
-      // the user is stuck.  redirectTo is not used here; the client reads the
-      // UNAUTHENTICATED code and navigates to /login.
+      // the user is stuck.  Also retire push subscriptions so the browser
+      // stops delivering notifications for the now-invalidated session.
+      try {
+        await deactivateAlertSubscriptionsByUser(session.userId, session.userId);
+      } catch {
+        // Best-effort; sign out regardless.
+      }
       await signOut({ redirect: false });
       return {
         ok: false,

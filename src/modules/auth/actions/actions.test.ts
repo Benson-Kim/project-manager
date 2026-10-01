@@ -19,6 +19,9 @@ vi.mock("@/lib/auth/password", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/auth/password")>()),
   verifyPassword: vi.fn(),
 }));
+vi.mock("@/modules/todo-items/repository/alert-subscriptions", () => ({
+  deactivateAlertSubscriptionsByUser: vi.fn(),
+}));
 vi.mock("../repository/users", () => ({
   auditLogout: vi.fn(),
   getUserByUsername: vi.fn(),
@@ -30,6 +33,7 @@ import { auth as authProvider } from "@/lib/auth/provider";
 import { signIn, signOut } from "@/lib/auth/config";
 import { verifyPassword } from "@/lib/auth/password";
 import { messages } from "@/lib/messages";
+import { deactivateAlertSubscriptionsByUser } from "@/modules/todo-items/repository/alert-subscriptions";
 import { changePasswordAction, loginAction, logoutAction } from ".";
 import { auditLogout, getUserByUsername, setPassword } from "../repository/users";
 
@@ -41,6 +45,7 @@ const mockGetUser = vi.mocked(getUserByUsername);
 const mockSetPassword = vi.mocked(setPassword);
 const mockAuditLogout = vi.mocked(auditLogout);
 const mockVerify = vi.mocked(verifyPassword);
+const mockDeactivateByUser = vi.mocked(deactivateAlertSubscriptionsByUser);
 
 const session = { userId: 7, username: "pm", role: "ProjectManager" as const };
 
@@ -134,24 +139,36 @@ describe("logoutAction", () => {
     vi.resetAllMocks();
   });
 
-  it("audits the logout for the signed-in user, then signs out", async () => {
+  it("retires push subscriptions, audits the logout, then signs out", async () => {
     mockGetSession.mockResolvedValue(session);
     await logoutAction();
+    expect(mockDeactivateByUser).toHaveBeenCalledWith(7, 7);
     expect(mockAuditLogout).toHaveBeenCalledWith(7);
     expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/login" });
   });
 
-  it("without a session: no audit row, still signs out", async () => {
+  it("without a session: no cleanup, no audit row, still signs out", async () => {
     mockGetSession.mockResolvedValue(null);
     await logoutAction();
+    expect(mockDeactivateByUser).not.toHaveBeenCalled();
     expect(mockAuditLogout).not.toHaveBeenCalled();
     expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/login" });
   });
 
-  it("getSession DB failure: audit is skipped but signOut still executes", async () => {
+  it("getSession DB failure: cleanup is skipped but signOut still executes", async () => {
     mockGetSession.mockRejectedValue(new Error("DB connection refused"));
     await logoutAction();
+    expect(mockDeactivateByUser).not.toHaveBeenCalled();
     expect(mockAuditLogout).not.toHaveBeenCalled();
+    expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/login" });
+  });
+
+  it("deactivateByUser DB failure: cleanup throws but signOut still executes", async () => {
+    mockGetSession.mockResolvedValue(session);
+    mockDeactivateByUser.mockRejectedValue(new Error("DB timeout"));
+    await logoutAction();
+    expect(mockDeactivateByUser).toHaveBeenCalledWith(7, 7);
+    // auditLogout is not reached when deactivateByUser throws (same try block)
     expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/login" });
   });
 
@@ -159,6 +176,7 @@ describe("logoutAction", () => {
     mockGetSession.mockResolvedValue(session);
     mockAuditLogout.mockRejectedValue(new Error("DB timeout"));
     await logoutAction();
+    expect(mockDeactivateByUser).toHaveBeenCalledWith(7, 7);
     expect(mockAuditLogout).toHaveBeenCalledWith(7);
     expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/login" });
   });
@@ -224,12 +242,14 @@ describe("changePasswordAction", () => {
     });
   });
 
-  it("password changed but re-login failed: signOut clears the stale cookie, returns UNAUTHENTICATED", async () => {
+  it("password changed but re-login failed: retires push subs, signOut clears cookie, returns UNAUTHENTICATED", async () => {
     mockSignIn.mockRejectedValue(new AuthError("CredentialsSignin"));
     const result = await changePasswordAction(null, changeForm());
     expect(mockSetPassword).toHaveBeenCalledWith(7, NEW_PASSWORD, 7);
-    // signOut MUST be called before returning so the stale SessionVersion
-    // cookie is cleared; without it every subsequent request is rejected.
+    // Push subscriptions MUST be retired and signOut MUST be called before
+    // returning so neither push messages nor the stale SessionVersion cookie
+    // survive for the now-invalidated session.
+    expect(mockDeactivateByUser).toHaveBeenCalledWith(7, 7);
     expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
     expect(result).toEqual({
       ok: false,

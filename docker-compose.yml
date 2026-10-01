@@ -23,7 +23,14 @@ services:
       retries: 10
 
   app:
-    build: .
+    build:
+      context: .
+      args:
+        # The VAPID public key must reach the build stage so Next.js can inline
+        # it into the client bundle (NEXT_PUBLIC_* are baked at compile time,
+        # not at runtime).  The key is the public half of an asymmetric pair and
+        # is safe to pass as a build argument.
+        NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY: "${NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY:-}"
     depends_on:
       mssql:
         condition: service_healthy
@@ -36,6 +43,11 @@ services:
       # >= 32 random bytes (openssl rand -base64 32); no default — real
       # sessions require a real secret even in local dev (module #4).
       AUTH_SECRET: "${AUTH_SECRET:?set AUTH_SECRET in .env — openssl rand -base64 32}"
+      # Repeated here as a runtime env var for completeness; Next.js does NOT
+      # read NEXT_PUBLIC_* at runtime — the build-arg above (build.args) is what
+      # actually inlines the value into the client bundle.  Operators can safely
+      # omit this runtime entry; it is kept so `docker inspect` shows the full
+      # key set in one place.
       NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY: "${NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY:-}"
       WEB_PUSH_VAPID_PRIVATE_KEY: "${WEB_PUSH_VAPID_PRIVATE_KEY:-}"
       WEB_PUSH_VAPID_SUBJECT: "${WEB_PUSH_VAPID_SUBJECT:-mailto:admin@example.test}"

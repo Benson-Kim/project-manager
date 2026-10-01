@@ -31,3 +31,30 @@ export async function deactivateAlertSubscription(alertSubscriptionId: number): 
     ActorUserId: 0,
   });
 }
+
+/**
+ * Stamp LastPushSentAtUtc on a subscription row after a successful Web Push
+ * send.  This advances the row past the delivery-list filter so subsequent
+ * same-day scheduler invocations skip it, preventing starvation of later rows.
+ */
+export async function recordAlertSubscriptionDelivery(alertSubscriptionId: number): Promise<void> {
+  await execProc("usp_AlertSubscription_RecordDelivery", {
+    AlertSubscriptionId: alertSubscriptionId,
+    ActorUserId: 0,
+  });
+}
+
+/**
+ * Retire all active push subscriptions for a user.  Called on logout and on
+ * password change so a signed-out shared browser immediately stops receiving
+ * that user's to-do notifications.
+ */
+export async function deactivateAlertSubscriptionsByUser(
+  userId: number,
+  actorUserId: number,
+): Promise<void> {
+  await execProc("usp_AlertSubscription_DeactivateByUser", {
+    UserId: userId,
+    ActorUserId: actorUserId,
+  });
+}

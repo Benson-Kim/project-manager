@@ -7,22 +7,38 @@ import { todoAlertFormSchema, updateTodoAlertFormSchema } from "./todo-alert-for
  * Covers date, time, vocab, optional int coercion.
  */
 
-const minimal = { todoItemId: "5", isDismissed: "false" };
+// Active alert — alertDay is required; dismissed alerts may omit it.
+const minimal = { todoItemId: "5", isDismissed: "false", alertDay: "2025-11-01" };
+const minimalDismissed = { todoItemId: "5", isDismissed: "true" };
 
 describe("todoAlertFormSchema", () => {
-  it("parses a minimal alert form", () => {
+  it("parses a minimal active alert form (day required)", () => {
     const parsed = todoAlertFormSchema.parse(minimal);
     expect(parsed.todoItemId).toBe(5);
     expect(parsed.isDismissed).toBe(false);
-    expect(parsed.alertDay).toBeNull();
+    expect(parsed.alertDay).toBeInstanceOf(Date);
     expect(parsed.alertTime).toBeNull();
     expect(parsed.repeatUnit).toBeNull();
     expect(parsed.repeatInterval).toBeNull();
     expect(parsed.maxSnoozeCount).toBeNull();
   });
 
+  it("rejects an active alert with no alertDay", () => {
+    const result = todoAlertFormSchema.safeParse({ todoItemId: "5", isDismissed: "false" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].path).toEqual(["alertDay"]);
+    }
+  });
+
+  it("allows a dismissed alert with no alertDay (never becomes due anyway)", () => {
+    const parsed = todoAlertFormSchema.parse(minimalDismissed);
+    expect(parsed.isDismissed).toBe(true);
+    expect(parsed.alertDay).toBeNull();
+  });
+
   it("coerces alertDay from YYYY-MM-DD string", () => {
-    const parsed = todoAlertFormSchema.parse({ ...minimal, alertDay: "2025-11-01" });
+    const parsed = todoAlertFormSchema.parse(minimal);
     expect(parsed.alertDay).toBeInstanceOf(Date);
     expect(parsed.alertDay?.toISOString().slice(0, 10)).toBe("2025-11-01");
   });
@@ -45,6 +61,20 @@ describe("todoAlertFormSchema", () => {
   it("rejects an invalid alertTime format", () => {
     const result = todoAlertFormSchema.safeParse({ ...minimal, alertTime: "9am" });
     expect(result.success).toBe(false);
+  });
+
+  it.each(["24:00", "29:99", "23:60", "00:00:60", "25:00:00"])(
+    "rejects out-of-range alertTime %s",
+    (alertTime) => {
+      const result = todoAlertFormSchema.safeParse({ ...minimal, alertTime });
+      expect(result.success).toBe(false);
+    },
+  );
+
+  it("accepts boundary alertTime values", () => {
+    expect(todoAlertFormSchema.safeParse({ ...minimal, alertTime: "00:00" }).success).toBe(true);
+    expect(todoAlertFormSchema.safeParse({ ...minimal, alertTime: "23:59" }).success).toBe(true);
+    expect(todoAlertFormSchema.safeParse({ ...minimal, alertTime: "23:59:59" }).success).toBe(true);
   });
 
   it("accepts a valid repeatUnit", () => {
