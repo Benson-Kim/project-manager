@@ -1,15 +1,17 @@
 -- usp_ParkingLotItem_List — paged/filtered list per ADR-0016. Search columns: ParkingLotItem. Sort whitelist: IsStrikethrough.
--- Entity app.ParkingLotItem (source: tblParkingLotItems). Module: database-schema-and-procs (#3).
+-- Entity app.ParkingLotItem (source: tblParkingLotItems). Module: parking-lot (#18).
+-- Updated: added @IsStrikethrough filter parameter.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_ParkingLotItem_List
-    @ActorUserId INT,
-    @ProjectId   INT           = NULL,
-    @Search      NVARCHAR(100) = NULL,
-    @SortBy      NVARCHAR(50)  = NULL,
-    @SortDir     VARCHAR(4)    = 'asc',
-    @Page        INT           = 1,
-    @PageSize    INT           = 25
+    @ActorUserId     INT,
+    @ProjectId       INT           = NULL,
+    @Search          NVARCHAR(100) = NULL,
+    @SortBy          NVARCHAR(50)  = NULL,
+    @SortDir         VARCHAR(4)    = 'asc',
+    @Page            INT           = 1,
+    @PageSize        INT           = 25,
+    @IsStrikethrough BIT           = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -31,6 +33,7 @@ BEGIN
     WHERE IsDeleted = 0
       AND (@ProjectId IS NULL OR ProjectId = @ProjectId)
       AND (@Search IS NULL OR [ParkingLotItem] LIKE N'%' + @Search + N'%')
+      AND (@IsStrikethrough IS NULL OR [IsStrikethrough] = @IsStrikethrough)
     ORDER BY
         CASE WHEN @SortBy = N'IsStrikethrough' AND @SortDir = 'asc'  THEN [IsStrikethrough] END ASC,
         CASE WHEN @SortBy = N'IsStrikethrough' AND @SortDir = 'desc' THEN [IsStrikethrough] END DESC,
