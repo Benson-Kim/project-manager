@@ -51,7 +51,10 @@ test.describe("kitchen sink — shared primitives", () => {
 
   test("confirm dialog focuses Cancel by default", async ({ page }) => {
     await page.getByRole("button", { name: "Open confirm" }).click();
-    await expect(page.getByRole("button", { name: "Cancel" })).toBeFocused();
+    const cancelBtn = page.getByRole("button", { name: "Cancel" });
+    // Wait for dialog to be visible before checking focus (Radix portal animation).
+    await expect(cancelBtn).toBeVisible();
+    await expect(cancelBtn).toBeFocused();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
     await expect(page.getByTestId("toast-success")).toBeVisible();
   });
