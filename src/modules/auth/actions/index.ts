@@ -47,9 +47,17 @@ export async function loginAction(
 }
 
 export async function logoutAction(): Promise<void> {
-  const session = await authProvider.getSession();
-  if (session) await auditLogout(session.userId);
-  await signOut({ redirectTo: "/login" });
+  try {
+    // Best-effort audit: a transient DB outage must not leave the cookie
+    // intact (especially dangerous on a shared device).  Both getSession()
+    // and auditLogout() require the database; either can throw.
+    const session = await authProvider.getSession();
+    if (session) await auditLogout(session.userId);
+  } catch {
+    // Intentionally swallowed — proceed to sign out regardless.
+  } finally {
+    await signOut({ redirectTo: "/login" });
+  }
 }
 
 export async function changePasswordAction(
@@ -102,7 +110,12 @@ export async function changePasswordAction(
     return { ok: false, error: { code: "INTERNAL", message: messages.errors.INTERNAL } };
   } catch (err) {
     if (err instanceof AuthError) {
-      // Password was changed but re-login failed — send them to /login.
+      // Password was changed but re-login failed.  The old cookie is now
+      // stale (SessionVersion was bumped), so clear it before returning —
+      // otherwise requireSession() will reject every subsequent request and
+      // the user is stuck.  redirectTo is not used here; the client reads the
+      // UNAUTHENTICATED code and navigates to /login.
+      await signOut({ redirect: false });
       return {
         ok: false,
         error: { code: "UNAUTHENTICATED", message: messages.errors.UNAUTHENTICATED },

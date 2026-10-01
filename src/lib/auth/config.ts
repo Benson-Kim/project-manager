@@ -7,6 +7,7 @@ import {
   recordLoginAttempt,
 } from "@/modules/auth/repository/users";
 import { loginInput } from "@/modules/auth/schemas/user";
+import { getEnv } from "@/lib/env";
 import { verifyPassword } from "./password";
 import type { Role } from "./types";
 
@@ -39,6 +40,36 @@ function requireAuthSecret(): void {
   }
 }
 
+/**
+ * Derive the real client IP from the request, trusting exactly
+ * `TRUSTED_PROXY_COUNT` hops from the right of the X-Forwarded-For chain.
+ *
+ * Why rightmost-N? Each hop in the chain is appended by the hop itself:
+ *   Client → Proxy1 → Proxy2 → App
+ *   X-Forwarded-For: <client>, <proxy1>     (Proxy2 appended <proxy1>; App sees this)
+ *
+ * Addresses appended by proxies we control are trustworthy; addresses supplied
+ * by the client or by upstream infrastructure we don't control are not. With
+ * TRUSTED_PROXY_COUNT=1 we drop the rightmost 1 address (set by our proxy) and
+ * take the next one — that is what our proxy recorded as the incoming address.
+ * With TRUSTED_PROXY_COUNT=0 we ignore XFF entirely; any value there was set by
+ * the client or an untrusted intermediary.
+ *
+ * Exported for unit tests.
+ */
+export function getTrustedIp(headers: Headers | undefined, trustedProxyCount: number): string {
+  if (trustedProxyCount <= 0) return "unknown";
+  const xff = headers?.get("x-forwarded-for");
+  if (!xff) return "unknown";
+  const addrs = xff.split(",").map((s) => s.trim()).filter(Boolean);
+  // Strip the rightmost `trustedProxyCount` entries (our own proxy hops).
+  // The candidate is the entry immediately before them.
+  const candidateIndex = addrs.length - trustedProxyCount - 1;
+  const ip = addrs[candidateIndex];
+  // Reject empty or obviously invalid values — fall back to unknown.
+  return ip && ip.length > 0 ? ip : "unknown";
+}
+
 /** Exported for unit tests: the single login gatekeeper (see module JSDoc). */
 export async function authorizeCredentials(
   credentials: unknown,
@@ -50,7 +81,8 @@ export async function authorizeCredentials(
   if (!parsed.success) return null;
   const { username, password } = parsed.data;
 
-  const ip = request.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const { TRUSTED_PROXY_COUNT } = getEnv();
+  const ip = getTrustedIp(request.headers, TRUSTED_PROXY_COUNT);
 
   // 1. Fixed-window IP rate limit — deny before any credential work.
   const rate = await recordIpLoginAttempt(ip);

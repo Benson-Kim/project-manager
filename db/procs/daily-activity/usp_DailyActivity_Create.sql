@@ -3,7 +3,7 @@
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_DailyActivity_Create
-    @ProjectId INT,
+    @ProjectId INT = NULL,
     @ActivityStatusId INT = NULL,
     @Requester NVARCHAR(255) = NULL,
     @Task NVARCHAR(MAX) = NULL,
@@ -23,8 +23,6 @@ AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
-    IF @ProjectId IS NULL
-        THROW 50004, N'VALIDATION:ProjectId is required', 1;
     BEGIN TRAN;
 
     INSERT INTO app.DailyActivity ([ProjectId], [ActivityStatusId], [Requester], [Task], [MyActivity], [ActivityDate], [Comments], [RequestDate], [Status], [CompleteDate], [ContactMethod], [TimeSpent], [AssignedTo], [TaskType], [Progress], CreatedBy)

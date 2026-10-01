@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
 import { messages } from "@/lib/messages";
 
@@ -11,7 +10,6 @@ export default async function Page() {
   await auth.requireSession();
   return (
     <>
-      <PageHeader title={messages.nav.reports} />
       <p className="text-sm text-ink-muted">{messages.app.moduleNotAvailable}</p>
       <Link
         href="/projects"

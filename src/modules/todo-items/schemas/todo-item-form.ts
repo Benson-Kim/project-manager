@@ -31,18 +31,13 @@ const vocab = <T extends readonly [string, ...string[]]>(values: T) =>
     .refine((v) => !v || (values as readonly string[]).includes(v), messages.errors.VALIDATION)
     .transform((v) => (v ? (v as T[number]) : null));
 
-const nullableProjectId = z.union([
-  z.null(),
-  z.number().int().positive(),
-  z
-    .string()
-    .trim()
-    .transform((value) => (value === "" ? null : Number(value)))
-    .pipe(z.number().int().positive().nullable()),
-]);
-
 export const todoItemFormSchema = z.object({
-  projectId: nullableProjectId,
+  // FormData emits "" or "0" when no project is selected (global create).
+  // Coerce both to null so the repo receives NULL rather than 0.
+  projectId: z
+    .union([z.literal(""), z.literal("0"), z.null()])
+    .transform(() => null)
+    .or(z.coerce.number().int().positive()),
   dailyActivityId: z
     .string()
     .trim()

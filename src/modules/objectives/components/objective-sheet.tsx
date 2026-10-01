@@ -102,13 +102,13 @@ export function ObjectiveSheet({
               defaultValue={objective?.ObjectiveText ?? ""}
             />
           </Field>
-          <Field label={messages.objectives.qMeasurable} name="qMeasurable">
+          <Field label={messages.objectives.qMeasurable} name="qMeasurable" errors={form.errors.qMeasurable}>
             <Input name="qMeasurable" defaultValue={objective?.QMeasurable ?? ""} />
           </Field>
-          <Field label={messages.objectives.qSuccess} name="qSuccess">
+          <Field label={messages.objectives.qSuccess} name="qSuccess" errors={form.errors.qSuccess}>
             <Textarea name="qSuccess" rows={3} defaultValue={objective?.QSuccess ?? ""} />
           </Field>
-          <Field label={messages.objectives.qAlignmentStrategy} name="qAlignmentStrategy">
+          <Field label={messages.objectives.qAlignmentStrategy} name="qAlignmentStrategy" errors={form.errors.qAlignmentStrategy}>
             <Input
               name="qAlignmentStrategy"
               defaultValue={objective?.QAlignmentStrategy ?? ""}

@@ -1,5 +1,7 @@
 -- usp_TodoAlert_Create — insert one app.TodoAlert row; audits in-transaction; returns the new row.
 -- Entity app.TodoAlert (source: tblTodoList (alert engine columns, 1:1)). Module: database-schema-and-procs (#3).
+-- THROW 50001 NOT_FOUND     : @TodoItemId does not exist or is soft-deleted.
+-- THROW 50003 FORBIDDEN_ROW : actor is not the TodoItem owner nor Admin/ProjectManager.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_TodoAlert_Create
@@ -21,6 +23,7 @@ BEGIN
     SET XACT_ABORT ON;
     IF @TodoItemId IS NULL
         THROW 50004, N'VALIDATION:TodoItemId is required', 1;
+
     IF NOT EXISTS (
         SELECT 1 FROM app.TodoItem
         WHERE TodoItemId = @TodoItemId AND IsDeleted = 0

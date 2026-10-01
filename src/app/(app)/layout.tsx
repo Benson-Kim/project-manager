@@ -18,7 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const session = await auth.getSession();
   const canCreateProject = session ? can(session.role, "projects:create") : false;
   const canCreateDailyActivity = session ? can(session.role, "daily-activities:create") : false;
-  const canCreateTodo = session ? can(session.role, "todo-alerts:create") : false;
+  const canCreateTodo = session ? can(session.role, "todo-items:create") : false;
   let upcoming: UpcomingAlert[] = [];
   let projectOptions: ProjectOption[] = [];
   if (session) {
