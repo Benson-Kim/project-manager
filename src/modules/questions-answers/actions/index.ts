@@ -10,8 +10,8 @@ import { questionAnswerFormSchema, updateQuestionAnswerFormSchema } from "../sch
 import { deleteQuestionAnswerInput } from "../schemas/question-answer";
 
 /**
- * Create a Q&A record (RBAC questions-answers:create — Admin + PM + Contributor;
- * audited in-proc). See rbac.ts CONTRIBUTOR_WRITE_MODULES.
+ * Create a Q&A record (RBAC questions-answers:create — Admin + PM; audited in-proc).
+ * Contributor cannot create (delete = false; create = false per RBAC matrix).
  */
 export const createQuestionAnswerAction = action({
   name: "questions-answers.create",
