@@ -386,7 +386,7 @@ export function TodoItemSheet({
               {(todoAlert.SnoozeOptions ?? "5,10,15")
                 .split(",")
                 .map((s) => s.trim())
-                .filter(Boolean)
+                .filter((s) => Boolean(s) && /^\d+$/.test(s))
                 .map((mins) => (
                   <Button
                     key={mins}

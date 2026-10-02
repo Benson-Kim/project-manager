@@ -47,6 +47,7 @@
   --z-nav: 30;
   --z-sheet: 40;
   --z-dialog: 50;
+  --z-dropdown: 55;
   --z-toast: 60;
 }
 
@@ -167,6 +168,85 @@ button:focus-visible {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Print stylesheet (Gantt report) ──────────────────────────────────────────
+   Hides the entire app chrome; lets the Gantt chart fill the page width.
+   Bars already carry [print-color-adjust:exact] so colours survive.
+   ──────────────────────────────────────────────────────────────────────────── */
+@media print {
+  /* Force white background regardless of selected theme. */
+  :root,
+  [data-theme="dark"] {
+    --surface: #ffffff;
+    --surface-raised: #ffffff;
+    --surface-sunken: #f8fafc;
+    --ink: #0f172a;
+    --ink-muted: #475569;
+    --ink-faint: #94a3b8;
+    --line: #e2e8f0;
+    color-scheme: light;
+  }
+
+  /* Hide everything that is not the Gantt content. */
+  nav,
+  header,
+  [data-gantt-toolbar],
+  [data-testid="list-link"],
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Reset the shell flex wrapper so the main area fills the page. */
+  body,
+  body > div,
+  body > div > div {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    border: none !important;
+    border-radius: 0 !important;
+    min-height: unset !important;
+  }
+
+  /* Page margins. */
+  @page {
+    margin: 12mm 10mm;
+    size: A4 landscape;
+  }
+
+  /* The Gantt scroll container: remove clipping, let it flow to full width. */
+  [data-testid="gantt-chart"] {
+    overflow: visible !important;
+    border: none !important;
+    border-radius: 0 !important;
+    width: 100% !important;
+  }
+
+  /* The inner min-width div: let the browser scale it to fit the page. */
+  [data-testid="gantt-chart"] > div {
+    min-width: unset !important;
+    width: 100% !important;
+  }
+
+  /* Sticky positioning does not apply to print; remove it so columns lay out
+     normally in the flat flow. */
+  [data-testid="gantt-chart"] .sticky {
+    position: static !important;
+  }
+
+  /* Avoid page breaks inside a bar row. */
+  [data-testid="gantt-chart"] li {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Ensure bar fill colours render. */
+  * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 }
 

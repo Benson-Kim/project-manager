@@ -28,7 +28,7 @@ export type ObjectiveListRow = z.infer<typeof objectiveListRowSchema>;
 
 export const createObjectiveInput = z.object({
   projectId: z.number().int().positive(),
-  objectiveText: z.string().trim().min(1).max(2000).nullable(),
+  objectiveText: z.string().trim().min(1).max(2000),
   qMeasurable: z.string().trim().max(255).nullish(),
   qSuccess: z.string().trim().max(2000).nullish(),
   qAlignmentStrategy: z.string().trim().max(255).nullish(),

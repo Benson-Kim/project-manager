@@ -130,7 +130,7 @@ export function ProjectForm({
       <fieldset disabled={!canEdit} className="flex flex-col gap-6">
         <section
           aria-labelledby="charter-heading"
-          className="flex flex-col gap-4  border border-line bg-linear-60 rounded-md"
+          className="flex flex-col gap-4  border border-line rounded-md bg-surface [background-image:linear-gradient(to_bottom,var(--surface-raised),var(--surface)_40%)]"
         >
           <SectionHeading id="charter-heading">Project Identity</SectionHeading>
           <div className="px-4 py-3 flex flex-col gap-4">
@@ -182,7 +182,7 @@ export function ProjectForm({
 
         <section
           aria-labelledby="framework-heading"
-          className="flex flex-col gap-4  border border-line bg-linear-60 rounded-md"
+          className="flex flex-col gap-4  border border-line rounded-md bg-surface [background-image:linear-gradient(to_bottom,var(--surface-raised),var(--surface)_40%)]"
         >
           <SectionHeading id="framework-heading">
             {messages.projects.frameworkSection}
@@ -261,7 +261,7 @@ export function ProjectForm({
 
         <section
           aria-labelledby="financing-heading"
-          className="flex flex-col gap-4  border border-line bg-linear-60 rounded-md"
+          className="flex flex-col gap-4  border border-line rounded-md bg-surface [background-image:linear-gradient(to_bottom,var(--surface-raised),var(--surface)_40%)]"
         >
           <SectionHeading id="financing-heading">
             {messages.projects.financingSection}

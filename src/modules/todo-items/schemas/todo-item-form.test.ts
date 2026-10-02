@@ -8,6 +8,7 @@ import { isApproachingDeadline, isOverdue } from "./todo-item";
  */
 
 const minimal = { projectId: "3", todoItem: "Review deliverables" };
+const DAY_MS = 86_400_000;
 
 describe("todoItemFormSchema", () => {
   it("parses a minimal form", () => {
@@ -118,8 +119,8 @@ describe("updateTodoItemFormSchema", () => {
 });
 
 describe("isOverdue", () => {
-  const yesterday = new Date(Date.now() - 86_400_000);
-  const tomorrow = new Date(Date.now() + 86_400_000);
+  const yesterday = new Date(Date.now() - DAY_MS);
+  const tomorrow = new Date(Date.now() + DAY_MS);
 
   // Today at UTC midnight — same calendar day as today, must NOT be overdue.
   const todayUtcMidnight = new Date();
@@ -155,9 +156,9 @@ describe("isOverdue", () => {
 });
 
 describe("isApproachingDeadline", () => {
-  const yesterday = new Date(Date.now() - 86_400_000);
-  const tomorrow = new Date(Date.now() + 86_400_000);
-  const inThreeDays = new Date(Date.now() + 3 * 86_400_000);
+  const yesterday = new Date(Date.now() - DAY_MS);
+  const tomorrow = new Date(Date.now() + DAY_MS);
+  const inThreeDays = new Date(Date.now() + 3 * DAY_MS);
 
   it("returns true when due tomorrow", () => {
     expect(isApproachingDeadline({ DueDate: tomorrow, Status: "In Progress" })).toBe(true);

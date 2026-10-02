@@ -3,8 +3,15 @@ import { z } from "zod";
 /**
  * KeyDeliverable (app.KeyDeliverable ← tblKeyRequirementsDeliverable) — zod
  * contracts for module #9. Row schema mirrors the SELECT shape of
- * usp_KeyDeliverable_{Create,GetById,List,Update} exactly ;
+ * usp_KeyDeliverable_{Create,GetById,List,Update} exactly;
  * CAST(RowVer AS BIGINT) arrives as a string and is coerced.
+ *
+ * Schema changes (migration 015):
+ * - RequestedDate: nullable date — when the deliverable was requested.
+ * - Deadline: maps to "expected date" in the UI (label only, column unchanged).
+ * - AssignedToStakeholderId: removed; replaced by junction table.
+ * - AssigneeNames: comma-separated display string from junction table.
+ * - AssigneesJson: JSON array [{id, name}] from junction table.
  */
 export const rowVerSchema = z.coerce.number().int().nonnegative();
 
@@ -18,41 +25,69 @@ export const DELIVERABLE_STATUSES = [
 ] as const;
 export const DELIVERABLE_PRIORITIES = ["Critical", "Important", "Normal", "Low"] as const;
 
-export const keyDeliverableRowSchema = z.object({
-  KeyDeliverableId: z.number().int(),
-  ProjectId: z.number().int().nullable(),
-  KeyRequirement: z.string().nullable(),
-  Deadline: z.date().nullable(),
-  AssignedToStakeholderId: z.number().int().nullable(),
-  Priority: z.string().nullable(),
-  Status: z.string().nullable(),
-  CreatedAtUtc: z.date(),
-  UpdatedAtUtc: z.date().nullable(),
-  RowVer: rowVerSchema,
+/** Parsed junction-table assignee entry. */
+export const assigneeEntrySchema = z.object({
+  id: z.coerce.number().int().positive(),
+  name: z.string(),
 });
+export type AssigneeEntry = z.infer<typeof assigneeEntrySchema>;
+
+/** Parse the AssigneesJson column returned by all procs.
+ *  Only null / empty string maps to []; any parse or schema error propagates
+ *  so that database drift or malformed data surfaces at the repository boundary
+ *  rather than silently replacing valid assignees with an empty set. */
+export function parseAssigneesJson(raw: unknown): AssigneeEntry[] {
+  if (raw === null || raw === undefined || raw === "") return [];
+  if (typeof raw !== "string") throw new Error(`AssigneesJson must be a string, got ${typeof raw}`);
+  const trimmed = raw.trim();
+  if (trimmed === "") return [];
+  const arr: unknown = JSON.parse(trimmed); // throws on malformed JSON
+  if (!Array.isArray(arr)) throw new Error(`AssigneesJson must be a JSON array, got ${JSON.stringify(arr)}`);
+  return arr.map((a) => assigneeEntrySchema.parse(a)); // throws on schema mismatch
+}
+
+export const keyDeliverableRowSchema = z
+  .object({
+    KeyDeliverableId: z.number().int(),
+    ProjectId: z.number().int().nullable(),
+    KeyRequirement: z.string().nullable(),
+    RequestedDate: z.date().nullable().optional(),
+    Deadline: z.date().nullable(),
+    Priority: z.string().nullable(),
+    Status: z.string().nullable(),
+    CreatedAtUtc: z.date(),
+    UpdatedAtUtc: z.date().nullable(),
+    RowVer: rowVerSchema,
+    AssigneeNames: z.string().nullable().optional(),
+    AssigneesJson: z.unknown().optional(),
+  })
+  .transform((r) => ({
+    ...r,
+    Assignees: parseAssigneesJson(r.AssigneesJson),
+  }));
 
 export type KeyDeliverableRow = z.infer<typeof keyDeliverableRowSchema>;
 
-export const keyDeliverableListRowSchema = keyDeliverableRowSchema.extend({
-  TotalCount: z.number().int(),
-});
+export const keyDeliverableListRowSchema = keyDeliverableRowSchema.and(
+  z.object({ TotalCount: z.number().int() }),
+);
 
 export type KeyDeliverableListRow = z.infer<typeof keyDeliverableListRowSchema>;
 
 /**
- * usp_KeyDeliverable_GanttData row: bar start basis is CreatedAtUtc (the table
- * has no explicit StartDate — module #9 decision), end is Deadline; the
- * project window (StartDate/EndDate) is the chart range basis.
+ * usp_KeyDeliverable_GanttData row. Bar start = RequestedDate when set,
+ * else CreatedAtUtc (clamped to deadline). End = Deadline.
  */
 export const ganttRowSchema = z.object({
   KeyDeliverableId: z.number().int(),
   ProjectId: z.number().int().nullable(),
   KeyRequirement: z.string().nullable(),
+  RequestedDate: z.date().nullable().optional(),
   Deadline: z.date().nullable(),
   Priority: z.string().nullable(),
   Status: z.string().nullable(),
-  AssignedToStakeholderId: z.number().int().nullable(),
-  AssignedToName: z.string().nullable(),
+  AssigneeNames: z.string().nullable().optional(),
+  AssigneesJson: z.unknown().optional(),
   CreatedAtUtc: z.date(),
   ProjectStartDate: z.date().nullable(),
   ProjectEndDate: z.date().nullable(),
@@ -65,20 +100,36 @@ export type GanttRow = z.infer<typeof ganttRowSchema>;
 export interface GanttBar {
   id: number;
   requirement: string;
-  /** CreatedAtUtc clamped to <= end. */
+  /** RequestedDate ?? CreatedAtUtc clamped to <= end. */
   start: Date;
   end: Date;
   status: string | null;
   priority: string | null;
-  assignedToName: string | null;
+  /** Comma-separated display string — kept for the visible bar label only. */
+  assigneeNames: string | null;
+  /** Structured assignees parsed from AssigneesJson — use for filtering. */
+  assignees: AssigneeEntry[];
   overdue: boolean;
+  /** 0–100: visual completion fill derived from status. */
+  completionPct: number;
+}
+
+/** Map a status string to a completion percentage for the bar fill. */
+export function statusToCompletion(status: string | null): number {
+  switch (status) {
+    case "Completed":   return 100;
+    case "In Progress": return 50;
+    case "On Hold":     return 20;
+    default:            return 0;
+  }
 }
 
 export const createKeyDeliverableInput = z.object({
   projectId: z.number().int().positive(),
   keyRequirement: z.string().trim().min(1).max(4000),
+  requestedDate: z.coerce.date().nullish(),
   deadline: z.coerce.date().nullish(),
-  assignedToStakeholderId: z.number().int().positive().nullish(),
+  assigneeIds: z.array(z.number().int().positive()).nullish(),
   priority: z.string().trim().max(255).nullish(),
   status: z.string().trim().max(255).nullish(),
 });
