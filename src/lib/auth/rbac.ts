@@ -15,6 +15,7 @@ import type { Permission, Role } from "./types";
  * Module sessions register their verbs here (append-only; keep sorted).
  */
 const CONTRIBUTOR_WRITE_MODULES = [
+  "assumptions-constraints",
   "daily-activities",
   "meetings",
   "notes",
