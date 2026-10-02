@@ -416,6 +416,8 @@ export const messages = {
     itemRequired: "Enter an item",
     participant: "Participant",
     strikethrough: "Resolved",
+    followUpActions: "Follow-up actions",
+    owner: "Owner",
     allParticipants: "All participants",
     allStatuses: "All statuses",
     active: "Active",

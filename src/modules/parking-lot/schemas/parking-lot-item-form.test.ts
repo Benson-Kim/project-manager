@@ -66,6 +66,26 @@ describe("parkingLotItemFormSchema", () => {
     const parsed = parkingLotItemFormSchema.parse({ ...minimal, isStrikethrough: true });
     expect(parsed.isStrikethrough).toBe(true);
   });
+
+  it("coerces empty-string followUpActions to null", () => {
+    const parsed = parkingLotItemFormSchema.parse({ ...minimal, followUpActions: "" });
+    expect(parsed.followUpActions).toBeNull();
+  });
+
+  it("keeps a supplied followUpActions string", () => {
+    const parsed = parkingLotItemFormSchema.parse({ ...minimal, followUpActions: "Check with team" });
+    expect(parsed.followUpActions).toBe("Check with team");
+  });
+
+  it("coerces empty-string owner to null", () => {
+    const parsed = parkingLotItemFormSchema.parse({ ...minimal, owner: "" });
+    expect(parsed.owner).toBeNull();
+  });
+
+  it("keeps a supplied owner string", () => {
+    const parsed = parkingLotItemFormSchema.parse({ ...minimal, owner: "Alice" });
+    expect(parsed.owner).toBe("Alice");
+  });
 });
 
 describe("updateParkingLotItemFormSchema", () => {

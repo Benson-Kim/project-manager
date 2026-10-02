@@ -21,6 +21,8 @@ function dbRow(overrides: Record<string, unknown> = {}) {
     ParkingLotItem: "Something to discuss",
     StakeholderId: 1,
     IsStrikethrough: false,
+    FollowUpActions: null,
+    Owner: null,
     CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),
     UpdatedAtUtc: null,
     RowVer: "42",
@@ -129,13 +131,14 @@ describe("parking-lot-items repository", () => {
     expect(params.IsStrikethrough).toBe(true);
   });
 
-  it("delete forwards ids and rowVer to the proc", async () => {
+  it("delete forwards ids, rowVer and role to the proc", async () => {
     execProc.mockResolvedValue([]);
-    await deleteParkingLotItem(3, 42, 1);
+    await deleteParkingLotItem(3, 42, 1, "Admin");
     const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(proc).toBe("usp_ParkingLotItem_Delete");
     expect(params.ParkingLotItemId).toBe(3);
     expect(params.RowVer).toBe(42);
     expect(params.ActorUserId).toBe(1);
+    expect(params.ActorRole).toBe("Admin");
   });
 });

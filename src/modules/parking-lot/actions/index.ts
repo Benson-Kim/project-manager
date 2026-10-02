@@ -17,7 +17,8 @@ export const createParkingLotItemAction = action({
   name: "parking-lot.create",
   schema: parkingLotItemFormSchema,
   permission: "parking-lot:create",
-  handler: (input, ctx) => createParkingLotItem(input, ctx.session.userId),
+  handler: (input, ctx) =>
+    createParkingLotItem(input, ctx.session.userId, ctx.session.role),
 });
 
 /**
@@ -28,7 +29,8 @@ export const updateParkingLotItemAction = action({
   name: "parking-lot.update",
   schema: updateParkingLotItemFormSchema,
   permission: "parking-lot:update",
-  handler: (input, ctx) => updateParkingLotItem(input, ctx.session.userId),
+  handler: (input, ctx) =>
+    updateParkingLotItem(input, ctx.session.userId, ctx.session.role),
 });
 
 /**
@@ -40,7 +42,12 @@ export const deleteParkingLotItemAction = action({
   schema: deleteParkingLotItemInput,
   permission: "parking-lot:delete",
   handler: async (input, ctx) => {
-    await deleteParkingLotItem(input.parkingLotItemId, input.rowVer, ctx.session.userId);
+    await deleteParkingLotItem(
+      input.parkingLotItemId,
+      input.rowVer,
+      ctx.session.userId,
+      ctx.session.role,
+    );
     return { parkingLotItemId: input.parkingLotItemId };
   },
 });

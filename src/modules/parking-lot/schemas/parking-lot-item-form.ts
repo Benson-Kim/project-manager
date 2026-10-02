@@ -24,6 +24,16 @@ export const parkingLotItemFormSchema = z.object({
     (v) => v === "on" || v === true || v === "true",
     z.boolean(),
   ),
+  followUpActions: z
+    .preprocess(
+      (v) => (v === "" || v == null ? null : String(v).trim()),
+      z.string().max(4000).nullable(),
+    ),
+  owner: z
+    .preprocess(
+      (v) => (v === "" || v == null ? null : String(v).trim()),
+      z.string().max(255).nullable(),
+    ),
 });
 
 export type ParkingLotItemFormValues = z.output<typeof parkingLotItemFormSchema>;
