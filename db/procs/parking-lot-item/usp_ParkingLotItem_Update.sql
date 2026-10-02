@@ -1,6 +1,8 @@
 -- usp_ParkingLotItem_Update — full-row update with rowversion concurrency (50002 CONFLICT) + in-transaction audit.
--- FORBIDDEN_ROW check: actor must be assigned to the row's project.
--- Admin role bypass: @ActorRole = N'Admin' skips the ProjectAssignee check.
+-- FORBIDDEN_ROW check: actor must be assigned to the row's current project.
+-- Destination-project check: when @ProjectId differs from the current ProjectId, actor must also
+--   be assigned to the destination project (same pattern as usp_Stakeholder_Update).
+-- Admin role bypass: @ActorRole = N'Admin' skips all ProjectAssignee checks.
 -- Entity app.ParkingLotItem (source: tblParkingLotItems). Module: parking-lot (#18).
 USE ProjectManager;
 GO
@@ -35,10 +37,20 @@ BEGIN
        )
         THROW 50003, N'FORBIDDEN_ROW:You are not assigned to this project', 1;
 
+    -- (2) Actor must also be assigned to the destination project when ProjectId is changing.
+    --     Admin role bypasses this check.
+    IF ISNULL(@ActorRole, '') <> N'Admin'
+       AND NOT EXISTS (
+           SELECT 1 FROM app.ProjectAssignee
+           WHERE ProjectId = @ProjectId AND UserId = @ActorUserId AND IsDeleted = 0
+       )
+        THROW 50003, N'FORBIDDEN_ROW:You are not assigned to the destination project', 1;
+
     BEGIN TRAN;
 
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT ParkingLotItemId, [ProjectId], [ParkingLotItem], [StakeholderId], [IsStrikethrough]
+        (SELECT ParkingLotItemId, [ProjectId], [ParkingLotItem], [StakeholderId], [IsStrikethrough],
+                [FollowUpActions], [Owner]
          FROM app.ParkingLotItem WHERE ParkingLotItemId = @ParkingLotItemId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 

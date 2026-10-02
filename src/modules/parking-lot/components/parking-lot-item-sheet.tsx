@@ -42,7 +42,7 @@ export function ParkingLotItemSheet({
   canDelete: boolean;
 }) {
   const router = useRouter();
-  const { update } = useListUrlState();
+  const { update, searchParams } = useListUrlState();
   const { toast } = useToast();
   const { announce } = useAnnouncer();
   const schema = item ? updateParkingLotItemFormSchema : parkingLotItemFormSchema;
@@ -71,7 +71,12 @@ export function ParkingLotItemSheet({
   const close = () => {
     setIsDirty(false);
     setShowUnsaved(false);
-    update({ id: null });
+    setSummary(null);
+    setConflict(false);
+    form.reset();
+    // Preserve the current page: update() strips 'page' unless explicitly included.
+    const currentPage = searchParams.get("page");
+    update({ id: null, ...(currentPage ? { page: currentPage } : {}) });
   };
 
   const discardAndNavigate = () => {

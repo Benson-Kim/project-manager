@@ -79,16 +79,15 @@ export function AssigneesEditor({
           return exists ? assignees : [...assignees, { role, personName: picked, userId: null }];
         })()
       : assignees;
-    if (pending_list.length === 0) {
-      setSummary(messages.projects.assigneeNameRequired);
-      return;
-    }
-    setPicked(null);
-    setComboboxKey((k) => k + 1);
+    // Allow an empty set: usp_ProjectAssignee_Set intentionally accepts [] to remove all assignees.
     setSummary(null);
     startTransition(async () => {
       const result = await setProjectAssigneesAction({ projectId, assignees: pending_list });
       if (result.ok) {
+        // Clear the combobox only after the server confirms success so that a
+        // failed save does not silently discard the pending selection on retry.
+        setPicked(null);
+        setComboboxKey((k) => k + 1);
         setAssignees(
           result.data.map((a) => ({ role: a.Role, personName: a.PersonName, userId: a.UserId })),
         );
