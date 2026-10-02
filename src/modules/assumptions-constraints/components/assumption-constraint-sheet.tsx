@@ -9,13 +9,16 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Sheet } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
-import { Input, Select, Switch, Textarea } from "@/components/ui/form/inputs";
+import { Select, Switch, Textarea } from "@/components/ui/form/inputs";
 import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
-import type { AssumptionConstraintRow } from "../schemas/assumption-constraint";
+import {
+  ASSUMPTION_CONSTRAINT_IMPACT_OPTIONS,
+  type AssumptionConstraintRow,
+} from "../schemas/assumption-constraint";
 import {
   assumptionConstraintFormSchema,
   updateAssumptionConstraintFormSchema,
@@ -45,7 +48,7 @@ export function AssumptionConstraintSheet({
   canDelete: boolean;
 }) {
   const router = useRouter();
-  const { update } = useListUrlState();
+  const { update, searchParams } = useListUrlState();
   const { toast } = useToast();
   const { announce } = useAnnouncer();
   const schema = item ? updateAssumptionConstraintFormSchema : assumptionConstraintFormSchema;
@@ -74,7 +77,9 @@ export function AssumptionConstraintSheet({
   const close = () => {
     setIsDirty(false);
     setShowUnsaved(false);
-    update({ id: null });
+    // Preserve the current page so closing a sheet from page 2+ returns to
+    // the same page rather than resetting to page 1 (review comment #9).
+    update({ id: null, page: searchParams.get("page") ?? null });
   };
 
   const discardAndNavigate = () => {
@@ -230,11 +235,12 @@ export function AssumptionConstraintSheet({
               name="impact"
               errors={form.errors.impact}
             >
-              <Input
-                name="impact"
-                type="text"
-                defaultValue={item?.Impact ?? ""}
-              />
+              <Select name="impact" defaultValue={item?.Impact ?? ""}>
+                <option value="">{messages.assumptionsConstraints.impactNone}</option>
+                {ASSUMPTION_CONSTRAINT_IMPACT_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </Select>
             </Field>
 
             <Field

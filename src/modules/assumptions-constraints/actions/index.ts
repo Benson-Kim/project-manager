@@ -21,7 +21,8 @@ export const createAssumptionConstraintAction = action({
   name: "assumptions-constraints.create",
   schema: assumptionConstraintFormSchema,
   permission: "assumptions-constraints:create",
-  handler: (input, ctx) => createAssumptionConstraint(input, ctx.session.userId),
+  handler: (input, ctx) =>
+    createAssumptionConstraint(input, ctx.session.userId, ctx.session.role),
 });
 
 /**
@@ -32,7 +33,8 @@ export const updateAssumptionConstraintAction = action({
   name: "assumptions-constraints.update",
   schema: updateAssumptionConstraintFormSchema,
   permission: "assumptions-constraints:update",
-  handler: (input, ctx) => updateAssumptionConstraint(input, ctx.session.userId),
+  handler: (input, ctx) =>
+    updateAssumptionConstraint(input, ctx.session.userId, ctx.session.role),
 });
 
 /**
@@ -48,6 +50,7 @@ export const deleteAssumptionConstraintAction = action({
       input.assumptionConstraintId,
       input.rowVer,
       ctx.session.userId,
+      ctx.session.role,
     );
     return { assumptionConstraintId: input.assumptionConstraintId };
   },

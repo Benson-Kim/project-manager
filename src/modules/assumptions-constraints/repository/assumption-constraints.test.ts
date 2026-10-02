@@ -35,7 +35,7 @@ describe("assumption-constraints repository", () => {
 
   it("create requires a non-empty description", async () => {
     await expect(
-      createAssumptionConstraint({ projectId: 2, description: "  ", isValidated: false }, 7),
+      createAssumptionConstraint({ projectId: 2, description: "  ", isValidated: false }, 7, "ProjectManager"),
     ).rejects.toThrow();
     expect(execProc).not.toHaveBeenCalled();
   });
@@ -45,6 +45,7 @@ describe("assumption-constraints repository", () => {
     const row = await createAssumptionConstraint(
       { projectId: 2, description: "An assumption about scope" },
       7,
+      "ProjectManager",
     );
     expect(row.AssumptionConstraintId).toBe(1);
     expect(row.RowVer).toBe(42);
@@ -107,6 +108,7 @@ describe("assumption-constraints repository", () => {
         isValidated: true,
       },
       7,
+      "ProjectManager",
     );
     const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(proc).toBe("usp_AssumptionConstraint_Update");
@@ -117,11 +119,12 @@ describe("assumption-constraints repository", () => {
 
   it("delete forwards ids and rowVer to the proc", async () => {
     execProc.mockResolvedValue([]);
-    await deleteAssumptionConstraint(1, 42, 7);
+    await deleteAssumptionConstraint(1, 42, 7, "ProjectManager");
     const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(proc).toBe("usp_AssumptionConstraint_Delete");
     expect(params.AssumptionConstraintId).toBe(1);
     expect(params.RowVer).toBe(42);
     expect(params.ActorUserId).toBe(7);
+    expect(params.ActorRole).toBe("ProjectManager");
   });
 });

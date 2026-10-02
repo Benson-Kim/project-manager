@@ -72,6 +72,7 @@ describe("assumptions-constraints actions", () => {
     expect(params.ProjectId).toBe(2);
     expect(params.Description).toBe("An assumption about scope");
     expect(params.ActorUserId).toBe(7);
+    expect(params.ActorRole).toBe("ProjectManager");
   });
 
   it("create returns VALIDATION for an empty description", async () => {
@@ -162,6 +163,7 @@ describe("assumptions-constraints actions", () => {
       AssumptionConstraintId: 1,
       RowVer: 42,
       ActorUserId: 7,
+      ActorRole: "ProjectManager",
     });
   });
 
