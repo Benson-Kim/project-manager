@@ -439,6 +439,7 @@ export const messages = {
     typeNone: "None",
     isValidated: "Validated",
     impact: "Impact",
+    impactNone: "None",
     mitigationPlan: "Mitigation plan",
     allTypes: "All types",
     emptyBody: "Add the first assumption or constraint for this project.",

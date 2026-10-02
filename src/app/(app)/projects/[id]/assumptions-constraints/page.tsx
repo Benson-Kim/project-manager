@@ -14,9 +14,9 @@ import {
   getAssumptionConstraintById,
   listAssumptionConstraints,
 } from "@/modules/assumptions-constraints/repository/assumption-constraints";
-import { getProjectById } from "@/modules/projects/repository/projects";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { parseProjectId } from "../project-id";
+import { getProjectCached } from "../get-project";
 
 export const metadata: Metadata = {
   title: `${messages.assumptionsConstraints.title} — ${messages.app.name}`,
@@ -40,9 +40,11 @@ export default async function AssumptionsConstraintsPage({
   const projectId = parseProjectId(id);
   if (projectId === null) notFound();
 
-  // Validate the parent project exists before listing child records (P2 guard).
+  // Validate the parent project exists before listing child records.
+  // Uses the request-scoped React cache so the layout's getProjectCached call
+  // and this call share ONE usp_Project_GetById round trip (review comment #7).
   try {
-    await getProjectById(projectId, session.userId);
+    await getProjectCached(projectId, session.userId);
   } catch (err) {
     if (err instanceof AppError && err.code === "NOT_FOUND") notFound();
     throw err;

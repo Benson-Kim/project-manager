@@ -79,10 +79,9 @@ export function AssigneesEditor({
           return exists ? assignees : [...assignees, { role, personName: picked, userId: null }];
         })()
       : assignees;
-    if (pending_list.length === 0) {
-      setSummary(messages.projects.assigneeNameRequired);
-      return;
-    }
+    // Allow saving an empty list — usp_ProjectAssignee_Set soft-deletes all
+    // omitted rows, so the editor must be able to clear all assignees
+    // (review comment #2).
     setPicked(null);
     setComboboxKey((k) => k + 1);
     setSummary(null);

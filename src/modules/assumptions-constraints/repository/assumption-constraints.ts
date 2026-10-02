@@ -1,5 +1,6 @@
 import { execProc } from "@/lib/db";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
+import type { Role } from "@/lib/auth/types";
 import {
   assumptionConstraintListRowSchema,
   assumptionConstraintRowSchema,
@@ -15,6 +16,8 @@ import {
 /**
  * AssumptionConstraint repository — stored procedures only, zod row parsing
  * (STANDARDS §2.5), list params forwarded 1:1.
+ * actorRole is forwarded to mutation procs for the ProjectAssignee check
+ * (Admin bypass); matches the Q&A repository pattern.
  */
 
 export interface AssumptionConstraintListFilters {
@@ -34,6 +37,7 @@ function toProcParams(input: CreateAssumptionConstraintParsed) {
 export async function createAssumptionConstraint(
   input: CreateAssumptionConstraintInput,
   actorUserId: number,
+  actorRole: Role,
 ): Promise<AssumptionConstraintRow> {
   const parsed = createAssumptionConstraintInput.parse(input);
   const rows = await execProc<AssumptionConstraintRow>(
@@ -42,6 +46,7 @@ export async function createAssumptionConstraint(
       ProjectId: parsed.projectId,
       ...toProcParams(parsed),
       ActorUserId: actorUserId,
+      ActorRole: actorRole,
     },
   );
   return assumptionConstraintRowSchema.parse(rows[0]);
@@ -83,6 +88,7 @@ export async function listAssumptionConstraints(
 export async function updateAssumptionConstraint(
   input: UpdateAssumptionConstraintInput,
   actorUserId: number,
+  actorRole: Role,
 ): Promise<AssumptionConstraintRow> {
   const parsed = updateAssumptionConstraintInput.parse(input);
   const rows = await execProc<AssumptionConstraintRow>(
@@ -93,6 +99,7 @@ export async function updateAssumptionConstraint(
       ...toProcParams(parsed),
       RowVer: parsed.rowVer,
       ActorUserId: actorUserId,
+      ActorRole: actorRole,
     },
   );
   return assumptionConstraintRowSchema.parse(rows[0]);
@@ -102,10 +109,12 @@ export async function deleteAssumptionConstraint(
   assumptionConstraintId: number,
   rowVer: number,
   actorUserId: number,
+  actorRole: Role,
 ): Promise<void> {
   await execProc("usp_AssumptionConstraint_Delete", {
     AssumptionConstraintId: assumptionConstraintId,
     RowVer: rowVer,
     ActorUserId: actorUserId,
+    ActorRole: actorRole,
   });
 }

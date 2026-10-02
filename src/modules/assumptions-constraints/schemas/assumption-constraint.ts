@@ -5,12 +5,16 @@ import { rowVerSchema } from "@/modules/projects/schemas/project";
  * AssumptionConstraint — zod contracts. Row schema mirrors the SELECT shape of
  * usp_AssumptionConstraint_{Create,GetById,List,Update}.
  *
- * Type is stored as free-text NVARCHAR(255); the UI constrains it to
- * Assumption | Constraint | (empty) but we accept any string from the DB.
+ * Type and Impact are constrained to their respective allowlists at the form
+ * and action boundaries (review comments #3 and #8). The row schema accepts
+ * any string from the DB to avoid breakage when existing rows carry legacy values.
  */
 
 export const ASSUMPTION_CONSTRAINT_TYPE_OPTIONS = ["Assumption", "Constraint"] as const;
 export type AssumptionConstraintType = (typeof ASSUMPTION_CONSTRAINT_TYPE_OPTIONS)[number];
+
+export const ASSUMPTION_CONSTRAINT_IMPACT_OPTIONS = ["High", "Medium", "Low"] as const;
+export type AssumptionConstraintImpact = (typeof ASSUMPTION_CONSTRAINT_IMPACT_OPTIONS)[number];
 
 export const assumptionConstraintRowSchema = z.object({
   AssumptionConstraintId: z.number().int(),

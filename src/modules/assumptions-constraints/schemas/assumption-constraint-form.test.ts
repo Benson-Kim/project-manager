@@ -57,6 +57,11 @@ describe("assumptionConstraintFormSchema", () => {
     expect(parsed.type).toBe("Assumption");
   });
 
+  it("rejects an invalid type string", () => {
+    const result = assumptionConstraintFormSchema.safeParse({ ...minimal, type: "Risk" });
+    expect(result.success).toBe(false);
+  });
+
   it("coerces checkbox 'on' to true for isValidated", () => {
     const parsed = assumptionConstraintFormSchema.parse({
       ...minimal,
@@ -78,6 +83,18 @@ describe("assumptionConstraintFormSchema", () => {
   it("keeps a supplied impact string", () => {
     const parsed = assumptionConstraintFormSchema.parse({ ...minimal, impact: "High" });
     expect(parsed.impact).toBe("High");
+  });
+
+  it("accepts all three impact values", () => {
+    for (const val of ["High", "Medium", "Low"] as const) {
+      const parsed = assumptionConstraintFormSchema.parse({ ...minimal, impact: val });
+      expect(parsed.impact).toBe(val);
+    }
+  });
+
+  it("rejects an invalid impact string", () => {
+    const result = assumptionConstraintFormSchema.safeParse({ ...minimal, impact: "Critical" });
+    expect(result.success).toBe(false);
   });
 
   it("coerces whitespace-only mitigationPlan to null", () => {
