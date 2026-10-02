@@ -41,6 +41,8 @@ function dbRow(overrides: Record<string, unknown> = {}) {
     ParkingLotItem: "Something to discuss",
     StakeholderId: 1,
     IsStrikethrough: false,
+    FollowUpActions: null,
+    Owner: null,
     CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),
     UpdatedAtUtc: null,
     RowVer: "42",
@@ -70,6 +72,7 @@ describe("parking-lot actions", () => {
     expect(params.ProjectId).toBe(2);
     expect(params.ParkingLotItem).toBe("Something to discuss");
     expect(params.ActorUserId).toBe(7);
+    expect(params.ActorRole).toBe("ProjectManager");
   });
 
   it("create returns VALIDATION with fieldErrors for an empty item", async () => {
@@ -149,7 +152,7 @@ describe("parking-lot actions", () => {
 
   // ── delete ───────────────────────────────────────────────────────────────
 
-  it("delete succeeds and forwards ids to the proc", async () => {
+  it("delete succeeds and forwards ids and role to the proc", async () => {
     execProc.mockResolvedValue([]);
     const result = await deleteParkingLotItemAction({ parkingLotItemId: 3, rowVer: 42 });
     expect(result.ok).toBe(true);
@@ -157,6 +160,7 @@ describe("parking-lot actions", () => {
       ParkingLotItemId: 3,
       RowVer: 42,
       ActorUserId: 7,
+      ActorRole: "ProjectManager",
     });
   });
 

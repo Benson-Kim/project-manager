@@ -215,6 +215,29 @@ export function ParkingLotItemSheet({
               />
             </Field>
 
+            <Field
+              label={messages.parkingLot.followUpActions}
+              name="followUpActions"
+              errors={form.errors.followUpActions}
+            >
+              <Textarea
+                name="followUpActions"
+                rows={3}
+                defaultValue={item?.FollowUpActions ?? ""}
+              />
+            </Field>
+
+            <Field
+              label={messages.parkingLot.owner}
+              name="owner"
+              errors={form.errors.owner}
+            >
+              <Input
+                name="owner"
+                defaultValue={item?.Owner ?? ""}
+              />
+            </Field>
+
             <Switch
               name="isStrikethrough"
               label={messages.parkingLot.strikethrough}

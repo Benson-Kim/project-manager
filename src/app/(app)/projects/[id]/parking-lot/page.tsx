@@ -14,8 +14,8 @@ import {
   getParkingLotItemById,
   listParkingLotItems,
 } from "@/modules/parking-lot/repository/parking-lot-items";
-import { getProjectById } from "@/modules/projects/repository/projects";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
+import { getProjectCached } from "../get-project";
 import { parseProjectId } from "../project-id";
 
 export const metadata: Metadata = {
@@ -40,9 +40,9 @@ export default async function ParkingLotPage({
   const projectId = parseProjectId(id);
   if (projectId === null) notFound();
 
-  // Validate the parent project exists before listing child records (P2 guard).
+  // Validate the parent project exists (React cache dedupes with layout's call).
   try {
-    await getProjectById(projectId, session.userId);
+    await getProjectCached(projectId, session.userId);
   } catch (err) {
     if (err instanceof AppError && err.code === "NOT_FOUND") notFound();
     throw err;
@@ -51,10 +51,7 @@ export default async function ParkingLotPage({
   const raw = await searchParams;
   const flat = flattenSearchParams(raw);
   const listParams = parseListParams(raw);
-  const effectiveParams = {
-    ...listParams,
-    sort: listParams.sort ?? "ParkingLotItem",
-  };
+  const effectiveParams = listParams;
 
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;

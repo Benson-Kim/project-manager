@@ -15,6 +15,8 @@ export const parkingLotItemRowSchema = z.object({
   ParkingLotItem: z.string().nullable(),
   StakeholderId: z.number().int().nullable(),
   IsStrikethrough: z.boolean(),
+  FollowUpActions: z.string().nullable(),
+  Owner: z.string().nullable(),
   CreatedAtUtc: z.date(),
   UpdatedAtUtc: z.date().nullable(),
   RowVer: rowVerSchema,
@@ -35,6 +37,8 @@ export const createParkingLotItemInput = z.object({
   parkingLotItem: z.string().trim().min(1).max(255),
   stakeholderId: z.number().int().positive().nullish(),
   isStrikethrough: z.boolean().default(false),
+  followUpActions: z.string().trim().max(4000).nullish(),
+  owner: z.string().trim().max(255).nullish(),
 });
 
 export type CreateParkingLotItemInput = z.input<typeof createParkingLotItemInput>;

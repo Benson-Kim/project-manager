@@ -13,10 +13,11 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/lib/**", "src/modules/**"],
-      // UI primitives (.tsx) are covered by Playwright over /kitchen-sink
-      // and per-module axe + happy-path specs; exclude them from the vitest
-      // coverage so the 80% threshold reflects logic (schemas/actions/repos).
-      exclude: ["src/lib/db.ts", "**/*.test.ts", "**/*.tsx"],
+      // UI components (.tsx) are covered by Playwright (kitchen-sink + per-module
+      // axe/happy-path specs). They run in a browser env that vitest node cannot
+      // reach, so exclude them here; the 80% gate applies to the testable logic
+      // layer: schemas, repositories, actions, and utility modules.
+      exclude: ["src/lib/db.ts", "**/*.test.ts", "src/**/*.tsx", "src/**/*.d.ts"],
       thresholds: {
         lines: 80,
         functions: 80,
