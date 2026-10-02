@@ -12,8 +12,12 @@ export default defineConfig({
     environment: "node",
     coverage: {
       provider: "v8",
+      // Scope: all logic in lib/ and modules/. Component files (.tsx) are
+      // exercised by Playwright e2e; they are excluded from the unit-test
+      // threshold so the 80% gate measures business logic coverage only.
+      // This matches STANDARDS §10: "coverage ≥ 80% on src/modules/** and
+      // src/lib/**" — the intent is logic coverage, not rendering coverage.
       include: ["src/lib/**", "src/modules/**"],
-      // Components (.tsx) are covered by Playwright — exclude from unit-test thresholds.
       exclude: ["src/lib/db.ts", "**/*.test.ts", "**/*.tsx"],
       thresholds: {
         lines: 80,
