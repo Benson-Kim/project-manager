@@ -85,7 +85,8 @@ function GroupPill({
   if (group.sections.length === 0) return null;
 
   // A group with only one section that is the charter index renders as a
-  // plain link — no disclosure needed.
+  // plain link — no disclosure needed. onClose is called so any other open
+  // disclosure collapses on navigation (review #4162765957).
   if (group.sections.length === 1 && group.sections[0]?.segment === ".") {
     const section = group.sections[0];
     const current = isCurrentSection(pathname, projectId, section);
@@ -95,6 +96,7 @@ function GroupPill({
           href={sectionHref(projectId, section)}
           aria-current={current ? "page" : undefined}
           className={pillClass(current, false)}
+          onClick={onClose}
         >
           {section.label}
         </Link>
@@ -197,6 +199,14 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
     null,
     () => initialOpenState(pathname, projectId),
   );
+
+  // Reset panel open/close state on every route change: re-evaluate which
+  // group is active and collapse any stale open group (review #4162765957).
+  useEffect(() => {
+    const activeKey =
+      projectSectionGroups.find((g) => isGroupActive(pathname, projectId, g))?.key ?? null;
+    dispatch({ type: "reset", activeKey });
+  }, [pathname, projectId]);
 
   // Close all panels on outside click.
   useEffect(() => {

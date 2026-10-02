@@ -168,7 +168,7 @@ export function AssigneesEditor({
             </Field>
           </div>
           <div className="flex flex-wrap gap-2 px-4 pb-4">
-            <Button type="button" variant="secondary" onClick={add}>
+            <Button type="button" variant="secondary" disabled={!picked} onClick={add}>
               {messages.projects.addAssignee}
             </Button>
             <Button type="button" pending={pending} onClick={save} data-testid="assignees-save">

@@ -32,7 +32,9 @@ const columns: DataViewColumn<AssumptionConstraintListRow>[] = [
     priority: 3,
     render: (r) => (
       <span className="text-sm text-ink-muted">
-        {r.IsValidated ? "Yes" : "No"}
+        {r.IsValidated
+          ? messages.assumptionsConstraints.validatedYes
+          : messages.assumptionsConstraints.validatedNo}
       </span>
     ),
   },

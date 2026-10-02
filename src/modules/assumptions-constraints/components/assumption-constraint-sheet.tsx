@@ -15,10 +15,7 @@ import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
-import {
-  ASSUMPTION_CONSTRAINT_IMPACT_OPTIONS,
-  type AssumptionConstraintRow,
-} from "../schemas/assumption-constraint";
+import type { AssumptionConstraintRow } from "../schemas/assumption-constraint";
 import {
   assumptionConstraintFormSchema,
   updateAssumptionConstraintFormSchema,
@@ -60,7 +57,7 @@ export function AssumptionConstraintSheet({
   const [isDirty, setIsDirty] = useState(false);
   const [showUnsaved, setShowUnsaved] = useState(false);
   const pendingNavRef = useRef<(() => void) | null>(null);
-  useUnsavedChangesGuard(isDirty);
+  const { markClean } = useUnsavedChangesGuard(isDirty);
 
   useEffect(() => {
     function handleBeforeNavigate(e: Event) {
@@ -75,6 +72,10 @@ export function AssumptionConstraintSheet({
   }, [isDirty]);
 
   const close = () => {
+    // Clear the guard ref SYNCHRONOUSLY before calling update() so the
+    // history.replaceState intercept in useUnsavedChangesGuard does not see
+    // dirtyRef.current===true and re-open the discard dialog (review #4162765945).
+    markClean();
     setIsDirty(false);
     setShowUnsaved(false);
     // Preserve the current page so closing a sheet from page 2+ returns to
@@ -237,9 +238,9 @@ export function AssumptionConstraintSheet({
             >
               <Select name="impact" defaultValue={item?.Impact ?? ""}>
                 <option value="">{messages.assumptionsConstraints.impactNone}</option>
-                {ASSUMPTION_CONSTRAINT_IMPACT_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
+                <option value="High">{messages.assumptionsConstraints.impactHigh}</option>
+                <option value="Medium">{messages.assumptionsConstraints.impactMedium}</option>
+                <option value="Low">{messages.assumptionsConstraints.impactLow}</option>
               </Select>
             </Field>
 
