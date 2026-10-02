@@ -109,6 +109,9 @@ e2e:
     E2E_SEED: "1"
     E2E_USER_PASSWORD: "E2e-Throwaway-User-2026"
     AUTH_SECRET: "e2e-throwaway-auth-secret-0123456789abcdefghijklmnopqrstuvwxyz"
+    # Stock SQL Server image uses a self-signed cert; trust it for this
+    # ephemeral CI job (production hosts mount a proper CA cert instead).
+    TRUST_SERVER_CERT: "true"
   before_script:
     - apt-get update -qq && apt-get install -y -qq curl gnupg2
     - curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg
