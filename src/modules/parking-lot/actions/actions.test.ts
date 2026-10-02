@@ -29,20 +29,20 @@ vi.mock("@/lib/db", () => ({
 
 import { AppError } from "@/lib/errors";
 import {
-  createQuestionAnswerAction,
-  deleteQuestionAnswerAction,
-  updateQuestionAnswerAction,
+  createParkingLotItemAction,
+  deleteParkingLotItemAction,
+  updateParkingLotItemAction,
 } from ".";
 
 function dbRow(overrides: Record<string, unknown> = {}) {
   return {
-    QuestionAnswerId: 7,
+    ParkingLotItemId: 3,
     ProjectId: 2,
-    Question: "What is the scope?",
-    Answer: "The full system.",
-    Category: "Technical",
-    Priority: "High",
-    AssignedTo: "Alice",
+    ParkingLotItem: "Something to discuss",
+    StakeholderId: 1,
+    IsStrikethrough: false,
+    FollowUpActions: null,
+    Owner: null,
     CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),
     UpdatedAtUtc: null,
     RowVer: "42",
@@ -50,7 +50,7 @@ function dbRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-describe("questions-answers actions", () => {
+describe("parking-lot actions", () => {
   beforeEach(() => {
     session = { userId: 7, username: "pm", role: "ProjectManager" };
     execProc.mockReset();
@@ -63,27 +63,27 @@ describe("questions-answers actions", () => {
     execProc.mockResolvedValue([dbRow()]);
     const fd = new FormData();
     fd.set("projectId", "2");
-    fd.set("question", "What is the scope?");
-    const result = await createQuestionAnswerAction(fd);
+    fd.set("parkingLotItem", "Something to discuss");
+    const result = await createParkingLotItemAction(fd);
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.data.QuestionAnswerId).toBe(7);
+    if (result.ok) expect(result.data.ParkingLotItemId).toBe(3);
     const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
-    expect(proc).toBe("usp_QuestionAnswer_Create");
+    expect(proc).toBe("usp_ParkingLotItem_Create");
     expect(params.ProjectId).toBe(2);
-    expect(params.Question).toBe("What is the scope?");
+    expect(params.ParkingLotItem).toBe("Something to discuss");
     expect(params.ActorUserId).toBe(7);
     expect(params.ActorRole).toBe("ProjectManager");
   });
 
-  it("create returns VALIDATION with fieldErrors for an empty question", async () => {
+  it("create returns VALIDATION with fieldErrors for an empty item", async () => {
     const fd = new FormData();
     fd.set("projectId", "2");
-    fd.set("question", "  ");
-    const result = await createQuestionAnswerAction(fd);
+    fd.set("parkingLotItem", "  ");
+    const result = await createParkingLotItemAction(fd);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe("VALIDATION");
-      expect(result.error.fieldErrors?.question).toBeDefined();
+      expect(result.error.fieldErrors?.parkingLotItem).toBeDefined();
     }
     expect(execProc).not.toHaveBeenCalled();
   });
@@ -92,48 +92,48 @@ describe("questions-answers actions", () => {
     session = { userId: 9, username: "viewer", role: "Viewer" };
     const fd = new FormData();
     fd.set("projectId", "2");
-    fd.set("question", "What is the scope?");
-    const result = await createQuestionAnswerAction(fd);
+    fd.set("parkingLotItem", "Something to discuss");
+    const result = await createParkingLotItemAction(fd);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
     expect(execProc).not.toHaveBeenCalled();
   });
 
-  it("create succeeds for a Contributor (Q&A is in CONTRIBUTOR_WRITE_MODULES)", async () => {
+  it("create succeeds for a Contributor (parking-lot is in CONTRIBUTOR_WRITE_MODULES)", async () => {
     session = { userId: 8, username: "contrib", role: "Contributor" };
     execProc.mockResolvedValue([dbRow()]);
     const fd = new FormData();
     fd.set("projectId", "2");
-    fd.set("question", "What is the scope?");
-    const result = await createQuestionAnswerAction(fd);
+    fd.set("parkingLotItem", "Something to discuss");
+    const result = await createParkingLotItemAction(fd);
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.data.QuestionAnswerId).toBe(7);
+    if (result.ok) expect(result.data.ParkingLotItemId).toBe(3);
   });
 
   // ── update ───────────────────────────────────────────────────────────────
 
-  it("update succeeds for a Contributor (Contributor can update)", async () => {
+  it("update succeeds for a Contributor", async () => {
     session = { userId: 8, username: "contrib", role: "Contributor" };
     execProc.mockResolvedValue([dbRow()]);
     const fd = new FormData();
     fd.set("projectId", "2");
-    fd.set("question", "Updated question");
-    fd.set("questionAnswerId", "7");
+    fd.set("parkingLotItem", "Updated item");
+    fd.set("parkingLotItemId", "3");
     fd.set("rowVer", "42");
-    const result = await updateQuestionAnswerAction(fd);
+    const result = await updateParkingLotItemAction(fd);
     expect(result.ok).toBe(true);
   });
 
   it("update maps a rowversion mismatch to CONFLICT", async () => {
     execProc.mockRejectedValue(
-      new AppError("CONFLICT", "Question/answer was modified by someone else"),
+      new AppError("CONFLICT", "ParkingLotItem was modified by someone else"),
     );
     const fd = new FormData();
     fd.set("projectId", "2");
-    fd.set("question", "What is the scope?");
-    fd.set("questionAnswerId", "7");
+    fd.set("parkingLotItem", "Something to discuss");
+    fd.set("parkingLotItemId", "3");
     fd.set("rowVer", "41");
-    const result = await updateQuestionAnswerAction(fd);
+    const result = await updateParkingLotItemAction(fd);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("CONFLICT");
   });
@@ -142,22 +142,22 @@ describe("questions-answers actions", () => {
     session = { userId: 9, username: "viewer", role: "Viewer" };
     const fd = new FormData();
     fd.set("projectId", "2");
-    fd.set("question", "What is the scope?");
-    fd.set("questionAnswerId", "7");
+    fd.set("parkingLotItem", "Something to discuss");
+    fd.set("parkingLotItemId", "3");
     fd.set("rowVer", "42");
-    const result = await updateQuestionAnswerAction(fd);
+    const result = await updateParkingLotItemAction(fd);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
   });
 
   // ── delete ───────────────────────────────────────────────────────────────
 
-  it("delete succeeds and forwards ids to the proc", async () => {
+  it("delete succeeds and forwards ids and role to the proc", async () => {
     execProc.mockResolvedValue([]);
-    const result = await deleteQuestionAnswerAction({ questionAnswerId: 7, rowVer: 42 });
+    const result = await deleteParkingLotItemAction({ parkingLotItemId: 3, rowVer: 42 });
     expect(result.ok).toBe(true);
-    expect(execProc).toHaveBeenCalledWith("usp_QuestionAnswer_Delete", {
-      QuestionAnswerId: 7,
+    expect(execProc).toHaveBeenCalledWith("usp_ParkingLotItem_Delete", {
+      ParkingLotItemId: 3,
       RowVer: 42,
       ActorUserId: 7,
       ActorRole: "ProjectManager",
@@ -166,7 +166,7 @@ describe("questions-answers actions", () => {
 
   it("delete is FORBIDDEN for a Contributor", async () => {
     session = { userId: 8, username: "contrib", role: "Contributor" };
-    const result = await deleteQuestionAnswerAction({ questionAnswerId: 7, rowVer: 42 });
+    const result = await deleteParkingLotItemAction({ parkingLotItemId: 3, rowVer: 42 });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
     expect(execProc).not.toHaveBeenCalled();
@@ -174,7 +174,7 @@ describe("questions-answers actions", () => {
 
   it("delete is FORBIDDEN for a Viewer", async () => {
     session = { userId: 9, username: "viewer", role: "Viewer" };
-    const result = await deleteQuestionAnswerAction({ questionAnswerId: 7, rowVer: 42 });
+    const result = await deleteParkingLotItemAction({ parkingLotItemId: 3, rowVer: 42 });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
     expect(execProc).not.toHaveBeenCalled();

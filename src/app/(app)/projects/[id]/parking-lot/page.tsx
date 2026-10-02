@@ -8,22 +8,27 @@ import { AppError } from "@/lib/errors";
 import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getViewPreference } from "@/lib/repositories/view-preference";
-import { KeywordSheet } from "@/modules/keywords/components/keyword-sheet";
-import { KeywordsView } from "@/modules/keywords/components/keywords-view";
-import { listKeywords, getKeywordById } from "@/modules/keywords/repository/keywords";
+import { ParkingLotItemSheet } from "@/modules/parking-lot/components/parking-lot-item-sheet";
+import { ParkingLotView } from "@/modules/parking-lot/components/parking-lot-view";
+import {
+  getParkingLotItemById,
+  listParkingLotItems,
+} from "@/modules/parking-lot/repository/parking-lot-items";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
+import { getProjectCached } from "../get-project";
 import { parseProjectId } from "../project-id";
 
 export const metadata: Metadata = {
-  title: `${messages.keywords.title} — ${messages.app.name}`,
+  title: `${messages.parkingLot.title} — ${messages.app.name}`,
 };
 
 /**
- * Keywords list project-scoped section under
- * /projects/[id]/keywords; DataView + search, detail/edit in the
- * URL-synced Sheet (?id=<n> | ?id=new). Default sort: Keyword asc.
+ * Parking lot list — project-scoped section under
+ * /projects/[id]/parking-lot; DataView + search + status filter;
+ * detail/edit in the URL-synced Sheet (?id=<n> | ?id=new, ADR-0010).
+ * Default sort: ParkingLotItem asc.
  */
-export default async function KeywordsPage({
+export default async function ParkingLotPage({
   params,
   searchParams,
 }: {
@@ -35,65 +40,76 @@ export default async function KeywordsPage({
   const projectId = parseProjectId(id);
   if (projectId === null) notFound();
 
+  // Validate the parent project exists (React cache dedupes with layout's call).
+  try {
+    await getProjectCached(projectId, session.userId);
+  } catch (err) {
+    if (err instanceof AppError && err.code === "NOT_FOUND") notFound();
+    throw err;
+  }
+
   const raw = await searchParams;
   const flat = flattenSearchParams(raw);
   const listParams = parseListParams(raw);
-  const effectiveParams = {
-    ...listParams,
-    sort: listParams.sort ?? "Keyword",
-  };
+  const effectiveParams = listParams;
 
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
+  const isStrikethrough =
+    flat.status === "resolved" ? true : flat.status === "active" ? false : null;
+
   const [rows, preferredView, selectedRaw] = await Promise.all([
-    listKeywords(effectiveParams, session.userId, projectId),
-    getViewPreference(session.userId, "keywords").catch(() => null),
+    listParkingLotItems(effectiveParams, session.userId, projectId, {
+      isStrikethrough,
+    }),
+    getViewPreference(session.userId, "parking-lot").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getKeywordById(selectedId, session.userId).catch((err) => {
+      ? getParkingLotItemById(selectedId, session.userId).catch((err) => {
           if (err instanceof AppError && err.code === "NOT_FOUND") return null;
           throw err;
         })
       : Promise.resolve(null),
   ]);
 
-  // A deep link to a keyword from another project is treated as not found.
+  // Cross-project leak guard: deep links to another project's item yield not-found.
   const selected = guardProjectScope(selectedRaw, projectId);
 
   const totalCount = rows[0]?.TotalCount ?? 0;
-  const canCreate = can(session.role, "keywords:create");
-  const canEdit = can(session.role, "keywords:update");
-  const canDelete = can(session.role, "keywords:delete");
-  const filtersActive = Boolean(effectiveParams.q);
+  const canCreate = can(session.role, "parking-lot:create");
+  const canEdit = can(session.role, "parking-lot:update");
+  const canDelete = can(session.role, "parking-lot:delete");
+  const filtersActive = Boolean(effectiveParams.q || flat.status);
 
-  const newKeywordLink = (
+  const newItemLink = (
     <Link
-      href={buildNewEntityHref(`/projects/${projectId}/keywords`, flat)}
-      data-testid="new-keyword"
+      href={buildNewEntityHref(`/projects/${projectId}/parking-lot`, flat)}
+      data-testid="new-parking-lot-item"
       className="inline-flex min-h-10 items-center rounded-md border border-line bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-raised"
     >
-      {messages.keywords.newKeyword}
+      {messages.parkingLot.newItem}
     </Link>
   );
 
   return (
     <>
       <PageHeader
-        title={messages.keywords.title}
-        action={canCreate ? newKeywordLink : undefined}
+        title={messages.parkingLot.title}
+        action={canCreate ? newItemLink : undefined}
       />
       <div className="mt-3 flex flex-col flex-1">
-        <KeywordsView
+        <ParkingLotView
           rows={rows}
           totalCount={totalCount}
           page={effectiveParams.page}
           initialView={effectiveParams.view ?? preferredView ?? "grid"}
           filtersActive={filtersActive}
-          newKeywordAction={canCreate ? newKeywordLink : undefined}
+          newItemAction={canCreate ? newItemLink : undefined}
         />
       </div>
-      <KeywordSheet
-        keyword={selected}
+      <ParkingLotItemSheet
+        key={selected?.ParkingLotItemId ?? (isNew ? "new" : "closed")}
+        item={selected}
         isNew={isNew && canCreate}
         projectId={projectId}
         canEdit={canEdit}

@@ -17,6 +17,8 @@ BEGIN
            [ParkingLotItem],
            [StakeholderId],
            [IsStrikethrough],
+           [FollowUpActions],
+           [Owner],
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer

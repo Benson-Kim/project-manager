@@ -90,7 +90,7 @@ export default async function TodosPage({
     <Link
       href={buildNewEntityHref(`/projects/${projectId}/todos`, flat)}
       data-testid="new-todo-item"
-      className="inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-sm font-medium text-on-accent"
+      className="inline-flex min-h-10 items-center rounded-md border border-line bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-raised"
     >
       {messages.todoItems.newTodoItem}
     </Link>
