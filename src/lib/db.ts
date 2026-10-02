@@ -20,7 +20,11 @@ function config(): sql.config {
     password: env.DB_PASSWORD,
     options: {
       encrypt: true,
-      trustServerCertificate: true, // local/dev containers; use proper certs in prod
+      // Trust the server certificate when explicitly requested (e.g. bundled
+      // Docker compose with the stock SQL Server image) or in non-production
+      // environments. In production, mount a trusted CA cert instead.
+      trustServerCertificate:
+        env.TRUST_SERVER_CERT || process.env.NODE_ENV !== "production",
     },
     pool: { max: 10, min: 0, idleTimeoutMillis: 30_000 },
   };

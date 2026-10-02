@@ -28,6 +28,7 @@
   --color-on-danger: var(--on-danger);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
+  --color-on-success: var(--on-success);
   --color-warning: var(--warning);
   --color-warning-soft: var(--warning-soft);
   --color-focus: var(--focus);
@@ -47,6 +48,7 @@
   --z-nav: 30;
   --z-sheet: 40;
   --z-dialog: 50;
+  --z-dropdown: 55;
   --z-toast: 60;
 }
 
@@ -69,6 +71,7 @@
   --on-danger: #ffffff;
   --success: #15803d;
   --success-soft: #dcfce7;
+  --on-success: #ffffff;
   --warning: #a16207;
   --warning-soft: #fef9c3;
   --focus: #102542;
@@ -92,6 +95,7 @@
   --on-danger: #0b1220;
   --success: #4ade80;
   --success-soft: #0d2818;
+  --on-success: #0b1220;
   --warning: #facc15;
   --warning-soft: #2d2306;
   --focus: #ebf2fa;

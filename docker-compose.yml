@@ -33,6 +33,10 @@ services:
       DB_NAME: ProjectManager
       DB_USER: sa
       DB_PASSWORD: "${MSSQL_SA_PASSWORD}"
+      # Stock SQL Server image uses a self-signed TLS certificate; set this to
+      # "true" so the app trusts it in the bundled Compose environment.
+      # Never set in real production — mount a CA-signed certificate instead.
+      TRUST_SERVER_CERT: "true"
       # >= 32 random bytes (openssl rand -base64 32); no default — real
       # sessions require a real secret even in local dev (module #4).
       AUTH_SECRET: "${AUTH_SECRET:?set AUTH_SECRET in .env — openssl rand -base64 32}"
