@@ -32,7 +32,8 @@ BEGIN
     BEGIN TRAN;
 
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT ParkingLotItemId, [ProjectId], [ParkingLotItem], [StakeholderId], [IsStrikethrough]
+        (SELECT ParkingLotItemId, [ProjectId], [ParkingLotItem], [StakeholderId], [IsStrikethrough],
+                [FollowUpActions], [Owner]
          FROM app.ParkingLotItem WHERE ParkingLotItemId = @ParkingLotItemId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 

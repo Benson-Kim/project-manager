@@ -108,6 +108,7 @@ export default async function ParkingLotPage({
         />
       </div>
       <ParkingLotItemSheet
+        key={selected?.ParkingLotItemId ?? (isNew ? "new" : "closed")}
         item={selected}
         isNew={isNew && canCreate}
         projectId={projectId}

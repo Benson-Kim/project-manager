@@ -1,7 +1,8 @@
 -- usp_ParkingLotItem_List — paged/filtered list per ADR-0016.
 -- Search columns: ParkingLotItem. Sort whitelist: ParkingLotItem, IsStrikethrough.
 -- Entity app.ParkingLotItem (source: tblParkingLotItems). Module: parking-lot (#18).
--- Updated: added ParkingLotItem to sort whitelist (default sort).
+-- ParkingLotItemId is the final tiebreaker on every sort path to guarantee stable
+-- OFFSET paging when two rows share the same sort-key value.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_ParkingLotItem_List
@@ -42,7 +43,8 @@ BEGIN
         CASE WHEN @SortBy = N'ParkingLotItem'   AND @SortDir = 'desc' THEN [ParkingLotItem] END DESC,
         CASE WHEN @SortBy = N'IsStrikethrough'  AND @SortDir = 'asc'  THEN [IsStrikethrough] END ASC,
         CASE WHEN @SortBy = N'IsStrikethrough'  AND @SortDir = 'desc' THEN [IsStrikethrough] END DESC,
-        [ParkingLotItem] ASC
+        [ParkingLotItem] ASC,
+        ParkingLotItemId ASC
     OFFSET (@Page - 1) * @PageSize ROWS FETCH NEXT @PageSize ROWS ONLY;
 END;
 GO

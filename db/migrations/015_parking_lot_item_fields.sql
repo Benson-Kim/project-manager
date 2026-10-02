@@ -20,7 +20,3 @@ IF NOT EXISTS (
     ALTER TABLE app.ParkingLotItem ADD [Owner] NVARCHAR(255) NULL;
 GO
 
--- Record in schema migrations.
-IF NOT EXISTS (SELECT 1 FROM app.SchemaMigrations WHERE MigrationId = N'015_parking_lot_item_fields')
-    INSERT INTO app.SchemaMigrations (MigrationId) VALUES (N'015_parking_lot_item_fields');
-GO
