@@ -32,10 +32,10 @@ const vocab = <T extends readonly [string, ...string[]]>(values: T) =>
     .transform((v) => (v ? (v as T[number]) : null));
 
 export const todoItemFormSchema = z.object({
-  // FormData emits "" or "0" when no project is selected (global create).
-  // Coerce both to null so the repo receives NULL rather than 0.
+  // FormData emits "" when no project is selected (global create).
+  // Coerce it to null so the repo receives NULL rather than 0.
   projectId: z
-    .union([z.literal(""), z.literal("0"), z.null()])
+    .union([z.literal(""), z.null()])
     .transform(() => null)
     .or(z.coerce.number().int().positive()),
   dailyActivityId: z

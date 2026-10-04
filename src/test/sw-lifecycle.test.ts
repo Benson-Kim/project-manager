@@ -7,15 +7,25 @@ type WorkerHarness = {
   notifications: Array<[string, NotificationOptions]>;
 };
 
+type WorkerEvent = {
+  waitUntil: (promise: Promise<unknown>) => void;
+  data?: { json: () => unknown };
+  notification?: { close: () => void; data?: { url?: string } };
+};
+
 function workerHarness(): WorkerHarness {
-  const listeners = new Map<string, (event: any) => void>();
+  const listeners = new Map<string, (event: WorkerEvent) => void>();
   const notifications: Array<[string, NotificationOptions]> = [];
   const self = {
-    addEventListener(type: string, listener: (event: any) => void) {
+    addEventListener(type: string, listener: (event: WorkerEvent) => void) {
       listeners.set(type, listener);
     },
     skipWaiting() {},
-    clients: { claim: async () => undefined, matchAll: async () => [], openWindow: async () => undefined },
+    clients: {
+      claim: async () => undefined,
+      matchAll: async () => [],
+      openWindow: async () => undefined,
+    },
     registration: {
       showNotification: async (title: string, options: NotificationOptions) => {
         notifications.push([title, options]);
@@ -28,13 +38,18 @@ function workerHarness(): WorkerHarness {
     notifications,
     async dispatch(type, event) {
       const waits: Promise<unknown>[] = [];
-      listeners.get(type)?.({ ...event, waitUntil: (promise: Promise<unknown>) => waits.push(promise) });
+      listeners.get(type)?.({
+        ...event,
+        waitUntil: (promise: Promise<unknown>) => waits.push(promise),
+      });
       await Promise.all(waits);
     },
   };
 }
 
-const pushEvent = (alert: { todoAlertId: number; title: string }) => ({ data: { json: () => alert } });
+const pushEvent = (alert: { todoAlertId: number; title: string }) => ({
+  data: { json: () => alert },
+});
 
 describe("todo alert service-worker lifecycle", () => {
   it("shows a pushed alert with no open tab", async () => {
