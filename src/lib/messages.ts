@@ -28,6 +28,7 @@ export const messages = {
     untitled: "Untitled",
     moduleNotAvailable: "This module is not available yet.",
     goToProjects: "Go to projects",
+    readOnly: "This form is read-only. You do not have permission to edit.",
   },
   nav: {
     dashboard: "Dashboard",

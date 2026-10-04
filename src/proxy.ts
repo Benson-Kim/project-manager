@@ -64,6 +64,8 @@ export async function proxy(request: NextRequest) {
       if (hasSessionCookie(request)) loginUrl.searchParams.set("reason", "expired");
       const redirect = NextResponse.redirect(loginUrl);
       redirect.headers.set("Content-Security-Policy", csp);
+      redirect.headers.set("X-Frame-Options", "DENY");
+      redirect.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
       return redirect;
     }
     // Forced first-login password change (STANDARDS §4): the flag travels in
@@ -73,12 +75,16 @@ export async function proxy(request: NextRequest) {
       const changeUrl = new URL("/change-password", request.url);
       const redirect = NextResponse.redirect(changeUrl);
       redirect.headers.set("Content-Security-Policy", csp);
+      redirect.headers.set("X-Frame-Options", "DENY");
+      redirect.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
       return redirect;
     }
   }
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", csp);
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   return response;
 }
 

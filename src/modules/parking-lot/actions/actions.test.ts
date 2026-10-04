@@ -124,6 +124,46 @@ describe("parking-lot actions", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("update forwards ActorRole to the proc", async () => {
+    execProc.mockResolvedValue([dbRow()]);
+    const fd = new FormData();
+    fd.set("projectId", "2");
+    fd.set("parkingLotItem", "Updated item");
+    fd.set("parkingLotItemId", "3");
+    fd.set("rowVer", "42");
+    await updateParkingLotItemAction(fd);
+    const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(proc).toBe("usp_ParkingLotItem_Update");
+    expect(params.ActorUserId).toBe(7);
+    expect(params.ActorRole).toBe("ProjectManager");
+  });
+
+  it("update propagates NOT_FOUND from the proc", async () => {
+    execProc.mockRejectedValue(new AppError("NOT_FOUND", "ParkingLotItem not found"));
+    const fd = new FormData();
+    fd.set("projectId", "2");
+    fd.set("parkingLotItem", "Item");
+    fd.set("parkingLotItemId", "999");
+    fd.set("rowVer", "1");
+    const result = await updateParkingLotItemAction(fd);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("NOT_FOUND");
+  });
+
+  it("update propagates FORBIDDEN_ROW from the proc", async () => {
+    execProc.mockRejectedValue(
+      new AppError("FORBIDDEN_ROW", "You are not assigned to this project"),
+    );
+    const fd = new FormData();
+    fd.set("projectId", "2");
+    fd.set("parkingLotItem", "Item");
+    fd.set("parkingLotItemId", "3");
+    fd.set("rowVer", "42");
+    const result = await updateParkingLotItemAction(fd);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN_ROW");
+  });
+
   it("update maps a rowversion mismatch to CONFLICT", async () => {
     execProc.mockRejectedValue(
       new AppError("CONFLICT", "ParkingLotItem was modified by someone else"),
@@ -151,6 +191,22 @@ describe("parking-lot actions", () => {
   });
 
   // ── delete ───────────────────────────────────────────────────────────────
+
+  it("delete propagates NOT_FOUND from the proc", async () => {
+    execProc.mockRejectedValue(new AppError("NOT_FOUND", "ParkingLotItem not found"));
+    const result = await deleteParkingLotItemAction({ parkingLotItemId: 999, rowVer: 1 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("NOT_FOUND");
+  });
+
+  it("delete propagates FORBIDDEN_ROW from the proc", async () => {
+    execProc.mockRejectedValue(
+      new AppError("FORBIDDEN_ROW", "You are not assigned to this project"),
+    );
+    const result = await deleteParkingLotItemAction({ parkingLotItemId: 3, rowVer: 42 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN_ROW");
+  });
 
   it("delete succeeds and forwards ids and role to the proc", async () => {
     execProc.mockResolvedValue([]);

@@ -50,10 +50,12 @@ export async function createParkingLotItem(
 export async function getParkingLotItemById(
   parkingLotItemId: number,
   actorUserId: number,
+  actorRole?: Role,
 ): Promise<ParkingLotItemRow> {
   const rows = await execProc<ParkingLotItemRow>("usp_ParkingLotItem_GetById", {
     ParkingLotItemId: parkingLotItemId,
     ActorUserId: actorUserId,
+    ActorRole: actorRole ?? null,
   });
   return parkingLotItemRowSchema.parse(rows[0]);
 }

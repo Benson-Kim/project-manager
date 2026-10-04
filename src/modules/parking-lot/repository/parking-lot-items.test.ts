@@ -131,6 +131,25 @@ describe("parking-lot-items repository", () => {
     expect(params.IsStrikethrough).toBe(true);
   });
 
+  it("update forwards followUpActions and owner to the proc", async () => {
+    execProc.mockResolvedValue([dbRow()]);
+    await updateParkingLotItem(
+      {
+        parkingLotItemId: 3,
+        rowVer: 42,
+        projectId: 2,
+        parkingLotItem: "Updated item",
+        isStrikethrough: false,
+        followUpActions: "Check with team",
+        owner: "Alice",
+      },
+      1,
+    );
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params.FollowUpActions).toBe("Check with team");
+    expect(params.Owner).toBe("Alice");
+  });
+
   it("delete forwards ids, rowVer and role to the proc", async () => {
     execProc.mockResolvedValue([]);
     await deleteParkingLotItem(3, 42, 1, "Admin");

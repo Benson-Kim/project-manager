@@ -86,6 +86,31 @@ describe("parkingLotItemFormSchema", () => {
     const parsed = parkingLotItemFormSchema.parse({ ...minimal, owner: "Alice" });
     expect(parsed.owner).toBe("Alice");
   });
+
+  it("accepts a 255-character parkingLotItem (upper boundary)", () => {
+    const longItem = "a".repeat(255);
+    const result = parkingLotItemFormSchema.safeParse({ ...minimal, parkingLotItem: longItem });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a 256-character parkingLotItem (over boundary)", () => {
+    const tooLong = "a".repeat(256);
+    const result = parkingLotItemFormSchema.safeParse({ ...minimal, parkingLotItem: tooLong });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a 255-character owner (upper boundary)", () => {
+    const longOwner = "a".repeat(255);
+    const result = parkingLotItemFormSchema.safeParse({ ...minimal, owner: longOwner });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.owner).toBe(longOwner);
+  });
+
+  it("rejects a 256-character owner (over boundary)", () => {
+    const tooLong = "a".repeat(256);
+    const result = parkingLotItemFormSchema.safeParse({ ...minimal, owner: tooLong });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("updateParkingLotItemFormSchema", () => {

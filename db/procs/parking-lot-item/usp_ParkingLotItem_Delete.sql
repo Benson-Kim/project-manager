@@ -50,8 +50,11 @@ BEGIN
         THROW 50002, N'CONFLICT:ParkingLotItem was modified by someone else', 1;
     END
 
-    INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson)
-    VALUES (@ActorUserId, N'Delete', N'app.ParkingLotItem', CAST(@ParkingLotItemId AS NVARCHAR(64)), @Before);
+    INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
+    VALUES (@ActorUserId, N'Delete', N'app.ParkingLotItem', CAST(@ParkingLotItemId AS NVARCHAR(64)), @Before,
+            (SELECT ParkingLotItemId, IsDeleted, DeletedAtUtc, DeletedBy
+             FROM app.ParkingLotItem WHERE ParkingLotItemId = @ParkingLotItemId
+             FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
     COMMIT;
 END;
