@@ -72,6 +72,7 @@ function GroupTrigger({
   panelId,
   triggerRef,
   onToggle,
+  onClose,
 }: {
   group: ProjectSectionGroup;
   projectId: number;
@@ -80,13 +81,15 @@ function GroupTrigger({
   panelId: string;
   triggerRef: React.RefObject<HTMLButtonElement | null>;
   onToggle: () => void;
+  onClose: () => void;
 }) {
   const active = isGroupActive(pathname, projectId, group);
 
   if (group.sections.length === 0) return null;
 
   // A group with only one section that is the charter index renders as a
-  // plain link - no disclosure needed.
+  // plain link — no disclosure needed. onClose is called so any other open
+  // disclosure collapses on navigation (review #4162765957).
   if (group.sections.length === 1 && group.sections[0]?.segment === ".") {
     const section = group.sections[0];
     const current = isCurrentSection(pathname, projectId, section);
@@ -96,6 +99,7 @@ function GroupTrigger({
           href={sectionHref(projectId, section)}
           aria-current={current ? "page" : undefined}
           className={pillClass(current, false)}
+          onClick={onClose}
         >
           {section.label}
         </Link>
@@ -220,7 +224,8 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
     };
   }, [openState]);
 
-  // Resync the active group when the route or project changes.
+  // Reset panel open/close state on every route change: re-evaluate which
+  // group is active and collapse any stale open group (review #4162765957).
   useEffect(() => {
     const activeKey =
       projectSectionGroups.find((g) => isGroupActive(pathname, projectId, g))?.key ?? null;
@@ -263,6 +268,7 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
               },
             }}
             onToggle={() => dispatch({ type: "toggle", key: group.key })}
+            onClose={() => dispatch({ type: "reset", activeKey: null })}
           />
         ))}
       </ul>
