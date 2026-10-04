@@ -28,6 +28,7 @@
   --color-on-danger: var(--on-danger);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
+  --color-on-success: var(--on-success);
   --color-warning: var(--warning);
   --color-warning-soft: var(--warning-soft);
   --color-focus: var(--focus);
@@ -70,6 +71,7 @@
   --on-danger: #ffffff;
   --success: #15803d;
   --success-soft: #dcfce7;
+  --on-success: #ffffff;
   --warning: #a16207;
   --warning-soft: #fef9c3;
   --focus: #102542;
@@ -93,6 +95,7 @@
   --on-danger: #0b1220;
   --success: #4ade80;
   --success-soft: #0d2818;
+  --on-success: #0b1220;
   --warning: #facc15;
   --warning-soft: #2d2306;
   --focus: #ebf2fa;
@@ -186,6 +189,20 @@ button:focus-visible {
     --ink-muted: #475569;
     --ink-faint: #94a3b8;
     --line: #e2e8f0;
+    /* Bar-related semantic colours — must be reset to light values so that
+       priority/status bar fills on the forced white page are legible. */
+    --accent: #102542;
+    --accent-strong: #1e40af;
+    --on-accent: #ffffff;
+    --accent-soft: #dce4ef;
+    --danger: #b91c1c;
+    --danger-soft: #fee2e2;
+    --on-danger: #ffffff;
+    --success: #15803d;
+    --success-soft: #dcfce7;
+    --on-success: #ffffff;
+    --warning: #a16207;
+    --warning-soft: #fef9c3;
     color-scheme: light;
   }
 

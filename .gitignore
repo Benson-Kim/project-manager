@@ -29,3 +29,7 @@ uploads/
 
 # playwright auth storage state (contains session cookies)
 /e2e/.auth/
+.bob/
+screenshots/
+screenshots.zip
+COORDINATION.md

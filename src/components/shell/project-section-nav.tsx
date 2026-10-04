@@ -177,10 +177,8 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
   // One ref per group so we can read the trigger's viewport position.
   const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
-  const [openState, dispatch] = useReducer(
-    openReducer,
-    null,
-    () => initialOpenState(pathname, projectId),
+  const [openState, dispatch] = useReducer(openReducer, null, () =>
+    initialOpenState(pathname, projectId),
   );
 
   // Track the pixel position of each open trigger so the portal panel can
@@ -190,20 +188,36 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
   >({});
 
   useEffect(() => {
-    const positions: Record<string, { top: number; left: number }> = {};
-    for (const group of projectSectionGroups) {
-      if (openState[group.key]) {
-        const el = triggerRefs.current[group.key];
-        if (el) {
-          const rect = el.getBoundingClientRect();
-          positions[group.key] = {
-            top: rect.bottom + window.scrollY,
-            left: rect.left + window.scrollX,
-          };
+    let frame: number | null = null;
+    const updatePositions = () => {
+      frame = null;
+      const positions: Record<string, { top: number; left: number }> = {};
+      for (const group of projectSectionGroups) {
+        if (openState[group.key]) {
+          const el = triggerRefs.current[group.key];
+          if (el) {
+            const rect = el.getBoundingClientRect();
+            positions[group.key] = {
+              top: rect.bottom + window.scrollY,
+              left: rect.left + window.scrollX,
+            };
+          }
         }
       }
-    }
-    setPanelPositions(positions);
+      setPanelPositions(positions);
+    };
+    const scheduleUpdate = () => {
+      if (frame === null) frame = window.requestAnimationFrame(updatePositions);
+    };
+
+    scheduleUpdate();
+    window.addEventListener("scroll", scheduleUpdate, true);
+    window.addEventListener("resize", scheduleUpdate);
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", scheduleUpdate, true);
+      window.removeEventListener("resize", scheduleUpdate);
+    };
   }, [openState]);
 
   // Resync the active group when the route or project changes.
@@ -269,7 +283,9 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
             id={panelId}
             role="group"
             aria-label={group.label}
-            style={pos ? { position: "absolute", top: pos.top + 4, left: pos.left } : { display: "none" }}
+            style={
+              pos ? { position: "absolute", top: pos.top + 4, left: pos.left } : { display: "none" }
+            }
             className="z-(--z-dropdown) min-w-44 rounded-lg border border-line bg-surface shadow-lg"
           >
             {group.sections.map((section) => {
