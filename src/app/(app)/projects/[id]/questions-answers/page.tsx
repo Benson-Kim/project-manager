@@ -14,9 +14,12 @@ import {
   getQuestionAnswerById,
   listQuestionAnswers,
 } from "@/modules/questions-answers/repository/question-answers";
-import { getProjectById } from "@/modules/projects/repository/projects";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
+import { getProjectCached } from "../get-project";
 import { parseProjectId } from "../project-id";
+
+/** Allowed sort columns for Q&A — prevents arbitrary strings reaching the proc. */
+const QA_SORT_COLUMNS = new Set(["Question", "Answer", "Category", "Priority", "CreatedAtUtc"]);
 
 export const metadata: Metadata = {
   title: `${messages.questionsAnswers.title} — ${messages.app.name}`,
@@ -41,8 +44,9 @@ export default async function QuestionsAnswersPage({
   if (projectId === null) notFound();
 
   // Validate the parent project exists before listing child records (P2 guard).
+  // Uses the React-cached version so layout + page share one DB call per request.
   try {
-    await getProjectById(projectId, session.userId);
+    await getProjectCached(projectId, session.userId);
   } catch (err) {
     if (err instanceof AppError && err.code === "NOT_FOUND") notFound();
     throw err;
@@ -53,21 +57,34 @@ export default async function QuestionsAnswersPage({
   const listParams = parseListParams(raw);
   const effectiveParams = {
     ...listParams,
-    sort: listParams.sort ?? "Question",
+    // Whitelist sort column to prevent arbitrary strings reaching the proc.
+    sort: listParams.sort && QA_SORT_COLUMNS.has(listParams.sort) ? listParams.sort : "Question",
   };
 
   const isNew = flat.id === "new";
-  const selectedId = !isNew && flat.id ? Number(flat.id) : null;
+  const rawId = !isNew && flat.id ? Number(flat.id) : null;
+  // Guard against Infinity (e.g. "1e308") and non-integers before hitting the DB.
+  const selectedId =
+    rawId !== null && Number.isFinite(rawId) && Number.isInteger(rawId) && rawId > 0
+      ? rawId
+      : null;
 
+  // Coerce empty-string filter params to null so the proc treats them as
+  // "no filter" rather than filtering for the empty string.
   const filters = {
-    category: flat.category ?? null,
-    priority: flat.priority ?? null,
+    category: flat.category?.trim() || null,
+    priority: flat.priority?.trim() || null,
   };
 
   const [rows, preferredView, selectedRaw] = await Promise.all([
     listQuestionAnswers(effectiveParams, session.userId, projectId, filters),
-    getViewPreference(session.userId, "questions-answers").catch(() => null),
-    selectedId && Number.isInteger(selectedId) && selectedId > 0
+    getViewPreference(session.userId, "questions-answers").catch((err) => {
+      // Only swallow NOT_FOUND (no preference saved yet); surface other errors.
+      if (err instanceof AppError && err.code === "NOT_FOUND") return null;
+      console.error("[questions-answers] getViewPreference failed:", err);
+      return null;
+    }),
+    selectedId
       ? getQuestionAnswerById(selectedId, session.userId).catch((err) => {
           if (err instanceof AppError && err.code === "NOT_FOUND") return null;
           throw err;
