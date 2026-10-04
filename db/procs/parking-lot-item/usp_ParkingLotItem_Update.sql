@@ -37,7 +37,11 @@ BEGIN
        )
         THROW 50003, N'FORBIDDEN_ROW:You are not assigned to this project', 1;
 
-    -- (2) Actor must also be assigned to the destination project when ProjectId is changing.
+    -- (2) Destination project must exist and not be soft-deleted.
+    IF NOT EXISTS (SELECT 1 FROM app.Project WHERE ProjectId = @ProjectId AND IsDeleted = 0)
+        THROW 50001, N'NOT_FOUND:Destination project not found', 1;
+
+    -- (3) Actor must also be assigned to the destination project when ProjectId is changing.
     --     Admin role bypasses this check.
     IF ISNULL(@ActorRole, '') <> N'Admin'
        AND NOT EXISTS (

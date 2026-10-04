@@ -16,6 +16,11 @@ const columns: DataViewColumn<ParkingLotItemListRow>[] = [
     priority: 1,
     render: (r) => (
       <span
+        aria-label={
+          r.IsStrikethrough
+            ? `${r.ParkingLotItem ?? messages.app.untitled}, ${messages.parkingLot.resolved}`
+            : (r.ParkingLotItem ?? messages.app.untitled)
+        }
         className={r.IsStrikethrough ? "line-through text-ink-muted" : undefined}
       >
         {r.ParkingLotItem}
@@ -72,6 +77,11 @@ export function ParkingLotView({
       renderCard={(row) => (
         <div className="flex flex-col gap-1.5">
           <p
+            aria-label={
+              row.IsStrikethrough
+                ? `${row.ParkingLotItem ?? messages.app.untitled}, ${messages.parkingLot.resolved}`
+                : (row.ParkingLotItem ?? messages.app.untitled)
+            }
             className={[
               "line-clamp-2 text-sm font-semibold",
               row.IsStrikethrough ? "line-through text-ink-muted" : "text-ink",

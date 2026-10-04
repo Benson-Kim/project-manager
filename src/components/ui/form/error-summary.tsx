@@ -21,6 +21,7 @@ export function ErrorSummary({ message }: { message: string | null }) {
       ref={ref}
       tabIndex={-1}
       role="alert"
+      aria-live="assertive"
       className="rounded-md border border-danger bg-danger-soft p-3 text-sm text-ink"
     >
       <p className="font-medium">{messages.errors.summaryTitle}</p>

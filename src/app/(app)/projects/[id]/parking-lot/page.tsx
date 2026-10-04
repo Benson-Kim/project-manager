@@ -59,18 +59,30 @@ export default async function ParkingLotPage({
   const isStrikethrough =
     flat.status === "resolved" ? true : flat.status === "active" ? false : null;
 
-  const [rows, preferredView, selectedRaw] = await Promise.all([
+  const [rowsResult, preferredViewResult, selectedResult] = await Promise.allSettled([
     listParkingLotItems(effectiveParams, session.userId, projectId, {
       isStrikethrough,
     }),
-    getViewPreference(session.userId, "parking-lot").catch(() => null),
+    getViewPreference(session.userId, "parking-lot"),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getParkingLotItemById(selectedId, session.userId).catch((err) => {
-          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
-          throw err;
-        })
+      ? getParkingLotItemById(selectedId, session.userId, session.role)
       : Promise.resolve(null),
   ]);
+
+  const rows = rowsResult.status === "fulfilled" ? rowsResult.value : [];
+  const preferredView =
+    preferredViewResult.status === "fulfilled" ? preferredViewResult.value : null;
+  const selectedRaw = (() => {
+    if (selectedResult.status === "rejected") {
+      if (
+        selectedResult.reason instanceof AppError &&
+        selectedResult.reason.code === "NOT_FOUND"
+      )
+        return null;
+      throw selectedResult.reason;
+    }
+    return selectedResult.value;
+  })();
 
   // Cross-project leak guard: deep links to another project's item yield not-found.
   const selected = guardProjectScope(selectedRaw, projectId);

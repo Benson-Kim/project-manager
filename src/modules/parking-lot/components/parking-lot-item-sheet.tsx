@@ -60,7 +60,8 @@ export function ParkingLotItemSheet({
     function handleBeforeNavigate(e: Event) {
       if (!isDirty) return;
       e.preventDefault();
-      const resume = (e as CustomEvent<{ resume: () => void }>).detail.resume;
+      const detail = (e as CustomEvent<{ resume?: unknown }>).detail;
+      const resume = typeof detail?.resume === "function" ? (detail.resume as () => void) : null;
       pendingNavRef.current = resume;
       setShowUnsaved(true);
     }
@@ -117,6 +118,10 @@ export function ParkingLotItemSheet({
         close();
         router.refresh();
       } else {
+        if (result.error.code === "UNAUTHENTICATED") {
+          router.push(`/login?reason=expired`);
+          return;
+        }
         form.applyResult(result);
         setSummary(result.error.message);
         if (result.error.code === "CONFLICT") setConflict(true);
@@ -138,6 +143,10 @@ export function ParkingLotItemSheet({
         close();
         router.refresh();
       } else {
+        if (result.error.code === "UNAUTHENTICATED") {
+          router.push(`/login?reason=expired`);
+          return;
+        }
         setSummary(result.error.message);
         if (result.error.code === "CONFLICT") setConflict(true);
       }
@@ -190,8 +199,14 @@ export function ParkingLotItemSheet({
             </>
           ) : null}
 
+          {!canEdit ? (
+            <p id="read-only-desc" className="sr-only">
+              {messages.app.readOnly}
+            </p>
+          ) : null}
           <fieldset
             disabled={!canEdit}
+            aria-describedby={!canEdit ? "read-only-desc" : undefined}
             className="flex flex-col gap-5"
             onChange={() => setIsDirty(true)}
           >
