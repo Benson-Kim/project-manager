@@ -50,8 +50,10 @@ BEGIN
         THROW 50003, N'FORBIDDEN_ROW:You are not assigned to this project', 1;
 
     -- (2) Actor must also be assigned to the destination project when ProjectId is changing.
+    --     Skip this check when the destination is the same as the current project.
     --     Admin role bypasses this check.
     IF ISNULL(@ActorRole, '') <> N'Admin'
+       AND @ProjectId <> (SELECT ProjectId FROM app.Stakeholder WHERE StakeholderId = @StakeholderId AND IsDeleted = 0)
        AND NOT EXISTS (
            SELECT 1 FROM app.ProjectAssignee
            WHERE ProjectId = @ProjectId AND UserId = @ActorUserId AND IsDeleted = 0

@@ -6,6 +6,8 @@ import {
   isOverdue,
   keyDeliverableListRowSchema,
   keyDeliverableRowSchema,
+  parseAssigneesJson,
+  statusToCompletion,
   updateKeyDeliverableInput,
   type CreateKeyDeliverableInput,
   type CreateKeyDeliverableParsed,
@@ -18,17 +20,20 @@ import {
 } from "../schemas/key-deliverable";
 
 /**
- * KeyDeliverable repository — stored procedures only , every row
- * zod-parsed at the boundary (STANDARDS §2.5), list params forwarded 1:1
- * .
+ * KeyDeliverable repository — stored procedures only, every row
+ * zod-parsed at the boundary (STANDARDS §2.5), list params forwarded 1:1.
  */
 
 function toProcParams(input: CreateKeyDeliverableParsed) {
   return {
     ProjectId: input.projectId,
     KeyRequirement: input.keyRequirement,
+    RequestedDate: input.requestedDate ?? null,
     Deadline: input.deadline ?? null,
-    AssignedToStakeholderId: input.assignedToStakeholderId ?? null,
+    AssigneeIds:
+      input.assigneeIds && input.assigneeIds.length > 0
+        ? JSON.stringify(input.assigneeIds)
+        : null,
     Priority: input.priority ?? null,
     Status: input.status ?? null,
   };
@@ -102,9 +107,10 @@ export async function deleteKeyDeliverable(
 
 /**
  * Gantt data (usp_KeyDeliverable_GanttData): map rows to drawable bars.
- * Bar start = ProjectStartDate when available (the intended chart-window basis
- * returned by the procedure), falling back to CreatedAtUtc clamped to the
- * deadline so imported rows with a past deadline never produce start > end.
+ * Bar start priority:
+ *   1. RequestedDate (the date the deliverable was formally requested)
+ *   2. CreatedAtUtc clamped to <= deadline (legacy / imported rows)
+ *   3. deadline itself (degenerate: all dates in the past)
  * Rows without a deadline are not drawable and are skipped.
  */
 export async function getGanttBars(
@@ -120,16 +126,15 @@ export async function getGanttBars(
     .map((r) => ganttRowSchema.parse(r))
     .filter((r): r is GanttRow & { Deadline: Date } => r.Deadline !== null)
     .map((r) => {
-      // Prefer the project's StartDate as the bar origin so that historical
-      // (imported) deadlines produce meaningful durations rather than
-      // zero-width markers caused by CreatedAtUtc > Deadline.
-      const projectStart = r.ProjectStartDate;
-      const fallback =
-        r.CreatedAtUtc.getTime() <= r.Deadline.getTime() ? r.CreatedAtUtc : r.Deadline;
-      const start =
-        projectStart !== null && projectStart.getTime() <= r.Deadline.getTime()
-          ? projectStart
-          : fallback;
+      let start: Date;
+      if (r.RequestedDate != null && r.RequestedDate.getTime() <= r.Deadline.getTime()) {
+        start = r.RequestedDate;
+      } else if (r.CreatedAtUtc.getTime() <= r.Deadline.getTime()) {
+        start = r.CreatedAtUtc;
+      } else {
+        start = r.Deadline;
+      }
+      const rawNames = r.AssigneeNames?.trim() ?? "";
       return {
         id: r.KeyDeliverableId,
         requirement: r.KeyRequirement ?? "",
@@ -137,8 +142,10 @@ export async function getGanttBars(
         end: r.Deadline,
         status: r.Status,
         priority: r.Priority,
-        assignedToName: r.AssignedToName?.trim() ? r.AssignedToName.trim() : null,
+        assigneeNames: rawNames || null,
+        assignees: parseAssigneesJson(r.AssigneesJson),
         overdue: isOverdue(r.Deadline, r.Status, now),
+        completionPct: statusToCompletion(r.Status),
       };
     });
 }

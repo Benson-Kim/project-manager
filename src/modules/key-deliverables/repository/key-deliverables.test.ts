@@ -18,13 +18,15 @@ function dbRow(overrides: Record<string, unknown> = {}) {
     KeyDeliverableId: 7,
     ProjectId: 24,
     KeyRequirement: "Fast reports generation",
+    RequestedDate: null,
     Deadline: new Date("2026-12-26"),
-    AssignedToStakeholderId: 5,
     Priority: "Important",
     Status: "In Progress",
     CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),
     UpdatedAtUtc: null,
     RowVer: "2001", // driver returns CAST(RowVer AS BIGINT) as a string
+    AssigneeNames: null,
+    AssigneesJson: null,
     ...overrides,
   };
 }
@@ -34,11 +36,12 @@ function ganttDbRow(overrides: Record<string, unknown> = {}) {
     KeyDeliverableId: 7,
     ProjectId: 24,
     KeyRequirement: "Fast reports generation",
+    RequestedDate: null,
     Deadline: new Date("2026-12-26"),
     Priority: "Important",
     Status: "In Progress",
-    AssignedToStakeholderId: 5,
-    AssignedToName: "Maggy Yerlan",
+    AssigneeNames: "Maggy Yerlan",
+    AssigneesJson: JSON.stringify([{ id: 3, name: "Maggy Yerlan" }]),
     CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),
     ProjectStartDate: new Date("2026-01-01"),
     ProjectEndDate: new Date("2027-01-01"),
@@ -61,8 +64,9 @@ describe("key-deliverables repository", () => {
     const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(proc).toBe("usp_KeyDeliverable_Create");
     expect(params.ProjectId).toBe(24);
+    expect(params.RequestedDate).toBeNull();
     expect(params.Deadline).toBeNull();
-    expect(params.AssignedToStakeholderId).toBeNull();
+    expect(params.AssigneeIds).toBeNull();
     expect(params.ActorUserId).toBe(7);
   });
 
@@ -115,7 +119,8 @@ describe("key-deliverables repository", () => {
         start: new Date("2026-01-01T00:00:00Z"),
         end: new Date("2026-12-26"),
         status: "In Progress",
-        assignedToName: "Maggy Yerlan",
+        assigneeNames: "Maggy Yerlan",
+        assignees: [{ id: 3, name: "Maggy Yerlan" }],
         overdue: false,
       });
       const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
@@ -146,9 +151,38 @@ describe("key-deliverables repository", () => {
     });
 
     it("normalises an empty assignee name to null", async () => {
-      execProc.mockResolvedValue([ganttDbRow({ AssignedToName: " " })]);
+      execProc.mockResolvedValue([ganttDbRow({ AssigneeNames: " ", AssigneesJson: null })]);
       const bars = await getGanttBars(24, 7, now);
-      expect(bars[0].assignedToName).toBeNull();
+      expect(bars[0].assigneeNames).toBeNull();
+      expect(bars[0].assignees).toEqual([]);
+    });
+
+    it("parses assignees with commas in names without splitting", async () => {
+      execProc.mockResolvedValue([
+        ganttDbRow({
+          AssigneeNames: "Ministry of Education, Science and Technology",
+          AssigneesJson: JSON.stringify([
+            { id: 5, name: "Ministry of Education, Science and Technology" },
+          ]),
+        }),
+      ]);
+      const bars = await getGanttBars(24, 7, now);
+      expect(bars[0].assignees).toHaveLength(1);
+      expect(bars[0].assignees[0]).toEqual({
+        id: 5,
+        name: "Ministry of Education, Science and Technology",
+      });
+    });
+
+    it("uses RequestedDate as bar start when set and before the deadline", async () => {
+      execProc.mockResolvedValue([
+        ganttDbRow({
+          RequestedDate: new Date("2025-06-01T00:00:00Z"),
+          CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),
+        }),
+      ]);
+      const bars = await getGanttBars(24, 7, now);
+      expect(bars[0].start).toEqual(new Date("2025-06-01T00:00:00Z"));
     });
   });
 });

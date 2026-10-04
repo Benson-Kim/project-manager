@@ -28,8 +28,6 @@ BEGIN
     DELETE FROM auth.LoginAttempt
     WHERE WindowStartUtc < DATEADD(HOUR, -1, SYSUTCDATETIME());
 
-    COMMIT;
-
     DECLARE @Count INT =
         (SELECT AttemptCount FROM auth.LoginAttempt
          WHERE IpAddress = @IpAddress AND WindowStartUtc = @WindowStart);
@@ -39,5 +37,7 @@ BEGIN
            CASE WHEN @Count <= @Limit THEN 0
                 ELSE DATEDIFF(SECOND, SYSUTCDATETIME(), DATEADD(MINUTE, 1, @WindowStart))
            END AS RetryAfterSeconds;
+
+    COMMIT;
 END;
 GO

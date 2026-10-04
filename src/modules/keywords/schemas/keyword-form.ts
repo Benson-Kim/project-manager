@@ -16,7 +16,10 @@ const optionalText = (max: number) =>
     .transform((v) => (v ? v : null));
 
 export const keywordFormSchema = z.object({
-  projectId: z.coerce.number().int().nullable(),
+  projectId: z.preprocess(
+    (v) => (v === "" || v === "0" || v === 0 ? null : v),
+    z.coerce.number().int().positive().nullable(),
+  ),
   keyword: z.string().trim().min(1, messages.keywords.keywordRequired).max(255),
   definition: optionalText(255),
 });
