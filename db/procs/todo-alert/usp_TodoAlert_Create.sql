@@ -24,30 +24,29 @@ BEGIN
     IF @TodoItemId IS NULL
         THROW 50004, N'VALIDATION:TodoItemId is required', 1;
 
-    -- Ownership guard: actor must own the parent TodoItem or be Admin/ProjectManager.
     IF NOT EXISTS (
-        SELECT 1
-        FROM   app.TodoItem AS ti
-        WHERE  ti.TodoItemId = @TodoItemId
-          AND  ti.IsDeleted  = 0
-          AND  (
-                   ti.CreatedBy = @ActorUserId
-                   OR EXISTS (
-                       SELECT 1 FROM auth.[User] u
-                       WHERE  u.UserId = @ActorUserId
-                         AND  u.RoleId IN (
-                                  SELECT RoleId FROM auth.[Role]
-                                  WHERE  Name IN (N'Admin', N'ProjectManager')
-                              )
-                   )
-               )
+        SELECT 1 FROM app.TodoItem
+        WHERE TodoItemId = @TodoItemId AND IsDeleted = 0
     )
-    BEGIN
-        -- Distinguish NOT_FOUND from FORBIDDEN_ROW so the caller gets the right error code.
-        IF NOT EXISTS (SELECT 1 FROM app.TodoItem WHERE TodoItemId = @TodoItemId AND IsDeleted = 0)
-            THROW 50001, N'NOT_FOUND:TodoItem not found', 1;
+        THROW 50001, N'NOT_FOUND:TodoItem not found', 1;
+
+    DECLARE @CanManageAll BIT = CASE WHEN EXISTS (
+        SELECT 1
+        FROM auth.[User] u
+        INNER JOIN auth.[Role] r ON r.RoleId = u.RoleId
+        WHERE u.UserId = @ActorUserId
+          AND u.IsDeleted = 0
+          AND u.IsActive = 1
+          AND r.Name IN (N'Admin', N'ProjectManager')
+    ) THEN 1 ELSE 0 END;
+
+    IF @CanManageAll = 0 AND NOT EXISTS (
+        SELECT 1 FROM app.TodoItem
+        WHERE TodoItemId = @TodoItemId
+          AND IsDeleted = 0
+          AND CreatedBy = @ActorUserId
+    )
         THROW 50003, N'FORBIDDEN_ROW:You do not have access to this record', 1;
-    END
 
     BEGIN TRAN;
 
