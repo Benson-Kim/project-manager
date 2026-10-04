@@ -106,7 +106,7 @@ function buildColumns(
                 : undefined
           }
         >
-          {formatDate(r.DueDate) ?? messages.todoItems.noDueDate}
+          {formatDate(r.DueDate) || messages.todoItems.noDueDate}
           {isOverdue(r) ? (
             <span className="ml-1.5 inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700">
               {messages.todoItems.overdue}
