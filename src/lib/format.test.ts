@@ -5,11 +5,11 @@ describe("formatDate", () => {
   it("formats a Date as medium en-CA", () => {
     expect(formatDate(new Date("2026-03-15T00:00:00Z"))).toBe("Mar 15, 2026");
   });
-  it("returns null for null", () => {
-    expect(formatDate(null)).toBeNull();
+  it("returns an empty string for null", () => {
+    expect(formatDate(null)).toBe("");
   });
-  it("returns null for undefined", () => {
-    expect(formatDate(undefined)).toBeNull();
+  it("returns an empty string for undefined", () => {
+    expect(formatDate(undefined)).toBe("");
   });
 });
 
