@@ -3,7 +3,7 @@ import { getEnv } from "./env";
 import { AppError, appErrorFromProc } from "./errors";
 
 /**
- * Shared connection pool. ALL data access goes through stored procedures -
+ * Shared connection pool. ALL data access goes through stored procedures —
  * repositories call `execProc` / `execProcTx`; inline SQL is forbidden
  * (enforced by ESLint `no-restricted-syntax` and src/test/no-inline-sql.test.ts;
  * see AGENTS.md).
@@ -20,13 +20,11 @@ function config(): sql.config {
     password: env.DB_PASSWORD,
     options: {
       encrypt: true,
-      // Trust the server certificate when explicitly requested (e.g. the
-      // bundled Docker Compose or the e2e CI job pointing at the stock SQL
-      // Server image with its self-signed certificate) or in non-production
-      // environments. In production without TRUST_SERVER_CERT, mount a
-      // trusted CA cert instead.
+      // Trust the server certificate when explicitly requested (e.g. bundled
+      // Docker compose with the stock SQL Server image) or in non-production
+      // environments. In production, mount a trusted CA cert instead.
       trustServerCertificate:
-        process.env.TRUST_SERVER_CERT === "true" || process.env.NODE_ENV !== "production",
+        env.TRUST_SERVER_CERT || process.env.NODE_ENV !== "production",
     },
     pool: { max: 10, min: 0, idleTimeoutMillis: 30_000 },
   };
@@ -44,7 +42,7 @@ export function getPool(): Promise<sql.ConnectionPool> {
         return p;
       })
       .catch((err) => {
-        // Do NOT cache a rejected promise - allow the next call to retry.
+        // Do NOT cache a rejected promise — allow the next call to retry.
         pool = undefined;
         throw err;
       });
@@ -81,7 +79,7 @@ async function bindAndExecute<T>(
   try {
     return await request.execute<T>(procName);
   } catch (err) {
-    // ADR-0012: THROW 50001-50005 from procs  typed AppError; anything else
+    // ADR-0012: THROW 50001–50005 from procs → typed AppError; anything else
     // is logged server-side and surfaced as an opaque INTERNAL error.
     if (err instanceof sql.RequestError && typeof err.number === "number") {
       if (err.number >= 50001 && err.number <= 50999) {
@@ -146,7 +144,7 @@ export async function withTransaction<T>(fn: (tx: sql.Transaction) => Promise<T>
     try {
       await tx.rollback();
     } catch {
-      // connection already dead - nothing to roll back
+      // connection already dead — nothing to roll back
     }
     throw err;
   }
