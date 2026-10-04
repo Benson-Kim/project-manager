@@ -108,6 +108,10 @@ describe("questions-answers actions", () => {
     const result = await createQuestionAnswerAction(fd);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.data.QuestionAnswerId).toBe(7);
+    expect(execProc).toHaveBeenCalledWith(
+      "usp_QuestionAnswer_Create",
+      expect.objectContaining({ ActorRole: "Contributor" }),
+    );
   });
 
   // ── update ───────────────────────────────────────────────────────────────

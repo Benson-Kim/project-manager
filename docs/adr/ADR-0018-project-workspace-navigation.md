@@ -1,6 +1,10 @@
 # ADR-0018 — Project workspace navigation: nested layout + scrollable section links
 
-Status: Accepted · Date: 2026-09-16 (proposed and accepted) · Session: UX research (#29);
+Status: **Partially superseded** — Decision point 2 (scrollable plain-link row) is
+superseded by [ADR-0019](ADR-0019-project-section-nav-grouped-disclosure.md).
+All other decisions remain in force.
+
+Original status: Accepted · Date: 2026-09-16 (proposed and accepted) · Session: UX research (#29);
 accepted in the layout MR
 [!14](https://gitlab.com/shnie/projectmanager/-/merge_requests/14)
 
