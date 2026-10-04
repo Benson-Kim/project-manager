@@ -80,14 +80,20 @@ test.describe("project workspace", () => {
       "href",
       "/projects",
     );
-    // The section nav is grouped: the Overview group button should be expanded (active group
-    // auto-opens on load) and the Charter link inside it carries aria-current="page".
     const nav = page.getByRole("navigation", { name: messages.projects.sectionsNav });
-    const overviewBtn = nav.getByRole("button", { name: messages.projects.charterSection });
-    await expect(overviewBtn).toHaveAttribute("aria-expanded", "true");
+
+    // ADR-0019: the Overview group has exactly one section (Charter). It renders
+    // as a plain <Link> pill — not a disclosure button — so there is no
+    // aria-expanded. The Charter link itself carries aria-current="page".
     const charter = nav.getByRole("link", { name: messages.projects.charterSection });
     await expect(charter).toHaveAttribute("aria-current", "page");
     await expect(charter).toHaveAttribute("href", "/projects/2");
+
+    // The Planning group (≥2 sections) renders as a disclosure button.
+    const planningBtn = nav.getByRole("button", { name: messages.planning.title });
+    await expect(planningBtn).toBeVisible();
+    await expect(planningBtn).toHaveAttribute("aria-expanded", "false");
+
     // The page h1 stays the section name (PageHeader), not the project name.
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
       messages.projects.charterSection,
