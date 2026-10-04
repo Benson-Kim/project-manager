@@ -49,26 +49,37 @@ export async function createAssumptionConstraint(
       ActorRole: actorRole,
     },
   );
+  if (rows.length === 0) {
+    const { AppError: AE } = await import("@/lib/errors");
+    throw new AE("INTERNAL", "Create returned no rows");
+  }
   return assumptionConstraintRowSchema.parse(rows[0]);
 }
 
 export async function getAssumptionConstraintById(
   assumptionConstraintId: number,
   actorUserId: number,
+  actorRole: Role = "Viewer",
 ): Promise<AssumptionConstraintRow> {
   const rows = await execProc<AssumptionConstraintRow>(
     "usp_AssumptionConstraint_GetById",
     {
       AssumptionConstraintId: assumptionConstraintId,
       ActorUserId: actorUserId,
+      ActorRole: actorRole,
     },
   );
+  if (rows.length === 0) {
+    const { AppError: AE } = await import("@/lib/errors");
+    throw new AE("NOT_FOUND", "AssumptionConstraint not found");
+  }
   return assumptionConstraintRowSchema.parse(rows[0]);
 }
 
 export async function listAssumptionConstraints(
   params: ListParams,
   actorUserId: number,
+  actorRole: Role,
   projectId: number | null = null,
   filters: AssumptionConstraintListFilters = {},
   pageSize: number = DEFAULT_PAGE_SIZE,
@@ -77,6 +88,7 @@ export async function listAssumptionConstraints(
     "usp_AssumptionConstraint_List",
     {
       ActorUserId: actorUserId,
+      ActorRole: actorRole,
       ProjectId: projectId,
       ...toProcListParams(params, pageSize),
       Type: filters.type ?? null,
@@ -102,6 +114,10 @@ export async function updateAssumptionConstraint(
       ActorRole: actorRole,
     },
   );
+  if (rows.length === 0) {
+    const { AppError: AE } = await import("@/lib/errors");
+    throw new AE("INTERNAL", "Update returned no rows");
+  }
   return assumptionConstraintRowSchema.parse(rows[0]);
 }
 

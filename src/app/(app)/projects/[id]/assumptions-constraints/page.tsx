@@ -62,10 +62,10 @@ export default async function AssumptionsConstraintsPage({
   };
 
   const [rows, preferredView, selectedRaw] = await Promise.all([
-    listAssumptionConstraints(listParams, session.userId, projectId, filters),
+    listAssumptionConstraints(listParams, session.userId, session.role, projectId, filters),
     getViewPreference(session.userId, "assumptions-constraints").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getAssumptionConstraintById(selectedId, session.userId).catch((err) => {
+      ? getAssumptionConstraintById(selectedId, session.userId, session.role).catch((err) => {
           if (err instanceof AppError && err.code === "NOT_FOUND") return null;
           throw err;
         })
