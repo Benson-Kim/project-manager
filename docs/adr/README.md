@@ -25,7 +25,7 @@ the full rules and examples derived from these decisions.
 | [0014](ADR-0014-dependency-policy-and-pins.md) | Dependency policy and the eslint/typescript pins | Accepted |
 | [0015](ADR-0015-auth-stub-contract.md) | Auth provider interface stubbed until module #4; contract final now | Accepted |
 | [0016](ADR-0016-list-proc-contract.md) | List stored-procedure contract (paging, sorting, search, TotalCount) | Accepted |
-| [0017](ADR-0017-auth-sessions-and-login-protection.md) | Auth sessions and login-attempt protection | Accepted |
+| [0017](ADR-0017-auth-sessions-and-login-protection.md) | Auth sessions, JWT strategy, login-rate limiting, password policy | Accepted |
 | [0018](ADR-0018-project-workspace-navigation.md) | Project workspace navigation: nested layout + scrollable section links | Superseded by ADR-0019 §2 |
-| [0019](ADR-0019-project-section-nav-grouped-disclosure.md) | Project section nav: grouped disclosure buttons supersede flat link row | Accepted |
+| [0019](ADR-0019-project-section-nav-grouped-disclosure.md) | Project section nav: grouped disclosure buttons supersede flat scrollable row | Accepted |
 | [0020](ADR-0020-web-push-todo-alert-delivery.md) | Event-driven Web Push todo-alert delivery | Accepted |

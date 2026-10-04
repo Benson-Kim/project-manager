@@ -79,10 +79,9 @@ export function AssigneesEditor({
           return exists ? assignees : [...assignees, { role, personName: picked, userId: null }];
         })()
       : assignees;
-    // An empty pending_list is intentional: the proc accepts it and
-    // soft-deletes all existing assignees (clearing the project is allowed).
-    setPicked(null);
-    setComboboxKey((k) => k + 1);
+    // Allow saving an empty list — usp_ProjectAssignee_Set soft-deletes all
+    // omitted rows, so the editor must be able to clear all assignees
+    // (review comment #2).
     setSummary(null);
     startTransition(async () => {
       const result = await setProjectAssigneesAction({ projectId, assignees: pending_list });
@@ -171,7 +170,7 @@ export function AssigneesEditor({
             </Field>
           </div>
           <div className="flex flex-wrap gap-2 px-4 pb-4">
-            <Button type="button" variant="secondary" onClick={add} disabled={!picked}>
+            <Button type="button" variant="secondary" disabled={!picked} onClick={add}>
               {messages.projects.addAssignee}
             </Button>
             <Button type="button" pending={pending} onClick={save} data-testid="assignees-save">

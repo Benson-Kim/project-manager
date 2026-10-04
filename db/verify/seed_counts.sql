@@ -5,7 +5,9 @@ USE ProjectManager;
 GO
 DECLARE @Errors NVARCHAR(MAX) = N'';
 IF (SELECT COUNT(*) FROM app.[Project]) <> 18 SET @Errors += N'Project<>18 (got ' + CAST((SELECT COUNT(*) FROM app.[Project]) AS NVARCHAR(12)) + N'); ';
-IF (SELECT COUNT(*) FROM app.[ProjectAssignee]) <> 0 SET @Errors += N'ProjectAssignee<>0 (got ' + CAST((SELECT COUNT(*) FROM app.[ProjectAssignee]) AS NVARCHAR(12)) + N'); ';
+-- ProjectAssignee: 0 in normal runs; E2E_SEED=1 adds 2 rows for e2e-pm + e2e-contributor on project 2.
+DECLARE @ExpectedPA INT = CASE WHEN N'$(E2E_SEED)' = N'1' THEN 2 ELSE 0 END;
+IF (SELECT COUNT(*) FROM app.[ProjectAssignee]) <> @ExpectedPA SET @Errors += N'ProjectAssignee<>' + CAST(@ExpectedPA AS NVARCHAR(12)) + N' (got ' + CAST((SELECT COUNT(*) FROM app.[ProjectAssignee]) AS NVARCHAR(12)) + N'); ';
 IF (SELECT COUNT(*) FROM app.[Stakeholder]) <> 8 SET @Errors += N'Stakeholder<>8 (got ' + CAST((SELECT COUNT(*) FROM app.[Stakeholder]) AS NVARCHAR(12)) + N'); ';
 IF (SELECT COUNT(*) FROM app.[Supplier]) <> 12 SET @Errors += N'Supplier<>12 (got ' + CAST((SELECT COUNT(*) FROM app.[Supplier]) AS NVARCHAR(12)) + N'); ';
 IF (SELECT COUNT(*) FROM app.[Keyword]) <> 29 SET @Errors += N'Keyword<>29 (got ' + CAST((SELECT COUNT(*) FROM app.[Keyword]) AS NVARCHAR(12)) + N'); ';

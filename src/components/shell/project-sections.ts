@@ -32,7 +32,11 @@ export const projectSections: ProjectSection[] = [
   { segment: "daily-activities", label: messages.projects.dailyActivitiesSection, match: "prefix" },
   { segment: "todos", label: messages.projects.todosSection, match: "prefix" },
   { segment: "keywords", label: messages.projects.keywordsSection, match: "prefix" },
-  { segment: "questions-answers", label: messages.projects.questionsAnswersSection, match: "prefix" },
+  {
+    segment: "questions-answers",
+    label: messages.projects.questionsAnswersSection,
+    match: "prefix",
+  },
   { segment: "parking-lot", label: messages.projects.parkingLotSection, match: "prefix" },
   {
     segment: "assumptions-constraints",
@@ -64,9 +68,7 @@ export const projectSectionGroups: ProjectSectionGroup[] = [
   {
     key: "people",
     label: messages.people.title,
-    sections: projectSections.filter((s) =>
-      ["stakeholders", "suppliers"].includes(s.segment),
-    ),
+    sections: projectSections.filter((s) => ["stakeholders", "suppliers"].includes(s.segment)),
   },
   {
     key: "activity",

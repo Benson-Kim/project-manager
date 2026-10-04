@@ -1,12 +1,11 @@
 # ADR-0018 — Project workspace navigation: nested layout + scrollable section links
 
-Status: **Partially superseded** — Decision point 2 (scrollable plain-link row) is
-superseded by [ADR-0019](ADR-0019-project-section-nav-grouped-disclosure.md).
-All other decisions remain in force.
-
-Original status: Accepted · Date: 2026-09-16 (proposed and accepted) · Session: UX research (#29);
+Status: Partially superseded · Date: 2026-09-16 (proposed and accepted) · Session: UX research (#29);
 accepted in the layout MR
 [!14](https://gitlab.com/shnie/projectmanager/-/merge_requests/14)
+
+> **Decision point 2 (section nav shape) is superseded by [ADR-0019](ADR-0019-project-section-nav-grouped-disclosure.md).**
+> All other decisions in this ADR (nested layout, registry, route segments, DataView convention) remain in force.
 
 Full research (inventory, comparison matrix, wireframes, a11y/mobile spec):
 [`docs/ux/project-workspace-navigation.md`](../ux/project-workspace-navigation.md).
@@ -31,12 +30,10 @@ be deep-linkable for multi-window use; mobile-first at 360 px.
    missing/deleted. The shell header title becomes the breadcrumb
    `Projects / <project name>` inside the workspace; the page `h1` stays the section
    name via `PageHeader`.
-2. **Section navigation** = one horizontally scrollable row of plain `<Link>`s in
+2. ~~**Section navigation** = one horizontally scrollable row of plain `<Link>`s in
    `<nav aria-label="Project sections">`, `aria-current="page"` on the active section
    (exact match for the index, prefix match for sections), edge-fade overflow
-   affordance, identical at 360 px and desktop. **Links, not ARIA tabs** (WAI-ARIA APG:
-   `tablist` is for same-page panels). No sidebar swap; the global sidebar is
-   untouched inside a project.
+   affordance, identical at 360 px and desktop.~~ **Superseded by [ADR-0019](ADR-0019-project-section-nav-grouped-disclosure.md)**: grouped disclosure buttons replace the flat row. Links (not ARIA tabs) and `aria-current="page"` are unchanged. No sidebar swap; the global sidebar is untouched inside a project.
 3. **Routes**: every section is a full route `/projects/[id]/<segment>`; the charter
    remains the index `/projects/[id]`. Segments (ordered by task group):
    `.` charter · `objectives` · `deliverables` (+`/gantt`) · `risks` (merged
