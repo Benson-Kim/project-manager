@@ -1,8 +1,9 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useReducer, useRef } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { messages } from "@/lib/messages";
 import {
   isCurrentSection,
@@ -60,7 +61,7 @@ function Chevron({ open }: { open: boolean }) {
 }
 
 // ---------------------------------------------------------------------------
-// Group trigger button (no panel — panel is hoisted to <nav> level)
+// Group trigger button
 // ---------------------------------------------------------------------------
 
 function GroupTrigger({
@@ -85,7 +86,7 @@ function GroupTrigger({
   if (group.sections.length === 0) return null;
 
   // A group with only one section that is the charter index renders as a
-  // plain link — no disclosure needed.
+  // plain link - no disclosure needed.
   if (group.sections.length === 1 && group.sections[0]?.segment === ".") {
     const section = group.sections[0];
     const current = isCurrentSection(pathname, projectId, section);
@@ -156,24 +157,24 @@ function initialOpenState(pathname: string, projectId: number): OpenState {
 // ---------------------------------------------------------------------------
 
 /**
- * Project section navigation (ADR-0018): four group disclosure buttons
- * (Overview · Planning · People · Activity), each toggling a dropdown panel
- * of section links. Replaces the flat scrollable pill row — groups keep the
- * nav compact as more sections are added.
+ * Project section navigation (ADR-0019): four group disclosure buttons
+ * (Overview / Planning / People / Activity), each toggling a dropdown panel
+ * of section links. The active group's panel opens on mount; route changes
+ * re-evaluate which group is active and reset the rest.
  *
  * ARIA disclosure pattern: buttons are aria-expanded, panels are role="group".
- * The active group's panel opens on mount; route changes re-evaluate which
- * group is active and reset the rest.
  *
- * Overflow note: the pill row scrolls horizontally via overflow-x-auto on the
- * <ul>. Panels are rendered as siblings of the <ul> inside the <nav> (which
- * has no overflow clipping) so they are never clipped by the scroll container.
+ * Overflow note: panels are rendered via ReactDOM.createPortal directly into
+ * document.body, bypassing every ancestor overflow/stacking context. The panel
+ * position is computed from the trigger button's getBoundingClientRect() and
+ * accounts for window scroll, so it always aligns under its trigger regardless
+ * of the nav's position in the layout tree.
  */
 export function ProjectSectionNav({ projectId }: { projectId: number }) {
   const pathname = usePathname();
   const navRef = useRef<HTMLElement>(null);
 
-  // One ref per group so we can read offsetLeft for panel positioning.
+  // One ref per group so we can read the trigger's viewport position.
   const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const [openState, dispatch] = useReducer(
@@ -182,9 +183,30 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
     () => initialOpenState(pathname, projectId),
   );
 
-  // Resync the active group when the route or project changes (the reducer
-  // initializer runs only on first mount; this component is persistent across
-  // navigations within the project layout).
+  // Track the pixel position of each open trigger so the portal panel can
+  // position itself correctly. Updated whenever openState changes.
+  const [panelPositions, setPanelPositions] = useState<
+    Record<string, { top: number; left: number }>
+  >({});
+
+  useEffect(() => {
+    const positions: Record<string, { top: number; left: number }> = {};
+    for (const group of projectSectionGroups) {
+      if (openState[group.key]) {
+        const el = triggerRefs.current[group.key];
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          positions[group.key] = {
+            top: rect.bottom + window.scrollY,
+            left: rect.left + window.scrollX,
+          };
+        }
+      }
+    }
+    setPanelPositions(positions);
+  }, [openState]);
+
+  // Resync the active group when the route or project changes.
   useEffect(() => {
     const activeKey =
       projectSectionGroups.find((g) => isGroupActive(pathname, projectId, g))?.key ?? null;
@@ -209,9 +231,6 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
       data-testid="project-section-nav"
       className="relative -mx-4 border-b border-line"
     >
-      {/* Horizontally scrollable pill row. overflow-x-auto on the <ul> clips
-          its own overflow but NOT absolutely-positioned elements outside it.
-          Panels are siblings of this <ul> (see below) to avoid clipping. */}
       <ul className="flex gap-1 overflow-x-auto px-4 py-2">
         {projectSectionGroups.map((group) => (
           <GroupTrigger
@@ -234,29 +253,24 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
         ))}
       </ul>
 
-      {/* Panels rendered here — inside <nav> but outside the scrolling <ul> —
-          so overflow-x-auto on the <ul> never clips them. The <nav> itself
-          is position:relative, so `absolute left-*` anchors to the nav edge.
-          left offset matches the trigger button's offsetLeft so the panel
-          aligns under its button even after horizontal scroll. */}
+      {/* Panels are portalled to <body> so they are never clipped by any
+          ancestor overflow or stacking context. Position is computed from the
+          trigger's getBoundingClientRect() + window scroll. */}
       {projectSectionGroups.map((group) => {
         if (!openState[group.key]) return null;
         if (group.sections.length <= 1) return null;
 
         const panelId = `section-group-${group.key}`;
-        const trigger = triggerRefs.current[group.key];
-        // offsetLeft is relative to the nearest positioned ancestor — the
-        // <nav> (position:relative), so this is exactly what we need.
-        const left = trigger ? trigger.offsetLeft : 16;
+        const pos = panelPositions[group.key];
 
-        return (
+        return createPortal(
           <div
             key={group.key}
             id={panelId}
             role="group"
             aria-label={group.label}
-            style={{ left }}
-            className="absolute top-full z-(--z-dropdown) mt-1 min-w-44 rounded-lg border border-line bg-surface shadow-lg"
+            style={pos ? { position: "absolute", top: pos.top + 4, left: pos.left } : { display: "none" }}
+            className="z-(--z-dropdown) min-w-44 rounded-lg border border-line bg-surface shadow-lg"
           >
             {group.sections.map((section) => {
               const current = isCurrentSection(pathname, projectId, section);
@@ -272,7 +286,8 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
                 </Link>
               );
             })}
-          </div>
+          </div>,
+          document.body,
         );
       })}
     </nav>
