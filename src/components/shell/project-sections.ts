@@ -34,7 +34,11 @@ export const projectSections: ProjectSection[] = [
   { segment: "keywords", label: messages.projects.keywordsSection, match: "prefix" },
   { segment: "questions-answers", label: messages.projects.questionsAnswersSection, match: "prefix" },
   { segment: "parking-lot", label: messages.projects.parkingLotSection, match: "prefix" },
-  { segment: "assumptions-constraints", label: messages.projects.assumptionsConstraintsSection, match: "prefix" },
+  {
+    segment: "assumptions-constraints",
+    label: messages.projects.assumptionsConstraintsSection,
+    match: "prefix",
+  },
 ];
 
 /** Sections grouped for the disclosure nav (ADR-0018). */
@@ -48,7 +52,13 @@ export const projectSectionGroups: ProjectSectionGroup[] = [
     key: "planning",
     label: messages.planning.title,
     sections: projectSections.filter((s) =>
-      ["objectives", "deliverables", "questions-answers", "parking-lot", "assumptions-constraints"].includes(s.segment),
+      [
+        "objectives",
+        "deliverables",
+        "questions-answers",
+        "parking-lot",
+        "assumptions-constraints",
+      ].includes(s.segment),
     ),
   },
   {
