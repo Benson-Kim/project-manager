@@ -320,12 +320,18 @@ function DataRowShell({
   className: string;
   children: React.ReactNode;
 }) {
+  // When the card is openable, use a <button> so keyboard users can activate
+  // it with Enter/Space without any extra event handler (WCAG 2.1 SC 2.1.1).
+  // When not openable, a plain <div> is sufficient (no interaction contract).
+  const Tag = onOpen ? "button" : "div";
   return (
-    <div
+    <Tag
+      // "button" needs type to avoid submitting parent forms accidentally.
+      {...(onOpen ? { type: "button" as const } : {})}
       tabIndex={index === activeIndex ? 0 : -1}
       onFocus={onFocus}
       onClick={onOpen}
-      className={`relative ${onOpen ? "cursor-pointer" : ""} ${selected ? "ring-2 ring-accent" : ""} ${className}`}
+      className={`relative w-full text-left ${onOpen ? "cursor-pointer" : ""} ${selected ? "ring-2 ring-accent" : ""} ${className}`}
     >
       {selectable ? (
         <input
@@ -338,6 +344,6 @@ function DataRowShell({
         />
       ) : null}
       {children}
-    </div>
+    </Tag>
   );
 }

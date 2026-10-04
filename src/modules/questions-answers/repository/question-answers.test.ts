@@ -116,7 +116,7 @@ describe("question-answers repository", () => {
 
   it("list rejects contract-breaking rows", async () => {
     execProc.mockResolvedValue([dbRow({ TotalCount: 1, QuestionAnswerId: "not-a-number" })]);
-    await expect(listQuestionAnswers(listParamsSchema.parse({}), 1)).rejects.toThrow();
+    await expect(listQuestionAnswers(listParamsSchema.parse({}), 1, 2)).rejects.toThrow();
   });
 
   it("update carries rowVer for optimistic concurrency", async () => {
