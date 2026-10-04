@@ -1,38 +1,108 @@
 "use client";
 
 import { useEffect } from "react";
+import { registerPushSubscriptionAction } from "../actions";
+
+const POLL_INTERVAL_MS = 60_000;
+const PUSH_PUBLIC_KEY = process.env.NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY;
+type DueAlert = { todoAlertId: number; title: string; body?: string };
+const foregroundNotifiedIds = new Set<number>();
+
+function base64UrlToBytes(value: string): Uint8Array<ArrayBuffer> {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const decoded = atob((value + padding).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(decoded, (character) => character.charCodeAt(0));
+}
+
+async function pollInOpenTab(): Promise<void> {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  try {
+    const response = await fetch("/api/due-alerts", { credentials: "include" });
+    if (!response.ok) return;
+    const alerts = (await response.json()) as DueAlert[];
+
+    // Reconcile the notified-ID set against the server's current due list.
+    // IDs that are no longer due (snoozed, dismissed, completed) are removed
+    // so a re-triggered alert will fire a new notification on the next tick
+    // without requiring a page reload.
+    const dueIds = new Set(alerts.map((a) => a.todoAlertId));
+    for (const id of foregroundNotifiedIds) {
+      if (!dueIds.has(id)) foregroundNotifiedIds.delete(id);
+    }
+
+    for (const alert of alerts) {
+      if (foregroundNotifiedIds.has(alert.todoAlertId)) continue;
+      foregroundNotifiedIds.add(alert.todoAlertId);
+      const notification = new Notification(alert.title, {
+        body: alert.body || "Your to-do alert is due. Click to open.",
+        icon: "/favicon.ico",
+        tag: `todo-alert-${alert.todoAlertId}`,
+      });
+      notification.onclick = () => {
+        window.focus();
+        window.location.href = "/todo";
+      };
+    }
+  } catch {
+    // The todo page remains the authoritative in-app fallback.
+  }
+}
 
 /**
- * useAlertPoller — registers the Project Manager Service Worker on first mount.
- *
- * The SW (public/sw.js) polls /api/due-alerts every 60 s and fires OS-level
- * browser notifications via self.registration.showNotification(). It runs in
- * a dedicated thread and keeps polling even when no app tab is open, as long
- * as the browser process is running in the background (default on Windows for
- * Chrome/Edge).
- *
- * The hook is side-effect only — no return value. Place it in a Client
- * Component that stays mounted for the whole session (AppShell).
+ * Uses Web Push for closed-tab delivery. Push wakes a stopped worker for each
+ * event; it never assumes that a worker or an interval survives. The server
+ * must persist /api/alert-subscriptions and send a payload containing an alert.
+ * Unsupported/denied/unconfigured/failed Push falls back to foreground-only
+ * polling. Without Web Push, no browser API guarantees a no-tab notification.
  */
 export function useAlertPoller(): void {
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
+    let fallbackTimer: ReturnType<typeof setInterval> | undefined;
+    const startForegroundFallback = (): void => {
+      if (fallbackTimer) return;
+      void pollInOpenTab();
+      fallbackTimer = setInterval(() => void pollInOpenTab(), POLL_INTERVAL_MS);
+    };
 
-    navigator.serviceWorker
-      .register("/sw.js", { scope: "/" })
-      .then((reg) => {
-        // Request notification permission lazily on registration success.
-        // The browser will only show the prompt when Notification.permission
-        // is "default" (not yet decided).
-        if ("Notification" in window && Notification.permission === "default") {
-          void Notification.requestPermission();
+    const registerPush = async (): Promise<void> => {
+      if (!("serviceWorker" in navigator) || !("Notification" in window)) {
+        startForegroundFallback();
+        return;
+      }
+      if (Notification.permission === "default") {
+        try {
+          await Notification.requestPermission();
+        } catch {
+          startForegroundFallback();
+          return;
         }
-        return reg;
-      })
-      .catch((err) => {
-        // SW registration failure is non-fatal — alerts won't ring but the
-        // rest of the app is unaffected.
-        console.warn("[alerts] Service Worker registration failed:", err);
-      });
-  }, []); // run once on mount
+      }
+      if (Notification.permission !== "granted" || !PUSH_PUBLIC_KEY || !("PushManager" in window)) {
+        startForegroundFallback();
+        return;
+      }
+
+      try {
+        const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+        const pushManager = registration.pushManager;
+        if (!pushManager) throw new Error("PushManager unavailable");
+        const subscription =
+          (await pushManager.getSubscription()) ||
+          (await pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: base64UrlToBytes(PUSH_PUBLIC_KEY),
+          }));
+        const result = await registerPushSubscriptionAction(subscription.toJSON());
+        if (!result.ok) throw new Error(result.error.message);
+      } catch (error) {
+        console.warn("[alerts] Web Push unavailable; using foreground fallback:", error);
+        startForegroundFallback();
+      }
+    };
+
+    void registerPush();
+    return () => {
+      if (fallbackTimer) clearInterval(fallbackTimer);
+    };
+  }, []);
 }

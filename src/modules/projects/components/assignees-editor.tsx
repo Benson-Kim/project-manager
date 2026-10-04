@@ -79,6 +79,8 @@ export function AssigneesEditor({
           return exists ? assignees : [...assignees, { role, personName: picked, userId: null }];
         })()
       : assignees;
+    // An empty pending_list is intentional: the proc accepts it and
+    // soft-deletes all existing assignees (clearing the project is allowed).
     setPicked(null);
     setComboboxKey((k) => k + 1);
     setSummary(null);
@@ -100,7 +102,7 @@ export function AssigneesEditor({
   return (
     <section
       aria-labelledby="assignees-heading"
-      className="flex flex-col gap-4 border border-line rounded-md bg-surface [background-image:linear-gradient(to_bottom,var(--surface-raised),var(--surface)_40%)]"
+      className="flex flex-col gap-4 border border-line rounded-md bg-surface bg-[linear-gradient(to_bottom,var(--surface-raised),var(--surface)_40%)]"
     >
       <h2
         id="assignees-heading"

@@ -245,7 +245,7 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
       data-testid="project-section-nav"
       className="relative -mx-4 border-b border-line"
     >
-      <ul className="flex gap-1 overflow-x-auto px-4 py-2">
+      <ul className="flex gap-1 overflow-x-auto px-4 py-2 pb-1">
         {projectSectionGroups.map((group) => (
           <GroupTrigger
             key={group.key}
