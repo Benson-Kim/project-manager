@@ -18,6 +18,7 @@ export function AssumptionConstraintToolbar({ children }: { children?: React.Rea
       <SearchInput testId="assumption-constraint-search" />
       <select
         key={type}
+        data-testid="filter-type"
         aria-label={messages.assumptionsConstraints.allTypes}
         value={type}
         onChange={(e) => update({ type: e.target.value || null, page: null })}

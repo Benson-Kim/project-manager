@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+// ASSUMPTION_CONSTRAINT_TYPE_OPTIONS re-imported for mapped <option> rendering
+// (Open/Closed: adding a new type only requires updating the constants + messages).
 
 import { useAnnouncer } from "@/components/ui/announcer";
 import { Button } from "@/components/ui/button";
@@ -15,7 +17,10 @@ import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
-import type { AssumptionConstraintRow } from "../schemas/assumption-constraint";
+import {
+  ASSUMPTION_CONSTRAINT_TYPE_OPTIONS,
+  type AssumptionConstraintRow,
+} from "../schemas/assumption-constraint";
 import {
   assumptionConstraintFormSchema,
   updateAssumptionConstraintFormSchema,
@@ -123,7 +128,10 @@ export function AssumptionConstraintSheet({
       } else {
         form.applyResult(result);
         setSummary(result.error.message);
-        if (result.error.code === "CONFLICT") setConflict(true);
+        if (result.error.code === "CONFLICT") {
+          setConflict(true);
+          announce(result.error.message);
+        }
       }
     });
   };
@@ -222,12 +230,13 @@ export function AssumptionConstraintSheet({
             >
               <Select name="type" defaultValue={item?.Type ?? ""}>
                 <option value="">{messages.assumptionsConstraints.typeNone}</option>
-                <option value="Assumption">
-                  {messages.assumptionsConstraints.typeAssumption}
-                </option>
-                <option value="Constraint">
-                  {messages.assumptionsConstraints.typeConstraint}
-                </option>
+                {ASSUMPTION_CONSTRAINT_TYPE_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt === "Assumption"
+                      ? messages.assumptionsConstraints.typeAssumption
+                      : messages.assumptionsConstraints.typeConstraint}
+                  </option>
+                ))}
               </Select>
             </Field>
 

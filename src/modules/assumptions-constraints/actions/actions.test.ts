@@ -75,6 +75,54 @@ describe("assumptions-constraints actions", () => {
     expect(params.ActorRole).toBe("ProjectManager");
   });
 
+  it("create with type=Constraint forwards to proc", async () => {
+    execProc.mockResolvedValue([dbRow({ Type: "Constraint" })]);
+    const fd = new FormData();
+    fd.set("projectId", "2");
+    fd.set("description", "A hard constraint");
+    fd.set("type", "Constraint");
+    const result = await createAssumptionConstraintAction(fd);
+    expect(result.ok).toBe(true);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params.Type).toBe("Constraint");
+  });
+
+  it("create with impact=Medium forwards to proc", async () => {
+    execProc.mockResolvedValue([dbRow({ Impact: "Medium" })]);
+    const fd = new FormData();
+    fd.set("projectId", "2");
+    fd.set("description", "An assumption");
+    fd.set("impact", "Medium");
+    const result = await createAssumptionConstraintAction(fd);
+    expect(result.ok).toBe(true);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params.Impact).toBe("Medium");
+  });
+
+  it("create with impact=Low forwards to proc", async () => {
+    execProc.mockResolvedValue([dbRow({ Impact: "Low" })]);
+    const fd = new FormData();
+    fd.set("projectId", "2");
+    fd.set("description", "An assumption");
+    fd.set("impact", "Low");
+    const result = await createAssumptionConstraintAction(fd);
+    expect(result.ok).toBe(true);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params.Impact).toBe("Low");
+  });
+
+  it("create with isValidated=on forwards IsValidated=true", async () => {
+    execProc.mockResolvedValue([dbRow({ IsValidated: true })]);
+    const fd = new FormData();
+    fd.set("projectId", "2");
+    fd.set("description", "Verified assumption");
+    fd.set("isValidated", "on");
+    const result = await createAssumptionConstraintAction(fd);
+    expect(result.ok).toBe(true);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params.IsValidated).toBe(true);
+  });
+
   it("create returns VALIDATION for an empty description", async () => {
     const fd = new FormData();
     fd.set("projectId", "2");
@@ -85,6 +133,17 @@ describe("assumptions-constraints actions", () => {
       expect(result.error.code).toBe("VALIDATION");
       expect(result.error.fieldErrors?.description).toBeDefined();
     }
+    expect(execProc).not.toHaveBeenCalled();
+  });
+
+  it("create returns VALIDATION for an invalid type", async () => {
+    const fd = new FormData();
+    fd.set("projectId", "2");
+    fd.set("description", "An assumption");
+    fd.set("type", "Risk");
+    const result = await createAssumptionConstraintAction(fd);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("VALIDATION");
     expect(execProc).not.toHaveBeenCalled();
   });
 
@@ -138,6 +197,20 @@ describe("assumptions-constraints actions", () => {
     if (!result.ok) expect(result.error.code).toBe("CONFLICT");
   });
 
+  it("update maps NOT_FOUND to an error (record deleted mid-edit)", async () => {
+    execProc.mockRejectedValue(
+      new AppError("NOT_FOUND", "AssumptionConstraint not found"),
+    );
+    const fd = new FormData();
+    fd.set("projectId", "2");
+    fd.set("description", "An assumption");
+    fd.set("assumptionConstraintId", "1");
+    fd.set("rowVer", "42");
+    const result = await updateAssumptionConstraintAction(fd);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("NOT_FOUND");
+  });
+
   it("update is FORBIDDEN for a Viewer", async () => {
     session = { userId: 9, username: "viewer", role: "Viewer" };
     const fd = new FormData();
@@ -165,6 +238,30 @@ describe("assumptions-constraints actions", () => {
       ActorUserId: 7,
       ActorRole: "ProjectManager",
     });
+  });
+
+  it("delete maps rowversion mismatch to CONFLICT", async () => {
+    execProc.mockRejectedValue(
+      new AppError("CONFLICT", "AssumptionConstraint was modified by someone else"),
+    );
+    const result = await deleteAssumptionConstraintAction({
+      assumptionConstraintId: 1,
+      rowVer: 41,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("CONFLICT");
+  });
+
+  it("delete maps NOT_FOUND when record is already deleted", async () => {
+    execProc.mockRejectedValue(
+      new AppError("NOT_FOUND", "AssumptionConstraint not found"),
+    );
+    const result = await deleteAssumptionConstraintAction({
+      assumptionConstraintId: 1,
+      rowVer: 42,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("NOT_FOUND");
   });
 
   it("delete is FORBIDDEN for a Contributor", async () => {
