@@ -19,8 +19,9 @@ export function QuestionsAnswersToolbar({ children }: { children?: React.ReactNo
   return (
     <Toolbar>
       <SearchInput testId="qa-search" />
+      {/* Controlled value without key= — removing key prevents remounting on
+          every change which would destroy keyboard focus (WCAG 2.4.3). */}
       <select
-        key={category}
         aria-label={messages.questionsAnswers.allCategories}
         value={category}
         onChange={(e) => update({ category: e.target.value || null, page: null })}
@@ -34,7 +35,6 @@ export function QuestionsAnswersToolbar({ children }: { children?: React.ReactNo
         ))}
       </select>
       <select
-        key={priority}
         aria-label={messages.questionsAnswers.allPriorities}
         value={priority}
         onChange={(e) => update({ priority: e.target.value || null, page: null })}

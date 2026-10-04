@@ -61,8 +61,17 @@ export function QuestionAnswerSheet({
     function handleBeforeNavigate(e: Event) {
       if (!isDirty) return;
       e.preventDefault();
-      const resume = (e as CustomEvent<{ resume: () => void }>).detail.resume;
-      pendingNavRef.current = resume;
+      // Runtime guard: CustomEvent<{ resume: () => void }> is not checkable at
+      // compile time, so we verify the shape before trusting it.
+      const detail = e instanceof CustomEvent ? (e.detail as unknown) : undefined;
+      const resume =
+        detail !== null &&
+        typeof detail === "object" &&
+        "resume" in (detail as object) &&
+        typeof (detail as { resume: unknown }).resume === "function"
+          ? (detail as { resume: () => void }).resume
+          : undefined;
+      pendingNavRef.current = resume ?? null;
       setShowUnsaved(true);
     }
     window.addEventListener("before-navigate", handleBeforeNavigate);
@@ -172,7 +181,7 @@ export function QuestionAnswerSheet({
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => window.location.reload()}
+                onClick={() => router.refresh()}
               >
                 {messages.questionsAnswers.reload}
               </Button>

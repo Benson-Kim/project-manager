@@ -1,4 +1,5 @@
 import { execProc } from "@/lib/db";
+import { AppError } from "@/lib/errors";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
 import {
   createQuestionAnswerInput,
@@ -44,6 +45,7 @@ export async function createQuestionAnswer(
     ActorUserId: actorUserId,
     ActorRole: actorRole,
   });
+  if (!rows[0]) throw new AppError("NOT_FOUND", "Question/answer creation returned no row");
   return questionAnswerRowSchema.parse(rows[0]);
 }
 
@@ -55,13 +57,14 @@ export async function getQuestionAnswerById(
     QuestionAnswerId: questionAnswerId,
     ActorUserId: actorUserId,
   });
+  if (!rows[0]) throw new AppError("NOT_FOUND", `Question/answer ${questionAnswerId} not found`);
   return questionAnswerRowSchema.parse(rows[0]);
 }
 
 export async function listQuestionAnswers(
   params: ListParams,
   actorUserId: number,
-  projectId: number | null = null,
+  projectId: number,
   filters: QAListFilters = {},
   pageSize: number = DEFAULT_PAGE_SIZE,
 ): Promise<QuestionAnswerListRow[]> {
@@ -92,6 +95,7 @@ export async function updateQuestionAnswer(
     ActorUserId: actorUserId,
     ActorRole: actorRole,
   });
+  if (!rows[0]) throw new AppError("NOT_FOUND", `Question/answer ${parsed.questionAnswerId} not found or modified`);
   return questionAnswerRowSchema.parse(rows[0]);
 }
 
