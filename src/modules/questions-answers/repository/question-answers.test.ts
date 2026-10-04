@@ -88,6 +88,11 @@ describe("question-answers repository", () => {
     });
   });
 
+  it("getById throws NOT_FOUND when proc returns empty array", async () => {
+    execProc.mockResolvedValue([]);
+    await expect(getQuestionAnswerById(7, 1)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
   it("list forwards ADR-0016 params with project scope and filters", async () => {
     execProc.mockResolvedValue([dbRow({ TotalCount: 5 })]);
     const params = listParamsSchema.parse({ page: "2" });
