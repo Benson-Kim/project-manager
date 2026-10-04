@@ -87,7 +87,10 @@ export function Combobox({ name, options, defaultValue, onSelect }: ComboboxProp
           setQuery(e.target.value);
           setOpen(true);
           setActiveIndex(0);
-          if (selected && e.target.value !== selected.label) setSelected(null);
+          if (selected && e.target.value !== selected.label) {
+            setSelected(null);
+            onSelect?.(null);
+          }
         }}
         onFocus={() => setOpen(true)}
         onBlur={() => {

@@ -58,7 +58,11 @@ export function NotificationsBell({ alerts }: { alerts: ShellAlert[] }) {
         type="button"
         aria-expanded={open}
         aria-controls={panelId}
-        aria-label={messages.app.notifications}
+        aria-label={
+          hasAlerts
+            ? messages.app.notificationsWithCount(alerts.length)
+            : messages.app.notifications
+        }
         data-testid="notifications-bell"
         data-state={hasAlerts ? "filled" : "outline"}
         className={iconButtonClass}
@@ -67,6 +71,7 @@ export function NotificationsBell({ alerts }: { alerts: ShellAlert[] }) {
         <BellIcon filled={hasAlerts} />
         {hasAlerts ? (
           <span
+            aria-hidden="true"
             data-testid="notifications-dot"
             className="absolute top-1 right-1 size-2 rounded-full bg-danger"
           />

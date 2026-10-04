@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ALL user-facing copy lives here . One tone: short, sentence case,
  * plain words, no exclamation marks, no jargon, no helper text.
  * Guardrail: src/test/messages-tone.test.ts.
@@ -23,7 +23,9 @@ export const messages = {
     themeDark: "Dark",
     themeToggle: "Toggle theme",
     notifications: "Notifications",
+    notificationsWithCount: (n: number) => `Notifications — ${n} pending`,
     noNotifications: "No notifications",
+    filterAndSearch: "Filter and search",
     account: "Account",
     untitled: "Untitled",
     moduleNotAvailable: "This module is not available yet.",
@@ -275,8 +277,11 @@ export const messages = {
     editTitle: "Edit deliverable",
     requirement: "Requirement",
     requirementRequired: "Enter the requirement",
+    requestedDate: "Requested date",
     deadline: "Deadline",
     assignedTo: "Assigned to",
+    assignees: "Assignees",
+    removeAssignee: (name: string) => `Remove ${name}`,
     status: "Status",
     priority: "Priority",
     allStatuses: "All statuses",
@@ -289,8 +294,20 @@ export const messages = {
     listLink: "List view",
     ganttEmptyBody: "Deliverables appear here once they have a deadline.",
     ganttAxis: "Timeline",
-    ganttBarName: (requirement: string, start: string, end: string, status: string) =>
-      `${requirement}, ${start} to ${end}, ${status}`,
+    ganttBarName: (
+      requirement: string,
+      start: string,
+      end: string,
+      status: string,
+      assignees?: string,
+    ) =>
+      assignees
+        ? `${requirement}, ${start} to ${end}, ${status}, ${assignees}`
+        : `${requirement}, ${start} to ${end}, ${status}`,
+    ganttDuration: (elapsed: number, total: number) =>
+      `${elapsed} of ${total} day${total === 1 ? "" : "s"}`,
+    ganttElapsed: "Duration so far",
+    allAssignees: "All assignees",
     print: "Print",
     emptyBody: "Create the first deliverable.",
     invalidDate: "Enter a valid date",

@@ -3,7 +3,7 @@ import { ROLES } from "@/lib/auth/types";
 import { passwordSchema } from "@/lib/auth/password-policy";
 
 /** tedious returns CAST(RowVer AS BIGINT) as a string — coerce (LESSONS §10). */
-const rowVerSchema = z.coerce.number();
+const rowVerSchema = z.coerce.number().int().nonnegative();
 
 /** usp_User_List / usp_User_GetById / usp_User_Create / usp_User_Update row (no PasswordHash). */
 export const userRowSchema = z.object({
