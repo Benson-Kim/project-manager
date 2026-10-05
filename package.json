@@ -1,6 +1,6 @@
 {
   "name": "project-manager",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Mobile-first rebuild of the Access project-management system (Next.js + SQL Server, stored-procedure-only data access)",
   "scripts": {
