@@ -1,0 +1,280 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop, 'feature/**' ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Check Formatting
+        run: npm run format:check
+
+  typecheck:
+    name: TypeScript Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Run Typecheck
+        run: npm run typecheck
+
+  unit-tests:
+    name: Vitest Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Run Vitest
+        run: npm run test
+
+  build:
+    name: Next.js Standalone Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Build Application
+        run: npm run build
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: standalone-build
+          path: |
+            .next/standalone
+            .next/static
+          retention-days: 1
+
+  db-apply:
+    name: Database Migrations & Verification
+    runs-on: ubuntu-latest
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        ports:
+          - 1433:1433
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_PID: "Developer"
+          MSSQL_SA_PASSWORD: "Ci-Ephemeral!Passw0rd1"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install sqlcmd
+        run: |
+          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft.gpg
+          echo "deb [signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" | sudo tee /etc/apt/sources.list.d/mssql.list
+          sudo apt-get update -qq
+          sudo ACCEPT_EULA=Y apt-get install -y -qq mssql-tools18
+          sudo ln -sf /opt/mssql-tools18/bin/sqlcmd /usr/local/bin/sqlcmd
+
+      - name: Wait for SQL Server
+        run: |
+          for i in $(seq 1 30); do
+            sqlcmd -S tcp:localhost,1433 -U sa -P "Ci-Ephemeral!Passw0rd1" -C -Q "SELECT 1" >/dev/null 2>&1 && break
+            echo "Waiting for SQL Server ($i)..."
+            sleep 2
+          done
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Install Argon2 for seeding
+        run: npm install --no-save argon2
+
+      - name: Apply DB Schema & Seed Data
+        env:
+          DB_SERVER: localhost
+          DB_USER: sa
+          DB_PASSWORD: "Ci-Ephemeral!Passw0rd1"
+          DB_NAME: ProjectManager
+          SEED_ADMIN_PASSWORD: "Throwaway-Admin-Seed-2026"
+        run: |
+          sh scripts/db-apply.sh
+          echo "== Second Run (Idempotence Check) =="
+          sh scripts/db-apply.sh
+          sqlcmd -S tcp:localhost,1433 -U sa -P "Ci-Ephemeral!Passw0rd1" -C -b -I -i db/verify/seed_counts.sql
+
+  e2e-tests:
+    name: Playwright E2E Smoke Tests
+    runs-on: ubuntu-latest
+    needs: [build, db-apply]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || contains(github.event.head_commit.message, '[e2e]')
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        ports:
+          - 1433:1433
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_PID: "Developer"
+          MSSQL_SA_PASSWORD: "E2e-Throwaway-Sa-2026!"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install sqlcmd
+        run: |
+          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft.gpg
+          echo "deb [signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" | sudo tee /etc/apt/sources.list.d/mssql.list
+          sudo apt-get update -qq
+          sudo ACCEPT_EULA=Y apt-get install -y -qq mssql-tools18
+          sudo ln -sf /opt/mssql-tools18/bin/sqlcmd /usr/local/bin/sqlcmd
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Wait for SQL Server
+        run: |
+          for i in $(seq 1 30); do
+            sqlcmd -S tcp:localhost,1433 -U sa -P "E2e-Throwaway-Sa-2026!" -C -Q "SELECT 1" >/dev/null 2>&1 && break
+            echo "Waiting for SQL Server ($i)..."
+            sleep 2
+          done
+
+      - name: Seed Database for E2E
+        env:
+          DB_SERVER: localhost
+          DB_USER: sa
+          DB_PASSWORD: "E2e-Throwaway-Sa-2026!"
+          DB_NAME: ProjectManager
+          SEED_ADMIN_PASSWORD: "Throwaway-Admin-Seed-2026"
+          E2E_SEED: "1"
+          E2E_USER_PASSWORD: "E2e-Throwaway-User-2026"
+          AUTH_SECRET: "e2e-throwaway-auth-secret-0123456789abcdefghijklmnopqrstuvwxyz"
+          TRUST_SERVER_CERT: "true"
+        run: |
+          sh scripts/db-apply.sh
+          HASH=$(sqlcmd -S tcp:localhost,1433 -U sa -P "E2e-Throwaway-Sa-2026!" -C -h -1 -W -Q "SET NOCOUNT ON; SELECT PasswordHash FROM ProjectManager.auth.[User] WHERE Username = N'e2e-pm';")
+          node -e "require('argon2').verify(process.argv[1], process.env.E2E_USER_PASSWORD).then((ok) => { console.log('seeded e2e-pm hash verifies', ok); process.exit(ok?0:1); })" "$HASH"
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E Tests
+        env:
+          DB_SERVER: localhost
+          DB_USER: sa
+          DB_PASSWORD: "E2e-Throwaway-Sa-2026!"
+          DB_NAME: ProjectManager
+          AUTH_SECRET: "e2e-throwaway-auth-secret-0123456789abcdefghijklmnopqrstuvwxyz"
+          TRUST_SERVER_CERT: "true"
+        run: npm run e2e
+
+      - name: Upload Test Results Artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: test-results/
+          retention-days: 3
+
+  verify-sources:
+    name: Verify Source Documents
+    runs-on: ubuntu-latest
+    if: contains(github.event.head_commit.message, '[verify]') || contains(github.event.head_commit.modified, 'docs/source/')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mdbtools
+          pip install openpyxl python-pptx
+
+      - name: Run Verification Script
+        run: python tools/verify/verify_sources.py
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, unit-tests, build]
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+    steps:
+      - name: Deploy Step
+        run: |
+          echo "Deploying to Staging environment..."
+          echo "Artifacts are ready."
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, unit-tests, build, e2e-tests]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - name: Deploy Step
+        run: |
+          echo "Deploying to Production environment..."
+          echo "Production deployment step completed."
