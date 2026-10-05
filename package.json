@@ -5,6 +5,7 @@
   "description": "Mobile-first rebuild of the Access project-management system (Next.js + SQL Server, stored-procedure-only data access)",
   "scripts": {
     "dev": "next dev",
+    "setup": "node scripts/setup.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
