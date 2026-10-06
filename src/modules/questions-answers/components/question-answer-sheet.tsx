@@ -26,7 +26,7 @@ import {
 /**
  * Q&A detail/edit sheet (ADR-0010 default pattern): URL-synced via ?id=
  * (numeric id or "new"); closing clears the param. Project scope travels as a
- * hidden field. Contributor role can update but not create/delete.
+ * hidden field. Contributor role can create and update but not delete.
  */
 export function QuestionAnswerSheet({
   questionAnswer,
