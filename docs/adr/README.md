@@ -28,3 +28,4 @@ the full rules and examples derived from these decisions.
 | [0017](ADR-0017-auth-sessions-and-login-protection.md) | Auth sessions and login-attempt rate limiting | Accepted |
 | [0018](ADR-0018-project-workspace-navigation.md) | Project workspace navigation: nested layout + scrollable section links | Accepted |
 | [0019](ADR-0019-project-workspace-navigation-disclosure-nav.md) | Project workspace navigation: grouped disclosure nav (supersedes ADR-0018 §2) | Accepted |
+| [0020](ADR-0020-rich-text-editor-and-sanitiser.md) | Rich-text editing (Tiptap) and HTML sanitisation (sanitize-html) | Accepted |
