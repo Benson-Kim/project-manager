@@ -1,4 +1,6 @@
 -- usp_Objective_Create — insert one app.Objective row; audits in-transaction; returns the new row.
+-- Row-level access: the target @ProjectId must be accessible (dbo.usp_Project_AssertAccess,
+--   FORBIDDEN_ROW 50003; Admin bypass).
 -- Entity app.Objective (source: tblProjectObjectives). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
@@ -13,6 +15,11 @@ AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
+
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
+         @MinLevel = N'Manager', @AllowProjectless = 0;
+
     IF @ProjectId IS NULL
         THROW 50004, N'VALIDATION:ProjectId is required', 1;
     BEGIN TRAN;

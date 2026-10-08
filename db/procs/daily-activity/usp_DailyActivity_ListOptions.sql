@@ -5,7 +5,9 @@
 --
 -- Returns: DailyActivityId, Label ("Task (YYYY-MM-DD)" format).
 -- Ordered:  RequestDate DESC so most-recent activities appear first.
--- Scope:    non-deleted rows; if @ProjectId is provided, scoped to that project.
+-- Scope:    non-deleted rows; a supplied @ProjectId must be accessible
+--           (dbo.usp_Project_AssertAccess → FORBIDDEN_ROW 50003); without one, only rows of
+--           projects the actor is assigned to plus project-less rows (Admin sees all).
 -- Auth:     @ActorUserId is validated as an active non-deleted user before
 --           any data is returned (ADR-0012 row-level guard pattern).
 -- Module:   todo-items (#24) / daily-activities (#19).
@@ -13,10 +15,14 @@ USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_DailyActivity_ListOptions
     @ActorUserId INT,
-    @ProjectId   INT = NULL
+    @ProjectId   INT          = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    -- The actor's role is read from auth.User, never trusted from the caller.
+    DECLARE @ActorRole NVARCHAR(50);
+    EXEC dbo.usp_User_GetActorRole @UserId = @ActorUserId, @Role = @ActorRole OUTPUT;
 
     -- Row-level actor guard (ADR-0012): reject deleted / inactive callers.
     IF NOT EXISTS (
@@ -26,6 +32,10 @@ BEGIN
     BEGIN
         THROW 50003, 'UNAUTHENTICATED', 1;
     END;
+
+    IF @ProjectId IS NOT NULL
+        EXEC dbo.usp_Project_AssertAccess
+             @ProjectId = @ProjectId, @ActorUserId = @ActorUserId, @MinLevel = N'Viewer';
 
     SELECT
         da.DailyActivityId,
@@ -41,6 +51,10 @@ BEGIN
     FROM app.DailyActivity da
     WHERE da.IsDeleted = 0
       AND (@ProjectId IS NULL OR da.ProjectId = @ProjectId)
+      AND (@ProjectId IS NOT NULL OR ISNULL(@ActorRole, N'') = N'Admin'
+           OR da.ProjectId IS NULL
+           OR EXISTS (SELECT 1 FROM app.ProjectAssignee pa
+                      WHERE pa.ProjectId = da.ProjectId AND pa.UserId = @ActorUserId AND pa.IsDeleted = 0))
     ORDER BY da.RequestDate DESC, da.DailyActivityId DESC;
 END;
 GO

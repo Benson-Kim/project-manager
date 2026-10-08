@@ -1,6 +1,8 @@
 -- usp_TodoItem_List — paged/filtered list per ADR-0016. Search columns: TodoItem. Sort whitelist: DueDate, Priority, Status, StartDate.
 -- Filter params: @Status (exact match), @Priority (exact match), @ProjectOrActivity (exact match).
--- Actor scope: only rows whose CreatedBy = @ActorUserId are returned (Admin/PM see all).
+-- Row-level access: a supplied @ProjectId must be readable (dbo.usp_Project_AssertAccess ->
+--   FORBIDDEN_ROW 50003); rows follow the to-do rule (dbo.usp_TodoItem_AssertAccess, ADR-0021).
+--   LIKE wildcards in @Search are escaped.
 -- Entity app.TodoItem (source: tblTodoList (core; alert columns → TodoAlert)). Module: todo-items (#20).
 USE ProjectManager;
 GO
@@ -18,10 +20,21 @@ CREATE OR ALTER PROCEDURE dbo.usp_TodoItem_List
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    -- The actor's role is read from auth.User, never trusted from the caller.
+    DECLARE @ActorRole NVARCHAR(50);
+    EXEC dbo.usp_User_GetActorRole @UserId = @ActorUserId, @Role = @ActorRole OUTPUT;
     SET @Page     = CASE WHEN @Page IS NULL OR @Page < 1 THEN 1 ELSE @Page END;
     SET @PageSize = CASE WHEN @PageSize IS NULL OR @PageSize < 1 THEN 1
                          WHEN @PageSize > 100 THEN 100 ELSE @PageSize END;
     SET @SortDir  = CASE WHEN LOWER(@SortDir) = 'desc' THEN 'desc' ELSE 'asc' END;
+
+    IF @ProjectId IS NOT NULL
+        EXEC dbo.usp_Project_AssertAccess
+             @ProjectId = @ProjectId, @ActorUserId = @ActorUserId, @MinLevel = N'Viewer';
+
+    IF @Search IS NOT NULL
+        SET @Search = REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'), N'_', N'\_');
 
     SELECT TodoItemId,
            [ProjectId],
@@ -41,21 +54,22 @@ BEGIN
     FROM app.TodoItem
     WHERE IsDeleted = 0
       AND (@ProjectId         IS NULL OR ProjectId         = @ProjectId)
-      AND (@Search            IS NULL OR [TodoItem] LIKE N'%' + @Search + N'%')
+      AND (@Search            IS NULL OR [TodoItem] LIKE N'%' + @Search + N'%' ESCAPE N'\')
       AND (@Status            IS NULL OR [Status]           = @Status)
       AND (@Priority          IS NULL OR [Priority]         = @Priority)
       AND (@ProjectOrActivity IS NULL OR [ProjectOrActivity] = @ProjectOrActivity)
-      AND (
-              CreatedBy = @ActorUserId
-              OR EXISTS (
-                  SELECT 1 FROM auth.[User] u
-                  WHERE  u.UserId = @ActorUserId
-                    AND  u.RoleId IN (
-                             SELECT RoleId FROM auth.[Role]
-                             WHERE  Name IN (N'Admin', N'ProjectManager')
-                         )
-              )
-          )
+      -- Visibility = dbo.usp_TodoItem_AssertAccess as a set (ADR-0021): Admin sees all; otherwise
+      -- your own to-dos outside any project or in projects you are assigned to, plus every
+      -- to-do of the projects you manage.
+      AND (ISNULL(@ActorRole, N'') = N'Admin'
+           OR (TodoItem.CreatedBy = @ActorUserId
+               AND (TodoItem.ProjectId IS NULL
+                    OR EXISTS (SELECT 1 FROM app.ProjectAssignee pa
+                               WHERE pa.ProjectId = TodoItem.ProjectId AND pa.UserId = @ActorUserId
+                                 AND pa.IsDeleted = 0)))
+           OR EXISTS (SELECT 1 FROM app.ProjectAssignee pa
+                      WHERE pa.ProjectId = TodoItem.ProjectId AND pa.UserId = @ActorUserId
+                        AND pa.AccessLevel = N'Manager' AND pa.IsDeleted = 0))
     ORDER BY
         CASE WHEN @SortBy = N'DueDate'    AND @SortDir = 'asc'  THEN [DueDate]    END ASC,
         CASE WHEN @SortBy = N'DueDate'    AND @SortDir = 'desc' THEN [DueDate]    END DESC,

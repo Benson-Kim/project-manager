@@ -6,35 +6,36 @@ import {
   deleteParkingLotItem,
   updateParkingLotItem,
 } from "../repository/parking-lot-items";
-import { parkingLotItemFormSchema, updateParkingLotItemFormSchema } from "../schemas/parking-lot-item-form";
+import {
+  parkingLotItemFormSchema,
+  updateParkingLotItemFormSchema,
+} from "../schemas/parking-lot-item-form";
 import { deleteParkingLotItemInput } from "../schemas/parking-lot-item";
 
 /**
- * Create a parking lot item (RBAC parking-lot:create — Admin + PM + Contributor;
- * audited in-proc). Contributor can create per CONTRIBUTOR_WRITE_MODULES.
+ * Create a parking lot item (RBAC parking-lot:create — project level checked in-proc, ADR-0021;
+ * audited in-proc). Project Contributors can create (rbac.ts CONTRIBUTOR_WRITE_MODULES).
  */
 export const createParkingLotItemAction = action({
   name: "parking-lot.create",
   schema: parkingLotItemFormSchema,
   permission: "parking-lot:create",
-  handler: (input, ctx) =>
-    createParkingLotItem(input, ctx.session.userId, ctx.session.role),
+  handler: (input, ctx) => createParkingLotItem(input, ctx.session.userId),
 });
 
 /**
- * Update a parking lot item (RBAC parking-lot:update — Admin + PM + Contributor;
+ * Update a parking lot item (RBAC parking-lot:update — project level checked in-proc, ADR-0021;
  * audited in-proc).
  */
 export const updateParkingLotItemAction = action({
   name: "parking-lot.update",
   schema: updateParkingLotItemFormSchema,
   permission: "parking-lot:update",
-  handler: (input, ctx) =>
-    updateParkingLotItem(input, ctx.session.userId, ctx.session.role),
+  handler: (input, ctx) => updateParkingLotItem(input, ctx.session.userId),
 });
 
 /**
- * Soft-delete a parking lot item (RBAC parking-lot:delete — Admin + PM only;
+ * Soft-delete a parking lot item (RBAC parking-lot:delete — project level checked in-proc, ADR-0021;
  * audited in-proc).
  */
 export const deleteParkingLotItemAction = action({
@@ -42,12 +43,7 @@ export const deleteParkingLotItemAction = action({
   schema: deleteParkingLotItemInput,
   permission: "parking-lot:delete",
   handler: async (input, ctx) => {
-    await deleteParkingLotItem(
-      input.parkingLotItemId,
-      input.rowVer,
-      ctx.session.userId,
-      ctx.session.role,
-    );
+    await deleteParkingLotItem(input.parkingLotItemId, input.rowVer, ctx.session.userId);
     return { parkingLotItemId: input.parkingLotItemId };
   },
 });

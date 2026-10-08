@@ -1,8 +1,6 @@
 -- usp_QuestionAnswer_Create — insert one app.QuestionAnswer row; audits in-transaction; returns the new row.
--- Project ownership check: @ActorUserId must be an assignee of the target project (FORBIDDEN_ROW 50003).
--- Admin role bypass: @ActorRole = N'Admin' skips the ProjectAssignee check (action-layer RBAC already
---   enforces that only Admin/PM can call Create; this ensures Admin users without a ProjectAssignee row
---   are not locked out — C9-1 fix).
+-- Row-level access: the actor needs Contributor on @ProjectId (dbo.usp_Project_AssertAccess,
+--   ADR-0021; FORBIDDEN_ROW 50003). Admins hold Manager everywhere.
 -- Entity app.QuestionAnswer (source: tblInterviewQuestionsAnswers). Module: questions-answers (#11).
 USE ProjectManager;
 GO
@@ -13,8 +11,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_QuestionAnswer_Create
     @Category    NVARCHAR(255)  = NULL,
     @Priority    NVARCHAR(255)  = NULL,
     @AssignedTo  NVARCHAR(255)  = NULL,
-    @ActorUserId INT,
-    @ActorRole   NVARCHAR(50)   = NULL
+    @ActorUserId INT
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -31,14 +28,9 @@ BEGIN
     IF @Priority IS NOT NULL AND @Priority NOT IN (N'Critical', N'High', N'Medium', N'Low')
         THROW 50004, N'VALIDATION:Invalid priority value', 1;
 
-    -- Row-level access: the actor must be assigned to the project they are writing into.
-    -- Admin users bypass this check (they have unrestricted access by role definition).
-    IF ISNULL(@ActorRole, '') <> N'Admin'
-       AND NOT EXISTS (
-           SELECT 1 FROM app.ProjectAssignee
-           WHERE ProjectId = @ProjectId AND UserId = @ActorUserId AND IsDeleted = 0
-       )
-        THROW 50003, N'FORBIDDEN_ROW:You are not assigned to this project', 1;
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
+         @MinLevel = N'Contributor', @AllowProjectless = 0;
 
     BEGIN TRAN;
 

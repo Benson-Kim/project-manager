@@ -31,7 +31,7 @@ function dbUserRow(overrides: Record<string, unknown> = {}) {
     DisplayName: "PM",
     Email: null,
     RoleId: 2,
-    RoleName: "ProjectManager",
+    RoleName: "User",
     IsActive: true,
     MustChangePassword: false,
     FailedLoginCount: 0,

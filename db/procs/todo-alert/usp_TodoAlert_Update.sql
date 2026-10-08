@@ -1,6 +1,6 @@
 ﻿-- usp_TodoAlert_Update — full-row update with rowversion concurrency (50002 CONFLICT) + in-transaction audit.
 -- Entity app.TodoAlert (source: tblTodoList (alert engine columns, 1:1)). Module: database-schema-and-procs (#3).
--- THROW 50003 FORBIDDEN_ROW : actor is not the parent TodoItem owner nor Admin/ProjectManager.
+-- THROW 50003 FORBIDDEN_ROW : to-do access rule (dbo.usp_TodoItem_AssertAccess, ADR-0021).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_TodoAlert_Update
@@ -23,6 +23,9 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
+    EXEC dbo.usp_TodoAlert_AssertAccess
+         @TodoAlertId = @TodoAlertId, @ActorUserId = @ActorUserId, @MinLevel = N'Contributor';
+
     DECLARE @CurrentVer BIGINT;
     DECLARE @CurrentTodoItemId INT;
     SELECT @CurrentVer = CAST(a.RowVer AS BIGINT),
@@ -30,51 +33,10 @@ BEGIN
     FROM app.TodoAlert a
     WHERE a.TodoAlertId = @TodoAlertId AND a.IsDeleted = 0;
 
-    IF @CurrentVer IS NULL
-        THROW 50001, N'NOT_FOUND:TodoAlert not found', 1;
-
-    DECLARE @CanManageAll BIT = CASE WHEN EXISTS (
-        SELECT 1
-        FROM auth.[User] u
-        INNER JOIN auth.[Role] r ON r.RoleId = u.RoleId
-        WHERE u.UserId = @ActorUserId
-          AND u.IsDeleted = 0
-          AND u.IsActive = 1
-          AND r.Name IN (N'Admin', N'ProjectManager')
-    ) THEN 1 ELSE 0 END;
-
-    IF @CanManageAll = 0 AND NOT EXISTS (
-        SELECT 1 FROM app.TodoItem
-        WHERE TodoItemId = @CurrentTodoItemId
-          AND IsDeleted = 0
-          AND CreatedBy = @ActorUserId
-    )
-        THROW 50003, N'FORBIDDEN_ROW:You do not have access to this record', 1;
     IF @TodoItemId <> @CurrentTodoItemId
         THROW 50004, N'VALIDATION:TodoItemId cannot be changed', 1;
     IF @CurrentVer <> @RowVer
         THROW 50002, N'CONFLICT:TodoAlert was modified by someone else', 1;
-
-    -- Ownership guard: actor must own the parent TodoItem or be Admin/ProjectManager.
-    IF NOT EXISTS (
-        SELECT 1
-        FROM   app.TodoAlert  a
-        JOIN   app.TodoItem   ti ON ti.TodoItemId = a.TodoItemId AND ti.IsDeleted = 0
-        WHERE  a.TodoAlertId = @TodoAlertId
-          AND  a.IsDeleted   = 0
-          AND  (
-                   ti.CreatedBy = @ActorUserId
-                   OR EXISTS (
-                       SELECT 1 FROM auth.[User] u
-                       WHERE  u.UserId = @ActorUserId
-                         AND  u.RoleId IN (
-                                  SELECT RoleId FROM auth.[Role]
-                                  WHERE  Name IN (N'Admin', N'ProjectManager')
-                              )
-                   )
-               )
-    )
-        THROW 50003, N'FORBIDDEN_ROW:You do not have access to this record', 1;
 
     BEGIN TRAN;
 

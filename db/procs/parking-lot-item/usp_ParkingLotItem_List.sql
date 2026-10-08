@@ -1,7 +1,8 @@
 -- usp_ParkingLotItem_List — paged/filtered list per ADR-0016.
 -- Search columns: ParkingLotItem. Sort whitelist: ParkingLotItem, IsStrikethrough.
--- FORBIDDEN_ROW check: when @ProjectId is supplied and actor is not Admin, verify membership.
--- LIKE wildcards in @Search are escaped to prevent wildcard injection (SEC-5).
+-- Row-level access: a supplied @ProjectId must be accessible (dbo.usp_Project_AssertAccess ->
+--   FORBIDDEN_ROW 50003); cross-project reads (@ProjectId NULL) return only rows of projects the
+--   actor is assigned to (Admin sees all). LIKE wildcards in @Search are escaped.
 -- Entity app.ParkingLotItem (source: tblParkingLotItems). Module: parking-lot (#18).
 -- ParkingLotItemId is the final tiebreaker on every sort path to guarantee stable
 -- OFFSET paging when two rows share the same sort-key value.
@@ -15,32 +16,25 @@ CREATE OR ALTER PROCEDURE dbo.usp_ParkingLotItem_List
     @SortDir         VARCHAR(4)    = 'asc',
     @Page            INT           = 1,
     @PageSize        INT           = 25,
-    @IsStrikethrough BIT           = NULL,
-    @ActorRole       NVARCHAR(50)  = NULL
+    @IsStrikethrough BIT           = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    -- The actor's role is read from auth.User, never trusted from the caller.
+    DECLARE @ActorRole NVARCHAR(50);
+    EXEC dbo.usp_User_GetActorRole @UserId = @ActorUserId, @Role = @ActorRole OUTPUT;
     SET @Page     = CASE WHEN @Page IS NULL OR @Page < 1 THEN 1 ELSE @Page END;
     SET @PageSize = CASE WHEN @PageSize IS NULL OR @PageSize < 1 THEN 1
                          WHEN @PageSize > 100 THEN 100 ELSE @PageSize END;
     SET @SortDir  = CASE WHEN LOWER(@SortDir) = 'desc' THEN 'desc' ELSE 'asc' END;
 
-    -- Project-scope membership check: non-Admin actors may only list items for
-    -- projects they are assigned to. Cross-project enumeration is not permitted.
-    IF @ProjectId IS NOT NULL AND ISNULL(@ActorRole, '') <> N'Admin'
-       AND NOT EXISTS (
-           SELECT 1 FROM app.ProjectAssignee
-           WHERE ProjectId = @ProjectId AND UserId = @ActorUserId AND IsDeleted = 0
-       )
-        THROW 50003, N'FORBIDDEN_ROW:You are not assigned to this project', 1;
+    IF @ProjectId IS NOT NULL
+        EXEC dbo.usp_Project_AssertAccess
+             @ProjectId = @ProjectId, @ActorUserId = @ActorUserId, @MinLevel = N'Viewer';
 
-    -- Escape LIKE special characters in the search term to prevent wildcard injection.
     IF @Search IS NOT NULL
-    BEGIN
-        SET @Search = REPLACE(@Search, N'\', N'\\');
-        SET @Search = REPLACE(@Search, N'%', N'\%');
-        SET @Search = REPLACE(@Search, N'_', N'\_');
-    END
+        SET @Search = REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'), N'_', N'\_');
 
     SELECT ParkingLotItemId,
            [ProjectId],
@@ -56,6 +50,9 @@ BEGIN
     FROM app.ParkingLotItem
     WHERE IsDeleted = 0
       AND (@ProjectId IS NULL OR ProjectId = @ProjectId)
+      AND (@ProjectId IS NOT NULL OR ISNULL(@ActorRole, N'') = N'Admin'
+           OR EXISTS (SELECT 1 FROM app.ProjectAssignee pa
+                      WHERE pa.ProjectId = ParkingLotItem.ProjectId AND pa.UserId = @ActorUserId AND pa.IsDeleted = 0))
       AND (@Search IS NULL OR [ParkingLotItem] LIKE N'%' + @Search + N'%' ESCAPE N'\')
       AND (@IsStrikethrough IS NULL OR [IsStrikethrough] = @IsStrikethrough)
     ORDER BY

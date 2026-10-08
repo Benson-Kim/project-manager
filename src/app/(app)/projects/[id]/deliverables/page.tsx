@@ -3,20 +3,20 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
-import { can } from "@/lib/auth/rbac";
 import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getViewPreference } from "@/lib/repositories/view-preference";
+import { guardProjectScope } from "@/lib/project-page-helpers";
+import { orNotFound, orNull } from "@/lib/row-access";
+import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { DeliverablesView } from "@/modules/key-deliverables/components/deliverables-view";
 import {
   getKeyDeliverableById,
   listKeyDeliverables,
 } from "@/modules/key-deliverables/repository/key-deliverables";
 import { listStakeholderOptions } from "@/modules/key-deliverables/repository/stakeholder-options";
-import {
-  keyDeliverableFiltersSchema,
-  type KeyDeliverableRow,
-} from "@/modules/key-deliverables/schemas/key-deliverable";
+import { keyDeliverableFiltersSchema } from "@/modules/key-deliverables/schemas/key-deliverable";
+import { parseProjectId } from "../project-id";
 
 export const metadata: Metadata = {
   title: `${messages.keyDeliverables.title} — ${messages.app.name}`,
@@ -36,8 +36,8 @@ export default async function DeliverablesPage({
 }) {
   const session = await auth.requireSession();
   const { id } = await params;
-  const projectId = Number(id);
-  if (!Number.isInteger(projectId) || projectId < 1) notFound();
+  const projectId = parseProjectId(id);
+  if (projectId === null) notFound();
 
   const raw = await searchParams;
   const listParams = parseListParams(raw);
@@ -47,21 +47,20 @@ export default async function DeliverablesPage({
   const dParam = flattenSearchParams(raw).d;
   const openId = dParam && /^\d+$/.test(dParam) ? Number(dParam) : null;
 
-  const [rows, preferredView, assigneeOptions, openDeliverable] = await Promise.all([
-    listKeyDeliverables(projectId, listParams, session.userId, filters),
+  const [rows, preferredView, assigneeOptions, openRaw, allows] = await Promise.all([
+    orNotFound(listKeyDeliverables(projectId, listParams, session.userId, filters)),
     getViewPreference(session.userId, "key-deliverables").catch(() => null),
     listStakeholderOptions(projectId, session.userId),
-    openId
-      ? getKeyDeliverableById(openId, session.userId).catch(
-          (): KeyDeliverableRow | undefined => undefined,
-        )
-      : Promise.resolve(undefined),
+    openId ? orNull(getKeyDeliverableById(openId, session.userId)) : null,
+    getProjectPermissions(projectId, session.userId),
   ]);
+  // A deep link to a deliverable from another project is treated as not found.
+  const openDeliverable = guardProjectScope(openRaw, projectId) ?? undefined;
 
   const totalCount = rows[0]?.TotalCount ?? 0;
-  const canCreate = can(session.role, "key-deliverables:create");
-  const canEdit = can(session.role, "key-deliverables:update");
-  const canDelete = can(session.role, "key-deliverables:delete");
+  const canCreate = allows("key-deliverables:create");
+  const canEdit = allows("key-deliverables:update");
+  const canDelete = allows("key-deliverables:delete");
   const filtersActive = Boolean(listParams.q || filters.status || filters.priority);
   const sheetOpen = dParam === "new" ? canCreate : Boolean(openDeliverable);
 

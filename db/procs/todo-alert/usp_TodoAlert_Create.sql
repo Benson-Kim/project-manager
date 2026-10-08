@@ -1,7 +1,7 @@
 -- usp_TodoAlert_Create — insert one app.TodoAlert row; audits in-transaction; returns the new row.
 -- Entity app.TodoAlert (source: tblTodoList (alert engine columns, 1:1)). Module: database-schema-and-procs (#3).
 -- THROW 50001 NOT_FOUND     : @TodoItemId does not exist or is soft-deleted.
--- THROW 50003 FORBIDDEN_ROW : actor is not the TodoItem owner nor Admin/ProjectManager.
+-- THROW 50003 FORBIDDEN_ROW : to-do access rule (dbo.usp_TodoItem_AssertAccess, ADR-0021).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_TodoAlert_Create
@@ -24,29 +24,9 @@ BEGIN
     IF @TodoItemId IS NULL
         THROW 50004, N'VALIDATION:TodoItemId is required', 1;
 
-    IF NOT EXISTS (
-        SELECT 1 FROM app.TodoItem
-        WHERE TodoItemId = @TodoItemId AND IsDeleted = 0
-    )
-        THROW 50001, N'NOT_FOUND:TodoItem not found', 1;
 
-    DECLARE @CanManageAll BIT = CASE WHEN EXISTS (
-        SELECT 1
-        FROM auth.[User] u
-        INNER JOIN auth.[Role] r ON r.RoleId = u.RoleId
-        WHERE u.UserId = @ActorUserId
-          AND u.IsDeleted = 0
-          AND u.IsActive = 1
-          AND r.Name IN (N'Admin', N'ProjectManager')
-    ) THEN 1 ELSE 0 END;
-
-    IF @CanManageAll = 0 AND NOT EXISTS (
-        SELECT 1 FROM app.TodoItem
-        WHERE TodoItemId = @TodoItemId
-          AND IsDeleted = 0
-          AND CreatedBy = @ActorUserId
-    )
-        THROW 50003, N'FORBIDDEN_ROW:You do not have access to this record', 1;
+    EXEC dbo.usp_TodoItem_AssertAccess
+         @TodoItemId = @TodoItemId, @ActorUserId = @ActorUserId, @MinLevel = N'Contributor';
 
     BEGIN TRAN;
 

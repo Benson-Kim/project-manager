@@ -2,9 +2,9 @@
 --   actor project-scope guard (50003 FORBIDDEN_ROW), and in-transaction audit.
 -- RowVer is included in the UPDATE predicate (not pre-checked) to eliminate the TOCTOU race
 --   where two requests pass the pre-check before either write completes.
--- Admin bypass: @ActorRole = N'Admin' skips both project-scope checks.
--- Destination-project check: when @ProjectId differs from the row's current ProjectId,
---   the actor must also be assigned to the destination project (C10-2 fix).
+-- Row-level access: the actor needs Manager on the row's project (dbo.usp_Project_AssertAccess,
+--   ADR-0021; FORBIDDEN_ROW 50003). Admins hold Manager everywhere.
+-- The project key is immutable: @ProjectId is accepted but ignored (DB standard).
 -- Entity app.Stakeholder (source: tblStakeholders). Module: stakeholders (#6).
 USE ProjectManager;
 GO
@@ -26,8 +26,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_Stakeholder_Update
     @EngagementLevel NVARCHAR(255) = NULL,
     @AdditionalNotes NVARCHAR(MAX) = NULL,
     @RowVer BIGINT,
-    @ActorUserId INT,
-    @ActorRole NVARCHAR(50) = NULL
+    @ActorUserId INT
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -35,30 +34,15 @@ BEGIN
 
     -- Verify the row exists (NOT_FOUND) before entering the transaction so we
     -- give a useful error even when RowVer is stale.
-    IF NOT EXISTS (SELECT 1 FROM app.Stakeholder WHERE StakeholderId = @StakeholderId AND IsDeleted = 0)
+    DECLARE @RowProjectId INT;
+    SELECT @RowProjectId = ProjectId FROM app.Stakeholder WHERE StakeholderId = @StakeholderId AND IsDeleted = 0;
+    IF @@ROWCOUNT = 0
         THROW 50001, N'NOT_FOUND:Stakeholder not found', 1;
 
-    -- (1) Actor must be assigned to the row's current (owning) project.
-    --     Admin role bypasses this check.
-    IF ISNULL(@ActorRole, '') <> N'Admin'
-       AND NOT EXISTS (
-           SELECT 1 FROM app.Stakeholder s
-           JOIN app.ProjectAssignee pa ON pa.ProjectId = s.ProjectId AND pa.UserId = @ActorUserId
-                                      AND pa.IsDeleted = 0
-           WHERE s.StakeholderId = @StakeholderId AND s.IsDeleted = 0
-       )
-        THROW 50003, N'FORBIDDEN_ROW:You are not assigned to this project', 1;
-
-    -- (2) Actor must also be assigned to the destination project when ProjectId is changing.
-    --     Skip this check when the destination is the same as the current project.
-    --     Admin role bypasses this check.
-    IF ISNULL(@ActorRole, '') <> N'Admin'
-       AND @ProjectId <> (SELECT ProjectId FROM app.Stakeholder WHERE StakeholderId = @StakeholderId AND IsDeleted = 0)
-       AND NOT EXISTS (
-           SELECT 1 FROM app.ProjectAssignee
-           WHERE ProjectId = @ProjectId AND UserId = @ActorUserId AND IsDeleted = 0
-       )
-        THROW 50003, N'FORBIDDEN_ROW:You are not assigned to the destination project', 1;
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
+         @MinLevel = N'Manager', @AllowProjectless = 0;
+    SET @ProjectId = @RowProjectId;
 
     BEGIN TRAN;
 

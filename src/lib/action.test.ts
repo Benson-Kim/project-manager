@@ -73,14 +73,31 @@ describe("action() wrapper ", () => {
     if (!result.ok) expect(result.error.code).toBe("UNAUTHENTICATED");
   });
 
-  it("returns FORBIDDEN when RBAC denies the permission", async () => {
-    session = { userId: 2, username: "viewer", role: "Viewer" };
+  it("returns FORBIDDEN when the global role lacks the permission (admin module)", async () => {
+    session = { userId: 2, username: "member", role: "User" };
     const handler = vi.fn();
-    const run = makeAction(handler);
+    const run = action({
+      name: "test.admin",
+      schema,
+      permission: "admin:update",
+      handler: (input) => handler(input),
+    });
     const result = await run({ name: "Acme" });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
     expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("lets a User through to the handler; the proc decides per project (ADR-0021)", async () => {
+    session = { userId: 2, username: "member", role: "User" };
+    const run = makeAction(() =>
+      Promise.reject(
+        new AppError("FORBIDDEN_ROW", "Your access to this project does not allow this"),
+      ),
+    );
+    const result = await run({ name: "Acme" });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN_ROW");
   });
 
   it("revalidates paths and tags on success only", async () => {

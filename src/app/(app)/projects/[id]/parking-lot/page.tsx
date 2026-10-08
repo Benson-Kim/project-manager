@@ -3,11 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
-import { can } from "@/lib/auth/rbac";
-import { AppError } from "@/lib/errors";
 import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getViewPreference } from "@/lib/repositories/view-preference";
+import { orNotFound, orNull } from "@/lib/row-access";
+import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { ParkingLotItemSheet } from "@/modules/parking-lot/components/parking-lot-item-sheet";
 import { ParkingLotView } from "@/modules/parking-lot/components/parking-lot-view";
 import {
@@ -15,7 +15,6 @@ import {
   listParkingLotItems,
 } from "@/modules/parking-lot/repository/parking-lot-items";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
-import { getProjectCached } from "../get-project";
 import { parseProjectId } from "../project-id";
 
 export const metadata: Metadata = {
@@ -40,14 +39,6 @@ export default async function ParkingLotPage({
   const projectId = parseProjectId(id);
   if (projectId === null) notFound();
 
-  // Validate the parent project exists (React cache dedupes with layout's call).
-  try {
-    await getProjectCached(projectId, session.userId);
-  } catch (err) {
-    if (err instanceof AppError && err.code === "NOT_FOUND") notFound();
-    throw err;
-  }
-
   const raw = await searchParams;
   const flat = flattenSearchParams(raw);
   const listParams = parseListParams(raw);
@@ -59,38 +50,24 @@ export default async function ParkingLotPage({
   const isStrikethrough =
     flat.status === "resolved" ? true : flat.status === "active" ? false : null;
 
-  const [rowsResult, preferredViewResult, selectedResult] = await Promise.allSettled([
-    listParkingLotItems(effectiveParams, session.userId, projectId, {
-      isStrikethrough,
-    }),
-    getViewPreference(session.userId, "parking-lot"),
+  const [rows, preferredView, selectedRaw, allows] = await Promise.all([
+    orNotFound(
+      listParkingLotItems(effectiveParams, session.userId, projectId, { isStrikethrough }),
+    ),
+    getViewPreference(session.userId, "parking-lot").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getParkingLotItemById(selectedId, session.userId, session.role)
-      : Promise.resolve(null),
+      ? orNull(getParkingLotItemById(selectedId, session.userId))
+      : null,
+    getProjectPermissions(projectId, session.userId),
   ]);
-
-  const rows = rowsResult.status === "fulfilled" ? rowsResult.value : [];
-  const preferredView =
-    preferredViewResult.status === "fulfilled" ? preferredViewResult.value : null;
-  const selectedRaw = (() => {
-    if (selectedResult.status === "rejected") {
-      if (
-        selectedResult.reason instanceof AppError &&
-        selectedResult.reason.code === "NOT_FOUND"
-      )
-        return null;
-      throw selectedResult.reason;
-    }
-    return selectedResult.value;
-  })();
 
   // Cross-project leak guard: deep links to another project's item yield not-found.
   const selected = guardProjectScope(selectedRaw, projectId);
 
   const totalCount = rows[0]?.TotalCount ?? 0;
-  const canCreate = can(session.role, "parking-lot:create");
-  const canEdit = can(session.role, "parking-lot:update");
-  const canDelete = can(session.role, "parking-lot:delete");
+  const canCreate = allows("parking-lot:create");
+  const canEdit = allows("parking-lot:update");
+  const canDelete = allows("parking-lot:delete");
   const filtersActive = Boolean(effectiveParams.q || flat.status);
 
   const newItemLink = (
@@ -105,10 +82,7 @@ export default async function ParkingLotPage({
 
   return (
     <>
-      <PageHeader
-        title={messages.parkingLot.title}
-        action={canCreate ? newItemLink : undefined}
-      />
+      <PageHeader title={messages.parkingLot.title} action={canCreate ? newItemLink : undefined} />
       <div className="mt-3 flex flex-col flex-1">
         <ParkingLotView
           rows={rows}

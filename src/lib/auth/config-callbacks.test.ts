@@ -44,7 +44,7 @@ const cfg = captured.config as CapturedConfig;
 const appToken: AppToken = {
   userId: 7,
   username: "pm",
-  role: "ProjectManager",
+  role: "User",
   sessionVersion: 1,
   mustChangePassword: false,
 };

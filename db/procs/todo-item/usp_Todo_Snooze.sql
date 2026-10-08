@@ -2,7 +2,7 @@
 -- enforces MaxSnoozeCount (THROW 50004); updates LastSnoozeTime to now.
 -- THROW 50001 NOT_FOUND        : alert does not exist or is soft-deleted.
 -- THROW 50002 CONFLICT         : RowVer mismatch (atomic — checked in WHERE clause).
--- THROW 50003 FORBIDDEN_ROW    : actor is not the item owner nor Admin/ProjectManager.
+-- THROW 50003 FORBIDDEN_ROW : to-do access rule (dbo.usp_TodoItem_AssertAccess, ADR-0021).
 -- THROW 50004 MAX_SNOOZE       : SnoozeCount >= MaxSnoozeCount.
 -- Audits the snooze in-transaction.  Module: todo-alerts (#20).
 USE ProjectManager;
@@ -17,30 +17,8 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    -- Row-level auth: actor must own the parent TodoItem or be Admin/PM.
-    IF NOT EXISTS (
-        SELECT 1
-        FROM   app.TodoAlert  a
-        JOIN   app.TodoItem   ti ON ti.TodoItemId = a.TodoItemId AND ti.IsDeleted = 0
-        WHERE  a.TodoAlertId = @TodoAlertId
-          AND  a.IsDeleted   = 0
-          AND  (
-                   ti.CreatedBy = @ActorUserId
-                   OR EXISTS (
-                       SELECT 1 FROM auth.[User] u
-                       WHERE  u.UserId = @ActorUserId
-                         AND  u.RoleId IN (
-                                  SELECT RoleId FROM auth.[Role]
-                                  WHERE  Name IN (N'Admin', N'ProjectManager')
-                              )
-                   )
-               )
-    )
-    BEGIN
-        IF NOT EXISTS (SELECT 1 FROM app.TodoAlert WHERE TodoAlertId = @TodoAlertId AND IsDeleted = 0)
-            THROW 50001, N'NOT_FOUND:TodoAlert not found', 1;
-        THROW 50003, N'FORBIDDEN_ROW:You do not have access to this record', 1;
-    END
+    EXEC dbo.usp_TodoAlert_AssertAccess
+         @TodoAlertId = @TodoAlertId, @ActorUserId = @ActorUserId, @MinLevel = N'Contributor';
 
     -- MaxSnoozeCount guard (read outside the transaction — safe; only enforces business rule).
     DECLARE @SnoozeCount    INT;

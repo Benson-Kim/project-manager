@@ -1,10 +1,9 @@
--- Seed (e2e ONLY): one test user per role, e2e- prefix, shared password from
+-- Seed (e2e ONLY): an Admin plus one test user per project access level, e2e- prefix, shared password from
 -- the E2E_USER_PASSWORD env var (hashed by scripts/db-apply.sh, same mechanism
 -- as 027). Applied only when E2E_SEED=1 — never on real environments.
 -- MustChangePassword = 0 so login specs are not detoured. Idempotent.
--- Also seeds ProjectAssignee on project 2 for e2e-pm and e2e-viewer so
--- project-scoped procs (usp_Supplier_GetById, usp_Stakeholder_GetById etc.)
--- pass the FORBIDDEN_ROW row-level check.
+-- Each e2e user is a global User except e2e-admin; their per-project access on
+-- project 2 is seeded by 029_e2e_project_assignee.sql (ADR-0021).
 -- Also seeds an overdue TodoItem + TodoAlert owned by e2e-pm (userId determined
 -- at runtime) so the notifications bell test can verify the filled state.
 USE ProjectManager;
@@ -16,23 +15,12 @@ BEGIN
     SELECT s.Username, N'$(E2E_USER_PASSWORD_HASH)', s.DisplayName, r.RoleId, 0, 0
     FROM (VALUES
         (N'e2e-admin', N'E2E Admin', N'Admin'),
-        (N'e2e-pm', N'E2E Project Manager', N'ProjectManager'),
-        (N'e2e-contributor', N'E2E Contributor', N'Contributor'),
-        (N'e2e-viewer', N'E2E Viewer', N'Viewer')
+        (N'e2e-pm', N'E2E Project Manager', N'User'),
+        (N'e2e-contributor', N'E2E Contributor', N'User'),
+        (N'e2e-viewer', N'E2E Viewer', N'User')
     ) AS s (Username, DisplayName, RoleName)
     JOIN auth.Role r ON r.Name = s.RoleName
     WHERE NOT EXISTS (SELECT 1 FROM auth.[User] u WHERE u.Username = s.Username AND u.IsDeleted = 0);
-
-    -- ProjectAssignee: assign e2e-pm and e2e-viewer to project 2 so row-level
-    -- checks in project-scoped procs pass during e2e tests.
-    INSERT INTO app.ProjectAssignee (ProjectId, UserId, CreatedBy)
-    SELECT 2, u.UserId, 0
-    FROM auth.[User] u
-    WHERE u.Username IN (N'e2e-pm', N'e2e-viewer') AND u.IsDeleted = 0
-      AND NOT EXISTS (
-          SELECT 1 FROM app.ProjectAssignee pa
-          WHERE pa.ProjectId = 2 AND pa.UserId = u.UserId
-      );
 
     -- TodoItem owned by e2e-pm: overdue, so the notifications bell shows filled.
     INSERT INTO app.TodoItem (ProjectId, DailyActivityId, ProjectOrActivity, TodoItem, StartDate, DueDate, Priority, Status, Notes, CreatedBy)

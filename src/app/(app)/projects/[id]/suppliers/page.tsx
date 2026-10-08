@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { can } from "@/lib/auth/rbac";
-import { AppError } from "@/lib/errors";
 import { messages } from "@/lib/messages";
 import { auth } from "@/lib/auth/provider";
 import { getViewPreference } from "@/lib/repositories/view-preference";
+import { orNotFound, orNull } from "@/lib/row-access";
+import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 
@@ -53,28 +53,22 @@ export default async function SuppliersPage({
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
-  const [rows, preferredView, selectedRaw] = await Promise.all([
-    listSuppliers(effectiveParams, session.userId, session.role, projectId, filters),
+  const [rows, preferredView, selectedRaw, allows] = await Promise.all([
+    orNotFound(listSuppliers(effectiveParams, session.userId, projectId, filters)),
     getViewPreference(session.userId, "suppliers").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getSupplierById(selectedId, session.userId, session.role).catch((err) => {
-          if (
-            err instanceof AppError &&
-            (err.code === "NOT_FOUND" || err.code === "FORBIDDEN_ROW")
-          )
-            return null;
-          throw err;
-        })
-      : Promise.resolve(null),
+      ? orNull(getSupplierById(selectedId, session.userId))
+      : null,
+    getProjectPermissions(projectId, session.userId),
   ]);
 
   // A deep link to a supplier from another project is treated as not found.
   const selected = guardProjectScope(selectedRaw, projectId);
 
   const totalCount = rows[0]?.TotalCount ?? 0;
-  const canCreate = can(session.role, "suppliers:create");
-  const canEdit = can(session.role, "suppliers:update");
-  const canDelete = can(session.role, "suppliers:delete");
+  const canCreate = allows("suppliers:create");
+  const canEdit = allows("suppliers:update");
+  const canDelete = allows("suppliers:delete");
   const filtersActive = Boolean(effectiveParams.q || filters.rating);
 
   const newHref = buildNewEntityHref(`/projects/${projectId}/suppliers`, flat);
