@@ -60,12 +60,12 @@ export default async function TodosPage({
   };
 
   const [rows, preferredView, activityOptions, selectedRaw] = await Promise.all([
-    listTodoItems(effectiveParams, session.userId, projectId, undefined, filters),
+    listTodoItems(effectiveParams, session.userId, projectId, undefined, filters, session.role),
     getViewPreference(session.userId, "todo-items").catch(() => null),
     listDailyActivityOptions(projectId, session.userId).catch(() => []),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getTodoItemById(selectedId, session.userId).catch((err) => {
-          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
+      ? getTodoItemById(selectedId, session.userId, session.role).catch((err) => {
+          if (err instanceof AppError && (err.code === "NOT_FOUND" || err.code === "FORBIDDEN_ROW")) return null;
           throw err;
         })
       : Promise.resolve(null),

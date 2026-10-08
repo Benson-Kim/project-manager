@@ -22,6 +22,7 @@ const CONTRIBUTOR_WRITE_MODULES = [
   "parking-lot",
   "questions-answers",
   "todo-alerts",
+  "todo-items", // Contributors work their own to-do list (PLAN §9 table row 3: "CRUD on assigned module records")
 ] as const;
 
 export function can(role: Role, permission: Permission): boolean {

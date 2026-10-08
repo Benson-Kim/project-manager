@@ -50,10 +50,12 @@ export async function createQuestionAnswer(
 export async function getQuestionAnswerById(
   questionAnswerId: number,
   actorUserId: number,
+  actorRole: string,
 ): Promise<QuestionAnswerRow> {
   const rows = await execProc<QuestionAnswerRow>("usp_QuestionAnswer_GetById", {
     QuestionAnswerId: questionAnswerId,
     ActorUserId: actorUserId,
+    ActorRole: actorRole,
   });
   return questionAnswerRowSchema.parse(rows[0]);
 }
@@ -64,9 +66,11 @@ export async function listQuestionAnswers(
   projectId: number | null = null,
   filters: QAListFilters = {},
   pageSize: number = DEFAULT_PAGE_SIZE,
+  actorRole?: string,
 ): Promise<QuestionAnswerListRow[]> {
   const rows = await execProc<QuestionAnswerListRow>("usp_QuestionAnswer_List", {
     ActorUserId: actorUserId,
+    ActorRole: actorRole ?? null,
     ProjectId: projectId,
     ...toProcListParams(params, pageSize),
     Category: filters.category ?? null,

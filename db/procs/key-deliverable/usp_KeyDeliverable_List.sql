@@ -1,11 +1,14 @@
 -- usp_KeyDeliverable_List — paged/filtered list per ADR-0016 with assignee names.
 -- Search columns: KeyRequirement. Sort whitelist: Deadline, Priority, Status.
 -- Filters @Status/@Priority added by module #9 (list page filter bar).
+-- Actor project-scope: when @ProjectId is supplied and actor is not Admin, they must be an assignee
+--   (FORBIDDEN_ROW 50003).
 -- Entity app.KeyDeliverable (source: tblKeyRequirementsDeliverable). Module: key-deliverables (#9).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_KeyDeliverable_List
     @ActorUserId INT,
+    @ActorRole   NVARCHAR(50)  = NULL,
     @ProjectId   INT           = NULL,
     @Search      NVARCHAR(100) = NULL,
     @Status      NVARCHAR(255) = NULL,
@@ -21,6 +24,15 @@ BEGIN
     SET @PageSize = CASE WHEN @PageSize IS NULL OR @PageSize < 1 THEN 1
                          WHEN @PageSize > 100 THEN 100 ELSE @PageSize END;
     SET @SortDir  = CASE WHEN LOWER(@SortDir) = 'desc' THEN 'desc' ELSE 'asc' END;
+
+    -- When @ProjectId is supplied, non-Admin actors must be assigned to that project.
+    IF @ProjectId IS NOT NULL
+       AND ISNULL(@ActorRole, '') <> N'Admin'
+       AND NOT EXISTS (
+           SELECT 1 FROM app.ProjectAssignee pa
+           WHERE pa.ProjectId = @ProjectId AND pa.UserId = @ActorUserId AND pa.IsDeleted = 0
+       )
+        THROW 50003, N'FORBIDDEN_ROW:You are not assigned to this project', 1;
 
     SELECT kd.KeyDeliverableId,
            kd.[ProjectId],

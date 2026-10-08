@@ -81,11 +81,23 @@ describe("question-answers repository", () => {
     expect(params.ActorRole).toBe("Admin");
   });
 
-  it("getById parses the row", async () => {
+  it("getById forwards ActorRole and parses the row", async () => {
     execProc.mockResolvedValue([dbRow()]);
-    await expect(getQuestionAnswerById(7, 1)).resolves.toMatchObject({
+    await expect(getQuestionAnswerById(7, 1, "ProjectManager")).resolves.toMatchObject({
       Question: "What is the scope?",
     });
+    expect(execProc).toHaveBeenCalledWith("usp_QuestionAnswer_GetById", {
+      QuestionAnswerId: 7,
+      ActorUserId: 1,
+      ActorRole: "ProjectManager",
+    });
+  });
+
+  it("getById — Admin role is forwarded (Admin bypass)", async () => {
+    execProc.mockResolvedValue([dbRow()]);
+    await getQuestionAnswerById(7, 99, "Admin");
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params.ActorRole).toBe("Admin");
   });
 
   it("list forwards ADR-0016 params with project scope and filters", async () => {
@@ -94,10 +106,11 @@ describe("question-answers repository", () => {
     const rows = await listQuestionAnswers(params, 1, 2, {
       category: "Technical",
       priority: "High",
-    });
+    }, undefined, "ProjectManager");
     expect(rows[0].TotalCount).toBe(5);
     expect(execProc).toHaveBeenCalledWith("usp_QuestionAnswer_List", {
       ActorUserId: 1,
+      ActorRole: "ProjectManager",
       ProjectId: 2,
       Search: null,
       SortBy: null,
@@ -107,6 +120,13 @@ describe("question-answers repository", () => {
       Category: "Technical",
       Priority: "High",
     });
+  });
+
+  it("list forwards ActorRole: null when actorRole is omitted", async () => {
+    execProc.mockResolvedValue([dbRow({ TotalCount: 1 })]);
+    await listQuestionAnswers(listParamsSchema.parse({}), 1);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params.ActorRole).toBeNull();
   });
 
   it("list rejects contract-breaking rows", async () => {

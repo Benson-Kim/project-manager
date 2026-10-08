@@ -48,11 +48,11 @@ export default async function DeliverablesPage({
   const openId = dParam && /^\d+$/.test(dParam) ? Number(dParam) : null;
 
   const [rows, preferredView, assigneeOptions, openDeliverable] = await Promise.all([
-    listKeyDeliverables(projectId, listParams, session.userId, filters),
+    listKeyDeliverables(projectId, listParams, session.userId, filters, undefined, session.role),
     getViewPreference(session.userId, "key-deliverables").catch(() => null),
     listStakeholderOptions(projectId, session.userId),
     openId
-      ? getKeyDeliverableById(openId, session.userId).catch(
+      ? getKeyDeliverableById(openId, session.userId, session.role).catch(
           (): KeyDeliverableRow | undefined => undefined,
         )
       : Promise.resolve(undefined),

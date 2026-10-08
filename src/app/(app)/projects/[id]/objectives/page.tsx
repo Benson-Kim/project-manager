@@ -43,11 +43,11 @@ export default async function ObjectivesPage({
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
   const [rows, preferredView, selectedRaw] = await Promise.all([
-    listObjectives(listParams, session.userId, projectId),
+    listObjectives(listParams, session.userId, projectId, undefined, session.role),
     getViewPreference(session.userId, "objectives").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getObjectiveById(selectedId, session.userId).catch((err) => {
-          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
+      ? getObjectiveById(selectedId, session.userId, session.role).catch((err) => {
+          if (err instanceof AppError && (err.code === "NOT_FOUND" || err.code === "FORBIDDEN_ROW")) return null;
           throw err;
         })
       : Promise.resolve(null),

@@ -63,10 +63,12 @@ export async function createDailyActivity(
 export async function getDailyActivityById(
   dailyActivityId: number,
   actorUserId: number,
+  actorRole: string,
 ): Promise<DailyActivityRow> {
   const rows = await execProc<DailyActivityRow>("usp_DailyActivity_GetById", {
     DailyActivityId: dailyActivityId,
     ActorUserId: actorUserId,
+    ActorRole: actorRole,
   });
   if (!rows[0]) throw new AppError("NOT_FOUND", "DailyActivity not found");
   return dailyActivityRowSchema.parse(rows[0]);
@@ -78,9 +80,11 @@ export async function listDailyActivities(
   projectId: number | null = null,
   pageSize: number = DEFAULT_PAGE_SIZE,
   filters: DailyActivityListFilters = {},
+  actorRole?: string,
 ): Promise<DailyActivityListRow[]> {
   const rows = await execProc<DailyActivityListRow>("usp_DailyActivity_List", {
     ActorUserId: actorUserId,
+    ActorRole: actorRole ?? null,
     ProjectId: projectId,
     ...toProcListParams(params, pageSize),
     ActivityStatusId: filters.activityStatusId ?? null,

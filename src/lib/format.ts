@@ -12,7 +12,8 @@ export function formatDate(value: Date | string | null | undefined): string | nu
   if (value == null) return null;
   const d = value instanceof Date ? value : new Date(value);
   if (isNaN(d.getTime())) return null;
-  return d.toLocaleDateString("en-CA", {
+  // Use en-US for stable month abbreviations (no trailing period) across all environments.
+  return d.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",

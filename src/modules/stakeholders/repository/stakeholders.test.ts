@@ -63,23 +63,32 @@ describe("stakeholders repository", () => {
     expect(execProc).not.toHaveBeenCalled();
   });
 
-  it("getById parses the row", async () => {
+  it("getById forwards ActorRole and parses the row", async () => {
     execProc.mockResolvedValue([dbRow()]);
-    const row = await getStakeholderById(1, 7);
+    const row = await getStakeholderById(1, 7, "ProjectManager");
     expect(row.FirstName).toBe("Gary");
     expect(execProc).toHaveBeenCalledWith("usp_Stakeholder_GetById", {
       StakeholderId: 1,
       ActorUserId: 7,
+      ActorRole: "ProjectManager",
     });
+  });
+
+  it("getById — Admin role is forwarded (Admin bypass)", async () => {
+    execProc.mockResolvedValue([dbRow()]);
+    await getStakeholderById(1, 99, "Admin");
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params.ActorRole).toBe("Admin");
   });
 
   it("list forwards the ADR-0016 params and module filters 1:1", async () => {
     execProc.mockResolvedValue([dbRow({ TotalCount: 8 })]);
     const params = listParamsSchema.parse({ q: "Gary", sort: "LastName", dir: "desc" });
-    const rows = await listStakeholders(params, 7, { project: 2, engagement: "Medium" });
+    const rows = await listStakeholders(params, 7, { project: 2, engagement: "Medium" }, undefined, "ProjectManager");
     expect(rows[0].TotalCount).toBe(8);
     expect(execProc).toHaveBeenCalledWith("usp_Stakeholder_List", {
       ActorUserId: 7,
+      ActorRole: "ProjectManager",
       ProjectId: 2,
       EngagementLevel: "Medium",
       Search: "Gary",
@@ -88,6 +97,13 @@ describe("stakeholders repository", () => {
       Page: 1,
       PageSize: 25,
     });
+  });
+
+  it("list forwards ActorRole: null when actorRole is omitted", async () => {
+    execProc.mockResolvedValue([dbRow({ TotalCount: 1 })]);
+    await listStakeholders(listParamsSchema.parse({}), 7);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params.ActorRole).toBeNull();
   });
 
   it("list rejects rows that break the contract", async () => {

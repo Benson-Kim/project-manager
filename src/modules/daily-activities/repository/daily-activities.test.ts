@@ -70,18 +70,31 @@ describe("daily-activities repository", () => {
     expect(params.Progress).toBe(75);
   });
 
-  it("getById parses the row", async () => {
+  it("getById forwards ActorRole and parses the row", async () => {
     execProc.mockResolvedValue([dbRow()]);
-    await expect(getDailyActivityById(10, 7)).resolves.toMatchObject({ Task: "Write unit tests" });
+    await expect(getDailyActivityById(10, 7, "Contributor")).resolves.toMatchObject({ Task: "Write unit tests" });
+    expect(execProc).toHaveBeenCalledWith("usp_DailyActivity_GetById", {
+      DailyActivityId: 10,
+      ActorUserId: 7,
+      ActorRole: "Contributor",
+    });
+  });
+
+  it("getById — Admin role is forwarded (Admin bypass)", async () => {
+    execProc.mockResolvedValue([dbRow()]);
+    await getDailyActivityById(10, 99, "Admin");
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params.ActorRole).toBe("Admin");
   });
 
   it("list forwards ADR-0016 params with project scope", async () => {
     execProc.mockResolvedValue([dbRow({ TotalCount: 5 })]);
     const params = listParamsSchema.parse({ page: "1" });
-    const rows = await listDailyActivities(params, 7, 3);
+    const rows = await listDailyActivities(params, 7, 3, undefined, undefined, "ProjectManager");
     expect(rows[0].TotalCount).toBe(5);
     expect(execProc).toHaveBeenCalledWith("usp_DailyActivity_List", {
       ActorUserId: 7,
+      ActorRole: "ProjectManager",
       ProjectId: 3,
       Search: null,
       SortBy: null,
@@ -91,6 +104,13 @@ describe("daily-activities repository", () => {
       ActivityStatusId: null,
       TaskType: null,
     });
+  });
+
+  it("list forwards ActorRole: null when actorRole is omitted", async () => {
+    execProc.mockResolvedValue([dbRow({ TotalCount: 1 })]);
+    await listDailyActivities(listParamsSchema.parse({}), 7, null);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params.ActorRole).toBeNull();
   });
 
   it("list accepts null projectId for cross-project queries", async () => {

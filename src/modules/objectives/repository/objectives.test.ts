@@ -63,20 +63,33 @@ describe("objectives repository (child entity of Project)", () => {
     expect(params.QAlignmentStrategy).toBeNull();
   });
 
-  it("getById parses the row", async () => {
+  it("getById forwards ActorRole and parses the row", async () => {
     execProc.mockResolvedValue([dbRow()]);
-    await expect(getObjectiveById(3, 7)).resolves.toMatchObject({
+    await expect(getObjectiveById(3, 7, "ProjectManager")).resolves.toMatchObject({
       ObjectiveText: "Improve system reliability",
     });
+    expect(execProc).toHaveBeenCalledWith("usp_Objective_GetById", {
+      ObjectiveId: 3,
+      ActorUserId: 7,
+      ActorRole: "ProjectManager",
+    });
+  });
+
+  it("getById — Admin role is forwarded (Admin bypass)", async () => {
+    execProc.mockResolvedValue([dbRow()]);
+    await getObjectiveById(3, 99, "Admin");
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params.ActorRole).toBe("Admin");
   });
 
   it("list forwards the ADR-0016 params with the project scope filter", async () => {
     execProc.mockResolvedValue([dbRow({ TotalCount: 4 })]);
     const params = listParamsSchema.parse({ page: "2" });
-    const rows = await listObjectives(params, 7, 2);
+    const rows = await listObjectives(params, 7, 2, undefined, "ProjectManager");
     expect(rows[0].TotalCount).toBe(4);
     expect(execProc).toHaveBeenCalledWith("usp_Objective_List", {
       ActorUserId: 7,
+      ActorRole: "ProjectManager",
       ProjectId: 2,
       Search: null,
       SortBy: null,
@@ -84,6 +97,13 @@ describe("objectives repository (child entity of Project)", () => {
       Page: 2,
       PageSize: 25,
     });
+  });
+
+  it("list forwards ActorRole: null when actorRole is omitted", async () => {
+    execProc.mockResolvedValue([dbRow({ TotalCount: 1 })]);
+    await listObjectives(listParamsSchema.parse({}), 7, null);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params.ActorRole).toBeNull();
   });
 
   it("list rejects contract-breaking rows", async () => {

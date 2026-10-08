@@ -42,10 +42,12 @@ export async function createObjective(
 export async function getObjectiveById(
   objectiveId: number,
   actorUserId: number,
+  actorRole: string,
 ): Promise<ObjectiveRow> {
   const rows = await execProc<ObjectiveRow>("usp_Objective_GetById", {
     ObjectiveId: objectiveId,
     ActorUserId: actorUserId,
+    ActorRole: actorRole,
   });
   return objectiveRowSchema.parse(rows[0]);
 }
@@ -55,9 +57,11 @@ export async function listObjectives(
   actorUserId: number,
   projectId: number | null = null,
   pageSize: number = DEFAULT_PAGE_SIZE,
+  actorRole?: string,
 ): Promise<ObjectiveListRow[]> {
   const rows = await execProc<ObjectiveListRow>("usp_Objective_List", {
     ActorUserId: actorUserId,
+    ActorRole: actorRole ?? null,
     ProjectId: projectId,
     ...toProcListParams(params, pageSize),
   });

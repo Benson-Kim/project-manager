@@ -56,10 +56,12 @@ export async function createStakeholder(
 export async function getStakeholderById(
   stakeholderId: number,
   actorUserId: number,
+  actorRole: string,
 ): Promise<StakeholderRow> {
   const rows = await execProc<StakeholderRow>("usp_Stakeholder_GetById", {
     StakeholderId: stakeholderId,
     ActorUserId: actorUserId,
+    ActorRole: actorRole,
   });
   return stakeholderRowSchema.parse(rows[0]);
 }
@@ -69,9 +71,11 @@ export async function listStakeholders(
   actorUserId: number,
   filters: StakeholderFilters = {},
   pageSize: number = DEFAULT_PAGE_SIZE,
+  actorRole?: string,
 ): Promise<StakeholderListRow[]> {
   const rows = await execProc<StakeholderListRow>("usp_Stakeholder_List", {
     ActorUserId: actorUserId,
+    ActorRole: actorRole ?? null,
     ProjectId: filters.project ?? null,
     EngagementLevel: filters.engagement ?? null,
     ...toProcListParams(params, pageSize),
