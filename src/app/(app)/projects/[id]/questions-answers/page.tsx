@@ -65,11 +65,11 @@ export default async function QuestionsAnswersPage({
   };
 
   const [rows, preferredView, selectedRaw] = await Promise.all([
-    listQuestionAnswers(effectiveParams, session.userId, projectId, filters),
+    listQuestionAnswers(effectiveParams, session.userId, projectId, filters, undefined, session.role),
     getViewPreference(session.userId, "questions-answers").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getQuestionAnswerById(selectedId, session.userId).catch((err) => {
-          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
+      ? getQuestionAnswerById(selectedId, session.userId, session.role).catch((err) => {
+          if (err instanceof AppError && (err.code === "NOT_FOUND" || err.code === "FORBIDDEN_ROW")) return null;
           throw err;
         })
       : Promise.resolve(null),

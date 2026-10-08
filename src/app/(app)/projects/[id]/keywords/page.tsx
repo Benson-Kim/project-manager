@@ -47,11 +47,11 @@ export default async function KeywordsPage({
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
   const [rows, preferredView, selectedRaw] = await Promise.all([
-    listKeywords(effectiveParams, session.userId, projectId),
+    listKeywords(effectiveParams, session.userId, projectId, undefined, session.role),
     getViewPreference(session.userId, "keywords").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getKeywordById(selectedId, session.userId).catch((err) => {
-          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
+      ? getKeywordById(selectedId, session.userId, session.role).catch((err) => {
+          if (err instanceof AppError && (err.code === "NOT_FOUND" || err.code === "FORBIDDEN_ROW")) return null;
           throw err;
         })
       : Promise.resolve(null),

@@ -53,10 +53,12 @@ export async function createTodoItem(
 export async function getTodoItemById(
   todoItemId: number,
   actorUserId: number,
+  actorRole: string,
 ): Promise<TodoItemRow> {
   const rows = await execProc<TodoItemRow>("usp_TodoItem_GetById", {
     TodoItemId: todoItemId,
     ActorUserId: actorUserId,
+    ActorRole: actorRole,
   });
   if (!rows[0]) throw new AppError("NOT_FOUND", "TodoItem not found");
   return todoItemRowSchema.parse(rows[0]);
@@ -75,9 +77,11 @@ export async function listTodoItems(
   projectId: number | null = null,
   pageSize: number = DEFAULT_PAGE_SIZE,
   filters: TodoListFilters = {},
+  actorRole?: string,
 ): Promise<TodoItemListRow[]> {
   const rows = await execProc<TodoItemListRow>("usp_TodoItem_List", {
     ActorUserId: actorUserId,
+    ActorRole: actorRole ?? null,
     ProjectId: projectId,
     ...toProcListParams(params, pageSize),
     Status: filters.status ?? null,

@@ -54,10 +54,12 @@ export async function createKeyDeliverable(
 export async function getKeyDeliverableById(
   keyDeliverableId: number,
   actorUserId: number,
+  actorRole: string,
 ): Promise<KeyDeliverableRow> {
   const rows = await execProc<KeyDeliverableRow>("usp_KeyDeliverable_GetById", {
     KeyDeliverableId: keyDeliverableId,
     ActorUserId: actorUserId,
+    ActorRole: actorRole,
   });
   return keyDeliverableRowSchema.parse(rows[0]);
 }
@@ -68,9 +70,11 @@ export async function listKeyDeliverables(
   actorUserId: number,
   filters: KeyDeliverableFilters = {},
   pageSize: number = DEFAULT_PAGE_SIZE,
+  actorRole?: string,
 ): Promise<KeyDeliverableListRow[]> {
   const rows = await execProc<KeyDeliverableListRow>("usp_KeyDeliverable_List", {
     ActorUserId: actorUserId,
+    ActorRole: actorRole ?? null,
     ProjectId: projectId,
     Status: filters.status ?? null,
     Priority: filters.priority ?? null,

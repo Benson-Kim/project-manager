@@ -63,8 +63,8 @@ export default async function DailyActivitiesPage({
     getViewPreference(session.userId, "daily-activities").catch(() => null),
     listActivityStatuses(),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getDailyActivityById(selectedId, session.userId).catch((err) => {
-          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
+      ? getDailyActivityById(selectedId, session.userId, session.role).catch((err) => {
+          if (err instanceof AppError && (err.code === "NOT_FOUND" || err.code === "FORBIDDEN_ROW")) return null;
           throw err;
         })
       : Promise.resolve(null),

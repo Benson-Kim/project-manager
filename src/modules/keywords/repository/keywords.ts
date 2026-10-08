@@ -40,10 +40,12 @@ export async function createKeyword(
 export async function getKeywordById(
   keywordId: number,
   actorUserId: number,
+  actorRole: string,
 ): Promise<KeywordRow> {
   const rows = await execProc<KeywordRow>("usp_Keyword_GetById", {
     KeywordId: keywordId,
     ActorUserId: actorUserId,
+    ActorRole: actorRole,
   });
   return keywordRowSchema.parse(rows[0]);
 }
@@ -53,9 +55,11 @@ export async function listKeywords(
   actorUserId: number,
   projectId: number | null = null,
   pageSize: number = DEFAULT_PAGE_SIZE,
+  actorRole?: string,
 ): Promise<KeywordListRow[]> {
   const rows = await execProc<KeywordListRow>("usp_Keyword_List", {
     ActorUserId: actorUserId,
+    ActorRole: actorRole ?? null,
     ProjectId: projectId,
     ...toProcListParams(params, pageSize),
   });

@@ -58,11 +58,11 @@ export default async function StakeholdersPage({
   };
 
   const [rows, preferredView, selectedRaw] = await Promise.all([
-    listStakeholders(listParams, session.userId, filters),
+    listStakeholders(listParams, session.userId, filters, undefined, session.role),
     getViewPreference(session.userId, "stakeholders").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getStakeholderById(selectedId, session.userId).catch((err) => {
-          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
+      ? getStakeholderById(selectedId, session.userId, session.role).catch((err) => {
+          if (err instanceof AppError && (err.code === "NOT_FOUND" || err.code === "FORBIDDEN_ROW")) return null;
           throw err;
         })
       : Promise.resolve(null),
