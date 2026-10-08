@@ -4,14 +4,19 @@ import { useRouter } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { listEmptyState } from "@/components/ui/states";
+import { dateColumn, listColumn, textColumn } from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
+import { formCellSaver } from "@/components/ui/data-view/datasheet";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
 
+import { rowAllows } from "@/lib/auth/actor-access";
 import { formatDate } from "@/lib/format";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 
-import type { ProjectListRow } from "../schemas/project";
+import { createProjectAction, updateProjectAction } from "../actions";
+import type { ProjectListRow, ProjectRow } from "../schemas/project";
+import { projectFormValues } from "../schemas/project-form";
 
 import { ProjectsToolbar } from "./projects-toolbar";
 
@@ -43,67 +48,100 @@ function PriorityBadge({ value }: { value: string | null }) {
   );
 }
 
-const columns: DataViewColumn<ProjectListRow>[] = [
-  {
+type Row = ProjectListRow;
+const P = messages.projects.placeholders;
+
+const dateCell = (value: Date | null) => (
+  <span className="whitespace-nowrap tabular-nums text-ink-muted">{formatDate(value) || "—"}</span>
+);
+
+const columns: DataViewColumn<Row>[] = [
+  textColumn({
     key: "ProjectName",
     header: messages.projects.name,
     priority: 1,
+    field: "projectName",
+    value: (r) => r.ProjectName,
+    placeholder: P.name,
+    maxLength: 255,
     render: (r) => <span className="font-medium text-ink">{r.ProjectName}</span>,
-  },
-  {
+  }),
+  listColumn({
     key: "ProjectStatus",
     header: messages.projects.status,
     priority: 1,
+    field: "projectStatus",
+    list: "project.status",
+    value: (r) => r.ProjectStatus,
+    placeholder: P.status,
     render: (r) => <StatusBadge value={r.ProjectStatus} />,
-  },
-  {
+  }),
+  listColumn({
     key: "ProjectPriority",
     header: messages.projects.priority,
     priority: 2,
+    field: "projectPriority",
+    list: "project.priority",
+    value: (r) => r.ProjectPriority,
+    placeholder: P.priority,
     render: (r) => <PriorityBadge value={r.ProjectPriority} />,
-  },
-  {
+  }),
+  textColumn({
     key: "ProjectManager",
     header: messages.projects.manager,
     priority: 2,
+    field: "projectManager",
+    value: (r) => r.ProjectManager,
+    placeholder: P.manager,
+    maxLength: 255,
     render: (r) =>
       r.ProjectManager ? (
         <span className="text-ink">{r.ProjectManager}</span>
       ) : (
         <span className="text-ink-faint">—</span>
       ),
-  },
-  {
+  }),
+  dateColumn({
     key: "StartDate",
     header: messages.projects.startDate,
     priority: 3,
-    render: (r) => (
-      <span className="whitespace-nowrap tabular-nums text-ink-muted">
-        {formatDate(r.StartDate) || "—"}
-      </span>
-    ),
-  },
-  {
+    field: "startDate",
+    value: (r) => r.StartDate,
+    placeholder: P.startDate,
+    render: (r) => dateCell(r.StartDate),
+  }),
+  dateColumn({
     key: "EndDate",
     header: messages.projects.endDate,
     priority: 3,
-    render: (r) => (
-      <span className="whitespace-nowrap tabular-nums text-ink-muted">
-        {formatDate(r.EndDate) || "—"}
-      </span>
-    ),
-  },
+    field: "endDate",
+    value: (r) => r.EndDate,
+    placeholder: P.endDate,
+    render: (r) => dateCell(r.EndDate),
+  }),
 ];
 
+/** Datasheet edits go through the same update action as the charter (ADR-0023). */
+const saveCell = formCellSaver<Row, ProjectRow>(projectFormValues, updateProjectAction);
+const canEditRow = rowAllows("projects:update");
+
+/**
+ * Projects list: each row opens the project workspace. List view is a
+ * datasheet (ADR-0023): Managers edit their projects' cells in place, and any
+ * user adds a project from the new-entry row (they become its Manager).
+ */
 export function ProjectsView({
   rows,
   totalCount,
   page,
   initialView,
   filtersActive,
+  canCreate,
   newProjectAction,
 }: {
   rows: ProjectListRow[];
+  /** Shows the datasheet's new-entry row. */
+  canCreate: boolean;
   totalCount: number;
   page: number;
   initialView: ViewMode;
@@ -136,6 +174,11 @@ export function ProjectsView({
         </div>
       )}
       columns={columns}
+      datasheet={{
+        canEditRow,
+        saveCell,
+        addRow: canCreate ? { add: (values) => createProjectAction(values) } : undefined,
+      }}
       renderToolbar={(viewToggle) => (
         <ProjectsToolbar>
           <div className="ml-auto shrink-0">{viewToggle}</div>

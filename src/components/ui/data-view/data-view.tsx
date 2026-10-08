@@ -1,12 +1,26 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { LookupListKey } from "@/lib/lookup-lists";
 import { DEFAULT_PAGE_SIZE, totalPages, type ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { useAnnouncer } from "../announcer";
+import { useLookupLists } from "../lookup-lists";
 import { EmptyState } from "../states";
+import { useToast } from "../toast";
+import { CELL_WIDTH, isEditableTarget } from "./datasheet";
+import {
+  DatasheetAddRow,
+  DatasheetCell,
+  HeaderCell,
+  IconButton,
+  cellClass,
+  editableCellClass,
+} from "./datasheet-cells";
+import { ListEditorDialog } from "./list-editor-dialog";
 import { saveViewPreference } from "./save-view-preference";
-import { priorityClass, rowSelectionLabel, type DataViewProps } from "./types";
+import { priorityClass, rowSelectionLabel, type DataViewColumn, type DataViewProps } from "./types";
 import { useListUrlState } from "./use-list-url-state";
 
 /**
@@ -14,6 +28,11 @@ import { useListUrlState } from "./use-list-url-state";
  * module + URL-synced), server-side paging, selection + bulk bar, roving
  * keyboard navigation, empty/zero-result states. Server Components fetch the
  * page and pass rows down — this component never fetches data.
+ *
+ * Datasheet mode (ADR-0023, `datasheet` prop): in list view the table is an
+ * Access-style grid — editable cells save on Enter/blur through the module's
+ * update action, a persistent new-entry row adds records, and list-bound
+ * columns carry a caret that opens the dropdown-list editor (Admins, ADR-0022).
  */
 export function DataView<Row>({
   moduleKey,
@@ -28,15 +47,25 @@ export function DataView<Row>({
   columns,
   onOpen,
   bulkActions,
+  datasheet,
   renderToolbar,
   empty,
   filtersActive = false,
 }: DataViewProps<Row>) {
+  const router = useRouter();
   const { searchParams, update } = useListUrlState();
   const { announce } = useAnnouncer();
+  const { toast } = useToast();
+  const { canEdit: canEditLists } = useLookupLists();
   const [selected, setSelected] = useState<Array<string | number>>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Rows the datasheet saved since the server last sent this page (new RowVer),
+  // so a second edit before the refresh lands doesn't conflict.
+  const [saved, setSaved] = useState<Map<string | number, Row>>(() => new Map());
+  const [editingList, setEditingList] = useState<{ list: LookupListKey; column: string } | null>(
+    null,
+  );
   // Track previous rows identity to reset activeIndex on page/search changes
   // (React-recommended setState-during-render pattern — not an effect).
   const [prevRows, setPrevRows] = useState(rows);
@@ -46,6 +75,7 @@ export function DataView<Row>({
   const pages = totalPages(totalCount, pageSize);
   const hasQuery =
     Boolean(searchParams.get("q")) || Boolean(searchParams.get("filter")) || filtersActive;
+  const sheet = view === "list" ? datasheet : undefined;
 
   useEffect(() => {
     announce(messages.feedback.resultsAnnouncement(rows.length, totalCount));
@@ -58,7 +88,10 @@ export function DataView<Row>({
   if (prevRows !== rows) {
     setPrevRows(rows);
     setActiveIndex(0);
+    setSaved(new Map());
   }
+
+  const shownRows = saved.size ? rows.map((row) => saved.get(getRowId(row)) ?? row) : rows;
 
   const setView = useCallback(
     (next: ViewMode) => {
@@ -86,19 +119,21 @@ export function DataView<Row>({
   const clearSelection = useCallback(() => setSelected([]), []);
 
   const onKeyDown = (event: React.KeyboardEvent) => {
-    if (rows.length === 0) return;
+    if (shownRows.length === 0) return;
+    // Keys typed into a cell, select or button belong to that control.
+    if (isEditableTarget(event.target as HTMLElement)) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setActiveIndex((i) => Math.min(i + 1, rows.length - 1));
+      setActiveIndex((i) => Math.min(i + 1, shownRows.length - 1));
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
       setActiveIndex((i) => Math.max(i - 1, 0));
     } else if (event.key === "Enter") {
-      const row = rows[activeIndex];
+      const row = shownRows[activeIndex];
       if (row && onOpen) onOpen(row);
     } else if (event.key === " " && bulkActions) {
       event.preventDefault();
-      const row = rows[activeIndex];
+      const row = shownRows[activeIndex];
       if (row) toggleSelected(getRowId(row));
     } else if (event.key === "Escape") {
       clearSelection();
@@ -111,9 +146,36 @@ export function DataView<Row>({
     active?.scrollIntoView({ block: "nearest" });
   }, [activeIndex]);
 
-  if (totalCount === 0 && !hasQuery) {
+  const saveCell = async (row: Row, column: DataViewColumn<Row>, value: string) => {
+    if (!sheet || !column.edit) return false;
+    const result = await sheet.saveCell(row, column.edit.field, value);
+    if (!result.ok) {
+      toast({ variant: "error", title: result.error.message });
+      return false;
+    }
+    setSaved((current) => new Map(current).set(getRowId(row), { ...row, ...result.data }));
+    announce(messages.datasheet.saved(column.header));
+    router.refresh();
+    return true;
+  };
+
+  const addEntry = async (values: Record<string, string>) => {
+    const result = await sheet!.addRow!.add(values);
+    if (result.ok) {
+      announce(messages.datasheet.added);
+      router.refresh();
+    } else {
+      toast({ variant: "error", title: result.error.message });
+    }
+    return result;
+  };
+
+  // A datasheet with a new-entry row stays a table even before the first record.
+  if (totalCount === 0 && !hasQuery && !sheet?.addRow) {
     return <>{empty}</>;
   }
+
+  const rowLabel = (row: Row) => (getRowLabel ? getRowLabel(row) : String(getRowId(row)));
 
   const viewToggle = (
     <div
@@ -153,6 +215,9 @@ export function DataView<Row>({
     </div>
   );
 
+  const showTable = view === "list" && (shownRows.length > 0 || (sheet?.addRow && !hasQuery));
+  const actionsColumn = Boolean(sheet && (onOpen || sheet.addRow));
+
   return (
     <div className="flex flex-col gap-3">
       {renderToolbar ? (
@@ -184,7 +249,7 @@ export function DataView<Row>({
         </div>
       ) : null}
 
-      {rows.length === 0 ? (
+      {shownRows.length === 0 && !showTable ? (
         <EmptyState title={messages.list.zeroResultsTitle} body={messages.list.zeroResultsBody} />
       ) : (
         <div ref={containerRef} onKeyDown={onKeyDown}>
@@ -193,7 +258,7 @@ export function DataView<Row>({
               data-testid="data-view-grid"
               className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
             >
-              {rows.map((row, index) => {
+              {shownRows.map((row, index) => {
                 const id = getRowId(row);
                 return (
                   <li key={id} data-active={index === activeIndex || undefined}>
@@ -215,56 +280,113 @@ export function DataView<Row>({
               })}
             </ul>
           ) : (
-            <table data-testid="data-view-table" className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-line text-left">
-                  {bulkActions ? (
-                    <th className="w-11 p-2" aria-label={messages.actions.selectAll} />
+            <div className="overflow-x-auto">
+              <table
+                data-testid="data-view-table"
+                className="w-full border-collapse border border-line text-sm"
+              >
+                <thead>
+                  <tr>
+                    {bulkActions ? (
+                      <th
+                        className="w-11 border border-line bg-surface-raised p-2"
+                        aria-label={messages.actions.selectAll}
+                      />
+                    ) : null}
+                    {columns.map((col) => (
+                      <HeaderCell
+                        key={col.key}
+                        column={col}
+                        canEditLists={Boolean(sheet) && canEditLists}
+                        onEditList={(list, column) => setEditingList({ list, column })}
+                      />
+                    ))}
+                    {actionsColumn ? (
+                      <th className="w-24 border border-line bg-surface-raised px-3 py-2 text-left font-medium text-ink-muted">
+                        <span className="sr-only">{messages.datasheet.actions}</span>
+                      </th>
+                    ) : null}
+                  </tr>
+                </thead>
+                <tbody>
+                  {shownRows.map((row, index) => {
+                    const id = getRowId(row);
+                    const editable = Boolean(sheet?.canEditRow(row));
+                    return (
+                      <tr
+                        key={id}
+                        data-active={index === activeIndex || undefined}
+                        tabIndex={index === activeIndex ? 0 : -1}
+                        onFocus={() => setActiveIndex(index)}
+                        onClick={
+                          onOpen
+                            ? (e) => {
+                                // Clicks on a cell's control edit it; the rest of the row opens the record.
+                                if (!isEditableTarget(e.target as HTMLElement)) onOpen(row);
+                              }
+                            : undefined
+                        }
+                        className={`${onOpen ? "cursor-pointer" : ""} ${index === activeIndex ? "bg-surface-raised" : ""}`}
+                      >
+                        {bulkActions ? (
+                          <td className={`w-11 ${cellClass} px-2`}>
+                            <input
+                              type="checkbox"
+                              aria-label={rowSelectionLabel(row, getRowLabel) ?? String(id)}
+                              checked={selected.includes(id)}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={() => toggleSelected(id)}
+                              className="size-5"
+                            />
+                          </td>
+                        ) : null}
+                        {columns.map((col) =>
+                          editable && col.edit ? (
+                            <td
+                              key={col.key}
+                              className={`${editableCellClass} ${CELL_WIDTH[col.edit.kind]} ${priorityClass[col.priority]}`}
+                            >
+                              <DatasheetCell
+                                row={row}
+                                editor={col.edit}
+                                label={messages.datasheet.cellLabel(col.header, rowLabel(row))}
+                                onSave={(value) => saveCell(row, col, value)}
+                              />
+                            </td>
+                          ) : (
+                            <td
+                              key={col.key}
+                              className={`${cellClass} ${priorityClass[col.priority]}`}
+                            >
+                              {col.render(row)}
+                            </td>
+                          ),
+                        )}
+                        {actionsColumn ? (
+                          <td className={`${cellClass} py-1`}>
+                            {onOpen ? (
+                              <IconButton
+                                label={messages.datasheet.open(rowLabel(row))}
+                                onClick={() => onOpen(row)}
+                              >
+                                <path d="M6 3h7v7M13 3L5 11" />
+                              </IconButton>
+                            ) : null}
+                          </td>
+                        ) : null}
+                      </tr>
+                    );
+                  })}
+                  {sheet?.addRow && !hasQuery ? (
+                    <DatasheetAddRow
+                      columns={columns}
+                      hasSelectColumn={Boolean(bulkActions)}
+                      onAdd={addEntry}
+                    />
                   ) : null}
-                  {columns.map((col) => (
-                    <th
-                      key={col.key}
-                      className={`p-2 font-medium text-ink-muted ${priorityClass[col.priority]}`}
-                    >
-                      {col.header}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, index) => {
-                  const id = getRowId(row);
-                  return (
-                    <tr
-                      key={id}
-                      data-active={index === activeIndex || undefined}
-                      tabIndex={index === activeIndex ? 0 : -1}
-                      onFocus={() => setActiveIndex(index)}
-                      onClick={onOpen ? () => onOpen(row) : undefined}
-                      className={`min-h-11 border-b border-line ${onOpen ? "cursor-pointer" : ""} ${index === activeIndex ? "bg-surface-raised" : ""}`}
-                    >
-                      {bulkActions ? (
-                        <td className="w-11 p-2">
-                          <input
-                            type="checkbox"
-                            aria-label={rowSelectionLabel(row, getRowLabel) ?? String(id)}
-                            checked={selected.includes(id)}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={() => toggleSelected(id)}
-                            className="size-5"
-                          />
-                        </td>
-                      ) : null}
-                      {columns.map((col) => (
-                        <td key={col.key} className={`p-2 ${priorityClass[col.priority]}`}>
-                          {col.render(row)}
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
@@ -292,6 +414,17 @@ export function DataView<Row>({
             {messages.list.nextPage}
           </button>
         </nav>
+      ) : null}
+
+      {editingList ? (
+        <ListEditorDialog
+          listKey={editingList.list}
+          column={editingList.column}
+          open
+          onOpenChange={(open) => {
+            if (!open) setEditingList(null);
+          }}
+        />
       ) : null}
     </div>
   );

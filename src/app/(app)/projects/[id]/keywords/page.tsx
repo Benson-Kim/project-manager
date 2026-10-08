@@ -79,6 +79,8 @@ export default async function KeywordsPage({
       <PageHeader title={messages.keywords.title} action={canCreate ? newKeywordLink : undefined} />
       <div className="mt-3 flex flex-col flex-1">
         <KeywordsView
+          projectId={projectId}
+          canCreate={canCreate}
           rows={rows}
           totalCount={totalCount}
           page={effectiveParams.page}

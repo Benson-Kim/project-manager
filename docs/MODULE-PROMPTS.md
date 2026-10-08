@@ -120,7 +120,7 @@ APP STANDARD
   (Admin | User). Inside a project the access level decides: Viewer reads; Contributor also
   creates/updates on CONTRIBUTOR_WRITE_MODULES; Manager does everything incl. delete. Add your
   module key to CONTRIBUTOR_WRITE_MODULES if project Contributors may write (append, keep sorted),
-  and register your proc folder in src/test/proc-access-levels.test.ts (MODULES map) — it fails
+  and register your proc folder in src/tests/proc-access-levels.test.ts (MODULES map) — it fails
   when a proc's @MinLevel disagrees with requiredLevel() or a proc skips the access check.
 - Pages: const allows = await getProjectPermissions(projectId, session.userId) and show actions
   with allows("<module>:<verb>"); never can(session.role, …) on a project page. Wrap section loads

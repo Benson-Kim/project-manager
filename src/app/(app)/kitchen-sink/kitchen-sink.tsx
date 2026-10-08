@@ -4,6 +4,7 @@ import { useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { listColumn, textColumn } from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
 import { Dialog, Sheet } from "@/components/ui/dialog";
 import { Combobox } from "@/components/ui/form/combobox";
@@ -13,10 +14,12 @@ import { DatePicker, Input, Select, Switch, Textarea } from "@/components/ui/for
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { Menu, MenuButton, MenuLink } from "@/components/ui/menu";
 import { PageHeader } from "@/components/ui/page-header";
+import { LookupListsProvider } from "@/components/ui/lookup-lists";
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/ui/states";
 import { Toolbar } from "@/components/ui/toolbar";
 import { useToast } from "@/components/ui/toast";
 import { useAnnouncer } from "@/components/ui/announcer";
+import type { LookupList, LookupLists, SaveLookupListInput } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
 
 const demoSchema = z.object({
@@ -37,6 +40,51 @@ const demoRows: DemoRow[] = [
   { id: 3, name: "Data centre move", status: "Completed", owner: "Mei" },
 ];
 
+/** A local stand-in for a managed list (ADR-0022) so the datasheet demo needs no database. */
+const demoLists: LookupLists = {
+  "project.status": {
+    key: "project.status",
+    rowVer: 1,
+    options: ["Not started", "In progress", "Completed"].map((label, i) => ({
+      id: i + 1,
+      label,
+      locked: false,
+    })),
+  },
+};
+
+/** Datasheet demo columns (ADR-0023): in-cell editing, a list-bound status with its caret. */
+const demoColumns = [
+  textColumn<DemoRow>({
+    key: "name",
+    header: "Name",
+    priority: 1,
+    field: "name",
+    value: (r) => r.name,
+    placeholder: "[New project name…]",
+  }),
+  listColumn<DemoRow>({
+    key: "status",
+    header: "Status",
+    priority: 2,
+    field: "status",
+    list: "project.status",
+    value: (r) => r.status,
+    placeholder: "[Select status…]",
+    render: (r) => r.status,
+  }),
+  textColumn<DemoRow>({
+    key: "owner",
+    header: "Owner",
+    priority: 3,
+    field: "owner",
+    value: (r) => r.owner,
+    placeholder: "[Owner…]",
+  }),
+];
+
+const demoField: Record<string, keyof DemoRow> = { name: "name", status: "status", owner: "owner" };
+
 export function KitchenSink() {
   const { toast } = useToast();
   const { announce } = useAnnouncer();
@@ -45,6 +93,22 @@ export function KitchenSink() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
+  const [rows, setRows] = useState(demoRows);
+  const [lists, setLists] = useState(demoLists);
+
+  const saveDemoList = async (input: SaveLookupListInput) => {
+    const list: LookupList = {
+      key: "project.status",
+      rowVer: Number(input.rowVer) + 1,
+      options: input.options.map((o, i) => ({
+        id: o.id ?? 100 + i,
+        label: o.label.trim(),
+        locked: false,
+      })),
+    };
+    setLists({ "project.status": list });
+    return { ok: true as const, data: list };
+  };
 
   return (
     <>
@@ -224,39 +288,59 @@ export function KitchenSink() {
             </label>
           </Toolbar>
           <div className="mt-3">
-            <DataView
-              moduleKey="kitchen-sink"
-              rows={demoRows}
-              totalCount={demoRows.length}
-              page={1}
-              initialView="grid"
-              getRowId={(row) => row.id}
-              getRowLabel={(row) => row.name}
-              renderCard={(row) => (
-                <div>
-                  <p className="text-sm font-semibold text-ink">{row.name}</p>
-                  <p className="mt-1 text-xs text-ink-muted">{row.status}</p>
-                </div>
-              )}
-              columns={[
-                { key: "name", header: "Name", priority: 1, render: (r) => r.name },
-                { key: "status", header: "Status", priority: 2, render: (r) => r.status },
-                { key: "owner", header: "Owner", priority: 3, render: (r) => r.owner },
-              ]}
-              onOpen={(row) => toast({ variant: "info", title: row.name })}
-              bulkActions={(ids, clear) => (
-                <Button
-                  variant="danger"
-                  onClick={() => {
-                    toast({ variant: "success", title: messages.feedback.deleted });
-                    clear();
-                  }}
-                >
-                  {messages.actions.delete} ({ids.length})
-                </Button>
-              )}
-              empty={<EmptyState title={messages.list.emptyTitle} />}
-            />
+            <LookupListsProvider lists={lists} canEdit onSave={saveDemoList}>
+              <DataView
+                moduleKey="kitchen-sink"
+                rows={rows}
+                totalCount={rows.length}
+                page={1}
+                initialView="grid"
+                getRowId={(row) => row.id}
+                getRowLabel={(row) => row.name}
+                renderCard={(row) => (
+                  <div>
+                    <p className="text-sm font-semibold text-ink">{row.name}</p>
+                    <p className="mt-1 text-xs text-ink-muted">{row.status}</p>
+                  </div>
+                )}
+                columns={demoColumns}
+                datasheet={{
+                  canEditRow: () => true,
+                  saveCell: async (row, field, value) => {
+                    const next = { ...row, [demoField[field]]: value };
+                    setRows((all) => all.map((r) => (r.id === row.id ? next : r)));
+                    return { ok: true, data: next };
+                  },
+                  addRow: {
+                    add: async (values) => {
+                      setRows((all) => [
+                        ...all,
+                        {
+                          id: all.length + 1,
+                          name: values.name ?? "",
+                          status: values.status ?? "",
+                          owner: values.owner ?? "",
+                        },
+                      ]);
+                      return { ok: true, data: null };
+                    },
+                  },
+                }}
+                onOpen={(row) => toast({ variant: "info", title: row.name })}
+                bulkActions={(ids, clear) => (
+                  <Button
+                    variant="danger"
+                    onClick={() => {
+                      toast({ variant: "success", title: messages.feedback.deleted });
+                      clear();
+                    }}
+                  >
+                    {messages.actions.delete} ({ids.length})
+                  </Button>
+                )}
+                empty={<EmptyState title={messages.list.emptyTitle} />}
+              />
+            </LookupListsProvider>
           </div>
         </section>
       </div>

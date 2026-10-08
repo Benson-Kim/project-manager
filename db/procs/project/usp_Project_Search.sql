@@ -24,12 +24,11 @@ BEGIN
            ProjectName,
            CAST(RowVer AS BIGINT) AS RowVer
     FROM app.Project
+    CROSS APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, Project.ProjectId, 0) acc
     WHERE IsDeleted = 0
       AND ProjectName LIKE @Prefix + N'%' ESCAPE N'\'
       -- Row-level access (ADR-0021): Admin sees every project; everyone else only theirs.
-      AND (ISNULL(@ActorRole, N'') = N'Admin'
-           OR EXISTS (SELECT 1 FROM app.ProjectAssignee pa
-                      WHERE pa.ProjectId = Project.ProjectId AND pa.UserId = @ActorUserId AND pa.IsDeleted = 0))
+      AND acc.AccessLevel IS NOT NULL
     ORDER BY ProjectName ASC;
 END;
 GO

@@ -68,7 +68,7 @@ modules with no row-level check at all.
   userId)` (request-cached `usp_Project_GetAccess`) and show only the actions
   `canInProject(level, permission)` allows. Missing or inaccessible records
   render as not found (`orNull` / `orNotFound` in `src/lib/row-access.ts`).
-- **Drift guard.** `src/test/proc-access-levels.test.ts` reads db/procs and
+- **Drift guard.** `src/tests/proc-access-levels.test.ts` reads db/procs and
   fails when:
   - a proc's literal `@MinLevel` differs from `requiredLevel()`, or
   - a project-scoped proc stops checking access, unless it is listed as exempt

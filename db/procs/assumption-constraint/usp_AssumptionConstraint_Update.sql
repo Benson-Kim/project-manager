@@ -5,6 +5,8 @@
 --   the action-layer form contract but ignored (prevents cross-project record relocation
 --   via forged payload — Codex review comment #4162765942).
 -- Vocabulary enforcement: Type must be Assumption | Constraint | NULL; Impact must be High | Medium | Low | NULL.
+-- Dropdown values (ADR-0022): Type and Impact must be live options of their lists, or unchanged (VALIDATION 50004),
+--   and are stored as listed.
 -- Entity app.AssumptionConstraint (source: tblAssumptionsConstraints). Module: assumptions-constraints (#13).
 USE ProjectManager;
 GO
@@ -23,8 +25,9 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    DECLARE @CurrentVer BIGINT, @RowProjectId INT;
-    SELECT @CurrentVer = CAST(RowVer AS BIGINT), @RowProjectId = ProjectId
+    DECLARE @CurrentVer BIGINT, @RowProjectId INT, @CurrentType NVARCHAR(255), @CurrentImpact NVARCHAR(255);
+    SELECT @CurrentVer = CAST(RowVer AS BIGINT), @RowProjectId = ProjectId,
+           @CurrentType = [Type], @CurrentImpact = Impact
     FROM app.AssumptionConstraint WHERE AssumptionConstraintId = @AssumptionConstraintId AND IsDeleted = 0;
     IF @CurrentVer IS NULL
         THROW 50001, N'NOT_FOUND:AssumptionConstraint not found', 1;
@@ -37,12 +40,12 @@ BEGIN
     IF @CurrentVer <> @RowVer
         THROW 50002, N'CONFLICT:AssumptionConstraint was modified by someone else', 1;
 
-    -- Vocabulary enforcement (mirrors z.enum in form schema; prevents forged payloads).
-    IF @Type IS NOT NULL AND @Type NOT IN (N'Assumption', N'Constraint')
-        THROW 50004, N'VALIDATION:Invalid type value', 1;
-
-    IF @Impact IS NOT NULL AND @Impact NOT IN (N'High', N'Medium', N'Low')
-        THROW 50004, N'VALIDATION:Invalid impact value', 1;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'assumption-constraint.type', @Label = @Type OUTPUT,
+         @CurrentLabel = @CurrentType;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'assumption-constraint.impact', @Label = @Impact OUTPUT,
+         @CurrentLabel = @CurrentImpact;
 
     BEGIN TRAN;
 

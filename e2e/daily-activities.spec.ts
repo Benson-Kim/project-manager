@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
+import { expectListed } from "./support/datasheet";
 
 /**
  * Daily Activities module (#19) — project-scoped route /projects/2/daily-activities.
@@ -25,7 +26,7 @@ test("create daily activity happy path — appears in the list", async ({ page }
   await expect(form).toHaveCount(0); // sheet closed
 
   await page.goto(`/projects/2/daily-activities?q=${encodeURIComponent(task)}`);
-  await expect(page.getByText(task).first()).toBeVisible();
+  await expectListed(page, task);
 });
 
 test("validation failure — invalid timeSpent shows inline error", async ({ page }) => {

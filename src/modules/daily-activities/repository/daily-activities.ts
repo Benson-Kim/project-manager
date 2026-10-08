@@ -1,7 +1,6 @@
 import { execProc } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
-import { listActivityStatuses } from "@/lib/repositories/activity-status";
 import {
   createDailyActivityInput,
   dailyActivityListRowSchema,
@@ -19,9 +18,6 @@ export interface DailyActivityListFilters {
   activityStatusId?: number | null;
   taskType?: string | null;
 }
-
-export type { ActivityStatus } from "@/lib/repositories/activity-status";
-export { listActivityStatuses };
 
 /**
  * Daily Activity repository — stored procedures only , zod row
@@ -115,4 +111,3 @@ export async function deleteDailyActivity(
     ActorUserId: actorUserId,
   });
 }
-

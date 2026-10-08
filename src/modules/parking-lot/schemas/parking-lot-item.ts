@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { actorAccessSchema } from "@/lib/auth/actor-access";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 
 /**
@@ -26,6 +27,7 @@ export type ParkingLotItemRow = z.infer<typeof parkingLotItemRowSchema>;
 
 export const parkingLotItemListRowSchema = parkingLotItemRowSchema.extend({
   TotalCount: z.number().int(),
+  ActorAccess: actorAccessSchema,
 });
 
 export type ParkingLotItemListRow = z.infer<typeof parkingLotItemListRowSchema>;

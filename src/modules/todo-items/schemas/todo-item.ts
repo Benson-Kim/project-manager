@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { actorAccessSchema } from "@/lib/auth/actor-access";
+import { listValue, type LookupListKey } from "@/lib/lookup-lists";
 import { alertTimeSchema, rowVerSchema } from "./todo-alert";
 
 /**
@@ -7,19 +9,20 @@ import { alertTimeSchema, rowVerSchema } from "./todo-alert";
  */
 
 /** Priority vocabulary (matches Access tblTodoList seed data — Critical first). */
-export const TODO_PRIORITIES = ["Critical", "High", "Medium", "Low"] as const;
+/**
+ * Dropdown lists (ADR-0022). "Not Started" (usp_Todo_BuildFromDailyActivity),
+ * "Completed" and "Cancelled" (the alert procs, isOverdue/isApproachingDeadline)
+ * are read by name, so they are locked in the status list.
+ */
+export const TODO_ITEM_LISTS = [
+  "todo-item.status",
+  "todo-item.priority",
+] as const satisfies readonly LookupListKey[];
 
 /**
  * Status vocabulary — matches Access tblTodoList data including "In Review"
  * which appears in live seed rows.
  */
-export const TODO_STATUSES = [
-  "Not Started",
-  "In Progress",
-  "In Review",
-  "Completed",
-  "Cancelled",
-] as const;
 
 /**
  * ProjectOrActivity — matches Access tblTodoList.ProjectOrActivity field values.
@@ -49,6 +52,7 @@ export type TodoItemRow = z.infer<typeof todoItemRowSchema>;
 
 export const todoItemListRowSchema = todoItemRowSchema.extend({
   TotalCount: z.number().int(),
+  ActorAccess: actorAccessSchema,
 });
 
 export type TodoItemListRow = z.infer<typeof todoItemListRowSchema>;
@@ -60,8 +64,8 @@ export const createTodoItemInput = z.object({
   todoItem: z.string().trim().min(1).max(255),
   startDate: z.coerce.date().nullish(),
   dueDate: z.coerce.date().nullish(),
-  priority: z.string().trim().max(255).nullish(),
-  status: z.string().trim().max(255).nullish(),
+  priority: listValue.nullish(),
+  status: listValue.nullish(),
   notes: z.string().trim().nullish(),
 });
 
@@ -115,7 +119,10 @@ export function isOverdue(row: { DueDate: Date | null; Status: string | null }):
  * Approaching deadline = DueDate is within the next 2 UTC calendar days AND not already overdue.
  * Mirrors the Access qryUpcomingAlerts DATEADD(DAY, -2, DueDate) <= @Today tier.
  */
-export function isApproachingDeadline(row: { DueDate: Date | null; Status: string | null }): boolean {
+export function isApproachingDeadline(row: {
+  DueDate: Date | null;
+  Status: string | null;
+}): boolean {
   if (!row.DueDate) return false;
   if (row.Status === "Completed" || row.Status === "Cancelled") return false;
   if (isOverdue(row)) return false;

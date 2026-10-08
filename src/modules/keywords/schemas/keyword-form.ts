@@ -1,5 +1,7 @@
 import { z } from "zod";
+import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
 import { messages } from "@/lib/messages";
+import type { KeywordRow } from "./keyword";
 
 /**
  * Keyword form contract ): ONE schema shared by the client sheet
@@ -32,3 +34,14 @@ export const updateKeywordFormSchema = keywordFormSchema.extend({
 });
 
 export type UpdateKeywordFormValues = z.output<typeof updateKeywordFormSchema>;
+
+/** A keyword as the update form's values — what a datasheet cell edit sends (ADR-0023). */
+export function keywordFormValues(row: KeywordRow): FormValues {
+  return {
+    keywordId: String(row.KeywordId),
+    rowVer: String(row.RowVer),
+    projectId: formText(row.ProjectId),
+    keyword: row.Keyword,
+    definition: formText(row.Definition),
+  };
+}

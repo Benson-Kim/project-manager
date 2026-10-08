@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { actorAccessSchema } from "@/lib/auth/actor-access";
+import { listValue, type LookupListKey } from "@/lib/lookup-lists";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 
 /**
@@ -10,11 +12,14 @@ import { rowVerSchema } from "@/modules/projects/schemas/project";
  * any string from the DB to avoid breakage when existing rows carry legacy values.
  */
 
-export const ASSUMPTION_CONSTRAINT_TYPE_OPTIONS = ["Assumption", "Constraint"] as const;
-export type AssumptionConstraintType = (typeof ASSUMPTION_CONSTRAINT_TYPE_OPTIONS)[number];
-
-export const ASSUMPTION_CONSTRAINT_IMPACT_OPTIONS = ["High", "Medium", "Low"] as const;
-export type AssumptionConstraintImpact = (typeof ASSUMPTION_CONSTRAINT_IMPACT_OPTIONS)[number];
+/**
+ * Dropdown lists (ADR-0022). The two kinds of record, "Assumption" and
+ * "Constraint", are locked in the type list; more can be added.
+ */
+export const ASSUMPTION_CONSTRAINT_LISTS = [
+  "assumption-constraint.type",
+  "assumption-constraint.impact",
+] as const satisfies readonly LookupListKey[];
 
 export const assumptionConstraintRowSchema = z.object({
   AssumptionConstraintId: z.number().int(),
@@ -33,6 +38,7 @@ export type AssumptionConstraintRow = z.infer<typeof assumptionConstraintRowSche
 
 export const assumptionConstraintListRowSchema = assumptionConstraintRowSchema.extend({
   TotalCount: z.number().int(),
+  ActorAccess: actorAccessSchema,
 });
 
 export type AssumptionConstraintListRow = z.infer<typeof assumptionConstraintListRowSchema>;
@@ -41,10 +47,10 @@ export type AssumptionConstraintListRow = z.infer<typeof assumptionConstraintLis
 
 export const createAssumptionConstraintInput = z.object({
   projectId: z.number().int().positive(),
-  type: z.string().trim().max(255).nullish(),
+  type: listValue.nullish(),
   description: z.string().trim().min(1).max(4000),
   isValidated: z.boolean().default(false),
-  impact: z.string().trim().max(255).nullish(),
+  impact: listValue.nullish(),
   mitigationPlan: z.string().trim().max(4000).nullish(),
 });
 

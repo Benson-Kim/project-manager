@@ -1,7 +1,7 @@
 /**
  * ALL user-facing copy lives here . One tone: short, sentence case,
  * plain words, no exclamation marks, no jargon, no helper text.
- * Guardrail: src/test/messages-tone.test.ts.
+ * Guardrail: src/tests/messages-tone.test.ts.
  */
 export const messages = {
   app: {
@@ -116,7 +116,42 @@ export const messages = {
     zeroResultsBody: "No records match your search or filters.",
     errorTitle: "The list could not be loaded",
   },
+  datasheet: {
+    actions: "Actions",
+    open: (row: string) => `Open ${row}`,
+    cellLabel: (column: string, row: string) => `${column}, ${row}`,
+    newEntry: "New entry",
+    newEntryField: (column: string) => `New entry: ${column}`,
+    addEntry: "Add entry",
+    clearEntry: "Clear entry",
+    noValue: "None",
+    saved: (column: string) => `${column} saved`,
+    added: "Entry added",
+  },
+  lookupLists: {
+    edit: (column: string) => `Edit dropdown list: ${column}`,
+    option: (position: number) => `Option ${position}`,
+    moveUp: (label: string) => `Move ${label} up`,
+    moveDown: (label: string) => `Move ${label} down`,
+    remove: (label: string) => `Remove ${label}`,
+    locked: "Locked",
+    newOption: "New option",
+    addNew: "Add new",
+    empty: "This list has no options.",
+    labelRequired: "Enter a name.",
+    labelTooLong: (max: number) => `Use ${max} characters or fewer.`,
+    labelDuplicate: "This name is already in the list.",
+    saved: (column: string) => `${column} list saved`,
+  },
   projects: {
+    placeholders: {
+      name: "[New project name…]",
+      status: "[Select status…]",
+      priority: "[Select priority…]",
+      manager: "[Project manager…]",
+      startDate: "[Select start date…]",
+      endDate: "[Select end date…]",
+    },
     title: "Projects",
     entity: "project",
     sectionsNav: "Project sections",
@@ -199,6 +234,17 @@ export const messages = {
   dailyActivities: {
     title: "Daily activities",
     entity: "activity",
+    placeholders: {
+      task: "[New task…]",
+      status: "[Select status…]",
+      date: "[Select date…]",
+      requester: "[Enter requester name…]",
+      contactMethod: "[Select contact method…]",
+      taskType: "[Select task type…]",
+      progress: "[Percent…]",
+      timeSpent: "[Hours…]",
+      assignedTo: "[Assign to…]",
+    },
     newActivity: "New activity",
     detailsSection: "Details",
     activitySection: "Activity",
@@ -230,6 +276,13 @@ export const messages = {
     todoCreated: "To-do created",
   },
   todoItems: {
+    placeholders: {
+      todoItem: "[New to-do…]",
+      status: "[Select status…]",
+      priority: "[Select priority…]",
+      dueDate: "[Select due date…]",
+      startDate: "[Select start date…]",
+    },
     title: "To-do list",
     entity: "to-do",
     newTodoItem: "New to-do",
@@ -290,6 +343,12 @@ export const messages = {
   keyDeliverables: {
     title: "Key deliverables",
     entity: "deliverable",
+    placeholders: {
+      requirement: "[New requirement…]",
+      deadline: "[Select deadline…]",
+      status: "[Select status…]",
+      priority: "[Select priority…]",
+    },
     newDeliverable: "New deliverable",
     editTitle: "Edit deliverable",
     requirement: "Requirement",
@@ -333,6 +392,16 @@ export const messages = {
     deliverableFallback: (id: number) => `Deliverable ${id}`,
   },
   stakeholders: {
+    placeholders: {
+      firstName: "[First name…]",
+      lastName: "[Last name…]",
+      projectRole: "[Project role…]",
+      engagementLevel: "[Select engagement…]",
+      communicationPreference: "[Select contact preference…]",
+      departmentOrganization: "[Department or organization…]",
+      emailAddress: "[Email address…]",
+      phoneNumber: "[Phone number…]",
+    },
     title: "Stakeholders",
     entity: "stakeholder",
     newStakeholder: "New stakeholder",
@@ -366,6 +435,14 @@ export const messages = {
     reload: "Reload",
   },
   suppliers: {
+    placeholders: {
+      supplierName: "[New supplier name…]",
+      contractEndDate: "[Select end date…]",
+      contactPerson: "[Contact person…]",
+      rating: "[Select rating…]",
+      city: "[City…]",
+      emailAddress: "[Email address…]",
+    },
     title: "Suppliers",
     entity: "supplier",
     newSupplier: "New supplier",
@@ -392,6 +469,11 @@ export const messages = {
     reload: "Reload",
   },
   objectives: {
+    placeholders: {
+      objectiveText: "[New objective…]",
+      qMeasurable: "[How is it measured…]",
+      qAlignmentStrategy: "[Strategy alignment…]",
+    },
     title: "Objectives",
     entity: "objective",
     newObjective: "New objective",
@@ -403,8 +485,13 @@ export const messages = {
     qAlignmentStrategy: "Alignment strategy",
     emptyBody: "Add the first objective for this project.",
     reload: "Reload",
+    addedAt: "Added",
   },
   keywords: {
+    placeholders: {
+      keyword: "[New keyword…]",
+      definition: "[Definition…]",
+    },
     title: "Keywords",
     entity: "keyword",
     newKeyword: "New keyword",
@@ -416,6 +503,12 @@ export const messages = {
     reload: "Reload",
   },
   questionsAnswers: {
+    placeholders: {
+      question: "[New question…]",
+      category: "[Select category…]",
+      priority: "[Select priority…]",
+      assignedTo: "[Assign to…]",
+    },
     title: "Questions & Answers",
     entity: "question",
     newQuestion: "New question",
@@ -427,22 +520,15 @@ export const messages = {
     assignedTo: "Assigned to",
     allCategories: "All categories",
     allPriorities: "All priorities",
-    categoryLabels: {
-      General: "General",
-      Technical: "Technical",
-      Budget: "Budget",
-      Other: "Other",
-    },
-    priorityLabels: {
-      Critical: "Critical",
-      High: "High",
-      Medium: "Medium",
-      Low: "Low",
-    },
     emptyBody: "Add the first question for this project.",
     reload: "Reload",
   },
   parkingLot: {
+    placeholders: {
+      item: "[New item…]",
+      owner: "[Owner…]",
+      strikethrough: "[Resolved?]",
+    },
     title: "Parking lot",
     entity: "item",
     newItem: "New item",
@@ -460,6 +546,12 @@ export const messages = {
     reload: "Reload",
   },
   assumptionsConstraints: {
+    placeholders: {
+      description: "[New description…]",
+      type: "[Select type…]",
+      impact: "[Select impact…]",
+      isValidated: "[Validated?]",
+    },
     title: "Assumptions & constraints",
     entity: "item",
     newItem: "New item",
@@ -467,17 +559,12 @@ export const messages = {
     description: "Description",
     descriptionRequired: "Enter a description",
     type: "Type",
-    typeAssumption: "Assumption",
-    typeConstraint: "Constraint",
     typeNone: "None",
     isValidated: "Validated",
     impact: "Impact",
     validatedYes: "Yes",
     validatedNo: "No",
     impactNone: "None",
-    impactHigh: "High",
-    impactMedium: "Medium",
-    impactLow: "Low",
     mitigationPlan: "Mitigation plan",
     allTypes: "All types",
     emptyBody: "Add the first assumption or constraint for this project.",

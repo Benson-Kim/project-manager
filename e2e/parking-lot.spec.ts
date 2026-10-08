@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
+import { expectListed } from "./support/datasheet";
 
 /**
  * Parking lot module (#18) — project-scoped route /projects/2/parking-lot.
@@ -23,7 +24,7 @@ test("create parking lot item happy path — appears in the list", async ({ page
   await expect(form).toHaveCount(0);
 
   await page.goto(`/projects/2/parking-lot?q=${encodeURIComponent(itemText)}`);
-  await expect(page.getByText(itemText).first()).toBeVisible();
+  await expectListed(page, itemText);
 });
 
 test("validation failure — empty item shows inline error and focuses the summary", async ({
@@ -62,7 +63,7 @@ test("edit parking lot item happy path — updates text and shows toast", async 
   await expect(form).toHaveCount(0);
 
   await page.goto(`/projects/2/parking-lot?q=${encodeURIComponent(newText)}`);
-  await expect(page.getByText(newText).first()).toBeVisible();
+  await expectListed(page, newText);
 });
 
 test("delete parking lot item happy path — item removed from list", async ({ page }) => {

@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
+import { expectListed } from "./support/datasheet";
 
 /**
  * Key deliverables module (#9) — create happy path, validation failure, Gantt
@@ -23,7 +24,7 @@ test("create deliverable happy path — appears in the list", async ({ page }) =
   ).toBeVisible();
 
   await page.goto(`/projects/2/deliverables?q=${encodeURIComponent(requirement)}`);
-  await expect(page.getByText(requirement).first()).toBeVisible();
+  await expectListed(page, requirement);
 });
 
 test("validation failure — empty requirement shows the inline error", async ({ page }) => {

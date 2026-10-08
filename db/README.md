@@ -87,7 +87,7 @@ Contracts (uniform, generated together):
 | `usp_TodoItem_AssertAccess` / `usp_TodoAlert_AssertAccess` | to-dos are personal: owner holds Manager outside projects; anyone else needs Manager in the project |
 | `usp_DailyActivity_AssertAccess` | resolves the activity's project (`50001` when gone), project-less allowed |
 
-`src/test/proc-access-levels.test.ts` fails when a proc's literal `@MinLevel` disagrees with `requiredLevel()` in `src/lib/auth/rbac.ts` or a project-scoped proc stops checking access.
+`src/tests/proc-access-levels.test.ts` fails when a proc's literal `@MinLevel` disagrees with `requiredLevel()` in `src/lib/auth/rbac.ts` or a project-scoped proc stops checking access.
 
 Seeds 026–029: roles (Admin, User), admin (hash injected at seed time by `scripts/db-apply.sh` from `SEED_ADMIN_PASSWORD` — nothing committed), e2e users and their project-2 team — e2e-pm Manager, e2e-contributor Contributor, e2e-viewer Viewer (only with `E2E_SEED=1`).
 

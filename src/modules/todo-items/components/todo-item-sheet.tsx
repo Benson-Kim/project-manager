@@ -27,19 +27,12 @@ import {
   updateTodoAlertAction,
   updateTodoItemAction,
 } from "../actions";
-import {
-  PROJECT_OR_ACTIVITY,
-  TODO_PRIORITIES,
-  TODO_STATUSES,
-  type TodoItemRow,
-} from "../schemas/todo-item";
+import { PROJECT_OR_ACTIVITY, type TodoItemRow } from "../schemas/todo-item";
 import { REPEAT_UNITS, type TodoAlertRow } from "../schemas/todo-alert";
 import { todoItemFormSchema, updateTodoItemFormSchema } from "../schemas/todo-item-form";
-import {
-  todoAlertFormSchema,
-  updateTodoAlertFormSchema,
-} from "../schemas/todo-alert-form";
+import { todoAlertFormSchema, updateTodoAlertFormSchema } from "../schemas/todo-alert-form";
 import type { DailyActivityOption } from "../repository/daily-activity-options";
+import { ListOptions } from "@/components/ui/lookup-lists";
 
 /**
  * To-do item detail/edit sheet: URL-synced via
@@ -103,8 +96,7 @@ export function TodoItemSheet({
     todoItem !== null && (canSaveAlert || (todoAlert !== null && canDeleteAlert));
   const canSnooze =
     todoAlert !== null &&
-    (todoAlert.MaxSnoozeCount === null ||
-      (todoAlert.SnoozeCount ?? 0) < todoAlert.MaxSnoozeCount);
+    (todoAlert.MaxSnoozeCount === null || (todoAlert.SnoozeCount ?? 0) < todoAlert.MaxSnoozeCount);
 
   const resetDirty = () => {
     itemDirtyRef.current = false;
@@ -143,9 +135,7 @@ export function TodoItemSheet({
     function handleBeforeNavigate(event: Event) {
       if (!itemDirtyRef.current && !alertDirtyRef.current) return;
       event.preventDefault();
-      pendingNavRef.current = (
-        event as CustomEvent<{ resume: () => void }>
-      ).detail.resume;
+      pendingNavRef.current = (event as CustomEvent<{ resume: () => void }>).detail.resume;
       setShowUnsaved(true);
     }
 
@@ -325,9 +315,7 @@ export function TodoItemSheet({
           if (!next) requestClose();
         }}
         title={
-          todoItem
-            ? (todoItem.TodoItem ?? messages.app.untitled)
-            : messages.todoItems.newTodoItem
+          todoItem ? (todoItem.TodoItem ?? messages.app.untitled) : messages.todoItems.newTodoItem
         }
       >
         {/* ΓöÇΓöÇ To-do item form ΓöÇΓöÇ */}
@@ -347,11 +335,7 @@ export function TodoItemSheet({
               </Button>
             </div>
           ) : null}
-          <input
-            type="hidden"
-            name="projectId"
-            value={todoItem?.ProjectId ?? projectId ?? ""}
-          />
+          <input type="hidden" name="projectId" value={todoItem?.ProjectId ?? projectId ?? ""} />
           {todoItem ? (
             <>
               <input type="hidden" name="todoItemId" value={todoItem.TodoItemId} />
@@ -376,29 +360,29 @@ export function TodoItemSheet({
                 <Field label={messages.todoItems.status} name="status">
                   <Select name="status" defaultValue={todoItem?.Status ?? ""}>
                     <option value="">{messages.todoItems.allStatuses}</option>
-                    {TODO_STATUSES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
+                    <ListOptions list="todo-item.status" current={todoItem?.Status} />
                   </Select>
                 </Field>
                 <Field label={messages.todoItems.priority} name="priority">
                   <Select name="priority" defaultValue={todoItem?.Priority ?? ""}>
                     <option value="">{messages.todoItems.allPriorities}</option>
-                    {TODO_PRIORITIES.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
+                    <ListOptions list="todo-item.priority" current={todoItem?.Priority} />
                   </Select>
                 </Field>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label={messages.todoItems.startDate} name="startDate" errors={form.errors.startDate}>
+                <Field
+                  label={messages.todoItems.startDate}
+                  name="startDate"
+                  errors={form.errors.startDate}
+                >
                   <DatePicker name="startDate" defaultValue={toDateInput(todoItem?.StartDate)} />
                 </Field>
-                <Field label={messages.todoItems.dueDate} name="dueDate" errors={form.errors.dueDate}>
+                <Field
+                  label={messages.todoItems.dueDate}
+                  name="dueDate"
+                  errors={form.errors.dueDate}
+                >
                   <DatePicker name="dueDate" defaultValue={toDateInput(todoItem?.DueDate)} />
                 </Field>
               </div>
@@ -471,11 +455,7 @@ export function TodoItemSheet({
                 {messages.todoItems.alertSection}
               </button>
               {todoAlert && canDeleteAlert ? (
-                <Button
-                  type="button"
-                  variant="danger"
-                  onClick={() => setConfirmRemoveAlert(true)}
-                >
+                <Button type="button" variant="danger" onClick={() => setConfirmRemoveAlert(true)}>
                   {messages.todoItems.removeAlert}
                 </Button>
               ) : null}
@@ -552,10 +532,7 @@ export function TodoItemSheet({
                     name="alertDay"
                     errors={alertForm.errors.alertDay}
                   >
-                    <DatePicker
-                      name="alertDay"
-                      defaultValue={toDateInput(todoAlert?.AlertDay)}
-                    />
+                    <DatePicker name="alertDay" defaultValue={toDateInput(todoAlert?.AlertDay)} />
                   </Field>
                   <Field
                     label={messages.todoItems.alertTime}
@@ -590,7 +567,9 @@ export function TodoItemSheet({
                       name="repeatInterval"
                       min={1}
                       max={999}
-                      defaultValue={todoAlert?.RepeatInterval ? String(todoAlert.RepeatInterval) : ""}
+                      defaultValue={
+                        todoAlert?.RepeatInterval ? String(todoAlert.RepeatInterval) : ""
+                      }
                     />
                   </Field>
                 </div>

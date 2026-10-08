@@ -37,17 +37,16 @@ BEGIN
            [Role],
            [PersonName],
            [UserId],
-           [AccessLevel],
+           pa.[AccessLevel],
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer,
            TotalCount = COUNT(*) OVER ()
     FROM app.ProjectAssignee pa
+    CROSS APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, pa.ProjectId, 0) acc
     WHERE IsDeleted = 0
       AND (@ProjectId IS NULL OR ProjectId = @ProjectId)
-      AND (@ProjectId IS NOT NULL OR ISNULL(@ActorRole, N'') = N'Admin'
-           OR EXISTS (SELECT 1 FROM app.ProjectAssignee mine
-                      WHERE mine.ProjectId = pa.ProjectId AND mine.UserId = @ActorUserId AND mine.IsDeleted = 0))
+      AND (@ProjectId IS NOT NULL OR acc.AccessLevel IS NOT NULL)
       AND (@Search IS NULL OR [PersonName] LIKE N'%' + @Search + N'%' ESCAPE N'\')
     ORDER BY
         CASE WHEN @SortBy = N'PersonName' AND @SortDir = 'asc'  THEN [PersonName] END ASC,

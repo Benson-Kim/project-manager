@@ -1,12 +1,15 @@
 import { z } from "zod";
+import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
+import { toDateInput } from "@/lib/format";
+import { listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
-import { SUPPLIER_RATINGS } from "./supplier";
+import type { SupplierRow } from "./supplier";
 
 /**
  * Supplier form contract: ONE schema shared by the client sheet
  * form (blur + submit validation over FormData strings) and the server
  * actions. FormData values are strings — this schema coerces them into the
- * repository input shape ("" → null, "YYYY-MM-DD" → Date, vocab → enum).
+ * repository input shape ("" → null, "YYYY-MM-DD" → Date; the rating list is checked by the proc).
  */
 
 const optionalText = (max: number) =>
@@ -24,14 +27,6 @@ const dateInput = z
   .refine((v) => !v || !Number.isNaN(Date.parse(v)), messages.suppliers.invalidDate)
   .transform((v) => (v ? new Date(v) : null));
 
-const vocab = <T extends readonly [string, ...string[]]>(values: T) =>
-  z
-    .string()
-    .trim()
-    .optional()
-    .refine((v) => !v || (values as readonly string[]).includes(v), messages.errors.VALIDATION)
-    .transform((v) => (v ? (v as T[number]) : null));
-
 export const supplierFormSchema = z.object({
   projectId: z.coerce.number().int().positive(),
   supplierName: z.string().trim().min(1, messages.suppliers.supplierNameRequired).max(255),
@@ -45,7 +40,8 @@ export const supplierFormSchema = z.object({
     .transform((v) => (v ? v : null)),
   contractStartDate: dateInput,
   contractEndDate: dateInput,
-  rating: vocab(SUPPLIER_RATINGS),
+  /** Managed list (ADR-0022): the proc checks the value against the live options. */
+  rating: listChoice,
   address: optionalText(255),
   city: optionalText(255),
   provinceOrState: optionalText(255),
@@ -61,3 +57,23 @@ export const updateSupplierFormSchema = supplierFormSchema.extend({
 });
 
 export type UpdateSupplierFormValues = z.output<typeof updateSupplierFormSchema>;
+
+/** A supplier as the update form's values — what a datasheet cell edit sends (ADR-0023). */
+export function supplierFormValues(row: SupplierRow): FormValues {
+  return {
+    supplierId: String(row.SupplierId),
+    rowVer: String(row.RowVer),
+    projectId: String(row.ProjectId),
+    supplierName: row.SupplierName,
+    contactPerson: formText(row.ContactPerson),
+    emailAddress: formText(row.EmailAddress),
+    contractStartDate: toDateInput(row.ContractStartDate),
+    contractEndDate: toDateInput(row.ContractEndDate),
+    rating: formText(row.Rating),
+    address: formText(row.Address),
+    city: formText(row.City),
+    provinceOrState: formText(row.ProvinceOrState),
+    country: formText(row.Country),
+    postalCode: formText(row.PostalCode),
+  };
+}

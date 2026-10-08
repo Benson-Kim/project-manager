@@ -1,5 +1,5 @@
 -- usp_TodoAlert_List — paged/filtered list per ADR-0016. Search columns: (none). Sort whitelist: AlertDay.
--- Actor scope: alerts of to-dos the actor may read (dbo.usp_TodoItem_AssertAccess, ADR-0021).
+-- Actor scope: alerts of to-dos the actor may read (dbo.ufn_TodoItem_AccessLevel, ADR-0021).
 -- Entity app.TodoAlert (source: tblTodoList (alert engine columns, 1:1)). Module: database-schema-and-procs (#3).
 
 -- @ProjectId is accepted for contract uniformity but ignored (entity is not project-scoped).
@@ -49,20 +49,12 @@ BEGIN
     FROM app.TodoAlert AS a
     INNER JOIN app.TodoItem AS t
         ON t.TodoItemId = a.TodoItemId AND t.IsDeleted = 0
+    CROSS APPLY dbo.ufn_TodoItem_AccessLevel(@ActorRole, @ActorUserId, t.ProjectId, t.CreatedBy) acc
     WHERE a.IsDeleted = 0
       AND (@TodoItemId IS NULL OR a.[TodoItemId] = @TodoItemId)
-      -- Visibility = dbo.usp_TodoItem_AssertAccess as a set (ADR-0021): Admin sees all; otherwise
-      -- your own to-dos outside any project or in projects you are assigned to, plus every
-      -- to-do of the projects you manage.
-      AND (ISNULL(@ActorRole, N'') = N'Admin'
-           OR (t.CreatedBy = @ActorUserId
-               AND (t.ProjectId IS NULL
-                    OR EXISTS (SELECT 1 FROM app.ProjectAssignee pa
-                               WHERE pa.ProjectId = t.ProjectId AND pa.UserId = @ActorUserId
-                                 AND pa.IsDeleted = 0)))
-           OR EXISTS (SELECT 1 FROM app.ProjectAssignee pa
-                      WHERE pa.ProjectId = t.ProjectId AND pa.UserId = @ActorUserId
-                        AND pa.AccessLevel = N'Manager' AND pa.IsDeleted = 0))
+      -- Visibility = the to-do rule (ADR-0021): Admin sees all; otherwise your own to-dos outside
+      -- any project or in projects you are assigned to, plus every to-do of the projects you manage.
+      AND acc.AccessLevel IS NOT NULL
     ORDER BY
         CASE WHEN @SortBy = N'AlertDay' AND @SortDir = 'asc'  THEN a.[AlertDay] END ASC,
         CASE WHEN @SortBy = N'AlertDay' AND @SortDir = 'desc' THEN a.[AlertDay] END DESC,

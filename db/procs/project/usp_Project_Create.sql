@@ -1,6 +1,8 @@
 -- usp_Project_Create — insert one app.Project row; audits in-transaction; returns the new row.
 -- A non-Admin creator becomes the project's manager (title ProjectManager, access Manager,
 --   ADR-0021) in the same transaction, so they can open what they just created.
+-- Dropdown values (ADR-0022): ProjectStatus, ProjectPriority, ProjectPhase and RiskLevel must be live options of their lists (VALIDATION 50004),
+--   and are stored as listed.
 -- Entity app.Project (source: tblProjectFramework). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
@@ -48,6 +50,15 @@ BEGIN
     -- The actor's role is read from auth.User, never trusted from the caller.
     DECLARE @ActorRole NVARCHAR(50);
     EXEC dbo.usp_User_GetActorRole @UserId = @ActorUserId, @Role = @ActorRole OUTPUT;
+
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'project.status', @Label = @ProjectStatus OUTPUT;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'project.priority', @Label = @ProjectPriority OUTPUT;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'project.phase', @Label = @ProjectPhase OUTPUT;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'project.risk-level', @Label = @RiskLevel OUTPUT;
 
     BEGIN TRAN;
 

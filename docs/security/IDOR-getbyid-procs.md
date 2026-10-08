@@ -18,7 +18,7 @@ levels):
 - **Every project-scoped proc checks access**, not only the seven GetById procs
   listed: GetById, List, Create, Update, Delete and the business procs of
   every module, including the reference modules that had inline checks.
-  `src/test/proc-access-levels.test.ts` fails if one stops checking.
+  `src/tests/proc-access-levels.test.ts` fails if one stops checking.
 - **NOT_FOUND vs FORBIDDEN_ROW** is preserved in SQL. Pages map both to
   not-found (`orNull` / `orNotFound`, `src/lib/row-access.ts`), so a URL never
   reveals whether a record exists.

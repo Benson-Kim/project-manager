@@ -1,8 +1,10 @@
 -- usp_TodoItem_List — paged/filtered list per ADR-0016. Search columns: TodoItem. Sort whitelist: DueDate, Priority, Status, StartDate.
 -- Filter params: @Status (exact match), @Priority (exact match), @ProjectOrActivity (exact match).
 -- Row-level access: a supplied @ProjectId must be readable (dbo.usp_Project_AssertAccess ->
---   FORBIDDEN_ROW 50003); rows follow the to-do rule (dbo.usp_TodoItem_AssertAccess, ADR-0021).
+--   FORBIDDEN_ROW 50003); rows follow the to-do rule (dbo.ufn_TodoItem_AccessLevel, ADR-0021).
 --   LIKE wildcards in @Search are escaped.
+-- ActorAccess (ADR-0023): the actor's level on each to-do under that rule; the datasheet uses it to
+--   decide per row whether cells are editable, and a row is listed when the actor has a level on it.
 -- Entity app.TodoItem (source: tblTodoList (core; alert columns → TodoAlert)). Module: todo-items (#20).
 USE ProjectManager;
 GO
@@ -50,26 +52,19 @@ BEGIN
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer,
+           acc.AccessLevel AS ActorAccess,
            TotalCount = COUNT(*) OVER ()
     FROM app.TodoItem
+    CROSS APPLY dbo.ufn_TodoItem_AccessLevel(@ActorRole, @ActorUserId, TodoItem.ProjectId, TodoItem.CreatedBy) acc
     WHERE IsDeleted = 0
       AND (@ProjectId         IS NULL OR ProjectId         = @ProjectId)
       AND (@Search            IS NULL OR [TodoItem] LIKE N'%' + @Search + N'%' ESCAPE N'\')
       AND (@Status            IS NULL OR [Status]           = @Status)
       AND (@Priority          IS NULL OR [Priority]         = @Priority)
       AND (@ProjectOrActivity IS NULL OR [ProjectOrActivity] = @ProjectOrActivity)
-      -- Visibility = dbo.usp_TodoItem_AssertAccess as a set (ADR-0021): Admin sees all; otherwise
-      -- your own to-dos outside any project or in projects you are assigned to, plus every
-      -- to-do of the projects you manage.
-      AND (ISNULL(@ActorRole, N'') = N'Admin'
-           OR (TodoItem.CreatedBy = @ActorUserId
-               AND (TodoItem.ProjectId IS NULL
-                    OR EXISTS (SELECT 1 FROM app.ProjectAssignee pa
-                               WHERE pa.ProjectId = TodoItem.ProjectId AND pa.UserId = @ActorUserId
-                                 AND pa.IsDeleted = 0)))
-           OR EXISTS (SELECT 1 FROM app.ProjectAssignee pa
-                      WHERE pa.ProjectId = TodoItem.ProjectId AND pa.UserId = @ActorUserId
-                        AND pa.AccessLevel = N'Manager' AND pa.IsDeleted = 0))
+      -- Visibility = the to-do rule (ADR-0021): Admin sees all; otherwise your own to-dos outside
+      -- any project or in projects you are assigned to, plus every to-do of the projects you manage.
+      AND acc.AccessLevel IS NOT NULL
     ORDER BY
         CASE WHEN @SortBy = N'DueDate'    AND @SortDir = 'asc'  THEN [DueDate]    END ASC,
         CASE WHEN @SortBy = N'DueDate'    AND @SortDir = 'desc' THEN [DueDate]    END DESC,

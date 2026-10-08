@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
+import { expectListed } from "./support/datasheet";
 
 /**
  * Projects module (#5) — create happy path, validation failure, type-ahead
@@ -18,7 +19,7 @@ test("create project happy path — appears in the list", async ({ page }) => {
   await expect(page.getByLabel(messages.projects.jumpToProject)).toHaveValue(name);
   // Toast is shown after redirect — may already be gone; assert the list instead.
   await page.goto(`/projects?q=${encodeURIComponent(name)}`);
-  await expect(page.getByText(name).first()).toBeVisible();
+  await expectListed(page, name);
 });
 
 test("validation failure — empty name shows inline error and focuses the summary", async ({

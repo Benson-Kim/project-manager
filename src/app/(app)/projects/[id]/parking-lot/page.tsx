@@ -85,6 +85,8 @@ export default async function ParkingLotPage({
       <PageHeader title={messages.parkingLot.title} action={canCreate ? newItemLink : undefined} />
       <div className="mt-3 flex flex-col flex-1">
         <ParkingLotView
+          projectId={projectId}
+          canCreate={canCreate}
           rows={rows}
           totalCount={totalCount}
           page={effectiveParams.page}
