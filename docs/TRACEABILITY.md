@@ -100,6 +100,14 @@ Auth.js v5 credentials + argon2id, JWT sessions with SessionVersion revocation
 Login/Logout audit. Deferred: browser-level RBAC-denial spec → #26, full
 SecLists top-10k denylist subset → #27.
 
+**Per-project access (S1, wave 1, `fix/idor-getbyid`):** row 6 (req 0.3 "one
+or many PMs / sponsors / BAs") now also carries access. Each team member has a
+title and, when linked to an account, an access level (Viewer, Contributor or
+Manager) for that project only, so one person can manage one project and view
+another ([ADR-0021](adr/ADR-0021-per-project-access-levels.md)). Global roles
+collapse to Admin and User (migration 017). This also closes the IDOR finding
+`docs/security/IDOR-getbyid-procs.md`.
+
 **Coverage check:** every non-header, non-empty row (3–38, 40–62, 64–67,
 69–76) is owned by exactly one primary module; cross-cutting rows (41, 47, 50)
 are Definition-of-Done items on every module issue and are tracked on epic #1.
