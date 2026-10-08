@@ -65,7 +65,8 @@ READ FIRST (in order): LESSONS.md (repo ROOT — canonical; docs/LESSONS.md is a
 docs/AGENTS.md, docs/STANDARDS.md (esp. §12 Definition of Done), docs/MODULE-BLUEPRINT.md,
 docs/PLAN.md §2/§4/§9/§10, docs/TRACEABILITY.md, docs/source/analysis/ (requirements.md,
 access-database.md, excel-workbook.md, hololens-presentation.md — the verified source of truth;
-never open or modify the binaries in docs/source/), docs/adr/ (ADR-0001..0020).
+never open or modify the binaries in docs/source/), docs/adr/ (ADR-0001..0021 — ADR-0021 is
+the access model: global role Admin|User + per-project access level Viewer|Contributor|Manager).
 Reference implementations: parking-lot (most complete proc pattern) and assumptions-constraints
 (src/modules/<m>, src/app/(app)/projects/[id]/<m>/page.tsx, db/procs/<entity>/, e2e/<m>*.spec.ts).
 
@@ -82,17 +83,23 @@ CI / HOSTING FACTS (docs are partly stale)
 
 DATABASE STANDARD (apply to every proc you create or touch)
 - CREATE OR ALTER, one file per proc in db/procs/<entity>/, SET NOCOUNT ON, SET XACT_ABORT ON.
-- Every proc takes @ActorUserId INT and @ActorRole NVARCHAR(50) = NULL. Admin bypasses the
-  project check; everyone else must be an active app.ProjectAssignee of the row's project, else
-  THROW 50003 'FORBIDDEN_ROW:…'. Child tables resolve the project through their parent chain.
+- Every proc takes @ActorUserId INT and NO role parameter (ADR-0021). Project-scoped procs check
+  access with ONE call, never inline:
+    EXEC dbo.usp_Project_AssertAccess @ProjectId = …, @ActorUserId = @ActorUserId, @MinLevel = N'…';
+  @MinLevel is a literal: reads N'Viewer'; create/update N'Contributor' when the module is in
+  CONTRIBUTOR_WRITE_MODULES (src/lib/auth/rbac.ts), else N'Manager'; delete N'Manager'.
+  Admins pass automatically; a missing or too-low level throws 50003 FORBIDDEN_ROW.
+  Child tables load the parent's ProjectId first (NOT_FOUND 50001 when absent) or call an entity
+  wrapper (usp_TodoItem_AssertAccess, usp_TodoAlert_AssertAccess, usp_DailyActivity_AssertAccess).
   GetById distinguishes NOT_FOUND (50001) from FORBIDDEN_ROW.
 - Validate parents exist and are not deleted (50001/50004) instead of letting FK error 547 escape;
   validate vocabularies with 50004; duplicates 50005. Error format THROW 5000x, N'CODE:message', 1 (ADR-0012).
 - Parent/project keys are immutable on Update (accepted but ignored) unless the prompt says otherwise.
 - RowVer check INSIDE the transaction; audit row (before/after FOR JSON PATH) in the same transaction.
 - List procs exactly per ADR-0016 (+ nullable module filters), LIKE wildcards escaped (ESCAPE N'\'),
-  stable final tiebreaker on the PK; when @ProjectId is supplied and the actor is not assigned
-  (non-Admin) THROW FORBIDDEN_ROW (parking-lot behaviour).
+  stable final tiebreaker on the PK; when @ProjectId is supplied, assert @MinLevel = N'Viewer';
+  without it, filter to the actor's projects (EXISTS on app.ProjectAssignee with a table-qualified
+  ProjectId; Admins see all) — parking-lot behaviour.
 - Soft delete; deleting a parent soft-deletes its children in the same transaction.
 - Seeds are verbatim from access-database.md §4 and their counts are asserted by
   db/verify/seed_counts.sql — do not add or drop seed rows unless the prompt says so.
@@ -101,7 +108,7 @@ DATABASE STANDARD (apply to every proc you create or touch)
 
 APP STANDARD
 - Feature slice src/modules/<module>/{schemas,repository,actions,components}; execProc only;
-  zod-parse every row; forward ActorUserId AND ActorRole to every proc.
+  zod-parse every row; forward ActorUserId to every proc (never a role).
 - Mutations only through action() (src/lib/action.ts) with permission (+ revalidate); sheets
   call router.refresh() (LESSONS §17).
 - DataView for every list (never fork it); detail/edit per ADR-0010 (Sheet unless the prompt says
@@ -109,8 +116,16 @@ APP STANDARD
 - All copy in src/lib/messages.ts (tone test enforces it); no hints, tooltips or helper text;
   44 px touch targets; mobile-first from 360 px; WCAG 2.2 AA (axe: 0 serious/critical);
   per-route first-load JS ≤ 170 kB gzip (lazy-load heavy components).
-- RBAC: src/lib/auth/rbac.ts. Contributor = read all + create/update on CONTRIBUTOR_WRITE_MODULES,
-  never delete. Add your module key there if Contributors may write (append, keep sorted).
+- Access (ADR-0021, src/lib/auth/rbac.ts): action() permissions gate on the global role only
+  (Admin | User). Inside a project the access level decides: Viewer reads; Contributor also
+  creates/updates on CONTRIBUTOR_WRITE_MODULES; Manager does everything incl. delete. Add your
+  module key to CONTRIBUTOR_WRITE_MODULES if project Contributors may write (append, keep sorted),
+  and register your proc folder in src/test/proc-access-levels.test.ts (MODULES map) — it fails
+  when a proc's @MinLevel disagrees with requiredLevel() or a proc skips the access check.
+- Pages: const allows = await getProjectPermissions(projectId, session.userId) and show actions
+  with allows("<module>:<verb>"); never can(session.role, …) on a project page. Wrap section loads
+  in orNotFound(...) and sheet lookups in orNull(...) (src/lib/row-access.ts) so an inaccessible
+  project or record looks exactly like a missing one.
 - Project-scoped sections live under src/app/(app)/projects/[id]/<segment>/ and are registered in
   src/components/shell/project-sections.ts in BOTH projectSections AND a projectSectionGroups
   array (otherwise the section does not appear in the nav).
@@ -125,9 +140,10 @@ WORKFLOW
 - Commit + push small checkpoints often ("[skip ci]"), Conventional Commits. Push before long jobs.
 - Before asking for review: npm run lint && npm run typecheck && npm run test && npm run build, then
   self-check against STANDARDS §12. Final push with [e2e] in the message; watch CI to green.
-- Tests: Vitest for schemas, repository (mock execProc) and every action path (ok, VALIDATION,
-  FORBIDDEN, proc error); Playwright: happy path, validation failure, RBAC denial, axe. Never weaken
-  an existing test. Coverage ≥ 80 % on src/modules/** and src/lib/**.
+- Tests: Vitest for schemas, repository (mock execProc; assert no ActorRole is sent) and every
+  action path (ok, VALIDATION, FORBIDDEN_ROW from the proc, proc error); Playwright: happy path,
+  validation failure, access denial as e2e-viewer (Viewer on project 2, on no other project), axe.
+  Never weaken an existing test. Coverage ≥ 80 % on src/modules/** and src/lib/**.
 - Record structural decisions as ADRs (docs/adr/, next free number, add to the ADR README).
 - PR to develop titled "<type>(<key>): <summary>"; body: what changed, decisions/ADRs, migration
   number, Desktop edition impact, test evidence (CI run links), and a checklist of the prompt's
