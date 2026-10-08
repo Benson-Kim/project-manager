@@ -51,16 +51,21 @@ foundation module.
 
 ## Authorization (RBAC)
 
-- Roles Admin / ProjectManager / Contributor / Viewer (`auth.Role`; the single
-  role→permission matrix is `src/lib/auth/rbac.ts`, source PLAN.md §9 — there
-  are no `auth.UserRole`/`auth.Permission` tables, roles are 1:1 on the user).
+- Two layers (ADR-0021; the single policy is `src/lib/auth/rbac.ts`, source
+  PLAN.md §9):
+  - **Global role** Admin / User (`auth.Role`, 1:1 on the user).
+  - **Per-project access level** Viewer / Contributor / Manager on the user's
+    team row (`app.ProjectAssignee.AccessLevel`). Admins hold Manager
+    everywhere; a User only reaches projects they are on.
 - Enforced in three layers:
   1. Route guard — `src/proxy.ts` + protected layouts redirect
      unauthenticated/unauthorised users.
   2. Server-action guard — every action asserts the required permission before
      calling a repository.
-  3. Stored-proc guard — mutating procs take `@ActorUserId` and validate
-     permission server-side (defence in depth), then write `audit.AuditLog`.
+  3. Stored-proc guard — every project-scoped proc takes `@ActorUserId` (never
+     a role) and calls `dbo.usp_Project_AssertAccess @MinLevel` (FORBIDDEN_ROW
+     50003), then mutations write `audit.AuditLog`. Pages render missing and
+     inaccessible records alike as not found.
 
 ## Input/output safety
 

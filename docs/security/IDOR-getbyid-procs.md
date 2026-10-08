@@ -2,7 +2,34 @@
 
 **Discovered:** code-review pass on `feature/key-deliverables`  
 **Severity:** High  
-**Status:** Open — fix tracked to module #23 (`ci-cd-and-security-automation`)
+**Status:** Fixed on branch `fix/idor-getbyid` (S1, wave 1; PR link added on merge)
+
+---
+
+## Resolution
+
+Fixed more broadly than the pattern proposed below, by
+[ADR-0021](../adr/ADR-0021-per-project-access-levels.md) (per-project access
+levels):
+
+- **No role parameter.** Procs no longer take `@ActorRole`: a caller-supplied
+  role can't be trusted. They resolve access from `@ActorUserId` through one
+  rule, `dbo.usp_Project_AssertAccess @MinLevel`.
+- **Every project-scoped proc checks access**, not only the seven GetById procs
+  listed: GetById, List, Create, Update, Delete and the business procs of
+  every module, including the reference modules that had inline checks.
+  `src/test/proc-access-levels.test.ts` fails if one stops checking.
+- **NOT_FOUND vs FORBIDDEN_ROW** is preserved in SQL. Pages map both to
+  not-found (`orNull` / `orNotFound`, `src/lib/row-access.ts`), so a URL never
+  reveals whether a record exists.
+- **Verified** against a shadow schema on SQL Server: 78 procs deployed,
+  197 access cases (outsider, inactive user, Viewer, Contributor, Manager,
+  Admin, owner vs non-owner to-dos, cross-project lists) all pass. The
+  e2e-viewer specs check the not-found page across every section of a project
+  the viewer is not on.
+
+The original finding is kept below for the record; its `@ActorRole` fix
+pattern is superseded.
 
 ---
 

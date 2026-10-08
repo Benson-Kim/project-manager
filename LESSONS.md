@@ -200,3 +200,11 @@ Append under the matching section (or add a section) in the form:
 - 2026-10-01 feature/assumptions-constraints: `git add <path>` on Windows with CRLF warnings still stages correctly — the "LF will be replaced by CRLF" warning is informational, not an error; verify with `git status` to confirm staging succeeded.
 - 2026-10-01 feature/assumptions-constraints: ESLint times out on App Router route-group paths (`src/app/(app)/...`) when invoked with shell quoting on Windows PowerShell — lint the module slice and shared libs directly instead. TypeCheck (`npx tsc --noEmit`) is the reliable local gate; CI runs the full ESLint suite.
 - 2026-10-01 feature/assumptions-constraints: 3 pre-existing test failures exist in the suite (format.test.ts null/undefined formatDate, questions-answers FORBIDDEN for Contributor) — always establish the baseline before and after to distinguish new failures from pre-existing ones.
+
+## 19. Per-project access session (S1, fix/idor-getbyid, 2026-10-08)
+
+- 2026-10-08 fix/idor-getbyid: Git Bash heredocs and `node -e` strings collapse `\\` to `\`, which silently corrupts SQL like `REPLACE(@s, N'\', N'\\')` / `ESCAPE N'\'`. -> Write any script or SQL containing backslashes with the editor (file write), never through a shell string, and grep the result for the escape clause.
+- 2026-10-08 fix/idor-getbyid: verify proc changes without touching the shared dev database by deploying them into a shadow schema (copies of the tables they read, migration repointed at the shadows), running each case inside a transaction that is rolled back, and checking nothing is left behind. `.agent-scratch/verify-access.cjs` is the template.
+- 2026-10-08 fix/idor-getbyid: `beforeEach(() => mock.mockClear())` returns the mock, and Vitest runs a function returned from `beforeEach` as teardown, so a throwing mock fails every test. -> Use a block body: `beforeEach(() => { mock.mockClear(); })`.
+- 2026-10-08 fix/idor-getbyid: `notFound()` under the `(app)/loading.tsx` Suspense boundary renders the not-found page with HTTP 200 (the shell already streamed). -> e2e asserts the not-found heading, not `response.status()`.
+- 2026-10-08 fix/idor-getbyid: `prettier --check` flags every file on a Windows CRLF checkout. -> Check locally with `--end-of-line auto`; CI (LF) checks style only.
