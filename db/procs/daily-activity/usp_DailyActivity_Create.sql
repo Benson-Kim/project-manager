@@ -1,4 +1,6 @@
 -- usp_DailyActivity_Create — insert one app.DailyActivity row; audits in-transaction; returns the new row.
+-- Row-level access: the target @ProjectId must be accessible (dbo.usp_Project_AssertAccess,
+--   FORBIDDEN_ROW 50003; Admin bypass; project-less rows allowed).
 -- Entity app.DailyActivity (source: tblDailyActivityList). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
@@ -23,6 +25,11 @@ AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
+
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
+         @MinLevel = N'Contributor', @AllowProjectless = 1;
+
     BEGIN TRAN;
 
     INSERT INTO app.DailyActivity ([ProjectId], [ActivityStatusId], [Requester], [Task], [MyActivity], [ActivityDate], [Comments], [RequestDate], [Status], [CompleteDate], [ContactMethod], [TimeSpent], [AssignedTo], [TaskType], [Progress], CreatedBy)

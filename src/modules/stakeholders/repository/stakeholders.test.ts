@@ -44,7 +44,7 @@ describe("stakeholders repository", () => {
 
   it("create forwards normalised params and parses the returned row", async () => {
     execProc.mockResolvedValue([dbRow()]);
-    const row = await createStakeholder({ projectId: 2, firstName: "Gary" }, 7, "ProjectManager");
+    const row = await createStakeholder({ projectId: 2, firstName: "Gary" }, 7);
     expect(row.StakeholderId).toBe(1);
     expect(row.RowVer).toBe(2001); // coerced to number by the row schema
     const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
@@ -53,17 +53,15 @@ describe("stakeholders repository", () => {
     expect(params.FirstName).toBe("Gary");
     expect(params.LastName).toBeNull();
     expect(params.ActorUserId).toBe(7);
-    expect(params.ActorRole).toBe("ProjectManager");
+    expect(params).not.toHaveProperty("ActorRole");
   });
 
   it("create rejects an empty first name before touching the database", async () => {
-    await expect(
-      createStakeholder({ projectId: 2, firstName: "  " }, 7, "ProjectManager"),
-    ).rejects.toThrow();
+    await expect(createStakeholder({ projectId: 2, firstName: "  " }, 7)).rejects.toThrow();
     expect(execProc).not.toHaveBeenCalled();
   });
 
-  it("getById parses the row", async () => {
+  it("getById sends only the actor id (no role, ADR-0021) and parses the row", async () => {
     execProc.mockResolvedValue([dbRow()]);
     const row = await getStakeholderById(1, 7);
     expect(row.FirstName).toBe("Gary");
@@ -71,6 +69,13 @@ describe("stakeholders repository", () => {
       StakeholderId: 1,
       ActorUserId: 7,
     });
+  });
+
+  it("getById — Admin role is forwarded (Admin bypass)", async () => {
+    execProc.mockResolvedValue([dbRow()]);
+    await getStakeholderById(1, 99);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params).not.toHaveProperty("ActorRole");
   });
 
   it("list forwards the ADR-0016 params and module filters 1:1", async () => {
@@ -90,46 +95,44 @@ describe("stakeholders repository", () => {
     });
   });
 
+  it("list sends no role to the proc (ADR-0021)", async () => {
+    execProc.mockResolvedValue([dbRow({ TotalCount: 1 })]);
+    await listStakeholders(listParamsSchema.parse({}), 7);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params).not.toHaveProperty("ActorRole");
+  });
+
   it("list rejects rows that break the contract", async () => {
     execProc.mockResolvedValue([dbRow({ TotalCount: 8, FirstName: null })]);
     const params = listParamsSchema.parse({});
     await expect(listStakeholders(params, 7)).rejects.toThrow();
   });
 
-  it("update sends id + rowVer + actorRole for optimistic concurrency", async () => {
+  it("update sends id + rowVer for optimistic concurrency", async () => {
     execProc.mockResolvedValue([dbRow({ UpdatedAtUtc: new Date() })]);
-    await updateStakeholder(
-      { stakeholderId: 1, rowVer: 2001, projectId: 2, firstName: "G" },
-      7,
-      "ProjectManager",
-    );
+    await updateStakeholder({ stakeholderId: 1, rowVer: 2001, projectId: 2, firstName: "G" }, 7);
     const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(proc).toBe("usp_Stakeholder_Update");
     expect(params.StakeholderId).toBe(1);
     expect(params.RowVer).toBe(2001);
     expect(params.FirstName).toBe("G");
-    expect(params.ActorRole).toBe("ProjectManager");
+    expect(params).not.toHaveProperty("ActorRole");
   });
 
   it("Admin bypasses the project-scope check on update", async () => {
     execProc.mockResolvedValue([dbRow({ UpdatedAtUtc: new Date() })]);
-    await updateStakeholder(
-      { stakeholderId: 1, rowVer: 2001, projectId: 2, firstName: "G" },
-      99,
-      "Admin",
-    );
+    await updateStakeholder({ stakeholderId: 1, rowVer: 2001, projectId: 2, firstName: "G" }, 99);
     const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
-    expect(params.ActorRole).toBe("Admin");
+    expect(params).not.toHaveProperty("ActorRole");
   });
 
   it("delete forwards id, rowVer, actor and role", async () => {
     execProc.mockResolvedValue([]);
-    await deleteStakeholder(1, 2001, 7, "ProjectManager");
+    await deleteStakeholder(1, 2001, 7);
     expect(execProc).toHaveBeenCalledWith("usp_Stakeholder_Delete", {
       StakeholderId: 1,
       RowVer: 2001,
       ActorUserId: 7,
-      ActorRole: "ProjectManager",
     });
   });
 });

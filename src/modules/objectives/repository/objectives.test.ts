@@ -33,9 +33,7 @@ describe("objectives repository (child entity of Project)", () => {
   beforeEach(() => execProc.mockReset());
 
   it("create requires a positive projectId", async () => {
-    await expect(
-      createObjective({ projectId: 0, objectiveText: "Test" }, 7),
-    ).rejects.toThrow();
+    await expect(createObjective({ projectId: 0, objectiveText: "Test" }, 7)).rejects.toThrow();
     expect(execProc).not.toHaveBeenCalled();
   });
 
@@ -63,11 +61,22 @@ describe("objectives repository (child entity of Project)", () => {
     expect(params.QAlignmentStrategy).toBeNull();
   });
 
-  it("getById parses the row", async () => {
+  it("getById sends only the actor id (no role, ADR-0021) and parses the row", async () => {
     execProc.mockResolvedValue([dbRow()]);
     await expect(getObjectiveById(3, 7)).resolves.toMatchObject({
       ObjectiveText: "Improve system reliability",
     });
+    expect(execProc).toHaveBeenCalledWith("usp_Objective_GetById", {
+      ObjectiveId: 3,
+      ActorUserId: 7,
+    });
+  });
+
+  it("getById — Admin role is forwarded (Admin bypass)", async () => {
+    execProc.mockResolvedValue([dbRow()]);
+    await getObjectiveById(3, 99);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params).not.toHaveProperty("ActorRole");
   });
 
   it("list forwards the ADR-0016 params with the project scope filter", async () => {
@@ -84,6 +93,13 @@ describe("objectives repository (child entity of Project)", () => {
       Page: 2,
       PageSize: 25,
     });
+  });
+
+  it("list sends no role to the proc (ADR-0021)", async () => {
+    execProc.mockResolvedValue([dbRow({ TotalCount: 1 })]);
+    await listObjectives(listParamsSchema.parse({}), 7, null);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params).not.toHaveProperty("ActorRole");
   });
 
   it("list rejects contract-breaking rows", async () => {

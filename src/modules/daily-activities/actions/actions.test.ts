@@ -8,7 +8,7 @@ vi.mock("next/cache", () => ({
   updateTag: (...args: unknown[]) => updateTag(...args),
 }));
 
-let session: Session | null = { userId: 7, username: "pm", role: "ProjectManager" };
+let session: Session | null = { userId: 7, username: "pm", role: "User" };
 vi.mock("@/lib/auth/provider", () => ({
   auth: {
     getSession: () => Promise.resolve(session),
@@ -28,11 +28,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { AppError } from "@/lib/errors";
-import {
-  createDailyActivityAction,
-  updateDailyActivityAction,
-  deleteDailyActivityAction,
-} from ".";
+import { createDailyActivityAction, updateDailyActivityAction, deleteDailyActivityAction } from ".";
 
 function dbRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -61,7 +57,7 @@ function dbRow(overrides: Record<string, unknown> = {}) {
 
 describe("daily-activities actions", () => {
   beforeEach(() => {
-    session = { userId: 7, username: "pm", role: "ProjectManager" };
+    session = { userId: 7, username: "pm", role: "User" };
     execProc.mockReset();
     revalidatePath.mockClear();
   });
@@ -92,19 +88,21 @@ describe("daily-activities actions", () => {
     expect(params.Progress).toBe(80);
   });
 
-  it("create is FORBIDDEN for a Viewer (RBAC via action())", async () => {
-    session = { userId: 9, username: "viewer", role: "Viewer" };
+  it("create surfaces the proc's FORBIDDEN_ROW when the project level is too low", async () => {
+    execProc.mockRejectedValue(
+      new AppError("FORBIDDEN_ROW", "Your access to this project does not allow this"),
+    );
     const fd = new FormData();
     fd.set("projectId", "3");
     const result = await createDailyActivityAction(fd);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
-    expect(execProc).not.toHaveBeenCalled();
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN_ROW");
+    expect(execProc).toHaveBeenCalledOnce();
   });
 
   it("create is allowed for a Contributor (daily-activities is in CONTRIBUTOR_WRITE_MODULES per PLAN.md)", async () => {
     execProc.mockResolvedValue([dbRow()]);
-    session = { userId: 8, username: "contrib", role: "Contributor" };
+    session = { userId: 8, username: "contrib", role: "User" };
     const fd = new FormData();
     fd.set("projectId", "3");
     const result = await createDailyActivityAction(fd);

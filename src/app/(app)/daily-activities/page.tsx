@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import { auth } from "@/lib/auth/provider";
-import { can } from "@/lib/auth/rbac";
 import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getViewPreference } from "@/lib/repositories/view-preference";
-import { AppError } from "@/lib/errors";
+import { orNull } from "@/lib/row-access";
 import { DailyActivitiesView } from "@/modules/daily-activities/components/daily-activities-view";
 import { DailyActivitySheet } from "@/modules/daily-activities/components/daily-activity-sheet";
 import {
@@ -13,6 +12,7 @@ import {
   listDailyActivities,
   type DailyActivityListFilters,
 } from "@/modules/daily-activities/repository/daily-activities";
+import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 
 export const metadata: Metadata = {
   title: `${messages.dailyActivities.title} — ${messages.app.name}`,
@@ -54,17 +54,16 @@ export default async function GlobalDailyActivitiesPage({
     getViewPreference(session.userId, "daily-activities").catch(() => null),
     listActivityStatuses(),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getDailyActivityById(selectedId, session.userId).catch((err) => {
-          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
-          throw err;
-        })
-      : Promise.resolve(null),
+      ? orNull(getDailyActivityById(selectedId, session.userId))
+      : null,
   ]);
+  // New activities start project-less; an open activity follows its own project (ADR-0021).
+  const allows = await getProjectPermissions(selected?.ProjectId ?? null, session.userId);
 
   const totalCount = rows[0]?.TotalCount ?? 0;
-  const canCreate = can(session.role, "daily-activities:create");
-  const canEdit = can(session.role, "daily-activities:update");
-  const canDelete = can(session.role, "daily-activities:delete");
+  const canCreate = allows("daily-activities:create");
+  const canEdit = allows("daily-activities:update");
+  const canDelete = allows("daily-activities:delete");
   const filtersActive = Boolean(effectiveParams.q || flat.statusId || flat.taskType);
 
   return (

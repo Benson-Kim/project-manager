@@ -2,7 +2,7 @@
 -- + in-transaction audit + row-level auth (FORBIDDEN_ROW).
 -- THROW 50001 NOT_FOUND  : row does not exist or is soft-deleted.
 -- THROW 50002 CONFLICT   : RowVer mismatch (check-then-update is atomic via WHERE clause).
--- THROW 50003 FORBIDDEN_ROW : actor is neither the creator nor a PM/Admin.
+-- THROW 50003 FORBIDDEN_ROW : to-do access rule (dbo.usp_TodoItem_AssertAccess, ADR-0021).
 -- Entity app.TodoItem (source: tblTodoList). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
@@ -24,29 +24,16 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    -- Row-level auth: actor must be the creator OR hold Admin/ProjectManager role.
-    IF NOT EXISTS (
-        SELECT 1 FROM app.TodoItem ti
-        WHERE  ti.TodoItemId = @TodoItemId
-          AND  ti.IsDeleted  = 0
-          AND  (
-                   ti.CreatedBy = @ActorUserId
-                   OR EXISTS (
-                       SELECT 1 FROM auth.[User] u
-                       WHERE  u.UserId = @ActorUserId
-                         AND  u.RoleId IN (
-                                  SELECT RoleId FROM auth.[Role]
-                                  WHERE  Name IN (N'Admin', N'ProjectManager')
-                              )
-                   )
-               )
-    )
-    BEGIN
-        -- Distinguish NOT_FOUND from FORBIDDEN_ROW so the caller gets the right error code.
-        IF NOT EXISTS (SELECT 1 FROM app.TodoItem WHERE TodoItemId = @TodoItemId AND IsDeleted = 0)
-            THROW 50001, N'NOT_FOUND:TodoItem not found', 1;
-        THROW 50003, N'FORBIDDEN_ROW:You do not have access to this record', 1;
-    END
+    -- Row-level access (ADR-0021): the to-do rule, plus Contributor on the (possibly new)
+    -- project and read access to a linked activity.
+    EXEC dbo.usp_TodoItem_AssertAccess
+         @TodoItemId = @TodoItemId, @ActorUserId = @ActorUserId, @MinLevel = N'Contributor';
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
+         @MinLevel = N'Contributor', @AllowProjectless = 1;
+    IF @DailyActivityId IS NOT NULL
+        EXEC dbo.usp_DailyActivity_AssertAccess
+             @DailyActivityId = @DailyActivityId, @ActorUserId = @ActorUserId, @MinLevel = N'Viewer';
 
     BEGIN TRAN;
 

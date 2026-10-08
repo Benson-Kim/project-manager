@@ -3,11 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
-import { can } from "@/lib/auth/rbac";
-import { AppError } from "@/lib/errors";
 import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getViewPreference } from "@/lib/repositories/view-preference";
+import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
+import { orNotFound, orNull } from "@/lib/row-access";
+import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { TodoItemSheet } from "@/modules/todo-items/components/todo-item-sheet";
 import { TodoView } from "@/modules/todo-items/components/todo-view";
 import {
@@ -17,7 +18,6 @@ import {
 } from "@/modules/todo-items/repository/todo-items";
 import { getTodoAlertByTodoItemId } from "@/modules/todo-items/repository/todo-alerts";
 import { listDailyActivityOptions } from "@/modules/todo-items/repository/daily-activity-options";
-import { buildNewEntityHref } from "../entity-page-helpers";
 import { parseProjectId } from "../project-id";
 
 export const metadata: Metadata = {
@@ -59,20 +59,18 @@ export default async function TodosPage({
     projectOrActivity: flat.projectOrActivity ?? null,
   };
 
-  const [rows, preferredView, activityOptions, selectedRaw] = await Promise.all([
-    listTodoItems(effectiveParams, session.userId, projectId, undefined, filters),
+  const [rows, preferredView, activityOptions, selectedRaw, allows] = await Promise.all([
+    orNotFound(listTodoItems(effectiveParams, session.userId, projectId, undefined, filters)),
     getViewPreference(session.userId, "todo-items").catch(() => null),
     listDailyActivityOptions(projectId, session.userId).catch(() => []),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getTodoItemById(selectedId, session.userId).catch((err) => {
-          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
-          throw err;
-        })
-      : Promise.resolve(null),
+      ? orNull(getTodoItemById(selectedId, session.userId))
+      : null,
+    getProjectPermissions(projectId, session.userId),
   ]);
 
   // A deep link to a todo from another project is treated as not found.
-  const selected = selectedRaw && selectedRaw.ProjectId === projectId ? selectedRaw : null;
+  const selected = guardProjectScope(selectedRaw, projectId);
 
   // Fetch the alert only when a specific todo is selected.
   const selectedAlert = selected
@@ -80,14 +78,16 @@ export default async function TodosPage({
     : null;
 
   const totalCount = rows[0]?.TotalCount ?? 0;
-  const canCreate = can(session.role, "todo-items:create");
-  const canEdit = can(session.role, "todo-items:update");
-  const canDelete = can(session.role, "todo-items:delete");
-  const canCreateAlert = can(session.role, "todo-alerts:create");
-  const canUpdateAlert = can(session.role, "todo-alerts:update");
-  const canDeleteAlert = can(session.role, "todo-alerts:delete");
-  const canReorder = can(session.role, "todo-items:update");
-  const filtersActive = Boolean(effectiveParams.q || flat.status || flat.priority || flat.projectOrActivity);
+  const canCreate = allows("todo-items:create");
+  const canEdit = allows("todo-items:update");
+  const canDelete = allows("todo-items:delete");
+  const canCreateAlert = allows("todo-alerts:create");
+  const canUpdateAlert = allows("todo-alerts:update");
+  const canDeleteAlert = allows("todo-alerts:delete");
+  const canReorder = allows("todo-items:update");
+  const filtersActive = Boolean(
+    effectiveParams.q || flat.status || flat.priority || flat.projectOrActivity,
+  );
 
   const newTodoLink = (
     <Link
@@ -101,10 +101,7 @@ export default async function TodosPage({
 
   return (
     <>
-      <PageHeader
-        title={messages.todoItems.title}
-        action={canCreate ? newTodoLink : undefined}
-      />
+      <PageHeader title={messages.todoItems.title} action={canCreate ? newTodoLink : undefined} />
       <div className="mt-3 flex flex-col flex-1">
         <TodoView
           rows={rows}

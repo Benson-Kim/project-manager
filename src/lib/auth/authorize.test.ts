@@ -51,7 +51,7 @@ const user: CredentialsRow = {
   DisplayName: "PM",
   Email: null,
   RoleId: 2,
-  RoleName: "ProjectManager",
+  RoleName: "User",
   IsActive: true,
   MustChangePassword: false,
   FailedLoginCount: 0,
@@ -138,7 +138,7 @@ describe("authorizeCredentials (issue #4 required cases)", () => {
       appToken: {
         userId: 7,
         username: "pm",
-        role: "ProjectManager",
+        role: "User",
         sessionVersion: 1,
         mustChangePassword: false,
       },

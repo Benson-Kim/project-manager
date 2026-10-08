@@ -1,20 +1,21 @@
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth/provider";
-import { can } from "@/lib/auth/rbac";
-import { AppError } from "@/lib/errors";
+import { orNotFound } from "@/lib/row-access";
 import { AssigneesEditor } from "@/modules/projects/components/assignees-editor";
 import { ProjectForm } from "@/modules/projects/components/project-form";
 import { listAssigneeOptions } from "@/modules/projects/repository/assignee-options";
+import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { listProjectAssignees } from "@/modules/projects/repository/project-assignees";
+import { listUserOptions } from "@/modules/projects/repository/user-options";
 import { getProjectCached } from "./get-project";
 import { parseProjectId } from "./project-id";
 
 /**
  * Charter workspace — full route  exception): sections Charter,
- * Framework, Financing (ONE form) + Assignees (req 0.3). Deep-linkable so
- * several projects can be open side by side (req 0.1). The project header and
- * section nav come from the nested layout ; the project fetch is
- * shared with the layout via React cache (no double fetch).
+ * Framework, Financing (ONE form) + the project team (req 0.3, ADR-0021).
+ * Deep-linkable so several projects can be open side by side (req 0.1). The
+ * project header and section nav come from the nested layout ; the project
+ * fetch is shared with the layout via React cache (no double fetch).
  */
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth.requireSession();
@@ -22,21 +23,22 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const projectId = parseProjectId(id);
   if (projectId === null) notFound();
 
-  let project;
-  try {
-    project = await getProjectCached(projectId, session.userId);
-  } catch (err) {
-    if (err instanceof AppError && err.code === "NOT_FOUND") notFound();
-    throw err;
-  }
-
-  const [assignees, options] = await Promise.all([
-    listProjectAssignees(projectId, session.userId),
-    listAssigneeOptions(projectId, session.userId).catch(() => []),
+  const [project, assignees, allows] = await Promise.all([
+    orNotFound(getProjectCached(projectId, session.userId)),
+    orNotFound(listProjectAssignees(projectId, session.userId)),
+    getProjectPermissions(projectId, session.userId),
   ]);
 
-  const canEdit = can(session.role, "projects:update");
-  const canDelete = can(session.role, "projects:delete");
+  const canEdit = allows("projects:update");
+  const canDelete = allows("projects:delete");
+
+  // People to add are only needed by managers editing the team.
+  const [users, stakeholders] = canEdit
+    ? await Promise.all([
+        listUserOptions(session.userId),
+        listAssigneeOptions(projectId, session.userId).catch(() => []),
+      ])
+    : [[], []];
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
@@ -49,7 +51,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           <AssigneesEditor
             projectId={projectId}
             initial={assignees}
-            options={options}
+            users={users}
+            stakeholders={stakeholders}
             canEdit={canEdit}
           />
         </aside>

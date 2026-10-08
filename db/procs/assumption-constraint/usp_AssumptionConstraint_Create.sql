@@ -1,6 +1,6 @@
 -- usp_AssumptionConstraint_Create — insert one app.AssumptionConstraint row; audits in-transaction; returns the new row.
 -- Project ownership check: @ActorUserId must be an assignee of the target project (FORBIDDEN_ROW 50003).
--- Admin role bypass: @ActorRole = N'Admin' skips the ProjectAssignee check.
+-- Admin role bypass: an Admin actor (role read from auth.User) skips the ProjectAssignee check.
 -- Vocabulary enforcement: Type must be Assumption | Constraint | NULL; Impact must be High | Medium | Low | NULL.
 -- Entity app.AssumptionConstraint (source: tblAssumptionsConstraints). Module: assumptions-constraints (#13).
 USE ProjectManager;
@@ -12,8 +12,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_AssumptionConstraint_Create
     @IsValidated    BIT,
     @Impact         NVARCHAR(255)  = NULL,
     @MitigationPlan NVARCHAR(MAX)  = NULL,
-    @ActorUserId    INT,
-    @ActorRole      NVARCHAR(50)   = NULL
+    @ActorUserId    INT
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -29,14 +28,9 @@ BEGIN
     IF @Impact IS NOT NULL AND @Impact NOT IN (N'High', N'Medium', N'Low')
         THROW 50004, N'VALIDATION:Invalid impact value', 1;
 
-    -- Row-level access: the actor must be assigned to the project they are writing into.
-    -- Admin users bypass this check (they have unrestricted access by role definition).
-    IF ISNULL(@ActorRole, '') <> N'Admin'
-       AND NOT EXISTS (
-           SELECT 1 FROM app.ProjectAssignee
-           WHERE ProjectId = @ProjectId AND UserId = @ActorUserId AND IsDeleted = 0
-       )
-        THROW 50003, N'FORBIDDEN_ROW:You are not assigned to this project', 1;
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
+         @MinLevel = N'Contributor', @AllowProjectless = 0;
 
     BEGIN TRAN;
 

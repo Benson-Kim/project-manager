@@ -1,7 +1,7 @@
 -- usp_QuestionAnswer_Update — full-row update with atomic rowversion concurrency (50002 CONFLICT) + in-transaction audit.
 -- RowVer is included in the UPDATE predicate (not pre-checked) to eliminate the TOCTOU race.
 -- FORBIDDEN_ROW check: actor must be assigned to the row's project (mirrors the Create check).
--- Admin role bypass: @ActorRole = N'Admin' skips the ProjectAssignee check (C9-1/C9-2 fix).
+-- Admin role bypass: an Admin actor (role read from auth.User) skips the ProjectAssignee check (C9-1/C9-2 fix).
 -- Entity app.QuestionAnswer (source: tblInterviewQuestionsAnswers). Module: questions-answers (#11).
 USE ProjectManager;
 GO
@@ -13,15 +13,20 @@ CREATE OR ALTER PROCEDURE dbo.usp_QuestionAnswer_Update
     @Priority         NVARCHAR(255)  = NULL,
     @AssignedTo       NVARCHAR(255)  = NULL,
     @RowVer           BIGINT,
-    @ActorUserId      INT,
-    @ActorRole        NVARCHAR(50)   = NULL
+    @ActorUserId      INT
 AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    IF NOT EXISTS (SELECT 1 FROM app.QuestionAnswer WHERE QuestionAnswerId = @QuestionAnswerId AND IsDeleted = 0)
+    DECLARE @RowProjectId INT;
+    SELECT @RowProjectId = ProjectId FROM app.QuestionAnswer WHERE QuestionAnswerId = @QuestionAnswerId AND IsDeleted = 0;
+    IF @@ROWCOUNT = 0
         THROW 50001, N'NOT_FOUND:Question/answer not found', 1;
+
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
+         @MinLevel = N'Contributor', @AllowProjectless = 0;
 
     -- Vocabulary enforcement (mirrors the z.enum client-side schema; prevents forged payloads).
     IF @Category IS NOT NULL AND @Category NOT IN (N'General', N'Technical', N'Budget', N'Other')
@@ -29,18 +34,6 @@ BEGIN
 
     IF @Priority IS NOT NULL AND @Priority NOT IN (N'Critical', N'High', N'Medium', N'Low')
         THROW 50004, N'VALIDATION:Invalid priority value', 1;
-
-    -- Row-level access: actor must be assigned to the project that owns this record.
-    -- Admin users bypass this check (they have unrestricted access by role definition).
-    IF ISNULL(@ActorRole, '') <> N'Admin'
-       AND NOT EXISTS (
-           SELECT 1
-           FROM app.QuestionAnswer qa
-           JOIN app.ProjectAssignee pa ON pa.ProjectId = qa.ProjectId AND pa.UserId = @ActorUserId
-                                      AND pa.IsDeleted = 0
-           WHERE qa.QuestionAnswerId = @QuestionAnswerId AND qa.IsDeleted = 0
-       )
-        THROW 50003, N'FORBIDDEN_ROW:You are not assigned to this project', 1;
 
     BEGIN TRAN;
 

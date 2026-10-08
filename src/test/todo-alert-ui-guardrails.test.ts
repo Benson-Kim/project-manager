@@ -11,14 +11,12 @@ describe("todo alert UI review guardrails", () => {
     const globalPage = source("src/app/(app)/todo/page.tsx");
     const projectPage = source("src/app/(app)/projects/[id]/todos/page.tsx");
 
-    expect(sheet).toContain(
-      "const canSaveAlert = todoAlert ? canUpdateAlert : canCreateAlert",
-    );
+    expect(sheet).toContain("const canSaveAlert = todoAlert ? canUpdateAlert : canCreateAlert");
     expect(sheet).not.toContain("{todoItem && canEdit ? (");
 
     for (const page of [globalPage, projectPage]) {
-      expect(page).toContain('can(session.role, "todo-alerts:create")');
-      expect(page).toContain('can(session.role, "todo-alerts:update")');
+      expect(page).toContain('allows("todo-alerts:create")');
+      expect(page).toContain('allows("todo-alerts:update")');
       expect(page).toContain("canCreateAlert={canCreateAlert}");
       expect(page).toContain("canUpdateAlert={canUpdateAlert}");
     }

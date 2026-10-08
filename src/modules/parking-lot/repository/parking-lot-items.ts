@@ -1,6 +1,5 @@
 import { execProc } from "@/lib/db";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
-import type { Role } from "@/lib/auth/types";
 import {
   createParkingLotItemInput,
   parkingLotItemListRowSchema,
@@ -35,14 +34,12 @@ function toProcParams(input: CreateParkingLotItemParsed) {
 export async function createParkingLotItem(
   input: CreateParkingLotItemInput,
   actorUserId: number,
-  actorRole?: Role,
 ): Promise<ParkingLotItemRow> {
   const parsed = createParkingLotItemInput.parse(input);
   const rows = await execProc<ParkingLotItemRow>("usp_ParkingLotItem_Create", {
     ProjectId: parsed.projectId,
     ...toProcParams(parsed),
     ActorUserId: actorUserId,
-    ActorRole: actorRole ?? null,
   });
   return parkingLotItemRowSchema.parse(rows[0]);
 }
@@ -50,12 +47,10 @@ export async function createParkingLotItem(
 export async function getParkingLotItemById(
   parkingLotItemId: number,
   actorUserId: number,
-  actorRole?: Role,
 ): Promise<ParkingLotItemRow> {
   const rows = await execProc<ParkingLotItemRow>("usp_ParkingLotItem_GetById", {
     ParkingLotItemId: parkingLotItemId,
     ActorUserId: actorUserId,
-    ActorRole: actorRole ?? null,
   });
   return parkingLotItemRowSchema.parse(rows[0]);
 }
@@ -68,11 +63,7 @@ export async function listParkingLotItems(
   pageSize: number = DEFAULT_PAGE_SIZE,
 ): Promise<ParkingLotItemListRow[]> {
   const isStrikethrough =
-    filters.isStrikethrough === true
-      ? true
-      : filters.isStrikethrough === false
-        ? false
-        : null;
+    filters.isStrikethrough === true ? true : filters.isStrikethrough === false ? false : null;
   const rows = await execProc<ParkingLotItemListRow>("usp_ParkingLotItem_List", {
     ActorUserId: actorUserId,
     ProjectId: projectId,
@@ -85,7 +76,6 @@ export async function listParkingLotItems(
 export async function updateParkingLotItem(
   input: UpdateParkingLotItemInput,
   actorUserId: number,
-  actorRole?: Role,
 ): Promise<ParkingLotItemRow> {
   const parsed = updateParkingLotItemInput.parse(input);
   const rows = await execProc<ParkingLotItemRow>("usp_ParkingLotItem_Update", {
@@ -94,7 +84,6 @@ export async function updateParkingLotItem(
     ...toProcParams(parsed),
     RowVer: parsed.rowVer,
     ActorUserId: actorUserId,
-    ActorRole: actorRole ?? null,
   });
   return parkingLotItemRowSchema.parse(rows[0]);
 }
@@ -103,12 +92,10 @@ export async function deleteParkingLotItem(
   parkingLotItemId: number,
   rowVer: number,
   actorUserId: number,
-  actorRole?: Role,
 ): Promise<void> {
   await execProc("usp_ParkingLotItem_Delete", {
     ParkingLotItemId: parkingLotItemId,
     RowVer: rowVer,
     ActorUserId: actorUserId,
-    ActorRole: actorRole ?? null,
   });
 }

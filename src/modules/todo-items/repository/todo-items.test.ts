@@ -72,9 +72,20 @@ describe("todo-items repository", () => {
     expect(params.Priority).toBeNull();
   });
 
-  it("getById parses the row", async () => {
+  it("getById sends only the actor id (no role, ADR-0021) and parses the row", async () => {
     execProc.mockResolvedValue([dbRow()]);
     await expect(getTodoItemById(4, 7)).resolves.toMatchObject({ TodoItem: "Review deliverables" });
+    expect(execProc).toHaveBeenCalledWith("usp_TodoItem_GetById", {
+      TodoItemId: 4,
+      ActorUserId: 7,
+    });
+  });
+
+  it("getById — Admin role is forwarded (Admin bypass)", async () => {
+    execProc.mockResolvedValue([dbRow()]);
+    await getTodoItemById(4, 99);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params).not.toHaveProperty("ActorRole");
   });
 
   it("list forwards ADR-0016 params with project scope", async () => {
@@ -94,6 +105,13 @@ describe("todo-items repository", () => {
       Priority: null,
       ProjectOrActivity: null,
     });
+  });
+
+  it("list sends no role to the proc (ADR-0021)", async () => {
+    execProc.mockResolvedValue([dbRow({ TotalCount: 1 })]);
+    await listTodoItems(listParamsSchema.parse({}), 7, null);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params).not.toHaveProperty("ActorRole");
   });
 
   it("list accepts null projectId for cross-project queries", async () => {
@@ -166,7 +184,9 @@ describe("todo-items repository", () => {
 
   it("reorderTodoItem throws NOT_FOUND when proc returns no row", async () => {
     execProc.mockResolvedValue([]);
-    await expect(reorderTodoItem({ todoItemId: 99, newSortKey: 1, rowVer: 1 }, 7)).rejects.toThrow();
+    await expect(
+      reorderTodoItem({ todoItemId: 99, newSortKey: 1, rowVer: 1 }, 7),
+    ).rejects.toThrow();
   });
 
   it("getUpcomingAlertRows parses upcoming alert rows", async () => {
@@ -194,7 +214,9 @@ describe("todo-items repository", () => {
   });
 
   it("buildTodoFromDailyActivity calls usp_Todo_BuildFromDailyActivity and parses the row", async () => {
-    execProc.mockResolvedValue([dbRow({ DailyActivityId: 5, ProjectOrActivity: "Daily Activity" })]);
+    execProc.mockResolvedValue([
+      dbRow({ DailyActivityId: 5, ProjectOrActivity: "Daily Activity" }),
+    ]);
     const row = await buildTodoFromDailyActivity(5, 7);
     expect(row.DailyActivityId).toBe(5);
     expect(row.ProjectOrActivity).toBe("Daily Activity");

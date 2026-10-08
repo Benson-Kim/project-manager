@@ -8,7 +8,7 @@ vi.mock("next/cache", () => ({
   updateTag: (...args: unknown[]) => updateTag(...args),
 }));
 
-let session: Session | null = { userId: 7, username: "pm", role: "ProjectManager" };
+let session: Session | null = { userId: 7, username: "pm", role: "User" };
 vi.mock("@/lib/auth/provider", () => ({
   auth: {
     getSession: () => Promise.resolve(session),
@@ -29,7 +29,6 @@ vi.mock("@/lib/db", () => ({
 
 import { AppError } from "@/lib/errors";
 import { createProjectAction, setProjectAssigneesAction, updateProjectAction } from ".";
-
 
 function dbRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -75,7 +74,7 @@ function dbRow(overrides: Record<string, unknown> = {}) {
 
 describe("projects actions", () => {
   beforeEach(() => {
-    session = { userId: 7, username: "pm", role: "ProjectManager" };
+    session = { userId: 7, username: "pm", role: "User" };
     execProc.mockReset();
     revalidatePath.mockClear();
   });
@@ -106,14 +105,29 @@ describe("projects actions", () => {
     expect(execProc).not.toHaveBeenCalled();
   });
 
-  it("create is FORBIDDEN for a Viewer (RBAC via action())", async () => {
-    session = { userId: 9, username: "viewer", role: "Viewer" };
+  it("create is open to every User; the proc makes the creator the project's Manager", async () => {
+    session = { userId: 9, username: "member", role: "User" };
+    execProc.mockResolvedValue([dbRow()]);
     const fd = new FormData();
     fd.set("projectName", "Network refresh");
     const result = await createProjectAction(fd);
+    expect(result.ok).toBe(true);
+    const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(proc).toBe("usp_Project_Create");
+    expect(params.ActorUserId).toBe(9);
+  });
+
+  it("update surfaces the proc's FORBIDDEN_ROW for a non-Manager", async () => {
+    execProc.mockRejectedValue(
+      new AppError("FORBIDDEN_ROW", "Your access to this project does not allow this"),
+    );
+    const fd = new FormData();
+    fd.set("projectId", "2");
+    fd.set("projectName", "Network refresh");
+    fd.set("rowVer", "10");
+    const result = await updateProjectAction(fd);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
-    expect(execProc).not.toHaveBeenCalled();
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN_ROW");
   });
 
   it("update maps a rowversion mismatch to CONFLICT", async () => {
@@ -127,18 +141,30 @@ describe("projects actions", () => {
     if (!result.ok) expect(result.error.code).toBe("CONFLICT");
   });
 
-  it("setAssignees passes the whole set through in one call", async () => {
+  it("setAssignees passes the whole team, with access levels, through in one call", async () => {
     execProc.mockResolvedValue([]);
     const result = await setProjectAssigneesAction({
       projectId: 2,
       assignees: [
-        { role: "ProjectManager", personName: "Dana Roy" },
-        { role: "Sponsor", personName: "Mei Chen" },
+        { role: "ProjectManager", personName: "Dana Roy", userId: 7, accessLevel: "Manager" },
+        { role: "Sponsor", personName: "Mei Chen", accessLevel: "Viewer" },
       ],
     });
     expect(result.ok).toBe(true);
     const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(proc).toBe("usp_ProjectAssignee_Set");
-    expect(JSON.parse(params.AssigneesJson as string)).toHaveLength(2);
+    expect(JSON.parse(params.AssigneesJson as string)).toEqual([
+      { role: "ProjectManager", personName: "Dana Roy", userId: 7, accessLevel: "Manager" },
+      { role: "Sponsor", personName: "Mei Chen", accessLevel: "Viewer" },
+    ]);
+  });
+
+  it("setAssignees surfaces the proc's VALIDATION when a manager would remove their own access", async () => {
+    execProc.mockRejectedValue(
+      new AppError("VALIDATION", "You cannot remove your own manager access"),
+    );
+    const result = await setProjectAssigneesAction({ projectId: 2, assignees: [] });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("VALIDATION");
   });
 });

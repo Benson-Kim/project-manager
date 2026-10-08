@@ -8,7 +8,7 @@ vi.mock("next/cache", () => ({
   updateTag: (...args: unknown[]) => updateTag(...args),
 }));
 
-let session: Session | null = { userId: 7, username: "pm", role: "ProjectManager" };
+let session: Session | null = { userId: 7, username: "pm", role: "User" };
 vi.mock("@/lib/auth/provider", () => ({
   auth: {
     getSession: () => Promise.resolve(session),
@@ -29,7 +29,10 @@ vi.mock("@/lib/db", () => ({
 
 let pushConfigured = true;
 vi.mock("@/lib/push/config", () => ({
-  getPushConfig: () => (pushConfigured ? { publicKey: "k", privateKey: "s", subject: "mailto:a@b.c", dispatchToken: "x".repeat(32) } : null),
+  getPushConfig: () =>
+    pushConfigured
+      ? { publicKey: "k", privateKey: "s", subject: "mailto:a@b.c", dispatchToken: "x".repeat(32) }
+      : null,
 }));
 
 import { AppError } from "@/lib/errors";
@@ -95,7 +98,7 @@ const validSubscription = {
 
 describe("todo-items actions", () => {
   beforeEach(() => {
-    session = { userId: 7, username: "pm", role: "ProjectManager" };
+    session = { userId: 7, username: "pm", role: "User" };
     pushConfigured = true;
     execProc.mockReset();
     revalidatePath.mockClear();
@@ -129,26 +132,17 @@ describe("todo-items actions", () => {
     expect(execProc).not.toHaveBeenCalled();
   });
 
-  it("create is FORBIDDEN for a Viewer (RBAC)", async () => {
-    session = { userId: 9, username: "viewer", role: "Viewer" };
+  it("create surfaces the proc's FORBIDDEN_ROW when the project level is too low", async () => {
+    execProc.mockRejectedValue(
+      new AppError("FORBIDDEN_ROW", "Your access to this project does not allow this"),
+    );
     const fd = new FormData();
     fd.set("projectId", "3");
     fd.set("todoItem", "Task");
     const result = await createTodoItemAction(fd);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
-    expect(execProc).not.toHaveBeenCalled();
-  });
-
-  it("create is FORBIDDEN for a Contributor (Admin + PM only for todo-items)", async () => {
-    session = { userId: 8, username: "contrib", role: "Contributor" };
-    const fd = new FormData();
-    fd.set("projectId", "3");
-    fd.set("todoItem", "Task");
-    const result = await createTodoItemAction(fd);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
-    expect(execProc).not.toHaveBeenCalled();
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN_ROW");
+    expect(execProc).toHaveBeenCalledOnce();
   });
 
   it("update maps rowversion mismatch to CONFLICT", async () => {
@@ -190,7 +184,7 @@ describe("todo-items actions", () => {
 
   it("createTodoAlertAction is allowed for a Contributor (todo-alerts in CONTRIBUTOR_WRITE_MODULES)", async () => {
     execProc.mockResolvedValue([alertRow()]);
-    session = { userId: 8, username: "contrib", role: "Contributor" };
+    session = { userId: 8, username: "contrib", role: "User" };
     const fd = new FormData();
     fd.set("todoItemId", "4");
     fd.set("isDismissed", "false");
@@ -212,12 +206,14 @@ describe("todo-items actions", () => {
     expect(params.ActorUserId).toBe(7);
   });
 
-  it("reorderTodoItemAction is FORBIDDEN for a Viewer", async () => {
-    session = { userId: 9, username: "viewer", role: "Viewer" };
+  it("reorderTodoItemAction surfaces the proc's FORBIDDEN_ROW when the project level is too low", async () => {
+    execProc.mockRejectedValue(
+      new AppError("FORBIDDEN_ROW", "Your access to this project does not allow this"),
+    );
     const result = await reorderTodoItemAction({ todoItemId: 4, newSortKey: 2, rowVer: 20 });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
-    expect(execProc).not.toHaveBeenCalled();
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN_ROW");
+    expect(execProc).toHaveBeenCalledOnce();
   });
 
   it("reorderTodoItemAction maps CONFLICT when RowVer stale", async () => {
@@ -250,12 +246,14 @@ describe("todo-items actions", () => {
     expect(params.ActorUserId).toBe(7);
   });
 
-  it("snoozeTodoAlertAction is FORBIDDEN for a Viewer", async () => {
-    session = { userId: 9, username: "viewer", role: "Viewer" };
+  it("snoozeTodoAlertAction surfaces the proc's FORBIDDEN_ROW when the project level is too low", async () => {
+    execProc.mockRejectedValue(
+      new AppError("FORBIDDEN_ROW", "Your access to this project does not allow this"),
+    );
     const result = await snoozeTodoAlertAction({ todoAlertId: 2, snoozeMinutes: 5, rowVer: 5 });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
-    expect(execProc).not.toHaveBeenCalled();
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN_ROW");
+    expect(execProc).toHaveBeenCalledOnce();
   });
 
   it("dismissTodoAlertAction succeeds for a PM", async () => {
@@ -267,7 +265,9 @@ describe("todo-items actions", () => {
   });
 
   it("buildTodoFromDailyActivityAction succeeds for a PM", async () => {
-    execProc.mockResolvedValue([todoRow({ DailyActivityId: 5, ProjectOrActivity: "Daily Activity" })]);
+    execProc.mockResolvedValue([
+      todoRow({ DailyActivityId: 5, ProjectOrActivity: "Daily Activity" }),
+    ]);
     const result = await buildTodoFromDailyActivityAction({ dailyActivityId: 5 });
     expect(result.ok).toBe(true);
     const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
@@ -276,16 +276,20 @@ describe("todo-items actions", () => {
     expect(params.ActorUserId).toBe(7);
   });
 
-  it("buildTodoFromDailyActivityAction is FORBIDDEN for a Viewer", async () => {
-    session = { userId: 9, username: "viewer", role: "Viewer" };
+  it("buildTodoFromDailyActivityAction surfaces the proc's FORBIDDEN_ROW when the project level is too low", async () => {
+    execProc.mockRejectedValue(
+      new AppError("FORBIDDEN_ROW", "Your access to this project does not allow this"),
+    );
     const result = await buildTodoFromDailyActivityAction({ dailyActivityId: 5 });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
-    expect(execProc).not.toHaveBeenCalled();
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN_ROW");
+    expect(execProc).toHaveBeenCalledOnce();
   });
 
   it("buildTodoFromDailyActivityAction maps DUPLICATE to a VALIDATION error", async () => {
-    execProc.mockRejectedValue(new AppError("DUPLICATE", "A to-do item already exists for this activity"));
+    execProc.mockRejectedValue(
+      new AppError("DUPLICATE", "A to-do item already exists for this activity"),
+    );
     const result = await buildTodoFromDailyActivityAction({ dailyActivityId: 5 });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("DUPLICATE");
@@ -294,7 +298,7 @@ describe("todo-items actions", () => {
 
 describe("registerPushSubscriptionAction", () => {
   beforeEach(() => {
-    session = { userId: 7, username: "pm", role: "ProjectManager" };
+    session = { userId: 7, username: "pm", role: "User" };
     pushConfigured = true;
     execProc.mockReset();
   });
@@ -326,17 +330,9 @@ describe("registerPushSubscriptionAction", () => {
     expect(execProc).not.toHaveBeenCalled();
   });
 
-  it("is FORBIDDEN for a Viewer", async () => {
-    session = { userId: 9, username: "viewer", role: "Viewer" };
-    const result = await registerPushSubscriptionAction(validSubscription);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
-    expect(execProc).not.toHaveBeenCalled();
-  });
-
-  it("is allowed for a Contributor (todo-alerts in CONTRIBUTOR_WRITE_MODULES)", async () => {
+  it("is allowed for every User: a subscription belongs to the user, not a project", async () => {
     execProc.mockResolvedValue([]);
-    session = { userId: 8, username: "contrib", role: "Contributor" };
+    session = { userId: 8, username: "member", role: "User" };
     const result = await registerPushSubscriptionAction(validSubscription);
     expect(result.ok).toBe(true);
     expect(execProc).toHaveBeenCalledOnce();
@@ -368,7 +364,7 @@ describe("registerPushSubscriptionAction — endpoint ownership transfer", () =>
   });
 
   it("passes user A's ActorUserId when user A registers the endpoint first", async () => {
-    session = { userId: 1, username: "userA", role: "ProjectManager" };
+    session = { userId: 1, username: "userA", role: "User" };
     await registerPushSubscriptionAction(validSubscription);
     const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(proc).toBe("usp_AlertSubscription_Upsert");
@@ -378,12 +374,12 @@ describe("registerPushSubscriptionAction — endpoint ownership transfer", () =>
 
   it("passes user B's ActorUserId when the same endpoint is re-registered by user B", async () => {
     // Simulate user A having registered first.
-    session = { userId: 1, username: "userA", role: "ProjectManager" };
+    session = { userId: 1, username: "userA", role: "User" };
     await registerPushSubscriptionAction(validSubscription);
 
     // User B signs in and registers the same endpoint — action must forward
     // user B's UserId so the proc can transfer ownership atomically.
-    session = { userId: 2, username: "userB", role: "ProjectManager" };
+    session = { userId: 2, username: "userB", role: "User" };
     await registerPushSubscriptionAction(validSubscription);
 
     expect(execProc).toHaveBeenCalledTimes(2);
@@ -396,7 +392,7 @@ describe("registerPushSubscriptionAction — endpoint ownership transfer", () =>
   });
 
   it("re-registration by the same user is idempotent (same ActorUserId both calls)", async () => {
-    session = { userId: 7, username: "pm", role: "ProjectManager" };
+    session = { userId: 7, username: "pm", role: "User" };
     await registerPushSubscriptionAction(validSubscription);
     await registerPushSubscriptionAction(validSubscription);
     expect(execProc).toHaveBeenCalledTimes(2);
