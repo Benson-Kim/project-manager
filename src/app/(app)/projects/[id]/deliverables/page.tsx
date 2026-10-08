@@ -9,13 +9,18 @@ import { getViewPreference } from "@/lib/repositories/view-preference";
 import { guardProjectScope } from "@/lib/project-page-helpers";
 import { orNotFound, orNull } from "@/lib/row-access";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
+import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
+import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
 import { DeliverablesView } from "@/modules/key-deliverables/components/deliverables-view";
 import {
   getKeyDeliverableById,
   listKeyDeliverables,
 } from "@/modules/key-deliverables/repository/key-deliverables";
 import { listStakeholderOptions } from "@/modules/key-deliverables/repository/stakeholder-options";
-import { keyDeliverableFiltersSchema } from "@/modules/key-deliverables/schemas/key-deliverable";
+import {
+  KEY_DELIVERABLE_LISTS,
+  keyDeliverableFiltersSchema,
+} from "@/modules/key-deliverables/schemas/key-deliverable";
 import { parseProjectId } from "../project-id";
 
 export const metadata: Metadata = {
@@ -47,12 +52,13 @@ export default async function DeliverablesPage({
   const dParam = flattenSearchParams(raw).d;
   const openId = dParam && /^\d+$/.test(dParam) ? Number(dParam) : null;
 
-  const [rows, preferredView, assigneeOptions, openRaw, allows] = await Promise.all([
+  const [rows, preferredView, assigneeOptions, openRaw, allows, lookup] = await Promise.all([
     orNotFound(listKeyDeliverables(projectId, listParams, session.userId, filters)),
     getViewPreference(session.userId, "key-deliverables").catch(() => null),
     listStakeholderOptions(projectId, session.userId),
     openId ? orNull(getKeyDeliverableById(openId, session.userId)) : null,
     getProjectPermissions(projectId, session.userId),
+    loadLookupLists(KEY_DELIVERABLE_LISTS, session),
   ]);
   // A deep link to a deliverable from another project is treated as not found.
   const openDeliverable = guardProjectScope(openRaw, projectId) ?? undefined;
@@ -95,20 +101,23 @@ export default async function DeliverablesPage({
         }
       />
       <div className="mt-3 flex flex-col flex-1">
-        <DeliverablesView
-          projectId={projectId}
-          rows={rows}
-          totalCount={totalCount}
-          page={listParams.page}
-          initialView={listParams.view ?? preferredView ?? "grid"}
-          filtersActive={filtersActive}
-          openDeliverable={openDeliverable}
-          sheetOpen={sheetOpen}
-          assigneeOptions={assigneeOptions}
-          canEdit={dParam === "new" ? canCreate : canEdit}
-          canDelete={canDelete}
-          newAction={canCreate ? newDeliverableLink : undefined}
-        />
+        <LookupListsScope {...lookup}>
+          <DeliverablesView
+            projectId={projectId}
+            rows={rows}
+            totalCount={totalCount}
+            page={listParams.page}
+            initialView={listParams.view ?? preferredView ?? "grid"}
+            filtersActive={filtersActive}
+            openDeliverable={openDeliverable}
+            sheetOpen={sheetOpen}
+            assigneeOptions={assigneeOptions}
+            canEdit={dParam === "new" ? canCreate : canEdit}
+            canCreate={canCreate}
+            canDelete={canDelete}
+            newAction={canCreate ? newDeliverableLink : undefined}
+          />
+        </LookupListsScope>
       </div>
     </>
   );

@@ -9,6 +9,9 @@ import { ProjectsToolbar } from "@/modules/projects/components/projects-toolbar"
 import { ProjectsView } from "@/modules/projects/components/projects-view";
 import { listProjects } from "@/modules/projects/repository/projects";
 import { projectFiltersSchema } from "@/modules/projects/schemas/project";
+import { PROJECT_LISTS } from "@/modules/projects/schemas/project-form";
+import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
+import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
 
 export const metadata: Metadata = {
   title: `${messages.projects.title} — ${messages.app.name}`,
@@ -36,9 +39,10 @@ export default async function ProjectsPage({
   const filtersParsed = projectFiltersSchema.safeParse(flattenSearchParams(raw));
   const filters = filtersParsed.success ? filtersParsed.data : {};
 
-  const [rows, preferredView] = await Promise.all([
+  const [rows, preferredView, lookup] = await Promise.all([
     listProjects(params, session.userId, filters),
     getViewPreference(session.userId, "projects").catch(() => null),
+    loadLookupLists(PROJECT_LISTS, session),
   ]);
 
   const totalCount = rows[0]?.TotalCount ?? 0;
@@ -50,16 +54,19 @@ export default async function ProjectsPage({
   return (
     <>
       {/* <ProjectsToolbar /> */}
-      <div className="mt-3">
-        <ProjectsView
-          rows={rows}
-          totalCount={totalCount}
-          page={params.page}
-          initialView={params.view ?? preferredView ?? "grid"}
-          filtersActive={filtersActive}
-          newProjectAction={canCreate ? newProjectLink : undefined}
-        />
-      </div>
+      <LookupListsScope {...lookup}>
+        <div className="mt-3">
+          <ProjectsView
+            rows={rows}
+            totalCount={totalCount}
+            page={params.page}
+            initialView={params.view ?? preferredView ?? "grid"}
+            filtersActive={filtersActive}
+            canCreate={canCreate}
+            newProjectAction={canCreate ? newProjectLink : undefined}
+          />
+        </div>
+      </LookupListsScope>
     </>
   );
 }

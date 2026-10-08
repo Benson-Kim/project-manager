@@ -8,10 +8,12 @@ import { DailyActivitiesView } from "@/modules/daily-activities/components/daily
 import { DailyActivitySheet } from "@/modules/daily-activities/components/daily-activity-sheet";
 import {
   getDailyActivityById,
-  listActivityStatuses,
   listDailyActivities,
   type DailyActivityListFilters,
 } from "@/modules/daily-activities/repository/daily-activities";
+import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
+import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
+import { DAILY_ACTIVITY_LISTS } from "@/modules/daily-activities/schemas/daily-activity";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 
 export const metadata: Metadata = {
@@ -49,10 +51,12 @@ export default async function GlobalDailyActivitiesPage({
     taskType: flat.taskType ?? null,
   };
 
-  const [rows, preferredView, statuses, selected] = await Promise.all([
+  const [rows, preferredView, lookup, projectless, selected] = await Promise.all([
     listDailyActivities(effectiveParams, session.userId, null, undefined, filters),
     getViewPreference(session.userId, "daily-activities").catch(() => null),
-    listActivityStatuses(),
+    loadLookupLists(DAILY_ACTIVITY_LISTS, session),
+    // The new-entry row adds project-less activities (the shared space, ADR-0021).
+    getProjectPermissions(null, session.userId),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? orNull(getDailyActivityById(selectedId, session.userId))
       : null,
@@ -68,25 +72,27 @@ export default async function GlobalDailyActivitiesPage({
 
   return (
     <>
-      <div className="mt-3 flex flex-col flex-1">
-        <DailyActivitiesView
-          rows={rows}
-          totalCount={totalCount}
-          page={effectiveParams.page}
-          initialView={effectiveParams.view ?? preferredView ?? "list"}
-          filtersActive={filtersActive}
-          statuses={statuses}
+      <LookupListsScope {...lookup}>
+        <div className="mt-3 flex flex-col flex-1">
+          <DailyActivitiesView
+            rows={rows}
+            totalCount={totalCount}
+            page={effectiveParams.page}
+            initialView={effectiveParams.view ?? preferredView ?? "list"}
+            filtersActive={filtersActive}
+            projectId={null}
+            canCreate={projectless("daily-activities:create")}
+          />
+        </div>
+        {/* Sheet: create (project-unscoped, projectId=null) or edit/view */}
+        <DailyActivitySheet
+          activity={selected}
+          isNew={isNew && canCreate}
+          projectId={selected?.ProjectId ?? null}
+          canEdit={canEdit}
+          canDelete={canDelete}
         />
-      </div>
-      {/* Sheet: create (project-unscoped, projectId=null) or edit/view */}
-      <DailyActivitySheet
-        activity={selected}
-        isNew={isNew && canCreate}
-        projectId={selected?.ProjectId ?? null}
-        statuses={statuses}
-        canEdit={canEdit}
-        canDelete={canDelete}
-      />
+      </LookupListsScope>
     </>
   );
 }

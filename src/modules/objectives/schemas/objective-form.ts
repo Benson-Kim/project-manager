@@ -1,5 +1,7 @@
 import { z } from "zod";
+import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
 import { messages } from "@/lib/messages";
+import type { ObjectiveRow } from "./objective";
 
 /**
  * Objective form contract: ONE schema shared by the client sheet form
@@ -17,11 +19,7 @@ const optionalText = (max: number) =>
 
 export const objectiveFormSchema = z.object({
   projectId: z.coerce.number().int().positive(),
-  objectiveText: z
-    .string()
-    .trim()
-    .min(1, messages.objectives.objectiveTextRequired)
-    .max(2000),
+  objectiveText: z.string().trim().min(1, messages.objectives.objectiveTextRequired).max(2000),
   qMeasurable: optionalText(255),
   qSuccess: optionalText(2000),
   qAlignmentStrategy: optionalText(255),
@@ -35,3 +33,16 @@ export const updateObjectiveFormSchema = objectiveFormSchema.extend({
 });
 
 export type UpdateObjectiveFormValues = z.output<typeof updateObjectiveFormSchema>;
+
+/** An objective as the update form's values — what a datasheet cell edit sends (ADR-0023). */
+export function objectiveFormValues(row: ObjectiveRow): FormValues {
+  return {
+    objectiveId: String(row.ObjectiveId),
+    rowVer: String(row.RowVer),
+    projectId: String(row.ProjectId),
+    objectiveText: formText(row.ObjectiveText),
+    qMeasurable: formText(row.QMeasurable),
+    qSuccess: formText(row.QSuccess),
+    qAlignmentStrategy: formText(row.QAlignmentStrategy),
+  };
+}

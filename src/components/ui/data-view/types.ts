@@ -1,11 +1,13 @@
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
+import type { CellEditor, DatasheetConfig } from "./datasheet";
 
 /**
- * DataView contract (ADR-0006). A module supplies rows for ONE server-paged
- * page, the total count, a card renderer, table columns with priorities, and
- * stable ids. Everything else (toggle, URL state, selection, keyboard nav,
- * states) is shared behaviour.
+ * DataView contract (ADR-0006, datasheet mode ADR-0023). A module supplies rows
+ * for ONE server-paged page, the total count, a card renderer, table columns
+ * with priorities, and stable ids. Everything else (toggle, URL state,
+ * selection, keyboard nav, states, in-cell editing, the new-entry row, the
+ * dropdown-list editor) is shared behaviour.
  */
 export interface DataViewColumn<Row> {
   key: string;
@@ -13,6 +15,8 @@ export interface DataViewColumn<Row> {
   /** 1 = always visible; 2 = >= sm; 3 = >= lg (column-priority hiding). */
   priority: 1 | 2 | 3;
   render: (row: Row) => React.ReactNode;
+  /** Datasheet editing for this column (list view, ADR-0023); read-only when omitted. */
+  edit?: CellEditor<Row>;
 }
 
 export interface DataViewProps<Row> {
@@ -36,6 +40,11 @@ export interface DataViewProps<Row> {
   onOpen?: (row: Row) => void;
   /** Enables selection + the bulk bar when provided. */
   bulkActions?: (selectedIds: Array<string | number>, clear: () => void) => React.ReactNode;
+  /**
+   * Datasheet mode (ADR-0023): editable cells for columns with `edit`, the
+   * new-entry row and the list carets, in list view. Omit for a read-only list.
+   */
+  datasheet?: DatasheetConfig<Row>;
   /**
    * Renders the toolbar (search, filters, view toggle). Receives the view-
    * toggle button node so it can be embedded inside the module toolbar layout.

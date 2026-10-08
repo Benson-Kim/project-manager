@@ -4,6 +4,9 @@
 -- Row-level access: a supplied @ProjectId must be accessible (dbo.usp_Project_AssertAccess ->
 --   FORBIDDEN_ROW 50003); cross-project reads (@ProjectId NULL) return only rows of projects the
 --   actor is assigned to (Admin sees all). LIKE wildcards in @Search are escaped.
+-- ActorAccess (ADR-0023): the actor's access level on each row's project (dbo.ufn_AccessLevel_Resolve);
+--   the datasheet uses it to decide per row whether cells are editable. The cross-project filter
+--   reads the same rule: a row is listed when the actor has a level on it.
 -- Entity app.KeyDeliverable (source: tblKeyRequirementsDeliverable). Module: key-deliverables (#9).
 USE ProjectManager;
 GO
@@ -65,13 +68,13 @@ BEGIN
                WHERE a.KeyDeliverableId = kd.KeyDeliverableId
                FOR JSON PATH
            ) AS AssigneesJson,
+           acc.AccessLevel AS ActorAccess,
            TotalCount = COUNT(*) OVER ()
     FROM app.KeyDeliverable AS kd
+    CROSS APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, kd.ProjectId, 0) acc
     WHERE kd.IsDeleted = 0
       AND (@ProjectId IS NULL OR kd.ProjectId = @ProjectId)
-      AND (@ProjectId IS NOT NULL OR ISNULL(@ActorRole, N'') = N'Admin'
-           OR EXISTS (SELECT 1 FROM app.ProjectAssignee pa
-                      WHERE pa.ProjectId = kd.ProjectId AND pa.UserId = @ActorUserId AND pa.IsDeleted = 0))
+      AND (@ProjectId IS NOT NULL OR acc.AccessLevel IS NOT NULL)
       AND (@Search IS NULL OR kd.[KeyRequirement] LIKE N'%' + @Search + N'%' ESCAPE N'\')
       AND (@Status IS NULL OR kd.[Status] = @Status)
       AND (@Priority IS NULL OR kd.[Priority] = @Priority)

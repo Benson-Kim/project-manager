@@ -14,7 +14,7 @@ import { ACCESS_LEVELS, type AccessLevel, type Permission, type Role } from "./t
  *    - Viewer: read only.
  *    - Contributor: read; create/update on operational modules; no deletes.
  *    - Manager: everything in the project, including deletes and the team.
- *    Each proc passes the same level as @MinLevel; rbac.test.ts checks db/procs
+ *    Each proc passes the same level as @MinLevel; src/tests/proc-access-levels.test.ts checks db/procs
  *    against requiredLevel() so the two cannot drift.
  *
  * Module sessions register operational modules here (append-only; keep sorted).

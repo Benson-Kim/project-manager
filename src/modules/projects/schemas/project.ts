@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { actorAccessSchema } from "@/lib/auth/actor-access";
 import { ACCESS_LEVELS } from "@/lib/auth/types";
 
 /**
@@ -53,6 +54,7 @@ export type ProjectRow = z.infer<typeof projectRowSchema>;
 
 export const projectListRowSchema = projectRowSchema.extend({
   TotalCount: z.number().int(),
+  ActorAccess: actorAccessSchema,
 });
 
 export type ProjectListRow = z.infer<typeof projectListRowSchema>;

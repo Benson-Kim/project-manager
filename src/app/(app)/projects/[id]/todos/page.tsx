@@ -19,6 +19,9 @@ import {
 import { getTodoAlertByTodoItemId } from "@/modules/todo-items/repository/todo-alerts";
 import { listDailyActivityOptions } from "@/modules/todo-items/repository/daily-activity-options";
 import { parseProjectId } from "../project-id";
+import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
+import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
+import { TODO_ITEM_LISTS } from "@/modules/todo-items/schemas/todo-item";
 
 export const metadata: Metadata = {
   title: `${messages.todoItems.title} — ${messages.app.name}`,
@@ -59,7 +62,7 @@ export default async function TodosPage({
     projectOrActivity: flat.projectOrActivity ?? null,
   };
 
-  const [rows, preferredView, activityOptions, selectedRaw, allows] = await Promise.all([
+  const [rows, preferredView, activityOptions, selectedRaw, allows, lookup] = await Promise.all([
     orNotFound(listTodoItems(effectiveParams, session.userId, projectId, undefined, filters)),
     getViewPreference(session.userId, "todo-items").catch(() => null),
     listDailyActivityOptions(projectId, session.userId).catch(() => []),
@@ -67,6 +70,7 @@ export default async function TodosPage({
       ? orNull(getTodoItemById(selectedId, session.userId))
       : null,
     getProjectPermissions(projectId, session.userId),
+    loadLookupLists(TODO_ITEM_LISTS, session),
   ]);
 
   // A deep link to a todo from another project is treated as not found.
@@ -102,29 +106,33 @@ export default async function TodosPage({
   return (
     <>
       <PageHeader title={messages.todoItems.title} action={canCreate ? newTodoLink : undefined} />
-      <div className="mt-3 flex flex-col flex-1">
-        <TodoView
-          rows={rows}
-          totalCount={totalCount}
-          page={effectiveParams.page}
-          initialView={effectiveParams.view ?? preferredView ?? "list"}
-          filtersActive={filtersActive}
-          canReorder={canReorder}
-          newTodoAction={canCreate ? newTodoLink : undefined}
+      <LookupListsScope {...lookup}>
+        <div className="mt-3 flex flex-col flex-1">
+          <TodoView
+            projectId={projectId}
+            canCreate={canCreate}
+            rows={rows}
+            totalCount={totalCount}
+            page={effectiveParams.page}
+            initialView={effectiveParams.view ?? preferredView ?? "list"}
+            filtersActive={filtersActive}
+            canReorder={canReorder}
+            newTodoAction={canCreate ? newTodoLink : undefined}
+          />
+        </div>
+        <TodoItemSheet
+          todoItem={selected}
+          todoAlert={selectedAlert}
+          isNew={isNew && canCreate}
+          projectId={projectId}
+          dailyActivityOptions={activityOptions}
+          canEdit={canEdit}
+          canDelete={canDelete}
+          canCreateAlert={canCreateAlert}
+          canUpdateAlert={canUpdateAlert}
+          canDeleteAlert={canDeleteAlert}
         />
-      </div>
-      <TodoItemSheet
-        todoItem={selected}
-        todoAlert={selectedAlert}
-        isNew={isNew && canCreate}
-        projectId={projectId}
-        dailyActivityOptions={activityOptions}
-        canEdit={canEdit}
-        canDelete={canDelete}
-        canCreateAlert={canCreateAlert}
-        canUpdateAlert={canUpdateAlert}
-        canDeleteAlert={canDeleteAlert}
-      />
+      </LookupListsScope>
     </>
   );
 }

@@ -57,7 +57,7 @@ When a major browser ships support for Web Push through a **new** hostname:
 2. Add the hostname to `PUSH_SERVICE_HOSTS` in
    `src/modules/todo-items/schemas/alert-subscription.ts`.
 3. Add a corresponding positive test case in
-   `src/modules/todo-items/schemas/alert-subscription.test.ts`.
+   `src/modules/todo-items/tests/alert-subscription.test.ts`.
 4. Update the table above and the inline JSDoc comment in the schema file.
 
 Do **not** broaden the allowlist to accept wildcard domains or non-`https:`

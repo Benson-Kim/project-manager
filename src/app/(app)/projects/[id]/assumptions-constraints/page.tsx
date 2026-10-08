@@ -16,6 +16,9 @@ import {
 } from "@/modules/assumptions-constraints/repository/assumption-constraints";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { parseProjectId } from "../project-id";
+import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
+import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
+import { ASSUMPTION_CONSTRAINT_LISTS } from "@/modules/assumptions-constraints/schemas/assumption-constraint";
 
 export const metadata: Metadata = {
   title: `${messages.assumptionsConstraints.title} — ${messages.app.name}`,
@@ -50,13 +53,14 @@ export default async function AssumptionsConstraintsPage({
     type: flat.type ?? null,
   };
 
-  const [rows, preferredView, selectedRaw, allows] = await Promise.all([
+  const [rows, preferredView, selectedRaw, allows, lookup] = await Promise.all([
     orNotFound(listAssumptionConstraints(listParams, session.userId, projectId, filters)),
     getViewPreference(session.userId, "assumptions-constraints").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? orNull(getAssumptionConstraintById(selectedId, session.userId))
       : null,
     getProjectPermissions(projectId, session.userId),
+    loadLookupLists(ASSUMPTION_CONSTRAINT_LISTS, session),
   ]);
 
   // Cross-project leak guard: deep links to another project's record yield not-found.
@@ -84,23 +88,27 @@ export default async function AssumptionsConstraintsPage({
         title={messages.assumptionsConstraints.title}
         action={canCreate ? newItemLink : undefined}
       />
-      <div className="mt-3 flex flex-col flex-1">
-        <AssumptionConstraintsView
-          rows={rows}
-          totalCount={totalCount}
-          page={listParams.page}
-          initialView={listParams.view ?? preferredView ?? "grid"}
-          filtersActive={filtersActive}
-          newItemAction={canCreate ? newItemLink : undefined}
+      <LookupListsScope {...lookup}>
+        <div className="mt-3 flex flex-col flex-1">
+          <AssumptionConstraintsView
+            projectId={projectId}
+            canCreate={canCreate}
+            rows={rows}
+            totalCount={totalCount}
+            page={listParams.page}
+            initialView={listParams.view ?? preferredView ?? "grid"}
+            filtersActive={filtersActive}
+            newItemAction={canCreate ? newItemLink : undefined}
+          />
+        </div>
+        <AssumptionConstraintSheet
+          item={selected}
+          isNew={isNew && canCreate}
+          projectId={projectId}
+          canEdit={canEdit}
+          canDelete={canDelete}
         />
-      </div>
-      <AssumptionConstraintSheet
-        item={selected}
-        isNew={isNew && canCreate}
-        projectId={projectId}
-        canEdit={canEdit}
-        canDelete={canDelete}
-      />
+      </LookupListsScope>
     </>
   );
 }

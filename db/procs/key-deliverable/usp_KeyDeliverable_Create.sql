@@ -2,6 +2,8 @@
 -- audits in-transaction; returns the new row with comma-separated assignee names.
 -- Row-level access: the target @ProjectId must be accessible (dbo.usp_Project_AssertAccess,
 --   FORBIDDEN_ROW 50003; Admin bypass).
+-- Priority and Status must be live options of 'key-deliverable.priority' / 'key-deliverable.status'
+--   (ADR-0022, VALIDATION 50004) and are stored as listed.
 -- Entity app.KeyDeliverable (source: tblKeyRequirementsDeliverable). Module: key-deliverables (#9).
 USE ProjectManager;
 GO
@@ -22,6 +24,11 @@ BEGIN
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
          @MinLevel = N'Manager', @AllowProjectless = 0;
+
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'key-deliverable.priority', @Label = @Priority OUTPUT;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'key-deliverable.status', @Label = @Status OUTPUT;
 
     BEGIN TRAN;
 

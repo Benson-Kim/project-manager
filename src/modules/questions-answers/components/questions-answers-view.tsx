@@ -1,45 +1,73 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import { listColumn, textColumn } from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
+import { formCellSaver } from "@/components/ui/data-view/datasheet";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { listEmptyState } from "@/components/ui/states";
+import { rowAllows } from "@/lib/auth/actor-access";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
-import type { QuestionAnswerListRow } from "../schemas/question-answer";
+import { createQuestionAnswerAction, updateQuestionAnswerAction } from "../actions";
+import type { QuestionAnswerListRow, QuestionAnswerRow } from "../schemas/question-answer";
+import { questionAnswerFormValues } from "../schemas/question-answer-form";
 import { QuestionsAnswersToolbar } from "./questions-answers-toolbar";
 
-const columns: DataViewColumn<QuestionAnswerListRow>[] = [
-  {
+type Row = QuestionAnswerListRow;
+const P = messages.questionsAnswers.placeholders;
+
+const columns: DataViewColumn<Row>[] = [
+  textColumn({
     key: "Question",
     header: messages.questionsAnswers.question,
     priority: 1,
-    render: (r) => r.Question,
-  },
-  {
+    field: "question",
+    value: (r) => r.Question,
+    placeholder: P.question,
+    maxLength: 4000,
+  }),
+  listColumn({
     key: "Category",
     header: messages.questionsAnswers.category,
     priority: 1,
-    render: (r) => <Badge value={r.Category} />,
-  },
-  {
+    field: "category",
+    list: "question-answer.category",
+    value: (r) => r.Category,
+    placeholder: P.category,
+  }),
+  listColumn({
     key: "Priority",
     header: messages.questionsAnswers.priority,
     priority: 2,
-    render: (r) => <Badge value={r.Priority} />,
-  },
-  {
+    field: "priority",
+    list: "question-answer.priority",
+    value: (r) => r.Priority,
+    placeholder: P.priority,
+  }),
+  textColumn({
     key: "AssignedTo",
     header: messages.questionsAnswers.assignedTo,
     priority: 2,
-    render: (r) => r.AssignedTo,
-  },
+    field: "assignedTo",
+    value: (r) => r.AssignedTo,
+    placeholder: P.assignedTo,
+    maxLength: 255,
+  }),
 ];
+
+/** Datasheet edits go through the same update action as the Sheet (ADR-0023). */
+const saveCell = formCellSaver<Row, QuestionAnswerRow>(
+  questionAnswerFormValues,
+  updateQuestionAnswerAction,
+);
+const canEditRow = rowAllows("questions-answers:update");
 
 /**
  * Q&A list (module #11): DataView grid + list; opening a row syncs ?id= (Sheet).
  * Card: question text truncated to 2 lines, category badge, priority badge.
+ * List view is a datasheet (ADR-0023): editable cells and a new-entry row.
  */
 export function QuestionsAnswersView({
   rows,
@@ -47,9 +75,14 @@ export function QuestionsAnswersView({
   page,
   initialView,
   filtersActive,
+  projectId,
+  canCreate,
   newQuestionAction,
 }: {
   rows: QuestionAnswerListRow[];
+  projectId: number;
+  /** Shows the datasheet's new-entry row. */
+  canCreate: boolean;
   totalCount: number;
   page: number;
   initialView: ViewMode;
@@ -82,6 +115,16 @@ export function QuestionsAnswersView({
         </div>
       )}
       columns={columns}
+      datasheet={{
+        canEditRow,
+        saveCell,
+        addRow: canCreate
+          ? {
+              add: (values) =>
+                createQuestionAnswerAction({ ...values, projectId: String(projectId) }),
+            }
+          : undefined,
+      }}
       renderToolbar={(viewToggle) => (
         <QuestionsAnswersToolbar>{viewToggle}</QuestionsAnswersToolbar>
       )}

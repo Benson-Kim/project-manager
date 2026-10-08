@@ -17,6 +17,9 @@ import {
 } from "@/modules/todo-items/repository/todo-items";
 import { getTodoAlertByTodoItemId } from "@/modules/todo-items/repository/todo-alerts";
 import { getTodoPermissions } from "@/modules/todo-items/repository/todo-access";
+import { TODO_ITEM_LISTS } from "@/modules/todo-items/schemas/todo-item";
+import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
+import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
 
 export const metadata: Metadata = {
   title: `${messages.todoItems.title} — ${messages.app.name}`,
@@ -52,13 +55,16 @@ export default async function GlobalTodoPage({
     projectOrActivity: flat.projectOrActivity ?? null,
   };
 
-  const [rows, preferredView, alerts, selected] = await Promise.all([
+  const [rows, preferredView, alerts, selected, lookup, personal] = await Promise.all([
     listTodoItems(effectiveParams, session.userId, null, undefined, filters),
     getViewPreference(session.userId, "todo-items").catch(() => null),
     getUpcomingAlertRows(session.userId).catch(() => []),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? orNull(getTodoItemById(selectedId, session.userId))
       : null,
+    loadLookupLists(TODO_ITEM_LISTS, session),
+    // The new-entry row adds personal, project-less to-dos.
+    getTodoPermissions(null, session.userId),
   ]);
 
   // Fetch the alert only when a specific todo is selected.
@@ -101,8 +107,8 @@ export default async function GlobalTodoPage({
                   <span
                     className={
                       alert.AlertType === "Overdue"
-                        ? "font-semibold text-red-600"
-                        : "font-semibold text-amber-600"
+                        ? "font-semibold text-danger"
+                        : "font-semibold text-warning"
                     }
                   >
                     {alert.AlertType === "Overdue"
@@ -120,30 +126,34 @@ export default async function GlobalTodoPage({
         </section>
       ) : null}
 
-      <div className="flex flex-col flex-1">
-        <TodoView
-          rows={rows}
-          totalCount={totalCount}
-          page={effectiveParams.page}
-          initialView={effectiveParams.view ?? preferredView ?? "list"}
-          filtersActive={filtersActive}
-          emptyBody={messages.todoItems.emptyGlobalBody}
-        />
-      </div>
+      <LookupListsScope {...lookup}>
+        <div className="flex flex-col flex-1">
+          <TodoView
+            rows={rows}
+            totalCount={totalCount}
+            page={effectiveParams.page}
+            initialView={effectiveParams.view ?? preferredView ?? "list"}
+            filtersActive={filtersActive}
+            projectId={null}
+            canCreate={personal("todo-items:create")}
+            emptyBody={messages.todoItems.emptyGlobalBody}
+          />
+        </div>
 
-      {/* Sheet: create (project-unscoped, projectId=null) or edit when canEdit */}
-      <TodoItemSheet
-        todoItem={selected}
-        todoAlert={selectedAlert}
-        isNew={isNew && canCreate}
-        projectId={selected?.ProjectId ?? null}
-        dailyActivityOptions={[]}
-        canEdit={canEdit}
-        canDelete={canDelete}
-        canCreateAlert={canCreateAlert}
-        canUpdateAlert={canUpdateAlert}
-        canDeleteAlert={canDeleteAlert}
-      />
+        {/* Sheet: create (project-unscoped, projectId=null) or edit when canEdit */}
+        <TodoItemSheet
+          todoItem={selected}
+          todoAlert={selectedAlert}
+          isNew={isNew && canCreate}
+          projectId={selected?.ProjectId ?? null}
+          dailyActivityOptions={[]}
+          canEdit={canEdit}
+          canDelete={canDelete}
+          canCreateAlert={canCreateAlert}
+          canUpdateAlert={canUpdateAlert}
+          canDeleteAlert={canDeleteAlert}
+        />
+      </LookupListsScope>
     </>
   );
 }

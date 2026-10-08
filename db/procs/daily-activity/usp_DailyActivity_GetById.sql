@@ -1,6 +1,7 @@
 -- usp_DailyActivity_GetById — fetch one active app.DailyActivity row; THROW 50001 when absent/soft-deleted.
 -- Row-level access via dbo.usp_Project_AssertAccess: NOT_FOUND (50001) vs FORBIDDEN_ROW (50003);
 --   Admin bypass; project-less rows are global (allowed).
+-- Returns ActivityStatus, the status option's label (live or retired), with the row.
 -- Entity app.DailyActivity (source: tblDailyActivityList). Module: daily-activities (#19).
 USE ProjectManager;
 GO
@@ -23,6 +24,7 @@ BEGIN
     SELECT DailyActivityId,
            [ProjectId],
            [ActivityStatusId],
+           (SELECT Label FROM app.LookupOption WHERE LookupOptionId = DailyActivity.ActivityStatusId) AS ActivityStatus,
            [Requester],
            [Task],
            [MyActivity],

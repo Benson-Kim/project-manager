@@ -78,6 +78,8 @@ export default async function ObjectivesPage({
       />
       <div className="mt-3 flex flex-col flex-1">
         <ObjectivesView
+          projectId={projectId}
+          canCreate={canCreate}
           rows={rows}
           totalCount={totalCount}
           page={listParams.page}

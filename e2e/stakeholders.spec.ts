@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
+import { expectListed } from "./support/datasheet";
 
 /**
  * Stakeholders module (#6) — project-scoped route /projects/2/stakeholders.
@@ -24,7 +25,7 @@ test("create stakeholder happy path — appears in the list", async ({ page }) =
   await expect(form).toHaveCount(0); // sheet closed, ?id= cleared
 
   await page.goto(`/projects/2/stakeholders?q=${encodeURIComponent(firstName)}`);
-  await expect(page.getByText(firstName).first()).toBeVisible();
+  await expectListed(page, firstName);
 });
 
 test("validation failure — empty first name shows inline error and focuses the summary", async ({

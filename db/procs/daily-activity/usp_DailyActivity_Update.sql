@@ -2,6 +2,9 @@
 -- Row-level access: the row's project must be accessible (dbo.usp_Project_AssertAccess,
 --   FORBIDDEN_ROW 50003; Admin bypass; project-less rows allowed). The project key is immutable:
 --   @ProjectId is accepted but ignored (DB standard).
+-- Dropdown values must be live options of their lists, or unchanged (ADR-0022, VALIDATION 50004):
+--   ActivityStatusId ('daily-activity.status', by id), ContactMethod and TaskType (by label).
+-- Returns ActivityStatus, the status option's label (live or retired), with the row.
 -- Entity app.DailyActivity (source: tblDailyActivityList). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
@@ -29,8 +32,11 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    DECLARE @CurrentVer BIGINT, @RowProjectId INT;
-    SELECT @CurrentVer = CAST(RowVer AS BIGINT), @RowProjectId = ProjectId
+    DECLARE @CurrentVer BIGINT, @RowProjectId INT, @CurrentStatusId INT,
+            @CurrentContactMethod NVARCHAR(255), @CurrentTaskType NVARCHAR(255);
+    SELECT @CurrentVer = CAST(RowVer AS BIGINT), @RowProjectId = ProjectId,
+           @CurrentStatusId = ActivityStatusId, @CurrentContactMethod = ContactMethod,
+           @CurrentTaskType = TaskType
     FROM app.DailyActivity WHERE DailyActivityId = @DailyActivityId AND IsDeleted = 0;
     IF @CurrentVer IS NULL
         THROW 50001, N'NOT_FOUND:DailyActivity not found', 1;
@@ -42,6 +48,16 @@ BEGIN
 
     IF @CurrentVer <> @RowVer
         THROW 50002, N'CONFLICT:DailyActivity was modified by someone else', 1;
+
+    EXEC dbo.usp_LookupList_AssertOption
+         @ListKey = N'daily-activity.status', @LookupOptionId = @ActivityStatusId,
+         @CurrentOptionId = @CurrentStatusId;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'daily-activity.contact-method', @Label = @ContactMethod OUTPUT,
+         @CurrentLabel = @CurrentContactMethod;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'daily-activity.task-type', @Label = @TaskType OUTPUT,
+         @CurrentLabel = @CurrentTaskType;
 
     BEGIN TRAN;
 
@@ -90,6 +106,7 @@ BEGIN
     SELECT DailyActivityId,
            [ProjectId],
            [ActivityStatusId],
+           (SELECT Label FROM app.LookupOption WHERE LookupOptionId = DailyActivity.ActivityStatusId) AS ActivityStatus,
            [Requester],
            [Task],
            [MyActivity],

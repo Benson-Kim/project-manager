@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { actorAccessSchema } from "@/lib/auth/actor-access";
+import { listValue, type LookupListKey } from "@/lib/lookup-lists";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 
 /**
@@ -7,9 +9,11 @@ import { rowVerSchema } from "@/modules/projects/schemas/project";
  * usp_Stakeholder_{Create,GetById,List,Update} exactly.
  */
 
-/** Dropdown vocabularies (req row 70; CHECK-constrained in migration 011 allows 'Email','Phone','Meetings'). */
-export const COMMUNICATION_PREFERENCES = ["Email", "Phone", "Meetings"] as const;
-export const ENGAGEMENT_LEVELS = ["High", "Medium", "Low"] as const;
+/** Dropdown lists (req row 70; ADR-0022 — migration 018 replaced the CHECK constraints). */
+export const STAKEHOLDER_LISTS = [
+  "stakeholder.communication-preference",
+  "stakeholder.engagement-level",
+] as const satisfies readonly LookupListKey[];
 
 export const stakeholderRowSchema = z.object({
   StakeholderId: z.number().int(),
@@ -37,6 +41,7 @@ export type StakeholderRow = z.infer<typeof stakeholderRowSchema>;
 
 export const stakeholderListRowSchema = stakeholderRowSchema.extend({
   TotalCount: z.number().int(),
+  ActorAccess: actorAccessSchema,
 });
 
 export type StakeholderListRow = z.infer<typeof stakeholderListRowSchema>;
@@ -54,8 +59,8 @@ export const createStakeholderInput = z.object({
   emailAddress: z.string().trim().max(255).nullish(),
   physicalLocation: z.string().trim().max(255).nullish(),
   orgTitle: z.string().trim().max(255).nullish(),
-  communicationPreference: z.enum(COMMUNICATION_PREFERENCES).nullish(),
-  engagementLevel: z.enum(ENGAGEMENT_LEVELS).nullish(),
+  communicationPreference: listValue.nullish(),
+  engagementLevel: listValue.nullish(),
   additionalNotes: z.string().nullish(),
 });
 
@@ -80,7 +85,7 @@ export type DeleteStakeholderInput = z.input<typeof deleteStakeholderInput>;
 /** Module filter params (URL ⇄ usp_Stakeholder_List @ProjectId/@EngagementLevel). */
 export const stakeholderFiltersSchema = z.object({
   project: z.coerce.number().int().positive().optional(),
-  engagement: z.enum(ENGAGEMENT_LEVELS).optional(),
+  engagement: listValue.min(1).optional(),
 });
 
 export type StakeholderFilters = z.infer<typeof stakeholderFiltersSchema>;

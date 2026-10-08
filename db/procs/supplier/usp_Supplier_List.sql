@@ -5,6 +5,9 @@
 --   FORBIDDEN_ROW 50003); cross-project reads (@ProjectId NULL) return only rows of projects the
 --   actor is assigned to (Admin sees all). LIKE wildcards in @Search are escaped.
 -- ContractEndDate ASC sort: NULLs placed last so known expiring contracts surface first.
+-- ActorAccess (ADR-0023): the actor's access level on each row's project (dbo.ufn_AccessLevel_Resolve);
+--   the datasheet uses it to decide per row whether cells are editable. The cross-project filter
+--   reads the same rule: a row is listed when the actor has a level on it.
 -- Entity app.Supplier (source: tbl3rdPartySupplier). Module: suppliers (#7).
 USE ProjectManager;
 GO
@@ -52,17 +55,17 @@ BEGIN
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer,
+           acc.AccessLevel AS ActorAccess,
            TotalCount = COUNT(*) OVER ()
     FROM app.Supplier s
+    CROSS APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, s.ProjectId, 0) acc
     WHERE s.IsDeleted = 0
       AND (@ProjectId IS NULL OR s.ProjectId = @ProjectId)
       AND (@Rating IS NULL OR s.[Rating] = @Rating)
       AND (@Search IS NULL OR s.[SupplierName] LIKE N'%' + @Search + N'%' ESCAPE N'\'
            OR s.[ContactPerson] LIKE N'%' + @Search + N'%' ESCAPE N'\'
            OR s.[City] LIKE N'%' + @Search + N'%' ESCAPE N'\')
-      AND (@ProjectId IS NOT NULL OR ISNULL(@ActorRole, N'') = N'Admin'
-           OR EXISTS (SELECT 1 FROM app.ProjectAssignee pa
-                      WHERE pa.ProjectId = s.ProjectId AND pa.UserId = @ActorUserId AND pa.IsDeleted = 0))
+      AND (@ProjectId IS NOT NULL OR acc.AccessLevel IS NOT NULL)
     ORDER BY
         CASE WHEN @SortBy = N'SupplierName' AND @SortDir = 'asc'  THEN [SupplierName] END ASC,
         CASE WHEN @SortBy = N'SupplierName' AND @SortDir = 'desc' THEN [SupplierName] END DESC,

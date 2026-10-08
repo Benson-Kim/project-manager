@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
+import { expectListed } from "./support/datasheet";
 
 /**
  * To-do items module (#20) — project-scoped route /projects/2/todos.
@@ -26,7 +27,7 @@ test("create todo item happy path — appears in the list", async ({ page }) => 
   await expect(form).toHaveCount(0); // sheet closed
 
   await page.goto(`/projects/2/todos?q=${encodeURIComponent(title)}`);
-  await expect(page.getByText(title).first()).toBeVisible();
+  await expectListed(page, title);
 });
 
 test("validation failure — empty todoItem shows inline error", async ({ page }) => {
@@ -71,7 +72,7 @@ test("status filter narrows the list", async ({ page }) => {
   await expect(page.getByRole("heading", { name: messages.todoItems.title })).toBeVisible();
   await expect(page.getByTestId("filter-status")).toHaveValue("Cancelled");
   // Seeded items 11 and 12 on project 2 are Cancelled — at least one should be visible.
-  await expect(page.getByText("Relink new").first()).toBeVisible();
+  await expectListed(page, "Relink new");
 });
 
 test("priority filter narrows the list", async ({ page }) => {

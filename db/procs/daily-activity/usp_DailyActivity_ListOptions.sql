@@ -49,12 +49,10 @@ BEGIN
                 + N' (' + CONVERT(NVARCHAR(10), da.RequestDate, 23) + N')'
         END AS Label
     FROM app.DailyActivity da
+    CROSS APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, da.ProjectId, 1) acc
     WHERE da.IsDeleted = 0
       AND (@ProjectId IS NULL OR da.ProjectId = @ProjectId)
-      AND (@ProjectId IS NOT NULL OR ISNULL(@ActorRole, N'') = N'Admin'
-           OR da.ProjectId IS NULL
-           OR EXISTS (SELECT 1 FROM app.ProjectAssignee pa
-                      WHERE pa.ProjectId = da.ProjectId AND pa.UserId = @ActorUserId AND pa.IsDeleted = 0))
+      AND (@ProjectId IS NOT NULL OR acc.AccessLevel IS NOT NULL)
     ORDER BY da.RequestDate DESC, da.DailyActivityId DESC;
 END;
 GO
