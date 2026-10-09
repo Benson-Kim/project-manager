@@ -109,6 +109,7 @@ export const snoozeTodoAlertAction = action({
     todoAlertId: z.coerce.number().int().positive(),
     snoozeMinutes: z.coerce.number().int().min(1).max(1440),
     rowVer: rowVerSchema,
+    localNow: z.string().max(19).optional(),
   }),
   permission: "todo-alerts:update",
   handler: (input, ctx) => snoozeTodoAlert(input, ctx.session.userId),

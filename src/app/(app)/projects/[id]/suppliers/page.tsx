@@ -4,10 +4,10 @@ import { notFound } from "next/navigation";
 
 import { messages } from "@/lib/messages";
 import { auth } from "@/lib/auth/provider";
-import { getViewPreference } from "@/lib/repositories/view-preference";
+import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNotFound, orNull } from "@/lib/row-access";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
-import { flattenSearchParams, parseListParams } from "@/lib/list-params";
+import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 
 import { PageHeader } from "@/components/ui/page-header";
@@ -16,6 +16,9 @@ import { SuppliersView } from "@/modules/suppliers/components/suppliers-view";
 import { getSupplierById, listSuppliers } from "@/modules/suppliers/repository/suppliers";
 import { supplierFiltersSchema } from "@/modules/suppliers/schemas/supplier";
 import { parseProjectId } from "../project-id";
+import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
+import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
+import { SUPPLIER_LISTS } from "@/modules/suppliers/schemas/supplier";
 
 export const metadata: Metadata = {
   title: `${messages.suppliers.title} — ${messages.app.name}`,
@@ -53,13 +56,14 @@ export default async function SuppliersPage({
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
-  const [rows, preferredView, selectedRaw, allows] = await Promise.all([
+  const [rows, preference, selectedRaw, allows, lookup] = await Promise.all([
     orNotFound(listSuppliers(effectiveParams, session.userId, projectId, filters)),
-    getViewPreference(session.userId, "suppliers").catch(() => null),
+    getListPreference(session.userId, "suppliers").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? orNull(getSupplierById(selectedId, session.userId))
       : null,
     getProjectPermissions(projectId, session.userId),
+    loadLookupLists(SUPPLIER_LISTS, session),
   ]);
 
   // A deep link to a supplier from another project is treated as not found.
@@ -99,23 +103,28 @@ export default async function SuppliersPage({
         title={messages.suppliers.title}
         action={canCreate ? newSupplierToolbarLink : undefined}
       />
-      <div className="mt-3 flex flex-col flex-1">
-        <SuppliersView
-          rows={rows}
-          totalCount={totalCount}
-          page={effectiveParams.page}
-          initialView={effectiveParams.view ?? preferredView ?? "grid"}
-          filtersActive={filtersActive}
-          newSupplierAction={canCreate ? newSupplierEmptyLink : undefined}
+      <LookupListsScope {...lookup}>
+        <div className="mt-3 flex flex-col flex-1">
+          <SuppliersView
+            projectId={projectId}
+            canCreate={canCreate}
+            rows={rows}
+            totalCount={totalCount}
+            page={effectiveParams.page}
+            initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}
+            layout={preference?.layout}
+            filtersActive={filtersActive}
+            newSupplierAction={canCreate ? newSupplierEmptyLink : undefined}
+          />
+        </div>
+        <SupplierSheet
+          supplier={selected}
+          isNew={isNew && canCreate}
+          projectId={projectId}
+          canEdit={canEdit}
+          canDelete={canDelete}
         />
-      </div>
-      <SupplierSheet
-        supplier={selected}
-        isNew={isNew && canCreate}
-        projectId={projectId}
-        canEdit={canEdit}
-        canDelete={canDelete}
-      />
+      </LookupListsScope>
     </>
   );
 }

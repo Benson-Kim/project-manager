@@ -3,9 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
-import { flattenSearchParams, parseListParams } from "@/lib/list-params";
+import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
-import { getViewPreference } from "@/lib/repositories/view-preference";
+import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNotFound, orNull } from "@/lib/row-access";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { ParkingLotItemSheet } from "@/modules/parking-lot/components/parking-lot-item-sheet";
@@ -50,11 +50,11 @@ export default async function ParkingLotPage({
   const isStrikethrough =
     flat.status === "resolved" ? true : flat.status === "active" ? false : null;
 
-  const [rows, preferredView, selectedRaw, allows] = await Promise.all([
+  const [rows, preference, selectedRaw, allows] = await Promise.all([
     orNotFound(
       listParkingLotItems(effectiveParams, session.userId, projectId, { isStrikethrough }),
     ),
-    getViewPreference(session.userId, "parking-lot").catch(() => null),
+    getListPreference(session.userId, "parking-lot").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? orNull(getParkingLotItemById(selectedId, session.userId))
       : null,
@@ -85,10 +85,13 @@ export default async function ParkingLotPage({
       <PageHeader title={messages.parkingLot.title} action={canCreate ? newItemLink : undefined} />
       <div className="mt-3 flex flex-col flex-1">
         <ParkingLotView
+          projectId={projectId}
+          canCreate={canCreate}
           rows={rows}
           totalCount={totalCount}
           page={effectiveParams.page}
-          initialView={effectiveParams.view ?? preferredView ?? "grid"}
+          initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}
+          layout={preference?.layout}
           filtersActive={filtersActive}
           newItemAction={canCreate ? newItemLink : undefined}
         />

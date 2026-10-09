@@ -4,7 +4,8 @@ import { Select } from "@/components/ui/form/inputs";
 import { Toolbar } from "@/components/ui/toolbar";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { messages } from "@/lib/messages";
-import { DELIVERABLE_PRIORITIES, DELIVERABLE_STATUSES, type AssigneeEntry } from "../schemas/key-deliverable";
+import { ListFilter } from "@/components/ui/data-view/list-filter";
+import type { AssigneeEntry } from "../schemas/key-deliverable";
 
 interface GanttToolbarProps {
   /** Unique assignees (by id) derived from bar data for the assignee filter. */
@@ -31,70 +32,47 @@ export function GanttToolbar({ assignees, children }: GanttToolbarProps) {
 
   return (
     <div data-gantt-toolbar="">
-    <Toolbar>
-      {/* Status filter */}
-      <label>
-        <span className="sr-only">{messages.keyDeliverables.status}</span>
-        <Select
-          name="status"
-          data-testid="gantt-filter-status"
-          value={searchParams.get("status") ?? ""}
-          onChange={(e) => update({ status: e.target.value || null })}
-          className="w-auto"
-        >
-          <option value="">{messages.keyDeliverables.allStatuses}</option>
-          {DELIVERABLE_STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </Select>
-      </label>
+      <Toolbar>
+        <ListFilter
+          list="key-deliverable.status"
+          param="status"
+          label={messages.keyDeliverables.status}
+          allLabel={messages.keyDeliverables.allStatuses}
+          testId="gantt-filter-status"
+        />
+        <ListFilter
+          list="key-deliverable.priority"
+          param="priority"
+          label={messages.keyDeliverables.priority}
+          allLabel={messages.keyDeliverables.allPriorities}
+          testId="gantt-filter-priority"
+        />
 
-      {/* Priority filter */}
-      <label>
-        <span className="sr-only">{messages.keyDeliverables.priority}</span>
-        <Select
-          name="priority"
-          data-testid="gantt-filter-priority"
-          value={searchParams.get("priority") ?? ""}
-          onChange={(e) => update({ priority: e.target.value || null })}
-          className="w-auto"
-        >
-          <option value="">{messages.keyDeliverables.allPriorities}</option>
-          {DELIVERABLE_PRIORITIES.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </Select>
-      </label>
-
-      {/* Assignee filter (populated from actual bar data; value = stakeholder id).
+        {/* Assignee filter (populated from actual bar data; value = stakeholder id).
           Always rendered when a stale ?assignee param is active so the user can
           clear it even after the last assignee is removed. */}
-      {showAssigneeFilter ? (
-        <label>
-          <span className="sr-only">{messages.keyDeliverables.assignees}</span>
-          <Select
-            name="assignee"
-            data-testid="gantt-filter-assignee"
-            value={activeAssignee}
-            onChange={(e) => update({ assignee: e.target.value || null })}
-            className="w-auto"
-          >
-            <option value="">{messages.keyDeliverables.allAssignees}</option>
-            {assignees.map((a) => (
-              <option key={a.id} value={String(a.id)}>
-                {a.name}
-              </option>
-            ))}
-          </Select>
-        </label>
-      ) : null}
+        {showAssigneeFilter ? (
+          <label>
+            <span className="sr-only">{messages.keyDeliverables.assignees}</span>
+            <Select
+              name="assignee"
+              data-testid="gantt-filter-assignee"
+              value={activeAssignee}
+              onChange={(e) => update({ assignee: e.target.value || null })}
+              className="w-auto"
+            >
+              <option value="">{messages.keyDeliverables.allAssignees}</option>
+              {assignees.map((a) => (
+                <option key={a.id} value={String(a.id)}>
+                  {a.name}
+                </option>
+              ))}
+            </Select>
+          </label>
+        ) : null}
 
-      {children}
-    </Toolbar>
+        {children}
+      </Toolbar>
     </div>
   );
 }

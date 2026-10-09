@@ -99,9 +99,7 @@ test.describe.serial("demo screenshots", () => {
     const anonCtx = await browser.newContext();
     const anonPage = await anonCtx.newPage();
     await anonPage.goto("/login");
-    await expect(
-      anonPage.getByRole("heading", { name: messages.auth.loginTitle }),
-    ).toBeVisible();
+    await expect(anonPage.getByRole("heading", { name: messages.auth.loginTitle })).toBeVisible();
     await settle(anonPage);
     await snap(anonPage, "01-login");
     await anonCtx.close();
@@ -132,7 +130,6 @@ test.describe.serial("demo screenshots", () => {
   // ── 04  Project charter workspace ───────────────────────────────────────
 
   test("04 — project charter (project 2)", async () => {
-
     // Project 2 is the richest seeded project (Upgrade Inventory Management).
     await page.goto("/projects/2");
     await expect(page.getByTestId("project-form")).toBeVisible();
@@ -144,7 +141,6 @@ test.describe.serial("demo screenshots", () => {
   // ── 05  Project charter — section nav visible (mobile 390 px) ───────────
 
   test("05 — project charter at 390 px (mobile)", async () => {
-
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/projects/2");
     await expect(page.getByTestId("project-form")).toBeVisible();
@@ -155,12 +151,9 @@ test.describe.serial("demo screenshots", () => {
   // ── 06  Key deliverables list ────────────────────────────────────────────
 
   test("06 — key deliverables list (project 2)", async () => {
-
     await page.setViewportSize({ width: 1440, height: 1080 });
     await page.goto("/projects/2/deliverables?view=grid");
-    await expect(
-      page.getByRole("heading", { name: messages.keyDeliverables.title }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: messages.keyDeliverables.title })).toBeVisible();
     await expect(page.getByTestId("data-view-grid")).toBeVisible();
     await settle(page);
     await snap(page, "06-deliverables-list");
@@ -169,7 +162,6 @@ test.describe.serial("demo screenshots", () => {
   // ── 07  Gantt chart ──────────────────────────────────────────────────────
 
   test("07 — Gantt chart (project 2)", async () => {
-
     await page.goto("/projects/2/deliverables/gantt");
     await expect(
       page.getByRole("heading", { name: messages.keyDeliverables.ganttTitle }),
@@ -182,7 +174,6 @@ test.describe.serial("demo screenshots", () => {
   // ── 08  Gantt chart — mobile 390 px ─────────────────────────────────────
 
   test("08 — Gantt chart at 390 px (mobile)", async () => {
-
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/projects/2/deliverables/gantt");
     await expect(page.getByTestId("gantt-chart")).toBeVisible();
@@ -193,7 +184,6 @@ test.describe.serial("demo screenshots", () => {
   // ── 09  Deliverable detail sheet open ────────────────────────────────────
 
   test("09 — deliverable detail sheet open (?d=1)", async () => {
-
     await page.setViewportSize({ width: 1440, height: 1080 });
     await page.goto("/projects/2/deliverables?d=1");
     await expect(
@@ -206,12 +196,9 @@ test.describe.serial("demo screenshots", () => {
   // ── 10  Stakeholders list ────────────────────────────────────────────────
 
   test("10 — stakeholders list (project 2)", async () => {
-
     await page.setViewportSize({ width: 1440, height: 1080 });
     await page.goto("/projects/2/stakeholders");
-    await expect(
-      page.getByRole("heading", { name: messages.stakeholders.title }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: messages.stakeholders.title })).toBeVisible();
     await settle(page);
     await snap(page, "10-stakeholders-list");
   });
@@ -219,7 +206,6 @@ test.describe.serial("demo screenshots", () => {
   // ── 11  Stakeholder sheet open ───────────────────────────────────────────
 
   test("11 — stakeholder sheet open (first seeded stakeholder)", async () => {
-
     // Seeded stakeholders start at id 1; project 2 has stakeholders 1-3.
     await page.goto("/projects/2/stakeholders?id=1");
     await expect(page.getByTestId("stakeholder-form")).toBeVisible();
@@ -230,11 +216,8 @@ test.describe.serial("demo screenshots", () => {
   // ── 12  Suppliers list ───────────────────────────────────────────────────
 
   test("12 — suppliers list (project 2)", async () => {
-
     await page.goto("/projects/2/suppliers");
-    await expect(
-      page.getByRole("heading", { name: messages.suppliers.title }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: messages.suppliers.title })).toBeVisible();
     await settle(page);
     await snap(page, "12-suppliers-list");
   });
@@ -242,11 +225,8 @@ test.describe.serial("demo screenshots", () => {
   // ── 13  Objectives list ──────────────────────────────────────────────────
 
   test("13 — objectives list (project 2)", async () => {
-
     await page.goto("/projects/2/objectives");
-    await expect(
-      page.getByRole("heading", { name: messages.objectives.title }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: messages.objectives.title })).toBeVisible();
     await settle(page);
     await snap(page, "13-objectives-list");
   });
@@ -254,7 +234,6 @@ test.describe.serial("demo screenshots", () => {
   // ── 14  Questions & Answers list ─────────────────────────────────────────
 
   test("14 — questions & answers list (project 2)", async () => {
-
     await page.goto("/projects/2/questions-answers");
     await expect(
       page.getByRole("heading", { name: messages.questionsAnswers.title }),
@@ -266,11 +245,8 @@ test.describe.serial("demo screenshots", () => {
   // ── 15  Daily activities list ────────────────────────────────────────────
 
   test("15 — daily activities list (project 2)", async () => {
-
     await page.goto("/projects/2/daily-activities");
-    await expect(
-      page.getByRole("heading", { name: messages.dailyActivities.title }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: messages.dailyActivities.title })).toBeVisible();
     await settle(page);
     await snap(page, "15-daily-activities-list");
   });
@@ -278,11 +254,8 @@ test.describe.serial("demo screenshots", () => {
   // ── 16  To-do list ───────────────────────────────────────────────────────
 
   test("16 — to-do list (project 2)", async () => {
-
     await page.goto("/projects/2/todos");
-    await expect(
-      page.getByRole("heading", { name: messages.todoItems.title }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: messages.todoItems.title })).toBeVisible();
     await settle(page);
     await snap(page, "16-todos-list");
   });
@@ -290,7 +263,6 @@ test.describe.serial("demo screenshots", () => {
   // ── 17  Dark mode — project charter ─────────────────────────────────────
 
   test("17 — project charter in dark mode", async () => {
-
     await page.setViewportSize({ width: 1440, height: 1080 });
     await page.goto("/projects/2");
     await expect(page.getByTestId("project-form")).toBeVisible();
@@ -304,7 +276,6 @@ test.describe.serial("demo screenshots", () => {
   // ── 18  Dark mode — Gantt chart ──────────────────────────────────────────
 
   test("18 — Gantt chart in dark mode", async () => {
-
     await page.goto("/projects/2/deliverables/gantt");
     await expect(page.getByTestId("gantt-chart")).toBeVisible();
     await page.evaluate(() => {
@@ -317,7 +288,6 @@ test.describe.serial("demo screenshots", () => {
   // ── 19  New deliverable sheet open ───────────────────────────────────────
 
   test("19 — new deliverable form (?d=new)", async () => {
-
     await page.setViewportSize({ width: 1440, height: 1080 });
     await page.goto("/projects/2/deliverables?d=new");
     await expect(
@@ -330,11 +300,8 @@ test.describe.serial("demo screenshots", () => {
   // ── 20  New project form ─────────────────────────────────────────────────
 
   test("20 — new project form", async () => {
-
     await page.goto("/projects/new");
-    await expect(
-      page.getByLabel(messages.projects.name),
-    ).toBeVisible();
+    await expect(page.getByLabel(messages.projects.name)).toBeVisible();
     await settle(page);
     await snap(page, "20-new-project-form");
   });

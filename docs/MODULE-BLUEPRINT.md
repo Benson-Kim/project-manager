@@ -67,8 +67,8 @@ src/modules/<module>/components/<entity>-form.tsx
 src/app/(app)/<module>/page.tsx
 src/app/(app)/<module>/loading.tsx
 src/app/(app)/<module>/error.tsx
-src/modules/<module>/schemas/<entity>.test.ts
-src/modules/<module>/repository/<entity>.test.ts
+src/modules/<module>/tests/<entity>-form.test.ts
+src/modules/<module>/tests/<entity>.test.ts
 e2e/<module>.spec.ts
 ```
 

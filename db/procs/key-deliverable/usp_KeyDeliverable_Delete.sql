@@ -21,7 +21,7 @@ BEGIN
 
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Manager', @AllowProjectless = 0;
+         @MinLevel = N'Manager', @Permission = N'key-deliverables:delete', @AllowProjectless = 0;
 
     IF @CurrentVer <> @RowVer
         THROW 50002, N'CONFLICT:KeyDeliverable was modified by someone else', 1;

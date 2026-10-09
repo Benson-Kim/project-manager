@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
+import { closeAlarmToast } from "./support/alarms";
+import { expectListed } from "./support/datasheet";
 
 /**
  * To-do items module (#20) — project-scoped route /projects/2/todos.
@@ -26,7 +28,7 @@ test("create todo item happy path — appears in the list", async ({ page }) => 
   await expect(form).toHaveCount(0); // sheet closed
 
   await page.goto(`/projects/2/todos?q=${encodeURIComponent(title)}`);
-  await expect(page.getByText(title).first()).toBeVisible();
+  await expectListed(page, title);
 });
 
 test("validation failure — empty todoItem shows inline error", async ({ page }) => {
@@ -54,11 +56,15 @@ test("alert section — configure and save an alert on an existing todo", async 
   await page.goto("/projects/2/todos?id=15");
   const form = page.getByTestId("todo-item-form");
   await expect(form).toBeVisible();
+  await closeAlarmToast(page);
   // Open alert section if not already open.
   const configureBtn = page.getByRole("button", { name: messages.todoItems.configureAlert });
   if (await configureBtn.isVisible()) await configureBtn.click();
   const alertForm = page.getByTestId("todo-alert-form");
   await expect(alertForm).toBeVisible();
+  // An active alert needs a date (it could never become due without one); far ahead, so it
+  // never rings during the suite.
+  await alertForm.getByLabel(messages.todoItems.alertDay).fill("2030-01-15");
   await alertForm.getByLabel(messages.todoItems.alertTime).fill("09:00");
   await page.getByTestId("todo-alert-save").click();
   await expect(
@@ -71,7 +77,7 @@ test("status filter narrows the list", async ({ page }) => {
   await expect(page.getByRole("heading", { name: messages.todoItems.title })).toBeVisible();
   await expect(page.getByTestId("filter-status")).toHaveValue("Cancelled");
   // Seeded items 11 and 12 on project 2 are Cancelled — at least one should be visible.
-  await expect(page.getByText("Relink new").first()).toBeVisible();
+  await expectListed(page, "Relink new");
 });
 
 test("priority filter narrows the list", async ({ page }) => {

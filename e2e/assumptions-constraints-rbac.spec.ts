@@ -30,7 +30,5 @@ test("viewer sheet is read-only — no save or delete, fields disabled", async (
   await expect(form).toBeVisible();
   await expect(page.getByTestId("assumption-constraint-save")).toHaveCount(0);
   await expect(page.getByTestId("assumption-constraint-delete")).toHaveCount(0);
-  await expect(
-    form.getByLabel(messages.assumptionsConstraints.description),
-  ).toBeDisabled();
+  await expect(form.getByLabel(messages.assumptionsConstraints.description)).toBeDisabled();
 });

@@ -39,7 +39,10 @@ async function dispatchOne(
     // skips this subscription.  Best-effort: a failure here must not
     // suppress the sent count or prevent other deliveries.
     await recordAlertSubscriptionDelivery(delivery.AlertSubscriptionId).catch((err) => {
-      console.warn("[alerts] recordDelivery failed:", { alertSubscriptionId: delivery.AlertSubscriptionId, err });
+      console.warn("[alerts] recordDelivery failed:", {
+        alertSubscriptionId: delivery.AlertSubscriptionId,
+        err,
+      });
     });
     return { sent: 1, failed: 0, retired: 0 };
   } catch (error) {
@@ -47,10 +50,14 @@ async function dispatchOne(
       await deactivateAlertSubscription(delivery.AlertSubscriptionId);
       return { sent: 0, failed: 0, retired: 1 };
     }
-    const statusCode = error && typeof error === "object" && "statusCode" in error
-      ? (error as { statusCode?: unknown }).statusCode
-      : "unknown";
-    console.error("[alerts] push send failed:", { statusCode, alertSubscriptionId: delivery.AlertSubscriptionId });
+    const statusCode =
+      error && typeof error === "object" && "statusCode" in error
+        ? (error as { statusCode?: unknown }).statusCode
+        : "unknown";
+    console.error("[alerts] push send failed:", {
+      statusCode,
+      alertSubscriptionId: delivery.AlertSubscriptionId,
+    });
     return { sent: 0, failed: 1, retired: 0 };
   }
 }
@@ -62,7 +69,8 @@ async function dispatchOne(
  */
 export async function POST(request: Request): Promise<NextResponse> {
   const config = getPushConfig();
-  if (!config) return NextResponse.json({ error: "Push dispatch is not configured" }, { status: 503 });
+  if (!config)
+    return NextResponse.json({ error: "Push dispatch is not configured" }, { status: 503 });
   if (!hasDispatchToken(request, config.dispatchToken)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

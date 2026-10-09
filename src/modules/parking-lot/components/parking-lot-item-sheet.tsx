@@ -16,7 +16,10 @@ import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
 import type { ParkingLotItemRow } from "../schemas/parking-lot-item";
-import { parkingLotItemFormSchema, updateParkingLotItemFormSchema } from "../schemas/parking-lot-item-form";
+import {
+  parkingLotItemFormSchema,
+  updateParkingLotItemFormSchema,
+} from "../schemas/parking-lot-item-form";
 import {
   createParkingLotItemAction,
   deleteParkingLotItemAction,
@@ -180,11 +183,7 @@ export function ParkingLotItemSheet({
           <ErrorSummary message={summary} />
           {conflict ? (
             <div>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => window.location.reload()}
-              >
+              <Button type="button" variant="secondary" onClick={() => window.location.reload()}>
                 {messages.parkingLot.reload}
               </Button>
             </div>
@@ -215,11 +214,7 @@ export function ParkingLotItemSheet({
               name="parkingLotItem"
               errors={form.errors.parkingLotItem}
             >
-              <Textarea
-                name="parkingLotItem"
-                rows={4}
-                defaultValue={item?.ParkingLotItem ?? ""}
-              />
+              <Textarea name="parkingLotItem" rows={4} defaultValue={item?.ParkingLotItem ?? ""} />
             </Field>
 
             <Field
@@ -247,15 +242,8 @@ export function ParkingLotItemSheet({
               />
             </Field>
 
-            <Field
-              label={messages.parkingLot.owner}
-              name="owner"
-              errors={form.errors.owner}
-            >
-              <Input
-                name="owner"
-                defaultValue={item?.Owner ?? ""}
-              />
+            <Field label={messages.parkingLot.owner} name="owner" errors={form.errors.owner}>
+              <Input name="owner" defaultValue={item?.Owner ?? ""} />
             </Field>
 
             <Switch

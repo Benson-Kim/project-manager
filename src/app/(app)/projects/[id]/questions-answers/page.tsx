@@ -3,9 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
-import { flattenSearchParams, parseListParams } from "@/lib/list-params";
+import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
-import { getViewPreference } from "@/lib/repositories/view-preference";
+import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNotFound, orNull } from "@/lib/row-access";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { QuestionAnswerSheet } from "@/modules/questions-answers/components/question-answer-sheet";
@@ -16,6 +16,9 @@ import {
 } from "@/modules/questions-answers/repository/question-answers";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { parseProjectId } from "../project-id";
+import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
+import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
+import { QUESTION_ANSWER_LISTS } from "@/modules/questions-answers/schemas/question-answer";
 
 /** Allowed sort columns for Q&A — prevents arbitrary strings reaching the proc. */
 const QA_SORT_COLUMNS = new Set(["Question", "Answer", "Category", "Priority", "CreatedAtUtc"]);
@@ -64,11 +67,12 @@ export default async function QuestionsAnswersPage({
     priority: flat.priority?.trim() || null,
   };
 
-  const [rows, preferredView, selectedRaw, allows] = await Promise.all([
+  const [rows, preference, selectedRaw, allows, lookup] = await Promise.all([
     orNotFound(listQuestionAnswers(effectiveParams, session.userId, projectId, filters)),
-    getViewPreference(session.userId, "questions-answers").catch(() => null),
+    getListPreference(session.userId, "questions-answers").catch(() => null),
     selectedId ? orNull(getQuestionAnswerById(selectedId, session.userId)) : null,
     getProjectPermissions(projectId, session.userId),
+    loadLookupLists(QUESTION_ANSWER_LISTS, session),
   ]);
 
   // Cross-project leak guard: deep links to another project's Q&A yield not-found.
@@ -96,23 +100,28 @@ export default async function QuestionsAnswersPage({
         title={messages.questionsAnswers.title}
         action={canCreate ? newQuestionLink : undefined}
       />
-      <div className="mt-3 flex flex-col flex-1">
-        <QuestionsAnswersView
-          rows={rows}
-          totalCount={totalCount}
-          page={effectiveParams.page}
-          initialView={effectiveParams.view ?? preferredView ?? "grid"}
-          filtersActive={filtersActive}
-          newQuestionAction={canCreate ? newQuestionLink : undefined}
+      <LookupListsScope {...lookup}>
+        <div className="mt-3 flex flex-col flex-1">
+          <QuestionsAnswersView
+            projectId={projectId}
+            canCreate={canCreate}
+            rows={rows}
+            totalCount={totalCount}
+            page={effectiveParams.page}
+            initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}
+            layout={preference?.layout}
+            filtersActive={filtersActive}
+            newQuestionAction={canCreate ? newQuestionLink : undefined}
+          />
+        </div>
+        <QuestionAnswerSheet
+          questionAnswer={selected}
+          isNew={isNew && canCreate}
+          projectId={projectId}
+          canEdit={canEdit}
+          canDelete={canDelete}
         />
-      </div>
-      <QuestionAnswerSheet
-        questionAnswer={selected}
-        isNew={isNew && canCreate}
-        projectId={projectId}
-        canEdit={canEdit}
-        canDelete={canDelete}
-      />
+      </LookupListsScope>
     </>
   );
 }

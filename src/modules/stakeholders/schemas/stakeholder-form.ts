@@ -1,6 +1,8 @@
 import { z } from "zod";
+import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
+import { listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
-import { COMMUNICATION_PREFERENCES, ENGAGEMENT_LEVELS } from "./stakeholder";
+import type { StakeholderRow } from "./stakeholder";
 
 /**
  * Stakeholder form contract ): ONE schema shared by the client sheet
@@ -22,14 +24,6 @@ const memo = z
   .trim()
   .optional()
   .transform((v) => (v ? v : null));
-
-const vocab = <T extends readonly [string, ...string[]]>(values: T) =>
-  z
-    .string()
-    .trim()
-    .optional()
-    .refine((v) => !v || (values as readonly string[]).includes(v), messages.errors.VALIDATION)
-    .transform((v) => (v ? (v as T[number]) : null));
 
 export const stakeholderFormSchema = z.object({
   projectId: z.coerce.number().int().positive(messages.stakeholders.projectRequired),
@@ -53,8 +47,9 @@ export const stakeholderFormSchema = z.object({
     .transform((v) => (v ? v : null)),
   physicalLocation: optionalText(255),
   orgTitle: optionalText(255),
-  communicationPreference: vocab(COMMUNICATION_PREFERENCES),
-  engagementLevel: vocab(ENGAGEMENT_LEVELS),
+  /** Managed lists (ADR-0022): the proc checks the value against the live options. */
+  communicationPreference: listChoice,
+  engagementLevel: listChoice,
   additionalNotes: memo,
 });
 
@@ -66,3 +61,26 @@ export const updateStakeholderFormSchema = stakeholderFormSchema.extend({
 });
 
 export type UpdateStakeholderFormValues = z.output<typeof updateStakeholderFormSchema>;
+
+/** A stakeholder as the update form's values — what a datasheet cell edit sends (ADR-0023). */
+export function stakeholderFormValues(row: StakeholderRow): FormValues {
+  return {
+    stakeholderId: String(row.StakeholderId),
+    rowVer: String(row.RowVer),
+    projectId: String(row.ProjectId),
+    firstName: row.FirstName,
+    lastName: formText(row.LastName),
+    departmentOrganization: formText(row.DepartmentOrganization),
+    projectRole: formText(row.ProjectRole),
+    roleDescription: formText(row.RoleDescription),
+    phoneNumber: formText(row.PhoneNumber),
+    phoneExt: formText(row.PhoneExt),
+    mobile: formText(row.Mobile),
+    emailAddress: formText(row.EmailAddress),
+    physicalLocation: formText(row.PhysicalLocation),
+    orgTitle: formText(row.OrgTitle),
+    communicationPreference: formText(row.CommunicationPreference),
+    engagementLevel: formText(row.EngagementLevel),
+    additionalNotes: formText(row.AdditionalNotes),
+  };
+}

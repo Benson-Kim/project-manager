@@ -2,9 +2,6 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-// ASSUMPTION_CONSTRAINT_TYPE_OPTIONS re-imported for mapped <option> rendering
-// (Open/Closed: adding a new type only requires updating the constants + messages).
-
 import { useAnnouncer } from "@/components/ui/announcer";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -15,12 +12,10 @@ import { Select, Switch, Textarea } from "@/components/ui/form/inputs";
 import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
+import { ListOptions } from "@/components/ui/lookup-lists";
 import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
-import {
-  ASSUMPTION_CONSTRAINT_TYPE_OPTIONS,
-  type AssumptionConstraintRow,
-} from "../schemas/assumption-constraint";
+import type { AssumptionConstraintRow } from "../schemas/assumption-constraint";
 import {
   assumptionConstraintFormSchema,
   updateAssumptionConstraintFormSchema,
@@ -183,11 +178,7 @@ export function AssumptionConstraintSheet({
           <ErrorSummary message={summary} />
           {conflict ? (
             <div>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => window.location.reload()}
-              >
+              <Button type="button" variant="secondary" onClick={() => window.location.reload()}>
                 {messages.assumptionsConstraints.reload}
               </Button>
             </div>
@@ -216,11 +207,7 @@ export function AssumptionConstraintSheet({
               name="description"
               errors={form.errors.description}
             >
-              <Textarea
-                name="description"
-                rows={4}
-                defaultValue={item?.Description ?? ""}
-              />
+              <Textarea name="description" rows={4} defaultValue={item?.Description ?? ""} />
             </Field>
 
             <Field
@@ -230,13 +217,7 @@ export function AssumptionConstraintSheet({
             >
               <Select name="type" defaultValue={item?.Type ?? ""}>
                 <option value="">{messages.assumptionsConstraints.typeNone}</option>
-                {ASSUMPTION_CONSTRAINT_TYPE_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt === "Assumption"
-                      ? messages.assumptionsConstraints.typeAssumption
-                      : messages.assumptionsConstraints.typeConstraint}
-                  </option>
-                ))}
+                <ListOptions list="assumption-constraint.type" current={item?.Type} />
               </Select>
             </Field>
 
@@ -247,9 +228,7 @@ export function AssumptionConstraintSheet({
             >
               <Select name="impact" defaultValue={item?.Impact ?? ""}>
                 <option value="">{messages.assumptionsConstraints.impactNone}</option>
-                <option value="High">{messages.assumptionsConstraints.impactHigh}</option>
-                <option value="Medium">{messages.assumptionsConstraints.impactMedium}</option>
-                <option value="Low">{messages.assumptionsConstraints.impactLow}</option>
+                <ListOptions list="assumption-constraint.impact" current={item?.Impact} />
               </Select>
             </Field>
 
@@ -258,11 +237,7 @@ export function AssumptionConstraintSheet({
               name="mitigationPlan"
               errors={form.errors.mitigationPlan}
             >
-              <Textarea
-                name="mitigationPlan"
-                rows={3}
-                defaultValue={item?.MitigationPlan ?? ""}
-              />
+              <Textarea name="mitigationPlan" rows={3} defaultValue={item?.MitigationPlan ?? ""} />
             </Field>
 
             <Switch
@@ -274,11 +249,7 @@ export function AssumptionConstraintSheet({
 
           <div className="flex flex-wrap items-center gap-2 px-4 py-2">
             {canEdit ? (
-              <Button
-                type="submit"
-                pending={pending}
-                data-testid="assumption-constraint-save"
-              >
+              <Button type="submit" pending={pending} data-testid="assumption-constraint-save">
                 {messages.actions.save}
               </Button>
             ) : null}

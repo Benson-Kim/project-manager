@@ -71,7 +71,7 @@ foundation module.
 
 - **Stored procedures only** — no inline SQL anywhere. Enforced by ESLint
   (`no-restricted-syntax` on `.query()`/`.batch()`) and a guardrail unit test
-  (`src/test/no-inline-sql.test.ts`) that fails CI on raw SQL in `src/`.
+  (`src/tests/no-inline-sql.test.ts`) that fails CI on raw SQL in `src/`.
 - zod validation at every boundary (env, server actions, repository inputs,
   proc outputs).
 - React output encoding; rich-text (notes) sanitised server-side before

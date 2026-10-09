@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop, 'feature/**' ]
+    branches: [main, develop, "feature/**"]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
   workflow_dispatch:
 
 jobs:
@@ -18,8 +18,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci --prefer-offline
@@ -40,8 +40,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci --prefer-offline
@@ -59,8 +59,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci --prefer-offline
@@ -78,8 +78,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci --prefer-offline
@@ -115,8 +115,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
 
       - name: Install sqlcmd
         run: |
@@ -151,7 +151,7 @@ jobs:
           sh scripts/db-apply.sh
           echo "== Second Run (Idempotence Check) =="
           sh scripts/db-apply.sh
-          sqlcmd -S tcp:localhost,1433 -U sa -P "Ci-Ephemeral!Passw0rd1" -C -b -I -i db/verify/seed_counts.sql
+          sqlcmd -S tcp:localhost,1433 -U sa -P "Ci-Ephemeral!Passw0rd1" -C -b -I -v E2E_SEED=0 -i db/verify/seed_counts.sql
 
   e2e-tests:
     name: Playwright E2E Smoke Tests
@@ -174,8 +174,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
 
       - name: Install sqlcmd
         run: |
@@ -223,6 +223,9 @@ jobs:
           DB_NAME: ProjectManager
           AUTH_SECRET: "e2e-throwaway-auth-secret-0123456789abcdefghijklmnopqrstuvwxyz"
           TRUST_SERVER_CERT: "true"
+          # The seeded e2e users' password (same throwaway value as the seed step); auth.setup.ts,
+          # viewer.setup.ts and auth.spec.ts sign in with it.
+          E2E_USER_PASSWORD: "E2e-Throwaway-User-2026"
         run: npm run e2e
 
       - name: Upload Test Results Artifacts
@@ -244,7 +247,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install dependencies
         run: |

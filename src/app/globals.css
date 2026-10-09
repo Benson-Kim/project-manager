@@ -33,6 +33,24 @@
   --color-warning-soft: var(--warning-soft);
   --color-focus: var(--focus);
 
+  /* Option colours (dropdown values, migration 020): a soft fill and an ink that
+     reads on it (>= 4.5:1 in both themes). Components use them via
+     src/components/ui/tones.ts only. */
+  --color-tone-red-soft: var(--tone-red-soft);
+  --color-tone-red-ink: var(--tone-red-ink);
+  --color-tone-orange-soft: var(--tone-orange-soft);
+  --color-tone-orange-ink: var(--tone-orange-ink);
+  --color-tone-yellow-soft: var(--tone-yellow-soft);
+  --color-tone-yellow-ink: var(--tone-yellow-ink);
+  --color-tone-green-soft: var(--tone-green-soft);
+  --color-tone-green-ink: var(--tone-green-ink);
+  --color-tone-blue-soft: var(--tone-blue-soft);
+  --color-tone-blue-ink: var(--tone-blue-ink);
+  --color-tone-purple-soft: var(--tone-purple-soft);
+  --color-tone-purple-ink: var(--tone-purple-ink);
+  --color-tone-gray-soft: var(--tone-gray-soft);
+  --color-tone-gray-ink: var(--tone-gray-ink);
+
   /* Radius */
   --radius-sm: 0.375rem;
   --radius-md: 0.625rem;
@@ -75,6 +93,20 @@
   --warning: #a16207;
   --warning-soft: #fef9c3;
   --focus: #102542;
+  --tone-red-soft: #fee2e2;
+  --tone-red-ink: #991b1b;
+  --tone-orange-soft: #ffedd5;
+  --tone-orange-ink: #9a3412;
+  --tone-yellow-soft: #fef9c3;
+  --tone-yellow-ink: #854d0e;
+  --tone-green-soft: #dcfce7;
+  --tone-green-ink: #166534;
+  --tone-blue-soft: #dbeafe;
+  --tone-blue-ink: #1e40af;
+  --tone-purple-soft: #f3e8ff;
+  --tone-purple-ink: #6b21a8;
+  --tone-gray-soft: #e2e8f0;
+  --tone-gray-ink: #334155;
   color-scheme: light;
 }
 
@@ -99,6 +131,20 @@
   --warning: #facc15;
   --warning-soft: #2d2306;
   --focus: #ebf2fa;
+  --tone-red-soft: #3b1214;
+  --tone-red-ink: #fca5a5;
+  --tone-orange-soft: #3a1d0a;
+  --tone-orange-ink: #fdba74;
+  --tone-yellow-soft: #2d2306;
+  --tone-yellow-ink: #fde047;
+  --tone-green-soft: #0d2818;
+  --tone-green-ink: #86efac;
+  --tone-blue-soft: #0f2347;
+  --tone-blue-ink: #93c5fd;
+  --tone-purple-soft: #2a1446;
+  --tone-purple-ink: #d8b4fe;
+  --tone-gray-soft: #1c2536;
+  --tone-gray-ink: #cbd5e1;
   color-scheme: dark;
 }
 

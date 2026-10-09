@@ -13,7 +13,7 @@ BEGIN
     SET XACT_ABORT ON;
 
     EXEC dbo.usp_TodoAlert_AssertAccess
-         @TodoAlertId = @TodoAlertId, @ActorUserId = @ActorUserId, @MinLevel = N'Manager';
+         @TodoAlertId = @TodoAlertId, @ActorUserId = @ActorUserId, @MinLevel = N'Manager', @Permission = N'todo-alerts:delete';
 
     DECLARE @CurrentVer BIGINT =
         (SELECT CAST(RowVer AS BIGINT) FROM app.TodoAlert WHERE TodoAlertId = @TodoAlertId AND IsDeleted = 0);

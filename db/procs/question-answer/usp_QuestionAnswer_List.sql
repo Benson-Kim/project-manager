@@ -5,7 +5,12 @@
 -- Row-level access: a supplied @ProjectId must be accessible (dbo.usp_Project_AssertAccess ->
 --   FORBIDDEN_ROW 50003); cross-project reads (@ProjectId NULL) return only rows of projects the
 --   actor is assigned to (Admin sees all). LIKE wildcards in @Search are escaped.
+-- ActorAccess (ADR-0023): the actor's access level on each row's project (dbo.ufn_AccessLevel_Resolve);
+--   the datasheet uses it to decide per row whether cells are editable. The cross-project filter
+--   reads the same rule: a row is listed when the actor has a level on it.
 -- Entity app.QuestionAnswer (source: tblInterviewQuestionsAnswers). Module: questions-answers (#11).
+-- ActorGrants / ActorRevokes (ADR-0024): the actor's per-person overrides of 'questions-answers' in the
+--   row's project (dbo.ufn_Permission_Overrides), so the datasheet gates cells as the procs do.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_QuestionAnswer_List
@@ -47,13 +52,16 @@ BEGIN
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer,
+           acc.AccessLevel AS ActorAccess,
+           ov.Grants AS ActorGrants,
+           ov.Revokes AS ActorRevokes,
            TotalCount = COUNT(*) OVER ()
     FROM app.QuestionAnswer
+    CROSS APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, QuestionAnswer.ProjectId, 0) acc
+    OUTER APPLY dbo.ufn_Permission_Overrides(@ActorRole, @ActorUserId, QuestionAnswer.ProjectId, N'questions-answers') ov
     WHERE IsDeleted = 0
       AND (@ProjectId IS NULL OR ProjectId = @ProjectId)
-      AND (@ProjectId IS NOT NULL OR ISNULL(@ActorRole, N'') = N'Admin'
-           OR EXISTS (SELECT 1 FROM app.ProjectAssignee pa
-                      WHERE pa.ProjectId = QuestionAnswer.ProjectId AND pa.UserId = @ActorUserId AND pa.IsDeleted = 0))
+      AND (@ProjectId IS NOT NULL OR acc.AccessLevel IS NOT NULL)
       AND (@Category  IS NULL OR Category  = @Category)
       AND (@Priority  IS NULL OR Priority  = @Priority)
       AND (

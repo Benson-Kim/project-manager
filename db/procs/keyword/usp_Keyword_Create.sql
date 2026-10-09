@@ -16,7 +16,7 @@ BEGIN
 
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Manager', @AllowProjectless = 1;
+         @MinLevel = N'Manager', @Permission = N'keywords:create', @AllowProjectless = 1;
 
     IF @Keyword IS NULL OR LTRIM(RTRIM(@Keyword)) = N''
         THROW 50004, N'VALIDATION:Keyword is required', 1;

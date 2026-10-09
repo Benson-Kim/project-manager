@@ -20,7 +20,7 @@ BEGIN
 
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Manager', @AllowProjectless = 0;
+         @MinLevel = N'Manager', @Permission = N'assumptions-constraints:delete', @AllowProjectless = 0;
 
     BEGIN TRAN;
 

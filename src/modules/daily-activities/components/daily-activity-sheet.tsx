@@ -11,6 +11,7 @@ import { DatePicker, Input, Select, Textarea } from "@/components/ui/form/inputs
 import { SectionHeading } from "@/components/ui/form/section-heading";
 import { useSheetFormActions } from "@/components/ui/form/use-sheet-form-actions";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
+import { ListOptions } from "@/components/ui/lookup-lists";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { useToast } from "@/components/ui/toast";
 import { toDateInput } from "@/lib/format";
@@ -20,7 +21,7 @@ import {
   deleteDailyActivityAction,
   updateDailyActivityAction,
 } from "../actions";
-import { CONTACT_METHODS, TASK_TYPES, type ActivityStatus, type DailyActivityRow } from "../schemas/daily-activity";
+import type { DailyActivityRow } from "../schemas/daily-activity";
 import {
   dailyActivityFormSchema,
   updateDailyActivityFormSchema,
@@ -36,7 +37,6 @@ export function DailyActivitySheet({
   activity,
   isNew,
   projectId,
-  statuses,
   canEdit,
   canDelete,
   canCreateTodo,
@@ -44,7 +44,6 @@ export function DailyActivitySheet({
   activity: DailyActivityRow | null;
   isNew: boolean;
   projectId: number | null;
-  statuses: ActivityStatus[];
   canEdit: boolean;
   canDelete: boolean;
   canCreateTodo?: boolean;
@@ -130,11 +129,7 @@ export function DailyActivitySheet({
             <SectionHeading id="activity-section-heading">
               {messages.dailyActivities.activitySection}
             </SectionHeading>
-            <Field
-              label={messages.dailyActivities.task}
-              name="task"
-              errors={form.errors.task}
-            >
+            <Field label={messages.dailyActivities.task} name="task" errors={form.errors.task}>
               <Textarea name="task" rows={3} defaultValue={activity?.Task ?? ""} />
             </Field>
             <Field
@@ -160,10 +155,7 @@ export function DailyActivitySheet({
                 name="requestDate"
                 errors={form.errors.requestDate}
               >
-                <DatePicker
-                  name="requestDate"
-                  defaultValue={toDateInput(activity?.RequestDate)}
-                />
+                <DatePicker name="requestDate" defaultValue={toDateInput(activity?.RequestDate)} />
               </Field>
               <Field
                 label={messages.dailyActivities.completeDate}
@@ -176,17 +168,21 @@ export function DailyActivitySheet({
                 />
               </Field>
             </div>
-            <Field label={messages.dailyActivities.activityStatus} name="activityStatusId" errors={form.errors.activityStatusId}>
+            <Field
+              label={messages.dailyActivities.activityStatus}
+              name="activityStatusId"
+              errors={form.errors.activityStatusId}
+            >
               <Select
                 name="activityStatusId"
                 defaultValue={activity?.ActivityStatusId ? String(activity.ActivityStatusId) : ""}
               >
                 <option value="">{messages.dailyActivities.noStatus}</option>
-                {statuses.map((s) => (
-                  <option key={s.ActivityStatusId} value={String(s.ActivityStatusId)}>
-                    {s.Name}
-                  </option>
-                ))}
+                <ListOptions
+                  list="daily-activity.status"
+                  current={activity?.ActivityStatusId}
+                  currentLabel={activity?.ActivityStatus}
+                />
               </Select>
             </Field>
           </section>
@@ -197,32 +193,43 @@ export function DailyActivitySheet({
               {messages.dailyActivities.detailsSection}
             </SectionHeading>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label={messages.dailyActivities.requester} name="requester" errors={form.errors.requester}>
+              <Field
+                label={messages.dailyActivities.requester}
+                name="requester"
+                errors={form.errors.requester}
+              >
                 <Input name="requester" defaultValue={activity?.Requester ?? ""} />
               </Field>
-              <Field label={messages.dailyActivities.assignedTo} name="assignedTo" errors={form.errors.assignedTo}>
+              <Field
+                label={messages.dailyActivities.assignedTo}
+                name="assignedTo"
+                errors={form.errors.assignedTo}
+              >
                 <Input name="assignedTo" defaultValue={activity?.AssignedTo ?? ""} />
               </Field>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label={messages.dailyActivities.contactMethod} name="contactMethod" errors={form.errors.contactMethod}>
+              <Field
+                label={messages.dailyActivities.contactMethod}
+                name="contactMethod"
+                errors={form.errors.contactMethod}
+              >
                 <Select name="contactMethod" defaultValue={activity?.ContactMethod ?? ""}>
                   <option value="">{messages.dailyActivities.noStatus}</option>
-                  {CONTACT_METHODS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
+                  <ListOptions
+                    list="daily-activity.contact-method"
+                    current={activity?.ContactMethod}
+                  />
                 </Select>
               </Field>
-              <Field label={messages.dailyActivities.taskType} name="taskType" errors={form.errors.taskType}>
+              <Field
+                label={messages.dailyActivities.taskType}
+                name="taskType"
+                errors={form.errors.taskType}
+              >
                 <Select name="taskType" defaultValue={activity?.TaskType ?? ""}>
                   <option value="">{messages.dailyActivities.allTaskTypes}</option>
-                  {TASK_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
+                  <ListOptions list="daily-activity.task-type" current={activity?.TaskType} />
                 </Select>
               </Field>
             </div>
@@ -245,7 +252,9 @@ export function DailyActivitySheet({
                   min={0}
                   max={9999}
                   aria-label={`${messages.dailyActivities.timeSpent} (${messages.dailyActivities.timeSpentSuffix})`}
-                  defaultValue={activity?.TimeSpent !== null ? String(activity?.TimeSpent ?? "") : ""}
+                  defaultValue={
+                    activity?.TimeSpent !== null ? String(activity?.TimeSpent ?? "") : ""
+                  }
                 />
               </Field>
               <Field
@@ -263,7 +272,11 @@ export function DailyActivitySheet({
                 />
               </Field>
             </div>
-            <Field label={messages.dailyActivities.comments} name="comments" errors={form.errors.comments}>
+            <Field
+              label={messages.dailyActivities.comments}
+              name="comments"
+              errors={form.errors.comments}
+            >
               <Textarea name="comments" rows={3} defaultValue={activity?.Comments ?? ""} />
             </Field>
           </section>
@@ -295,7 +308,9 @@ export function DailyActivitySheet({
       {activity && canCreateTodo ? (
         <div className="flex flex-col gap-2 border-t border-line pt-4 px-4">
           {buildSummary ? (
-            <p className="text-sm text-red-600" role="alert">{buildSummary}</p>
+            <p className="text-sm text-red-600" role="alert">
+              {buildSummary}
+            </p>
           ) : null}
           <Button
             type="button"
