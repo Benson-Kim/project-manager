@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "Mobile-first rebuild of the Access project-management system (Next.js + SQL Server, stored-procedure-only data access)",
+  "author": "Burton",
   "scripts": {
     "dev": "next dev",
     "setup": "node scripts/setup.mjs",
@@ -11,10 +12,16 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p electron/tsconfig.json",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "electron:fetch-sql": "node scripts/desktop/fetch-sql-express.mjs",
+    "electron:dev": "node scripts/desktop/build.mjs --stage-only --skip-next && electron build/desktop-app",
+    "electron:build": "node scripts/desktop/build.mjs",
+    "electron:build:dir": "node scripts/desktop/build.mjs --dir",
+    "electron:test-db": "node scripts/desktop/test-db.mjs",
+    "desktop:force-update": "node scripts/desktop/release.mjs force"
   },
   "dependencies": {
     "argon2": "^0.44.0",
@@ -42,7 +49,11 @@
     "typescript": "^6.0.0",
     "vitest": "^5.0.0",
     "@axe-core/playwright": "^4.11.2",
-    "@vitest/coverage-v8": "^5.0.0"
+    "@vitest/coverage-v8": "^5.0.0",
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
+    "electron-updater": "^6.8.9",
+    "esbuild": "^0.28.2"
   },
   "engines": {
     "node": ">=22"

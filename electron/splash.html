@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Manager</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 480px;
+        height: 360px;
+        overflow: hidden;
+        font-family:
+          "Segoe UI",
+          system-ui,
+          -apple-system,
+          sans-serif;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+        color: #e2e8f0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        user-select: none;
+        -webkit-app-region: drag;
+      }
+
+      .logo-ring {
+        width: 132px;
+        height: 132px;
+        border-radius: 50%;
+        border: 3px solid transparent;
+        border-top-color: #38bdf8;
+        border-right-color: #818cf8;
+        animation: spin 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 28px;
+      }
+
+      .logo {
+        width: 84px;
+        height: 84px;
+        animation: counter-spin 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      }
+
+      /* The ring spins; the logo inside it stays upright. */
+      @keyframes counter-spin {
+        to {
+          transform: rotate(-360deg);
+        }
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      #status {
+        font-size: 13px;
+        color: #64748b;
+        min-height: 20px;
+        transition: opacity 0.3s ease;
+      }
+
+      .dots::after {
+        content: "";
+        animation: dots 1.5s steps(4, end) infinite;
+      }
+
+      @keyframes dots {
+        0% {
+          content: "";
+        }
+        25% {
+          content: ".";
+        }
+        50% {
+          content: "..";
+        }
+        75% {
+          content: "...";
+        }
+      }
+
+      .version {
+        position: absolute;
+        bottom: 16px;
+        font-size: 11px;
+        color: #334155;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="logo-ring">
+      <img class="logo" src="splash-logo.png" alt="Project Manager" draggable="false" />
+    </div>
+    <p id="status">Initializing<span class="dots"></span></p>
+    <p class="version">Desktop Edition</p>
+  </body>
+</html>

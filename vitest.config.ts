@@ -9,7 +9,8 @@ export default defineConfig({
   },
   test: {
     testTimeout: 15000,
-    include: ["src/**/*.test.ts"],
+    // electron/ and scripts/desktop/ hold the desktop host and its release helper.
+    include: ["src/**/*.test.ts", "electron/**/*.test.ts", "scripts/**/*.test.mjs"],
     environment: "node",
     coverage: {
       provider: "v8",
