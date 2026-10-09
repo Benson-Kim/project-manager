@@ -21,16 +21,25 @@ module as reference.
    columns!) + audit cols + `RowVer` + soft delete. Idempotent DDL.
 4. **Procs** — one file each under `db/procs/<entity>/`; `CREATE OR ALTER`; mutations
    audit in-transaction; THROW registry (ADR-0012); List proc exactly per ADR-0016.
+   Access: one `usp_Project_AssertAccess @MinLevel` call per proc (ADR-0021); write
+   checks also pass `@Permission = N'<module>:<verb>'` (ADR-0024); list procs return
+   `ActorAccess`, `ActorGrants` and `ActorRevokes` (STANDARDS §2.3). Vocabularies are
+   managed lists checked with `usp_LookupList_AssertLabel` (ADR-0022). The full
+   register-everywhere checklist is MODULE-PROMPTS §0.
 5. **Seeds** — `db/seed/NNN_<entity>.sql` from `access-database.md` §4, idempotent.
 6. **Repository** — `src/modules/<module>/repository/`: `execProc` only, zod-parse
    rows, forward list params 1:1.
 7. **Schemas** — `src/modules/<module>/schemas/`: input schemas (create/update with
-   `rowVer`), row schema, filter schema extending `listParamsSchema`.
+   `rowVer`), row schema (spreads `actorAccessFields`), filter schema extending
+   `listParamsSchema`; list-bound fields use `listChoice` / `listValue`.
 8. **Actions** — `src/modules/<module>/actions/`: one file per mutation via
    `action()` with `permission` + `revalidate`.
 9. **List page** — `src/app/(app)/<module>/page.tsx`: parse `searchParams` →
    query → `<DataView>` with your card renderer + columns (+ `loading.tsx`,
-   `error.tsx`). Add the module to the shell navigation.
+   `error.tsx`). Add the module to the shell navigation. List view is a datasheet
+   (ADR-0023): columns from the factories, the `datasheet` prop (`formCellSaver` +
+   `rowAllows`), the page wrapped in `LookupListsScope`, and the user's layout loaded
+   with `getListPreference` → `initialViewOf` + `layout`. Copy parking-lot.
 10. **Detail/edit** — Sheet (default) or the decided full route; forms per ADR-0009;
     `ConfirmDialog` for deletes; copy in `messages.ts`.
 11. **Tests** — Vitest: schemas, repository (mock `execProc`), action paths.

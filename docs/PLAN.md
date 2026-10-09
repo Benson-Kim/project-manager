@@ -252,6 +252,14 @@ and to-dos outside any project). Enforced in three layers:
 The UI shows only what the level allows (`canInProject`). All mutations are
 audit-logged.
 
+**Per-person overrides** ([ADR-0024](adr/ADR-0024-per-person-permission-overrides.md)): on the project team, a Manager (or an
+Admin) can grant or revoke create, update and delete per section for one member, through the
+cog next to that person. So a Contributor can be allowed to delete parking-lot items, or a
+Viewer allowed to add keywords. Reading always follows the level, and the charter and team
+are never overridden. Nobody can change their own overrides. The procs enforce it
+(`usp_Permission_Require`, `@Permission` on every write check), and pages and datasheet rows
+show it (`allowsWithOverrides`, `rowAllows`).
+
 | Capability | Admin | Manager | Contributor | Viewer |
 |---|---|---|---|---|
 | View the project's modules & reports | ✔ | ✔ | ✔ | ✔ |
