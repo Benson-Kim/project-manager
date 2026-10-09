@@ -84,6 +84,14 @@ independent sessions stay navigable and uniform.
   migration is immutable — fix forward with a new one.
 - Seeds: `db/seed/NNN_entity.sql`, idempotent (`MERGE` or `IF NOT EXISTS`), data
   taken ONLY from `docs/source/analysis/access-database.md` §4.
+- Inline table-valued functions shared by procs: `ufn_<Entity>_<Noun>` (e.g.
+  `ufn_AccessLevel_Resolve`, `ufn_Permission_Overrides`), one per file in the folder of
+  the entity they serve. `scripts/db-apply.sh` applies files in sorted path order, so a
+  function's folder must sort before its callers' folders (hence `access-level/`).
+- Vocabularies are managed dropdown lists ([ADR-0022](adr/ADR-0022-managed-lookup-lists.md)): keys `<entity>.<field>`
+  (`project.status`), values in `app.LookupOption`, never CHECK constraints or code
+  enums. Discriminators the code branches on (to-do `ProjectOrActivity`, alert
+  `RepeatUnit`) stay CHECKs.
 
 ### 2.2 Standard entity table shape
 
@@ -122,6 +130,11 @@ Exact signature and behaviour per [ADR-0016](adr/ADR-0016-list-proc-contract.md)
 (never dynamic SQL); `IsDeleted = 0` always. Every whitelisted sort column is backed by
 an index for the common path (usually `(ProjectId, IsDeleted) INCLUDE (…)`).
 
+List procs that feed a datasheet also return, per row, `ActorAccess` (the actor's
+level on the row's project, [ADR-0023](adr/ADR-0023-dataview-datasheet-mode.md)) and `ActorGrants` / `ActorRevokes` (the
+actor's per-person overrides for the module, [ADR-0024](adr/ADR-0024-per-person-permission-overrides.md)). Cross-project lists also
+return `ProjectName` and take `@WithoutProject`.
+
 ### 2.4 Mutations, transactions, audit
 
 - Mutation procs take `@ActorUserId INT` (required), write the domain change AND the
@@ -139,7 +152,7 @@ an index for the common path (usually `(ProjectId, IsDeleted) INCLUDE (…)`).
 Repositories MUST zod-parse every recordset row (`rowSchema.parse(r)`) so DB drift
 fails loudly at the boundary, and MUST expose plain typed functions —
 no classes, no caching. Example: `src/modules/*/repository/`, pattern in
-`src/lib/repositories/activity-status.ts`.
+`src/modules/lookup-lists/repository/lookup-lists.ts`.
 
 ---
 
@@ -216,6 +229,10 @@ instructions — anywhere. Clarity comes from: visible labels, sensible defaults
 logical grouping, empty states that state the one next action, and immediate
 validation feedback. If a screen needs explanation, redesign the screen.
 
+One documented exception, requested by the client ([ADR-0023](adr/ADR-0023-dataview-datasheet-mode.md)): the datasheet's empty
+new-entry cells show ghost placeholders ("[New project name…]", from
+`messages.<module>.placeholders`). Every cell still has its own accessible name.
+
 ### 5.2 Design tokens
 
 All visual values come from `@theme` tokens in `src/app/globals.css`: semantic colours
@@ -274,8 +291,9 @@ say what happens.
 
 Every list module MUST render through the shared `DataView`:
 
-- Grid (cards) + list (table/rows) arrangements; toggle persisted per user per module
-  (`usp_ViewPreference_Get/Set`, cookie fallback); cards are the mobile default.
+- Grid (cards) + list arrangements; the choice is persisted per user per module
+  (`usp_ViewPreference_Get/Set`, cookie fallback). List view is the default
+  (`initialViewOf`) and is an editable datasheet ([ADR-0023](adr/ADR-0023-dataview-datasheet-mode.md)).
 - URL-synced state `?q=&sort=&dir=&view=&page=` + module filters, parsed by the shared
   `listParamsSchema`; server-side paging via the list proc contract (§2.3). Filter
   state survives refresh, back and deep links.
@@ -287,6 +305,21 @@ Every list module MUST render through the shared `DataView`:
 - Result counts announced via LiveAnnouncer; grid↔list switch animated with the View
   Transitions API ([ADR-0007](adr/ADR-0007-animation-policy.md)), CSS fallback,
   disabled under `prefers-reduced-motion`.
+- Datasheet: columns come from the factories in
+  `src/components/ui/data-view/columns.tsx`. Cells save through `formCellSaver` and the
+  module's update action, and each row is gated by `rowAllows("<module>:<verb>")` (the
+  row's `ActorAccess` plus per-person overrides). A persistent new-entry row (✓ / ×,
+  Enter commits) stays visible with filters on. List-bound columns get the ∨ caret and,
+  for Admins, "Edit list…" ([ADR-0022](adr/ADR-0022-managed-lookup-lists.md)).
+- Per-user table layout (`ViewPreference.Layout`: column order, widths, row height):
+  drag a header to reorder; drag its edge, or focus it and use the arrow keys, to
+  resize (a WAI-ARIA splitter that always exposes `aria-valuenow`); drag a row edge for
+  row height. The "Table layout" dialog is the keyboard path and has Reset.
+- Value colours: a list option may carry a colour (`tones.ts`, `--tone-*` tokens), and a
+  list set to "Colour whole rows" tints the row. Views may tint rows themselves
+  (`rowTone`, e.g. overdue to-dos).
+- Cross-project lists (daily activities, to-dos) show a Project column and a
+  `?project=<id>|none` filter.
 
 Modules MUST NOT fork DataView. Missing capability → extend the shared component in
 its own MR first.
@@ -341,6 +374,13 @@ Vitest (node) for schemas/actions/repositories (mock `execProc`), guardrail test
 validation failure, one RBAC denial (post-#4), axe scan; coverage ≥ 80 % lines on
 `src/modules/**` + `src/lib/**`; e2e data namespaced `e2e-`; seeds are fixtures.
 Never weaken a test to pass CI.
+
+Layout: ONE `tests/` folder per module (`src/modules/<module>/tests/`); shared code in
+`src/lib/tests`, `src/lib/auth/tests` and `src/components/ui/tests`; route tests in
+`<route>/tests/`; cross-cutting guardrails in `src/tests/` (proc access levels and
+`@Permission`, the managed-list registry, datasheet form values). In e2e, a list-view
+datasheet holds values in inputs: use `expectListed` / `openListed` / `expectNotListed`
+(`e2e/support/datasheet.ts`) and scope form labels to the sheet's form.
 
 ---
 
