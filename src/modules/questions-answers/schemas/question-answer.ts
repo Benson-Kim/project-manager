@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { actorAccessSchema } from "@/lib/auth/actor-access";
+import { actorAccessFields } from "@/lib/auth/actor-access";
 import { listValue, type LookupListKey } from "@/lib/lookup-lists";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 
@@ -35,7 +35,7 @@ export type QuestionAnswerRow = z.infer<typeof questionAnswerRowSchema>;
 
 export const questionAnswerListRowSchema = questionAnswerRowSchema.extend({
   TotalCount: z.number().int(),
-  ActorAccess: actorAccessSchema,
+  ...actorAccessFields,
 });
 
 export type QuestionAnswerListRow = z.infer<typeof questionAnswerListRowSchema>;

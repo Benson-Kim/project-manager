@@ -26,7 +26,7 @@ BEGIN
     -- to-dos are personal); a linked activity must be readable.
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Contributor', @AllowProjectless = 1;
+         @MinLevel = N'Contributor', @Permission = N'todo-items:create', @AllowProjectless = 1;
     IF @DailyActivityId IS NOT NULL
         EXEC dbo.usp_DailyActivity_AssertAccess
              @DailyActivityId = @DailyActivityId, @ActorUserId = @ActorUserId, @MinLevel = N'Viewer';

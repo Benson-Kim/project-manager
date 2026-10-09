@@ -3,9 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
-import { flattenSearchParams, parseListParams } from "@/lib/list-params";
+import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
-import { getViewPreference } from "@/lib/repositories/view-preference";
+import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNotFound, orNull } from "@/lib/row-access";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { KeywordSheet } from "@/modules/keywords/components/keyword-sheet";
@@ -46,9 +46,9 @@ export default async function KeywordsPage({
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
-  const [rows, preferredView, selectedRaw, allows] = await Promise.all([
+  const [rows, preference, selectedRaw, allows] = await Promise.all([
     orNotFound(listKeywords(effectiveParams, session.userId, projectId, undefined)),
-    getViewPreference(session.userId, "keywords").catch(() => null),
+    getListPreference(session.userId, "keywords").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? orNull(getKeywordById(selectedId, session.userId))
       : null,
@@ -84,7 +84,8 @@ export default async function KeywordsPage({
           rows={rows}
           totalCount={totalCount}
           page={effectiveParams.page}
-          initialView={effectiveParams.view ?? preferredView ?? "grid"}
+          initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}
+          layout={preference?.layout}
           filtersActive={filtersActive}
           newKeywordAction={canCreate ? newKeywordLink : undefined}
         />

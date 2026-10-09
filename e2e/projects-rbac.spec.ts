@@ -14,7 +14,8 @@ test("any user can start a project — New project is offered and the form opens
 }) => {
   await page.goto("/projects");
   await expect(page.getByRole("heading", { name: messages.projects.title })).toBeVisible();
-  await expect(page.getByTestId("new-project")).toBeVisible();
+  // The sidebar offers New project to everyone (the list adds via its new-entry row).
+  await expect(page.getByTestId("shell-new-project")).toBeVisible();
   await page.goto("/projects/new");
   await expect(page.getByRole("heading", { name: messages.projects.newProject })).toBeVisible();
 });
@@ -62,5 +63,7 @@ test("viewer charter is read-only — no save or delete, fields disabled", async
 test("viewer sees the team but cannot change it", async ({ page }) => {
   await page.goto("/projects/2");
   await expect(page.getByTestId("assignee-list")).toContainText("E2E Viewer");
-  await expect(page.getByTestId("assignees-save")).toHaveCount(0);
+  // Viewers see the team but get no new-member row, no inline controls, no cog (ADR-0024).
+  await expect(page.getByTestId("team-add-row")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Permissions for / })).toHaveCount(0);
 });

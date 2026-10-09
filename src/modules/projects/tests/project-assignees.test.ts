@@ -40,17 +40,17 @@ describe("project assignees repository", () => {
     expect(JSON.parse(params.AssigneesJson as string)).toEqual(team);
   });
 
-  it("set rejects an unknown role before touching the database", async () => {
-    await expect(
-      setProjectAssignees(
-        {
-          projectId: 2,
-          // @ts-expect-error — invalid role must be rejected by zod
-          assignees: [{ role: "Chef", personName: "Dana Roy", accessLevel: "Viewer" }],
-        },
-        7,
-      ),
-    ).rejects.toThrow();
+  it("set rejects a blank or over-long title before touching the database", async () => {
+    // Titles are managed-list labels (ADR-0024): the proc checks them against the live list;
+    // zod only checks their shape.
+    for (const role of ["  ", "x".repeat(51)]) {
+      await expect(
+        setProjectAssignees(
+          { projectId: 2, assignees: [{ role, personName: "Dana Roy", accessLevel: "Viewer" }] },
+          7,
+        ),
+      ).rejects.toThrow();
+    }
     expect(execProc).not.toHaveBeenCalled();
   });
 

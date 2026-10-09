@@ -1,5 +1,6 @@
 -- usp_DailyActivity_List — paged/filtered list per ADR-0016. Search columns: Task, Requester, MyActivity.
--- Filter params: @ActivityStatusId (exact match), @TaskType (exact match).
+-- Filter params: @ActivityStatusId (exact match), @TaskType (exact match), @WithoutProject (1 = only
+--   project-less activities; the cross-project page's "No project" filter).
 -- Sort whitelist: RequestDate, ActivityDate, Status, CompleteDate.
 -- Row-level access: a supplied @ProjectId must be accessible (dbo.usp_Project_AssertAccess ->
 --   FORBIDDEN_ROW 50003); cross-project reads (@ProjectId NULL) return only the rows the actor has
@@ -7,8 +8,11 @@
 --   sees all). LIKE wildcards in @Search are escaped.
 -- Extra columns for the datasheet (ADR-0023): ActivityStatus (the status option's label, live or
 --   retired) and ActorAccess (the actor's level on the row's project, which decides per row whether
---   its cells are editable on cross-project pages).
+--   its cells are editable on cross-project pages), and ProjectName (the cross-project grid's
+--   Project column).
 -- Entity app.DailyActivity (source: tblDailyActivityList). Module: daily-activities (#19).
+-- ActorGrants / ActorRevokes (ADR-0024): the actor's per-person overrides of 'daily-activities' in the
+--   row's project (dbo.ufn_Permission_Overrides), so the datasheet gates cells as the procs do.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_DailyActivity_List
@@ -20,7 +24,8 @@ CREATE OR ALTER PROCEDURE dbo.usp_DailyActivity_List
     @Page             INT           = 1,
     @PageSize         INT           = 25,
     @ActivityStatusId INT           = NULL,
-    @TaskType         NVARCHAR(255) = NULL
+    @TaskType         NVARCHAR(255) = NULL,
+    @WithoutProject   BIT           = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -42,6 +47,7 @@ BEGIN
 
     SELECT da.DailyActivityId,
            da.[ProjectId],
+           p.ProjectName,
            da.[ActivityStatusId],
            st.Label AS ActivityStatus,
            da.[Requester],
@@ -61,12 +67,17 @@ BEGIN
            da.UpdatedAtUtc,
            CAST(da.RowVer AS BIGINT) AS RowVer,
            acc.AccessLevel AS ActorAccess,
+           ov.Grants AS ActorGrants,
+           ov.Revokes AS ActorRevokes,
            TotalCount = COUNT(*) OVER ()
     FROM app.DailyActivity da
     CROSS APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, da.ProjectId, 1) acc
+    OUTER APPLY dbo.ufn_Permission_Overrides(@ActorRole, @ActorUserId, da.ProjectId, N'daily-activities') ov
     LEFT JOIN app.LookupOption st ON st.LookupOptionId = da.ActivityStatusId
+    LEFT JOIN app.Project p ON p.ProjectId = da.ProjectId
     WHERE da.IsDeleted = 0
       AND (@ProjectId IS NULL OR da.ProjectId = @ProjectId)
+      AND (ISNULL(@WithoutProject, 0) = 0 OR da.ProjectId IS NULL)
       AND (@ProjectId IS NOT NULL OR acc.AccessLevel IS NOT NULL)
       AND (@ActivityStatusId IS NULL OR da.ActivityStatusId = @ActivityStatusId)
       AND (@TaskType         IS NULL OR da.[TaskType]       = @TaskType)

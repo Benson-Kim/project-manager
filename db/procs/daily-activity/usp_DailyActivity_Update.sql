@@ -1,7 +1,9 @@
 -- usp_DailyActivity_Update — full-row update with rowversion concurrency (50002 CONFLICT) + in-transaction audit.
 -- Row-level access: the row's project must be accessible (dbo.usp_Project_AssertAccess,
---   FORBIDDEN_ROW 50003; Admin bypass; project-less rows allowed). The project key is immutable:
---   @ProjectId is accepted but ignored (DB standard).
+--   FORBIDDEN_ROW 50003; Admin bypass; project-less rows allowed). Unlike the other project-scoped
+--   entities, an activity can move: the datasheet's Project column is editable (client feedback,
+--   daily-activity column spec), so a different @ProjectId needs Contributor on that project too
+--   (or none: the project-less shared space) — the same rule as creating it there.
 -- Dropdown values must be live options of their lists, or unchanged (ADR-0022, VALIDATION 50004):
 --   ActivityStatusId ('daily-activity.status', by id), ContactMethod and TaskType (by label).
 -- Returns ActivityStatus, the status option's label (live or retired), with the row.
@@ -43,8 +45,14 @@ BEGIN
 
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Contributor', @AllowProjectless = 1;
-    SET @ProjectId = @RowProjectId;
+         @MinLevel = N'Contributor', @Permission = N'daily-activities:update', @AllowProjectless = 1;
+    -- Moving the activity (NULL-safe "differs"; IS DISTINCT FROM needs SQL Server 2022).
+    IF (@ProjectId <> @RowProjectId)
+       OR (@ProjectId IS NULL AND @RowProjectId IS NOT NULL)
+       OR (@ProjectId IS NOT NULL AND @RowProjectId IS NULL)
+        EXEC dbo.usp_Project_AssertAccess
+             @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
+             @MinLevel = N'Contributor', @Permission = N'daily-activities:update', @AllowProjectless = 1;
 
     IF @CurrentVer <> @RowVer
         THROW 50002, N'CONFLICT:DailyActivity was modified by someone else', 1;

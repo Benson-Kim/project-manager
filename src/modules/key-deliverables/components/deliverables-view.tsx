@@ -12,6 +12,7 @@ import { listEmptyState } from "@/components/ui/states";
 import { rowAllows } from "@/lib/auth/actor-access";
 import { formatDate } from "@/lib/format";
 import { messages } from "@/lib/messages";
+import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
 
 import { createKeyDeliverableAction, updateKeyDeliverableAction } from "../actions";
@@ -109,6 +110,7 @@ export function DeliverablesView({
   totalCount,
   page,
   initialView,
+  layout,
   filtersActive,
   openDeliverable,
   sheetOpen,
@@ -123,6 +125,8 @@ export function DeliverablesView({
   totalCount: number;
   page: number;
   initialView: ViewMode;
+  /** The user's saved datasheet layout (DataView initialLayout). */
+  layout?: ListLayout | null;
   filtersActive: boolean;
   /** Record resolved server-side from ?d=<id>; undefined for ?d=new. */
   openDeliverable?: KeyDeliverableRow;
@@ -145,6 +149,7 @@ export function DeliverablesView({
         totalCount={totalCount}
         page={page}
         initialView={initialView}
+        initialLayout={layout}
         getRowId={(row) => row.KeyDeliverableId}
         getRowLabel={rowLabel}
         onOpen={(row) => update({ d: String(row.KeyDeliverableId) })}

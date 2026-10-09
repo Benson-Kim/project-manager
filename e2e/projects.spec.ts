@@ -16,7 +16,9 @@ test("create project happy path — appears in the list", async ({ page }) => {
   // Success navigates to the charter route; wait for the URL change first.
   await page.waitForURL(/\/projects\/\d+/);
   // The project-switcher combobox in the header displays the current project name.
-  await expect(page.getByLabel(messages.projects.jumpToProject)).toHaveValue(name);
+  await expect(page.getByRole("combobox", { name: messages.projects.jumpToProject })).toHaveValue(
+    name,
+  );
   // Toast is shown after redirect — may already be gone; assert the list instead.
   await page.goto(`/projects?q=${encodeURIComponent(name)}`);
   await expectListed(page, name);
@@ -45,7 +47,9 @@ test("type-ahead suggests seeded projects from the first characters and jumps", 
   await option.click();
   await page.waitForURL(/\/projects\/\d+/);
   // The project-switcher combobox shows the project name after navigation.
-  await expect(page.getByLabel(messages.projects.jumpToProject)).toHaveValue(/Upgrade/);
+  await expect(page.getByRole("combobox", { name: messages.projects.jumpToProject })).toHaveValue(
+    /Upgrade/,
+  );
 });
 
 test("axe scan on the projects list has no serious or critical violations", async ({ page }) => {
@@ -74,7 +78,7 @@ test.describe("project workspace", () => {
   test("deep link shows project-switcher, section nav with Charter current", async ({ page }) => {
     await page.goto("/projects/2");
     // The project-switcher combobox is the header component for project routes.
-    const switcher = page.getByLabel(messages.projects.jumpToProject);
+    const switcher = page.getByRole("combobox", { name: messages.projects.jumpToProject });
     await expect(switcher).toBeVisible();
     // The section nav is grouped: the Overview group button should be expanded (active group
     // auto-opens on load) and the Charter link inside it carries aria-current="page".
@@ -96,6 +100,45 @@ test.describe("project workspace", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
       messages.projects.charterSection,
     );
+  });
+
+  test("team cog: a manager grants a section permission per person, then resets it (ADR-0024)", async ({
+    page,
+  }) => {
+    await page.goto("/projects/2");
+    const team = page.getByTestId("assignee-list");
+    const P = messages.projects.permissions;
+    const open = async () => {
+      await team
+        .getByRole("button", { name: messages.projects.permissionsFor("E2E Contributor") })
+        .click();
+      const dialog = page.getByRole("dialog", { name: P.title("E2E Contributor") });
+      await expect(dialog).toBeVisible();
+      return dialog;
+    };
+    const deleteParkingLot = (dialog: import("@playwright/test").Locator) =>
+      dialog.getByRole("combobox", { name: P.cell(P.delete, messages.projects.parkingLotSection) });
+
+    let dialog = await open();
+    await deleteParkingLot(dialog).selectOption("allow");
+    await dialog.getByTestId("permissions-save").click();
+    await expect(dialog).toBeHidden();
+
+    dialog = await open();
+    await expect(deleteParkingLot(dialog)).toHaveValue("allow");
+    await dialog.getByRole("button", { name: P.reset }).click();
+    await dialog.getByTestId("permissions-save").click();
+    await expect(dialog).toBeHidden();
+  });
+
+  test("a section link inside a group panel navigates (portalled panel is not 'outside')", async ({
+    page,
+  }) => {
+    await page.goto("/projects/2");
+    const nav = page.getByRole("navigation", { name: messages.projects.sectionsNav });
+    await nav.getByRole("button", { name: messages.planning.title }).click();
+    await page.getByRole("link", { name: messages.projects.parkingLotSection }).click();
+    await expect(page).toHaveURL(/\/projects\/2\/parking-lot$/);
   });
 
   test.describe("at 360px", () => {
@@ -120,7 +163,11 @@ test.describe("project workspace", () => {
   test("unsaved changes guard intercepts client-side link navigation", async ({ page }) => {
     await page.goto("/projects/2");
     await expect(page.getByTestId("project-form")).toBeVisible();
-    await page.getByLabel(messages.projects.manager).fill("Guard Probe");
+    // Exact and scoped: the team grid's controls are named after "E2E Project Manager".
+    const manager = page
+      .getByTestId("project-form")
+      .getByLabel(messages.projects.manager, { exact: true });
+    await manager.fill("Guard Probe");
     // Navigate away via the sidebar Projects link — the guard intercepts it.
     await page
       .getByRole("navigation", { name: messages.app.menu })
@@ -130,7 +177,7 @@ test.describe("project workspace", () => {
     const dialog = page.getByRole("dialog", { name: messages.feedback.unsavedChangesTitle });
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: messages.actions.cancel }).click();
-    await expect(page.getByLabel(messages.projects.manager)).toHaveValue("Guard Probe");
+    await expect(manager).toHaveValue("Guard Probe");
     await expect(page).toHaveURL(/\/projects\/2$/);
   });
 });

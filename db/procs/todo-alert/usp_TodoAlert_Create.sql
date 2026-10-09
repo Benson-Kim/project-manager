@@ -26,7 +26,7 @@ BEGIN
 
 
     EXEC dbo.usp_TodoItem_AssertAccess
-         @TodoItemId = @TodoItemId, @ActorUserId = @ActorUserId, @MinLevel = N'Contributor';
+         @TodoItemId = @TodoItemId, @ActorUserId = @ActorUserId, @MinLevel = N'Contributor', @Permission = N'todo-alerts:create';
 
     BEGIN TRAN;
 

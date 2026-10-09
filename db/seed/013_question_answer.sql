@@ -1,12 +1,15 @@
 ﻿-- Seed app.QuestionAnswer — ALL rows from docs/source/analysis/access-database.md §4 (tblInterviewQuestionsAnswers).
 -- Idempotent: inserts only missing ids; original IDs preserved via IDENTITY_INSERT.
 -- CreatedBy = 0 (system/migration actor; auth.User arrives with module #4).
+-- Seed 006 loads the same Access rows first, keyed by SourceQAId (migration 012) with new identity
+-- values, so a row is also skipped when its Access QAID already exists as a SourceQAId; otherwise
+-- QAID 13 was inserted twice (13 rows instead of 12). Rows inserted here carry SourceQAId too.
 USE ProjectManager;
 GO
 SET IDENTITY_INSERT app.QuestionAnswer ON;
 
-INSERT INTO app.QuestionAnswer ([QuestionAnswerId], [ProjectId], [Question], [Answer], [Category], [Priority], [AssignedTo], [CreatedBy])
-SELECT s.*
+INSERT INTO app.QuestionAnswer ([QuestionAnswerId], [ProjectId], [Question], [Answer], [Category], [Priority], [AssignedTo], [CreatedBy], [SourceQAId])
+SELECT s.*, s.[QuestionAnswerId]
 FROM (VALUES
     (1, 2, N'How soon can you complete the Notes section?', N'by 20th it will be done and dusted', NULL, NULL, NULL, 0),
     (2, 2, N'I need a little work done, are you available?', N'Yes, apart from this there is nothing else important I am doing', NULL, NULL, NULL, 0),
@@ -21,7 +24,8 @@ FROM (VALUES
     (12, 22, N'Question', N'Yes', NULL, NULL, NULL, 0),
     (13, 2, N'Question', N'Answer', NULL, NULL, NULL, 0)
 ) AS s ([QuestionAnswerId], [ProjectId], [Question], [Answer], [Category], [Priority], [AssignedTo], [CreatedBy])
-WHERE NOT EXISTS (SELECT 1 FROM app.QuestionAnswer t WHERE t.[QuestionAnswerId] = s.[QuestionAnswerId]);
+WHERE NOT EXISTS (SELECT 1 FROM app.QuestionAnswer t WHERE t.[QuestionAnswerId] = s.[QuestionAnswerId])
+  AND NOT EXISTS (SELECT 1 FROM app.QuestionAnswer t WHERE t.[SourceQAId] = s.[QuestionAnswerId]);
 
 SET IDENTITY_INSERT app.QuestionAnswer OFF;
 GO

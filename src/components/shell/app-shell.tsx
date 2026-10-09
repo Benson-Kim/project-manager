@@ -40,7 +40,7 @@ export function AppShell({
   const pathname = usePathname();
   const { announce } = useAnnouncer();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  useAlertPoller();
+  const dueAlarms = useAlertPoller();
   const projectMatch = pathname.match(/^\/projects\/(\d+)(\/.*)?$/);
   const projectId = projectMatch ? Number(projectMatch[1]) : null;
 
@@ -111,7 +111,7 @@ export function AppShell({
               </p>
             )}
             <div className="ml-auto flex items-center gap-2">
-              <NotificationsBell alerts={alerts} />
+              <NotificationsBell alerts={alerts} alarms={dueAlarms} />
               <ThemeToggle />
               <AvatarMenu username={username} />
             </div>

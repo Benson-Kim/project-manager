@@ -1,11 +1,15 @@
 -- usp_TodoItem_List — paged/filtered list per ADR-0016. Search columns: TodoItem. Sort whitelist: DueDate, Priority, Status, StartDate.
--- Filter params: @Status (exact match), @Priority (exact match), @ProjectOrActivity (exact match).
+-- Filter params: @Status (exact match), @Priority (exact match), @ProjectOrActivity (exact match),
+--   @WithoutProject (1 = only project-less to-dos; the cross-project page's "No project" filter).
 -- Row-level access: a supplied @ProjectId must be readable (dbo.usp_Project_AssertAccess ->
 --   FORBIDDEN_ROW 50003); rows follow the to-do rule (dbo.ufn_TodoItem_AccessLevel, ADR-0021).
 --   LIKE wildcards in @Search are escaped.
 -- ActorAccess (ADR-0023): the actor's level on each to-do under that rule; the datasheet uses it to
 --   decide per row whether cells are editable, and a row is listed when the actor has a level on it.
+--   ProjectName feeds the cross-project grid's Project column.
 -- Entity app.TodoItem (source: tblTodoList (core; alert columns → TodoAlert)). Module: todo-items (#20).
+-- ActorGrants / ActorRevokes (ADR-0024): the actor's per-person overrides of 'todo-items' in the
+--   row's project (dbo.ufn_Permission_Overrides), so the datasheet gates cells as the procs do.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_TodoItem_List
@@ -18,7 +22,8 @@ CREATE OR ALTER PROCEDURE dbo.usp_TodoItem_List
     @PageSize          INT           = 25,
     @Status            NVARCHAR(255) = NULL,
     @Priority          NVARCHAR(255) = NULL,
-    @ProjectOrActivity NVARCHAR(50)  = NULL
+    @ProjectOrActivity NVARCHAR(50)  = NULL,
+    @WithoutProject    BIT           = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -40,6 +45,7 @@ BEGIN
 
     SELECT TodoItemId,
            [ProjectId],
+           (SELECT p.ProjectName FROM app.Project p WHERE p.ProjectId = TodoItem.ProjectId) AS ProjectName,
            [DailyActivityId],
            [ProjectOrActivity],
            [TodoItem],
@@ -53,11 +59,15 @@ BEGIN
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer,
            acc.AccessLevel AS ActorAccess,
+           ov.Grants AS ActorGrants,
+           ov.Revokes AS ActorRevokes,
            TotalCount = COUNT(*) OVER ()
     FROM app.TodoItem
     CROSS APPLY dbo.ufn_TodoItem_AccessLevel(@ActorRole, @ActorUserId, TodoItem.ProjectId, TodoItem.CreatedBy) acc
+    OUTER APPLY dbo.ufn_Permission_Overrides(@ActorRole, @ActorUserId, TodoItem.ProjectId, N'todo-items') ov
     WHERE IsDeleted = 0
       AND (@ProjectId         IS NULL OR ProjectId         = @ProjectId)
+      AND (ISNULL(@WithoutProject, 0) = 0 OR ProjectId IS NULL)
       AND (@Search            IS NULL OR [TodoItem] LIKE N'%' + @Search + N'%' ESCAPE N'\')
       AND (@Status            IS NULL OR [Status]           = @Status)
       AND (@Priority          IS NULL OR [Priority]         = @Priority)

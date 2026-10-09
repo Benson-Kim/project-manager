@@ -9,6 +9,8 @@
 --   the datasheet uses it to decide per row whether cells are editable. The cross-project filter
 --   reads the same rule: a row is listed when the actor has a level on it.
 -- Entity app.Supplier (source: tbl3rdPartySupplier). Module: suppliers (#7).
+-- ActorGrants / ActorRevokes (ADR-0024): the actor's per-person overrides of 'suppliers' in the
+--   row's project (dbo.ufn_Permission_Overrides), so the datasheet gates cells as the procs do.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Supplier_List
@@ -56,9 +58,12 @@ BEGIN
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer,
            acc.AccessLevel AS ActorAccess,
+           ov.Grants AS ActorGrants,
+           ov.Revokes AS ActorRevokes,
            TotalCount = COUNT(*) OVER ()
     FROM app.Supplier s
     CROSS APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, s.ProjectId, 0) acc
+    OUTER APPLY dbo.ufn_Permission_Overrides(@ActorRole, @ActorUserId, s.ProjectId, N'suppliers') ov
     WHERE s.IsDeleted = 0
       AND (@ProjectId IS NULL OR s.ProjectId = @ProjectId)
       AND (@Rating IS NULL OR s.[Rating] = @Rating)

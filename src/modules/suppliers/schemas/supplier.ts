@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { actorAccessSchema } from "@/lib/auth/actor-access";
+import { actorAccessFields } from "@/lib/auth/actor-access";
 import type { LookupListKey } from "@/lib/lookup-lists";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 
@@ -34,7 +34,7 @@ export type SupplierRow = z.infer<typeof supplierRowSchema>;
 
 export const supplierListRowSchema = supplierRowSchema.extend({
   TotalCount: z.number().int(),
-  ActorAccess: actorAccessSchema,
+  ...actorAccessFields,
 });
 
 export type SupplierListRow = z.infer<typeof supplierListRowSchema>;

@@ -3,16 +3,24 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import { dateColumn, listColumn, textColumn } from "@/components/ui/data-view/columns";
+import {
+  dateColumn,
+  listColumn,
+  projectColumn,
+  textColumn,
+} from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
 import { formCellSaver } from "@/components/ui/data-view/datasheet";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { EmptyState } from "@/components/ui/states";
 import { rowAllows } from "@/lib/auth/actor-access";
+import type { ListLayout } from "@/lib/list-layout";
+import type { OptionColor } from "@/lib/lookup-lists";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { formatDate } from "@/lib/format";
+import type { ProjectPicker } from "@/modules/projects/project-options";
 import {
   isApproachingDeadline,
   isOverdue,
@@ -94,8 +102,14 @@ function ReorderControls({
   );
 }
 
-function buildColumns(rows: Row[], canReorder: boolean): DataViewColumn<Row>[] {
+function buildColumns(
+  rows: Row[],
+  canReorder: boolean,
+  projects: ProjectPicker | undefined,
+): DataViewColumn<Row>[] {
   return [
+    // /todo only: which project each to-do belongs to, editable like the other cells.
+    ...(projects ? [projectColumn<Row>({ priority: 2, ...projects })] : []),
     textColumn({
       key: "TodoItem",
       header: messages.todoItems.todoItem,
@@ -172,19 +186,25 @@ function buildColumns(rows: Row[], canReorder: boolean): DataViewColumn<Row>[] {
 const saveCell = formCellSaver<Row, TodoItemRow>(todoItemFormValues, updateTodoItemAction);
 /** The to-do rule per row (ADR-0021): own to-dos, or every to-do of projects you manage. */
 const canEditRow = rowAllows("todo-items:update");
+/** Overdue to-dos colour their whole row red — before any list colour (client feedback). */
+const overdueTone = (row: Row): OptionColor | null => (isOverdue(row) ? "red" : null);
 
 /**
  * To-do list: DataView with TodoToolbar; opening a row syncs ?id=. List view is
  * a datasheet (ADR-0023): editable cells per the row's ActorAccess and a
- * new-entry row (this project's to-dos, or personal ones on /todo).
+ * new-entry row (this project's to-dos; on /todo, the project its Project cell
+ * names — personal when none).
  */
 export function TodoView({
   rows,
   totalCount,
   page,
   initialView,
+  layout,
   filtersActive,
   projectId,
+  projects,
+  projectFilterOptions,
   canCreate,
   canReorder = false,
   newTodoAction,
@@ -194,16 +214,22 @@ export function TodoView({
   totalCount: number;
   page: number;
   initialView: ViewMode;
+  /** The user's saved datasheet layout (DataView initialLayout). */
+  layout?: ListLayout | null;
   filtersActive: boolean;
-  /** The project the new-entry row adds to; null on /todo (personal to-dos). */
+  /** The project's page this list is on; null on /todo. */
   projectId: number | null;
+  /** /todo: the Project column (where a to-do may go, and the new-entry row's project). */
+  projects?: ProjectPicker;
+  /** /todo: the toolbar's project filter. */
+  projectFilterOptions?: readonly { id: number; name: string }[];
   canCreate: boolean;
   canReorder?: boolean;
   newTodoAction?: React.ReactNode;
   emptyBody?: string;
 }) {
   const { update } = useListUrlState();
-  const columns = buildColumns(rows, canReorder);
+  const columns = buildColumns(rows, canReorder, projects);
 
   return (
     <DataView
@@ -212,10 +238,14 @@ export function TodoView({
       totalCount={totalCount}
       page={page}
       initialView={initialView}
+      initialLayout={layout}
+      rowTone={overdueTone}
       getRowId={(row) => row.TodoItemId}
       getRowLabel={(row) => row.TodoItem ?? messages.app.untitled}
       onOpen={(row) => update({ id: String(row.TodoItemId) })}
-      renderToolbar={(viewToggle) => <TodoToolbar>{viewToggle}</TodoToolbar>}
+      renderToolbar={(viewToggle) => (
+        <TodoToolbar projectFilterOptions={projectFilterOptions}>{viewToggle}</TodoToolbar>
+      )}
       renderCard={(row) => (
         <div className="flex flex-col gap-2">
           <p className="text-sm font-semibold text-ink">{row.TodoItem ?? messages.app.untitled}</p>
@@ -223,6 +253,9 @@ export function TodoView({
             <Badge value={row.Status} />
             <Badge value={row.Priority} />
           </div>
+          {projects && row.ProjectName ? (
+            <p className="text-xs text-ink-muted">{row.ProjectName}</p>
+          ) : null}
           {row.DueDate ? (
             <p className={`text-xs ${dueTone(row) ?? "text-ink-muted"}`}>
               {formatDate(row.DueDate)}
@@ -242,10 +275,11 @@ export function TodoView({
         saveCell,
         addRow: canCreate
           ? {
+              // The Project cell (on /todo) names the project; else this page's project.
               add: (values) =>
                 createTodoItemAction({
-                  ...values,
                   projectId: projectId === null ? "" : String(projectId),
+                  ...values,
                 }),
             }
           : undefined,

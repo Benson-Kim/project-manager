@@ -16,6 +16,7 @@ import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { useToast } from "@/components/ui/toast";
 import { toDateInput } from "@/lib/format";
+import { localWallClock } from "@/lib/local-time";
 import { messages } from "@/lib/messages";
 import {
   createTodoItemAction,
@@ -259,6 +260,7 @@ export function TodoItemSheet({
         todoAlertId: todoAlert.TodoAlertId,
         snoozeMinutes: minutes,
         rowVer: todoAlert.RowVer,
+        localNow: localWallClock(),
       });
       if (result.ok) {
         toast({ variant: "success", title: messages.todoItems.snoozed });

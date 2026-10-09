@@ -8,6 +8,7 @@ import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { listEmptyState } from "@/components/ui/states";
 import { rowAllows } from "@/lib/auth/actor-access";
 import { formatDate } from "@/lib/format";
+import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { createObjectiveAction, updateObjectiveAction } from "../actions";
@@ -64,6 +65,7 @@ export function ObjectivesView({
   totalCount,
   page,
   initialView,
+  layout,
   filtersActive,
   projectId,
   canCreate,
@@ -76,6 +78,8 @@ export function ObjectivesView({
   totalCount: number;
   page: number;
   initialView: ViewMode;
+  /** The user's saved datasheet layout (DataView initialLayout). */
+  layout?: ListLayout | null;
   filtersActive: boolean;
   newObjectiveAction?: React.ReactNode;
 }) {
@@ -88,6 +92,7 @@ export function ObjectivesView({
       totalCount={totalCount}
       page={page}
       initialView={initialView}
+      initialLayout={layout}
       getRowId={(row) => row.ObjectiveId}
       getRowLabel={(row) => row.ObjectiveText ?? messages.app.untitled}
       onOpen={(row) => update({ id: String(row.ObjectiveId) })}

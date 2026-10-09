@@ -41,9 +41,7 @@ test("validation failure — empty question shows inline error and focuses the s
   const questionField = form.getByLabel(messages.questionsAnswers.question);
   await questionField.fill("  ");
   await questionField.blur();
-  await expect(
-    page.getByText(messages.questionsAnswers.questionRequired).first(),
-  ).toBeVisible();
+  await expect(page.getByText(messages.questionsAnswers.questionRequired).first()).toBeVisible();
   await page.getByTestId("qa-save").click();
   const summary = page.getByRole("alert").filter({ hasText: messages.errors.summaryTitle });
   await expect(summary).toBeVisible();
@@ -75,9 +73,7 @@ test("edit seeded Q&A and save — reflects in the list", async ({ page }) => {
 
 test("axe scan on the Q&A list has no serious or critical violations", async ({ page }) => {
   await page.goto("/projects/2/questions-answers");
-  await expect(
-    page.getByRole("heading", { name: messages.questionsAnswers.title }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: messages.questionsAnswers.title })).toBeVisible();
   const results = await new AxeBuilder({ page }).analyze();
   const serious = results.violations.filter((v) =>
     ["serious", "critical"].includes(v.impact ?? ""),

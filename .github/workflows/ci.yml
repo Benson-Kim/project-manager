@@ -151,7 +151,7 @@ jobs:
           sh scripts/db-apply.sh
           echo "== Second Run (Idempotence Check) =="
           sh scripts/db-apply.sh
-          sqlcmd -S tcp:localhost,1433 -U sa -P "Ci-Ephemeral!Passw0rd1" -C -b -I -i db/verify/seed_counts.sql
+          sqlcmd -S tcp:localhost,1433 -U sa -P "Ci-Ephemeral!Passw0rd1" -C -b -I -v E2E_SEED=0 -i db/verify/seed_counts.sql
 
   e2e-tests:
     name: Playwright E2E Smoke Tests
@@ -223,6 +223,9 @@ jobs:
           DB_NAME: ProjectManager
           AUTH_SECRET: "e2e-throwaway-auth-secret-0123456789abcdefghijklmnopqrstuvwxyz"
           TRUST_SERVER_CERT: "true"
+          # The seeded e2e users' password (same throwaway value as the seed step); auth.setup.ts,
+          # viewer.setup.ts and auth.spec.ts sign in with it.
+          E2E_USER_PASSWORD: "E2e-Throwaway-User-2026"
         run: npm run e2e
 
       - name: Upload Test Results Artifacts

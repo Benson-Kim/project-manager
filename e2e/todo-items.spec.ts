@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
+import { closeAlarmToast } from "./support/alarms";
 import { expectListed } from "./support/datasheet";
 
 /**
@@ -55,11 +56,15 @@ test("alert section — configure and save an alert on an existing todo", async 
   await page.goto("/projects/2/todos?id=15");
   const form = page.getByTestId("todo-item-form");
   await expect(form).toBeVisible();
+  await closeAlarmToast(page);
   // Open alert section if not already open.
   const configureBtn = page.getByRole("button", { name: messages.todoItems.configureAlert });
   if (await configureBtn.isVisible()) await configureBtn.click();
   const alertForm = page.getByTestId("todo-alert-form");
   await expect(alertForm).toBeVisible();
+  // An active alert needs a date (it could never become due without one); far ahead, so it
+  // never rings during the suite.
+  await alertForm.getByLabel(messages.todoItems.alertDay).fill("2030-01-15");
   await alertForm.getByLabel(messages.todoItems.alertTime).fill("09:00");
   await page.getByTestId("todo-alert-save").click();
   await expect(

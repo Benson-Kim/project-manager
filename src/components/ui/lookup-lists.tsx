@@ -6,11 +6,13 @@ import type { ActionResult } from "@/lib/action";
 import {
   ID_BOUND_LISTS,
   listChoices,
+  optionColor,
   type LookupList,
   type LookupListKey,
   type LookupLists,
   type SaveLookupListInput,
 } from "@/lib/lookup-lists";
+import { Badge } from "./badge";
 
 /**
  * Managed dropdown lists on the client (ADR-0022): one provider per page holds
@@ -108,4 +110,23 @@ export function ListOptions({
       ))}
     </>
   );
+}
+
+/**
+ * A list value as a badge in its colour (migration 020): read-only datasheet
+ * cells and cards. Values without a colour keep Badge's built-in vocabulary.
+ */
+export function ListBadge({
+  list,
+  value,
+  label,
+}: {
+  list: LookupListKey;
+  /** The stored value (label, or option id for id-bound lists). */
+  value: string | null;
+  /** What the badge reads; defaults to `value`. */
+  label?: string | null;
+}) {
+  const { lists } = useLookupLists();
+  return <Badge value={label ?? value} tone={optionColor(lists[list], value)} />;
 }

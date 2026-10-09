@@ -14,7 +14,10 @@ import { ID_BOUND_LISTS, LOOKUP_LISTS } from "@/lib/lookup-lists";
  */
 const read = (...path: string[]) => readFileSync(join(...path), "utf8");
 
-const migration = read("db", "migrations", "018_lookup_list.sql");
+// Lists are seeded by 018 and by later migrations that add one (021: team titles).
+const migration = ["018_lookup_list.sql", "021_project_permissions.sql"]
+  .map((file) => read("db", "migrations", file))
+  .join(String.fromCharCode(10));
 const setProc = read("db", "procs", "lookup-list", "usp_LookupList_Set.sql");
 
 const seeded = [...migration.matchAll(/\(N'([a-z-]+\.[a-z-]+)',\s*N'([^']+)',\s*\d+,\s*([01])\)/g)];
@@ -35,7 +38,7 @@ const procCalls = readdirSync(join("db", "procs"), { recursive: true, encoding: 
   );
 
 describe("managed dropdown lists stay in step (ADR-0022)", () => {
-  it("migration 018 seeds exactly the registered lists", () => {
+  it("the migrations seed exactly the registered lists", () => {
     expect([...seededKeys].sort()).toEqual([...LOOKUP_LISTS].sort());
   });
 
@@ -73,6 +76,8 @@ describe("managed dropdown lists stay in step (ADR-0022)", () => {
         // the two kinds of record the module holds
         "assumption-constraint.type:Assumption",
         "assumption-constraint.type:Constraint",
+        // usp_Project_Create gives a new project's creator this title (migration 021)
+        "project-assignee.title:Project manager",
       ].sort(),
     );
   });

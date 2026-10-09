@@ -7,6 +7,7 @@ import {
   moveOption,
   optionErrors,
   removeOption,
+  recolorOption,
   renameOption,
   toSaveInput,
 } from "../data-view/list-editor-state";
@@ -14,10 +15,11 @@ import {
 const list: LookupList = {
   key: "key-deliverable.status",
   rowVer: 5,
+  tintRows: false,
   options: [
-    { id: 1, label: "Pending", locked: false },
-    { id: 2, label: "Completed", locked: true },
-    { id: 3, label: "On Hold", locked: true },
+    { id: 1, label: "Pending", locked: false, color: null },
+    { id: 2, label: "Completed", locked: true, color: null },
+    { id: 3, label: "On Hold", locked: true, color: null },
   ],
 };
 
@@ -48,7 +50,7 @@ describe("dropdown list editor state (ADR-0022)", () => {
 
   it("adds trimmed new options and ignores blanks", () => {
     const added = addOption(options, "  Blocked ", "n0");
-    expect(added[3]).toEqual({ key: "n0", id: null, label: "Blocked", locked: false });
+    expect(added[3]).toEqual({ key: "n0", id: null, label: "Blocked", locked: false, color: null });
     expect(addOption(options, "   ", "n1")).toBe(options);
   });
 
@@ -56,19 +58,39 @@ describe("dropdown list editor state (ADR-0022)", () => {
     expect(toSaveInput(list.key, list.rowVer, moveOption(options, 1, -1))).toEqual({
       listKey: "key-deliverable.status",
       rowVer: 5,
+      tintRows: undefined,
       options: [
-        { id: 2, label: "Completed" },
-        { id: 1, label: "Pending" },
-        { id: 3, label: "On Hold" },
+        { id: 2, label: "Completed", color: null },
+        { id: 1, label: "Pending", color: null },
+        { id: 3, label: "On Hold", color: null },
       ],
     });
+  });
+
+  it("recolours any option (locked too) and sends colours and row colouring", () => {
+    const red = recolorOption(options, 1, "red");
+    expect(red[1]).toMatchObject({ label: "Completed", locked: true, color: "red" });
+    expect(toSaveInput(list.key, 5, red, true)).toMatchObject({
+      tintRows: true,
+      options: [
+        { id: 1, color: null },
+        { id: 2, color: "red" },
+        { id: 3, color: null },
+      ],
+    });
+  });
+
+  it("counts a colour or the row-colouring switch as a change", () => {
+    expect(isChanged(list, recolorOption(options, 0, "green"))).toBe(true);
+    expect(isChanged(list, options, true)).toBe(true);
+    expect(isChanged(list, options, false)).toBe(false);
   });
 
   it("reports per-option errors with the save schema's messages", () => {
     expect(optionErrors(list.key, 5, options)).toEqual({});
     const errors = optionErrors(list.key, 5, [
       ...renameOption(options, 0, ""),
-      { key: "n0", id: null, label: "completed", locked: false },
+      { key: "n0", id: null, label: "completed", locked: false, color: null },
     ]);
     expect(Object.keys(errors)).toEqual(["0", "3"]);
   });

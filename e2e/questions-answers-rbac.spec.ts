@@ -10,17 +10,13 @@ import { messages } from "../src/lib/messages";
 
 test("viewer sees no New question affordance on the list", async ({ page }) => {
   await page.goto("/projects/2/questions-answers");
-  await expect(
-    page.getByRole("heading", { name: messages.questionsAnswers.title }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: messages.questionsAnswers.title })).toBeVisible();
   await expect(page.getByTestId("new-question-answer")).toHaveCount(0);
 });
 
 test("viewer deep-linking ?id=new does not open the create sheet", async ({ page }) => {
   await page.goto("/projects/2/questions-answers?id=new");
-  await expect(
-    page.getByRole("heading", { name: messages.questionsAnswers.title }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: messages.questionsAnswers.title })).toBeVisible();
   await expect(page.getByTestId("question-answer-form")).toHaveCount(0);
 });
 

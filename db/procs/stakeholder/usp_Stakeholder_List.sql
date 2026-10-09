@@ -6,6 +6,8 @@
 --   the datasheet uses it to decide per row whether cells are editable. The cross-project filter
 --   reads the same rule: a row is listed when the actor has a level on it.
 -- Entity app.Stakeholder (source: tblStakeholders). Module: database-schema-and-procs (#3); search/sort extended per issue #6.
+-- ActorGrants / ActorRevokes (ADR-0024): the actor's per-person overrides of 'stakeholders' in the
+--   row's project (dbo.ufn_Permission_Overrides), so the datasheet gates cells as the procs do.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Stakeholder_List
@@ -56,9 +58,12 @@ BEGIN
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer,
            acc.AccessLevel AS ActorAccess,
+           ov.Grants AS ActorGrants,
+           ov.Revokes AS ActorRevokes,
            TotalCount = COUNT(*) OVER ()
     FROM app.Stakeholder
     CROSS APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, Stakeholder.ProjectId, 0) acc
+    OUTER APPLY dbo.ufn_Permission_Overrides(@ActorRole, @ActorUserId, Stakeholder.ProjectId, N'stakeholders') ov
     WHERE IsDeleted = 0
       AND (@ProjectId IS NULL OR ProjectId = @ProjectId)
       AND (@ProjectId IS NOT NULL OR acc.AccessLevel IS NOT NULL)

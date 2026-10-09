@@ -22,15 +22,17 @@ const lists: LookupLists = {
   "key-deliverable.status": {
     key: "key-deliverable.status",
     rowVer: 3,
+    tintRows: false,
     options: [
-      { id: 1, label: "Pending", locked: false },
-      { id: 2, label: "Completed", locked: true },
+      { id: 1, label: "Pending", locked: false, color: null },
+      { id: 2, label: "Completed", locked: true, color: null },
     ],
   },
   "daily-activity.status": {
     key: "daily-activity.status",
     rowVer: 4,
-    options: [{ id: 10, label: "Not Started", locked: false }],
+    tintRows: false,
+    options: [{ id: 10, label: "Not Started", locked: false, color: null }],
   },
 };
 
@@ -89,6 +91,15 @@ describe("datasheet helpers (ADR-0023)", () => {
     expect(hasDraft(draft)).toBe(false);
     expect(hasDraft({ ...draft, status: "Pending" })).toBe(true);
     expect(hasDraft({ ...draft, status: "   " })).toBe(false);
+  });
+
+  it("starts the new-entry row from each editor's starting value; a preset alone is no entry", () => {
+    const project: CellEditor<Row> = { ...status, field: "projectId", initial: "7" };
+    const fresh = emptyDraft([status, project]);
+    expect(fresh).toEqual({ status: "", projectId: "7" });
+    expect(hasDraft(fresh, fresh)).toBe(false);
+    expect(hasDraft({ ...fresh, projectId: "8" }, fresh)).toBe(true);
+    expect(hasDraft({ ...fresh, status: "Pending" }, fresh)).toBe(true);
   });
 
   it("marks the fields a failed action names", () => {

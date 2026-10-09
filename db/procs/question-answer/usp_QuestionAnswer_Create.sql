@@ -24,7 +24,7 @@ BEGIN
 
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Contributor', @AllowProjectless = 0;
+         @MinLevel = N'Contributor', @Permission = N'questions-answers:create', @AllowProjectless = 0;
 
     EXEC dbo.usp_LookupList_AssertLabel
          @ListKey = N'question-answer.category', @Label = @Category OUTPUT;

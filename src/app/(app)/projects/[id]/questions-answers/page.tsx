@@ -3,9 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
-import { flattenSearchParams, parseListParams } from "@/lib/list-params";
+import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
-import { getViewPreference } from "@/lib/repositories/view-preference";
+import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNotFound, orNull } from "@/lib/row-access";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { QuestionAnswerSheet } from "@/modules/questions-answers/components/question-answer-sheet";
@@ -67,9 +67,9 @@ export default async function QuestionsAnswersPage({
     priority: flat.priority?.trim() || null,
   };
 
-  const [rows, preferredView, selectedRaw, allows, lookup] = await Promise.all([
+  const [rows, preference, selectedRaw, allows, lookup] = await Promise.all([
     orNotFound(listQuestionAnswers(effectiveParams, session.userId, projectId, filters)),
-    getViewPreference(session.userId, "questions-answers").catch(() => null),
+    getListPreference(session.userId, "questions-answers").catch(() => null),
     selectedId ? orNull(getQuestionAnswerById(selectedId, session.userId)) : null,
     getProjectPermissions(projectId, session.userId),
     loadLookupLists(QUESTION_ANSWER_LISTS, session),
@@ -108,7 +108,8 @@ export default async function QuestionsAnswersPage({
             rows={rows}
             totalCount={totalCount}
             page={effectiveParams.page}
-            initialView={effectiveParams.view ?? preferredView ?? "grid"}
+            initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}
+            layout={preference?.layout}
             filtersActive={filtersActive}
             newQuestionAction={canCreate ? newQuestionLink : undefined}
           />

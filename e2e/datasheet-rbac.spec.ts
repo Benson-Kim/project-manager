@@ -24,6 +24,6 @@ test("a Viewer cannot edit or add daily activities of the project", async ({ pag
   await expect(page.getByRole("heading", { name: messages.dailyActivities.title })).toBeVisible();
   await expect(page.getByTestId("datasheet-add-row")).toHaveCount(0);
   await expect(
-    page.getByRole("textbox", { name: new RegExp(`^${messages.dailyActivities.task}, `) }),
+    page.getByRole("textbox", { name: new RegExp(`^${messages.dailyActivities.columns.task}, `) }),
   ).toHaveCount(0);
 });

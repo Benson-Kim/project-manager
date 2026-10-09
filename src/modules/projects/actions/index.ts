@@ -12,6 +12,8 @@ import {
 import { projectFormSchema, updateProjectFormSchema } from "../schemas/project-form";
 import { deleteProjectInput, setProjectAssigneesInput } from "../schemas/project";
 import { setProjectAssignees } from "../repository/project-assignees";
+import { setProjectPermissions } from "../repository/project-permissions";
+import { setProjectPermissionsInput } from "../schemas/project-permission";
 
 /** Create a project (RBAC projects:create — project level checked in-proc, ADR-0021). */
 export const createProjectAction = action({
@@ -61,4 +63,16 @@ export const setProjectAssigneesAction = action({
   permission: "projects:update",
   revalidate: ["/projects"],
   handler: (input, ctx) => setProjectAssignees(input, ctx.session.userId),
+});
+
+/**
+ * Replace one team member's permission overrides (ADR-0024, the team's cog).
+ * The proc requires Manager on the project and refuses a non-Admin's own
+ * overrides; audited in-proc.
+ */
+export const setProjectPermissionsAction = action({
+  name: "projects.setPermissions",
+  schema: setProjectPermissionsInput,
+  permission: "projects:update",
+  handler: (input, ctx) => setProjectPermissions(input, ctx.session.userId),
 });

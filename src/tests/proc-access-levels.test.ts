@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { basename, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { requiredLevel } from "@/lib/auth/rbac";
+import { OVERRIDABLE_MODULES, requiredLevel } from "@/lib/auth/rbac";
 
 /**
  * Guardrail (ADR-0021): the stored procedures enforce per-project access with a
@@ -48,7 +48,8 @@ const EXEMPT: Record<string, string> = {
   usp_Project_Create: "any user may create a project; the creator becomes its Manager",
   usp_Project_List: "filters to Admin-or-assigned projects instead of asserting one",
   usp_Project_Search: "filters to Admin-or-assigned projects instead of asserting one",
-  usp_Todo_GetDueAlerts: "returns only the actor's own to-dos (CreatedBy)",
+  usp_Todo_GetDueAlerts:
+    "returns the actor's alerts and own to-dos, filtered by the to-do rule (ufn_TodoItem_AccessLevel)",
   usp_Todo_GetUpcomingAlerts: "returns only the actor's own to-dos (CreatedBy)",
 };
 
@@ -126,4 +127,44 @@ describe("stored procedure access levels match rbac.ts (ADR-0021)", () => {
       for (const level of operationLevels(proc)) expect(level, name).toBe(expected);
     },
   );
+});
+
+/** A whole access-helper call, up to its semicolon. */
+const WHOLE_CALL = /EXEC\s+dbo\.usp_\w+?_AssertAccess\b[^;]*;/g;
+const writeChecks = (proc: Proc) =>
+  [...proc.source.matchAll(WHOLE_CALL)]
+    .map(([call]) => call)
+    .filter((call) => /@MinLevel\s*=\s*N'(Contributor|Manager)'/.test(call));
+
+describe("write checks name their permission for per-person overrides (ADR-0024)", () => {
+  const writes = procs.filter((p) => !(p.name in EXEMPT) && verbOf(p.name) !== "read");
+
+  it.each(
+    writes
+      .filter((p) => (OVERRIDABLE_MODULES as readonly string[]).includes(MODULES[p.folder]!))
+      .map((p) => [p.name, p] as const),
+  )("%s passes exactly its own permission on every write-level check", (name, proc) => {
+    const permission = `${MODULES[proc.folder]}:${verbOf(name)}`;
+    const checks = writeChecks(proc);
+    expect(checks, name).not.toHaveLength(0);
+    for (const call of checks) expect(call, name).toContain(`@Permission = N'${permission}'`);
+  });
+
+  it.each(
+    writes
+      .filter((p) => !(OVERRIDABLE_MODULES as readonly string[]).includes(MODULES[p.folder]!))
+      .map((p) => [p.name, p] as const),
+  )("%s (charter / team) never lets an override decide", (name, proc) => {
+    for (const call of writeChecks(proc)) expect(call, name).not.toContain("@Permission");
+  });
+
+  it("the override set proc accepts exactly the overridable sections", () => {
+    const setProc = readFileSync(
+      join("db", "procs", "project-permission", "usp_ProjectPermission_Set.sql"),
+      "utf8",
+    );
+    const listed = setProc.match(/\[Module\] NOT IN \(([^)]*)\)/)?.[1] ?? "";
+    const modules = [...listed.matchAll(/N'([a-z-]+)'/g)].map((m) => m[1]);
+    expect(modules.sort()).toEqual([...OVERRIDABLE_MODULES].sort());
+  });
 });

@@ -31,7 +31,7 @@ BEGIN
 
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Contributor', @AllowProjectless = 1;
+         @MinLevel = N'Contributor', @Permission = N'daily-activities:create', @AllowProjectless = 1;
 
     EXEC dbo.usp_LookupList_AssertOption
          @ListKey = N'daily-activity.status', @LookupOptionId = @ActivityStatusId;

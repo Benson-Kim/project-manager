@@ -1,4 +1,5 @@
--- Returns the stored view mode for a user + module, or no rows when unset.
+-- Returns the stored view mode and datasheet layout (JSON object, NULL = default layout;
+-- migration 019) for a user + module, or no rows when unset.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_ViewPreference_Get
@@ -7,7 +8,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_ViewPreference_Get
 AS
 BEGIN
     SET NOCOUNT ON;
-    SELECT ViewMode
+    SELECT ViewMode, Layout
     FROM app.ViewPreference
     WHERE UserId = @UserId
       AND ModuleKey = @ModuleKey;

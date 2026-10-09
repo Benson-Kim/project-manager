@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
+import { closeAlarmToast } from "./support/alarms";
 import { expectListed } from "./support/datasheet";
 
 /**
@@ -60,16 +61,23 @@ test("status filter narrows the list", async ({ page }) => {
   await expect(page.getByTestId("filter-task-type")).toHaveValue("Technical");
 });
 
-test("build to-do from daily activity — creates a to-do linked to the activity", async ({ page }) => {
-  // Use a seeded activity that does NOT already have a linked todo (activity id=5 on project 2).
-  await page.goto("/projects/2/daily-activities?id=5");
+test("build to-do from daily activity — creates a to-do linked to the activity", async ({
+  page,
+}) => {
+  // A seeded project-2 activity with no linked to-do: id=11 "Assign all objects" (db/seed/023).
+  // e2e-pm can only open project 2's activities (ADR-0021); id=5 is on project 1.
+  await page.goto("/projects/2/daily-activities?id=11");
   const form = page.getByTestId("daily-activity-form");
   await expect(form).toBeVisible();
+  await closeAlarmToast(page);
   const buildBtn = page.getByTestId("build-todo-from-activity");
   if (await buildBtn.isVisible()) {
     await buildBtn.click();
     await expect(
-      page.getByTestId("toast-success").filter({ hasText: messages.dailyActivities.todoCreated }).first(),
+      page
+        .getByTestId("toast-success")
+        .filter({ hasText: messages.dailyActivities.todoCreated })
+        .first(),
     ).toBeVisible();
   }
   // If the button is not visible (no canCreateTodo permission in this e2e context), skip assertion.

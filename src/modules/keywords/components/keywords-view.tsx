@@ -8,6 +8,7 @@ import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { listEmptyState } from "@/components/ui/states";
 import { rowAllows } from "@/lib/auth/actor-access";
 import { formatDate } from "@/lib/format";
+import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { createKeywordAction, updateKeywordAction } from "../actions";
@@ -58,6 +59,7 @@ export function KeywordsView({
   totalCount,
   page,
   initialView,
+  layout,
   filtersActive,
   projectId,
   canCreate,
@@ -70,6 +72,8 @@ export function KeywordsView({
   totalCount: number;
   page: number;
   initialView: ViewMode;
+  /** The user's saved datasheet layout (DataView initialLayout). */
+  layout?: ListLayout | null;
   filtersActive: boolean;
   newKeywordAction?: React.ReactNode;
 }) {
@@ -82,6 +86,7 @@ export function KeywordsView({
       totalCount={totalCount}
       page={page}
       initialView={initialView}
+      initialLayout={layout}
       getRowId={(row) => row.KeywordId}
       getRowLabel={(row) => row.Keyword}
       onOpen={(row) =>

@@ -11,6 +11,7 @@ import type { DataViewColumn } from "@/components/ui/data-view/types";
 
 import { rowAllows } from "@/lib/auth/actor-access";
 import { formatDate } from "@/lib/format";
+import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 
@@ -121,13 +122,13 @@ const columns: DataViewColumn<Row>[] = [
   }),
 ];
 
-/** Datasheet edits go through the same update action as the charter (ADR-0023). */
+/** Datasheet edits go through the same update action as the charter. */
 const saveCell = formCellSaver<Row, ProjectRow>(projectFormValues, updateProjectAction);
 const canEditRow = rowAllows("projects:update");
 
 /**
  * Projects list: each row opens the project workspace. List view is a
- * datasheet (ADR-0023): Managers edit their projects' cells in place, and any
+ * datasheet: Managers edit their projects' cells in place, and any
  * user adds a project from the new-entry row (they become its Manager).
  */
 export function ProjectsView({
@@ -135,6 +136,7 @@ export function ProjectsView({
   totalCount,
   page,
   initialView,
+  layout,
   filtersActive,
   canCreate,
   newProjectAction,
@@ -145,6 +147,8 @@ export function ProjectsView({
   totalCount: number;
   page: number;
   initialView: ViewMode;
+  /** The user's saved datasheet layout (DataView initialLayout). */
+  layout?: ListLayout | null;
   filtersActive: boolean;
   newProjectAction?: React.ReactNode;
 }) {
@@ -157,6 +161,7 @@ export function ProjectsView({
       totalCount={totalCount}
       page={page}
       initialView={initialView}
+      initialLayout={layout}
       getRowId={(row) => row.ProjectId}
       getRowLabel={(row) => row.ProjectName}
       onOpen={(row) => router.push(`/projects/${row.ProjectId}`)}

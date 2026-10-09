@@ -1,7 +1,9 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef } from "react";
 import { messages } from "@/lib/messages";
+import { guardedHref } from "./unsaved-guard";
 
 /**
  * Attaches a beforeunload guard AND a same-document navigation guard when the
@@ -26,11 +28,17 @@ import { messages } from "@/lib/messages";
  *   navigation is attempted while the form is dirty, the hook cancels the
  *   navigation and dispatches a `before-navigate` CustomEvent on `window`.
  *   Sheets listen for this event and show their discard-confirmation dialog.
+ * - Clicks on in-app links (sidebar, section nav, breadcrumbs), caught at the
+ *   document capture phase before next/link's handler (ADR-0018 Q1): the App
+ *   Router renders the new route before it touches history, so the pushState
+ *   patch alone cannot stop a <Link>. The same `before-navigate` event is
+ *   dispatched; its `resume` performs the navigation.
  *
  * Note: browsers control the dialog text on modern platforms for beforeunload;
  * we only pass our copy as the deprecated `returnValue`.
  */
 export function useUnsavedChangesGuard(isDirty?: boolean) {
+  const router = useRouter();
   const dirtyRef = useRef(isDirty ?? false);
 
   // Keep the ref in sync when the reactive form is used.
@@ -54,6 +62,33 @@ export function useUnsavedChangesGuard(isDirty?: boolean) {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [handleBeforeUnload]);
+
+  // ── In-app link clicks (next/link) ───────────────────────────────────────
+  useEffect(() => {
+    const onClickCapture = (e: MouseEvent) => {
+      if (!dirtyRef.current) return;
+      const anchor = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      const href = guardedHref(e, anchor, window.location.href);
+      if (href === null) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const event = new CustomEvent("before-navigate", {
+        cancelable: true,
+        // Discarding: clean first, or the pushState patch below would ask again.
+        detail: {
+          resume: () => {
+            dirtyRef.current = false;
+            router.push(href);
+          },
+        },
+      });
+      window.dispatchEvent(event);
+      // No form asked to confirm: navigate as the link would have.
+      if (!event.defaultPrevented) router.push(href);
+    };
+    document.addEventListener("click", onClickCapture, true);
+    return () => document.removeEventListener("click", onClickCapture, true);
+  }, [router]);
 
   // ── Same-document navigation (Next.js App Router client-side nav) ────────
   // Next.js App Router does not expose router.events. We patch pushState /

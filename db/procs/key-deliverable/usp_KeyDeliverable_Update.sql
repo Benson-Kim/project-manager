@@ -33,7 +33,7 @@ BEGIN
 
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Manager', @AllowProjectless = 0;
+         @MinLevel = N'Manager', @Permission = N'key-deliverables:update', @AllowProjectless = 0;
     SET @ProjectId = @RowProjectId;
 
     IF @CurrentVer <> @RowVer

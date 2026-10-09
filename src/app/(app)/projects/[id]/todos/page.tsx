@@ -3,9 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
-import { flattenSearchParams, parseListParams } from "@/lib/list-params";
+import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
-import { getViewPreference } from "@/lib/repositories/view-preference";
+import { getListPreference } from "@/lib/repositories/view-preference";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { orNotFound, orNull } from "@/lib/row-access";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
@@ -62,9 +62,9 @@ export default async function TodosPage({
     projectOrActivity: flat.projectOrActivity ?? null,
   };
 
-  const [rows, preferredView, activityOptions, selectedRaw, allows, lookup] = await Promise.all([
+  const [rows, preference, activityOptions, selectedRaw, allows, lookup] = await Promise.all([
     orNotFound(listTodoItems(effectiveParams, session.userId, projectId, undefined, filters)),
-    getViewPreference(session.userId, "todo-items").catch(() => null),
+    getListPreference(session.userId, "todo-items").catch(() => null),
     listDailyActivityOptions(projectId, session.userId).catch(() => []),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? orNull(getTodoItemById(selectedId, session.userId))
@@ -114,7 +114,8 @@ export default async function TodosPage({
             rows={rows}
             totalCount={totalCount}
             page={effectiveParams.page}
-            initialView={effectiveParams.view ?? preferredView ?? "list"}
+            initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}
+            layout={preference?.layout}
             filtersActive={filtersActive}
             canReorder={canReorder}
             newTodoAction={canCreate ? newTodoLink : undefined}

@@ -13,7 +13,7 @@ BEGIN
     SET XACT_ABORT ON;
 
     EXEC dbo.usp_TodoItem_AssertAccess
-         @TodoItemId = @TodoItemId, @ActorUserId = @ActorUserId, @MinLevel = N'Manager';
+         @TodoItemId = @TodoItemId, @ActorUserId = @ActorUserId, @MinLevel = N'Manager', @Permission = N'todo-items:delete';
 
     DECLARE @CurrentVer BIGINT =
         (SELECT CAST(RowVer AS BIGINT) FROM app.TodoItem WHERE TodoItemId = @TodoItemId AND IsDeleted = 0);

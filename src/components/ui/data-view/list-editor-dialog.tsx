@@ -1,7 +1,12 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
-import { LOOKUP_LABEL_MAX, type LookupListKey } from "@/lib/lookup-lists";
+import {
+  LOOKUP_LABEL_MAX,
+  OPTION_COLORS,
+  type LookupListKey,
+  type OptionColor,
+} from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
 import { useAnnouncer } from "../announcer";
 import { Button } from "../button";
@@ -9,6 +14,7 @@ import { Dialog } from "../dialog";
 import { ErrorSummary } from "../form/error-summary";
 import { useLookupLists } from "../lookup-lists";
 import { useToast } from "../toast";
+import { TONES } from "../tones";
 import { IconButton } from "./datasheet-cells";
 import {
   addOption,
@@ -16,6 +22,7 @@ import {
   isChanged,
   moveOption,
   optionErrors,
+  recolorOption,
   removeOption,
   renameOption,
   toSaveInput,
@@ -24,10 +31,12 @@ import {
 
 /**
  * "Edit dropdown list: <column>" (client feedback §4, ADR-0022), opened from a
- * datasheet header caret. Rename options in place, move them, remove them, add
- * new ones; Save sends the whole list (dbo.usp_LookupList_Set) and every select
- * on the page shows the new options at once (LookupListsProvider). Locked
- * options — labels the app reads — can be moved but not renamed or removed.
+ * datasheet header caret or "Edit list…" in a cell's dropdown. Rename options
+ * in place, colour them, move them, remove them, add new ones, and choose
+ * whether rows take their value's colour (migration 020); Save sends the whole
+ * list (dbo.usp_LookupList_Set) and every select on the page shows the new
+ * options at once (LookupListsProvider). Locked options — labels the app reads —
+ * can be moved and coloured but not renamed or removed.
  */
 export function ListEditorDialog({
   listKey,
@@ -63,6 +72,7 @@ function ListEditor({
   const list = lists[listKey];
   const rowVer = list?.rowVer ?? 0;
   const [options, setOptions] = useState<EditorOption[]>(() => editorOptions(list));
+  const [tintRows, setTintRows] = useState(list?.tintRows ?? false);
   const [newLabel, setNewLabel] = useState("");
   const [added, setAdded] = useState(0);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -70,6 +80,7 @@ function ListEditor({
   const { toast } = useToast();
   const { announce } = useAnnouncer();
   const newId = useId();
+  const tintId = useId();
   const errors = optionErrors(listKey, rowVer, options);
   const invalid = Object.keys(errors).length > 0;
 
@@ -81,12 +92,12 @@ function ListEditor({
 
   const submit = () => {
     if (invalid) return;
-    if (!isChanged(list, options)) {
+    if (!isChanged(list, options, tintRows)) {
       onDone();
       return;
     }
     startTransition(async () => {
-      const result = await save(toSaveInput(listKey, rowVer, options));
+      const result = await save(toSaveInput(listKey, rowVer, options, tintRows));
       if (result.ok) {
         announce(messages.lookupLists.saved(column));
         toast({ variant: "success", title: messages.lookupLists.saved(column) });
@@ -114,6 +125,7 @@ function ListEditor({
               first={index === 0}
               last={index === options.length - 1}
               onRename={(label) => setOptions((current) => renameOption(current, index, label))}
+              onRecolor={(color) => setOptions((current) => recolorOption(current, index, color))}
               onMove={(delta) => setOptions((current) => moveOption(current, index, delta))}
               onRemove={() => setOptions((current) => removeOption(current, index))}
             />
@@ -146,6 +158,25 @@ function ListEditor({
         </Button>
       </div>
 
+      <div className="flex items-start gap-2">
+        <input
+          id={tintId}
+          type="checkbox"
+          checked={tintRows}
+          onChange={(e) => setTintRows(e.target.checked)}
+          aria-describedby={`${tintId}-hint`}
+          className="mt-1 size-5"
+        />
+        <div className="flex flex-col">
+          <label htmlFor={tintId} className="text-sm leading-6 text-ink">
+            {messages.lookupLists.tintRows}
+          </label>
+          <p id={`${tintId}-hint`} className="text-xs text-ink-muted">
+            {messages.lookupLists.tintRowsHint}
+          </p>
+        </div>
+      </div>
+
       <div className="flex justify-end gap-2">
         <Button variant="secondary" onClick={onDone}>
           {messages.actions.cancel}
@@ -165,6 +196,7 @@ function OptionRow({
   first,
   last,
   onRename,
+  onRecolor,
   onMove,
   onRemove,
 }: {
@@ -174,11 +206,14 @@ function OptionRow({
   first: boolean;
   last: boolean;
   onRename: (label: string) => void;
+  onRecolor: (color: OptionColor | null) => void;
   onMove: (delta: -1 | 1) => void;
   onRemove: () => void;
 }) {
   const errorId = useId();
   const name = option.label.trim() || messages.lookupLists.option(position);
+  // The name shows in its colour, as the cells and badges will.
+  const tone = option.color ? `${TONES[option.color].fill} font-medium` : "";
   return (
     <li className="flex flex-col gap-1">
       <div className="flex items-center gap-1">
@@ -190,13 +225,26 @@ function OptionRow({
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
           onChange={(e) => onRename(e.target.value)}
-          className="min-h-10 min-w-0 flex-1 rounded-md border border-line bg-surface px-3 text-sm text-ink read-only:bg-surface-raised aria-invalid:border-danger"
+          className={`min-h-10 min-w-0 flex-1 rounded-md border border-line px-3 text-sm aria-invalid:border-danger ${tone || "bg-surface text-ink read-only:bg-surface-raised"}`}
         />
         {option.locked ? (
           <span className="px-1 text-xs font-medium text-ink-muted">
             {messages.lookupLists.locked}
           </span>
         ) : null}
+        <select
+          aria-label={messages.lookupLists.color(name)}
+          value={option.color ?? ""}
+          onChange={(e) => onRecolor((e.target.value || null) as OptionColor | null)}
+          className={`min-h-10 w-28 shrink-0 rounded-md border border-line px-2 text-sm ${tone || "bg-surface text-ink"}`}
+        >
+          <option value="">{messages.lookupLists.noColor}</option>
+          {OPTION_COLORS.map((color) => (
+            <option key={color} value={color}>
+              {messages.lookupLists.colors[color]}
+            </option>
+          ))}
+        </select>
         <IconButton
           label={messages.lookupLists.moveUp(name)}
           disabled={first}
