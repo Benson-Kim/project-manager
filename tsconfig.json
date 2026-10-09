@@ -29,5 +29,5 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "new_db_ts.ts", "new_nav.tsx"]
+  "exclude": ["node_modules", "new_db_ts.ts", "new_nav.tsx", "electron", "dist-installer"]
 }

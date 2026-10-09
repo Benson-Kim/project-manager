@@ -7,6 +7,11 @@ on:
     branches: [main, develop]
   workflow_dispatch:
 
+env:
+  # The electron package is only needed for its types here; the desktop release
+  # job lets electron-builder download its own Electron build.
+  ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
 jobs:
   lint:
     name: Lint & Format Check
@@ -269,6 +274,16 @@ jobs:
         run: |
           echo "Deploying to Staging environment..."
           echo "Artifacts are ready."
+
+  # A merged PR on develop with every check green → new desktop installer and an
+  # update for installed apps (.github/workflows/desktop-release.yml).
+  desktop-release:
+    name: Desktop Release
+    needs: [lint, typecheck, unit-tests, build, db-apply, e2e-tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/desktop-release.yml
 
   deploy-production:
     name: Deploy to Production

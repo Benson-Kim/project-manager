@@ -31,6 +31,7 @@ on are merged to `develop`, and branch from the updated `develop`.
 | 1 | **CF** Client feedback: datasheet, managed lists, layout/colours, alarms, per-person permissions — **done** | `feature/datasheet` | S1 | 018–021 (used) |
 | 1 | **P1** Shared rich-text editor + HTML sanitiser | `feature/rich-text` | — | — |
 | 1 | **F1** File attachments (uploads) | `feature/file-storage` | — | 022 |
+| 1 | **D1** Desktop shell on develop + automatic desktop releases/updates | `feature/desktop-shell` | — | — |
 | 2 | **M1** Meetings — database & server layer | `feature/meetings-data` | S1, CF | 024 |
 | 2 | **R1** Risks & issues — database & server layer | `feature/risks-issues-data` | S1, CF | 023 |
 | 2 | **I1** IT resource planning — database & server layer | `feature/it-resources-data` | S1, CF | 025 |
@@ -57,7 +58,7 @@ number is already taken when you open the PR, take the next free number and say 
 the PR. Never edit a migration that is merged. The next free ADR number is **0025**:
 P1 takes it, because develop's ADR-0020 is web push.
 
-**Desktop edition follow-ups** (done in the desktop branch, not by these prompts):
+**Desktop edition follow-ups** (done on a desktop branch, not by these prompts):
 after **F1** merges, the desktop host must set `UPLOADS_DIR` to
 `%ProgramData%\Project Manager\Uploads` and include that folder in its backups;
 after **F2**, record desktop backups through `usp_Backup_RecordRun`.
@@ -75,8 +76,8 @@ WORKSPACE
   branches, commit work in progress to a pushed wip/* branch; never stash or discard it silently.
 - Don't install packages on your own. If you need a new package, write the ADR (ADR-0014 policy)
   and STOP to ask the user to approve the install; give the exact package names and versions.
-  After switching to a branch whose lockfile differs (feature/rich-text carries the Electron
-  desktop shell), run npm ci. Before deleting any folder, read LESSONS §19 (junctions).
+  After switching to a branch whose lockfile differs (develop carries the Electron desktop
+  shell once D1 merges), run npm ci. Before deleting any folder, read LESSONS §19 (junctions).
 - Ask the user before every commit and every push. Commit messages never carry a
   Co-Authored-By line. Don't launch subagents; if one is truly needed, use model "sonnet".
 
@@ -109,6 +110,10 @@ CI / HOSTING FACTS (docs are partly stale)
 - Local SQL Server is 2019 Express (compat 150), so write T-SQL that runs on both versions.
   2022-only syntax is out: IS DISTINCT FROM, GREATEST/LEAST, DATETRUNC, JSON_OBJECT/JSON_ARRAY.
 - On a Windows checkout run prettier as `npx prettier --check --end-of-line auto <files>`.
+- Every push to develop with all CI jobs green also publishes a desktop release
+  (.github/workflows/desktop-release.yml, docs/DESKTOP.md "Updates"): installed apps are offered
+  the update. Never put [force-update] in a PR title unless the user asks for it — it makes every
+  installed app restart to install the release.
 - The app ALSO ships as an offline Windows desktop app (Electron + local SQL Server Express 2022,
   loopback only). Therefore: no runtime network calls to other hosts (no CDNs, web fonts, external
   APIs); file-system paths only from validated env vars with safe defaults (src/lib/env.ts) — never
