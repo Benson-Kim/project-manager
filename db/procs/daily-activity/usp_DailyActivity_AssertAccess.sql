@@ -8,7 +8,8 @@ GO
 CREATE OR ALTER PROCEDURE dbo.usp_DailyActivity_AssertAccess
     @DailyActivityId INT,
     @ActorUserId     INT,
-    @MinLevel        NVARCHAR(20)
+    @MinLevel        NVARCHAR(20),
+    @Permission      NVARCHAR(64) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -22,6 +23,6 @@ BEGIN
 
     EXEC dbo.usp_Project_AssertAccess
         @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
-        @MinLevel = @MinLevel, @AllowProjectless = 1;
+        @MinLevel = @MinLevel, @AllowProjectless = 1, @Permission = @Permission;
 END;
 GO

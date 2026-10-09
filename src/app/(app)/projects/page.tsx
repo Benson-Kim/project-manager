@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { auth } from "@/lib/auth/provider";
 import { can } from "@/lib/auth/rbac";
-import { flattenSearchParams, parseListParams } from "@/lib/list-params";
+import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
-import { getViewPreference } from "@/lib/repositories/view-preference";
+import { getListPreference } from "@/lib/repositories/view-preference";
 import { ProjectsToolbar } from "@/modules/projects/components/projects-toolbar";
 import { ProjectsView } from "@/modules/projects/components/projects-view";
 import { listProjects } from "@/modules/projects/repository/projects";
@@ -39,9 +39,9 @@ export default async function ProjectsPage({
   const filtersParsed = projectFiltersSchema.safeParse(flattenSearchParams(raw));
   const filters = filtersParsed.success ? filtersParsed.data : {};
 
-  const [rows, preferredView, lookup] = await Promise.all([
+  const [rows, preference, lookup] = await Promise.all([
     listProjects(params, session.userId, filters),
-    getViewPreference(session.userId, "projects").catch(() => null),
+    getListPreference(session.userId, "projects").catch(() => null),
     loadLookupLists(PROJECT_LISTS, session),
   ]);
 
@@ -53,6 +53,8 @@ export default async function ProjectsPage({
 
   return (
     <>
+      {/* The top bar shows the title; the page still needs its heading for assistive tech. */}
+      <h1 className="sr-only">{messages.projects.title}</h1>
       {/* <ProjectsToolbar /> */}
       <LookupListsScope {...lookup}>
         <div className="mt-3">
@@ -60,7 +62,8 @@ export default async function ProjectsPage({
             rows={rows}
             totalCount={totalCount}
             page={params.page}
-            initialView={params.view ?? preferredView ?? "grid"}
+            initialView={initialViewOf(params.view, preference?.viewMode)}
+            layout={preference?.layout}
             filtersActive={filtersActive}
             canCreate={canCreate}
             newProjectAction={canCreate ? newProjectLink : undefined}

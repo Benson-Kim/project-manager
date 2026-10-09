@@ -12,7 +12,10 @@ const pushConfigSchema = z.object({
   dispatchToken: z
     .string()
     .min(32)
-    .refine((v) => v !== DISPATCH_TOKEN_SENTINEL, "ALERT_PUSH_DISPATCH_TOKEN must be replaced with a random secret"),
+    .refine(
+      (v) => v !== DISPATCH_TOKEN_SENTINEL,
+      "ALERT_PUSH_DISPATCH_TOKEN must be replaced with a random secret",
+    ),
 });
 
 export type PushConfig = z.infer<typeof pushConfigSchema>;

@@ -87,7 +87,9 @@ describe("daily-activities repository", () => {
   });
 
   it("list forwards ADR-0016 params with project scope", async () => {
-    execProc.mockResolvedValue([dbRow({ TotalCount: 5, ActorAccess: "Contributor" })]);
+    execProc.mockResolvedValue([
+      dbRow({ ProjectName: "Charter", TotalCount: 5, ActorAccess: "Contributor" }),
+    ]);
     const params = listParamsSchema.parse({ page: "1" });
     const rows = await listDailyActivities(params, 7, 3);
     expect(rows[0].TotalCount).toBe(5);
@@ -101,25 +103,32 @@ describe("daily-activities repository", () => {
       PageSize: 25,
       ActivityStatusId: null,
       TaskType: null,
+      WithoutProject: false,
     });
   });
 
   it("list sends no role to the proc (ADR-0021)", async () => {
-    execProc.mockResolvedValue([dbRow({ TotalCount: 1, ActorAccess: "Contributor" })]);
+    execProc.mockResolvedValue([
+      dbRow({ ProjectName: "Charter", TotalCount: 1, ActorAccess: "Contributor" }),
+    ]);
     await listDailyActivities(listParamsSchema.parse({}), 7, null);
     const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(params).not.toHaveProperty("ActorRole");
   });
 
   it("list accepts null projectId for cross-project queries", async () => {
-    execProc.mockResolvedValue([dbRow({ TotalCount: 1, ActorAccess: "Contributor" })]);
+    execProc.mockResolvedValue([
+      dbRow({ ProjectName: "Charter", TotalCount: 1, ActorAccess: "Contributor" }),
+    ]);
     await listDailyActivities(listParamsSchema.parse({}), 7, null);
     const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(params.ProjectId).toBeNull();
   });
 
   it("list forwards activityStatusId and taskType filter params to the proc", async () => {
-    execProc.mockResolvedValue([dbRow({ TotalCount: 1, ActorAccess: "Contributor" })]);
+    execProc.mockResolvedValue([
+      dbRow({ ProjectName: "Charter", TotalCount: 1, ActorAccess: "Contributor" }),
+    ]);
     await listDailyActivities(listParamsSchema.parse({}), 7, 3, 25, {
       activityStatusId: 2,
       taskType: "Technical",
@@ -131,7 +140,9 @@ describe("daily-activities repository", () => {
   });
 
   it("list sends null filter params when filters object is omitted", async () => {
-    execProc.mockResolvedValue([dbRow({ TotalCount: 1, ActorAccess: "Contributor" })]);
+    execProc.mockResolvedValue([
+      dbRow({ ProjectName: "Charter", TotalCount: 1, ActorAccess: "Contributor" }),
+    ]);
     await listDailyActivities(listParamsSchema.parse({}), 7, 3);
     const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(params.ActivityStatusId).toBeNull();

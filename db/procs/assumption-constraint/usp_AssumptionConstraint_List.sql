@@ -6,6 +6,8 @@
 --   the datasheet uses it to decide per row whether cells are editable. The cross-project filter
 --   reads the same rule: a row is listed when the actor has a level on it.
 -- Entity app.AssumptionConstraint (source: tblAssumptionsConstraints). Module: assumptions-constraints (#13).
+-- ActorGrants / ActorRevokes (ADR-0024): the actor's per-person overrides of 'assumptions-constraints' in the
+--   row's project (dbo.ufn_Permission_Overrides), so the datasheet gates cells as the procs do.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_AssumptionConstraint_List
@@ -47,9 +49,12 @@ BEGIN
            ac.UpdatedAtUtc,
            CAST(ac.RowVer AS BIGINT) AS RowVer,
            acc.AccessLevel AS ActorAccess,
+           ov.Grants AS ActorGrants,
+           ov.Revokes AS ActorRevokes,
            TotalCount = COUNT(*) OVER ()
     FROM app.AssumptionConstraint ac
     CROSS APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, ac.ProjectId, 0) acc
+    OUTER APPLY dbo.ufn_Permission_Overrides(@ActorRole, @ActorUserId, ac.ProjectId, N'assumptions-constraints') ov
     WHERE ac.IsDeleted = 0
       AND (@ProjectId IS NULL OR ac.ProjectId = @ProjectId)
       AND (@Type IS NULL OR ac.[Type] = @Type)

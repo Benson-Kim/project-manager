@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
+import { expectListed, expectNotListed } from "./support/datasheet";
 
 /**
  * Assumptions & constraints module (#13) — project-scoped route
@@ -30,10 +31,8 @@ test("create assumption happy path — appears in the list", async ({ page }) =>
   ).toBeVisible();
   await expect(form).toHaveCount(0); // sheet closed, ?id= cleared
 
-  await page.goto(
-    `/projects/2/assumptions-constraints?q=${encodeURIComponent(description)}`,
-  );
-  await expect(page.getByText(description).first()).toBeVisible();
+  await page.goto(`/projects/2/assumptions-constraints?q=${encodeURIComponent(description)}`);
+  await expectListed(page, description);
 });
 
 test("validation failure — empty description shows inline error and focuses the summary", async ({
@@ -80,10 +79,8 @@ test("edit seeded item — updated value persists in the list and re-open shows 
   await expect(form).toHaveCount(0);
 
   // Verify the new value is visible in the list
-  await page.goto(
-    `/projects/2/assumptions-constraints?q=${encodeURIComponent(updatedDesc)}`,
-  );
-  await expect(page.getByText(updatedDesc).first()).toBeVisible();
+  await page.goto(`/projects/2/assumptions-constraints?q=${encodeURIComponent(updatedDesc)}`);
+  await expectListed(page, updatedDesc);
 
   // Verify re-opening the same record shows the updated value
   await page.goto("/projects/2/assumptions-constraints?id=3");
@@ -122,10 +119,10 @@ test("type filter — Constraint only shows Constraint rows", async ({ page }) =
   await expect(page).toHaveURL(/type=Constraint/);
 
   // Seeded Constraint: id=1 "I will make it on time", id=6 "Constraint"
-  await expect(page.getByText("I will make it on time").first()).toBeVisible();
+  await expectListed(page, "I will make it on time");
 
   // Seeded Assumption: id=2 "Is this constraint validated?" should NOT appear
-  await expect(page.getByText("Is this constraint validated?")).toHaveCount(0);
+  await expectNotListed(page, "Is this constraint validated?");
 });
 
 test("axe scan on the assumptions & constraints list has no serious or critical violations", async ({

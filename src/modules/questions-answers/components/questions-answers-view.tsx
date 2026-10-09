@@ -8,6 +8,7 @@ import type { DataViewColumn } from "@/components/ui/data-view/types";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { listEmptyState } from "@/components/ui/states";
 import { rowAllows } from "@/lib/auth/actor-access";
+import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { createQuestionAnswerAction, updateQuestionAnswerAction } from "../actions";
@@ -74,6 +75,7 @@ export function QuestionsAnswersView({
   totalCount,
   page,
   initialView,
+  layout,
   filtersActive,
   projectId,
   canCreate,
@@ -86,6 +88,8 @@ export function QuestionsAnswersView({
   totalCount: number;
   page: number;
   initialView: ViewMode;
+  /** The user's saved datasheet layout (DataView initialLayout). */
+  layout?: ListLayout | null;
   filtersActive: boolean;
   newQuestionAction?: React.ReactNode;
 }) {
@@ -98,6 +102,7 @@ export function QuestionsAnswersView({
       totalCount={totalCount}
       page={page}
       initialView={initialView}
+      initialLayout={layout}
       getRowId={(row) => row.QuestionAnswerId}
       getRowLabel={(row) => row.Question}
       filtersActive={filtersActive}

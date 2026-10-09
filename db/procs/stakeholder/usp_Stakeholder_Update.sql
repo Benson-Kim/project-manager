@@ -45,7 +45,7 @@ BEGIN
 
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Manager', @AllowProjectless = 0;
+         @MinLevel = N'Manager', @Permission = N'stakeholders:update', @AllowProjectless = 0;
     SET @ProjectId = @RowProjectId;
 
     EXEC dbo.usp_LookupList_AssertLabel

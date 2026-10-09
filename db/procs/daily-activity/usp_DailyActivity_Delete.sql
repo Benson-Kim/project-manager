@@ -21,7 +21,7 @@ BEGIN
 
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Manager', @AllowProjectless = 1;
+         @MinLevel = N'Manager', @Permission = N'daily-activities:delete', @AllowProjectless = 1;
 
     IF @CurrentVer <> @RowVer
         THROW 50002, N'CONFLICT:DailyActivity was modified by someone else', 1;

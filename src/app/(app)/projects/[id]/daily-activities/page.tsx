@@ -3,11 +3,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
-import { flattenSearchParams, parseListParams } from "@/lib/list-params";
+import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
-import { getViewPreference } from "@/lib/repositories/view-preference";
+import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNotFound, orNull } from "@/lib/row-access";
+import { projectPicker } from "@/modules/projects/project-options";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
+import { listProjectOptions } from "@/modules/projects/repository/projects";
 import { DailyActivitySheet } from "@/modules/daily-activities/components/daily-activity-sheet";
 import { DailyActivitiesView } from "@/modules/daily-activities/components/daily-activities-view";
 import {
@@ -60,15 +62,21 @@ export default async function DailyActivitiesPage({
     taskType: flat.taskType ?? null,
   };
 
-  const [rows, preferredView, lookup, selectedRaw, allows] = await Promise.all([
-    orNotFound(listDailyActivities(effectiveParams, session.userId, projectId, undefined, filters)),
-    getViewPreference(session.userId, "daily-activities").catch(() => null),
-    loadLookupLists(DAILY_ACTIVITY_LISTS, session),
-    selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? orNull(getDailyActivityById(selectedId, session.userId))
-      : null,
-    getProjectPermissions(projectId, session.userId),
-  ]);
+  const [rows, preference, lookup, selectedRaw, allows, projectOptions, projectless] =
+    await Promise.all([
+      orNotFound(
+        listDailyActivities(effectiveParams, session.userId, projectId, undefined, filters),
+      ),
+      getListPreference(session.userId, "daily-activities").catch(() => null),
+      loadLookupLists(DAILY_ACTIVITY_LISTS, session),
+      selectedId && Number.isInteger(selectedId) && selectedId > 0
+        ? orNull(getDailyActivityById(selectedId, session.userId))
+        : null,
+      getProjectPermissions(projectId, session.userId),
+      // The Project column: where an activity can move or be added (shared with the layout).
+      listProjectOptions(session.userId),
+      getProjectPermissions(null, session.userId),
+    ]);
 
   // A deep link to an activity from another project is treated as not found.
   const selected = guardProjectScope(selectedRaw, projectId);
@@ -102,9 +110,15 @@ export default async function DailyActivitiesPage({
             rows={rows}
             totalCount={totalCount}
             page={effectiveParams.page}
-            initialView={effectiveParams.view ?? preferredView ?? "grid"}
+            initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}
+            layout={preference?.layout}
             filtersActive={filtersActive}
-            projectId={projectId}
+            projects={projectPicker(
+              projectOptions,
+              "daily-activities:create",
+              projectless("daily-activities:create"),
+              projectId,
+            )}
             canCreate={canCreate}
             newActivityAction={canCreate ? newActivityLink : undefined}
           />

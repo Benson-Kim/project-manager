@@ -38,6 +38,10 @@ export interface CellEditor<Row> {
   choices?: readonly ListChoice[];
   /** Whether the select offers an empty choice ("None"). Defaults to true. */
   clearable?: boolean;
+  /** What the empty choice of a clearable select reads in data rows; "None" by default. */
+  emptyLabel?: string;
+  /** The new-entry row's starting value (e.g. the filtered project); "" by default. */
+  initial?: string;
   maxLength?: number;
   min?: number;
   max?: number;
@@ -109,14 +113,22 @@ export function isCellChanged(kind: CellKind, original: string, next: string): b
   return kind === "text" ? original.trim() !== next.trim() : original !== next;
 }
 
-/** An empty new-entry draft for the editable columns, keyed by form field. */
+/** A fresh new-entry draft for the editable columns, keyed by form field (starting values or ""). */
 export function emptyDraft<Row>(editors: readonly CellEditor<Row>[]): Record<string, string> {
-  return Object.fromEntries(editors.map((editor) => [editor.field, ""]));
+  return Object.fromEntries(editors.map((editor) => [editor.field, editor.initial ?? ""]));
 }
 
-/** Whether the new-entry row holds anything worth committing. */
-export function hasDraft(draft: Record<string, string>): boolean {
-  return Object.values(draft).some((value) => value.trim() !== "");
+/**
+ * Whether the new-entry row holds anything worth committing: a value typed
+ * beyond the fresh draft (`base`) — a preset project alone is not an entry.
+ */
+export function hasDraft(
+  draft: Record<string, string>,
+  base: Record<string, string> = {},
+): boolean {
+  return Object.entries(draft).some(
+    ([field, value]) => value.trim() !== "" && value !== (base[field] ?? ""),
+  );
 }
 
 /** The fields an action rejected, from ActionResult.error.fieldErrors keys. */
@@ -124,10 +136,21 @@ export function invalidFields(fieldErrors: Record<string, string[]> | undefined)
   return new Set(Object.keys(fieldErrors ?? {}));
 }
 
+/** Row height until the user drags a row edge (client feedback §2: spacious rows). */
+export const DEFAULT_ROW_HEIGHT = 48;
+
 /** Minimum width per kind so cells stay readable (client feedback §2: spacious cells). */
 export const CELL_WIDTH: Record<CellKind, string> = {
   text: "min-w-56",
   number: "min-w-28",
   date: "min-w-40",
   select: "min-w-44",
+};
+
+/** CELL_WIDTH in px: what a column's resize handle reports before the browser measures it. */
+export const CELL_WIDTH_PX: Record<CellKind, number> = {
+  text: 224,
+  number: 112,
+  date: 160,
+  select: 176,
 };

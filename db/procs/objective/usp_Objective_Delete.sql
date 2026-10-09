@@ -21,7 +21,7 @@ BEGIN
 
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Manager', @AllowProjectless = 0;
+         @MinLevel = N'Manager', @Permission = N'objectives:delete', @AllowProjectless = 0;
 
     IF @CurrentVer <> @RowVer
         THROW 50002, N'CONFLICT:Objective was modified by someone else', 1;

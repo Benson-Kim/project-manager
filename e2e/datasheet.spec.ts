@@ -109,3 +109,99 @@ test("the header caret edits a list and every select updates at once (kitchen si
       .getByRole("option", { name: "Blocked" }),
   ).toBeAttached();
 });
+
+test("option colours tint cells and rows; 'Edit list…' in a cell opens the editor (kitchen sink)", async ({
+  page,
+}) => {
+  await page.goto("/kitchen-sink?view=list");
+  const table = page.getByTestId("data-view-table");
+  await expect(table).toBeVisible();
+  // The demo list colours rows: "In progress" is blue.
+  await expect(table.locator('tbody tr[data-tone="blue"]')).toHaveCount(1);
+
+  // "Edit list…" at the end of a cell's dropdown opens the editor without changing the value.
+  const status = page.getByRole("combobox", { name: cell("Status", "Network refresh") });
+  await status.selectOption({ label: messages.lookupLists.editInline });
+  const dialog = page.getByRole("dialog", { name: messages.lookupLists.edit("Status") });
+  await expect(dialog).toBeVisible();
+  await dialog
+    .getByRole("combobox", { name: messages.lookupLists.color("Completed") })
+    .selectOption({ label: messages.lookupLists.colors.red });
+  await dialog.getByRole("button", { name: messages.actions.save }).click();
+  await expect(dialog).toBeHidden();
+  await expect(status).toHaveValue("In progress");
+  await expect(table.locator('tbody tr[data-tone="red"]')).toHaveCount(1);
+});
+
+test("daily activities: the client's column order, and a project filter on the cross-project page", async ({
+  page,
+}) => {
+  await page.goto("/projects/2/daily-activities?view=list");
+  const headers = page.getByTestId("data-view-table").locator("thead th[data-column]");
+  await expect(headers).toHaveText([
+    messages.projectPicker.header,
+    messages.dailyActivities.requester,
+    messages.dailyActivities.requestDate,
+    messages.dailyActivities.contactMethod,
+    messages.dailyActivities.columns.task,
+    messages.dailyActivities.columns.myActivity,
+    messages.dailyActivities.columns.activityDate,
+    messages.dailyActivities.activityStatus,
+    messages.dailyActivities.comments,
+    messages.dailyActivities.columns.completeDate,
+  ]);
+
+  await page.goto("/daily-activities?view=list");
+  await page.getByTestId("filter-project").selectOption("none");
+  await expect(page).toHaveURL(/project=none/);
+  // Persistent new-entry row, starting with no project.
+  await expect(
+    page
+      .getByTestId("datasheet-add-row")
+      .getByRole("combobox", { name: newEntry(messages.projectPicker.header) }),
+  ).toHaveValue("");
+});
+
+test("table layout: a column edge resizes by keyboard and persists; Reset restores the default", async ({
+  page,
+}) => {
+  await page.goto("/projects/2/objectives?view=list");
+  const table = page.getByTestId("data-view-table");
+  await expect(table).toBeVisible();
+  const handle = table.locator("thead th[data-column]").first().getByRole("separator");
+  // Each arrow step saves the layout (a server action: the only POSTs this page sends here);
+  // reload only after both have been answered.
+  let saves = 0;
+  page.on("response", (response) => {
+    if (response.request().method() === "POST") saves += 1;
+  });
+  await handle.focus();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await expect(handle).toHaveAttribute("aria-valuenow", /\d+/);
+  const width = await handle.getAttribute("aria-valuenow");
+  await expect.poll(() => saves).toBeGreaterThanOrEqual(2);
+
+  await page.reload();
+  await expect(
+    page
+      .getByTestId("data-view-table")
+      .locator("thead th[data-column]")
+      .first()
+      .getByRole("separator"),
+  ).toHaveAttribute("aria-valuenow", width!);
+
+  await page.getByTestId("table-layout").click();
+  const dialog = page.getByRole("dialog", { name: messages.datasheet.tableLayout });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: messages.datasheet.resetLayout }).click();
+  await expect(dialog).toBeHidden();
+  // Back to the default width: the splitter reports the rendered size, not the stored one.
+  await expect(
+    page
+      .getByTestId("data-view-table")
+      .locator("thead th[data-column]")
+      .first()
+      .getByRole("separator"),
+  ).not.toHaveAttribute("aria-valuenow", width!);
+});

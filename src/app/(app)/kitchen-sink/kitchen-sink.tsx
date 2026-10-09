@@ -45,11 +45,15 @@ const demoLists: LookupLists = {
   "project.status": {
     key: "project.status",
     rowVer: 1,
-    options: ["Not started", "In progress", "Completed"].map((label, i) => ({
-      id: i + 1,
-      label,
-      locked: false,
-    })),
+    // Coloured values tint their cells and, with tintRows, whole rows (migration 020).
+    tintRows: true,
+    options: (
+      [
+        ["Not started", null],
+        ["In progress", "blue"],
+        ["Completed", "green"],
+      ] as const
+    ).map(([label, color], i) => ({ id: i + 1, label, locked: false, color })),
   },
 };
 
@@ -100,10 +104,12 @@ export function KitchenSink() {
     const list: LookupList = {
       key: "project.status",
       rowVer: Number(input.rowVer) + 1,
+      tintRows: input.tintRows ?? true,
       options: input.options.map((o, i) => ({
         id: o.id ?? 100 + i,
         label: o.label.trim(),
         locked: false,
+        color: o.color ?? null,
       })),
     };
     setLists({ "project.status": list });

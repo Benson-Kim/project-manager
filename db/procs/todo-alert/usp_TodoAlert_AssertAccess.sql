@@ -7,7 +7,8 @@ GO
 CREATE OR ALTER PROCEDURE dbo.usp_TodoAlert_AssertAccess
     @TodoAlertId INT,
     @ActorUserId INT,
-    @MinLevel    NVARCHAR(20)
+    @MinLevel    NVARCHAR(20),
+    @Permission  NVARCHAR(64) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -20,6 +21,7 @@ BEGIN
         THROW 50001, N'NOT_FOUND:TodoAlert not found', 1;
 
     EXEC dbo.usp_TodoItem_AssertAccess
-        @TodoItemId = @TodoItemId, @ActorUserId = @ActorUserId, @MinLevel = @MinLevel;
+        @TodoItemId = @TodoItemId, @ActorUserId = @ActorUserId, @MinLevel = @MinLevel,
+        @Permission = @Permission;
 END;
 GO

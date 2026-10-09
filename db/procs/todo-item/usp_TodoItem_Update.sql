@@ -29,10 +29,10 @@ BEGIN
     -- Row-level access (ADR-0021): the to-do rule, plus Contributor on the (possibly new)
     -- project and read access to a linked activity.
     EXEC dbo.usp_TodoItem_AssertAccess
-         @TodoItemId = @TodoItemId, @ActorUserId = @ActorUserId, @MinLevel = N'Contributor';
+         @TodoItemId = @TodoItemId, @ActorUserId = @ActorUserId, @MinLevel = N'Contributor', @Permission = N'todo-items:update';
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Contributor', @AllowProjectless = 1;
+         @MinLevel = N'Contributor', @Permission = N'todo-items:update', @AllowProjectless = 1;
     IF @DailyActivityId IS NOT NULL
         EXEC dbo.usp_DailyActivity_AssertAccess
              @DailyActivityId = @DailyActivityId, @ActorUserId = @ActorUserId, @MinLevel = N'Viewer';

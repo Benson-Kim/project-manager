@@ -9,6 +9,7 @@ import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { listEmptyState } from "@/components/ui/states";
 
 import { rowAllows } from "@/lib/auth/actor-access";
+import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { formatDate } from "@/lib/format";
@@ -101,6 +102,7 @@ export function SuppliersView({
   totalCount,
   page,
   initialView,
+  layout,
   filtersActive,
   projectId,
   canCreate,
@@ -113,6 +115,8 @@ export function SuppliersView({
   totalCount: number;
   page: number;
   initialView: ViewMode;
+  /** The user's saved datasheet layout (DataView initialLayout). */
+  layout?: ListLayout | null;
   filtersActive: boolean;
   newSupplierAction?: React.ReactNode;
 }) {
@@ -125,6 +129,7 @@ export function SuppliersView({
       totalCount={totalCount}
       page={page}
       initialView={initialView}
+      initialLayout={layout}
       getRowId={(row) => row.SupplierId}
       getRowLabel={(row) => row.SupplierName}
       onOpen={(row) => update({ id: String(row.SupplierId) })}

@@ -1,4 +1,6 @@
+import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
+import type { OptionColor } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
 import type { CellEditor, DatasheetConfig } from "./datasheet";
 
@@ -28,6 +30,17 @@ export interface DataViewProps<Row> {
   pageSize?: number;
   /** Initial view mode resolved server-side (preference proc / cookie). */
   initialView: ViewMode;
+  /**
+   * The user's saved datasheet layout — column order, widths, row height
+   * (usp_ViewPreference_Get, migration 019); omitted/null = the module's default.
+   * List view lets the user change it.
+   */
+  initialLayout?: ListLayout | null;
+  /**
+   * A row colour of the module's own (e.g. an overdue to-do); wins over the
+   * colour of its values in lists that tint rows (migration 020).
+   */
+  rowTone?: (row: Row) => OptionColor | null;
   getRowId: (row: Row) => string | number;
   /**
    * Optional accessible label for a row (used by bulkActions checkbox + screen

@@ -17,6 +17,8 @@ import {
 export interface DailyActivityListFilters {
   activityStatusId?: number | null;
   taskType?: string | null;
+  /** Only project-less activities (the cross-project page's "No project" filter). */
+  withoutProject?: boolean;
 }
 
 /**
@@ -81,6 +83,7 @@ export async function listDailyActivities(
     ...toProcListParams(params, pageSize),
     ActivityStatusId: filters.activityStatusId ?? null,
     TaskType: filters.taskType ?? null,
+    WithoutProject: filters.withoutProject ?? false,
   });
   return rows.map((r) => dailyActivityListRowSchema.parse(r));
 }

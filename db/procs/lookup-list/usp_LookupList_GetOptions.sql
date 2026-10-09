@@ -2,6 +2,7 @@
 -- order, each row carrying its list's RowVer (the token dbo.usp_LookupList_Set expects back).
 -- @ListKeys: JSON array of list keys, e.g. '["key-deliverable.status","key-deliverable.priority"]'.
 -- A list with no live options still returns one row with NULL option columns (so its RowVer is known).
+-- Colours (migration 020): Color per option (palette key or NULL) and the list's TintRows flag.
 -- Any active user may read the lists (dbo.usp_User_GetActorRole rejects unknown or inactive actors).
 -- Unknown keys are ignored. Entity app.LookupList / app.LookupOption. Module: lookup-lists (datasheet).
 USE ProjectManager;
@@ -21,10 +22,12 @@ BEGIN
 
     SELECT l.ListKey,
            CAST(l.RowVer AS BIGINT) AS ListRowVer,
+           l.TintRows AS ListTintRows,
            o.LookupOptionId,
            o.Label,
            o.SortOrder,
-           o.IsLocked
+           o.IsLocked,
+           o.Color
     FROM app.LookupList l
     JOIN (SELECT DISTINCT CAST(k.[value] AS NVARCHAR(64)) COLLATE DATABASE_DEFAULT AS ListKey
           FROM OPENJSON(@ListKeys) k) keys ON keys.ListKey = l.ListKey

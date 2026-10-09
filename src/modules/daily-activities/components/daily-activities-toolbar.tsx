@@ -1,20 +1,29 @@
 "use client";
 
 import { ListFilter } from "@/components/ui/data-view/list-filter";
+import { ProjectFilter } from "@/components/ui/data-view/project-filter";
 import { SearchInput } from "@/components/ui/data-view/search-input";
 import { Toolbar } from "@/components/ui/toolbar";
 import { messages } from "@/lib/messages";
 
 /**
- * Daily Activities toolbar: search + status filter + task-type filter +
- * view toggle (passed as children by DataView's renderToolbar). The filters
- * offer the managed lists (ADR-0022); the status filter carries the option id.
- * Project scope comes from the route.
+ * Daily Activities toolbar: search + project filter (cross-project page only)
+ * + status filter + task-type filter + view toggle (passed as children by
+ * DataView's renderToolbar). The filters offer the managed lists (ADR-0022);
+ * the status filter carries the option id. On a project page the route scopes it.
  */
-export function DailyActivitiesToolbar({ children }: { children?: React.ReactNode }) {
+export function DailyActivitiesToolbar({
+  projectFilterOptions,
+  children,
+}: {
+  /** The projects of the cross-project page's filter; omitted on a project page. */
+  projectFilterOptions?: readonly { id: number; name: string }[];
+  children?: React.ReactNode;
+}) {
   return (
     <Toolbar>
       <SearchInput testId="daily-activities-search" placeholder={messages.list.search} />
+      {projectFilterOptions ? <ProjectFilter options={projectFilterOptions} /> : null}
       <ListFilter
         list="daily-activity.status"
         param="statusId"

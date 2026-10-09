@@ -89,7 +89,9 @@ describe("todo-items repository", () => {
   });
 
   it("list forwards ADR-0016 params with project scope", async () => {
-    execProc.mockResolvedValue([dbRow({ TotalCount: 2, ActorAccess: "Manager" })]);
+    execProc.mockResolvedValue([
+      dbRow({ ProjectName: "Charter", TotalCount: 2, ActorAccess: "Manager" }),
+    ]);
     const params = listParamsSchema.parse({ page: "1" });
     const rows = await listTodoItems(params, 7, 3);
     expect(rows[0].TotalCount).toBe(2);
@@ -104,25 +106,32 @@ describe("todo-items repository", () => {
       Status: null,
       Priority: null,
       ProjectOrActivity: null,
+      WithoutProject: false,
     });
   });
 
   it("list sends no role to the proc (ADR-0021)", async () => {
-    execProc.mockResolvedValue([dbRow({ TotalCount: 1, ActorAccess: "Manager" })]);
+    execProc.mockResolvedValue([
+      dbRow({ ProjectName: "Charter", TotalCount: 1, ActorAccess: "Manager" }),
+    ]);
     await listTodoItems(listParamsSchema.parse({}), 7, null);
     const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(params).not.toHaveProperty("ActorRole");
   });
 
   it("list accepts null projectId for cross-project queries", async () => {
-    execProc.mockResolvedValue([dbRow({ TotalCount: 1, ActorAccess: "Manager" })]);
+    execProc.mockResolvedValue([
+      dbRow({ ProjectName: "Charter", TotalCount: 1, ActorAccess: "Manager" }),
+    ]);
     await listTodoItems(listParamsSchema.parse({}), 7, null);
     const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(params.ProjectId).toBeNull();
   });
 
   it("list forwards status and priority filter params to the proc", async () => {
-    execProc.mockResolvedValue([dbRow({ TotalCount: 1, ActorAccess: "Manager" })]);
+    execProc.mockResolvedValue([
+      dbRow({ ProjectName: "Charter", TotalCount: 1, ActorAccess: "Manager" }),
+    ]);
     await listTodoItems(listParamsSchema.parse({}), 7, 3, 25, {
       status: "In Progress",
       priority: "High",
@@ -136,7 +145,9 @@ describe("todo-items repository", () => {
   });
 
   it("list sends null filter params when filters object is empty", async () => {
-    execProc.mockResolvedValue([dbRow({ TotalCount: 1, ActorAccess: "Manager" })]);
+    execProc.mockResolvedValue([
+      dbRow({ ProjectName: "Charter", TotalCount: 1, ActorAccess: "Manager" }),
+    ]);
     await listTodoItems(listParamsSchema.parse({}), 7, 3);
     const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(params.Status).toBeNull();

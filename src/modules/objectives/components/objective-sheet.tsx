@@ -12,11 +12,7 @@ import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { messages } from "@/lib/messages";
 import type { ObjectiveRow } from "../schemas/objective";
 import { objectiveFormSchema, updateObjectiveFormSchema } from "../schemas/objective-form";
-import {
-  createObjectiveAction,
-  deleteObjectiveAction,
-  updateObjectiveAction,
-} from "../actions";
+import { createObjectiveAction, deleteObjectiveAction, updateObjectiveAction } from "../actions";
 
 /**
  * Objective detail/edit sheet (default pattern): URL-synced via ?id=
@@ -96,23 +92,24 @@ export function ObjectiveSheet({
             name="objectiveText"
             errors={form.errors.objectiveText}
           >
-            <Textarea
-              name="objectiveText"
-              rows={4}
-              defaultValue={objective?.ObjectiveText ?? ""}
-            />
+            <Textarea name="objectiveText" rows={4} defaultValue={objective?.ObjectiveText ?? ""} />
           </Field>
-          <Field label={messages.objectives.qMeasurable} name="qMeasurable" errors={form.errors.qMeasurable}>
+          <Field
+            label={messages.objectives.qMeasurable}
+            name="qMeasurable"
+            errors={form.errors.qMeasurable}
+          >
             <Input name="qMeasurable" defaultValue={objective?.QMeasurable ?? ""} />
           </Field>
           <Field label={messages.objectives.qSuccess} name="qSuccess" errors={form.errors.qSuccess}>
             <Textarea name="qSuccess" rows={3} defaultValue={objective?.QSuccess ?? ""} />
           </Field>
-          <Field label={messages.objectives.qAlignmentStrategy} name="qAlignmentStrategy" errors={form.errors.qAlignmentStrategy}>
-            <Input
-              name="qAlignmentStrategy"
-              defaultValue={objective?.QAlignmentStrategy ?? ""}
-            />
+          <Field
+            label={messages.objectives.qAlignmentStrategy}
+            name="qAlignmentStrategy"
+            errors={form.errors.qAlignmentStrategy}
+          >
+            <Input name="qAlignmentStrategy" defaultValue={objective?.QAlignmentStrategy ?? ""} />
           </Field>
         </fieldset>
 

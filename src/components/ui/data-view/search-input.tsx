@@ -8,13 +8,7 @@ import { messages } from "@/lib/messages";
  * Controlled search input — debounces 250 ms, syncs to ?q= URL param.
  * Used inside module toolbars so all modules share the same behaviour.
  */
-export function SearchInput({
-  testId,
-  placeholder,
-}: {
-  testId?: string;
-  placeholder?: string;
-}) {
+export function SearchInput({ testId, placeholder }: { testId?: string; placeholder?: string }) {
   const { searchParams, update } = useListUrlState();
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);

@@ -4,10 +4,10 @@ import { notFound } from "next/navigation";
 
 import { messages } from "@/lib/messages";
 import { auth } from "@/lib/auth/provider";
-import { getViewPreference } from "@/lib/repositories/view-preference";
+import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNotFound, orNull } from "@/lib/row-access";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
-import { flattenSearchParams, parseListParams } from "@/lib/list-params";
+import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 
 import { PageHeader } from "@/components/ui/page-header";
@@ -56,9 +56,9 @@ export default async function SuppliersPage({
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
-  const [rows, preferredView, selectedRaw, allows, lookup] = await Promise.all([
+  const [rows, preference, selectedRaw, allows, lookup] = await Promise.all([
     orNotFound(listSuppliers(effectiveParams, session.userId, projectId, filters)),
-    getViewPreference(session.userId, "suppliers").catch(() => null),
+    getListPreference(session.userId, "suppliers").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? orNull(getSupplierById(selectedId, session.userId))
       : null,
@@ -111,7 +111,8 @@ export default async function SuppliersPage({
             rows={rows}
             totalCount={totalCount}
             page={effectiveParams.page}
-            initialView={effectiveParams.view ?? preferredView ?? "grid"}
+            initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}
+            layout={preference?.layout}
             filtersActive={filtersActive}
             newSupplierAction={canCreate ? newSupplierEmptyLink : undefined}
           />

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { actorAccessSchema } from "@/lib/auth/actor-access";
+import { actorAccessFields } from "@/lib/auth/actor-access";
 import type { LookupListKey } from "@/lib/lookup-lists";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 
@@ -47,8 +47,10 @@ export const dailyActivityRowSchema = z.object({
 export type DailyActivityRow = z.infer<typeof dailyActivityRowSchema>;
 
 export const dailyActivityListRowSchema = dailyActivityRowSchema.extend({
+  /** The project's name — the datasheet's Project column (null: project-less). */
+  ProjectName: z.string().nullable(),
   TotalCount: z.number().int(),
-  ActorAccess: actorAccessSchema,
+  ...actorAccessFields,
 });
 
 export type DailyActivityListRow = z.infer<typeof dailyActivityListRowSchema>;

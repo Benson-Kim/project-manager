@@ -1,5 +1,5 @@
 -- usp_Project_Create — insert one app.Project row; audits in-transaction; returns the new row.
--- A non-Admin creator becomes the project's manager (title ProjectManager, access Manager,
+-- A non-Admin creator becomes the project's manager (title 'Project manager' — locked in the managed title list, ADR-0024 — access Manager,
 --   ADR-0021) in the same transaction, so they can open what they just created.
 -- Dropdown values (ADR-0022): ProjectStatus, ProjectPriority, ProjectPhase and RiskLevel must be live options of their lists (VALIDATION 50004),
 --   and are stored as listed.
@@ -76,7 +76,7 @@ BEGIN
     IF @ActorRole <> N'Admin'
     BEGIN
         INSERT INTO app.ProjectAssignee ([ProjectId], [Role], [PersonName], [UserId], [AccessLevel], CreatedBy)
-        SELECT @Id, N'ProjectManager', u.DisplayName, u.UserId, N'Manager', @ActorUserId
+        SELECT @Id, N'Project manager', u.DisplayName, u.UserId, N'Manager', @ActorUserId
         FROM auth.[User] u WHERE u.UserId = @ActorUserId;
         DECLARE @AssigneeId INT = SCOPE_IDENTITY();
 

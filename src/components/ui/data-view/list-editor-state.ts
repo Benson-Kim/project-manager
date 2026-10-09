@@ -1,4 +1,9 @@
-import { saveLookupListInput, type LookupList, type LookupListKey } from "@/lib/lookup-lists";
+import {
+  saveLookupListInput,
+  type LookupList,
+  type LookupListKey,
+  type OptionColor,
+} from "@/lib/lookup-lists";
 
 /**
  * Pure state of the "Edit dropdown list" dialog (ADR-0022). DOM-free so Vitest
@@ -11,6 +16,8 @@ export interface EditorOption {
   id: number | null;
   label: string;
   locked: boolean;
+  /** The value's colour (migration 020); null = none. Locked options can be recoloured. */
+  color: OptionColor | null;
 }
 
 export function editorOptions(list: LookupList | undefined): EditorOption[] {
@@ -19,6 +26,7 @@ export function editorOptions(list: LookupList | undefined): EditorOption[] {
     id: option.id,
     label: option.label,
     locked: option.locked,
+    color: option.color,
   }));
 }
 
@@ -30,6 +38,14 @@ export function renameOption(
   return options.map((option, i) =>
     i === index && !option.locked ? { ...option, label } : option,
   );
+}
+
+export function recolorOption(
+  options: EditorOption[],
+  index: number,
+  color: OptionColor | null,
+): EditorOption[] {
+  return options.map((option, i) => (i === index ? { ...option, color } : option));
 }
 
 /** Moves an option one place up (-1) or down (+1); out-of-range moves change nothing. */
@@ -50,15 +66,27 @@ export function removeOption(options: EditorOption[], index: number): EditorOpti
 /** Appends a new option (trimmed); a blank label changes nothing. */
 export function addOption(options: EditorOption[], label: string, key: string): EditorOption[] {
   const trimmed = label.trim();
-  return trimmed ? [...options, { key, id: null, label: trimmed, locked: false }] : options;
+  return trimmed
+    ? [...options, { key, id: null, label: trimmed, locked: false, color: null }]
+    : options;
 }
 
 /** The save input, validated by the same schema the Server Action uses. */
-export function toSaveInput(listKey: LookupListKey, rowVer: number, options: EditorOption[]) {
+export function toSaveInput(
+  listKey: LookupListKey,
+  rowVer: number,
+  options: EditorOption[],
+  tintRows?: boolean,
+) {
   return {
     listKey,
     rowVer,
-    options: options.map((option) => ({ id: option.id, label: option.label })),
+    tintRows,
+    options: options.map((option) => ({
+      id: option.id,
+      label: option.label,
+      color: option.color,
+    })),
   };
 }
 
@@ -78,13 +106,21 @@ export function optionErrors(
   return errors;
 }
 
-/** Whether the dialog holds changes worth saving. */
-export function isChanged(list: LookupList | undefined, options: EditorOption[]): boolean {
+/** Whether the dialog holds changes worth saving (options, their colours, or row colouring). */
+export function isChanged(
+  list: LookupList | undefined,
+  options: EditorOption[],
+  tintRows = list?.tintRows ?? false,
+): boolean {
   const original = list?.options ?? [];
   return (
+    tintRows !== (list?.tintRows ?? false) ||
     original.length !== options.length ||
     options.some(
-      (option, i) => option.id !== original[i].id || option.label.trim() !== original[i].label,
+      (option, i) =>
+        option.id !== original[i].id ||
+        option.label.trim() !== original[i].label ||
+        option.color !== original[i].color,
     )
   );
 }

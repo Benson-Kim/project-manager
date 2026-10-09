@@ -1,6 +1,8 @@
 -- usp_LookupList_Set — saves one dropdown list as a whole (ADR-0022), from the "Edit dropdown list"
 -- dialog: @OptionsJson lists the options in display order, e.g.
---   [{"id": 12, "label": "High"}, {"id": null, "label": "Blocked"}]
+--   [{"id": 12, "label": "High", "color": "red"}, {"id": null, "label": "Blocked"}]
+--   * "color" (migration 020) is a palette key — red, orange, yellow, green, blue, purple, gray —
+--     or absent/null for none. @TintRows sets whether rows take their value's colour (NULL = keep).
 --   * Admin only (FORBIDDEN_ROW 50003): every project shares the lists.
 --   * @RowVer is app.LookupList.RowVer as read (dbo.usp_LookupList_GetOptions); a mismatch is
 --     CONFLICT 50002, so two editors can't silently overwrite each other.
@@ -12,7 +14,8 @@
 --   * Locked options (the labels the code reads) must stay and keep their label.
 --   * Labels are trimmed, 1–50 characters (the narrowest bound column) and unique in the list ignoring case.
 --   Every rule failure is VALIDATION 50004; an unknown list is NOT_FOUND 50001.
--- Writes one audit row (EntityName app.LookupList, EntityId = ListKey, live options before/after).
+-- Writes one audit row (EntityName app.LookupList, EntityId = ListKey; before/after =
+--   {"tintRows": 0|1, "options": [live options]}).
 -- Returns the saved list in the shape of dbo.usp_LookupList_GetOptions.
 -- Entity app.LookupList / app.LookupOption. Module: lookup-lists (datasheet).
 USE ProjectManager;
@@ -21,7 +24,8 @@ CREATE OR ALTER PROCEDURE dbo.usp_LookupList_Set
     @ListKey     NVARCHAR(64),
     @OptionsJson NVARCHAR(MAX),
     @RowVer      BIGINT,
-    @ActorUserId INT
+    @ActorUserId INT,
+    @TintRows    BIT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -47,15 +51,20 @@ BEGIN
     DECLARE @In TABLE (
         Ord            INT           NOT NULL PRIMARY KEY,
         LookupOptionId INT           NULL,
-        Label          NVARCHAR(400) NULL
+        Label          NVARCHAR(400) NULL,
+        Color          NVARCHAR(40)  NULL
     );
-    INSERT INTO @In (Ord, LookupOptionId, Label)
-    SELECT CAST(j.[key] AS INT) + 1, o.id, TRIM(o.label)
+    INSERT INTO @In (Ord, LookupOptionId, Label, Color)
+    SELECT CAST(j.[key] AS INT) + 1, o.id, TRIM(o.label), NULLIF(TRIM(o.color), N'')
     FROM OPENJSON(@OptionsJson) j
-    CROSS APPLY OPENJSON(j.[value]) WITH (id INT '$.id', label NVARCHAR(400) '$.label') o;
+    CROSS APPLY OPENJSON(j.[value])
+        WITH (id INT '$.id', label NVARCHAR(400) '$.label', color NVARCHAR(40) '$.color') o;
 
     IF EXISTS (SELECT 1 FROM @In WHERE Label IS NULL OR LEN(Label) = 0 OR LEN(Label) > 50)
         THROW 50004, N'VALIDATION:Each option needs a name of up to 50 characters', 1;
+    IF EXISTS (SELECT 1 FROM @In WHERE Color IS NOT NULL
+               AND Color NOT IN (N'red', N'orange', N'yellow', N'green', N'blue', N'purple', N'gray'))
+        THROW 50004, N'VALIDATION:Unknown option colour', 1;
     IF EXISTS (SELECT 1 FROM @In GROUP BY Label HAVING COUNT(*) > 1)
         THROW 50004, N'VALIDATION:Option names must be unique', 1;
     IF EXISTS (SELECT 1 FROM @In WHERE LookupOptionId IS NOT NULL
@@ -82,10 +91,13 @@ BEGIN
     WHERE i.Label <> o.Label COLLATE Latin1_General_100_BIN2;
 
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT LookupOptionId, Label, SortOrder, IsLocked
-         FROM app.LookupOption WHERE ListKey = @ListKey AND IsDeleted = 0
-         ORDER BY SortOrder
-         FOR JSON PATH);
+        (SELECT l.TintRows AS tintRows,
+                JSON_QUERY((SELECT LookupOptionId, Label, SortOrder, IsLocked, Color
+                            FROM app.LookupOption WHERE ListKey = @ListKey AND IsDeleted = 0
+                            ORDER BY SortOrder
+                            FOR JSON PATH)) AS options
+         FROM app.LookupList l WHERE l.ListKey = @ListKey
+         FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 
     BEGIN TRAN;
 
@@ -95,16 +107,17 @@ BEGIN
     WHERE o.ListKey = @ListKey AND o.IsDeleted = 0
       AND NOT EXISTS (SELECT 1 FROM @In i WHERE i.LookupOptionId = o.LookupOptionId);
 
-    -- 2. Rename and reorder the options kept (one statement, so swapping two labels works).
-    UPDATE o SET Label = i.Label, SortOrder = i.Ord,
+    -- 2. Rename, reorder and recolour the options kept (one statement, so swapping two labels works).
+    UPDATE o SET Label = i.Label, SortOrder = i.Ord, Color = i.Color,
                  UpdatedAtUtc = SYSUTCDATETIME(), UpdatedBy = @ActorUserId
     FROM app.LookupOption o
     JOIN @In i ON i.LookupOptionId = o.LookupOptionId
-    WHERE o.Label <> i.Label COLLATE Latin1_General_100_BIN2 OR o.SortOrder <> i.Ord;
+    WHERE o.Label <> i.Label COLLATE Latin1_General_100_BIN2 OR o.SortOrder <> i.Ord
+       OR ISNULL(o.Color, '') <> ISNULL(i.Color, N'');
 
     -- 3. New labels: bring back the most recently retired option with that label, else insert.
     UPDATE o SET IsDeleted = 0, DeletedAtUtc = NULL, DeletedBy = NULL,
-                 Label = i.Label, SortOrder = i.Ord,
+                 Label = i.Label, SortOrder = i.Ord, Color = i.Color,
                  UpdatedAtUtc = SYSUTCDATETIME(), UpdatedBy = @ActorUserId
     FROM @In i
     CROSS APPLY (SELECT TOP (1) r.LookupOptionId
@@ -114,8 +127,8 @@ BEGIN
     JOIN app.LookupOption o ON o.LookupOptionId = pick.LookupOptionId
     WHERE i.LookupOptionId IS NULL;
 
-    INSERT INTO app.LookupOption (ListKey, Label, SortOrder, CreatedBy)
-    SELECT @ListKey, i.Label, i.Ord, @ActorUserId
+    INSERT INTO app.LookupOption (ListKey, Label, SortOrder, Color, CreatedBy)
+    SELECT @ListKey, i.Label, i.Ord, i.Color, @ActorUserId
     FROM @In i
     WHERE i.LookupOptionId IS NULL
       AND NOT EXISTS (SELECT 1 FROM app.LookupOption o
@@ -179,18 +192,25 @@ BEGIN
         ELSE IF @ListKey = N'todo-item.priority'
             UPDATE t SET [Priority] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
             FROM app.TodoItem t JOIN @Renamed r ON t.[Priority] = r.OldLabel;
+        ELSE IF @ListKey = N'project-assignee.title'
+            UPDATE t SET [Role] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
+            FROM app.ProjectAssignee t JOIN @Renamed r ON t.[Role] = r.OldLabel;
     END;
 
-    -- 5. Move the list's RowVer so a stale editor gets CONFLICT.
-    UPDATE app.LookupList SET UpdatedAtUtc = SYSUTCDATETIME(), UpdatedBy = @ActorUserId
+    -- 5. Move the list's RowVer so a stale editor gets CONFLICT (and set row colouring).
+    UPDATE app.LookupList SET TintRows = ISNULL(@TintRows, TintRows),
+                              UpdatedAtUtc = SYSUTCDATETIME(), UpdatedBy = @ActorUserId
     WHERE ListKey = @ListKey;
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.LookupList', @ListKey, @Before,
-            (SELECT LookupOptionId, Label, SortOrder, IsLocked
-             FROM app.LookupOption WHERE ListKey = @ListKey AND IsDeleted = 0
-             ORDER BY SortOrder
-             FOR JSON PATH));
+            (SELECT l.TintRows AS tintRows,
+                    JSON_QUERY((SELECT LookupOptionId, Label, SortOrder, IsLocked, Color
+                                FROM app.LookupOption WHERE ListKey = @ListKey AND IsDeleted = 0
+                                ORDER BY SortOrder
+                                FOR JSON PATH)) AS options
+             FROM app.LookupList l WHERE l.ListKey = @ListKey
+             FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
     COMMIT;
 

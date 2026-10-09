@@ -19,9 +19,22 @@ export interface ComboboxProps {
   options: ComboboxOption[];
   defaultValue?: string;
   onSelect?: (option: ComboboxOption | null) => void;
+  /** Accessible name when there is no surrounding <Field> label (e.g. a grid cell). */
+  ariaLabel?: string;
+  placeholder?: string;
+  /** Borderless, to fill a bordered grid cell (the team grid's new-member row). */
+  inCell?: boolean;
 }
 
-export function Combobox({ name, options, defaultValue, onSelect }: ComboboxProps) {
+export function Combobox({
+  name,
+  options,
+  defaultValue,
+  onSelect,
+  ariaLabel,
+  placeholder,
+  inCell = false,
+}: ComboboxProps) {
   const listboxId = useId();
   const aria = useFieldAria();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -81,7 +94,9 @@ export function Combobox({ name, options, defaultValue, onSelect }: ComboboxProp
           open && filtered[activeIndex] ? `${listboxId}-${filtered[activeIndex].value}` : undefined
         }
         autoComplete="off"
-        className="min-h-10 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink aria-invalid:border-danger"
+        aria-label={ariaLabel}
+        placeholder={placeholder}
+        className={`min-h-10 w-full text-sm text-ink placeholder:text-ink-muted aria-invalid:border-danger ${inCell ? "border-0 bg-transparent px-2" : "rounded-md border border-line bg-surface px-3"}`}
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);

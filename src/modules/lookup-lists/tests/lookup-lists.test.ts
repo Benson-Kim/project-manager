@@ -35,7 +35,8 @@ describe("lookup-lists repository (ADR-0022)", () => {
     expect(lists["supplier.rating"]).toEqual({
       key: "supplier.rating",
       rowVer: 31,
-      options: [{ id: 4, label: "Good", locked: false }],
+      tintRows: false,
+      options: [{ id: 4, label: "Good", locked: false, color: null }],
     });
     expect(lists["project.status"]?.options[0].label).toBe("On hold");
   });
@@ -59,8 +60,9 @@ describe("lookup-lists repository (ADR-0022)", () => {
       {
         listKey: "supplier.rating",
         rowVer: 31,
+        tintRows: true,
         options: [
-          { id: 4, label: " Good " },
+          { id: 4, label: " Good ", color: "green" },
           { id: null, label: "Great" },
         ],
       },
@@ -69,11 +71,12 @@ describe("lookup-lists repository (ADR-0022)", () => {
     expect(execProc).toHaveBeenCalledWith("usp_LookupList_Set", {
       ListKey: "supplier.rating",
       OptionsJson: JSON.stringify([
-        { id: 4, label: "Good" },
-        { id: null, label: "Great" },
+        { id: 4, label: "Good", color: "green" },
+        { id: null, label: "Great", color: null },
       ]),
       RowVer: 31,
       ActorUserId: 1,
+      TintRows: true,
     });
     expect(list.rowVer).toBe(32);
     expect(list.options.map((o) => o.label)).toEqual(["Good", "Great"]);

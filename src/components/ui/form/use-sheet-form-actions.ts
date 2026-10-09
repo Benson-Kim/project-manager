@@ -4,6 +4,8 @@ import { useCallback, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { ActionResult } from "@/lib/action";
 import { messages } from "@/lib/messages";
+import { useAnnouncer } from "@/components/ui/announcer";
+import { useToast } from "@/components/ui/toast";
 import type { useZodForm } from "./use-zod-form";
 
 type ZodFormHandle = ReturnType<typeof useZodForm>;
@@ -11,6 +13,8 @@ type ZodFormHandle = ReturnType<typeof useZodForm>;
 /**
  * Shared form-action plumbing for Sheet components:
  *   - handles pending state
+ *   - confirms a save or delete with a success toast and an announcement (ADR-0008)
+ *   - shows the error summary when client-side validation fails
  *   - maps action errors → form.setErrors / summary message
  *   - surfaces the CONFLICT reload prompt
  *   - wires the delete confirmation flow
@@ -37,23 +41,34 @@ export function useSheetFormActions<TCreate, TUpdate, TDelete = void>({
   const [summary, setSummary] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const { toast } = useToast();
+  const { announce } = useAnnouncer();
+  const confirm = useCallback(
+    (title: string) => {
+      toast({ variant: "success", title });
+      announce(title);
+    },
+    [toast, announce],
+  );
 
   const onSubmit = useCallback(
     (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       const formElement = e.currentTarget;
       const valid = form.validate(formElement);
-      if (!valid) return;
+      if (!valid) {
+        setSummary(messages.errors.summaryTitle);
+        return;
+      }
 
       const data = new FormData(formElement);
       startTransition(async () => {
         setSummary(null);
         setConflict(false);
-        const result = isEdit
-          ? await updateAction(data)
-          : await createAction(data);
+        const result = isEdit ? await updateAction(data) : await createAction(data);
 
         if (result.ok) {
+          confirm(isEdit ? messages.feedback.saved : messages.feedback.created);
           onSuccess();
           router.refresh();
         } else {
@@ -70,7 +85,7 @@ export function useSheetFormActions<TCreate, TUpdate, TDelete = void>({
         }
       });
     },
-    [isEdit, createAction, updateAction, onSuccess, form, router],
+    [isEdit, createAction, updateAction, onSuccess, form, router, confirm],
   );
 
   const onDelete = useCallback(
@@ -80,6 +95,7 @@ export function useSheetFormActions<TCreate, TUpdate, TDelete = void>({
         const result = await deleteAction(args);
         if (result.ok) {
           setConfirmDelete(false);
+          confirm(messages.feedback.deleted);
           onSuccess();
           router.refresh();
         } else {
@@ -88,7 +104,7 @@ export function useSheetFormActions<TCreate, TUpdate, TDelete = void>({
         }
       });
     },
-    [deleteAction, onSuccess, router],
+    [deleteAction, onSuccess, router, confirm],
   );
 
   return { pending, summary, conflict, confirmDelete, setConfirmDelete, onSubmit, onDelete };

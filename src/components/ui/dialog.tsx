@@ -1,6 +1,7 @@
 "use client";
 
 import * as RadixDialog from "@radix-ui/react-dialog";
+import { isToastInteraction } from "./toast";
 import { useCallback, useRef } from "react";
 import { messages } from "@/lib/messages";
 
@@ -53,6 +54,11 @@ function useReturnFocusToOpener() {
   return { onOpenAutoFocus, onCloseAutoFocus };
 }
 
+/** Closing or using a toast (e.g. a due to-do alarm) must not dismiss an open sheet or dialog. */
+function keepOpenForToasts(event: CustomEvent<{ originalEvent: Event }>) {
+  if (isToastInteraction(event)) event.preventDefault();
+}
+
 function CloseButton() {
   return (
     <RadixDialog.Close
@@ -66,7 +72,15 @@ function CloseButton() {
   );
 }
 
-export function Dialog({ open, onOpenChange, title, description, children }: OverlayProps) {
+/** `wide`: room for a small grid (e.g. the team's permission matrix); default is 480px. */
+export function Dialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  children,
+  wide = false,
+}: OverlayProps & { wide?: boolean }) {
   const focusReturn = useReturnFocusToOpener();
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
@@ -74,8 +88,9 @@ export function Dialog({ open, onOpenChange, title, description, children }: Ove
         <Overlay />
         <RadixDialog.Content
           {...focusReturn}
+          onInteractOutside={keepOpenForToasts}
           aria-describedby={description ? undefined : undefined}
-          className="fixed top-1/2 left-1/2 z-(--z-dialog) w-[calc(100vw-2rem)] max-w-[480px] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-line bg-surface p-4 shadow-xl"
+          className={`fixed top-1/2 left-1/2 z-(--z-dialog) w-[calc(100vw-2rem)] ${wide ? "max-w-[720px]" : "max-w-[480px]"} -translate-x-1/2 -translate-y-1/2 rounded-lg border border-line bg-surface p-4 shadow-xl`}
         >
           <RadixDialog.Title className="pr-11 text-base font-semibold text-ink">
             {title}
@@ -101,6 +116,7 @@ export function Sheet({ open, onOpenChange, title, description, children }: Over
         <Overlay />
         <RadixDialog.Content
           {...focusReturn}
+          onInteractOutside={keepOpenForToasts}
           className="fixed inset-x-0 bottom-0 z-(--z-dialog) max-h-[85dvh] overflow-y-auto rounded-t-lg border-t border-line bg-surface p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-xl md:inset-x-auto md:inset-y-0 md:right-0 md:max-h-none md:w-[480px] md:rounded-none md:border-t-0 md:border-l"
         >
           <RadixDialog.Title className="pr-11 text-base font-semibold text-ink">

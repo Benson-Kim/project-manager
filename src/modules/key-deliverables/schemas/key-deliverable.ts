@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { actorAccessSchema } from "@/lib/auth/actor-access";
+import { actorAccessFields } from "@/lib/auth/actor-access";
 import type { LookupListKey } from "@/lib/lookup-lists";
 
 /**
@@ -72,7 +72,7 @@ export const keyDeliverableRowSchema = z
 export type KeyDeliverableRow = z.infer<typeof keyDeliverableRowSchema>;
 
 export const keyDeliverableListRowSchema = keyDeliverableRowSchema.and(
-  z.object({ TotalCount: z.number().int(), ActorAccess: actorAccessSchema }),
+  z.object({ TotalCount: z.number().int(), ...actorAccessFields }),
 );
 
 export type KeyDeliverableListRow = z.infer<typeof keyDeliverableListRowSchema>;

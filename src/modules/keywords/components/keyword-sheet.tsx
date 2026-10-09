@@ -66,7 +66,11 @@ export function KeywordSheet({
     return () => window.removeEventListener("before-navigate", handleBeforeNavigate);
   }, [isDirty]);
 
-  const close = () => { setIsDirty(false); setShowUnsaved(false); update({ id: null }); };
+  const close = () => {
+    setIsDirty(false);
+    setShowUnsaved(false);
+    update({ id: null });
+  };
 
   const discardAndNavigate = () => {
     const resume = pendingNavRef.current;
@@ -76,22 +80,30 @@ export function KeywordSheet({
   };
 
   const requestClose = () => {
-    if (isDirty) { setShowUnsaved(true); } else { close(); }
+    if (isDirty) {
+      setShowUnsaved(true);
+    } else {
+      close();
+    }
   };
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formEl = e.currentTarget;
-    if (!form.validate(formEl)) { setSummary(messages.errors.summaryTitle); return; }
+    if (!form.validate(formEl)) {
+      setSummary(messages.errors.summaryTitle);
+      return;
+    }
     setSummary(null);
     setConflict(false);
     const data = new FormData(formEl);
     startTransition(async () => {
-      const result = keyword
-        ? await updateKeywordAction(data)
-        : await createKeywordAction(data);
+      const result = keyword ? await updateKeywordAction(data) : await createKeywordAction(data);
       if (result.ok) {
-        toast({ variant: "success", title: keyword ? messages.feedback.saved : messages.feedback.created });
+        toast({
+          variant: "success",
+          title: keyword ? messages.feedback.saved : messages.feedback.created,
+        });
         announce(keyword ? messages.feedback.saved : messages.feedback.created);
         close();
         router.refresh();
@@ -106,7 +118,10 @@ export function KeywordSheet({
   const onDelete = () => {
     if (!keyword) return;
     startTransition(async () => {
-      const result = await deleteKeywordAction({ keywordId: keyword.KeywordId, rowVer: keyword.RowVer });
+      const result = await deleteKeywordAction({
+        keywordId: keyword.KeywordId,
+        rowVer: keyword.RowVer,
+      });
       setConfirmDelete(false);
       if (result.ok) {
         toast({ variant: "success", title: messages.feedback.deleted });
@@ -124,96 +139,96 @@ export function KeywordSheet({
 
   return (
     <>
-    <Sheet
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) requestClose();
-      }}
-      title={keyword ? keyword.Keyword : messages.keywords.newKeyword}
-    >
-      <form
-        noValidate
-        onBlur={canEdit ? form.onBlur : undefined}
-        onSubmit={onSubmit}
-        data-testid="keyword-form"
-        className="flex flex-col gap-5"
+      <Sheet
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) requestClose();
+        }}
+        title={keyword ? keyword.Keyword : messages.keywords.newKeyword}
       >
-        <ErrorSummary message={summary} />
-        {conflict ? (
-          <div>
-            <Button type="button" variant="secondary" onClick={() => window.location.reload()}>
-              {messages.keywords.reload}
-            </Button>
-          </div>
-        ) : null}
-        <input type="hidden" name="projectId" value={keyword?.ProjectId ?? projectId} />
-        {keyword ? (
-          <>
-            <input type="hidden" name="keywordId" value={keyword.KeywordId} />
-            <input type="hidden" name="rowVer" value={keyword.RowVer} />
-          </>
-        ) : null}
-
-        <fieldset disabled={!canEdit} className="flex flex-col gap-5" onChange={() => setIsDirty(true)}>
-          <Field
-            label={messages.keywords.keyword}
-            name="keyword"
-            errors={form.errors.keyword}
-          >
-            <Input name="keyword" defaultValue={keyword?.Keyword ?? ""} />
-          </Field>
-          <Field
-            label={messages.keywords.definition}
-            name="definition"
-            errors={form.errors.definition}
-          >
-            <Textarea name="definition" rows={3} defaultValue={keyword?.Definition ?? ""} />
-          </Field>
-        </fieldset>
-
-        <div className="flex flex-wrap items-center gap-2 px-4 py-2">
-          {canEdit ? (
-            <Button type="submit" pending={pending} data-testid="keyword-save">
-              {messages.actions.save}
-            </Button>
+        <form
+          noValidate
+          onBlur={canEdit ? form.onBlur : undefined}
+          onSubmit={onSubmit}
+          data-testid="keyword-form"
+          className="flex flex-col gap-5"
+        >
+          <ErrorSummary message={summary} />
+          {conflict ? (
+            <div>
+              <Button type="button" variant="secondary" onClick={() => window.location.reload()}>
+                {messages.keywords.reload}
+              </Button>
+            </div>
           ) : null}
-          <Button type="button" variant="secondary" onClick={requestClose}>
-            {messages.actions.cancel}
-          </Button>
-          {keyword && canDelete ? (
-            <Button
-              type="button"
-              variant="danger"
-              data-testid="keyword-delete"
-              onClick={() => setConfirmDelete(true)}
+          <input type="hidden" name="projectId" value={keyword?.ProjectId ?? projectId} />
+          {keyword ? (
+            <>
+              <input type="hidden" name="keywordId" value={keyword.KeywordId} />
+              <input type="hidden" name="rowVer" value={keyword.RowVer} />
+            </>
+          ) : null}
+
+          <fieldset
+            disabled={!canEdit}
+            className="flex flex-col gap-5"
+            onChange={() => setIsDirty(true)}
+          >
+            <Field label={messages.keywords.keyword} name="keyword" errors={form.errors.keyword}>
+              <Input name="keyword" defaultValue={keyword?.Keyword ?? ""} />
+            </Field>
+            <Field
+              label={messages.keywords.definition}
+              name="definition"
+              errors={form.errors.definition}
             >
-              {messages.actions.delete}
-            </Button>
-          ) : null}
-        </div>
-      </form>
+              <Textarea name="definition" rows={3} defaultValue={keyword?.Definition ?? ""} />
+            </Field>
+          </fieldset>
 
-      {keyword ? (
-        <ConfirmDialog
-          open={confirmDelete}
-          onOpenChange={setConfirmDelete}
-          title={messages.confirmDelete.title(messages.keywords.entity, keyword.Keyword)}
-          body={messages.confirmDelete.body}
-          confirmLabel={messages.actions.delete}
-          onConfirm={onDelete}
-          pending={pending}
-        />
-      ) : null}
-    </Sheet>
-    <ConfirmDialog
-      open={showUnsaved}
-      onOpenChange={setShowUnsaved}
-      title={messages.feedback.unsavedChangesTitle}
-      body={messages.feedback.unsavedChangesBody}
-      confirmLabel={messages.feedback.discard}
-      onConfirm={discardAndNavigate}
-      pending={false}
-    />
+          <div className="flex flex-wrap items-center gap-2 px-4 py-2">
+            {canEdit ? (
+              <Button type="submit" pending={pending} data-testid="keyword-save">
+                {messages.actions.save}
+              </Button>
+            ) : null}
+            <Button type="button" variant="secondary" onClick={requestClose}>
+              {messages.actions.cancel}
+            </Button>
+            {keyword && canDelete ? (
+              <Button
+                type="button"
+                variant="danger"
+                data-testid="keyword-delete"
+                onClick={() => setConfirmDelete(true)}
+              >
+                {messages.actions.delete}
+              </Button>
+            ) : null}
+          </div>
+        </form>
+
+        {keyword ? (
+          <ConfirmDialog
+            open={confirmDelete}
+            onOpenChange={setConfirmDelete}
+            title={messages.confirmDelete.title(messages.keywords.entity, keyword.Keyword)}
+            body={messages.confirmDelete.body}
+            confirmLabel={messages.actions.delete}
+            onConfirm={onDelete}
+            pending={pending}
+          />
+        ) : null}
+      </Sheet>
+      <ConfirmDialog
+        open={showUnsaved}
+        onOpenChange={setShowUnsaved}
+        title={messages.feedback.unsavedChangesTitle}
+        body={messages.feedback.unsavedChangesBody}
+        confirmLabel={messages.feedback.discard}
+        onConfirm={discardAndNavigate}
+        pending={false}
+      />
     </>
   );
 }

@@ -1,6 +1,7 @@
 import { formatDate, toDateInput } from "@/lib/format";
-import type { LookupListKey } from "@/lib/lookup-lists";
-import { Badge } from "../badge";
+import type { ListChoice, LookupListKey } from "@/lib/lookup-lists";
+import { messages } from "@/lib/messages";
+import { ListBadge } from "../lookup-lists";
 import { formText } from "./datasheet";
 import type { DataViewColumn } from "./types";
 
@@ -119,7 +120,12 @@ export function listColumn<Row>(
     key: spec.key,
     header: spec.header,
     priority: spec.priority,
-    render: spec.render ?? ((row) => <Badge value={label(row)} />),
+    // The value's badge in its list colour (migration 020).
+    render:
+      spec.render ??
+      ((row) => (
+        <ListBadge list={spec.list} value={formText(spec.value(row)) || null} label={label(row)} />
+      )),
     edit: {
       kind: "select",
       field: spec.field,
@@ -127,6 +133,40 @@ export function listColumn<Row>(
       value: (row) => formText(spec.value(row)),
       currentLabel: spec.currentLabel,
       placeholder: spec.placeholder,
+    },
+  };
+}
+
+/**
+ * The Project column of a cross-project list (/daily-activities, /todo): the
+ * project's name, and a select of the projects the actor may put the record in
+ * (`choices`); the empty choice is the project-less shared space, offered when
+ * `clearable`. Rows keep showing a current project that isn't among the choices.
+ */
+export function projectColumn<
+  Row extends { ProjectId: number | null; ProjectName: string | null },
+>(spec: {
+  priority: 1 | 2 | 3;
+  choices: readonly ListChoice[];
+  clearable: boolean;
+  /** The new-entry row's project (the filtered one), "" for none. */
+  initial?: string;
+}): DataViewColumn<Row> {
+  return {
+    key: "Project",
+    header: messages.projectPicker.header,
+    priority: spec.priority,
+    render: (row) => row.ProjectName ?? messages.projectPicker.none,
+    edit: {
+      kind: "select",
+      field: "projectId",
+      value: (row) => formText(row.ProjectId),
+      currentLabel: (row) => row.ProjectName,
+      choices: spec.choices,
+      clearable: spec.clearable,
+      emptyLabel: messages.projectPicker.none,
+      initial: spec.initial,
+      placeholder: messages.projectPicker.placeholder,
     },
   };
 }

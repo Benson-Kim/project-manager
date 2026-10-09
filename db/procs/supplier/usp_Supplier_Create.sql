@@ -32,7 +32,7 @@ BEGIN
 
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Manager', @AllowProjectless = 0;
+         @MinLevel = N'Manager', @Permission = N'suppliers:create', @AllowProjectless = 0;
 
     EXEC dbo.usp_LookupList_AssertLabel
          @ListKey = N'supplier.rating', @Label = @Rating OUTPUT;

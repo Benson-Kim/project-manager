@@ -80,10 +80,7 @@ export function listEmptyState(
 ): React.ReactNode {
   if (filtersActive) {
     return (
-      <EmptyState
-        title={messages.list.zeroResultsTitle}
-        body={messages.list.zeroResultsBody}
-      />
+      <EmptyState title={messages.list.zeroResultsTitle} body={messages.list.zeroResultsBody} />
     );
   }
   return <EmptyState title={messages.list.emptyTitle} body={emptyBody} action={newAction} />;

@@ -4,6 +4,7 @@ import {
   listChoice,
   listChoices,
   listValue,
+  optionColor,
   saveLookupListInput,
   type LookupList,
   type LookupOptionRow,
@@ -12,19 +13,22 @@ import {
 const row = (overrides: Partial<LookupOptionRow> = {}): LookupOptionRow => ({
   ListKey: "key-deliverable.status",
   ListRowVer: 41,
+  ListTintRows: false,
   LookupOptionId: 1,
   Label: "Pending",
   SortOrder: 1,
   IsLocked: false,
+  Color: null,
   ...overrides,
 });
 
 const status: LookupList = {
   key: "key-deliverable.status",
   rowVer: 41,
+  tintRows: false,
   options: [
-    { id: 1, label: "Pending", locked: false },
-    { id: 2, label: "Completed", locked: true },
+    { id: 1, label: "Pending", locked: false, color: null },
+    { id: 2, label: "Completed", locked: true, color: null },
   ],
 };
 
@@ -39,7 +43,8 @@ describe("lookup lists (ADR-0022)", () => {
     expect(lists["key-deliverable.priority"]).toEqual({
       key: "key-deliverable.priority",
       rowVer: 7,
-      options: [{ id: 9, label: "Low", locked: false }],
+      tintRows: false,
+      options: [{ id: 9, label: "Low", locked: false, color: null }],
     });
   });
 
@@ -50,6 +55,7 @@ describe("lookup lists (ADR-0022)", () => {
     expect(lists["key-deliverable.status"]).toEqual({
       key: "key-deliverable.status",
       rowVer: 41,
+      tintRows: false,
       options: [],
     });
   });
@@ -65,9 +71,17 @@ describe("lookup lists (ADR-0022)", () => {
     });
     expect(parsed.rowVer).toBe(12);
     expect(parsed.options).toEqual([
-      { id: 3, label: "Good" },
-      { id: null, label: "Great" },
+      { id: 3, label: "Good", color: null },
+      { id: null, label: "Great", color: null },
     ]);
+    // Colours come from the palette only (migration 020).
+    expect(
+      saveLookupListInput.safeParse({
+        listKey: "supplier.rating",
+        rowVer: 1,
+        options: [{ id: null, label: "Great", color: "pink" }],
+      }).success,
+    ).toBe(false);
     const blank = saveLookupListInput.safeParse({
       listKey: "supplier.rating",
       rowVer: 1,
@@ -127,5 +141,37 @@ describe("lookup lists (ADR-0022)", () => {
     expect(listChoice.parse(" High ")).toBe("High");
     expect(listChoice.safeParse("x".repeat(51)).success).toBe(false);
     expect(listValue.parse("Anything the list may hold")).toBe("Anything the list may hold");
+  });
+  it("reads a value's colour: by label, or by option id for id-bound lists (migration 020)", () => {
+    const priority: LookupList = {
+      key: "todo-item.priority",
+      rowVer: 1,
+      tintRows: true,
+      options: [
+        { id: 5, label: "High", locked: false, color: "orange" },
+        { id: 6, label: "Low", locked: false, color: null },
+      ],
+    };
+    expect(optionColor(priority, "High")).toBe("orange");
+    expect(optionColor(priority, "Low")).toBeNull();
+    expect(optionColor(priority, "Retired")).toBeNull();
+    expect(optionColor(priority, null)).toBeNull();
+    expect(optionColor(undefined, "High")).toBeNull();
+    const byId: LookupList = {
+      key: "daily-activity.status",
+      rowVer: 1,
+      tintRows: false,
+      options: [{ id: 10, label: "Completed", locked: false, color: "green" }],
+    };
+    expect(optionColor(byId, "10")).toBe("green");
+    expect(optionColor(byId, "Completed")).toBeNull();
+  });
+
+  it("groups each option's colour and the list's row colouring", () => {
+    const lists = groupLookupRows([row({ ListTintRows: true, Color: "red" })]);
+    expect(lists["key-deliverable.status"]).toMatchObject({
+      tintRows: true,
+      options: [{ id: 1, color: "red" }],
+    });
   });
 });

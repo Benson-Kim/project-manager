@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { actorAccessSchema } from "@/lib/auth/actor-access";
+import { actorAccessFields } from "@/lib/auth/actor-access";
 import { listValue, type LookupListKey } from "@/lib/lookup-lists";
 import { alertTimeSchema, rowVerSchema } from "./todo-alert";
 
@@ -51,8 +51,10 @@ export const todoItemRowSchema = z.object({
 export type TodoItemRow = z.infer<typeof todoItemRowSchema>;
 
 export const todoItemListRowSchema = todoItemRowSchema.extend({
+  /** The project's name — the cross-project datasheet's Project column (null: personal). */
+  ProjectName: z.string().nullable(),
   TotalCount: z.number().int(),
-  ActorAccess: actorAccessSchema,
+  ...actorAccessFields,
 });
 
 export type TodoItemListRow = z.infer<typeof todoItemListRowSchema>;

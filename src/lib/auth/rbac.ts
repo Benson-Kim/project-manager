@@ -69,3 +69,55 @@ export function canInProject(level: AccessLevel | null, permission: Permission):
   if (!level || !needed) return false;
   return ACCESS_LEVELS.indexOf(level) >= ACCESS_LEVELS.indexOf(needed);
 }
+
+/**
+ * Project sections whose create / update / delete a project Manager can grant
+ * or revoke per person (ADR-0024, the team's cog). Reading follows the access
+ * level; the charter and the team itself (module "projects") never take
+ * overrides, so nobody can grant themselves team management. Must equal the
+ * list in dbo.usp_ProjectPermission_Set (src/tests/proc-access-levels.test.ts).
+ */
+export const OVERRIDABLE_MODULES = [
+  "assumptions-constraints",
+  "daily-activities",
+  "key-deliverables",
+  "keywords",
+  "objectives",
+  "parking-lot",
+  "questions-answers",
+  "stakeholders",
+  "suppliers",
+  "todo-alerts",
+  "todo-items",
+] as const;
+
+export type OverridableModule = (typeof OVERRIDABLE_MODULES)[number];
+
+export const OVERRIDE_VERBS = ["create", "update", "delete"] as const;
+
+export type OverrideVerb = (typeof OVERRIDE_VERBS)[number];
+
+/** One person's override in one project: a section's verb granted (true) or revoked (false). */
+export interface PermissionOverride {
+  module: OverridableModule;
+  verb: OverrideVerb;
+  allowed: boolean;
+}
+
+/**
+ * The project rule with overrides (ADR-0024), as dbo.usp_Permission_Require
+ * enforces it: for a member (some level), an override of the permission's
+ * section and verb decides; otherwise the level does (canInProject).
+ */
+export function allowsWithOverrides(
+  level: AccessLevel | null,
+  overrides: readonly PermissionOverride[],
+  permission: Permission,
+): boolean {
+  const parsed = parse(permission);
+  if (level && parsed) {
+    const override = overrides.find((o) => o.module === parsed[0] && o.verb === parsed[1]);
+    if (override) return override.allowed;
+  }
+  return canInProject(level, permission);
+}

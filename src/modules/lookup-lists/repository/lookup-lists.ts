@@ -39,6 +39,7 @@ export async function saveLookupList(
     OptionsJson: JSON.stringify(parsed.options),
     RowVer: parsed.rowVer,
     ActorUserId: actorUserId,
+    TintRows: parsed.tintRows ?? null,
   });
   const list = groupLookupRows(rows.map((r) => lookupOptionRowSchema.parse(r)))[parsed.listKey];
   if (!list) throw new Error(`usp_LookupList_Set returned no rows for ${parsed.listKey}`);

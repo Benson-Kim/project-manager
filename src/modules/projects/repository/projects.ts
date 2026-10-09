@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { execProc } from "@/lib/db";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
 import {
@@ -14,6 +15,7 @@ import {
   type ProjectSearchRow,
   type UpdateProjectInput,
 } from "../schemas/project";
+import type { ProjectOption } from "../project-options";
 
 /**
  * Project repository — stored procedures only , every row zod-parsed
@@ -93,10 +95,20 @@ export async function listProjects(
   return rows.map((r) => projectListRowSchema.parse(r));
 }
 
-export async function listProjectOptions(actorUserId: number) {
-  const rows = await listProjects({ q: undefined, sort: "ProjectName", dir: "asc", view: undefined, page: 1 }, actorUserId, {}, 1000);
-  return rows.map((row) => ({ id: row.ProjectId, name: row.ProjectName }));
-}
+/**
+ * Every project the actor can see, by name, with their access level — the shell's
+ * project switcher and the cross-project pickers/filters. Cached per request, so
+ * the layout and the page share one proc call.
+ */
+export const listProjectOptions = cache(async (actorUserId: number): Promise<ProjectOption[]> => {
+  const rows = await listProjects(
+    { q: undefined, sort: "ProjectName", dir: "asc", view: undefined, page: 1 },
+    actorUserId,
+    {},
+    1000,
+  );
+  return rows.map((row) => ({ id: row.ProjectId, name: row.ProjectName, access: row.ActorAccess }));
+});
 
 export async function updateProject(
   input: UpdateProjectInput,

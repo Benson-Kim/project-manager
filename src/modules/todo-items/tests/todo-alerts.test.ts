@@ -116,6 +116,18 @@ describe("todo-alerts repository", () => {
     expect(params.SnoozeMinutes).toBe(5);
     expect(params.RowVer).toBe(5);
     expect(params.ActorUserId).toBe(7);
+    // No browser clock: the proc snoozes from UTC.
+    expect(params.LocalNow).toBeNull();
+  });
+
+  it("snoozeTodoAlert counts from the user's wall clock when the browser sends it", async () => {
+    execProc.mockResolvedValue([{ ...alertRow(), SnoozeCount: 1 }]);
+    await snoozeTodoAlert(
+      { todoAlertId: 2, snoozeMinutes: 10, rowVer: 5, localNow: "2026-10-09T14:05:00" },
+      7,
+    );
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect((params.LocalNow as Date).toISOString()).toBe("2026-10-09T14:05:00.000Z");
   });
 
   it("snoozeTodoAlert rejects snoozeMinutes = 0 (below minimum)", async () => {

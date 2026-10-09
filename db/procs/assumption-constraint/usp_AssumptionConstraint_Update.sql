@@ -34,7 +34,7 @@ BEGIN
 
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Contributor', @AllowProjectless = 0;
+         @MinLevel = N'Contributor', @Permission = N'assumptions-constraints:update', @AllowProjectless = 0;
     SET @ProjectId = @RowProjectId;
 
     IF @CurrentVer <> @RowVer

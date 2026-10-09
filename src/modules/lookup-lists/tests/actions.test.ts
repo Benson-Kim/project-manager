@@ -46,6 +46,8 @@ describe("saveLookupListAction (ADR-0022)", () => {
         Label: "Good",
         SortOrder: 1,
         IsLocked: false,
+        ListTintRows: false,
+        Color: "green",
       },
     ]);
     const result = await saveLookupListAction(input);
@@ -54,7 +56,8 @@ describe("saveLookupListAction (ADR-0022)", () => {
       data: {
         key: "supplier.rating",
         rowVer: 32,
-        options: [{ id: 4, label: "Good", locked: false }],
+        tintRows: false,
+        options: [{ id: 4, label: "Good", locked: false, color: "green" }],
       },
     });
     const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
