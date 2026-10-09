@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ACCESS_LEVELS } from "@/lib/auth/types";
 
 /**
  * Project (app.Project ← tblProjectFramework) — zod contracts for the
@@ -128,8 +129,18 @@ export const projectFiltersSchema = z.object({
 
 export type ProjectFilters = z.infer<typeof projectFiltersSchema>;
 
-/** ProjectAssignee (app.ProjectAssignee — req 0.3 one-or-many PMs/Sponsors/BAs). */
-export const ASSIGNEE_ROLES = ["ProjectManager", "Sponsor", "BusinessAnalyst"] as const;
+/**
+ * Project team (app.ProjectAssignee — req 0.3, ADR-0021). Role is the title shown in the
+ * team; AccessLevel is what a member linked to a user account may do in this project.
+ * Mirrors CK_ProjectAssignee_Role.
+ */
+export const ASSIGNEE_ROLES = [
+  "ProjectManager",
+  "Sponsor",
+  "BusinessAnalyst",
+  "TeamMember",
+  "Stakeholder",
+] as const;
 export type AssigneeRole = (typeof ASSIGNEE_ROLES)[number];
 
 export const projectAssigneeRowSchema = z.object({
@@ -138,6 +149,7 @@ export const projectAssigneeRowSchema = z.object({
   Role: z.enum(ASSIGNEE_ROLES),
   PersonName: z.string(),
   UserId: z.number().int().nullable(),
+  AccessLevel: z.enum(ACCESS_LEVELS),
   CreatedAtUtc: z.date(),
   UpdatedAtUtc: z.date().nullable(),
   RowVer: rowVerSchema,
@@ -149,6 +161,8 @@ export const assigneeInput = z.object({
   role: z.enum(ASSIGNEE_ROLES),
   personName: z.string().trim().min(1).max(255),
   userId: z.number().int().positive().nullish(),
+  /** Ignored for rows without a user account: they grant nothing (stored as Viewer). */
+  accessLevel: z.enum(ACCESS_LEVELS),
 });
 
 export const setProjectAssigneesInput = z.object({

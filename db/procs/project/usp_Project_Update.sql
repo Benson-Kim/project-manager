@@ -1,4 +1,6 @@
 ﻿-- usp_Project_Update — full-row update with rowversion concurrency (50002 CONFLICT) + in-transaction audit.
+-- Row-level access: the actor needs Manager on the project (dbo.usp_Project_AssertAccess,
+--   ADR-0021; FORBIDDEN_ROW 50003).
 -- Entity app.Project (source: tblProjectFramework). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
@@ -47,6 +49,10 @@ BEGIN
         (SELECT CAST(RowVer AS BIGINT) FROM app.Project WHERE ProjectId = @ProjectId AND IsDeleted = 0);
     IF @CurrentVer IS NULL
         THROW 50001, N'NOT_FOUND:Project not found', 1;
+
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @ProjectId, @ActorUserId = @ActorUserId, @MinLevel = N'Manager';
+
     IF @CurrentVer <> @RowVer
         THROW 50002, N'CONFLICT:Project was modified by someone else', 1;
 

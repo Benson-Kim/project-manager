@@ -1,8 +1,15 @@
 "use server";
 
 import { action } from "@/lib/action";
-import { createKeyDeliverable, updateKeyDeliverable, deleteKeyDeliverable } from "../repository/key-deliverables";
-import { keyDeliverableFormSchema, updateKeyDeliverableFormSchema } from "../schemas/key-deliverable-form";
+import {
+  createKeyDeliverable,
+  updateKeyDeliverable,
+  deleteKeyDeliverable,
+} from "../repository/key-deliverables";
+import {
+  keyDeliverableFormSchema,
+  updateKeyDeliverableFormSchema,
+} from "../schemas/key-deliverable-form";
 import { deleteKeyDeliverableInput } from "../schemas/key-deliverable";
 
 /**
@@ -11,12 +18,9 @@ import { deleteKeyDeliverableInput } from "../schemas/key-deliverable";
  * so we use the bracket-segment pattern — Next.js revalidates every cached instance.
  * The Sheet component also calls router.refresh() for the current tab (ADR-0018).
  */
-const REVALIDATE_TARGETS = [
-  "/projects/[id]/deliverables",
-  "/projects/[id]/deliverables/gantt",
-];
+const REVALIDATE_TARGETS = ["/projects/[id]/deliverables", "/projects/[id]/deliverables/gantt"];
 
-/** Create a deliverable (RBAC key-deliverables:create — Admin + PM; audited in-proc). */
+/** Create a deliverable (RBAC key-deliverables:create — project level checked in-proc, ADR-0021; audited in-proc). */
 export const createKeyDeliverableAction = action({
   name: "key-deliverables.create",
   schema: keyDeliverableFormSchema,
@@ -25,7 +29,7 @@ export const createKeyDeliverableAction = action({
   handler: (input, ctx) => createKeyDeliverable(input, ctx.session.userId),
 });
 
-/** Update a deliverable (RBAC key-deliverables:update — Admin + PM; CONFLICT on stale RowVer). */
+/** Update a deliverable (RBAC key-deliverables:update — project level checked in-proc, ADR-0021; CONFLICT on stale RowVer). */
 export const updateKeyDeliverableAction = action({
   name: "key-deliverables.update",
   schema: updateKeyDeliverableFormSchema,
@@ -34,7 +38,7 @@ export const updateKeyDeliverableAction = action({
   handler: (input, ctx) => updateKeyDeliverable(input, ctx.session.userId),
 });
 
-/** Soft-delete a deliverable (RBAC key-deliverables:delete — Admin + PM; audited in-proc). */
+/** Soft-delete a deliverable (RBAC key-deliverables:delete — project level checked in-proc, ADR-0021; audited in-proc). */
 export const deleteKeyDeliverableAction = action({
   name: "key-deliverables.delete",
   schema: deleteKeyDeliverableInput,

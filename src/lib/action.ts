@@ -83,7 +83,8 @@ export function action<TSchema extends z.ZodType, TOutput>(
       // 2. Authenticate.
       const session = await auth.requireSession();
 
-      // 3. Authorise.
+      // 3. Authorise the global role (ADR-0021). What the actor may do inside a
+      // project is the procs' call: they throw FORBIDDEN_ROW, mapped below.
       if (!can(session.role, options.permission)) {
         return {
           ok: false,

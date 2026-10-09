@@ -1,5 +1,7 @@
 -- usp_KeyDeliverable_Create — insert one app.KeyDeliverable row + assignees;
 -- audits in-transaction; returns the new row with comma-separated assignee names.
+-- Row-level access: the target @ProjectId must be accessible (dbo.usp_Project_AssertAccess,
+--   FORBIDDEN_ROW 50003; Admin bypass).
 -- Entity app.KeyDeliverable (source: tblKeyRequirementsDeliverable). Module: key-deliverables (#9).
 USE ProjectManager;
 GO
@@ -16,6 +18,10 @@ AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
+
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
+         @MinLevel = N'Manager', @AllowProjectless = 0;
 
     BEGIN TRAN;
 

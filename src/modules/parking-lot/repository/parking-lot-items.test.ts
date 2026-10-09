@@ -59,10 +59,7 @@ describe("parking-lot-items repository", () => {
 
   it("create forwards optional stakeholderId when provided", async () => {
     execProc.mockResolvedValue([dbRow()]);
-    await createParkingLotItem(
-      { projectId: 2, parkingLotItem: "Item", stakeholderId: 3 },
-      7,
-    );
+    await createParkingLotItem({ projectId: 2, parkingLotItem: "Item", stakeholderId: 3 }, 7);
     const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(params.StakeholderId).toBe(3);
   });
@@ -152,12 +149,12 @@ describe("parking-lot-items repository", () => {
 
   it("delete forwards ids, rowVer and role to the proc", async () => {
     execProc.mockResolvedValue([]);
-    await deleteParkingLotItem(3, 42, 1, "Admin");
+    await deleteParkingLotItem(3, 42, 1);
     const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(proc).toBe("usp_ParkingLotItem_Delete");
     expect(params.ParkingLotItemId).toBe(3);
     expect(params.RowVer).toBe(42);
     expect(params.ActorUserId).toBe(1);
-    expect(params.ActorRole).toBe("Admin");
+    expect(params).not.toHaveProperty("ActorRole");
   });
 });

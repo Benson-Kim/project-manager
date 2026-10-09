@@ -3,11 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
-import { can } from "@/lib/auth/rbac";
-import { AppError } from "@/lib/errors";
 import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getViewPreference } from "@/lib/repositories/view-preference";
+import { orNotFound, orNull } from "@/lib/row-access";
+import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { StakeholderSheet } from "@/modules/stakeholders/components/stakeholder-sheet";
 import { StakeholdersView } from "@/modules/stakeholders/components/stakeholders-view";
 import {
@@ -57,24 +57,22 @@ export default async function StakeholdersPage({
     engagement,
   };
 
-  const [rows, preferredView, selectedRaw] = await Promise.all([
-    listStakeholders(listParams, session.userId, filters),
+  const [rows, preferredView, selectedRaw, allows] = await Promise.all([
+    orNotFound(listStakeholders(listParams, session.userId, filters, undefined)),
     getViewPreference(session.userId, "stakeholders").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getStakeholderById(selectedId, session.userId).catch((err) => {
-          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
-          throw err;
-        })
-      : Promise.resolve(null),
+      ? orNull(getStakeholderById(selectedId, session.userId))
+      : null,
+    getProjectPermissions(projectId, session.userId),
   ]);
 
   // A deep link to a stakeholder from another project is treated as not found.
   const selected = guardProjectScope(selectedRaw, projectId);
 
   const totalCount = rows[0]?.TotalCount ?? 0;
-  const canCreate = can(session.role, "stakeholders:create");
-  const canEdit = can(session.role, "stakeholders:update");
-  const canDelete = can(session.role, "stakeholders:delete");
+  const canCreate = allows("stakeholders:create");
+  const canEdit = allows("stakeholders:update");
+  const canDelete = allows("stakeholders:delete");
   const filtersActive = Boolean(listParams.q || flat.engagement);
 
   const newStakeholderLink = (

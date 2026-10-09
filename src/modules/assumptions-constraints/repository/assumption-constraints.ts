@@ -1,6 +1,5 @@
 import { execProc } from "@/lib/db";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
-import type { Role } from "@/lib/auth/types";
 import {
   assumptionConstraintListRowSchema,
   assumptionConstraintRowSchema,
@@ -16,8 +15,7 @@ import {
 /**
  * AssumptionConstraint repository — stored procedures only, zod row parsing
  * (STANDARDS §2.5), list params forwarded 1:1.
- * actorRole is forwarded to mutation procs for the ProjectAssignee check
- * (Admin bypass); matches the Q&A repository pattern.
+ * Procs resolve the actor's project access from @ActorUserId (ADR-0021).
  */
 
 export interface AssumptionConstraintListFilters {
@@ -37,18 +35,13 @@ function toProcParams(input: CreateAssumptionConstraintParsed) {
 export async function createAssumptionConstraint(
   input: CreateAssumptionConstraintInput,
   actorUserId: number,
-  actorRole: Role,
 ): Promise<AssumptionConstraintRow> {
   const parsed = createAssumptionConstraintInput.parse(input);
-  const rows = await execProc<AssumptionConstraintRow>(
-    "usp_AssumptionConstraint_Create",
-    {
-      ProjectId: parsed.projectId,
-      ...toProcParams(parsed),
-      ActorUserId: actorUserId,
-      ActorRole: actorRole,
-    },
-  );
+  const rows = await execProc<AssumptionConstraintRow>("usp_AssumptionConstraint_Create", {
+    ProjectId: parsed.projectId,
+    ...toProcParams(parsed),
+    ActorUserId: actorUserId,
+  });
   if (rows.length === 0) {
     const { AppError: AE } = await import("@/lib/errors");
     throw new AE("INTERNAL", "Create returned no rows");
@@ -59,16 +52,11 @@ export async function createAssumptionConstraint(
 export async function getAssumptionConstraintById(
   assumptionConstraintId: number,
   actorUserId: number,
-  actorRole: Role = "Viewer",
 ): Promise<AssumptionConstraintRow> {
-  const rows = await execProc<AssumptionConstraintRow>(
-    "usp_AssumptionConstraint_GetById",
-    {
-      AssumptionConstraintId: assumptionConstraintId,
-      ActorUserId: actorUserId,
-      ActorRole: actorRole,
-    },
-  );
+  const rows = await execProc<AssumptionConstraintRow>("usp_AssumptionConstraint_GetById", {
+    AssumptionConstraintId: assumptionConstraintId,
+    ActorUserId: actorUserId,
+  });
   if (rows.length === 0) {
     const { AppError: AE } = await import("@/lib/errors");
     throw new AE("NOT_FOUND", "AssumptionConstraint not found");
@@ -79,41 +67,31 @@ export async function getAssumptionConstraintById(
 export async function listAssumptionConstraints(
   params: ListParams,
   actorUserId: number,
-  actorRole: Role,
   projectId: number | null = null,
   filters: AssumptionConstraintListFilters = {},
   pageSize: number = DEFAULT_PAGE_SIZE,
 ): Promise<AssumptionConstraintListRow[]> {
-  const rows = await execProc<AssumptionConstraintListRow>(
-    "usp_AssumptionConstraint_List",
-    {
-      ActorUserId: actorUserId,
-      ActorRole: actorRole,
-      ProjectId: projectId,
-      ...toProcListParams(params, pageSize),
-      Type: filters.type ?? null,
-    },
-  );
+  const rows = await execProc<AssumptionConstraintListRow>("usp_AssumptionConstraint_List", {
+    ActorUserId: actorUserId,
+    ProjectId: projectId,
+    ...toProcListParams(params, pageSize),
+    Type: filters.type ?? null,
+  });
   return rows.map((r) => assumptionConstraintListRowSchema.parse(r));
 }
 
 export async function updateAssumptionConstraint(
   input: UpdateAssumptionConstraintInput,
   actorUserId: number,
-  actorRole: Role,
 ): Promise<AssumptionConstraintRow> {
   const parsed = updateAssumptionConstraintInput.parse(input);
-  const rows = await execProc<AssumptionConstraintRow>(
-    "usp_AssumptionConstraint_Update",
-    {
-      AssumptionConstraintId: parsed.assumptionConstraintId,
-      ProjectId: parsed.projectId,
-      ...toProcParams(parsed),
-      RowVer: parsed.rowVer,
-      ActorUserId: actorUserId,
-      ActorRole: actorRole,
-    },
-  );
+  const rows = await execProc<AssumptionConstraintRow>("usp_AssumptionConstraint_Update", {
+    AssumptionConstraintId: parsed.assumptionConstraintId,
+    ProjectId: parsed.projectId,
+    ...toProcParams(parsed),
+    RowVer: parsed.rowVer,
+    ActorUserId: actorUserId,
+  });
   if (rows.length === 0) {
     const { AppError: AE } = await import("@/lib/errors");
     throw new AE("INTERNAL", "Update returned no rows");
@@ -125,12 +103,10 @@ export async function deleteAssumptionConstraint(
   assumptionConstraintId: number,
   rowVer: number,
   actorUserId: number,
-  actorRole: Role,
 ): Promise<void> {
   await execProc("usp_AssumptionConstraint_Delete", {
     AssumptionConstraintId: assumptionConstraintId,
     RowVer: rowVer,
     ActorUserId: actorUserId,
-    ActorRole: actorRole,
   });
 }

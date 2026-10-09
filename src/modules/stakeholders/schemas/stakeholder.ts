@@ -7,8 +7,8 @@ import { rowVerSchema } from "@/modules/projects/schemas/project";
  * usp_Stakeholder_{Create,GetById,List,Update} exactly.
  */
 
-/** Dropdown vocabularies (req row 70; CHECK-constrained in migration 006). */
-export const COMMUNICATION_PREFERENCES = ["Email", "Phone", "Meeting"] as const;
+/** Dropdown vocabularies (req row 70; CHECK-constrained in migration 011 allows 'Email','Phone','Meetings'). */
+export const COMMUNICATION_PREFERENCES = ["Email", "Phone", "Meetings"] as const;
 export const ENGAGEMENT_LEVELS = ["High", "Medium", "Low"] as const;
 
 export const stakeholderRowSchema = z.object({

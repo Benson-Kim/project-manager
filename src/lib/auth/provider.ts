@@ -1,7 +1,7 @@
 import { AppError } from "../errors";
 import { auth as authJs } from "./config";
 import { getSessionStamp } from "./session-stamp";
-import type { AuthProvider, Session } from "./types";
+import { ROLES, type AuthProvider, type Session } from "./types";
 
 /**
  * Auth.js-backed provider (module #4; replaces the ADR-0015 dev stub — the
@@ -19,6 +19,9 @@ export const auth: AuthProvider = {
     const stamp = await getSessionStamp(token.userId);
     if (!stamp || !stamp.isActive || stamp.sessionVersion !== token.sessionVersion) {
       return null; // revoked, deactivated or deleted — treat as signed out
+    }
+    if (!(ROLES as readonly string[]).includes(token.role)) {
+      return null; // minted with a role retired by ADR-0021 — fail closed
     }
 
     return { userId: token.userId, username: token.username, role: token.role };

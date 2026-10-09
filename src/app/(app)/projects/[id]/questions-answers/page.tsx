@@ -3,11 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
-import { can } from "@/lib/auth/rbac";
-import { AppError } from "@/lib/errors";
 import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getViewPreference } from "@/lib/repositories/view-preference";
+import { orNotFound, orNull } from "@/lib/row-access";
+import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { QuestionAnswerSheet } from "@/modules/questions-answers/components/question-answer-sheet";
 import { QuestionsAnswersView } from "@/modules/questions-answers/components/questions-answers-view";
 import {
@@ -15,7 +15,6 @@ import {
   listQuestionAnswers,
 } from "@/modules/questions-answers/repository/question-answers";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
-import { getProjectCached } from "../get-project";
 import { parseProjectId } from "../project-id";
 
 /** Allowed sort columns for Q&A — prevents arbitrary strings reaching the proc. */
@@ -43,15 +42,6 @@ export default async function QuestionsAnswersPage({
   const projectId = parseProjectId(id);
   if (projectId === null) notFound();
 
-  // Validate the parent project exists before listing child records (P2 guard).
-  // Uses the React-cached version so layout + page share one DB call per request.
-  try {
-    await getProjectCached(projectId, session.userId);
-  } catch (err) {
-    if (err instanceof AppError && err.code === "NOT_FOUND") notFound();
-    throw err;
-  }
-
   const raw = await searchParams;
   const flat = flattenSearchParams(raw);
   const listParams = parseListParams(raw);
@@ -65,9 +55,7 @@ export default async function QuestionsAnswersPage({
   const rawId = !isNew && flat.id ? Number(flat.id) : null;
   // Guard against Infinity (e.g. "1e308") and non-integers before hitting the DB.
   const selectedId =
-    rawId !== null && Number.isFinite(rawId) && Number.isInteger(rawId) && rawId > 0
-      ? rawId
-      : null;
+    rawId !== null && Number.isFinite(rawId) && Number.isInteger(rawId) && rawId > 0 ? rawId : null;
 
   // Coerce empty-string filter params to null so the proc treats them as
   // "no filter" rather than filtering for the empty string.
@@ -76,29 +64,20 @@ export default async function QuestionsAnswersPage({
     priority: flat.priority?.trim() || null,
   };
 
-  const [rows, preferredView, selectedRaw] = await Promise.all([
-    listQuestionAnswers(effectiveParams, session.userId, projectId, filters),
-    getViewPreference(session.userId, "questions-answers").catch((err) => {
-      // Only swallow NOT_FOUND (no preference saved yet); surface other errors.
-      if (err instanceof AppError && err.code === "NOT_FOUND") return null;
-      console.error("[questions-answers] getViewPreference failed:", err);
-      return null;
-    }),
-    selectedId
-      ? getQuestionAnswerById(selectedId, session.userId).catch((err) => {
-          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
-          throw err;
-        })
-      : Promise.resolve(null),
+  const [rows, preferredView, selectedRaw, allows] = await Promise.all([
+    orNotFound(listQuestionAnswers(effectiveParams, session.userId, projectId, filters)),
+    getViewPreference(session.userId, "questions-answers").catch(() => null),
+    selectedId ? orNull(getQuestionAnswerById(selectedId, session.userId)) : null,
+    getProjectPermissions(projectId, session.userId),
   ]);
 
   // Cross-project leak guard: deep links to another project's Q&A yield not-found.
   const selected = guardProjectScope(selectedRaw, projectId);
 
   const totalCount = rows[0]?.TotalCount ?? 0;
-  const canCreate = can(session.role, "questions-answers:create");
-  const canEdit = can(session.role, "questions-answers:update");
-  const canDelete = can(session.role, "questions-answers:delete");
+  const canCreate = allows("questions-answers:create");
+  const canEdit = allows("questions-answers:update");
+  const canDelete = allows("questions-answers:delete");
   const filtersActive = Boolean(effectiveParams.q || flat.category || flat.priority);
 
   const newQuestionLink = (

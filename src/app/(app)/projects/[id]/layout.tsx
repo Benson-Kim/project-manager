@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ProjectSectionNav } from "@/components/shell/project-section-nav";
 import { auth } from "@/lib/auth/provider";
-import { AppError } from "@/lib/errors";
 import { messages } from "@/lib/messages";
+import { orNotFound } from "@/lib/row-access";
 import { getProjectCached } from "./get-project";
 import { parseProjectId } from "./project-id";
 
@@ -28,13 +28,8 @@ export default async function ProjectWorkspaceLayout({
   const projectId = parseProjectId(id);
   if (projectId === null) notFound();
 
-  let project;
-  try {
-    project = await getProjectCached(projectId, session.userId);
-  } catch (err) {
-    if (err instanceof AppError && err.code === "NOT_FOUND") notFound();
-    throw err;
-  }
+  // An absent project, or one the actor is not on, is a 404 (ADR-0021).
+  await orNotFound(getProjectCached(projectId, session.userId));
 
   return (
     <div className="flex flex-col flex-1">

@@ -3,11 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
-import { can } from "@/lib/auth/rbac";
-import { AppError } from "@/lib/errors";
 import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getViewPreference } from "@/lib/repositories/view-preference";
+import { orNotFound, orNull } from "@/lib/row-access";
+import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { KeywordSheet } from "@/modules/keywords/components/keyword-sheet";
 import { KeywordsView } from "@/modules/keywords/components/keywords-view";
 import { listKeywords, getKeywordById } from "@/modules/keywords/repository/keywords";
@@ -46,24 +46,22 @@ export default async function KeywordsPage({
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
-  const [rows, preferredView, selectedRaw] = await Promise.all([
-    listKeywords(effectiveParams, session.userId, projectId),
+  const [rows, preferredView, selectedRaw, allows] = await Promise.all([
+    orNotFound(listKeywords(effectiveParams, session.userId, projectId, undefined)),
     getViewPreference(session.userId, "keywords").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getKeywordById(selectedId, session.userId).catch((err) => {
-          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
-          throw err;
-        })
-      : Promise.resolve(null),
+      ? orNull(getKeywordById(selectedId, session.userId))
+      : null,
+    getProjectPermissions(projectId, session.userId),
   ]);
 
   // A deep link to a keyword from another project is treated as not found.
   const selected = guardProjectScope(selectedRaw, projectId);
 
   const totalCount = rows[0]?.TotalCount ?? 0;
-  const canCreate = can(session.role, "keywords:create");
-  const canEdit = can(session.role, "keywords:update");
-  const canDelete = can(session.role, "keywords:delete");
+  const canCreate = allows("keywords:create");
+  const canEdit = allows("keywords:update");
+  const canDelete = allows("keywords:delete");
   const filtersActive = Boolean(effectiveParams.q);
 
   const newKeywordLink = (
@@ -78,10 +76,7 @@ export default async function KeywordsPage({
 
   return (
     <>
-      <PageHeader
-        title={messages.keywords.title}
-        action={canCreate ? newKeywordLink : undefined}
-      />
+      <PageHeader title={messages.keywords.title} action={canCreate ? newKeywordLink : undefined} />
       <div className="mt-3 flex flex-col flex-1">
         <KeywordsView
           rows={rows}

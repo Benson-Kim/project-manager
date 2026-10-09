@@ -47,7 +47,7 @@ const mockAuditLogout = vi.mocked(auditLogout);
 const mockVerify = vi.mocked(verifyPassword);
 const mockDeactivateByUser = vi.mocked(deactivateAlertSubscriptionsByUser);
 
-const session = { userId: 7, username: "pm", role: "ProjectManager" as const };
+const session = { userId: 7, username: "pm", role: "User" as const };
 
 const user: CredentialsRow = {
   UserId: 7,
@@ -56,7 +56,7 @@ const user: CredentialsRow = {
   DisplayName: "PM",
   Email: null,
   RoleId: 2,
-  RoleName: "ProjectManager",
+  RoleName: "User",
   IsActive: true,
   MustChangePassword: false,
   FailedLoginCount: 0,

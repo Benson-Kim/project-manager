@@ -70,9 +70,20 @@ describe("daily-activities repository", () => {
     expect(params.Progress).toBe(75);
   });
 
-  it("getById parses the row", async () => {
+  it("getById sends only the actor id (no role, ADR-0021) and parses the row", async () => {
     execProc.mockResolvedValue([dbRow()]);
     await expect(getDailyActivityById(10, 7)).resolves.toMatchObject({ Task: "Write unit tests" });
+    expect(execProc).toHaveBeenCalledWith("usp_DailyActivity_GetById", {
+      DailyActivityId: 10,
+      ActorUserId: 7,
+    });
+  });
+
+  it("getById — Admin role is forwarded (Admin bypass)", async () => {
+    execProc.mockResolvedValue([dbRow()]);
+    await getDailyActivityById(10, 99);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params).not.toHaveProperty("ActorRole");
   });
 
   it("list forwards ADR-0016 params with project scope", async () => {
@@ -91,6 +102,13 @@ describe("daily-activities repository", () => {
       ActivityStatusId: null,
       TaskType: null,
     });
+  });
+
+  it("list sends no role to the proc (ADR-0021)", async () => {
+    execProc.mockResolvedValue([dbRow({ TotalCount: 1 })]);
+    await listDailyActivities(listParamsSchema.parse({}), 7, null);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params).not.toHaveProperty("ActorRole");
   });
 
   it("list accepts null projectId for cross-project queries", async () => {
@@ -127,10 +145,7 @@ describe("daily-activities repository", () => {
 
   it("update forwards RowVer for optimistic concurrency", async () => {
     execProc.mockResolvedValue([dbRow()]);
-    await updateDailyActivity(
-      { dailyActivityId: 10, rowVer: 88, projectId: 3 },
-      7,
-    );
+    await updateDailyActivity({ dailyActivityId: 10, rowVer: 88, projectId: 3 }, 7);
     const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(proc).toBe("usp_DailyActivity_Update");
     expect(params.RowVer).toBe(88);

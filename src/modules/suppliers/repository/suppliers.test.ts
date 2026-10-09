@@ -41,21 +41,15 @@ describe("suppliers repository (child entity of Project)", () => {
 
   it("create requires a project id and a supplier name", async () => {
     await expect(
-      createSupplier({ projectId: 0, supplierName: "GTI Distributors" }, 7, "ProjectManager"),
+      createSupplier({ projectId: 0, supplierName: "GTI Distributors" }, 7),
     ).rejects.toThrow();
-    await expect(
-      createSupplier({ projectId: 26, supplierName: " " }, 7, "ProjectManager"),
-    ).rejects.toThrow();
+    await expect(createSupplier({ projectId: 26, supplierName: " " }, 7)).rejects.toThrow();
     expect(execProc).not.toHaveBeenCalled();
   });
 
   it("create forwards params including ActorRole and parses the returned row", async () => {
     execProc.mockResolvedValue([dbRow()]);
-    const row = await createSupplier(
-      { projectId: 26, supplierName: "GTI Distributors" },
-      7,
-      "ProjectManager",
-    );
+    const row = await createSupplier({ projectId: 26, supplierName: "GTI Distributors" }, 7);
     expect(row.SupplierId).toBe(13);
     expect(row.RowVer).toBe(77);
     const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
@@ -63,26 +57,25 @@ describe("suppliers repository (child entity of Project)", () => {
     expect(params.ProjectId).toBe(26);
     expect(params.City).toBeNull();
     expect(params.ActorUserId).toBe(7);
-    expect(params.ActorRole).toBe("ProjectManager");
+    expect(params).not.toHaveProperty("ActorRole");
   });
 
-  it("getById parses the row and forwards ActorRole", async () => {
+  it("getById parses the row and sends no ActorRole", async () => {
     execProc.mockResolvedValue([dbRow()]);
-    await expect(getSupplierById(13, 7, "ProjectManager")).resolves.toMatchObject({
+    await expect(getSupplierById(13, 7)).resolves.toMatchObject({
       SupplierName: "GTI Distributors",
     });
     const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
-    expect(params.ActorRole).toBe("ProjectManager");
+    expect(params).not.toHaveProperty("ActorRole");
   });
 
   it("list forwards the ADR-0016 params with project scope, ActorRole and no rating filter", async () => {
     execProc.mockResolvedValue([dbRow({ TotalCount: 12 })]);
     const params = listParamsSchema.parse({ page: "2" });
-    const rows = await listSuppliers(params, 7, "ProjectManager", 26);
+    const rows = await listSuppliers(params, 7, 26);
     expect(rows[0].TotalCount).toBe(12);
     expect(execProc).toHaveBeenCalledWith("usp_Supplier_List", {
       ActorUserId: 7,
-      ActorRole: "ProjectManager",
       ProjectId: 26,
       Rating: null,
       Search: null,
@@ -96,35 +89,29 @@ describe("suppliers repository (child entity of Project)", () => {
   it("list forwards a rating filter to the proc", async () => {
     execProc.mockResolvedValue([dbRow({ TotalCount: 3 })]);
     const params = listParamsSchema.parse({});
-    await listSuppliers(params, 7, "ProjectManager", 26, { rating: "Excellent" });
+    await listSuppliers(params, 7, 26, { rating: "Excellent" });
     const [, procParams] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(procParams.Rating).toBe("Excellent");
   });
 
   it("list rejects contract-breaking rows", async () => {
     execProc.mockResolvedValue([dbRow({ TotalCount: 12, SupplierName: 42 })]);
-    await expect(
-      listSuppliers(listParamsSchema.parse({}), 7, "ProjectManager"),
-    ).rejects.toThrow();
+    await expect(listSuppliers(listParamsSchema.parse({}), 7)).rejects.toThrow();
   });
 
   it("update and delete carry rowVer for optimistic concurrency and forward ActorRole", async () => {
     execProc.mockResolvedValue([dbRow()]);
-    await updateSupplier(
-      { supplierId: 13, rowVer: 77, projectId: 26, supplierName: "GTI" },
-      7,
-      "ProjectManager",
-    );
+    await updateSupplier({ supplierId: 13, rowVer: 77, projectId: 26, supplierName: "GTI" }, 7);
     let [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(proc).toBe("usp_Supplier_Update");
     expect(params.RowVer).toBe(77);
-    expect(params.ActorRole).toBe("ProjectManager");
+    expect(params).not.toHaveProperty("ActorRole");
 
     execProc.mockResolvedValue([]);
-    await deleteSupplier(13, 77, 7, "ProjectManager");
+    await deleteSupplier(13, 77, 7);
     [proc, params] = execProc.mock.calls[1] as [string, Record<string, unknown>];
     expect(proc).toBe("usp_Supplier_Delete");
     expect(params.SupplierId).toBe(13);
-    expect(params.ActorRole).toBe("ProjectManager");
+    expect(params).not.toHaveProperty("ActorRole");
   });
 });

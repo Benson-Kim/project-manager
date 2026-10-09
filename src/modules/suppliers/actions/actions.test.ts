@@ -8,7 +8,7 @@ vi.mock("next/cache", () => ({
   updateTag: (...args: unknown[]) => updateTag(...args),
 }));
 
-let session: Session | null = { userId: 7, username: "pm", role: "ProjectManager" };
+let session: Session | null = { userId: 7, username: "pm", role: "User" };
 vi.mock("@/lib/auth/provider", () => ({
   auth: {
     getSession: () => Promise.resolve(session),
@@ -54,7 +54,7 @@ function dbRow(overrides: Record<string, unknown> = {}) {
 
 describe("suppliers actions", () => {
   beforeEach(() => {
-    session = { userId: 7, username: "pm", role: "ProjectManager" };
+    session = { userId: 7, username: "pm", role: "User" };
     execProc.mockReset();
     revalidatePath.mockClear();
   });
@@ -92,26 +92,17 @@ describe("suppliers actions", () => {
     expect(execProc).not.toHaveBeenCalled();
   });
 
-  it("create is FORBIDDEN for a Viewer (RBAC via action())", async () => {
-    session = { userId: 9, username: "viewer", role: "Viewer" };
+  it("create surfaces the proc's FORBIDDEN_ROW when the project level is too low", async () => {
+    execProc.mockRejectedValue(
+      new AppError("FORBIDDEN_ROW", "Your access to this project does not allow this"),
+    );
     const fd = new FormData();
     fd.set("projectId", "2");
     fd.set("supplierName", "Fiverr Company");
     const result = await createSupplierAction(fd);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
-    expect(execProc).not.toHaveBeenCalled();
-  });
-
-  it("create is FORBIDDEN for a Contributor (Admin + PM only)", async () => {
-    session = { userId: 8, username: "contrib", role: "Contributor" };
-    const fd = new FormData();
-    fd.set("projectId", "2");
-    fd.set("supplierName", "Fiverr Company");
-    const result = await createSupplierAction(fd);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
-    expect(execProc).not.toHaveBeenCalled();
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN_ROW");
+    expect(execProc).toHaveBeenCalledOnce();
   });
 
   it("update maps a rowversion mismatch to CONFLICT", async () => {
@@ -126,7 +117,7 @@ describe("suppliers actions", () => {
     if (!result.ok) expect(result.error.code).toBe("CONFLICT");
   });
 
-  it("delete succeeds and forwards ids and ActorRole to the proc", async () => {
+  it("delete succeeds and forwards ids to the proc", async () => {
     execProc.mockResolvedValue([]);
     const result = await deleteSupplierAction({ supplierId: 1, rowVer: 10 });
     expect(result.ok).toBe(true);
@@ -134,7 +125,6 @@ describe("suppliers actions", () => {
       SupplierId: 1,
       RowVer: 10,
       ActorUserId: 7,
-      ActorRole: "ProjectManager",
     });
   });
 });

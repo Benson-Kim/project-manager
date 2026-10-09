@@ -3,11 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
-import { can } from "@/lib/auth/rbac";
-import { AppError } from "@/lib/errors";
 import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getViewPreference } from "@/lib/repositories/view-preference";
+import { orNotFound, orNull } from "@/lib/row-access";
+import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { DailyActivitySheet } from "@/modules/daily-activities/components/daily-activity-sheet";
 import { DailyActivitiesView } from "@/modules/daily-activities/components/daily-activities-view";
 import {
@@ -16,7 +16,7 @@ import {
   listDailyActivities,
   type DailyActivityListFilters,
 } from "@/modules/daily-activities/repository/daily-activities";
-import { buildNewEntityHref } from "../entity-page-helpers";
+import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { parseProjectId } from "../project-id";
 
 export const metadata: Metadata = {
@@ -58,26 +58,24 @@ export default async function DailyActivitiesPage({
     taskType: flat.taskType ?? null,
   };
 
-  const [rows, preferredView, statuses, selectedRaw] = await Promise.all([
-    listDailyActivities(effectiveParams, session.userId, projectId, undefined, filters),
+  const [rows, preferredView, statuses, selectedRaw, allows] = await Promise.all([
+    orNotFound(listDailyActivities(effectiveParams, session.userId, projectId, undefined, filters)),
     getViewPreference(session.userId, "daily-activities").catch(() => null),
     listActivityStatuses(),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getDailyActivityById(selectedId, session.userId).catch((err) => {
-          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
-          throw err;
-        })
-      : Promise.resolve(null),
+      ? orNull(getDailyActivityById(selectedId, session.userId))
+      : null,
+    getProjectPermissions(projectId, session.userId),
   ]);
 
   // A deep link to an activity from another project is treated as not found.
-  const selected = selectedRaw && selectedRaw.ProjectId === projectId ? selectedRaw : null;
+  const selected = guardProjectScope(selectedRaw, projectId);
 
   const totalCount = rows[0]?.TotalCount ?? 0;
-  const canCreate = can(session.role, "daily-activities:create");
-  const canEdit = can(session.role, "daily-activities:update");
-  const canDelete = can(session.role, "daily-activities:delete");
-  const canCreateTodo = can(session.role, "todo-items:create");
+  const canCreate = allows("daily-activities:create");
+  const canEdit = allows("daily-activities:update");
+  const canDelete = allows("daily-activities:delete");
+  const canCreateTodo = allows("todo-items:create");
   const filtersActive = Boolean(effectiveParams.q || flat.statusId || flat.taskType);
 
   const newActivityLink = (

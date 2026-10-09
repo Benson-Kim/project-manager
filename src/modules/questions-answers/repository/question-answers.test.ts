@@ -34,19 +34,13 @@ describe("question-answers repository", () => {
   beforeEach(() => execProc.mockReset());
 
   it("create requires a non-empty question", async () => {
-    await expect(
-      createQuestionAnswer({ projectId: 2, question: "  " }, 7, "ProjectManager"),
-    ).rejects.toThrow();
+    await expect(createQuestionAnswer({ projectId: 2, question: "  " }, 7)).rejects.toThrow();
     expect(execProc).not.toHaveBeenCalled();
   });
 
   it("create forwards params and parses the returned row", async () => {
     execProc.mockResolvedValue([dbRow()]);
-    const row = await createQuestionAnswer(
-      { projectId: 2, question: "What is the scope?" },
-      7,
-      "ProjectManager",
-    );
+    const row = await createQuestionAnswer({ projectId: 2, question: "What is the scope?" }, 7);
     expect(row.QuestionAnswerId).toBe(7);
     expect(row.RowVer).toBe(42);
     const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
@@ -54,7 +48,7 @@ describe("question-answers repository", () => {
     expect(params.ProjectId).toBe(2);
     expect(params.Question).toBe("What is the scope?");
     expect(params.ActorUserId).toBe(7);
-    expect(params.ActorRole).toBe("ProjectManager");
+    expect(params).not.toHaveProperty("ActorRole");
     expect(params.Category).toBeNull();
     expect(params.Priority).toBeNull();
   });
@@ -71,21 +65,31 @@ describe("question-answers repository", () => {
         assignedTo: "Alice",
       },
       7,
-      "Admin",
     );
     const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(params.Answer).toBe("The full system.");
     expect(params.Category).toBe("Technical");
     expect(params.Priority).toBe("High");
     expect(params.AssignedTo).toBe("Alice");
-    expect(params.ActorRole).toBe("Admin");
+    expect(params).not.toHaveProperty("ActorRole");
   });
 
-  it("getById parses the row", async () => {
+  it("getById sends only the actor id (no role, ADR-0021) and parses the row", async () => {
     execProc.mockResolvedValue([dbRow()]);
     await expect(getQuestionAnswerById(7, 1)).resolves.toMatchObject({
       Question: "What is the scope?",
     });
+    expect(execProc).toHaveBeenCalledWith("usp_QuestionAnswer_GetById", {
+      QuestionAnswerId: 7,
+      ActorUserId: 1,
+    });
+  });
+
+  it("getById — Admin role is forwarded (Admin bypass)", async () => {
+    execProc.mockResolvedValue([dbRow()]);
+    await getQuestionAnswerById(7, 99);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params).not.toHaveProperty("ActorRole");
   });
 
   it("getById throws NOT_FOUND when proc returns empty array", async () => {
@@ -114,6 +118,13 @@ describe("question-answers repository", () => {
     });
   });
 
+  it("list sends no role to the proc (ADR-0021)", async () => {
+    execProc.mockResolvedValue([dbRow({ TotalCount: 1 })]);
+    await listQuestionAnswers(listParamsSchema.parse({}), 1, 2);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params).not.toHaveProperty("ActorRole");
+  });
+
   it("list rejects contract-breaking rows", async () => {
     execProc.mockResolvedValue([dbRow({ TotalCount: 1, QuestionAnswerId: "not-a-number" })]);
     await expect(listQuestionAnswers(listParamsSchema.parse({}), 1, 2)).rejects.toThrow();
@@ -129,23 +140,22 @@ describe("question-answers repository", () => {
         question: "Updated question",
       },
       1,
-      "ProjectManager",
     );
     const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(proc).toBe("usp_QuestionAnswer_Update");
     expect(params.RowVer).toBe(42);
     expect(params.QuestionAnswerId).toBe(7);
-    expect(params.ActorRole).toBe("ProjectManager");
+    expect(params).not.toHaveProperty("ActorRole");
   });
 
   it("delete forwards ids and rowVer to the proc", async () => {
     execProc.mockResolvedValue([]);
-    await deleteQuestionAnswer(7, 42, 1, "Admin");
+    await deleteQuestionAnswer(7, 42, 1);
     const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(proc).toBe("usp_QuestionAnswer_Delete");
     expect(params.QuestionAnswerId).toBe(7);
     expect(params.RowVer).toBe(42);
     expect(params.ActorUserId).toBe(1);
-    expect(params.ActorRole).toBe("Admin");
+    expect(params).not.toHaveProperty("ActorRole");
   });
 });
