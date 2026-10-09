@@ -19,7 +19,7 @@ BEGIN
     SET XACT_ABORT ON;
 
     EXEC dbo.usp_TodoItem_AssertAccess
-         @TodoItemId = @TodoItemId, @ActorUserId = @ActorUserId, @MinLevel = N'Contributor';
+         @TodoItemId = @TodoItemId, @ActorUserId = @ActorUserId, @MinLevel = N'Contributor', @Permission = N'todo-items:update';
 
     DECLARE @ProjectId INT;
     DECLARE @OldSortKey INT;

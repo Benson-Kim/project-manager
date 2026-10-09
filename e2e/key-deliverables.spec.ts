@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
+import { expectListed } from "./support/datasheet";
 
 /**
  * Key deliverables module (#9) — create happy path, validation failure, Gantt
@@ -15,15 +16,17 @@ test("create deliverable happy path — appears in the list", async ({ page }) =
   await expect(
     page.getByRole("heading", { name: messages.keyDeliverables.newDeliverable }),
   ).toBeVisible();
-  await page.getByLabel(messages.keyDeliverables.requirement).fill(requirement);
-  await page.getByLabel(messages.keyDeliverables.deadline).fill("2027-03-31");
+  // Scoped to the sheet: the list behind it is a datasheet whose cells carry the same labels.
+  const form = page.getByTestId("deliverable-form");
+  await form.getByLabel(messages.keyDeliverables.requirement).fill(requirement);
+  await form.getByLabel(messages.keyDeliverables.deadline).fill("2027-03-31");
   await page.getByTestId("deliverable-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
   ).toBeVisible();
 
   await page.goto(`/projects/2/deliverables?q=${encodeURIComponent(requirement)}`);
-  await expect(page.getByText(requirement).first()).toBeVisible();
+  await expectListed(page, requirement);
 });
 
 test("validation failure — empty requirement shows the inline error", async ({ page }) => {

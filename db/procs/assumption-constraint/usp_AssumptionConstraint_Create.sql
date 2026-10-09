@@ -2,6 +2,8 @@
 -- Project ownership check: @ActorUserId must be an assignee of the target project (FORBIDDEN_ROW 50003).
 -- Admin role bypass: an Admin actor (role read from auth.User) skips the ProjectAssignee check.
 -- Vocabulary enforcement: Type must be Assumption | Constraint | NULL; Impact must be High | Medium | Low | NULL.
+-- Dropdown values (ADR-0022): Type and Impact must be live options of their lists (VALIDATION 50004),
+--   and are stored as listed.
 -- Entity app.AssumptionConstraint (source: tblAssumptionsConstraints). Module: assumptions-constraints (#13).
 USE ProjectManager;
 GO
@@ -21,16 +23,14 @@ BEGIN
     IF @ProjectId IS NULL
         THROW 50004, N'VALIDATION:ProjectId is required', 1;
 
-    -- Vocabulary enforcement (mirrors z.enum in form schema; prevents forged payloads).
-    IF @Type IS NOT NULL AND @Type NOT IN (N'Assumption', N'Constraint')
-        THROW 50004, N'VALIDATION:Invalid type value', 1;
-
-    IF @Impact IS NOT NULL AND @Impact NOT IN (N'High', N'Medium', N'Low')
-        THROW 50004, N'VALIDATION:Invalid impact value', 1;
-
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Contributor', @AllowProjectless = 0;
+         @MinLevel = N'Contributor', @Permission = N'assumptions-constraints:create', @AllowProjectless = 0;
+
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'assumption-constraint.type', @Label = @Type OUTPUT;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'assumption-constraint.impact', @Label = @Impact OUTPUT;
 
     BEGIN TRAN;
 

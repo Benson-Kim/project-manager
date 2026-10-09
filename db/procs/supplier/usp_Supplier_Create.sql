@@ -1,6 +1,8 @@
 -- usp_Supplier_Create — insert one app.Supplier row; audits in-transaction; returns the new row.
 -- Actor project-scope: @ActorUserId must be an assignee of @ProjectId (FORBIDDEN_ROW 50003).
 -- Admin bypass: an Admin actor (role read from auth.User) skips the project-scope check.
+-- Dropdown values (ADR-0022): Rating must be live options of their lists (VALIDATION 50004),
+--   and are stored as listed.
 -- Entity app.Supplier (source: tbl3rdPartySupplier). Module: suppliers (#7).
 USE ProjectManager;
 GO
@@ -30,7 +32,10 @@ BEGIN
 
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Manager', @AllowProjectless = 0;
+         @MinLevel = N'Manager', @Permission = N'suppliers:create', @AllowProjectless = 0;
+
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'supplier.rating', @Label = @Rating OUTPUT;
 
     BEGIN TRAN;
 

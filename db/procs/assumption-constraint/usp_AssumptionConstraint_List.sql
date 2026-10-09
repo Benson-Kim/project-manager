@@ -2,7 +2,12 @@
 -- Row-level access: a supplied @ProjectId must be accessible (dbo.usp_Project_AssertAccess ->
 --   FORBIDDEN_ROW 50003); cross-project reads (@ProjectId NULL) return only rows of projects the
 --   actor is assigned to (Admin sees all). LIKE wildcards in @Search are escaped.
+-- ActorAccess (ADR-0023): the actor's access level on each row's project (dbo.ufn_AccessLevel_Resolve);
+--   the datasheet uses it to decide per row whether cells are editable. The cross-project filter
+--   reads the same rule: a row is listed when the actor has a level on it.
 -- Entity app.AssumptionConstraint (source: tblAssumptionsConstraints). Module: assumptions-constraints (#13).
+-- ActorGrants / ActorRevokes (ADR-0024): the actor's per-person overrides of 'assumptions-constraints' in the
+--   row's project (dbo.ufn_Permission_Overrides), so the datasheet gates cells as the procs do.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_AssumptionConstraint_List
@@ -43,16 +48,19 @@ BEGIN
            ac.CreatedAtUtc,
            ac.UpdatedAtUtc,
            CAST(ac.RowVer AS BIGINT) AS RowVer,
+           acc.AccessLevel AS ActorAccess,
+           ov.Grants AS ActorGrants,
+           ov.Revokes AS ActorRevokes,
            TotalCount = COUNT(*) OVER ()
     FROM app.AssumptionConstraint ac
+    CROSS APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, ac.ProjectId, 0) acc
+    OUTER APPLY dbo.ufn_Permission_Overrides(@ActorRole, @ActorUserId, ac.ProjectId, N'assumptions-constraints') ov
     WHERE ac.IsDeleted = 0
       AND (@ProjectId IS NULL OR ac.ProjectId = @ProjectId)
       AND (@Type IS NULL OR ac.[Type] = @Type)
       AND (@Search IS NULL OR ac.[Description] LIKE N'%' + @Search + N'%' ESCAPE N'\'
            OR ac.[Type] LIKE N'%' + @Search + N'%' ESCAPE N'\')
-      AND (@ProjectId IS NOT NULL OR ISNULL(@ActorRole, N'') = N'Admin'
-           OR EXISTS (SELECT 1 FROM app.ProjectAssignee pa
-                      WHERE pa.ProjectId = ac.ProjectId AND pa.UserId = @ActorUserId AND pa.IsDeleted = 0))
+      AND (@ProjectId IS NOT NULL OR acc.AccessLevel IS NOT NULL)
     ORDER BY
         CASE WHEN @SortBy = N'Type' AND @SortDir = 'asc'  THEN [Type] END ASC,
         CASE WHEN @SortBy = N'Type' AND @SortDir = 'desc' THEN [Type] END DESC,

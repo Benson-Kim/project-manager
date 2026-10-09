@@ -16,7 +16,7 @@ BEGIN
     SET XACT_ABORT ON;
 
     EXEC dbo.usp_TodoAlert_AssertAccess
-         @TodoAlertId = @TodoAlertId, @ActorUserId = @ActorUserId, @MinLevel = N'Contributor';
+         @TodoAlertId = @TodoAlertId, @ActorUserId = @ActorUserId, @MinLevel = N'Contributor', @Permission = N'todo-items:update';
 
     BEGIN TRAN;
 

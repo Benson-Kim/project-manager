@@ -3,9 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
-import { flattenSearchParams, parseListParams } from "@/lib/list-params";
+import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
-import { getViewPreference } from "@/lib/repositories/view-preference";
+import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNotFound, orNull } from "@/lib/row-access";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { StakeholderSheet } from "@/modules/stakeholders/components/stakeholder-sheet";
@@ -14,9 +14,14 @@ import {
   getStakeholderById,
   listStakeholders,
 } from "@/modules/stakeholders/repository/stakeholders";
-import { ENGAGEMENT_LEVELS } from "@/modules/stakeholders/schemas/stakeholder";
+import {
+  STAKEHOLDER_LISTS,
+  stakeholderFiltersSchema,
+} from "@/modules/stakeholders/schemas/stakeholder";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { parseProjectId } from "../project-id";
+import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
+import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
 
 export const metadata: Metadata = {
   title: `${messages.stakeholders.title} — ${messages.app.name}`,
@@ -46,24 +51,23 @@ export default async function StakeholdersPage({
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
-  // Narrow engagement to the declared vocab so the repository type is satisfied.
-  const rawEngagement = flat.engagement;
-  const engagement = (ENGAGEMENT_LEVELS as readonly string[]).includes(rawEngagement ?? "")
-    ? (rawEngagement as (typeof ENGAGEMENT_LEVELS)[number])
-    : undefined;
+  // The engagement filter is a managed-list label (ADR-0022); the proc matches it exactly.
+  const engagementParsed = stakeholderFiltersSchema.shape.engagement.safeParse(flat.engagement);
+  const engagement = engagementParsed.success ? engagementParsed.data : undefined;
 
   const filters = {
     project: projectId,
     engagement,
   };
 
-  const [rows, preferredView, selectedRaw, allows] = await Promise.all([
+  const [rows, preference, selectedRaw, allows, lookup] = await Promise.all([
     orNotFound(listStakeholders(listParams, session.userId, filters, undefined)),
-    getViewPreference(session.userId, "stakeholders").catch(() => null),
+    getListPreference(session.userId, "stakeholders").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? orNull(getStakeholderById(selectedId, session.userId))
       : null,
     getProjectPermissions(projectId, session.userId),
+    loadLookupLists(STAKEHOLDER_LISTS, session),
   ]);
 
   // A deep link to a stakeholder from another project is treated as not found.
@@ -91,23 +95,28 @@ export default async function StakeholdersPage({
         title={messages.stakeholders.title}
         action={canCreate ? newStakeholderLink : undefined}
       />
-      <div className="mt-3 flex flex-col flex-1">
-        <StakeholdersView
-          rows={rows}
-          totalCount={totalCount}
-          page={listParams.page}
-          initialView={listParams.view ?? preferredView ?? "grid"}
-          filtersActive={filtersActive}
-          newStakeholderAction={canCreate ? newStakeholderLink : undefined}
+      <LookupListsScope {...lookup}>
+        <div className="mt-3 flex flex-col flex-1">
+          <StakeholdersView
+            projectId={projectId}
+            canCreate={canCreate}
+            rows={rows}
+            totalCount={totalCount}
+            page={listParams.page}
+            initialView={initialViewOf(listParams.view, preference?.viewMode)}
+            layout={preference?.layout}
+            filtersActive={filtersActive}
+            newStakeholderAction={canCreate ? newStakeholderLink : undefined}
+          />
+        </div>
+        <StakeholderSheet
+          stakeholder={selected}
+          isNew={isNew && canCreate}
+          projectId={projectId}
+          canEdit={canEdit}
+          canDelete={canDelete}
         />
-      </div>
-      <StakeholderSheet
-        stakeholder={selected}
-        isNew={isNew && canCreate}
-        projectId={projectId}
-        canEdit={canEdit}
-        canDelete={canDelete}
-      />
+      </LookupListsScope>
     </>
   );
 }

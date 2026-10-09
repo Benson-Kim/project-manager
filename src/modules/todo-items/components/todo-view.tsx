@@ -3,16 +3,43 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import {
+  dateColumn,
+  listColumn,
+  projectColumn,
+  textColumn,
+} from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
+import { formCellSaver } from "@/components/ui/data-view/datasheet";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { EmptyState } from "@/components/ui/states";
+import { rowAllows } from "@/lib/auth/actor-access";
+import type { ListLayout } from "@/lib/list-layout";
+import type { OptionColor } from "@/lib/lookup-lists";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { formatDate } from "@/lib/format";
-import { isApproachingDeadline, isOverdue, type TodoItemListRow } from "../schemas/todo-item";
-import { reorderTodoItemAction } from "../actions";
+import type { ProjectPicker } from "@/modules/projects/project-options";
+import {
+  isApproachingDeadline,
+  isOverdue,
+  type TodoItemListRow,
+  type TodoItemRow,
+} from "../schemas/todo-item";
+import { todoItemFormValues } from "../schemas/todo-item-form";
+import { createTodoItemAction, reorderTodoItemAction, updateTodoItemAction } from "../actions";
 import { TodoToolbar } from "./todo-toolbar";
+
+type Row = TodoItemListRow;
+const P = messages.todoItems.placeholders;
+
+/** Due-date emphasis: overdue (danger) or approaching (warning) — design tokens only. */
+function dueTone(row: Row): string | undefined {
+  if (isOverdue(row)) return "font-semibold text-danger";
+  if (isApproachingDeadline(row)) return "font-semibold text-warning";
+  return undefined;
+}
 
 /** Up/down reorder buttons rendered inside the DataView card/row (list view only). */
 function ReorderControls({
@@ -20,8 +47,8 @@ function ReorderControls({
   rows,
   canReorder,
 }: {
-  row: TodoItemListRow;
-  rows: TodoItemListRow[];
+  row: Row;
+  rows: Row[];
   canReorder: boolean;
 }) {
   const router = useRouter();
@@ -50,18 +77,24 @@ function ReorderControls({
       <button
         type="button"
         disabled={isFirst || pending}
-        onClick={(e) => { e.stopPropagation(); move(idx - 1); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          move(idx - 1);
+        }}
         aria-label={messages.todoItems.moveUp}
-        className="flex size-11 items-center justify-center rounded text-xs text-ink-muted hover:bg-surface-hover disabled:opacity-30"
+        className="flex size-11 items-center justify-center rounded text-xs text-ink-muted hover:bg-surface-raised disabled:opacity-30"
       >
         ▲
       </button>
       <button
         type="button"
         disabled={isLast || pending}
-        onClick={(e) => { e.stopPropagation(); move(idx + 1); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          move(idx + 1);
+        }}
         aria-label={messages.todoItems.moveDown}
-        className="flex size-11 items-center justify-center rounded text-xs text-ink-muted hover:bg-surface-hover disabled:opacity-30"
+        className="flex size-11 items-center justify-center rounded text-xs text-ink-muted hover:bg-surface-raised disabled:opacity-30"
       >
         ▼
       </button>
@@ -70,61 +103,70 @@ function ReorderControls({
 }
 
 function buildColumns(
-  rows: TodoItemListRow[],
+  rows: Row[],
   canReorder: boolean,
-): DataViewColumn<TodoItemListRow>[] {
+  projects: ProjectPicker | undefined,
+): DataViewColumn<Row>[] {
   return [
-    {
+    // /todo only: which project each to-do belongs to, editable like the other cells.
+    ...(projects ? [projectColumn<Row>({ priority: 2, ...projects })] : []),
+    textColumn({
       key: "TodoItem",
       header: messages.todoItems.todoItem,
       priority: 1,
-      render: (r) => r.TodoItem,
-    },
-    {
+      field: "todoItem",
+      value: (r) => r.TodoItem,
+      placeholder: P.todoItem,
+      maxLength: 255,
+    }),
+    listColumn({
       key: "Status",
       header: messages.todoItems.status,
       priority: 1,
-      render: (r) => <Badge value={r.Status} />,
-    },
-    {
+      field: "status",
+      list: "todo-item.status",
+      value: (r) => r.Status,
+      placeholder: P.status,
+    }),
+    listColumn({
       key: "Priority",
       header: messages.todoItems.priority,
       priority: 1,
-      render: (r) => <Badge value={r.Priority} />,
-    },
-    {
+      field: "priority",
+      list: "todo-item.priority",
+      value: (r) => r.Priority,
+      placeholder: P.priority,
+    }),
+    dateColumn({
       key: "DueDate",
       header: messages.todoItems.dueDate,
       priority: 2,
+      field: "dueDate",
+      value: (r) => r.DueDate,
+      placeholder: P.dueDate,
       render: (r) => (
-        <span
-          className={
-            isOverdue(r)
-              ? "font-semibold text-red-600"
-              : isApproachingDeadline(r)
-                ? "font-semibold text-amber-700"
-                : undefined
-          }
-        >
+        <span className={dueTone(r)}>
           {formatDate(r.DueDate) || messages.todoItems.noDueDate}
           {isOverdue(r) ? (
-            <span className="ml-1.5 inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700">
+            <span className="ml-1.5 inline-flex items-center rounded-full border border-danger bg-danger-soft px-1.5 py-0.5 text-xs font-medium text-danger">
               {messages.todoItems.overdue}
             </span>
           ) : isApproachingDeadline(r) ? (
-            <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700">
+            <span className="ml-1.5 inline-flex items-center rounded-full border border-warning bg-warning-soft px-1.5 py-0.5 text-xs font-medium text-warning">
               {messages.todoItems.approachingDeadline}
             </span>
           ) : null}
         </span>
       ),
-    },
-    {
+    }),
+    dateColumn({
       key: "StartDate",
       header: messages.todoItems.startDate,
       priority: 3,
-      render: (r) => formatDate(r.StartDate),
-    },
+      field: "startDate",
+      value: (r) => r.StartDate,
+      placeholder: P.startDate,
+    }),
     {
       key: "ProjectOrActivity",
       header: messages.todoItems.projectOrActivity,
@@ -133,95 +175,126 @@ function buildColumns(
     },
     {
       key: "Reorder",
-      header: "",
+      header: messages.todoItems.reorderLabel,
       priority: 2,
       render: (r) => <ReorderControls row={r} rows={rows} canReorder={canReorder} />,
     },
   ];
 }
 
-/** To-do list: DataView wrapped in TodoToolbar; opening a row syncs ?id=. */
+/** Datasheet edits go through the same update action as the Sheet (ADR-0023). */
+const saveCell = formCellSaver<Row, TodoItemRow>(todoItemFormValues, updateTodoItemAction);
+/** The to-do rule per row (ADR-0021): own to-dos, or every to-do of projects you manage. */
+const canEditRow = rowAllows("todo-items:update");
+/** Overdue to-dos colour their whole row red — before any list colour (client feedback). */
+const overdueTone = (row: Row): OptionColor | null => (isOverdue(row) ? "red" : null);
+
+/**
+ * To-do list: DataView with TodoToolbar; opening a row syncs ?id=. List view is
+ * a datasheet (ADR-0023): editable cells per the row's ActorAccess and a
+ * new-entry row (this project's to-dos; on /todo, the project its Project cell
+ * names — personal when none).
+ */
 export function TodoView({
   rows,
   totalCount,
   page,
   initialView,
+  layout,
   filtersActive,
+  projectId,
+  projects,
+  projectFilterOptions,
+  canCreate,
   canReorder = false,
   newTodoAction,
   emptyBody,
 }: {
-  rows: TodoItemListRow[];
+  rows: Row[];
   totalCount: number;
   page: number;
   initialView: ViewMode;
+  /** The user's saved datasheet layout (DataView initialLayout). */
+  layout?: ListLayout | null;
   filtersActive: boolean;
+  /** The project's page this list is on; null on /todo. */
+  projectId: number | null;
+  /** /todo: the Project column (where a to-do may go, and the new-entry row's project). */
+  projects?: ProjectPicker;
+  /** /todo: the toolbar's project filter. */
+  projectFilterOptions?: readonly { id: number; name: string }[];
+  canCreate: boolean;
   canReorder?: boolean;
   newTodoAction?: React.ReactNode;
   emptyBody?: string;
 }) {
   const { update } = useListUrlState();
-  const columns = buildColumns(rows, canReorder);
+  const columns = buildColumns(rows, canReorder, projects);
 
   return (
-    <>
-      <TodoToolbar />
-      <DataView
-        moduleKey="todo-items"
-        rows={rows}
-        totalCount={totalCount}
-        page={page}
-        initialView={initialView}
-        getRowId={(row) => row.TodoItemId}
-        onOpen={(row) => update({ id: String(row.TodoItemId) })}
-        renderCard={(row) => (
-          <div className="flex flex-col gap-2">
-            <p className="text-sm font-semibold text-ink">
-              {row.TodoItem ?? messages.app.untitled}
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              <Badge value={row.Status} />
-              <Badge value={row.Priority} />
-            </div>
-            {row.DueDate ? (
-              <p
-                className={
-                  isOverdue(row)
-                    ? "text-xs font-semibold text-red-600"
-                    : isApproachingDeadline(row)
-                      ? "text-xs font-semibold text-amber-700"
-                      : "text-xs text-ink-muted"
-                }
-              >
-                {formatDate(row.DueDate)}
-                {isOverdue(row)
-                  ? ` — ${messages.todoItems.overdue}`
-                  : isApproachingDeadline(row)
-                    ? ` — ${messages.todoItems.approachingDeadline}`
-                    : ""}
-              </p>
-            ) : null}
-            {canReorder ? (
-              <ReorderControls row={row} rows={rows} canReorder={canReorder} />
-            ) : null}
+    <DataView
+      moduleKey="todo-items"
+      rows={rows}
+      totalCount={totalCount}
+      page={page}
+      initialView={initialView}
+      initialLayout={layout}
+      rowTone={overdueTone}
+      getRowId={(row) => row.TodoItemId}
+      getRowLabel={(row) => row.TodoItem ?? messages.app.untitled}
+      onOpen={(row) => update({ id: String(row.TodoItemId) })}
+      renderToolbar={(viewToggle) => (
+        <TodoToolbar projectFilterOptions={projectFilterOptions}>{viewToggle}</TodoToolbar>
+      )}
+      renderCard={(row) => (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-semibold text-ink">{row.TodoItem ?? messages.app.untitled}</p>
+          <div className="flex flex-wrap gap-1.5">
+            <Badge value={row.Status} />
+            <Badge value={row.Priority} />
           </div>
-        )}
-        columns={columns}
-        empty={
-          filtersActive ? (
-            <EmptyState
-              title={messages.list.zeroResultsTitle}
-              body={messages.list.zeroResultsBody}
-            />
-          ) : (
-            <EmptyState
-              title={messages.list.emptyTitle}
-              body={emptyBody ?? messages.todoItems.emptyBody}
-              action={newTodoAction}
-            />
-          )
-        }
-      />
-    </>
+          {projects && row.ProjectName ? (
+            <p className="text-xs text-ink-muted">{row.ProjectName}</p>
+          ) : null}
+          {row.DueDate ? (
+            <p className={`text-xs ${dueTone(row) ?? "text-ink-muted"}`}>
+              {formatDate(row.DueDate)}
+              {isOverdue(row)
+                ? ` — ${messages.todoItems.overdue}`
+                : isApproachingDeadline(row)
+                  ? ` — ${messages.todoItems.approachingDeadline}`
+                  : ""}
+            </p>
+          ) : null}
+          {canReorder ? <ReorderControls row={row} rows={rows} canReorder={canReorder} /> : null}
+        </div>
+      )}
+      columns={columns}
+      datasheet={{
+        canEditRow,
+        saveCell,
+        addRow: canCreate
+          ? {
+              // The Project cell (on /todo) names the project; else this page's project.
+              add: (values) =>
+                createTodoItemAction({
+                  projectId: projectId === null ? "" : String(projectId),
+                  ...values,
+                }),
+            }
+          : undefined,
+      }}
+      empty={
+        filtersActive ? (
+          <EmptyState title={messages.list.zeroResultsTitle} body={messages.list.zeroResultsBody} />
+        ) : (
+          <EmptyState
+            title={messages.list.emptyTitle}
+            body={emptyBody ?? messages.todoItems.emptyBody}
+            action={newTodoAction}
+          />
+        )
+      }
+    />
   );
 }

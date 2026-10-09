@@ -41,7 +41,7 @@ const linkClass = (current: boolean) =>
 // Chevron icon
 // ---------------------------------------------------------------------------
 
-function Chevron({ open }: { open: boolean }) {
+export function Chevron({ open }: { open: boolean }) {
   return (
     <svg
       aria-hidden="true"
@@ -232,12 +232,14 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
     dispatch({ type: "reset", activeKey });
   }, [pathname, projectId]);
 
-  // Close all panels on outside click.
+  // Close all panels on outside click. The panels are portalled to <body>, so
+  // they are not inside navRef: a press on a panel link must not count as
+  // "outside", or the panel unmounts before the click lands and nothing navigates.
   useEffect(() => {
     const onPointerDown = (e: PointerEvent) => {
-      if (!navRef.current?.contains(e.target as Node)) {
-        dispatch({ type: "reset", activeKey: null });
-      }
+      const target = e.target as Element | null;
+      if (navRef.current?.contains(target) || target?.closest?.("[data-section-panel]")) return;
+      dispatch({ type: "reset", activeKey: null });
     };
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
@@ -282,16 +284,18 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
 
         const panelId = `section-group-${group.key}`;
         const pos = panelPositions[group.key];
+        // Positions are measured in an effect, so this also keeps the server
+        // render away from document.body (SSR had no document → client fallback).
+        if (!pos) return null;
 
         return createPortal(
           <div
             key={group.key}
             id={panelId}
+            data-section-panel
             role="group"
             aria-label={group.label}
-            style={
-              pos ? { position: "absolute", top: pos.top + 4, left: pos.left } : { display: "none" }
-            }
+            style={{ position: "absolute", top: pos.top + 4, left: pos.left }}
             className="z-(--z-dropdown) min-w-44 rounded-lg border border-line bg-surface shadow-lg"
           >
             {group.sections.map((section) => {

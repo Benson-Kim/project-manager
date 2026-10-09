@@ -1,6 +1,9 @@
 -- usp_Project_List — paged/filtered list per ADR-0016. Search columns: ProjectName, ProjectManager, ProjectSponsor, Mandate. Sort whitelist: ProjectName, DateOfProject, StartDate, EndDate, ProjectStatus, ProjectPriority, ProjectManager. Filters: @Status, @Priority.
 -- Row-level access (ADR-0021): non-Admins see only the projects they are assigned to.
 --   LIKE wildcards in @Search are escaped.
+-- ActorAccess (ADR-0023): the actor's access level on each row's project (dbo.ufn_AccessLevel_Resolve);
+--   the datasheet uses it to decide per row whether cells are editable. The cross-project filter
+--   reads the same rule: a row is listed when the actor has a level on it.
 -- Entity app.Project (source: tblProjectFramework). Module: database-schema-and-procs (#3); extended by projects (#5).
 
 -- @ProjectId is accepted for contract uniformity but ignored (entity is not project-scoped).
@@ -67,8 +70,10 @@ BEGIN
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer,
+           acc.AccessLevel AS ActorAccess,
            TotalCount = COUNT(*) OVER ()
     FROM app.Project
+    CROSS APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, Project.ProjectId, 0) acc
     WHERE IsDeleted = 0
       AND (@Search IS NULL OR [ProjectName] LIKE N'%' + @Search + N'%' ESCAPE N'\'
            OR [ProjectManager] LIKE N'%' + @Search + N'%' ESCAPE N'\'
@@ -77,9 +82,7 @@ BEGIN
       AND (@Status IS NULL OR [ProjectStatus] = @Status)
       AND (@Priority IS NULL OR [ProjectPriority] = @Priority)
       -- Row-level access (ADR-0021): Admin sees every project; everyone else only theirs.
-      AND (ISNULL(@ActorRole, N'') = N'Admin'
-           OR EXISTS (SELECT 1 FROM app.ProjectAssignee pa
-                      WHERE pa.ProjectId = Project.ProjectId AND pa.UserId = @ActorUserId AND pa.IsDeleted = 0))
+      AND acc.AccessLevel IS NOT NULL
     ORDER BY
         CASE WHEN @SortBy = N'ProjectName' AND @SortDir = 'asc'  THEN [ProjectName] END ASC,
         CASE WHEN @SortBy = N'ProjectName' AND @SortDir = 'desc' THEN [ProjectName] END DESC,

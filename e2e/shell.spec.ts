@@ -50,12 +50,15 @@ test("notifications bell is filled with a dot for the seeded overdue to-dos and 
 }) => {
   await page.goto("/");
   const bell = page.getByTestId("notifications-bell");
-  // Seeded data (db/seed/024_todo_item.sql) has overdue, non-completed items.
+  // db/seed/028 gives e2e-pm an overdue to-do with an alert; the bell lists the user's own
+  // alerts only (migrated to-dos belong to the admin, db/seed/029_migrated_todo_owner.sql).
   await expect(bell).toHaveAttribute("data-state", "filled");
   await expect(page.getByTestId("notifications-dot")).toBeVisible();
   await bell.click();
   await expect(
-    page.getByText("Create purchase orders table and queries", { exact: false }),
+    page
+      .getByRole("list", { name: messages.app.notifications })
+      .getByText("E2E overdue alert", { exact: false }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(bell).toBeFocused();

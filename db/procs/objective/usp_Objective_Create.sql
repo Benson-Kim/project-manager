@@ -18,7 +18,7 @@ BEGIN
 
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Manager', @AllowProjectless = 0;
+         @MinLevel = N'Manager', @Permission = N'objectives:create', @AllowProjectless = 0;
 
     IF @ProjectId IS NULL
         THROW 50004, N'VALIDATION:ProjectId is required', 1;

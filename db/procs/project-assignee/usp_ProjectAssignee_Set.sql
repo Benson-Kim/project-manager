@@ -1,9 +1,12 @@
 -- usp_ProjectAssignee_Set — replace the FULL team of a project in one transaction (req 0.3,
 -- ADR-0021), audited in-transaction. The only write path for assignments, so it owns their rules.
 -- @AssigneesJson: JSON array
---   [{"role":"ProjectManager","personName":"…","userId":12,"accessLevel":"Manager"}, …]
---   * role: the title shown in the team (ProjectManager, Sponsor, BusinessAnalyst, TeamMember,
---     Stakeholder); accessLevel: what the person may do in this project (auth.AccessLevel).
+--   [{"role":"Project manager","personName":"…","userId":12,"accessLevel":"Manager"}, …]
+--   * role: the title shown in the team, a live option of the managed list 'project-assignee.title'
+--     (ADR-0022/0024; a member keeps a retired title until it is changed); accessLevel: what the
+--     person may do in this project (auth.AccessLevel).
+--   * A person who leaves the team (no incoming row with their userId) loses their permission
+--     overrides in this project (app.ProjectPermissionOverride, ADR-0024).
 --   * userId links the row to a user account; only linked rows grant access. A linked row's
 --     PersonName is the user's display name. Name-only rows are kept as Viewer (no effect).
 -- Row-level access: the actor needs Manager on the project (dbo.usp_Project_AssertAccess).
@@ -50,10 +53,27 @@ BEGIN
     LEFT JOIN auth.[User] u ON u.UserId = j.[UserId] AND u.IsActive = 1 AND u.IsDeleted = 0;
 
     IF EXISTS (SELECT 1 FROM @Incoming
-               WHERE [Role] IS NULL
-                  OR [Role] NOT IN (N'ProjectManager', N'Sponsor', N'BusinessAnalyst', N'TeamMember', N'Stakeholder')
-                  OR [PersonName] IS NULL OR [PersonName] = N'')
+               WHERE [Role] IS NULL OR [PersonName] IS NULL OR [PersonName] = N'')
         THROW 50004, N'VALIDATION:Each team member needs a valid role and a name', 1;
+
+    -- Titles come from the managed list; a title a member already holds may be a retired one.
+    DECLARE @Title NVARCHAR(255), @HeldTitle NVARCHAR(255), @Canonical NVARCHAR(255);
+    DECLARE titles CURSOR LOCAL FAST_FORWARD FOR SELECT DISTINCT [Role] FROM @Incoming;
+    OPEN titles;
+    FETCH NEXT FROM titles INTO @Title;
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        SET @HeldTitle = (SELECT TOP (1) pa.[Role] FROM app.ProjectAssignee pa
+                          WHERE pa.ProjectId = @ProjectId AND pa.IsDeleted = 0 AND pa.[Role] = @Title);
+        SET @Canonical = @Title;
+        EXEC dbo.usp_LookupList_AssertLabel
+             @ListKey = N'project-assignee.title', @Label = @Canonical OUTPUT,
+             @CurrentLabel = @HeldTitle;
+        UPDATE @Incoming SET [Role] = @Canonical WHERE [Role] = @Title;
+        FETCH NEXT FROM titles INTO @Title;
+    END;
+    CLOSE titles;
+    DEALLOCATE titles;
 
     IF EXISTS (SELECT 1 FROM @Incoming i
                WHERE i.[UserId] IS NOT NULL
@@ -87,6 +107,12 @@ BEGIN
     WHERE pa.ProjectId = @ProjectId AND pa.IsDeleted = 0
       AND NOT EXISTS (SELECT 1 FROM @Incoming i
                       WHERE i.[Role] = pa.[Role] AND i.[PersonName] = pa.[PersonName]);
+
+    -- People no longer on the team lose their permission overrides here (ADR-0024).
+    DELETE o
+    FROM app.ProjectPermissionOverride o
+    WHERE o.ProjectId = @ProjectId
+      AND NOT EXISTS (SELECT 1 FROM @Incoming i WHERE i.[UserId] = o.UserId);
 
     -- Update live matches whose account link or access level changed.
     UPDATE pa SET [UserId] = i.[UserId], [AccessLevel] = i.[AccessLevel],

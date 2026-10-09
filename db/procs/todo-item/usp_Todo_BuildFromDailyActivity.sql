@@ -19,7 +19,7 @@ BEGIN
     -- Row-level access (ADR-0021): building a to-do from an activity needs Contributor on the
     -- activity's project (or the project-less shared space).
     EXEC dbo.usp_DailyActivity_AssertAccess
-         @DailyActivityId = @DailyActivityId, @ActorUserId = @ActorUserId, @MinLevel = N'Contributor';
+         @DailyActivityId = @DailyActivityId, @ActorUserId = @ActorUserId, @MinLevel = N'Contributor', @Permission = N'todo-items:create';
 
     DECLARE @ProjectId    INT;
     DECLARE @Task         NVARCHAR(MAX);

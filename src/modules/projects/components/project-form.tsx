@@ -1,13 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useAnnouncer } from "@/components/ui/announcer";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { DatePicker, Input, Select, Switch, Textarea } from "@/components/ui/form/inputs";
+import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
@@ -15,14 +16,8 @@ import { toDateInput } from "@/lib/format";
 import { SectionHeading } from "@/components/ui/form/section-heading";
 import { createProjectAction, deleteProjectAction, updateProjectAction } from "../actions";
 import type { ProjectRow } from "../schemas/project";
-import {
-  PROJECT_PHASES,
-  PROJECT_PRIORITIES,
-  PROJECT_STATUSES,
-  RISK_LEVELS,
-  projectFormSchema,
-  updateProjectFormSchema,
-} from "../schemas/project-form";
+import { projectFormSchema, updateProjectFormSchema } from "../schemas/project-form";
+import { ListOptions } from "@/components/ui/lookup-lists";
 
 /**
  * The charter workspace form  / ADR-0010 full-route exception):
@@ -50,6 +45,38 @@ export function ProjectForm({
   const [conflict, setConflict] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  // Unsaved changes guard the way out (ADR-0009, ADR-0018 Q1): sidebar and
+  // section-nav links, the back button, tab close.
+  const [isDirty, setIsDirty] = useState(false);
+  const [showUnsaved, setShowUnsaved] = useState(false);
+  const pendingNavRef = useRef<(() => void) | null>(null);
+  const { markClean } = useUnsavedChangesGuard(isDirty);
+  const clean = () => {
+    markClean();
+    setIsDirty(false);
+  };
+
+  useEffect(() => {
+    function handleBeforeNavigate(e: Event) {
+      if (!isDirty) return;
+      e.preventDefault();
+      const detail = (e as CustomEvent<{ resume?: unknown }>).detail;
+      pendingNavRef.current =
+        typeof detail?.resume === "function" ? (detail.resume as () => void) : null;
+      setShowUnsaved(true);
+    }
+    window.addEventListener("before-navigate", handleBeforeNavigate);
+    return () => window.removeEventListener("before-navigate", handleBeforeNavigate);
+  }, [isDirty]);
+
+  const discardAndNavigate = () => {
+    const resume = pendingNavRef.current;
+    pendingNavRef.current = null;
+    setShowUnsaved(false);
+    clean();
+    resume?.();
+  };
+
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formElement = event.currentTarget;
@@ -65,6 +92,7 @@ export function ProjectForm({
         ? await updateProjectAction(formData)
         : await createProjectAction(formData);
       if (result.ok) {
+        clean();
         toast({
           variant: "success",
           title: project ? messages.feedback.saved : messages.feedback.created,
@@ -89,6 +117,7 @@ export function ProjectForm({
       });
       setConfirmDelete(false);
       if (result.ok) {
+        clean();
         toast({ variant: "success", title: messages.feedback.deleted });
         announce(messages.feedback.deleted);
         router.push("/projects");
@@ -100,7 +129,12 @@ export function ProjectForm({
   };
 
   const back = () => {
-    router.push("/projects");
+    if (isDirty) {
+      pendingNavRef.current = () => router.push("/projects");
+      setShowUnsaved(true);
+    } else {
+      router.push("/projects");
+    }
   };
 
   return (
@@ -109,6 +143,7 @@ export function ProjectForm({
       noValidate
       onBlur={canEdit ? form.onBlur : undefined}
       onSubmit={onSubmit}
+      onChange={canEdit ? () => setIsDirty(true) : undefined}
       data-testid="project-form"
       className="flex flex-col gap-6 pb-8"
     >
@@ -142,16 +177,32 @@ export function ProjectForm({
               <Input name="projectName" defaultValue={project?.ProjectName ?? ""} />
             </Field>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label={messages.projects.manager} name="projectManager" errors={form.errors.projectManager}>
+              <Field
+                label={messages.projects.manager}
+                name="projectManager"
+                errors={form.errors.projectManager}
+              >
                 <Input name="projectManager" defaultValue={project?.ProjectManager ?? ""} />
               </Field>
-              <Field label={messages.projects.businessAnalyst} name="businessAnalyst" errors={form.errors.businessAnalyst}>
+              <Field
+                label={messages.projects.businessAnalyst}
+                name="businessAnalyst"
+                errors={form.errors.businessAnalyst}
+              >
                 <Input name="businessAnalyst" defaultValue={project?.BusinessAnalyst ?? ""} />
               </Field>
-              <Field label={messages.projects.sponsor} name="projectSponsor" errors={form.errors.projectSponsor}>
+              <Field
+                label={messages.projects.sponsor}
+                name="projectSponsor"
+                errors={form.errors.projectSponsor}
+              >
                 <Input name="projectSponsor" defaultValue={project?.ProjectSponsor ?? ""} />
               </Field>
-              <Field label={messages.projects.dateOfProject} name="dateOfProject" errors={form.errors.dateOfProject}>
+              <Field
+                label={messages.projects.dateOfProject}
+                name="dateOfProject"
+                errors={form.errors.dateOfProject}
+              >
                 <DatePicker
                   name="dateOfProject"
                   defaultValue={toDateInput(project?.DateOfProject)}
@@ -189,59 +240,71 @@ export function ProjectForm({
           </SectionHeading>
           <div className="px-4 py-3 flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label={messages.projects.status} name="projectStatus" errors={form.errors.projectStatus}>
+              <Field
+                label={messages.projects.status}
+                name="projectStatus"
+                errors={form.errors.projectStatus}
+              >
                 <Select name="projectStatus" defaultValue={project?.ProjectStatus ?? ""}>
                   <option value="">{messages.projects.none}</option>
-                  {PROJECT_STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
+                  <ListOptions list="project.status" current={project?.ProjectStatus} />
                 </Select>
               </Field>
-              <Field label={messages.projects.phase} name="projectPhase" errors={form.errors.projectPhase}>
+              <Field
+                label={messages.projects.phase}
+                name="projectPhase"
+                errors={form.errors.projectPhase}
+              >
                 <Select name="projectPhase" defaultValue={project?.ProjectPhase ?? ""}>
                   <option value="">{messages.projects.none}</option>
-                  {PROJECT_PHASES.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
+                  <ListOptions list="project.phase" current={project?.ProjectPhase} />
                 </Select>
               </Field>
-              <Field label={messages.projects.priority} name="projectPriority" errors={form.errors.projectPriority}>
+              <Field
+                label={messages.projects.priority}
+                name="projectPriority"
+                errors={form.errors.projectPriority}
+              >
                 <Select name="projectPriority" defaultValue={project?.ProjectPriority ?? ""}>
                   <option value="">{messages.projects.none}</option>
-                  {PROJECT_PRIORITIES.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
+                  <ListOptions list="project.priority" current={project?.ProjectPriority} />
                 </Select>
               </Field>
-              <Field label={messages.projects.riskLevel} name="riskLevel" errors={form.errors.riskLevel}>
+              <Field
+                label={messages.projects.riskLevel}
+                name="riskLevel"
+                errors={form.errors.riskLevel}
+              >
                 <Select name="riskLevel" defaultValue={project?.RiskLevel ?? ""}>
                   <option value="">{messages.projects.none}</option>
-                  {RISK_LEVELS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
+                  <ListOptions list="project.risk-level" current={project?.RiskLevel} />
                 </Select>
               </Field>
-              <Field label={messages.projects.startDate} name="startDate" errors={form.errors.startDate}>
+              <Field
+                label={messages.projects.startDate}
+                name="startDate"
+                errors={form.errors.startDate}
+              >
                 <DatePicker name="startDate" defaultValue={toDateInput(project?.StartDate)} />
               </Field>
               <Field label={messages.projects.endDate} name="endDate" errors={form.errors.endDate}>
                 <DatePicker name="endDate" defaultValue={toDateInput(project?.EndDate)} />
               </Field>
-              <Field label={messages.projects.estimatedCompletion} name="estimatedCompletionDate" errors={form.errors.estimatedCompletionDate}>
+              <Field
+                label={messages.projects.estimatedCompletion}
+                name="estimatedCompletionDate"
+                errors={form.errors.estimatedCompletionDate}
+              >
                 <DatePicker
                   name="estimatedCompletionDate"
                   defaultValue={toDateInput(project?.EstimatedCompletionDate)}
                 />
               </Field>
-              <Field label={messages.projects.existingBusinessModel} name="existBusMod" errors={form.errors.existBusMod}>
+              <Field
+                label={messages.projects.existingBusinessModel}
+                name="existBusMod"
+                errors={form.errors.existBusMod}
+              >
                 <Input name="existBusMod" defaultValue={project?.ExistBusMod ?? ""} />
               </Field>
             </div>
@@ -284,7 +347,11 @@ export function ProjectForm({
               />
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label={messages.projects.financingSource} name="financingSource" errors={form.errors.financingSource}>
+              <Field
+                label={messages.projects.financingSource}
+                name="financingSource"
+                errors={form.errors.financingSource}
+              >
                 <Input name="financingSource" defaultValue={project?.FinancingSource ?? ""} />
               </Field>
               <Field
@@ -354,6 +421,17 @@ export function ProjectForm({
           pending={pending}
         />
       ) : null}
+      <ConfirmDialog
+        open={showUnsaved}
+        onOpenChange={(open) => {
+          setShowUnsaved(open);
+          if (!open) pendingNavRef.current = null;
+        }}
+        title={messages.feedback.unsavedChangesTitle}
+        body={messages.feedback.unsavedChangesBody}
+        confirmLabel={messages.feedback.discard}
+        onConfirm={discardAndNavigate}
+      />
     </form>
   );
 }

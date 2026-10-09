@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
+import { expectListed, expectNotListed, openListed } from "./support/datasheet";
 
 /**
  * Parking lot module (#18) — project-scoped route /projects/2/parking-lot.
@@ -23,7 +24,7 @@ test("create parking lot item happy path — appears in the list", async ({ page
   await expect(form).toHaveCount(0);
 
   await page.goto(`/projects/2/parking-lot?q=${encodeURIComponent(itemText)}`);
-  await expect(page.getByText(itemText).first()).toBeVisible();
+  await expectListed(page, itemText);
 });
 
 test("validation failure — empty item shows inline error and focuses the summary", async ({
@@ -62,7 +63,7 @@ test("edit parking lot item happy path — updates text and shows toast", async 
   await expect(form).toHaveCount(0);
 
   await page.goto(`/projects/2/parking-lot?q=${encodeURIComponent(newText)}`);
-  await expect(page.getByText(newText).first()).toBeVisible();
+  await expectListed(page, newText);
 });
 
 test("delete parking lot item happy path — item removed from list", async ({ page }) => {
@@ -80,7 +81,7 @@ test("delete parking lot item happy path — item removed from list", async ({ p
 
   // Open the newly created item by searching for it
   await page.goto(`/projects/2/parking-lot?q=${encodeURIComponent(itemText)}`);
-  await page.getByText(itemText).first().click();
+  await openListed(page, itemText);
   const editForm = page.getByTestId("parking-lot-form");
   await expect(editForm).toBeVisible();
 
@@ -94,12 +95,10 @@ test("delete parking lot item happy path — item removed from list", async ({ p
 
   // Confirm it is gone
   await page.goto(`/projects/2/parking-lot?q=${encodeURIComponent(itemText)}`);
-  await expect(page.getByText(itemText)).toHaveCount(0);
+  await expectNotListed(page, itemText);
 });
 
-test("new item with followUpActions and owner — saved and visible on reopen", async ({
-  page,
-}) => {
+test("new item with followUpActions and owner — saved and visible on reopen", async ({ page }) => {
   const itemText = `E2E fields item ${Date.now()}`;
   await page.goto("/projects/2/parking-lot");
   await page.getByTestId("new-parking-lot-item").click();
@@ -115,7 +114,7 @@ test("new item with followUpActions and owner — saved and visible on reopen", 
 
   // Open the saved item and verify values persisted
   await page.goto(`/projects/2/parking-lot?q=${encodeURIComponent(itemText)}`);
-  await page.getByText(itemText).first().click();
+  await openListed(page, itemText);
   const editForm = page.getByTestId("parking-lot-form");
   await expect(editForm).toBeVisible();
   await expect(editForm.getByLabel(messages.parkingLot.followUpActions)).toHaveValue(
@@ -142,13 +141,15 @@ test("strikethrough toggle — resolved item shows strike styling and resolved l
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.saved }).first(),
   ).toBeVisible();
 
-  // After save, confirm the resolved label is visible in the list
-  await expect(page.getByText(messages.parkingLot.resolved).first()).toBeVisible();
+  // After save, the card shows the resolved label (grid view: the datasheet holds it as a cell
+  // value, and the toolbar filter has a hidden "Resolved" option).
+  await page.goto("/projects/2/parking-lot?view=grid");
+  await expect(
+    page.getByTestId("data-view-grid").getByText(messages.parkingLot.resolved).first(),
+  ).toBeVisible();
 });
 
-test("axe scan on the parking lot list has no serious or critical violations", async ({
-  page,
-}) => {
+test("axe scan on the parking lot list has no serious or critical violations", async ({ page }) => {
   await page.goto("/projects/2/parking-lot");
   await expect(page.getByRole("heading", { name: messages.parkingLot.title })).toBeVisible();
   const results = await new AxeBuilder({ page }).analyze();

@@ -27,7 +27,7 @@ BEGIN
 
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Contributor', @AllowProjectless = 0;
+         @MinLevel = N'Contributor', @Permission = N'parking-lot:update', @AllowProjectless = 0;
     SET @ProjectId = @RowProjectId;
 
     BEGIN TRAN;

@@ -5,7 +5,7 @@ import { AppError, appErrorFromProc } from "./errors";
 /**
  * Shared connection pool. ALL data access goes through stored procedures —
  * repositories call `execProc` / `execProcTx`; inline SQL is forbidden
- * (enforced by ESLint `no-restricted-syntax` and src/test/no-inline-sql.test.ts;
+ * (enforced by ESLint `no-restricted-syntax` and src/tests/no-inline-sql.test.ts;
  * see AGENTS.md).
  */
 let pool: Promise<sql.ConnectionPool> | undefined;
@@ -23,8 +23,7 @@ function config(): sql.config {
       // Trust the server certificate when explicitly requested (e.g. bundled
       // Docker compose with the stock SQL Server image) or in non-production
       // environments. In production, mount a trusted CA cert instead.
-      trustServerCertificate:
-        env.TRUST_SERVER_CERT || process.env.NODE_ENV !== "production",
+      trustServerCertificate: env.TRUST_SERVER_CERT || process.env.NODE_ENV !== "production",
     },
     pool: { max: 10, min: 0, idleTimeoutMillis: 30_000 },
   };

@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { LOOKUP_LABEL_MAX } from "@/lib/lookup-lists";
+import { actorAccessSchema } from "@/lib/auth/actor-access";
 import { ACCESS_LEVELS } from "@/lib/auth/types";
 
 /**
@@ -53,6 +55,7 @@ export type ProjectRow = z.infer<typeof projectRowSchema>;
 
 export const projectListRowSchema = projectRowSchema.extend({
   TotalCount: z.number().int(),
+  ActorAccess: actorAccessSchema,
 });
 
 export type ProjectListRow = z.infer<typeof projectListRowSchema>;
@@ -134,19 +137,17 @@ export type ProjectFilters = z.infer<typeof projectFiltersSchema>;
  * team; AccessLevel is what a member linked to a user account may do in this project.
  * Mirrors CK_ProjectAssignee_Role.
  */
-export const ASSIGNEE_ROLES = [
-  "ProjectManager",
-  "Sponsor",
-  "BusinessAnalyst",
-  "TeamMember",
-  "Stakeholder",
-] as const;
-export type AssigneeRole = (typeof ASSIGNEE_ROLES)[number];
+/**
+ * A team member's title: a label of the managed list 'project-assignee.title'
+ * (migration 021, ADR-0024) — display only; access comes from the level and
+ * the person's overrides. The proc checks it against the live list.
+ */
+const assigneeTitle = z.string().trim().min(1).max(LOOKUP_LABEL_MAX);
 
 export const projectAssigneeRowSchema = z.object({
   ProjectAssigneeId: z.number().int(),
   ProjectId: z.number().int(),
-  Role: z.enum(ASSIGNEE_ROLES),
+  Role: z.string(),
   PersonName: z.string(),
   UserId: z.number().int().nullable(),
   AccessLevel: z.enum(ACCESS_LEVELS),
@@ -158,7 +159,7 @@ export const projectAssigneeRowSchema = z.object({
 export type ProjectAssigneeRow = z.infer<typeof projectAssigneeRowSchema>;
 
 export const assigneeInput = z.object({
-  role: z.enum(ASSIGNEE_ROLES),
+  role: assigneeTitle,
   personName: z.string().trim().min(1).max(255),
   userId: z.number().int().positive().nullish(),
   /** Ignored for rows without a user account: they grant nothing (stored as Viewer). */

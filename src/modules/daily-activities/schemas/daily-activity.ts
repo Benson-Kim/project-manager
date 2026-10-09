@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { actorAccessFields } from "@/lib/auth/actor-access";
+import type { LookupListKey } from "@/lib/lookup-lists";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 
 /**
@@ -7,31 +9,23 @@ import { rowVerSchema } from "@/modules/projects/schemas/project";
  */
 
 /**
- * Task type vocabulary (requirements row 76: "Admin, Technical, Review, etc.").
- * Confirmed from Access data: row 13 shows "Technical". The checklist add-ons
- * suggest Admin, Technical, Review as minimum; Other covers unlisted values.
+ * Dropdown lists (ADR-0022, seeded by migration 018): the status (stored by
+ * option id in ActivityStatusId), the contact method — Access data held ad-hoc
+ * values such as "Questions I have", which records keep until changed — and the
+ * task type (requirements row 76: "Admin, Technical, Review, etc.").
  */
-export const TASK_TYPES = ["Admin", "Technical", "Review", "Meeting", "Other"] as const;
-
-/**
- * Contact method vocabulary — Access source data values from tblDailyActivityList:
- * "Questions I have", "Meeting", "In Person", "Text Message", "Telephone", "To do".
- * The field is free-text in Access; we expose a curated dropdown + an "Other" catch-all
- * rather than locking to the Access values which include ad-hoc strings like "To do".
- */
-export const CONTACT_METHODS = [
-  "In Person",
-  "Telephone",
-  "Text Message",
-  "Email",
-  "Meeting",
-  "Other",
-] as const;
+export const DAILY_ACTIVITY_LISTS = [
+  "daily-activity.status",
+  "daily-activity.contact-method",
+  "daily-activity.task-type",
+] as const satisfies readonly LookupListKey[];
 
 export const dailyActivityRowSchema = z.object({
   DailyActivityId: z.number().int(),
   ProjectId: z.number().int().nullable(),
   ActivityStatusId: z.number().int().nullable(),
+  /** The status option's label (live or retired), joined by every proc that returns rows. */
+  ActivityStatus: z.string().nullable(),
   Requester: z.string().nullable(),
   Task: z.string().nullable(),
   MyActivity: z.string().nullable(),
@@ -53,18 +47,13 @@ export const dailyActivityRowSchema = z.object({
 export type DailyActivityRow = z.infer<typeof dailyActivityRowSchema>;
 
 export const dailyActivityListRowSchema = dailyActivityRowSchema.extend({
+  /** The project's name — the datasheet's Project column (null: project-less). */
+  ProjectName: z.string().nullable(),
   TotalCount: z.number().int(),
+  ...actorAccessFields,
 });
 
 export type DailyActivityListRow = z.infer<typeof dailyActivityListRowSchema>;
-
-export const activityStatusSchema = z.object({
-  ActivityStatusId: z.number().int(),
-  Name: z.string(),
-  SortOrder: z.number().int(),
-});
-
-export type ActivityStatus = z.infer<typeof activityStatusSchema>;
 
 export const createDailyActivityInput = z.object({
   projectId: z.number().int().positive().nullable(),

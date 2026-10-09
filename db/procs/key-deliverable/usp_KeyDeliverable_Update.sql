@@ -3,6 +3,7 @@
 -- Row-level access: the row's project must be accessible (dbo.usp_Project_AssertAccess,
 --   FORBIDDEN_ROW 50003; Admin bypass). The project key is immutable:
 --   @ProjectId is accepted but ignored (DB standard).
+-- Priority and Status must be live options of their lists, or unchanged (ADR-0022, VALIDATION 50004).
 -- Entity app.KeyDeliverable (source: tblKeyRequirementsDeliverable). Module: key-deliverables (#9).
 USE ProjectManager;
 GO
@@ -22,19 +23,28 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    DECLARE @CurrentVer BIGINT, @RowProjectId INT;
-    SELECT @CurrentVer = CAST(RowVer AS BIGINT), @RowProjectId = ProjectId
+    DECLARE @CurrentVer BIGINT, @RowProjectId INT,
+            @CurrentPriority NVARCHAR(255), @CurrentStatus NVARCHAR(255);
+    SELECT @CurrentVer = CAST(RowVer AS BIGINT), @RowProjectId = ProjectId,
+           @CurrentPriority = [Priority], @CurrentStatus = [Status]
     FROM app.KeyDeliverable WHERE KeyDeliverableId = @KeyDeliverableId AND IsDeleted = 0;
     IF @CurrentVer IS NULL
         THROW 50001, N'NOT_FOUND:KeyDeliverable not found', 1;
 
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Manager', @AllowProjectless = 0;
+         @MinLevel = N'Manager', @Permission = N'key-deliverables:update', @AllowProjectless = 0;
     SET @ProjectId = @RowProjectId;
 
     IF @CurrentVer <> @RowVer
         THROW 50002, N'CONFLICT:KeyDeliverable was modified by someone else', 1;
+
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'key-deliverable.priority', @Label = @Priority OUTPUT,
+         @CurrentLabel = @CurrentPriority;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'key-deliverable.status', @Label = @Status OUTPUT,
+         @CurrentLabel = @CurrentStatus;
 
     BEGIN TRAN;
 

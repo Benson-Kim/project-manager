@@ -3,9 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
-import { flattenSearchParams, parseListParams } from "@/lib/list-params";
+import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
-import { getViewPreference } from "@/lib/repositories/view-preference";
+import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNotFound, orNull } from "@/lib/row-access";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { ObjectiveSheet } from "@/modules/objectives/components/objective-sheet";
@@ -42,9 +42,9 @@ export default async function ObjectivesPage({
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
-  const [rows, preferredView, selectedRaw, allows] = await Promise.all([
+  const [rows, preference, selectedRaw, allows] = await Promise.all([
     orNotFound(listObjectives(listParams, session.userId, projectId, undefined)),
-    getViewPreference(session.userId, "objectives").catch(() => null),
+    getListPreference(session.userId, "objectives").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? orNull(getObjectiveById(selectedId, session.userId))
       : null,
@@ -78,10 +78,13 @@ export default async function ObjectivesPage({
       />
       <div className="mt-3 flex flex-col flex-1">
         <ObjectivesView
+          projectId={projectId}
+          canCreate={canCreate}
           rows={rows}
           totalCount={totalCount}
           page={listParams.page}
-          initialView={listParams.view ?? preferredView ?? "grid"}
+          initialView={initialViewOf(listParams.view, preference?.viewMode)}
+          layout={preference?.layout}
           filtersActive={filtersActive}
           newObjectiveAction={canCreate ? newObjectiveLink : undefined}
         />
