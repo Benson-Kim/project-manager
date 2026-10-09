@@ -108,6 +108,19 @@ another ([ADR-0021](adr/ADR-0021-per-project-access-levels.md)). Global roles
 collapse to Admin and User (migration 017). This also closes the IDOR finding
 `docs/security/IDOR-getbyid-procs.md`.
 
+**Client feedback §2–4 (CF, wave 1, `feature/datasheet`, PR #19, migrations 018–021):**
+- **Every list module:** list view is an Access-style datasheet with direct
+  cell typing, a persistent new-entry row, column reordering and drag-to-resize columns
+  and rows (per-user layout) ([ADR-0023](adr/ADR-0023-dataview-datasheet-mode.md)).
+- **Dropdowns:** values are Admin-managed lists, editable inline, with optional colours
+  that can tint whole rows, e.g. high priority ([ADR-0022](adr/ADR-0022-managed-lookup-lists.md)).
+- **Rows 31–34, 59 and 76 (to-dos, daily activities):** a Project column and project filter
+  on the cross-project pages. The Daily Activities columns follow the client's order.
+- **Row 57, to-do alarms:** they fire on the user's local wall-clock time, with a persistent
+  toast, the bell's "Due now" list and a chime.
+- **Row 6 (team):** titles are a managed list; per-person permission overrides come
+  through the team cog ([ADR-0024](adr/ADR-0024-per-person-permission-overrides.md)); team editing is inline.
+
 **Coverage check:** every non-header, non-empty row (3–38, 40–62, 64–67,
 69–76) is owned by exactly one primary module; cross-cutting rows (41, 47, 50)
 are Definition-of-Done items on every module issue and are tracked on epic #1.
