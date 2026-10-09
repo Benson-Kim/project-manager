@@ -66,6 +66,14 @@ foundation module.
      a role) and calls `dbo.usp_Project_AssertAccess @MinLevel` (FORBIDDEN_ROW
      50003), then mutations write `audit.AuditLog`. Pages render missing and
      inaccessible records alike as not found.
+- Per-person overrides (ADR-0024, `app.ProjectPermissionOverride`): a project Manager
+  can grant or revoke create/update/delete per section for one member. The procs
+  decide (`usp_Permission_Require`; every write check names its `@Permission`). An
+  override applies only to members of the project, never to the charter or team, and
+  nobody can set their own. Every change is audited.
+- Managed dropdown lists (ADR-0022): only Admins edit list values
+  (`admin:lookup-lists`, `usp_LookupList_Set`); every Create/Update proc re-checks
+  values server-side (`usp_LookupList_AssertLabel` / `AssertOption`).
 
 ## Input/output safety
 
