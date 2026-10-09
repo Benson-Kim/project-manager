@@ -17,3 +17,7 @@ tools/
 db/
 scripts/
 public/sw.js
+build/
+dist-installer/
+installers/
+build-resources/

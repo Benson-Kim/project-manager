@@ -33,3 +33,9 @@ uploads/
 screenshots/
 screenshots.zip
 COORDINATION.md
+
+# electron desktop build (build-resources/ IS committed: icons + NSIS hooks)
+build/desktop-app/
+build/desktop-test/
+dist-installer/
+installers/

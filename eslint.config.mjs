@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "playwright-report/**",
     "test-results/**",
     "next-env.d.ts",
+    "build/**",
+    "dist-installer/**",
+    "installers/**",
   ]),
   ...nextCoreWebVitals,
   ...nextTypescript,
@@ -55,6 +58,21 @@ const eslintConfig = defineConfig([
     rules: {
       "no-restricted-imports": "off",
     },
+  },
+  {
+    // Desktop host (Electron main process) is database *administration*
+    // tooling — schema apply (DDL), BACKUP/RESTORE, admin bootstrap — not app
+    // data access, so the stored-procedure-only rules do not apply to it.
+    files: ["electron/**/*.ts", "scripts/desktop/**"],
+    rules: {
+      "no-restricted-imports": "off",
+      "no-restricted-syntax": "off",
+    },
+  },
+  {
+    // electron-builder loads its config as CommonJS.
+    files: ["**/*.cjs"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
   },
 ]);
 
