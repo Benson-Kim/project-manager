@@ -15,7 +15,7 @@ const mockStamp = vi.mocked(getSessionStamp);
 const appToken: AppToken = {
   userId: 7,
   username: "pm",
-  role: "ProjectManager",
+  role: "User",
   sessionVersion: 3,
   mustChangePassword: false,
 };
@@ -33,7 +33,13 @@ describe("auth provider (Auth.js-backed, ADR-0017 revocation stamp)", () => {
   it("returns the contract session when the stamp matches", async () => {
     mockAuthJs.mockResolvedValue({ appToken });
     mockStamp.mockResolvedValue({ sessionVersion: 3, isActive: true, mustChangePassword: false });
-    expect(await auth.getSession()).toEqual({ userId: 7, username: "pm", role: "ProjectManager" });
+    expect(await auth.getSession()).toEqual({ userId: 7, username: "pm", role: "User" });
+  });
+
+  it("returns null for a token minted with a role retired by ADR-0021", async () => {
+    mockAuthJs.mockResolvedValue({ appToken: { ...appToken, role: "ProjectManager" } });
+    mockStamp.mockResolvedValue({ sessionVersion: 3, isActive: true, mustChangePassword: false });
+    expect(await auth.getSession()).toBeNull();
   });
 
   it("returns null when the SessionVersion was bumped (revoked)", async () => {

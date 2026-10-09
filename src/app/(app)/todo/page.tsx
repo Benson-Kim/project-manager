@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { auth } from "@/lib/auth/provider";
-import { can } from "@/lib/auth/rbac";
-import { AppError } from "@/lib/errors";
 import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getViewPreference } from "@/lib/repositories/view-preference";
+import { orNull } from "@/lib/row-access";
 import { formatDate } from "@/lib/format";
 import { PageHeader } from "@/components/ui/page-header";
 import { TodoView } from "@/modules/todo-items/components/todo-view";
@@ -17,6 +16,7 @@ import {
   type TodoListFilters,
 } from "@/modules/todo-items/repository/todo-items";
 import { getTodoAlertByTodoItemId } from "@/modules/todo-items/repository/todo-alerts";
+import { getTodoPermissions } from "@/modules/todo-items/repository/todo-access";
 
 export const metadata: Metadata = {
   title: `${messages.todoItems.title} — ${messages.app.name}`,
@@ -52,33 +52,33 @@ export default async function GlobalTodoPage({
     projectOrActivity: flat.projectOrActivity ?? null,
   };
 
-  const [rows, preferredView, alerts, selectedRaw] = await Promise.all([
+  const [rows, preferredView, alerts, selected] = await Promise.all([
     listTodoItems(effectiveParams, session.userId, null, undefined, filters),
     getViewPreference(session.userId, "todo-items").catch(() => null),
     getUpcomingAlertRows(session.userId).catch(() => []),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getTodoItemById(selectedId, session.userId).catch((err) => {
-          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
-          throw err;
-        })
-      : Promise.resolve(null),
+      ? orNull(getTodoItemById(selectedId, session.userId))
+      : null,
   ]);
 
-  const selected = selectedRaw ?? null;
-
   // Fetch the alert only when a specific todo is selected.
-  const selectedAlert = selected
-    ? await getTodoAlertByTodoItemId(selected.TodoItemId, session.userId).catch(() => null)
-    : null;
+  const [selectedAlert, allows] = await Promise.all([
+    selected
+      ? getTodoAlertByTodoItemId(selected.TodoItemId, session.userId).catch(() => null)
+      : null,
+    getTodoPermissions(selected, session.userId),
+  ]);
 
   const totalCount = rows[0]?.TotalCount ?? 0;
-  const canCreate = can(session.role, "todo-items:create");
-  const canEdit = can(session.role, "todo-items:update");
-  const canDelete = can(session.role, "todo-items:delete");
-  const canCreateAlert = can(session.role, "todo-alerts:create");
-  const canUpdateAlert = can(session.role, "todo-alerts:update");
-  const canDeleteAlert = can(session.role, "todo-alerts:delete");
-  const filtersActive = Boolean(effectiveParams.q || flat.status || flat.priority || flat.projectOrActivity);
+  const canCreate = allows("todo-items:create");
+  const canEdit = allows("todo-items:update");
+  const canDelete = allows("todo-items:delete");
+  const canCreateAlert = allows("todo-alerts:create");
+  const canUpdateAlert = allows("todo-alerts:update");
+  const canDeleteAlert = allows("todo-alerts:delete");
+  const filtersActive = Boolean(
+    effectiveParams.q || flat.status || flat.priority || flat.projectOrActivity,
+  );
 
   return (
     <>
@@ -90,18 +90,13 @@ export default async function GlobalTodoPage({
           aria-labelledby="upcoming-alerts-heading"
           className="mb-6 rounded-md border border-line bg-surface p-4"
         >
-          <h2
-            id="upcoming-alerts-heading"
-            className="mb-3 text-sm font-semibold text-ink"
-          >
+          <h2 id="upcoming-alerts-heading" className="mb-3 text-sm font-semibold text-ink">
             {messages.todoItems.upcomingAlerts}
           </h2>
           <ul className="flex flex-col gap-2">
             {alerts.map((alert) => (
               <li key={alert.TodoItemId} className="flex items-center justify-between gap-4">
-                <span className="text-sm text-ink">
-                  {alert.TodoItem ?? messages.app.untitled}
-                </span>
+                <span className="text-sm text-ink">{alert.TodoItem ?? messages.app.untitled}</span>
                 <div className="flex items-center gap-3 text-xs text-ink-muted">
                   <span
                     className={
@@ -115,10 +110,7 @@ export default async function GlobalTodoPage({
                       : messages.todoItems.approachingDeadline}
                   </span>
                   <span>{formatDate(alert.DueDate)}</span>
-                  <Link
-                    href={`/todo?id=${alert.TodoItemId}`}
-                    className="text-accent underline"
-                  >
+                  <Link href={`/todo?id=${alert.TodoItemId}`} className="text-accent underline">
                     {messages.actions.edit}
                   </Link>
                 </div>

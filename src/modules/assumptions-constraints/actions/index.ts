@@ -14,32 +14,30 @@ import { deleteAssumptionConstraintInput } from "../schemas/assumption-constrain
 
 /**
  * Create an assumption/constraint (RBAC assumptions-constraints:create —
- * Admin + PM + Contributor; audited in-proc).
+ * project level checked in-proc, ADR-0021; audited in-proc).
  * See rbac.ts CONTRIBUTOR_WRITE_MODULES.
  */
 export const createAssumptionConstraintAction = action({
   name: "assumptions-constraints.create",
   schema: assumptionConstraintFormSchema,
   permission: "assumptions-constraints:create",
-  handler: (input, ctx) =>
-    createAssumptionConstraint(input, ctx.session.userId, ctx.session.role),
+  handler: (input, ctx) => createAssumptionConstraint(input, ctx.session.userId),
 });
 
 /**
  * Update an assumption/constraint (RBAC assumptions-constraints:update —
- * Admin + PM + Contributor; audited in-proc).
+ * project level checked in-proc, ADR-0021; audited in-proc).
  */
 export const updateAssumptionConstraintAction = action({
   name: "assumptions-constraints.update",
   schema: updateAssumptionConstraintFormSchema,
   permission: "assumptions-constraints:update",
-  handler: (input, ctx) =>
-    updateAssumptionConstraint(input, ctx.session.userId, ctx.session.role),
+  handler: (input, ctx) => updateAssumptionConstraint(input, ctx.session.userId),
 });
 
 /**
  * Soft-delete an assumption/constraint (RBAC assumptions-constraints:delete —
- * Admin + PM only; audited in-proc).
+ * project level checked in-proc, ADR-0021; audited in-proc).
  */
 export const deleteAssumptionConstraintAction = action({
   name: "assumptions-constraints.delete",
@@ -50,7 +48,6 @@ export const deleteAssumptionConstraintAction = action({
       input.assumptionConstraintId,
       input.rowVer,
       ctx.session.userId,
-      ctx.session.role,
     );
     return { assumptionConstraintId: input.assumptionConstraintId };
   },

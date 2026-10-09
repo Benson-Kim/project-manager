@@ -29,3 +29,4 @@ the full rules and examples derived from these decisions.
 | [0018](ADR-0018-project-workspace-navigation.md) | Project workspace navigation: nested layout + scrollable section links | Superseded by ADR-0019 §2 |
 | [0019](ADR-0019-project-section-nav-grouped-disclosure.md) | Project section nav: grouped disclosure buttons supersede flat scrollable row | Accepted |
 | [0020](ADR-0020-web-push-todo-alert-delivery.md) | Event-driven Web Push todo-alert delivery | Accepted |
+| [0021](ADR-0021-per-project-access-levels.md) | Per-project access levels; global roles collapse to Admin and User | Accepted |

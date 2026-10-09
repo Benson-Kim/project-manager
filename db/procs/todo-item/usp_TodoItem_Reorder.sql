@@ -5,7 +5,7 @@
 -- leaving the moved item on the same side of its target. Audits the moved row.
 -- THROW 50001 NOT_FOUND     : item does not exist or is soft-deleted.
 -- THROW 50002 CONFLICT      : RowVer mismatch (atomic — checked in WHERE clause).
--- THROW 50003 FORBIDDEN_ROW : actor is not the item creator nor Admin/ProjectManager.
+-- THROW 50003 FORBIDDEN_ROW : to-do access rule (dbo.usp_TodoItem_AssertAccess, ADR-0021).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_TodoItem_Reorder
@@ -18,28 +18,8 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    -- Row-level auth: actor must be the creator OR hold Admin/ProjectManager role.
-    IF NOT EXISTS (
-        SELECT 1 FROM app.TodoItem ti
-        WHERE  ti.TodoItemId = @TodoItemId
-          AND  ti.IsDeleted  = 0
-          AND  (
-                   ti.CreatedBy = @ActorUserId
-                   OR EXISTS (
-                       SELECT 1 FROM auth.[User] u
-                       WHERE  u.UserId = @ActorUserId
-                         AND  u.RoleId IN (
-                                  SELECT RoleId FROM auth.[Role]
-                                  WHERE  Name IN (N'Admin', N'ProjectManager')
-                              )
-                   )
-               )
-    )
-    BEGIN
-        IF NOT EXISTS (SELECT 1 FROM app.TodoItem WHERE TodoItemId = @TodoItemId AND IsDeleted = 0)
-            THROW 50001, N'NOT_FOUND:TodoItem not found', 1;
-        THROW 50003, N'FORBIDDEN_ROW:You do not have access to this record', 1;
-    END
+    EXEC dbo.usp_TodoItem_AssertAccess
+         @TodoItemId = @TodoItemId, @ActorUserId = @ActorUserId, @MinLevel = N'Contributor';
 
     DECLARE @ProjectId INT;
     DECLARE @OldSortKey INT;

@@ -8,7 +8,7 @@ vi.mock("next/cache", () => ({
   updateTag: (...args: unknown[]) => updateTag(...args),
 }));
 
-let session: Session | null = { userId: 7, username: "pm", role: "ProjectManager" };
+let session: Session | null = { userId: 7, username: "pm", role: "User" };
 vi.mock("@/lib/auth/provider", () => ({
   auth: {
     getSession: () => Promise.resolve(session),
@@ -28,8 +28,11 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { AppError } from "@/lib/errors";
-import { createKeyDeliverableAction, updateKeyDeliverableAction, deleteKeyDeliverableAction } from ".";
-
+import {
+  createKeyDeliverableAction,
+  updateKeyDeliverableAction,
+  deleteKeyDeliverableAction,
+} from ".";
 
 function dbRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -49,7 +52,7 @@ function dbRow(overrides: Record<string, unknown> = {}) {
 
 describe("key-deliverables actions", () => {
   beforeEach(() => {
-    session = { userId: 7, username: "pm", role: "ProjectManager" };
+    session = { userId: 7, username: "pm", role: "User" };
     execProc.mockReset();
     revalidatePath.mockClear();
   });
@@ -82,25 +85,17 @@ describe("key-deliverables actions", () => {
     expect(execProc).not.toHaveBeenCalled();
   });
 
-  it("create returns FORBIDDEN for a Viewer", async () => {
-    session = { userId: 9, username: "viewer", role: "Viewer" };
+  it("create surfaces the proc's FORBIDDEN_ROW when the project level is too low", async () => {
+    execProc.mockRejectedValue(
+      new AppError("FORBIDDEN_ROW", "Your access to this project does not allow this"),
+    );
     const fd = new FormData();
     fd.set("projectId", "24");
     fd.set("keyRequirement", "R");
     const result = await createKeyDeliverableAction(fd);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
-    expect(execProc).not.toHaveBeenCalled();
-  });
-
-  it("create returns FORBIDDEN for a Contributor (not a write module)", async () => {
-    session = { userId: 9, username: "contrib", role: "Contributor" };
-    const fd = new FormData();
-    fd.set("projectId", "24");
-    fd.set("keyRequirement", "R");
-    const result = await createKeyDeliverableAction(fd);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN_ROW");
+    expect(execProc).toHaveBeenCalledOnce();
   });
 
   it("update maps a proc CONFLICT to the CONFLICT result", async () => {

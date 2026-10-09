@@ -6,14 +6,17 @@ function sql(path: string): string {
 }
 
 describe("todo alert SQL review guardrails", () => {
-  it("checks parent ownership before creating or updating an alert", () => {
+  it("checks the parent to-do's access before creating or updating an alert (ADR-0021)", () => {
     const create = sql("db/procs/todo-alert/usp_TodoAlert_Create.sql");
     const update = sql("db/procs/todo-alert/usp_TodoAlert_Update.sql");
+    const rule = sql("db/procs/todo-item/usp_TodoItem_AssertAccess.sql");
 
-    expect(create).toContain("CreatedBy = @ActorUserId");
-    expect(create).toContain("FORBIDDEN_ROW");
-    expect(update).toContain("CreatedBy = @ActorUserId");
+    expect(create).toContain("EXEC dbo.usp_TodoItem_AssertAccess");
+    expect(update).toContain("EXEC dbo.usp_TodoAlert_AssertAccess");
     expect(update).toContain("TodoItemId cannot be changed");
+    // The shared rule: owners act on their own to-dos; anyone else needs Manager.
+    expect(rule).toContain("@OwnerUserId = CreatedBy");
+    expect(rule).toContain("FORBIDDEN_ROW");
   });
 
   it("shifts the intervening range in the correct direction", () => {

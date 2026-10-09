@@ -1,6 +1,6 @@
 -- usp_AssumptionConstraint_Update — full-row update with rowversion concurrency (50002 CONFLICT) + in-transaction audit.
 -- Project ownership check: @ActorUserId must be an assignee of the record's current project (FORBIDDEN_ROW 50003).
--- Admin role bypass: @ActorRole = N'Admin' skips the ProjectAssignee check.
+-- Admin role bypass: an Admin actor (role read from auth.User) skips the ProjectAssignee check.
 -- ProjectId is immutable: the stored project is always kept; @ProjectId is accepted for
 --   the action-layer form contract but ignored (prevents cross-project record relocation
 --   via forged payload — Codex review comment #4162765942).
@@ -17,17 +17,23 @@ CREATE OR ALTER PROCEDURE dbo.usp_AssumptionConstraint_Update
     @Impact                 NVARCHAR(255)  = NULL,
     @MitigationPlan         NVARCHAR(MAX)  = NULL,
     @RowVer                 BIGINT,
-    @ActorUserId            INT,
-    @ActorRole              NVARCHAR(50)   = NULL
+    @ActorUserId            INT
 AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    DECLARE @CurrentVer BIGINT =
-        (SELECT CAST(RowVer AS BIGINT) FROM app.AssumptionConstraint WHERE AssumptionConstraintId = @AssumptionConstraintId AND IsDeleted = 0);
+    DECLARE @CurrentVer BIGINT, @RowProjectId INT;
+    SELECT @CurrentVer = CAST(RowVer AS BIGINT), @RowProjectId = ProjectId
+    FROM app.AssumptionConstraint WHERE AssumptionConstraintId = @AssumptionConstraintId AND IsDeleted = 0;
     IF @CurrentVer IS NULL
         THROW 50001, N'NOT_FOUND:AssumptionConstraint not found', 1;
+
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
+         @MinLevel = N'Contributor', @AllowProjectless = 0;
+    SET @ProjectId = @RowProjectId;
+
     IF @CurrentVer <> @RowVer
         THROW 50002, N'CONFLICT:AssumptionConstraint was modified by someone else', 1;
 
@@ -37,16 +43,6 @@ BEGIN
 
     IF @Impact IS NOT NULL AND @Impact NOT IN (N'High', N'Medium', N'Low')
         THROW 50004, N'VALIDATION:Invalid impact value', 1;
-
-    -- Row-level access: the actor must be assigned to the current project.
-    -- Admin users bypass this check.
-    IF ISNULL(@ActorRole, '') <> N'Admin'
-       AND NOT EXISTS (
-           SELECT 1 FROM app.AssumptionConstraint ac
-           JOIN app.ProjectAssignee pa ON pa.ProjectId = ac.ProjectId AND pa.UserId = @ActorUserId AND pa.IsDeleted = 0
-           WHERE ac.AssumptionConstraintId = @AssumptionConstraintId AND ac.IsDeleted = 0
-       )
-        THROW 50003, N'FORBIDDEN_ROW:You are not assigned to this project', 1;
 
     BEGIN TRAN;
 

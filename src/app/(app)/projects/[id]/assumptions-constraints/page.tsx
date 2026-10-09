@@ -3,11 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
-import { can } from "@/lib/auth/rbac";
-import { AppError } from "@/lib/errors";
 import { flattenSearchParams, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getViewPreference } from "@/lib/repositories/view-preference";
+import { orNotFound, orNull } from "@/lib/row-access";
+import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { AssumptionConstraintSheet } from "@/modules/assumptions-constraints/components/assumption-constraint-sheet";
 import { AssumptionConstraintsView } from "@/modules/assumptions-constraints/components/assumption-constraints-view";
 import {
@@ -16,7 +16,6 @@ import {
 } from "@/modules/assumptions-constraints/repository/assumption-constraints";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { parseProjectId } from "../project-id";
-import { getProjectCached } from "../get-project";
 
 export const metadata: Metadata = {
   title: `${messages.assumptionsConstraints.title} — ${messages.app.name}`,
@@ -40,16 +39,6 @@ export default async function AssumptionsConstraintsPage({
   const projectId = parseProjectId(id);
   if (projectId === null) notFound();
 
-  // Validate the parent project exists before listing child records.
-  // Uses the request-scoped React cache so the layout's getProjectCached call
-  // and this call share ONE usp_Project_GetById round trip (review comment #7).
-  try {
-    await getProjectCached(projectId, session.userId);
-  } catch (err) {
-    if (err instanceof AppError && err.code === "NOT_FOUND") notFound();
-    throw err;
-  }
-
   const raw = await searchParams;
   const flat = flattenSearchParams(raw);
   const listParams = parseListParams(raw);
@@ -61,24 +50,22 @@ export default async function AssumptionsConstraintsPage({
     type: flat.type ?? null,
   };
 
-  const [rows, preferredView, selectedRaw] = await Promise.all([
-    listAssumptionConstraints(listParams, session.userId, session.role, projectId, filters),
+  const [rows, preferredView, selectedRaw, allows] = await Promise.all([
+    orNotFound(listAssumptionConstraints(listParams, session.userId, projectId, filters)),
     getViewPreference(session.userId, "assumptions-constraints").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getAssumptionConstraintById(selectedId, session.userId, session.role).catch((err) => {
-          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
-          throw err;
-        })
-      : Promise.resolve(null),
+      ? orNull(getAssumptionConstraintById(selectedId, session.userId))
+      : null,
+    getProjectPermissions(projectId, session.userId),
   ]);
 
   // Cross-project leak guard: deep links to another project's record yield not-found.
   const selected = guardProjectScope(selectedRaw, projectId);
 
   const totalCount = rows[0]?.TotalCount ?? 0;
-  const canCreate = can(session.role, "assumptions-constraints:create");
-  const canEdit = can(session.role, "assumptions-constraints:update");
-  const canDelete = can(session.role, "assumptions-constraints:delete");
+  const canCreate = allows("assumptions-constraints:create");
+  const canEdit = allows("assumptions-constraints:update");
+  const canDelete = allows("assumptions-constraints:delete");
   const filtersActive = Boolean(listParams.q || flat.type);
 
   const newItemLink = (

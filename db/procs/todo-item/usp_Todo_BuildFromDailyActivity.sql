@@ -3,7 +3,7 @@
 -- Copies Task → TodoItem, RequestDate → StartDate, preserves ProjectId and DailyActivityId FK.
 -- Status defaults to 'Not Started'; Priority and DueDate are left NULL.
 -- THROW 50001 NOT_FOUND     : DailyActivity does not exist or is soft-deleted.
--- THROW 50003 FORBIDDEN_ROW : actor is not the activity creator nor Admin/ProjectManager.
+-- THROW 50003 FORBIDDEN_ROW : no Contributor access to the activity's project (ADR-0021).
 -- THROW 50005 DUPLICATE     : a non-deleted TodoItem already links to this DailyActivityId.
 -- Audits the creation in-transaction.  Module: todo-alerts (#20).
 USE ProjectManager;
@@ -16,32 +16,20 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
+    -- Row-level access (ADR-0021): building a to-do from an activity needs Contributor on the
+    -- activity's project (or the project-less shared space).
+    EXEC dbo.usp_DailyActivity_AssertAccess
+         @DailyActivityId = @DailyActivityId, @ActorUserId = @ActorUserId, @MinLevel = N'Contributor';
+
     DECLARE @ProjectId    INT;
     DECLARE @Task         NVARCHAR(MAX);
     DECLARE @RequestDate  DATETIME2;
-    DECLARE @ActivityCreatedBy INT;
 
-    SELECT @ProjectId          = ProjectId,
-           @Task               = [Task],
-           @RequestDate        = RequestDate,
-           @ActivityCreatedBy  = CreatedBy
+    SELECT @ProjectId   = ProjectId,
+           @Task        = [Task],
+           @RequestDate = RequestDate
     FROM app.DailyActivity
     WHERE DailyActivityId = @DailyActivityId AND IsDeleted = 0;
-
-    IF @ProjectId IS NULL
-        THROW 50001, N'NOT_FOUND:DailyActivity not found', 1;
-
-    -- Row-level auth: actor must be the activity creator or Admin/PM.
-    IF @ActivityCreatedBy <> @ActorUserId
-    AND NOT EXISTS (
-        SELECT 1 FROM auth.[User] u
-        WHERE  u.UserId = @ActorUserId
-          AND  u.RoleId IN (
-                   SELECT RoleId FROM auth.[Role]
-                   WHERE  Name IN (N'Admin', N'ProjectManager')
-               )
-    )
-        THROW 50003, N'FORBIDDEN_ROW:You do not have access to this record', 1;
 
     -- Prevent duplicate TodoItems linked to the same DailyActivity.
     IF EXISTS (

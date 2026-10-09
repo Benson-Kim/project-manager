@@ -8,7 +8,7 @@ vi.mock("next/cache", () => ({
   updateTag: (...args: unknown[]) => updateTag(...args),
 }));
 
-let session: Session | null = { userId: 7, username: "pm", role: "ProjectManager" };
+let session: Session | null = { userId: 7, username: "pm", role: "User" };
 vi.mock("@/lib/auth/provider", () => ({
   auth: {
     getSession: () => Promise.resolve(session),
@@ -52,7 +52,7 @@ function dbRow(overrides: Record<string, unknown> = {}) {
 
 describe("assumptions-constraints actions", () => {
   beforeEach(() => {
-    session = { userId: 7, username: "pm", role: "ProjectManager" };
+    session = { userId: 7, username: "pm", role: "User" };
     execProc.mockReset();
     revalidatePath.mockClear();
   });
@@ -72,7 +72,7 @@ describe("assumptions-constraints actions", () => {
     expect(params.ProjectId).toBe(2);
     expect(params.Description).toBe("An assumption about scope");
     expect(params.ActorUserId).toBe(7);
-    expect(params.ActorRole).toBe("ProjectManager");
+    expect(params).not.toHaveProperty("ActorRole");
   });
 
   it("create with type=Constraint forwards to proc", async () => {
@@ -147,19 +147,21 @@ describe("assumptions-constraints actions", () => {
     expect(execProc).not.toHaveBeenCalled();
   });
 
-  it("create is FORBIDDEN for a Viewer", async () => {
-    session = { userId: 9, username: "viewer", role: "Viewer" };
+  it("create surfaces the proc's FORBIDDEN_ROW when the project level is too low", async () => {
+    execProc.mockRejectedValue(
+      new AppError("FORBIDDEN_ROW", "Your access to this project does not allow this"),
+    );
     const fd = new FormData();
     fd.set("projectId", "2");
     fd.set("description", "An assumption about scope");
     const result = await createAssumptionConstraintAction(fd);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
-    expect(execProc).not.toHaveBeenCalled();
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN_ROW");
+    expect(execProc).toHaveBeenCalledOnce();
   });
 
   it("create succeeds for a Contributor (assumptions-constraints is in CONTRIBUTOR_WRITE_MODULES)", async () => {
-    session = { userId: 8, username: "contrib", role: "Contributor" };
+    session = { userId: 8, username: "contrib", role: "User" };
     execProc.mockResolvedValue([dbRow()]);
     const fd = new FormData();
     fd.set("projectId", "2");
@@ -172,7 +174,7 @@ describe("assumptions-constraints actions", () => {
   // ── update ───────────────────────────────────────────────────────────────
 
   it("update succeeds for a Contributor", async () => {
-    session = { userId: 8, username: "contrib", role: "Contributor" };
+    session = { userId: 8, username: "contrib", role: "User" };
     execProc.mockResolvedValue([dbRow()]);
     const fd = new FormData();
     fd.set("projectId", "2");
@@ -198,9 +200,7 @@ describe("assumptions-constraints actions", () => {
   });
 
   it("update maps NOT_FOUND to an error (record deleted mid-edit)", async () => {
-    execProc.mockRejectedValue(
-      new AppError("NOT_FOUND", "AssumptionConstraint not found"),
-    );
+    execProc.mockRejectedValue(new AppError("NOT_FOUND", "AssumptionConstraint not found"));
     const fd = new FormData();
     fd.set("projectId", "2");
     fd.set("description", "An assumption");
@@ -211,8 +211,10 @@ describe("assumptions-constraints actions", () => {
     if (!result.ok) expect(result.error.code).toBe("NOT_FOUND");
   });
 
-  it("update is FORBIDDEN for a Viewer", async () => {
-    session = { userId: 9, username: "viewer", role: "Viewer" };
+  it("update surfaces the proc's FORBIDDEN_ROW when the project level is too low", async () => {
+    execProc.mockRejectedValue(
+      new AppError("FORBIDDEN_ROW", "Your access to this project does not allow this"),
+    );
     const fd = new FormData();
     fd.set("projectId", "2");
     fd.set("description", "An assumption about scope");
@@ -220,7 +222,7 @@ describe("assumptions-constraints actions", () => {
     fd.set("rowVer", "42");
     const result = await updateAssumptionConstraintAction(fd);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN_ROW");
   });
 
   // ── delete ───────────────────────────────────────────────────────────────
@@ -236,7 +238,6 @@ describe("assumptions-constraints actions", () => {
       AssumptionConstraintId: 1,
       RowVer: 42,
       ActorUserId: 7,
-      ActorRole: "ProjectManager",
     });
   });
 
@@ -253,9 +254,7 @@ describe("assumptions-constraints actions", () => {
   });
 
   it("delete maps NOT_FOUND when record is already deleted", async () => {
-    execProc.mockRejectedValue(
-      new AppError("NOT_FOUND", "AssumptionConstraint not found"),
-    );
+    execProc.mockRejectedValue(new AppError("NOT_FOUND", "AssumptionConstraint not found"));
     const result = await deleteAssumptionConstraintAction({
       assumptionConstraintId: 1,
       rowVer: 42,
@@ -264,25 +263,16 @@ describe("assumptions-constraints actions", () => {
     if (!result.ok) expect(result.error.code).toBe("NOT_FOUND");
   });
 
-  it("delete is FORBIDDEN for a Contributor", async () => {
-    session = { userId: 8, username: "contrib", role: "Contributor" };
+  it("delete surfaces the proc's FORBIDDEN_ROW when the project level is too low", async () => {
+    execProc.mockRejectedValue(
+      new AppError("FORBIDDEN_ROW", "Your access to this project does not allow this"),
+    );
     const result = await deleteAssumptionConstraintAction({
       assumptionConstraintId: 1,
       rowVer: 42,
     });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
-    expect(execProc).not.toHaveBeenCalled();
-  });
-
-  it("delete is FORBIDDEN for a Viewer", async () => {
-    session = { userId: 9, username: "viewer", role: "Viewer" };
-    const result = await deleteAssumptionConstraintAction({
-      assumptionConstraintId: 1,
-      rowVer: 42,
-    });
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
-    expect(execProc).not.toHaveBeenCalled();
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN_ROW");
+    expect(execProc).toHaveBeenCalledOnce();
   });
 });

@@ -8,7 +8,7 @@ vi.mock("next/cache", () => ({
   updateTag: (...args: unknown[]) => updateTag(...args),
 }));
 
-let session: Session | null = { userId: 7, username: "pm", role: "ProjectManager" };
+let session: Session | null = { userId: 7, username: "pm", role: "User" };
 vi.mock("@/lib/auth/provider", () => ({
   auth: {
     getSession: () => Promise.resolve(session),
@@ -52,7 +52,7 @@ function dbRow(overrides: Record<string, unknown> = {}) {
 
 describe("questions-answers actions", () => {
   beforeEach(() => {
-    session = { userId: 7, username: "pm", role: "ProjectManager" };
+    session = { userId: 7, username: "pm", role: "User" };
     execProc.mockReset();
     revalidatePath.mockClear();
   });
@@ -72,7 +72,7 @@ describe("questions-answers actions", () => {
     expect(params.ProjectId).toBe(2);
     expect(params.Question).toBe("What is the scope?");
     expect(params.ActorUserId).toBe(7);
-    expect(params.ActorRole).toBe("ProjectManager");
+    expect(params).not.toHaveProperty("ActorRole");
   });
 
   it("create returns VALIDATION with fieldErrors for an empty question", async () => {
@@ -88,19 +88,21 @@ describe("questions-answers actions", () => {
     expect(execProc).not.toHaveBeenCalled();
   });
 
-  it("create is FORBIDDEN for a Viewer", async () => {
-    session = { userId: 9, username: "viewer", role: "Viewer" };
+  it("create surfaces the proc's FORBIDDEN_ROW when the project level is too low", async () => {
+    execProc.mockRejectedValue(
+      new AppError("FORBIDDEN_ROW", "Your access to this project does not allow this"),
+    );
     const fd = new FormData();
     fd.set("projectId", "2");
     fd.set("question", "What is the scope?");
     const result = await createQuestionAnswerAction(fd);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
-    expect(execProc).not.toHaveBeenCalled();
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN_ROW");
+    expect(execProc).toHaveBeenCalledOnce();
   });
 
-  it("create succeeds for a Contributor (Q&A is in CONTRIBUTOR_WRITE_MODULES)", async () => {
-    session = { userId: 8, username: "contrib", role: "Contributor" };
+  it("create reaches the proc for any User; the proc checks Contributor (ADR-0021)", async () => {
+    session = { userId: 8, username: "contrib", role: "User" };
     execProc.mockResolvedValue([dbRow()]);
     const fd = new FormData();
     fd.set("projectId", "2");
@@ -110,14 +112,14 @@ describe("questions-answers actions", () => {
     if (result.ok) expect(result.data.QuestionAnswerId).toBe(7);
     expect(execProc).toHaveBeenCalledWith(
       "usp_QuestionAnswer_Create",
-      expect.objectContaining({ ActorRole: "Contributor" }),
+      expect.objectContaining({ ActorUserId: 8 }),
     );
   });
 
   // ── update ───────────────────────────────────────────────────────────────
 
   it("update succeeds for a Contributor (Contributor can update)", async () => {
-    session = { userId: 8, username: "contrib", role: "Contributor" };
+    session = { userId: 8, username: "contrib", role: "User" };
     execProc.mockResolvedValue([dbRow()]);
     const fd = new FormData();
     fd.set("projectId", "2");
@@ -142,8 +144,10 @@ describe("questions-answers actions", () => {
     if (!result.ok) expect(result.error.code).toBe("CONFLICT");
   });
 
-  it("update is FORBIDDEN for a Viewer", async () => {
-    session = { userId: 9, username: "viewer", role: "Viewer" };
+  it("update surfaces the proc's FORBIDDEN_ROW when the project level is too low", async () => {
+    execProc.mockRejectedValue(
+      new AppError("FORBIDDEN_ROW", "Your access to this project does not allow this"),
+    );
     const fd = new FormData();
     fd.set("projectId", "2");
     fd.set("question", "What is the scope?");
@@ -151,7 +155,7 @@ describe("questions-answers actions", () => {
     fd.set("rowVer", "42");
     const result = await updateQuestionAnswerAction(fd);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN_ROW");
   });
 
   // ── delete ───────────────────────────────────────────────────────────────
@@ -164,23 +168,16 @@ describe("questions-answers actions", () => {
       QuestionAnswerId: 7,
       RowVer: 42,
       ActorUserId: 7,
-      ActorRole: "ProjectManager",
     });
   });
 
-  it("delete is FORBIDDEN for a Contributor", async () => {
-    session = { userId: 8, username: "contrib", role: "Contributor" };
+  it("delete surfaces the proc's FORBIDDEN_ROW when the project level is too low", async () => {
+    execProc.mockRejectedValue(
+      new AppError("FORBIDDEN_ROW", "Your access to this project does not allow this"),
+    );
     const result = await deleteQuestionAnswerAction({ questionAnswerId: 7, rowVer: 42 });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
-    expect(execProc).not.toHaveBeenCalled();
-  });
-
-  it("delete is FORBIDDEN for a Viewer", async () => {
-    session = { userId: 9, username: "viewer", role: "Viewer" };
-    const result = await deleteQuestionAnswerAction({ questionAnswerId: 7, rowVer: 42 });
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN");
-    expect(execProc).not.toHaveBeenCalled();
+    if (!result.ok) expect(result.error.code).toBe("FORBIDDEN_ROW");
+    expect(execProc).toHaveBeenCalledOnce();
   });
 });

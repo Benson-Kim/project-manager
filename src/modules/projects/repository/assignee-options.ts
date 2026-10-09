@@ -7,9 +7,10 @@ const nameRowSchema = z.object({
 });
 
 /**
- * Combobox source for the Assignees section (req 0.3): the project's
- * stakeholders (usp_Stakeholder_List, project-scoped). Auth users are an
- * admin-module resource (RBAC) — stakeholders are the shared people registry.
+ * Stakeholder names for the project team editor (req 0.3): the project's
+ * stakeholders (usp_Stakeholder_List, project-scoped). They can be listed in
+ * the team without an account and gain no access (ADR-0021); user accounts
+ * come from listUserOptions.
  */
 export async function listAssigneeOptions(
   projectId: number,
