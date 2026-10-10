@@ -101,7 +101,9 @@ describe("POST /api/files (ADR-0026 §3)", () => {
 
   it("cleans the name from the query string", async () => {
     await handleUpload(
-      upload(PDF, { query: `owner=daily-activity&ownerId=12&name=${encodeURIComponent("..\\a/b\r\n.pdf")}` }),
+      upload(PDF, {
+        query: `owner=daily-activity&ownerId=12&name=${encodeURIComponent("..\\a/b\r\n.pdf")}`,
+      }),
       deps,
     );
     expect(deps.addFile.mock.calls[0]![2].fileName).toBe("..ab.pdf");
@@ -250,7 +252,11 @@ describe("GET /api/files/<id> (ADR-0026 §3)", () => {
       StoragePath: storagePathOf(hash),
       StorageLocation: null,
     });
-    downloadDeps = { getSession: () => Promise.resolve(session), uploadsRoot: () => Promise.resolve(root), getFile };
+    downloadDeps = {
+      getSession: () => Promise.resolve(session),
+      uploadsRoot: () => Promise.resolve(root),
+      getFile,
+    };
   });
 
   const get = (id: string, owner = "daily-activity") =>

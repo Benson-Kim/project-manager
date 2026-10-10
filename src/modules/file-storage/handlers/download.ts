@@ -62,7 +62,10 @@ export async function handleDownload(
     if (!info.isFile()) throw new Error("not a file");
     size = info.size;
   } catch (err) {
-    console.error(`[files.download] stored bytes missing for attachment ${file.FileAttachmentId}:`, err);
+    console.error(
+      `[files.download] stored bytes missing for attachment ${file.FileAttachmentId}:`,
+      err,
+    );
     return notFound();
   }
 

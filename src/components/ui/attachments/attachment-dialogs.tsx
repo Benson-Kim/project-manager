@@ -29,7 +29,11 @@ function onEnter(save: () => void) {
   };
 }
 
-function DialogButtons({ pending, onCancel, onSave }: {
+function DialogButtons({
+  pending,
+  onCancel,
+  onSave,
+}: {
   pending: boolean;
   onCancel: () => void;
   onSave: () => void;
@@ -67,7 +71,13 @@ export function RenameDialog({
       title={messages.attachments.renameTitle}
     >
       {name !== null ? (
-        <RenameFields key={name} initial={name} pending={pending} onCancel={onCancel} onSave={onSave} />
+        <RenameFields
+          key={name}
+          initial={name}
+          pending={pending}
+          onCancel={onCancel}
+          onSave={onSave}
+        />
       ) : null}
     </Dialog>
   );

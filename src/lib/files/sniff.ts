@@ -9,8 +9,7 @@ import { extensionOf } from "@/lib/file-names";
  */
 
 export type SniffResult =
-  | { ok: true; contentType: string }
-  | { ok: false; reason: "empty" | "type" };
+  { ok: true; contentType: string } | { ok: false; reason: "empty" | "type" };
 
 /** Random access to the upload: the stored temp file, or a Buffer in tests. */
 export interface ByteSource {
@@ -150,7 +149,8 @@ async function officeFolder(source: ByteSource): Promise<string | null> {
     const name = decoder.decode(cd.subarray(p + 46, p + 46 + nameLength));
     if (name === "[Content_Types].xml") contentTypes = true;
     if (/(^|\/)vbaProject\.bin$/i.test(name)) return null;
-    for (const { folder } of Object.values(OFFICE)) if (name.startsWith(folder)) folders.add(folder);
+    for (const { folder } of Object.values(OFFICE))
+      if (name.startsWith(folder)) folders.add(folder);
     p += 46 + nameLength + extraLength + commentLength;
   }
   return contentTypes && folders.size === 1 ? [...folders][0]! : null;

@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { messages } from "@/lib/messages";
 import { MAX_UPLOAD_BYTES } from "@/modules/file-storage/schemas/attachment";
-import {
-  downloadUrl,
-  preflight,
-  readUploadResponse,
-  uploadUrl,
-} from "../attachments/upload-file";
+import { downloadUrl, preflight, readUploadResponse, uploadUrl } from "../attachments/upload-file";
 
 describe("upload preflight (the server re-checks everything)", () => {
   it.each([
