@@ -84,12 +84,17 @@ export async function backupDatabase(kind: BackupKind, opts: BackupOptions): Pro
       log.warn(`[backup] copy to ${opts.copyDir} failed: ${result.copyError}`);
     }
   }
-  log.info(`[backup] ok (${(size / 1048576).toFixed(1)} MB)${result.copy ? `, copied to ${result.copy}` : ""}`);
+  log.info(
+    `[backup] ok (${(size / 1048576).toFixed(1)} MB)${result.copy ? `, copied to ${result.copy}` : ""}`,
+  );
   return result;
 }
 
 /** Newest backup of this database in `dir`, or null. */
-export async function latestBackup(dir: string, database: string): Promise<{ file: string; time: Date } | null> {
+export async function latestBackup(
+  dir: string,
+  database: string,
+): Promise<{ file: string; time: Date } | null> {
   const files = await listBackups(dir, database);
   return files[0] ?? null;
 }
@@ -139,7 +144,9 @@ export async function restoreDatabase(
   const { target, log } = opts;
   // SQL Server reads the file as its service account: stage it in backupDir.
   let source = bakFile;
-  if (path.resolve(path.dirname(bakFile)).toLowerCase() !== path.resolve(opts.backupDir).toLowerCase()) {
+  if (
+    path.resolve(path.dirname(bakFile)).toLowerCase() !== path.resolve(opts.backupDir).toLowerCase()
+  ) {
     source = path.join(opts.backupDir, `restore-source_${Date.now()}.bak.tmp`);
     await fs.copyFile(bakFile, source);
   }
@@ -148,7 +155,10 @@ export async function restoreDatabase(
   const pool = await connect(target, "master", 1); // one connection: SINGLE_USER must be ours
   try {
     // Validates checksums when the backup has them (ours always do).
-    await pool.request().input("src", sql.NVarChar, source).batch("RESTORE VERIFYONLY FROM DISK = @src");
+    await pool
+      .request()
+      .input("src", sql.NVarChar, source)
+      .batch("RESTORE VERIFYONLY FROM DISK = @src");
     const files = await pool
       .request()
       .input("src", sql.NVarChar, source)
@@ -166,8 +176,12 @@ export async function restoreDatabase(
         "SELECT CAST(SERVERPROPERTY('InstanceDefaultDataPath') AS NVARCHAR(4000)) AS dataPath, " +
           "CAST(SERVERPROPERTY('InstanceDefaultLogPath') AS NVARCHAR(4000)) AS logPath",
       );
-    const currentData = current.recordset.filter((f) => f.type_desc === "ROWS").map((f) => f.physical_name);
-    const currentLog = current.recordset.filter((f) => f.type_desc === "LOG").map((f) => f.physical_name);
+    const currentData = current.recordset
+      .filter((f) => f.type_desc === "ROWS")
+      .map((f) => f.physical_name);
+    const currentLog = current.recordset
+      .filter((f) => f.type_desc === "LOG")
+      .map((f) => f.physical_name);
 
     const request = pool.request().input("src", sql.NVarChar, source);
     const moves: string[] = [];
@@ -176,7 +190,13 @@ export async function restoreDatabase(
     files.recordset.forEach((f, i) => {
       const isLog = f.Type === "L";
       const existing = isLog ? currentLog[logIndex] : currentData[dataIndex];
-      const suffix = isLog ? (logIndex === 0 ? "_log.ldf" : `_log${logIndex}.ldf`) : dataIndex === 0 ? ".mdf" : `_${dataIndex}.ndf`;
+      const suffix = isLog
+        ? logIndex === 0
+          ? "_log.ldf"
+          : `_log${logIndex}.ldf`
+        : dataIndex === 0
+          ? ".mdf"
+          : `_${dataIndex}.ndf`;
       const dir = isLog ? defaults.recordset[0].logPath : defaults.recordset[0].dataPath;
       const dest = existing ?? path.join(dir, `${target.database}${suffix}`);
       if (isLog) logIndex++;
@@ -187,7 +207,8 @@ export async function restoreDatabase(
 
     log.info(`[restore] restoring ${target.database} from ${bakFile}`);
     const exists = currentData.length > 0;
-    if (exists) await pool.request().batch(`ALTER DATABASE ${db} SET SINGLE_USER WITH ROLLBACK IMMEDIATE`);
+    if (exists)
+      await pool.request().batch(`ALTER DATABASE ${db} SET SINGLE_USER WITH ROLLBACK IMMEDIATE`);
     try {
       await request.batch(
         `RESTORE DATABASE ${db} FROM DISK = @src WITH REPLACE, RECOVERY, ${moves.join(", ")}`,
@@ -195,7 +216,9 @@ export async function restoreDatabase(
     } finally {
       await pool
         .request()
-        .batch(`IF DB_ID(N'${target.database.replace(/'/g, "''")}') IS NOT NULL ALTER DATABASE ${db} SET MULTI_USER`);
+        .batch(
+          `IF DB_ID(N'${target.database.replace(/'/g, "''")}') IS NOT NULL ALTER DATABASE ${db} SET MULTI_USER`,
+        );
     }
     log.info("[restore] done");
   } finally {

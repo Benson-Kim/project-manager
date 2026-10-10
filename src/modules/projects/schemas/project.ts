@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { LOOKUP_LABEL_MAX } from "@/lib/lookup-lists";
+import { actorAccessSchema } from "@/lib/auth/actor-access";
+import { ACCESS_LEVELS } from "@/lib/auth/types";
 
 /**
  * Project (app.Project ← tblProjectFramework) — zod contracts for the
@@ -52,6 +55,7 @@ export type ProjectRow = z.infer<typeof projectRowSchema>;
 
 export const projectListRowSchema = projectRowSchema.extend({
   TotalCount: z.number().int(),
+  ActorAccess: actorAccessSchema,
 });
 
 export type ProjectListRow = z.infer<typeof projectListRowSchema>;
@@ -128,16 +132,25 @@ export const projectFiltersSchema = z.object({
 
 export type ProjectFilters = z.infer<typeof projectFiltersSchema>;
 
-/** ProjectAssignee (app.ProjectAssignee — req 0.3 one-or-many PMs/Sponsors/BAs). */
-export const ASSIGNEE_ROLES = ["ProjectManager", "Sponsor", "BusinessAnalyst"] as const;
-export type AssigneeRole = (typeof ASSIGNEE_ROLES)[number];
+/**
+ * Project team (app.ProjectAssignee — req 0.3, ADR-0021). Role is the title shown in the
+ * team; AccessLevel is what a member linked to a user account may do in this project.
+ * Mirrors CK_ProjectAssignee_Role.
+ */
+/**
+ * A team member's title: a label of the managed list 'project-assignee.title'
+ * (migration 021, ADR-0024) — display only; access comes from the level and
+ * the person's overrides. The proc checks it against the live list.
+ */
+const assigneeTitle = z.string().trim().min(1).max(LOOKUP_LABEL_MAX);
 
 export const projectAssigneeRowSchema = z.object({
   ProjectAssigneeId: z.number().int(),
   ProjectId: z.number().int(),
-  Role: z.enum(ASSIGNEE_ROLES),
+  Role: z.string(),
   PersonName: z.string(),
   UserId: z.number().int().nullable(),
+  AccessLevel: z.enum(ACCESS_LEVELS),
   CreatedAtUtc: z.date(),
   UpdatedAtUtc: z.date().nullable(),
   RowVer: rowVerSchema,
@@ -146,9 +159,11 @@ export const projectAssigneeRowSchema = z.object({
 export type ProjectAssigneeRow = z.infer<typeof projectAssigneeRowSchema>;
 
 export const assigneeInput = z.object({
-  role: z.enum(ASSIGNEE_ROLES),
+  role: assigneeTitle,
   personName: z.string().trim().min(1).max(255),
   userId: z.number().int().positive().nullish(),
+  /** Ignored for rows without a user account: they grant nothing (stored as Viewer). */
+  accessLevel: z.enum(ACCESS_LEVELS),
 });
 
 export const setProjectAssigneesInput = z.object({

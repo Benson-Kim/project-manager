@@ -1,6 +1,9 @@
 import { z } from "zod";
+import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
+import { toDateInput } from "@/lib/format";
+import { listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
-import { PROJECT_OR_ACTIVITY, TODO_PRIORITIES, TODO_STATUSES } from "./todo-item";
+import { PROJECT_OR_ACTIVITY, type TodoItemRow } from "./todo-item";
 import { rowVerSchema } from "./todo-alert";
 
 /**
@@ -32,10 +35,10 @@ const vocab = <T extends readonly [string, ...string[]]>(values: T) =>
     .transform((v) => (v ? (v as T[number]) : null));
 
 export const todoItemFormSchema = z.object({
-  // FormData emits "" or "0" when no project is selected (global create).
-  // Coerce both to null so the repo receives NULL rather than 0.
+  // FormData emits "" when no project is selected (global create).
+  // Coerce it to null so the repo receives NULL rather than 0.
   projectId: z
-    .union([z.literal(""), z.literal("0"), z.null()])
+    .union([z.literal(""), z.null()])
     .transform(() => null)
     .or(z.coerce.number().int().positive()),
   dailyActivityId: z
@@ -48,8 +51,9 @@ export const todoItemFormSchema = z.object({
   todoItem: z.string().trim().min(1, messages.todoItems.todoItemRequired).max(255),
   startDate: dateInput,
   dueDate: dateInput,
-  priority: vocab(TODO_PRIORITIES),
-  status: vocab(TODO_STATUSES),
+  /** Managed lists (ADR-0022): the proc checks the value against the live options. */
+  priority: listChoice,
+  status: listChoice,
   notes: optionalLongText(),
 });
 
@@ -61,3 +65,20 @@ export const updateTodoItemFormSchema = todoItemFormSchema.extend({
 });
 
 export type UpdateTodoItemFormValues = z.output<typeof updateTodoItemFormSchema>;
+
+/** A to-do as the update form's values — what a datasheet cell edit sends (ADR-0023). */
+export function todoItemFormValues(row: TodoItemRow): FormValues {
+  return {
+    todoItemId: String(row.TodoItemId),
+    rowVer: String(row.RowVer),
+    projectId: formText(row.ProjectId),
+    dailyActivityId: formText(row.DailyActivityId),
+    projectOrActivity: formText(row.ProjectOrActivity),
+    todoItem: formText(row.TodoItem),
+    startDate: toDateInput(row.StartDate),
+    dueDate: toDateInput(row.DueDate),
+    priority: formText(row.Priority),
+    status: formText(row.Status),
+    notes: formText(row.Notes),
+  };
+}

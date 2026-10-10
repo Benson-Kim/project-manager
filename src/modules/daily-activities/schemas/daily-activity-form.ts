@@ -1,6 +1,9 @@
 import { z } from "zod";
+import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
+import { toDateInput } from "@/lib/format";
+import { listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
-import { CONTACT_METHODS, TASK_TYPES } from "./daily-activity";
+import type { DailyActivityRow } from "./daily-activity";
 
 /**
  * Daily Activity form contract ): ONE schema shared by the client
@@ -35,16 +38,11 @@ const intInput = (min: number, max: number, message: string) =>
     .string()
     .trim()
     .optional()
-    .refine((v) => !v || (!Number.isNaN(Number(v)) && Number(v) >= min && Number(v) <= max), message)
+    .refine(
+      (v) => !v || (!Number.isNaN(Number(v)) && Number(v) >= min && Number(v) <= max),
+      message,
+    )
     .transform((v) => (v ? Number(v) : null));
-
-const vocab = <T extends readonly [string, ...string[]]>(values: T) =>
-  z
-    .string()
-    .trim()
-    .optional()
-    .refine((v) => !v || (values as readonly string[]).includes(v), messages.errors.VALIDATION)
-    .transform((v) => (v ? (v as T[number]) : null));
 
 export const dailyActivityFormSchema = z.object({
   // FormData emits "" or "0" when no project is selected (global create).
@@ -66,10 +64,11 @@ export const dailyActivityFormSchema = z.object({
   comments: optionalLongText(),
   requestDate: dateInput,
   completeDate: dateInput,
-  contactMethod: vocab(CONTACT_METHODS),
+  /** Managed lists (ADR-0022): the proc checks the value against the live options. */
+  contactMethod: listChoice,
   timeSpent: intInput(0, 9999, messages.dailyActivities.invalidTimeSpent),
   assignedTo: optionalText(255),
-  taskType: vocab(TASK_TYPES),
+  taskType: listChoice,
   progress: intInput(0, 100, messages.dailyActivities.invalidNumber),
 });
 
@@ -81,3 +80,25 @@ export const updateDailyActivityFormSchema = dailyActivityFormSchema.extend({
 });
 
 export type UpdateDailyActivityFormValues = z.output<typeof updateDailyActivityFormSchema>;
+
+/** An activity as the update form's values — what a datasheet cell edit sends (ADR-0023). */
+export function dailyActivityFormValues(row: DailyActivityRow): FormValues {
+  return {
+    dailyActivityId: String(row.DailyActivityId),
+    rowVer: String(row.RowVer),
+    projectId: formText(row.ProjectId),
+    activityStatusId: formText(row.ActivityStatusId),
+    requester: formText(row.Requester),
+    task: formText(row.Task),
+    myActivity: formText(row.MyActivity),
+    activityDate: toDateInput(row.ActivityDate),
+    comments: formText(row.Comments),
+    requestDate: toDateInput(row.RequestDate),
+    completeDate: toDateInput(row.CompleteDate),
+    contactMethod: formText(row.ContactMethod),
+    timeSpent: formText(row.TimeSpent),
+    assignedTo: formText(row.AssignedTo),
+    taskType: formText(row.TaskType),
+    progress: formText(row.Progress),
+  };
+}

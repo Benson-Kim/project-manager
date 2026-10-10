@@ -7,7 +7,13 @@ const execFileAsync = promisify(execFile);
 
 /** 64-bit Windows PowerShell, regardless of how we were started. */
 function powershellPath(): string {
-  return path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  return path.join(
+    process.env.SystemRoot ?? "C:\\Windows",
+    "System32",
+    "WindowsPowerShell",
+    "v1.0",
+    "powershell.exe",
+  );
 }
 
 export type ServiceState = "running" | "stopped" | "missing";
@@ -37,10 +43,13 @@ export async function getServiceState(instanceName: string): Promise<ServiceStat
  * Used when the installer's database step failed or the engine broke later.
  * Resolves with the script's exit code; rejects if the user declines UAC.
  */
-export async function runElevatedRepair(scriptPath: string, sqlInstaller: string, log: Logger): Promise<number> {
+export async function runElevatedRepair(
+  scriptPath: string,
+  sqlInstaller: string,
+  log: Logger,
+): Promise<number> {
   const esc = (s: string) => s.replace(/'/g, "''");
-  const inner =
-    `-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${scriptPath}" -SqlInstaller "${sqlInstaller}"`;
+  const inner = `-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${scriptPath}" -SqlInstaller "${sqlInstaller}"`;
   const command =
     `$p = Start-Process -FilePath '${esc(powershellPath())}' -ArgumentList '${esc(inner)}' ` +
     `-Verb RunAs -Wait -PassThru -WindowStyle Hidden; exit $p.ExitCode`;

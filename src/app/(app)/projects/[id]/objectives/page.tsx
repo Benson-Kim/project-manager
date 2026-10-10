@@ -3,11 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
-import { can } from "@/lib/auth/rbac";
-import { AppError } from "@/lib/errors";
-import { flattenSearchParams, parseListParams } from "@/lib/list-params";
+import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
-import { getViewPreference } from "@/lib/repositories/view-preference";
+import { getListPreference } from "@/lib/repositories/view-preference";
+import { orNotFound, orNull } from "@/lib/row-access";
+import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { ObjectiveSheet } from "@/modules/objectives/components/objective-sheet";
 import { ObjectivesView } from "@/modules/objectives/components/objectives-view";
 import { listObjectives, getObjectiveById } from "@/modules/objectives/repository/objectives";
@@ -42,24 +42,22 @@ export default async function ObjectivesPage({
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
-  const [rows, preferredView, selectedRaw] = await Promise.all([
-    listObjectives(listParams, session.userId, projectId),
-    getViewPreference(session.userId, "objectives").catch(() => null),
+  const [rows, preference, selectedRaw, allows] = await Promise.all([
+    orNotFound(listObjectives(listParams, session.userId, projectId, undefined)),
+    getListPreference(session.userId, "objectives").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getObjectiveById(selectedId, session.userId).catch((err) => {
-          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
-          throw err;
-        })
-      : Promise.resolve(null),
+      ? orNull(getObjectiveById(selectedId, session.userId))
+      : null,
+    getProjectPermissions(projectId, session.userId),
   ]);
 
   // A deep link to an objective from another project is treated as not found.
   const selected = guardProjectScope(selectedRaw, projectId);
 
   const totalCount = rows[0]?.TotalCount ?? 0;
-  const canCreate = can(session.role, "objectives:create");
-  const canEdit = can(session.role, "objectives:update");
-  const canDelete = can(session.role, "objectives:delete");
+  const canCreate = allows("objectives:create");
+  const canEdit = allows("objectives:update");
+  const canDelete = allows("objectives:delete");
   const filtersActive = Boolean(listParams.q);
 
   const newObjectiveLink = (
@@ -80,10 +78,13 @@ export default async function ObjectivesPage({
       />
       <div className="mt-3 flex flex-col flex-1">
         <ObjectivesView
+          projectId={projectId}
+          canCreate={canCreate}
           rows={rows}
           totalCount={totalCount}
           page={listParams.page}
-          initialView={listParams.view ?? preferredView ?? "grid"}
+          initialView={initialViewOf(listParams.view, preference?.viewMode)}
+          layout={preference?.layout}
           filtersActive={filtersActive}
           newObjectiveAction={canCreate ? newObjectiveLink : undefined}
         />

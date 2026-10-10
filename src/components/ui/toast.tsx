@@ -13,6 +13,8 @@ export interface ToastInput {
   variant: ToastVariant;
   title: string;
   action?: { label: string; onAction: () => void };
+  /** Stays until closed (e.g. a due to-do alarm), whatever the variant. */
+  persist?: boolean;
 }
 
 interface Toast extends ToastInput {
@@ -24,6 +26,19 @@ interface ToastContextValue {
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
+
+/** Native pointer-downs that started on a toast (see isToastInteraction). */
+const toastPointerDowns = new WeakSet<Event>();
+
+/**
+ * Whether an overlay's "interact outside" event began on a toast, so a sheet or
+ * dialog stays open when a toast is closed or used. Radix decides on the click,
+ * when the toast may already be gone from the DOM, so the pointer-down event
+ * itself is remembered rather than the element.
+ */
+export function isToastInteraction(event: CustomEvent<{ originalEvent: Event }>): boolean {
+  return toastPointerDowns.has(event.detail.originalEvent);
+}
 
 const AUTO_DISMISS_MS: Record<ToastVariant, number | null> = {
   success: 4000,
@@ -51,7 +66,7 @@ export function Toaster({ children }: { children: React.ReactNode }) {
     (input: ToastInput) => {
       const id = nextId.current++;
       setToasts((current) => [...current.slice(-2), { ...input, id }]);
-      const timeout = AUTO_DISMISS_MS[input.variant];
+      const timeout = input.persist ? null : AUTO_DISMISS_MS[input.variant];
       if (timeout !== null) {
         setTimeout(() => dismiss(id), timeout);
       }
@@ -68,6 +83,7 @@ export function Toaster({ children }: { children: React.ReactNode }) {
         className="pointer-events-none fixed inset-x-0 bottom-0 z-(--z-toast) flex flex-col items-center gap-2 p-4 pb-[calc(env(safe-area-inset-bottom)+5rem)] sm:items-end sm:pb-4"
         role="region"
         aria-label="Notifications"
+        onPointerDownCapture={(event) => toastPointerDowns.add(event.nativeEvent)}
       >
         <div aria-live="polite" className="sr-only">
           {toasts

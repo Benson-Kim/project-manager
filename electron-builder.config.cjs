@@ -8,15 +8,27 @@
 // process is a single esbuild bundle and the Next server carries its own
 // node_modules), so nothing from the repo's node_modules can leak in.
 //
-// Optional build-time environment:
-//   PM_UPDATE_URL  — static URL hosting latest.yml + the installer; enables auto-update.
+// Build-time environment:
+//   PM_VERSION        — app version (CI sets it per release; default: package.json).
+//   PM_UPDATE_GITHUB  — owner/repo whose GitHub Releases are the update feed
+//                       (default: this repo; CI publishes there, see docs/DESKTOP.md).
+//   PM_UPDATE_URL     — alternative feed: a static HTTPS folder with latest.yml + installer.
+//   PM_UPDATE_FEED=off — build without a feed (auto-update disabled).
 //   CSC_LINK / CSC_KEY_PASSWORD — code-signing certificate (removes the SmartScreen warning).
 
 const path = require("path");
 
 const root = __dirname;
 const r = (...p) => path.join(root, ...p);
-const updateUrl = process.env.PM_UPDATE_URL;
+const DEFAULT_UPDATE_REPO = "Benson-Kim/project-manager";
+
+function updateFeed(env) {
+  if (env.PM_UPDATE_FEED === "off") return null;
+  if (env.PM_UPDATE_URL) return [{ provider: "generic", url: env.PM_UPDATE_URL }];
+  const [owner, repo] = (env.PM_UPDATE_GITHUB || DEFAULT_UPDATE_REPO).split("/");
+  if (!owner || !repo) throw new Error("PM_UPDATE_GITHUB must look like owner/repo");
+  return [{ provider: "github", owner, repo, releaseType: "release" }];
+}
 
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
@@ -37,7 +49,11 @@ module.exports = {
 
   extraResources: [
     { from: r("db"), to: "db", filter: ["migrations/*.sql", "procs/**/*.sql", "seed/*.sql"] },
-    { from: r("electron", "setup"), to: "setup", filter: ["provision.ps1"] },
+    {
+      from: r("electron", "setup"),
+      to: "setup",
+      filter: ["provision.ps1", "remove-all-users-install.ps1"],
+    },
     { from: r("installers", "sql-express"), to: "sql-express", filter: ["SQLEXPR_x64_ENU.exe"] },
     { from: r("build-resources", "icon.ico"), to: "icon.ico" },
   ],
@@ -53,10 +69,13 @@ module.exports = {
 
   nsis: {
     oneClick: false,
-    // SQL Server is a machine-wide service: install for all users, elevated once.
-    perMachine: true,
-    allowElevation: true,
-    allowToChangeInstallationDirectory: true,
+    // Per user (%LOCALAPPDATA%\Programs), forced in installer.nsh
+    // (customInstallMode): installing and updating need no administrator
+    // rights. Only the one-time database engine setup asks for approval.
+    perMachine: false,
+    // A fixed, user-writable location: a folder like Program Files would need
+    // administrator rights for every update.
+    allowToChangeInstallationDirectory: false,
     installerIcon: r("build-resources", "icon.ico"),
     uninstallerIcon: r("build-resources", "icon.ico"),
     // Logo on the wizard: header (every page, including "Installing") and the
@@ -71,7 +90,10 @@ module.exports = {
     include: r("build-resources", "installer.nsh"),
   },
 
-  publish: updateUrl ? [{ provider: "generic", url: updateUrl }] : null,
+  // Writes resources/app-update.yml (read by electron-updater) and, next to
+  // the installer, latest.yml + .blockmap (uploaded by the release workflow).
+  // Nothing is uploaded from here: build.mjs passes --publish never.
+  publish: updateFeed(process.env),
 
   // The Next.js standalone server is copied here rather than via
   // extraResources: electron-builder 26 silently drops node_modules and

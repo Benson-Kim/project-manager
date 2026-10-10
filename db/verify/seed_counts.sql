@@ -5,7 +5,10 @@ USE ProjectManager;
 GO
 DECLARE @Errors NVARCHAR(MAX) = N'';
 IF (SELECT COUNT(*) FROM app.[Project]) <> 18 SET @Errors += N'Project<>18 (got ' + CAST((SELECT COUNT(*) FROM app.[Project]) AS NVARCHAR(12)) + N'); ';
-IF (SELECT COUNT(*) FROM app.[ProjectAssignee]) <> 0 SET @Errors += N'ProjectAssignee<>0 (got ' + CAST((SELECT COUNT(*) FROM app.[ProjectAssignee]) AS NVARCHAR(12)) + N'); ';
+-- ProjectAssignee: 0 in normal runs; E2E_SEED=1 adds 3 rows on project 2 (seed 029: e2e-pm Manager,
+-- e2e-contributor Contributor, e2e-viewer Viewer). Pass -v E2E_SEED=0|1 (sqlcmd requires the variable).
+DECLARE @ExpectedPA INT = CASE WHEN N'$(E2E_SEED)' = N'1' THEN 3 ELSE 0 END;
+IF (SELECT COUNT(*) FROM app.[ProjectAssignee]) <> @ExpectedPA SET @Errors += N'ProjectAssignee<>' + CAST(@ExpectedPA AS NVARCHAR(12)) + N' (got ' + CAST((SELECT COUNT(*) FROM app.[ProjectAssignee]) AS NVARCHAR(12)) + N'); ';
 IF (SELECT COUNT(*) FROM app.[Stakeholder]) <> 8 SET @Errors += N'Stakeholder<>8 (got ' + CAST((SELECT COUNT(*) FROM app.[Stakeholder]) AS NVARCHAR(12)) + N'); ';
 IF (SELECT COUNT(*) FROM app.[Supplier]) <> 12 SET @Errors += N'Supplier<>12 (got ' + CAST((SELECT COUNT(*) FROM app.[Supplier]) AS NVARCHAR(12)) + N'); ';
 IF (SELECT COUNT(*) FROM app.[Keyword]) <> 29 SET @Errors += N'Keyword<>29 (got ' + CAST((SELECT COUNT(*) FROM app.[Keyword]) AS NVARCHAR(12)) + N'); ';
@@ -31,10 +34,12 @@ IF (SELECT COUNT(*) FROM app.[DailyActivity]) <> 13 SET @Errors += N'DailyActivi
 IF (SELECT COUNT(*) FROM app.[TodoItem]) <> 16 SET @Errors += N'TodoItem<>16 (got ' + CAST((SELECT COUNT(*) FROM app.[TodoItem]) AS NVARCHAR(12)) + N'); ';
 IF (SELECT COUNT(*) FROM app.[TodoAlert]) <> 4 SET @Errors += N'TodoAlert<>4 (got ' + CAST((SELECT COUNT(*) FROM app.[TodoAlert]) AS NVARCHAR(12)) + N'); ';
 IF (SELECT COUNT(*) FROM app.[ExistingSystemInterface]) <> 0 SET @Errors += N'ExistingSystemInterface<>0 (got ' + CAST((SELECT COUNT(*) FROM app.[ExistingSystemInterface]) AS NVARCHAR(12)) + N'); ';
-IF (SELECT COUNT(*) FROM app.[ActivityStatus]) <> 4 SET @Errors += N'ActivityStatus<>4 (got ' + CAST((SELECT COUNT(*) FROM app.[ActivityStatus]) AS NVARCHAR(12)) + N'); ';
--- auth schema (module #4): 4 roles + exactly one seeded admin (e2e users are
--- opt-in via E2E_SEED=1 and intentionally not asserted here).
-IF (SELECT COUNT(*) FROM auth.[Role]) <> 4 SET @Errors += N'auth.Role<>4 (got ' + CAST((SELECT COUNT(*) FROM auth.[Role]) AS NVARCHAR(12)) + N'); ';
+-- Activity statuses (Access tblActivityStatus, 4 rows) live in the managed list 'daily-activity.status'
+-- since migration 018 dropped app.ActivityStatus (ADR-0022).
+IF (SELECT COUNT(*) FROM app.[LookupOption] WHERE ListKey = N'daily-activity.status') <> 4 SET @Errors += N'daily-activity.status<>4 (got ' + CAST((SELECT COUNT(*) FROM app.[LookupOption] WHERE ListKey = N'daily-activity.status') AS NVARCHAR(12)) + N'); ';
+-- auth schema (module #4): 2 global roles since ADR-0021 (Admin, User) + exactly one seeded admin
+-- (e2e users are opt-in via E2E_SEED=1 and intentionally not asserted here).
+IF (SELECT COUNT(*) FROM auth.[Role]) <> 2 SET @Errors += N'auth.Role<>2 (got ' + CAST((SELECT COUNT(*) FROM auth.[Role]) AS NVARCHAR(12)) + N'); ';
 IF (SELECT COUNT(*) FROM auth.[User] WHERE Username = N'admin' AND IsDeleted = 0) <> 1 SET @Errors += N'auth.User admin<>1 (got ' + CAST((SELECT COUNT(*) FROM auth.[User] WHERE Username = N'admin' AND IsDeleted = 0) AS NVARCHAR(12)) + N'); ';
 IF (SELECT MustChangePassword FROM auth.[User] WHERE Username = N'admin' AND IsDeleted = 0) <> 1 SET @Errors += N'admin MustChangePassword<>1; ';
 IF LEN(@Errors) > 0

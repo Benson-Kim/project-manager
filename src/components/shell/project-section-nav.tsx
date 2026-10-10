@@ -41,7 +41,7 @@ const linkClass = (current: boolean) =>
 // Chevron icon
 // ---------------------------------------------------------------------------
 
-function Chevron({ open }: { open: boolean }) {
+export function Chevron({ open }: { open: boolean }) {
   return (
     <svg
       aria-hidden="true"
@@ -72,6 +72,7 @@ function GroupTrigger({
   panelId,
   triggerRef,
   onToggle,
+  onClose,
 }: {
   group: ProjectSectionGroup;
   projectId: number;
@@ -80,13 +81,15 @@ function GroupTrigger({
   panelId: string;
   triggerRef: React.RefObject<HTMLButtonElement | null>;
   onToggle: () => void;
+  onClose: () => void;
 }) {
   const active = isGroupActive(pathname, projectId, group);
 
   if (group.sections.length === 0) return null;
 
   // A group with only one section that is the charter index renders as a
-  // plain link - no disclosure needed.
+  // plain link — no disclosure needed. onClose is called so any other open
+  // disclosure collapses on navigation (review #4162765957).
   if (group.sections.length === 1 && group.sections[0]?.segment === ".") {
     const section = group.sections[0];
     const current = isCurrentSection(pathname, projectId, section);
@@ -96,6 +99,7 @@ function GroupTrigger({
           href={sectionHref(projectId, section)}
           aria-current={current ? "page" : undefined}
           className={pillClass(current, false)}
+          onClick={onClose}
         >
           {section.label}
         </Link>
@@ -177,10 +181,8 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
   // One ref per group so we can read the trigger's viewport position.
   const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
-  const [openState, dispatch] = useReducer(
-    openReducer,
-    null,
-    () => initialOpenState(pathname, projectId),
+  const [openState, dispatch] = useReducer(openReducer, null, () =>
+    initialOpenState(pathname, projectId),
   );
 
   // Track the pixel position of each open trigger so the portal panel can
@@ -190,37 +192,54 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
   >({});
 
   useEffect(() => {
-    const positions: Record<string, { top: number; left: number }> = {};
-    for (const group of projectSectionGroups) {
-      if (openState[group.key]) {
-        const el = triggerRefs.current[group.key];
-        if (el) {
-          const rect = el.getBoundingClientRect();
-          positions[group.key] = {
-            top: rect.bottom + window.scrollY,
-            left: rect.left + window.scrollX,
-          };
+    let frame: number | null = null;
+    const updatePositions = () => {
+      frame = null;
+      const positions: Record<string, { top: number; left: number }> = {};
+      for (const group of projectSectionGroups) {
+        if (openState[group.key]) {
+          const el = triggerRefs.current[group.key];
+          if (el) {
+            const rect = el.getBoundingClientRect();
+            positions[group.key] = {
+              top: rect.bottom + window.scrollY,
+              left: rect.left + window.scrollX,
+            };
+          }
         }
       }
-    }
-    setPanelPositions(positions);
+      setPanelPositions(positions);
+    };
+    const scheduleUpdate = () => {
+      if (frame === null) frame = window.requestAnimationFrame(updatePositions);
+    };
+
+    scheduleUpdate();
+    window.addEventListener("scroll", scheduleUpdate, true);
+    window.addEventListener("resize", scheduleUpdate);
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", scheduleUpdate, true);
+      window.removeEventListener("resize", scheduleUpdate);
+    };
   }, [openState]);
 
-  // Resync the active group when the route or project changes (the reducer
-  // initializer runs only on first mount; this component is persistent across
-  // navigations within the project layout).
+  // Reset panel open/close state on every route change: re-evaluate which
+  // group is active and collapse any stale open group (review #4162765957).
   useEffect(() => {
     const activeKey =
       projectSectionGroups.find((g) => isGroupActive(pathname, projectId, g))?.key ?? null;
     dispatch({ type: "reset", activeKey });
   }, [pathname, projectId]);
 
-  // Close all panels on outside click.
+  // Close all panels on outside click. The panels are portalled to <body>, so
+  // they are not inside navRef: a press on a panel link must not count as
+  // "outside", or the panel unmounts before the click lands and nothing navigates.
   useEffect(() => {
     const onPointerDown = (e: PointerEvent) => {
-      if (!navRef.current?.contains(e.target as Node)) {
-        dispatch({ type: "reset", activeKey: null });
-      }
+      const target = e.target as Element | null;
+      if (navRef.current?.contains(target) || target?.closest?.("[data-section-panel]")) return;
+      dispatch({ type: "reset", activeKey: null });
     };
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
@@ -233,7 +252,7 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
       data-testid="project-section-nav"
       className="relative -mx-4 border-b border-line"
     >
-      <ul className="flex gap-1 overflow-x-auto px-4 py-2">
+      <ul className="flex gap-1 overflow-x-auto px-4 py-2 pb-1">
         {projectSectionGroups.map((group) => (
           <GroupTrigger
             key={group.key}
@@ -251,6 +270,7 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
               },
             }}
             onToggle={() => dispatch({ type: "toggle", key: group.key })}
+            onClose={() => dispatch({ type: "reset", activeKey: null })}
           />
         ))}
       </ul>
@@ -264,14 +284,18 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
 
         const panelId = `section-group-${group.key}`;
         const pos = panelPositions[group.key];
+        // Positions are measured in an effect, so this also keeps the server
+        // render away from document.body (SSR had no document → client fallback).
+        if (!pos) return null;
 
         return createPortal(
           <div
             key={group.key}
             id={panelId}
+            data-section-panel
             role="group"
             aria-label={group.label}
-            style={pos ? { position: "absolute", top: pos.top + 4, left: pos.left } : { display: "none" }}
+            style={{ position: "absolute", top: pos.top + 4, left: pos.left }}
             className="z-(--z-dropdown) min-w-44 rounded-lg border border-line bg-surface shadow-lg"
           >
             {group.sections.map((section) => {

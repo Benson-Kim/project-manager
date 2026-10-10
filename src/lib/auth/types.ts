@@ -3,9 +3,22 @@
  * implementation (src/lib/auth/provider.ts) with Auth.js — this file and all
  * call sites stay unchanged.
  */
-export const ROLES = ["Admin", "ProjectManager", "Contributor", "Viewer"] as const;
+
+/**
+ * Global roles (ADR-0021): Admin manages everything; every other account is a
+ * User whose rights come from their access level in each project.
+ */
+export const ROLES = ["Admin", "User"] as const;
 
 export type Role = (typeof ROLES)[number];
+
+/**
+ * Per-project access levels, lowest first (ADR-0021). Mirrors the ranks in
+ * auth.AccessLevel, which every stored procedure compares against.
+ */
+export const ACCESS_LEVELS = ["Viewer", "Contributor", "Manager"] as const;
+
+export type AccessLevel = (typeof ACCESS_LEVELS)[number];
 
 export interface Session {
   userId: number;

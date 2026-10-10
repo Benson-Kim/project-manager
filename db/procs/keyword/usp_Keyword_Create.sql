@@ -1,4 +1,6 @@
 -- usp_Keyword_Create — insert one app.Keyword row; audits in-transaction; returns the new row.
+-- Row-level access: the target @ProjectId must be accessible (dbo.usp_Project_AssertAccess,
+--   FORBIDDEN_ROW 50003; Admin bypass; project-less rows allowed).
 -- Entity app.Keyword (source: tblKeywords). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
@@ -11,6 +13,11 @@ AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
+
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
+         @MinLevel = N'Manager', @Permission = N'keywords:create', @AllowProjectless = 1;
+
     IF @Keyword IS NULL OR LTRIM(RTRIM(@Keyword)) = N''
         THROW 50004, N'VALIDATION:Keyword is required', 1;
     BEGIN TRAN;

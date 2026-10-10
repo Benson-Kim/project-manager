@@ -3,20 +3,25 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
-import { can } from "@/lib/auth/rbac";
-import { AppError } from "@/lib/errors";
-import { flattenSearchParams, parseListParams } from "@/lib/list-params";
+import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
-import { getViewPreference } from "@/lib/repositories/view-preference";
+import { getListPreference } from "@/lib/repositories/view-preference";
+import { orNotFound, orNull } from "@/lib/row-access";
+import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { QuestionAnswerSheet } from "@/modules/questions-answers/components/question-answer-sheet";
 import { QuestionsAnswersView } from "@/modules/questions-answers/components/questions-answers-view";
 import {
   getQuestionAnswerById,
   listQuestionAnswers,
 } from "@/modules/questions-answers/repository/question-answers";
-import { getProjectById } from "@/modules/projects/repository/projects";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { parseProjectId } from "../project-id";
+import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
+import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
+import { QUESTION_ANSWER_LISTS } from "@/modules/questions-answers/schemas/question-answer";
+
+/** Allowed sort columns for Q&A — prevents arbitrary strings reaching the proc. */
+const QA_SORT_COLUMNS = new Set(["Question", "Answer", "Category", "Priority", "CreatedAtUtc"]);
 
 export const metadata: Metadata = {
   title: `${messages.questionsAnswers.title} — ${messages.app.name}`,
@@ -40,48 +45,43 @@ export default async function QuestionsAnswersPage({
   const projectId = parseProjectId(id);
   if (projectId === null) notFound();
 
-  // Validate the parent project exists before listing child records (P2 guard).
-  try {
-    await getProjectById(projectId, session.userId);
-  } catch (err) {
-    if (err instanceof AppError && err.code === "NOT_FOUND") notFound();
-    throw err;
-  }
-
   const raw = await searchParams;
   const flat = flattenSearchParams(raw);
   const listParams = parseListParams(raw);
   const effectiveParams = {
     ...listParams,
-    sort: listParams.sort ?? "Question",
+    // Whitelist sort column to prevent arbitrary strings reaching the proc.
+    sort: listParams.sort && QA_SORT_COLUMNS.has(listParams.sort) ? listParams.sort : "Question",
   };
 
   const isNew = flat.id === "new";
-  const selectedId = !isNew && flat.id ? Number(flat.id) : null;
+  const rawId = !isNew && flat.id ? Number(flat.id) : null;
+  // Guard against Infinity (e.g. "1e308") and non-integers before hitting the DB.
+  const selectedId =
+    rawId !== null && Number.isFinite(rawId) && Number.isInteger(rawId) && rawId > 0 ? rawId : null;
 
+  // Coerce empty-string filter params to null so the proc treats them as
+  // "no filter" rather than filtering for the empty string.
   const filters = {
-    category: flat.category ?? null,
-    priority: flat.priority ?? null,
+    category: flat.category?.trim() || null,
+    priority: flat.priority?.trim() || null,
   };
 
-  const [rows, preferredView, selectedRaw] = await Promise.all([
-    listQuestionAnswers(effectiveParams, session.userId, projectId, filters),
-    getViewPreference(session.userId, "questions-answers").catch(() => null),
-    selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? getQuestionAnswerById(selectedId, session.userId).catch((err) => {
-          if (err instanceof AppError && err.code === "NOT_FOUND") return null;
-          throw err;
-        })
-      : Promise.resolve(null),
+  const [rows, preference, selectedRaw, allows, lookup] = await Promise.all([
+    orNotFound(listQuestionAnswers(effectiveParams, session.userId, projectId, filters)),
+    getListPreference(session.userId, "questions-answers").catch(() => null),
+    selectedId ? orNull(getQuestionAnswerById(selectedId, session.userId)) : null,
+    getProjectPermissions(projectId, session.userId),
+    loadLookupLists(QUESTION_ANSWER_LISTS, session),
   ]);
 
   // Cross-project leak guard: deep links to another project's Q&A yield not-found.
   const selected = guardProjectScope(selectedRaw, projectId);
 
   const totalCount = rows[0]?.TotalCount ?? 0;
-  const canCreate = can(session.role, "questions-answers:create");
-  const canEdit = can(session.role, "questions-answers:update");
-  const canDelete = can(session.role, "questions-answers:delete");
+  const canCreate = allows("questions-answers:create");
+  const canEdit = allows("questions-answers:update");
+  const canDelete = allows("questions-answers:delete");
   const filtersActive = Boolean(effectiveParams.q || flat.category || flat.priority);
 
   const newQuestionLink = (
@@ -100,23 +100,28 @@ export default async function QuestionsAnswersPage({
         title={messages.questionsAnswers.title}
         action={canCreate ? newQuestionLink : undefined}
       />
-      <div className="mt-3 flex flex-col flex-1">
-        <QuestionsAnswersView
-          rows={rows}
-          totalCount={totalCount}
-          page={effectiveParams.page}
-          initialView={effectiveParams.view ?? preferredView ?? "grid"}
-          filtersActive={filtersActive}
-          newQuestionAction={canCreate ? newQuestionLink : undefined}
+      <LookupListsScope {...lookup}>
+        <div className="mt-3 flex flex-col flex-1">
+          <QuestionsAnswersView
+            projectId={projectId}
+            canCreate={canCreate}
+            rows={rows}
+            totalCount={totalCount}
+            page={effectiveParams.page}
+            initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}
+            layout={preference?.layout}
+            filtersActive={filtersActive}
+            newQuestionAction={canCreate ? newQuestionLink : undefined}
+          />
+        </div>
+        <QuestionAnswerSheet
+          questionAnswer={selected}
+          isNew={isNew && canCreate}
+          projectId={projectId}
+          canEdit={canEdit}
+          canDelete={canDelete}
         />
-      </div>
-      <QuestionAnswerSheet
-        questionAnswer={selected}
-        isNew={isNew && canCreate}
-        projectId={projectId}
-        canEdit={canEdit}
-        canDelete={canDelete}
-      />
+      </LookupListsScope>
     </>
   );
 }

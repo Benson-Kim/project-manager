@@ -4,6 +4,8 @@
 -- (StartDate/EndDate) as the chart range basis. RequestedDate and Deadline
 -- are both returned; the bar start logic in the repository uses RequestedDate
 -- when present, falling back to CreatedAtUtc.
+-- Row-level access: the project must be accessible (dbo.usp_Project_AssertAccess,
+--   FORBIDDEN_ROW 50003; Admin bypass).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_KeyDeliverable_GanttData
@@ -15,6 +17,9 @@ BEGIN
 
     IF NOT EXISTS (SELECT 1 FROM app.Project WHERE ProjectId = @ProjectId AND IsDeleted = 0)
         THROW 50001, N'NOT_FOUND:Project not found', 1;
+
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @ProjectId, @ActorUserId = @ActorUserId, @MinLevel = N'Viewer';
 
     SELECT kd.KeyDeliverableId,
            kd.ProjectId,

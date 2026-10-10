@@ -30,7 +30,12 @@ export function generateInitialPassword(): string {
 
 /** STANDARDS §4 argon2id parameters — identical to scripts/hash-password.mjs. */
 export function hashPassword(argon2: Argon2Like, password: string): Promise<string> {
-  return argon2.hash(password, { type: argon2.argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 });
+  return argon2.hash(password, {
+    type: argon2.argon2id,
+    memoryCost: 19456,
+    timeCost: 2,
+    parallelism: 1,
+  });
 }
 
 /**
@@ -58,7 +63,11 @@ export async function ensureAdminAccount(
 }
 
 /** Tray action "Reset administrator password…". */
-export async function resetAdminPassword(target: DbTarget, argon2: Argon2Like, log: Logger): Promise<string> {
+export async function resetAdminPassword(
+  target: DbTarget,
+  argon2: Argon2Like,
+  log: Logger,
+): Promise<string> {
   const pool = await connect(target, target.database, 1);
   try {
     log.info("[admin] resetting administrator password");

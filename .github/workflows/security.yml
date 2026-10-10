@@ -1,0 +1,38 @@
+name: Security & Audit Workflow
+
+on:
+  schedule:
+    - cron: "0 0 * * 0" # Every Sunday at midnight
+  workflow_dispatch:
+
+jobs:
+  security-scan:
+    name: CodeQL & Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: "javascript-typescript"
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  npm-audit:
+    name: NPM Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Audit Dependencies
+        run: |
+          npm audit --audit-level=high || true

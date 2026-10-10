@@ -61,7 +61,10 @@ export function getTrustedIp(headers: Headers | undefined, trustedProxyCount: nu
   if (trustedProxyCount <= 0) return "unknown";
   const xff = headers?.get("x-forwarded-for");
   if (!xff) return "unknown";
-  const addrs = xff.split(",").map((s) => s.trim()).filter(Boolean);
+  const addrs = xff
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   // Strip the rightmost `trustedProxyCount` entries (our own proxy hops).
   // The candidate is the entry immediately before them.
   const candidateIndex = addrs.length - trustedProxyCount - 1;

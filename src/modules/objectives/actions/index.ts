@@ -6,7 +6,7 @@ import { objectiveFormSchema, updateObjectiveFormSchema } from "../schemas/objec
 import { deleteObjectiveInput } from "../schemas/objective";
 
 /**
- * Create an objective (RBAC objectives:create — Admin + PM; audited in-proc).
+ * Create an objective (RBAC objectives:create — project level checked in-proc, ADR-0021; audited in-proc).
  * The objectives page is dynamic (session cookie) and the sheet calls
  * router.refresh() on success — no static path to revalidate (ADR-0018
  * project-scoped route).
@@ -18,7 +18,7 @@ export const createObjectiveAction = action({
   handler: (input, ctx) => createObjective(input, ctx.session.userId),
 });
 
-/** Update an objective (RBAC objectives:update — Admin + PM; audited in-proc). */
+/** Update an objective (RBAC objectives:update — project level checked in-proc, ADR-0021; audited in-proc). */
 export const updateObjectiveAction = action({
   name: "objectives.update",
   schema: updateObjectiveFormSchema,
@@ -26,7 +26,7 @@ export const updateObjectiveAction = action({
   handler: (input, ctx) => updateObjective(input, ctx.session.userId),
 });
 
-/** Soft-delete an objective (RBAC objectives:delete — Admin + PM; audited in-proc). */
+/** Soft-delete an objective (RBAC objectives:delete — project level checked in-proc, ADR-0021; audited in-proc). */
 export const deleteObjectiveAction = action({
   name: "objectives.delete",
   schema: deleteObjectiveInput,
