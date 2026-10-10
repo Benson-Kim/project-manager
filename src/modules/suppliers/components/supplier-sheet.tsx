@@ -114,6 +114,7 @@ export function SupplierSheet({
                 <Input
                   name="emailAddress"
                   inputMode="email"
+                  spellCheck={false}
                   defaultValue={supplier?.EmailAddress ?? ""}
                 />
               </Field>
@@ -180,7 +181,11 @@ export function SupplierSheet({
                 name="postalCode"
                 errors={form.errors.postalCode}
               >
-                <Input name="postalCode" defaultValue={supplier?.PostalCode ?? ""} />
+                <Input
+                  name="postalCode"
+                  spellCheck={false}
+                  defaultValue={supplier?.PostalCode ?? ""}
+                />
               </Field>
             </div>
           </section>

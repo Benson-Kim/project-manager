@@ -253,21 +253,33 @@ export function StakeholderSheet({
                   name="phoneNumber"
                   errors={form.errors.phoneNumber}
                 >
-                  <Input name="phoneNumber" defaultValue={stakeholder?.PhoneNumber ?? ""} />
+                  <Input
+                    name="phoneNumber"
+                    spellCheck={false}
+                    defaultValue={stakeholder?.PhoneNumber ?? ""}
+                  />
                 </Field>
                 <Field
                   label={messages.stakeholders.phoneExt}
                   name="phoneExt"
                   errors={form.errors.phoneExt}
                 >
-                  <Input name="phoneExt" defaultValue={stakeholder?.PhoneExt ?? ""} />
+                  <Input
+                    name="phoneExt"
+                    spellCheck={false}
+                    defaultValue={stakeholder?.PhoneExt ?? ""}
+                  />
                 </Field>
                 <Field
                   label={messages.stakeholders.mobile}
                   name="mobile"
                   errors={form.errors.mobile}
                 >
-                  <Input name="mobile" defaultValue={stakeholder?.Mobile ?? ""} />
+                  <Input
+                    name="mobile"
+                    spellCheck={false}
+                    defaultValue={stakeholder?.Mobile ?? ""}
+                  />
                 </Field>
                 <Field
                   label={messages.stakeholders.emailAddress}
@@ -277,6 +289,7 @@ export function StakeholderSheet({
                   <Input
                     name="emailAddress"
                     inputMode="email"
+                    spellCheck={false}
                     defaultValue={stakeholder?.EmailAddress ?? ""}
                   />
                 </Field>

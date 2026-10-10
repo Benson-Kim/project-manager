@@ -25,6 +25,7 @@ vi.mock("../auth/provider", () => ({
 
 import { action } from "../action";
 import { AppError } from "../errors";
+import { richTextSchema } from "../rich-text/schema";
 
 const schema = z.object({ name: z.string().min(1, "Enter a name") });
 
@@ -135,5 +136,18 @@ describe("action() wrapper ", () => {
     });
     const run = makeAction(() => Promise.reject(redirectErr));
     await expect(run({ name: "Acme" })).rejects.toBe(redirectErr);
+  });
+
+  it("sanitises rich-text fields: the wrapper loads the sanitiser (ADR-0025)", async () => {
+    // This file never imports the sanitiser; action.ts must install it.
+    const run = action({
+      name: "test.richText",
+      schema: z.object({ body: richTextSchema({ max: 100 }) }),
+      permission: "suppliers:create",
+      handler: (input) => Promise.resolve(input.body),
+    });
+    const fd = new FormData();
+    fd.set("body", '<div>Hi<img src=x onerror="alert(1)"><script>alert(1)</script></div>');
+    expect(await run(fd)).toEqual({ ok: true, data: "<p>Hi</p>" });
   });
 });
