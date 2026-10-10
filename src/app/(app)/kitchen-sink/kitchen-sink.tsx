@@ -89,7 +89,8 @@ const demoColumns = [
 
 const demoField: Record<string, keyof DemoRow> = { name: "name", status: "status", owner: "owner" };
 
-export function KitchenSink() {
+/** `richText`: the rich-text demo section, built by the server page (RichTextView is server-only). */
+export function KitchenSink({ richText }: { richText?: React.ReactNode }) {
   const { toast } = useToast();
   const { announce } = useAnnouncer();
   const form = useZodForm(demoSchema);
@@ -213,6 +214,8 @@ export function KitchenSink() {
             </div>
           </form>
         </section>
+
+        {richText}
 
         <section aria-labelledby="ks-overlays">
           <h2 id="ks-overlays" className="mb-3 text-base font-semibold text-ink">
