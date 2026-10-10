@@ -13,6 +13,7 @@ describe("appErrorFromProc ", () => {
     expect(appErrorFromProc(50003, "FORBIDDEN_ROW:x").code).toBe("FORBIDDEN_ROW");
     expect(appErrorFromProc(50004, "VALIDATION:x").code).toBe("VALIDATION");
     expect(appErrorFromProc(50005, "DUPLICATE:x").code).toBe("DUPLICATE");
+    expect(appErrorFromProc(50006, "QUOTA_EXCEEDED:x").code).toBe("QUOTA_EXCEEDED");
   });
 
   it("keeps the raw message when no code prefix is present", () => {

@@ -91,7 +91,7 @@ describe("action() wrapper ", () => {
 
   it("derives the permission from the parsed input when given a function (ADR-0026)", async () => {
     session = { userId: 2, username: "member", role: "User" };
-    const handler = vi.fn(() => Promise.resolve("ok"));
+    const handler = vi.fn((_input: { name: string }) => Promise.resolve("ok"));
     const permissionOf = vi.fn((input: { name: string }) =>
       input.name === "secret" ? ("admin:update" as const) : ("suppliers:update" as const),
     );
