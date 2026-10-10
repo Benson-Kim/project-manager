@@ -371,7 +371,8 @@ export const messages = {
       typeNotAllowed: "Only PDF, Word, Excel, PowerPoint, images, text and e-mail files can be attached.",
       empty: "This file is empty.",
       refused: "This file was refused by the virus check.",
-      failed: (name: string) => `${name} could not be attached. Try again.`,
+      /** A toast names the file and the reason: "Plan.pdf: This file is larger than 25 MB." */
+      failedWith: (name: string, reason: string) => `${name}: ${reason}`,
       nameRequired: "Enter a name.",
       locationRequired: "Enter where the file is kept.",
     },
