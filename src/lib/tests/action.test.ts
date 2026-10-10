@@ -113,7 +113,12 @@ describe("action() wrapper ", () => {
 
   it("never derives a permission from input that fails validation", async () => {
     const permissionOf = vi.fn(() => "suppliers:update" as const);
-    const run = action({ name: "test.dynamic", schema, permission: permissionOf, handler: vi.fn() });
+    const run = action({
+      name: "test.dynamic",
+      schema,
+      permission: permissionOf,
+      handler: vi.fn(),
+    });
     await run({ name: "" });
     expect(permissionOf).not.toHaveBeenCalled();
   });

@@ -215,7 +215,9 @@ export function Attachments({ owner, ownerId, files, canAdd, canRemove }: Attach
             {messages.attachments.addLocation}
           </Button>
           {dragging ? (
-            <span className="self-center text-sm text-ink-muted">{messages.attachments.dropHere}</span>
+            <span className="self-center text-sm text-ink-muted">
+              {messages.attachments.dropHere}
+            </span>
           ) : null}
         </div>
       ) : null}
@@ -360,12 +362,20 @@ function AttachmentItem({
           </Button>
         ) : null}
         {canRename ? (
-          <Button variant="ghost" aria-label={`${messages.attachments.rename} ${file.FileName}`} onClick={onRename}>
+          <Button
+            variant="ghost"
+            aria-label={`${messages.attachments.rename} ${file.FileName}`}
+            onClick={onRename}
+          >
             {messages.attachments.rename}
           </Button>
         ) : null}
         {canRemove ? (
-          <Button variant="ghost" aria-label={`${messages.attachments.remove} ${file.FileName}`} onClick={onRemove}>
+          <Button
+            variant="ghost"
+            aria-label={`${messages.attachments.remove} ${file.FileName}`}
+            onClick={onRemove}
+          >
             {messages.attachments.remove}
           </Button>
         ) : null}

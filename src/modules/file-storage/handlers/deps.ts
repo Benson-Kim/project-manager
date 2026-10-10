@@ -2,11 +2,7 @@ import { getUploadsEnv } from "@/lib/env";
 import { scanFile } from "@/lib/files/scan";
 import { sniffFile } from "@/lib/files/sniff";
 import { uploadsRoot } from "@/lib/files/store";
-import {
-  addFileAttachment,
-  checkCanAddAttachment,
-  getStoredFile,
-} from "../repository/attachments";
+import { addFileAttachment, checkCanAddAttachment, getStoredFile } from "../repository/attachments";
 import type { DownloadDeps } from "./download";
 import { getFileSession } from "./session";
 import type { UploadDeps } from "./upload";

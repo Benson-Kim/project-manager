@@ -368,7 +368,8 @@ export const messages = {
     byOn: (who: string, when: string) => `${who}, ${when}`,
     errors: {
       tooLarge: "This file is larger than 25 MB.",
-      typeNotAllowed: "Only PDF, Word, Excel, PowerPoint, images, text and e-mail files can be attached.",
+      typeNotAllowed:
+        "Only PDF, Word, Excel, PowerPoint, images, text and e-mail files can be attached.",
       empty: "This file is empty.",
       refused: "This file was refused by the virus check.",
       /** A toast names the file and the reason: "Plan.pdf: This file is larger than 25 MB." */

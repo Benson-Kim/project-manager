@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  contentDisposition,
-  extensionOf,
-  FILE_NAME_MAX,
-  sanitizeFileName,
-} from "../file-names";
+import { contentDisposition, extensionOf, FILE_NAME_MAX, sanitizeFileName } from "../file-names";
 
 describe("sanitizeFileName (ADR-0026 §4)", () => {
   it.each([
@@ -12,7 +7,7 @@ describe("sanitizeFileName (ADR-0026 §4)", () => {
     ["  Q3   report .pdf ", "Q3 report .pdf"],
     ["../../etc/passwd", "....etcpasswd"],
     ["C:\\Users\\me\\minutes.docx", "CUsersmeminutes.docx"],
-    ["a<b>c:d\"e|f?g*h.txt", "abcdefgh.txt"],
+    ['a<b>c:d"e|f?g*h.txt', "abcdefgh.txt"],
     ["line\r\nbreak.txt", "linebreak.txt"],
     ["tab\there.csv", "tabhere.csv"],
     ["bell\u0007.txt", "bell.txt"],

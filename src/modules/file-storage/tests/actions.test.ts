@@ -82,7 +82,10 @@ describe("attachment actions (ADR-0026)", () => {
     });
     expect(result).toMatchObject({
       ok: false,
-      error: { code: "VALIDATION", fieldErrors: { fileName: [messages.attachments.errors.nameRequired] } },
+      error: {
+        code: "VALIDATION",
+        fieldErrors: { fileName: [messages.attachments.errors.nameRequired] },
+      },
     });
     expect(execProc).not.toHaveBeenCalled();
   });
