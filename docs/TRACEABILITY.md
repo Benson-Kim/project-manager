@@ -50,8 +50,8 @@ restated as an acceptance criterion in its module issue.
 | 40 | Navigation form to form | foundation (app shell/nav) + every module | #2 | feature/foundation |
 | 41 | Check every field on every form | every module (DoD: field parity vs source) + QA gate | #1 (DoD), all | all |
 | 42 | Spell check / grammar | P1: spellcheck in the rich-text editor and on Input/Textarea prose fields (lang from `<html>`) | #15, #2 | feature/rich-text |
-| 43 | How do I back up my data? | file-storage-and-backup | #22 | feature/file-storage-and-backup |
-| 44 | Field to capture where files are stored | file-storage-and-backup (`app.FileAttachment.StorageLocation`) | #22 | feature/file-storage-and-backup |
+| 43 | How do I back up my data? | F1 (ADR-0026): attachment bytes outside SQL in `UPLOADS_DIR`; the desktop mirrors them next to its database copies (`<copy folder>\Uploads`), the server's `scripts/backup.sh` tars them. Scheduled sweep, file restore and GitHub backups: F2 | #22 | feature/file-storage |
+| 44 | Field to capture where files are stored | F1 (ADR-0026): an attachment is an uploaded file or a location (`app.FileAttachment.StorageLocation`: a URL, network path or place), on daily activities first | #22 | feature/file-storage |
 | 45 | Virus-check of executable | resolved by web-app architecture (no executable distributed) — documented | #1 | — |
 | 46 | Enhanced data availability | foundation (web app + backups + staging/prod) | #2, #22 | feature/foundation |
 | 47 | UX user experience | foundation design system + every module (DoD) | #2, all | all |
