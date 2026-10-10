@@ -322,13 +322,13 @@ function AttachmentItem({
             href={downloadUrl(owner, file.FileAttachmentId)}
             download={file.FileName}
             aria-label={messages.attachments.download(file.FileName)}
-            className="inline-flex min-h-11 items-center break-all text-sm font-medium text-accent underline"
+            className="inline-flex min-h-11 items-center wrap-anywhere text-sm font-medium text-accent underline"
           >
             {file.FileName}
           </a>
         ) : (
           <>
-            <span className="inline-flex min-h-11 items-center break-all text-sm font-medium text-ink">
+            <span className="inline-flex min-h-11 items-center wrap-anywhere text-sm font-medium text-ink">
               {file.FileName}
             </span>
             {href ? (
@@ -336,12 +336,12 @@ function AttachmentItem({
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="break-all text-sm text-accent underline"
+                className="wrap-anywhere text-sm text-accent underline"
               >
                 {location}
               </a>
             ) : (
-              <span className="break-all text-sm text-ink" data-testid="attachment-location">
+              <span className="wrap-anywhere text-sm text-ink" data-testid="attachment-location">
                 {location}
               </span>
             )}
