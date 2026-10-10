@@ -1,4 +1,5 @@
 -- usp_DailyActivity_Delete — soft delete with rowversion concurrency + in-transaction audit.
+-- Also soft-deletes the activity's attachments in the same transaction (ADR-0026 §2).
 -- Row-level access: the row's project must be accessible (dbo.usp_Project_AssertAccess,
 --   FORBIDDEN_ROW 50003; Admin bypass; project-less rows allowed).
 -- Entity app.DailyActivity (source: tblDailyActivityList). Module: database-schema-and-procs (#3).
@@ -48,6 +49,25 @@ BEGIN
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson)
     VALUES (@ActorUserId, N'Delete', N'app.DailyActivity', CAST(@DailyActivityId AS NVARCHAR(64)), @Before);
+
+    -- Its attachments go with it (ADR-0026 §2), each audited; the bytes stay for the sweep's grace period.
+    DECLARE @Removed TABLE (FileAttachmentId INT PRIMARY KEY);
+    UPDATE f SET
+        IsDeleted    = 1,
+        DeletedAtUtc = SYSUTCDATETIME(),
+        DeletedBy    = @ActorUserId
+    OUTPUT inserted.FileAttachmentId INTO @Removed
+    FROM app.FileAttachment f
+    JOIN app.DailyActivityFile l ON l.FileAttachmentId = f.FileAttachmentId
+    WHERE l.DailyActivityId = @DailyActivityId AND f.IsDeleted = 0;
+
+    INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson)
+    SELECT @ActorUserId, N'Delete', N'app.FileAttachment', CAST(r.FileAttachmentId AS NVARCHAR(64)),
+           (SELECT f.FileAttachmentId, @DailyActivityId AS DailyActivityId, f.ProjectId, f.FileName,
+                   f.ContentType, f.SizeBytes, f.Sha256, f.StorageLocation
+            FROM app.FileAttachment f WHERE f.FileAttachmentId = r.FileAttachmentId
+            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+    FROM @Removed r;
 
     COMMIT;
 END;

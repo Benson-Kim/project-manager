@@ -6,6 +6,7 @@
 --   (or none: the project-less shared space) — the same rule as creating it there.
 -- Dropdown values must be live options of their lists, or unchanged (ADR-0022, VALIDATION 50004):
 --   ActivityStatusId ('daily-activity.status', by id), ContactMethod and TaskType (by label).
+-- A move also moves the activity's attachments to the new project's quota bucket (ADR-0026 §2).
 -- Returns ActivityStatus, the status option's label (live or retired), with the row.
 -- Entity app.DailyActivity (source: tblDailyActivityList). Module: database-schema-and-procs (#3).
 USE ProjectManager;
@@ -102,6 +103,15 @@ BEGIN
             THROW 50001, N'NOT_FOUND:DailyActivity not found', 1;
         THROW 50002, N'CONFLICT:DailyActivity was modified by someone else', 1;
     END
+
+    -- Its attachments move with it: their ProjectId is the quota bucket (ADR-0026 §2).
+    UPDATE f SET ProjectId = @ProjectId
+    FROM app.FileAttachment f
+    JOIN app.DailyActivityFile l ON l.FileAttachmentId = f.FileAttachmentId
+    WHERE l.DailyActivityId = @DailyActivityId AND f.IsDeleted = 0
+      AND (f.ProjectId <> @ProjectId
+           OR (f.ProjectId IS NULL AND @ProjectId IS NOT NULL)
+           OR (f.ProjectId IS NOT NULL AND @ProjectId IS NULL));
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.DailyActivity', CAST(@DailyActivityId AS NVARCHAR(64)), @Before,

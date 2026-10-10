@@ -41,6 +41,14 @@ const VERBS: Record<string, string> = {
   Snooze: "update",
   Set: "update",
   Delete: "delete",
+  // Attachments (ADR-0026): reading them is reading the record; adding, renaming or removing one
+  // edits it, so even RemoveFile is the owner's update (user decision 2026-10-10).
+  ListFiles: "read",
+  GetFile: "read",
+  CanAddFile: "update",
+  AddFile: "update",
+  RenameFile: "update",
+  RemoveFile: "update",
 };
 
 /** Procs that legitimately call no access helper, and why. */
