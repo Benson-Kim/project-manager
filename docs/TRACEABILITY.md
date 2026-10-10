@@ -25,9 +25,9 @@ restated as an acceptance criterion in its module issue.
 | 15 | 7-Supplier | suppliers | #7 | feature/suppliers |
 | 16 | 8-Assumptions/Constraints | assumptions-constraints | #13 | feature/assumptions-constraints |
 | 17 | 9-Notes | notes | #15 | feature/notes |
-| 18 | 9.1 Notes can create tables | notes | #15 | feature/notes |
+| 18 | 9.1 Notes can create tables | notes; tables in the shared editor (P1, ADR-0025) | #15 | feature/notes; editor: feature/rich-text |
 | 19 | 9.2 titled tabs | notes | #15 | feature/notes |
-| 20 | 9.3 Word-like tools | notes | #15 | feature/notes |
+| 20 | 9.3 Word-like tools | notes; toolbar in the shared editor (P1, ADR-0025) | #15 | feature/notes; editor: feature/rich-text |
 | 21 | 10-IT Resource Planning | it-resource-planning | #16 | feature/it-resource-planning |
 | 22 | 10.1 mock-up fields editable | it-resource-planning (PPTX slide 1) | #16 | feature/it-resource-planning |
 | 23 | 11-Financials | financials | #17 | feature/financials |
@@ -49,7 +49,7 @@ restated as an acceptance criterion in its module issue.
 | 39 | "Items to Remember" (section header) | — header | — | — |
 | 40 | Navigation form to form | foundation (app shell/nav) + every module | #2 | feature/foundation |
 | 41 | Check every field on every form | every module (DoD: field parity vs source) + QA gate | #1 (DoD), all | all |
-| 42 | Spell check / grammar | notes + foundation (browser spellcheck attrs, lang) | #15, #2 | feature/notes |
+| 42 | Spell check / grammar | P1: spellcheck in the rich-text editor and on Input/Textarea prose fields (lang from `<html>`) | #15, #2 | feature/rich-text |
 | 43 | How do I back up my data? | file-storage-and-backup | #22 | feature/file-storage-and-backup |
 | 44 | Field to capture where files are stored | file-storage-and-backup (`app.FileAttachment.StorageLocation`) | #22 | feature/file-storage-and-backup |
 | 45 | Virus-check of executable | resolved by web-app architecture (no executable distributed) — documented | #1 | — |
@@ -63,13 +63,13 @@ restated as an acceptance criterion in its module issue.
 | 53 | Multiple meeting minutes per project | meetings | #11 | feature/meetings |
 | 54 | Meeting minutes extra fields (date received, participant list, title, objective) | meetings | #11 | feature/meetings |
 | 55 | Supplier address fields | suppliers | #7 | feature/suppliers |
-| 56 | Word-like functions everywhere | notes editor component (shared) | #15 | feature/notes |
+| 56 | Word-like functions everywhere | shared RichTextEditor + RichTextView + server sanitiser (P1, ADR-0025); modules adopt it | #15 | feature/rich-text |
 | 57 | To-do pop-up alerts w/ date+time, frequency, snooze | todo-alerts | #20 | feature/todo-alerts |
 | 58 | Keywords: search field + rename to "keywords" | keywords | #8 | feature/keywords |
 | 59 | To-do list predicated on daily activities + filters (to-do, requester) | todo-alerts | #20 | feature/todo-alerts |
 | 60 | Portability (installable anywhere) | foundation (Docker/compose/standalone) | #2 | feature/foundation |
 | 61 | Import mechanism from the Access database | database-schema-and-procs (seeds from extraction — delivered, MR !6) | #3 | feature/database-schema-and-procs |
-| 62 | Font (Microsoft Word) | notes editor (font family/size controls) | #15 | feature/notes |
+| 62 | Font (Microsoft Word) | shared editor font family (system fonts) and size controls (P1, ADR-0025) | #15 | feature/rich-text |
 | 63 | "Potential Additional Requirements" (header) | — header | — | — |
 | 64 | Financial tracking spreadsheet equivalent | financials (budget breakdown view/export) | #17 | feature/financials |
 | 65 | Export & import data (backups) | file-storage-and-backup (+ admin) | #22, #23 | feature/file-storage-and-backup |

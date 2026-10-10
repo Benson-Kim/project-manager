@@ -190,3 +190,6 @@ and no network access at runtime. No `serverExternalPackages` entry is needed.
 - **Consumers.** Modules use `richTextSchema` in their form schema, `RichTextEditor` in the
   sheet, `RichTextView` on read-only and print views, and `htmlToPlainText` for cards, CSV
   and search.
+  - Repositories pass stored rich-text columns through `sanitizeRichText` before a sheet
+    receives them. The editor's own parser keeps text but drops unknown markup such as
+    `<font face>`, so legacy formatting survives only when it arrives converted.
