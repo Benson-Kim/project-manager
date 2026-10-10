@@ -140,6 +140,26 @@ test.describe("rich-text editor (ADR-0025)", () => {
     await expect(toolbar.getByRole("button", { name: "Redo" })).toBeFocused();
   });
 
+  test("loads and edits without requests to another host (offline desktop)", async ({
+    page,
+    baseURL,
+  }) => {
+    const origin = new URL(baseURL ?? "http://localhost:3000").origin;
+    const foreign: string[] = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (/^https?:$/.test(url.protocol) && url.origin !== origin) foreign.push(request.url());
+    });
+    const editor = await openEditor(page);
+    await editor.click();
+    await page.keyboard.type("offline");
+    await page
+      .getByRole("toolbar", { name: "Formatting" })
+      .getByRole("button", { name: "Bold" })
+      .click();
+    expect(foreign).toEqual([]);
+  });
+
   test("axe: no serious or critical violations with the editor loaded (light and dark)", async ({
     page,
   }) => {
