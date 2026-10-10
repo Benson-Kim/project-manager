@@ -189,19 +189,30 @@ async function ensureDatabaseEngine(): Promise<MachineConfig> {
     return cfg;
   } catch (err) {
     log.error("[startup] database engine not ready", err);
+    // A one-time step for a newer app (e.g. the attachments folder, ADR-0026) is
+    // quick: the engine is already installed, so provisioning only fills the gap.
+    const upgrade = err instanceof SetupRequiredError && err.kind === "upgrade";
     const { response } = await dialog.showMessageBox({
       type: "warning",
-      title: "Database setup needed",
-      message: "Project Manager needs to finish setting up its database engine.",
+      title: upgrade ? "One-time setup needed" : "Database setup needed",
+      message: upgrade
+        ? "Project Manager needs administrator approval once to finish this update."
+        : "Project Manager needs to finish setting up its database engine.",
       detail:
         `${err instanceof Error ? err.message : String(err)}\n\n` +
-        "Click Repair and approve the Windows administrator prompt. A first-time setup takes 5–15 minutes.",
+        (upgrade
+          ? "Click Repair and approve the Windows administrator prompt. It takes about a minute and is needed only once on this PC."
+          : "Click Repair and approve the Windows administrator prompt. A first-time setup takes 5–15 minutes."),
       buttons: ["Repair", "Quit"],
       defaultId: 0,
       cancelId: 1,
     });
     if (response !== 0) throw new Error("Database setup was not completed.");
-    setSplashStatus("Repairing the database engine (this can take several minutes)…");
+    setSplashStatus(
+      upgrade
+        ? "Finishing the update…"
+        : "Repairing the database engine (this can take several minutes)…",
+    );
     const code = await runElevatedRepair(paths.provisionScript, paths.sqlInstaller, log);
     if (code !== 0) {
       throw new Error(
@@ -223,6 +234,7 @@ async function runBackup(kind: BackupKind): Promise<BackupResult> {
     target: config.sql,
     backupDir: config.backupDir,
     copyDir: settings.get().backupCopyDir,
+    uploadsDir: config.uploadsDir,
     log,
   });
   busy = task.finally(() => {
@@ -314,6 +326,7 @@ async function restoreAction(): Promise<void> {
       target: cfg.sql,
       backupDir: cfg.backupDir,
       copyDir: settings.get().backupCopyDir,
+      uploadsDir: cfg.uploadsDir,
       log,
     });
     await srv.stopAndWait();
@@ -392,6 +405,7 @@ async function bootstrap(): Promise<void> {
           target: cfg.sql,
           backupDir: cfg.backupDir,
           copyDir: settings.get().backupCopyDir,
+          uploadsDir: cfg.uploadsDir,
           log,
         });
         setSplashStatus("Upgrading the database…");
@@ -405,6 +419,7 @@ async function bootstrap(): Promise<void> {
       standaloneDir: paths.standaloneDir,
       db: cfg.sql,
       authSecret: cfg.authSecret,
+      uploadsDir: cfg.uploadsDir,
       log,
       onRestarted: (url) => mainWindow?.loadURL(url).catch(() => undefined),
       onFatal: (msg) => {

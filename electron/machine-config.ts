@@ -10,16 +10,34 @@ import type { DbTarget } from "./db";
  * app out of its own data.
  */
 export interface MachineConfig {
+  /**
+   * Stays 1 when fields are added: desktop installs are per user, so a 1.0.x
+   * app on the same PC must keep reading the file (it ignores new fields). A
+   * new version would make it offer Repair and rewrite the file without them.
+   */
   schemaVersion: 1;
   sql: DbTarget & { instanceName: string };
   authSecret: string;
   backupDir: string;
+  /**
+   * Attachments (ADR-0026 §9): %ProgramData%\Project Manager\Uploads, writable
+   * by every local user like Backups. Written by provision.ps1 since F1; a PC
+   * provisioned before F1 has none, and the app asks for one Repair.
+   */
+  uploadsDir: string;
 }
 
 export class SetupRequiredError extends Error {
-  constructor(message: string) {
+  /**
+   * "upgrade": the engine is fine and only the one-time step for a newer app is
+   * missing (a short Repair); "setup": the engine itself needs (re)installing.
+   */
+  readonly kind: "setup" | "upgrade";
+
+  constructor(message: string, kind: "setup" | "upgrade" = "setup") {
     super(message);
     this.name = "SetupRequiredError";
+    this.kind = kind;
   }
 }
 
@@ -59,6 +77,12 @@ export function readMachineConfig(file = machineConfigPath()): MachineConfig {
     !c.backupDir
   ) {
     throw new SetupRequiredError(`Database configuration is incomplete (${file}).`);
+  }
+  if (!c.uploadsDir) {
+    throw new SetupRequiredError(
+      "This update needs a shared folder for attachments, which Windows only lets an administrator create.",
+      "upgrade",
+    );
   }
   return c as MachineConfig;
 }

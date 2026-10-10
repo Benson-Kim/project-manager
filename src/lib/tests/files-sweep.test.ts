@@ -25,7 +25,7 @@ async function stored(content: string, ageDays: number): Promise<string> {
 
 async function exists(hash: string): Promise<boolean> {
   const dir = path.join(root, hash.slice(0, 2), hash.slice(2, 4));
-  return (await readdir(dir).catch(() => [])).includes(hash);
+  return (await readdir(dir).catch((): string[] => [])).includes(hash);
 }
 
 beforeEach(async () => {
