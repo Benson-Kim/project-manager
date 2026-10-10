@@ -10,6 +10,7 @@ export const APP_ERROR_CODES = [
   "FORBIDDEN_ROW", // 50003 — row-level access denied in the proc
   "VALIDATION", // 50004 — business-rule violation
   "DUPLICATE", // 50005
+  "QUOTA_EXCEEDED", // 50006 — a project's attachment quota is full (ADR-0026)
   "UNAUTHENTICATED",
   "FORBIDDEN",
   "INTERNAL",
@@ -33,6 +34,7 @@ const CODE_BY_NUMBER: Record<number, AppErrorCode> = {
   50003: "FORBIDDEN_ROW",
   50004: "VALIDATION",
   50005: "DUPLICATE",
+  50006: "QUOTA_EXCEEDED",
 };
 
 /** Map a THROW from a stored procedure to a typed AppError . */

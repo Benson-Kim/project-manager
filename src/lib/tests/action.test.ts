@@ -89,6 +89,35 @@ describe("action() wrapper ", () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
+  it("derives the permission from the parsed input when given a function (ADR-0026)", async () => {
+    session = { userId: 2, username: "member", role: "User" };
+    const handler = vi.fn(() => Promise.resolve("ok"));
+    const permissionOf = vi.fn((input: { name: string }) =>
+      input.name === "secret" ? ("admin:update" as const) : ("suppliers:update" as const),
+    );
+    const run = action({
+      name: "test.dynamic",
+      schema,
+      permission: permissionOf,
+      handler: (input) => handler(input),
+    });
+
+    const denied = await run({ name: "secret" });
+    expect(denied.ok).toBe(false);
+    if (!denied.ok) expect(denied.error.code).toBe("FORBIDDEN");
+    expect(handler).not.toHaveBeenCalled();
+
+    expect(await run({ name: "Acme" })).toEqual({ ok: true, data: "ok" });
+    expect(permissionOf).toHaveBeenLastCalledWith({ name: "Acme" });
+  });
+
+  it("never derives a permission from input that fails validation", async () => {
+    const permissionOf = vi.fn(() => "suppliers:update" as const);
+    const run = action({ name: "test.dynamic", schema, permission: permissionOf, handler: vi.fn() });
+    await run({ name: "" });
+    expect(permissionOf).not.toHaveBeenCalled();
+  });
+
   it("lets a User through to the handler; the proc decides per project (ADR-0021)", async () => {
     session = { userId: 2, username: "member", role: "User" };
     const run = makeAction(() =>

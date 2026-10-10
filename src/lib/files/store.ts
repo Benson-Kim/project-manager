@@ -1,0 +1,148 @@
+import { createHash, randomUUID } from "node:crypto";
+import { constants, createWriteStream } from "node:fs";
+import { access, lstat, mkdir, rename, unlink } from "node:fs/promises";
+import path from "node:path";
+import { once } from "node:events";
+import { finished } from "node:stream/promises";
+import { getUploadsEnv } from "@/lib/env";
+
+/**
+ * Attachment storage on disk (ADR-0026 §3, STANDARDS §4). Server only — kept
+ * out of client bundles by src/tests/file-storage-boundaries.test.ts.
+ *
+ *   <root>/.tmp/<uuid>              an upload being received
+ *   <root>/<h0h1>/<h2h3>/<sha256>   stored bytes, named by their hash
+ *
+ * Identical bytes share one stored file; SQL Server keeps the metadata.
+ */
+
+/** Temp files live under the root so committing is a rename on one volume. */
+export const TEMP_DIR = ".tmp";
+
+const HASH = /^[0-9a-f]{64}$/;
+
+let checkedRoot: string | null = null;
+
+/**
+ * UPLOADS_DIR, created and checked writable on first use (not at build time).
+ * Throws when the folder cannot be written: the handler logs it and answers 500.
+ */
+export async function uploadsRoot(): Promise<string> {
+  const root = getUploadsEnv().UPLOADS_DIR;
+  if (checkedRoot === root) return root;
+  await mkdir(path.join(root, TEMP_DIR), { recursive: true });
+  await access(root, constants.W_OK);
+  checkedRoot = root;
+  return root;
+}
+
+/** The stored file's path relative to the root: "ab/cd/abcd…". */
+export function storagePathOf(sha256: string): string {
+  if (!HASH.test(sha256)) throw new Error("Not a SHA-256 hex digest");
+  return `${sha256.slice(0, 2)}/${sha256.slice(2, 4)}/${sha256}`;
+}
+
+/**
+ * The absolute path of a stored file. Accepts only the exact
+ * "<h0h1>/<h2h3>/<hash>" shape (the database CHECK enforces the same), so no
+ * stored value can point outside the root.
+ */
+export function resolveStoredFile(root: string, storagePath: string): string {
+  const [a, b, hash, ...rest] = storagePath.split("/");
+  if (rest.length > 0 || !hash || storagePathOf(hash) !== `${a}/${b}/${hash}`) {
+    throw new Error("Not a storage path");
+  }
+  return path.join(root, a!, b!, hash);
+}
+
+export interface ReceivedUpload {
+  tempPath: string;
+  sha256: string;
+  size: number;
+}
+
+export class UploadTooLargeError extends Error {
+  constructor() {
+    super("The upload is larger than the limit");
+    this.name = "UploadTooLargeError";
+  }
+}
+
+/**
+ * Stream a request body into a temp file, hashing and counting as it goes.
+ * Stops reading as soon as the body passes `maxBytes` (UploadTooLargeError),
+ * so an oversized upload never fills the disk. The temp file is removed on
+ * any failure.
+ */
+export async function receiveUpload(
+  body: ReadableStream<Uint8Array>,
+  root: string,
+  maxBytes: number,
+): Promise<ReceivedUpload> {
+  const tempPath = path.join(root, TEMP_DIR, randomUUID());
+  const out = createWriteStream(tempPath, { flags: "wx" });
+  const hash = createHash("sha256");
+  const reader = body.getReader();
+  let size = 0;
+  try {
+    await once(out, "open");
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new UploadTooLargeError();
+      }
+      hash.update(value);
+      if (!out.write(value)) await once(out, "drain");
+    }
+    out.end();
+    await once(out, "finish");
+    return { tempPath, sha256: hash.digest("hex"), size };
+  } catch (err) {
+    // Close the handle before unlinking (Windows refuses to delete an open file);
+    // finished() also settles when the stream had already closed.
+    out.destroy();
+    await finished(out).catch(() => undefined);
+    await unlink(tempPath).catch(() => undefined);
+    throw err;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+/**
+ * Move a received upload to its hash-named place and return its storage path.
+ * When the same bytes are already stored (dedupe), the temp file is dropped.
+ */
+export async function commitUpload(root: string, upload: ReceivedUpload): Promise<string> {
+  const storagePath = storagePathOf(upload.sha256);
+  const dest = resolveStoredFile(root, storagePath);
+  await mkdir(path.dirname(dest), { recursive: true });
+  if (await isFile(dest)) {
+    await discardUpload(upload);
+    return storagePath;
+  }
+  try {
+    await rename(upload.tempPath, dest);
+  } catch (err) {
+    // A parallel upload of the same bytes won the race (or Windows holds the
+    // existing file open for a download): the stored copy is identical.
+    if (!(await isFile(dest))) throw err;
+    await discardUpload(upload);
+  }
+  return storagePath;
+}
+
+export async function discardUpload(upload: Pick<ReceivedUpload, "tempPath">): Promise<void> {
+  await unlink(upload.tempPath).catch(() => undefined);
+}
+
+async function isFile(file: string): Promise<boolean> {
+  try {
+    return (await lstat(file)).isFile();
+  } catch {
+    return false;
+  }
+}

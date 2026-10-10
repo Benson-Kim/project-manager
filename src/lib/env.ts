@@ -1,3 +1,4 @@
+import path from "node:path";
 import { z } from "zod";
 
 const envSchema = z.object({
@@ -30,6 +31,35 @@ const envSchema = z.object({
 });
 
 export type Env = z.infer<typeof envSchema>;
+
+/**
+ * File storage (ADR-0026). Kept apart from envSchema so the upload handler and
+ * the sweep need no database settings to find their folder.
+ */
+const uploadsEnvSchema = z.object({
+  /**
+   * Where attachment bytes live, outside the web root: absolute; default
+   * `<cwd>/uploads`. Docker sets /app/uploads (a volume); the desktop sets
+   * %ProgramData%\Project Manager\Uploads from machine.json.
+   */
+  UPLOADS_DIR: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim() ? v.trim() : path.join(process.cwd(), "uploads")))
+    .refine((v) => path.isAbsolute(v), "UPLOADS_DIR must be an absolute path"),
+  /** Uploaded bytes each project may hold; project-less records share one bucket. */
+  UPLOADS_QUOTA_MB_PER_PROJECT: z.coerce.number().int().positive().default(2048),
+});
+
+export type UploadsEnv = z.infer<typeof uploadsEnvSchema>;
+
+/** Validated at first use, like getEnv(). */
+export function getUploadsEnv(): UploadsEnv {
+  return uploadsEnvSchema.parse({
+    UPLOADS_DIR: process.env.UPLOADS_DIR,
+    UPLOADS_QUOTA_MB_PER_PROJECT: process.env.UPLOADS_QUOTA_MB_PER_PROJECT,
+  });
+}
 
 /** Validated at first use (not at build time) so `next build` needs no secrets. */
 export function getEnv(): Env {

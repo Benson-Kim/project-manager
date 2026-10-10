@@ -33,8 +33,12 @@ export interface ActionOptions<TSchema extends z.ZodType, TOutput> {
   name: string;
   /** Input schema — the single validation source (shared with the client form). */
   schema: TSchema;
-  /** RBAC permission, e.g. "suppliers:create" ). */
-  permission: Permission;
+  /**
+   * RBAC permission, e.g. "suppliers:create". A function of the parsed input
+   * when the record type is part of the input, e.g. an attachment's owner
+   * (ADR-0026): `(input) => permissionsOf(input.owner).update`.
+   */
+  permission: Permission | ((input: z.output<TSchema>) => Permission);
   /** Paths (starting with "/") and tags to revalidate on success. */
   revalidate?: string[];
   handler: (input: z.output<TSchema>, ctx: ActionContext) => Promise<TOutput>;
@@ -88,7 +92,11 @@ export function action<TSchema extends z.ZodType, TOutput>(
 
       // 3. Authorise the global role (ADR-0021). What the actor may do inside a
       // project is the procs' call: they throw FORBIDDEN_ROW, mapped below.
-      if (!can(session.role, options.permission)) {
+      const permission =
+        typeof options.permission === "function"
+          ? options.permission(parsed.data)
+          : options.permission;
+      if (!can(session.role, permission)) {
         return {
           ok: false,
           error: { code: "FORBIDDEN", message: messages.errors.FORBIDDEN },
