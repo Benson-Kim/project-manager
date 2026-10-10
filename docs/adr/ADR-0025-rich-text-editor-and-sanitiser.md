@@ -170,9 +170,13 @@ and no network access at runtime. No `serverExternalPackages` entry is needed.
 
 ## Consequences
 
-- **Bundle.** Tiptap + ProseMirror is a few tens of kB gzip. It is a separate chunk,
-  loaded only when an editor mounts, so no route's first-load JS changes.
-  `sanitize-html` never reaches the browser.
+- **Bundle.** Tiptap + ProseMirror (with prosemirror-tables and linkifyjs) build to one chunk
+  of about 142 kB gzip (measured 2026-10-10). It loads only when an editor mounts, so it
+  adds nothing to a route's first-load JS; a page that shows an editor downloads it after
+  first paint. `sanitize-html` is in no browser chunk.
+  - Measured while doing this: first-load JS was already above the 170 kB target before
+    this change (`/` about 205 kB, `/projects` and `/todo` about 310 kB gzip). That is a
+    separate follow-up, not caused by this ADR.
 - **CSP.** Formatting is written as inline `style` attributes, and Tiptap injects one
   small `<style>` element for ProseMirror's base rules. Both are allowed by
   `style-src 'self' 'unsafe-inline'`. There is no eval, no remote script and no remote
