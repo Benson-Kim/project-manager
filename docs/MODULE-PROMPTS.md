@@ -13,7 +13,7 @@ assumptions-constraints, parking-lot, daily-activities, todo-items/alerts, auth)
 |---|---|---|
 | S1 | Done; pushed, not merged | `fix/idor-getbyid` @ dd71e2d |
 | CF | Done; pushed 2026-10-09, CI pending, not merged | `feature/datasheet` (hand-off: `.agent-scratch/datasheet/HANDOFF.md`) |
-| P1 | ADR only (bf92cdf). Before implementing: renumber it ADR-0025, fix its date, move it to Tiptap v3 | `feature/rich-text` |
+| P1 | Implemented 2026-10-10 (ADR-0025, Tiptap v3 + sanitize-html); not pushed yet | `feature/rich-text` |
 | F1 | Not started | — |
 | Waves 2–8 | Not started | — |
 

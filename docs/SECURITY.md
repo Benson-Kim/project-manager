@@ -82,8 +82,12 @@ foundation module.
   (`src/tests/no-inline-sql.test.ts`) that fails CI on raw SQL in `src/`.
 - zod validation at every boundary (env, server actions, repository inputs,
   proc outputs).
-- React output encoding; rich-text (notes) sanitised server-side before
-  storage and render (allow-list sanitizer — module 15).
+- React output encoding; rich text sanitised server-side before storage and
+  again on render ([ADR-0025](adr/ADR-0025-rich-text-editor-and-sanitiser.md):
+  sanitize-html allow-list in `src/lib/rich-text/sanitize.ts`, applied by
+  `richTextSchema` inside `action()` and by `RichTextView`). HTML is injected
+  only by `RichTextView` and the theme script (guardrail
+  `src/tests/rich-text-boundaries.test.ts`).
 - File uploads (module 16): extension + MIME allow-list, size caps, content
   hashing, no execution from the uploads volume, download via streaming route
   with `Content-Disposition: attachment`.
