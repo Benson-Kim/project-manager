@@ -1,0 +1,343 @@
+import { createHash } from "node:crypto";
+import { mkdtemp, readdir, rm, unlink, writeFile, mkdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Session } from "@/lib/auth/types";
+import { AppError } from "@/lib/errors";
+import { scanFile } from "@/lib/files/scan";
+import { sniffFile } from "@/lib/files/sniff";
+import { storagePathOf, TEMP_DIR } from "@/lib/files/store";
+import { messages } from "@/lib/messages";
+import { handleDownload, type DownloadDeps } from "../handlers/download";
+import { handleUpload, type UploadDeps } from "../handlers/upload";
+import { MAX_UPLOAD_BYTES, type AttachmentRow } from "../schemas/attachment";
+
+const ORIGIN = "http://127.0.0.1:3000";
+const PDF = Buffer.from("%PDF-1.7\nhello\n");
+const sha = (b: Buffer) => createHash("sha256").update(b).digest("hex");
+
+const row: AttachmentRow = {
+  FileAttachmentId: 5,
+  FileName: "Plan.pdf",
+  ContentType: "application/pdf",
+  SizeBytes: PDF.length,
+  StorageLocation: null,
+  CreatedAtUtc: new Date("2026-10-10T08:00:00Z"),
+  CreatedByName: "Grace",
+  RowVer: 9,
+};
+
+let root: string;
+let session: Session | null;
+let deps: UploadDeps & { checkCanAdd: ReturnType<typeof vi.fn>; addFile: ReturnType<typeof vi.fn> };
+
+function upload(
+  body: BodyInit | null,
+  {
+    query = "owner=daily-activity&ownerId=12&name=Plan.pdf",
+    headers = {},
+  }: { query?: string; headers?: Record<string, string> } = {},
+) {
+  return new Request(`${ORIGIN}/api/files?${query}`, {
+    method: "POST",
+    body,
+    headers: {
+      origin: ORIGIN,
+      host: "127.0.0.1:3000",
+      "sec-fetch-site": "same-origin",
+      "content-type": "application/octet-stream",
+      ...headers,
+    },
+    duplex: "half",
+  } as RequestInit);
+}
+
+async function tempFiles() {
+  return readdir(path.join(root, TEMP_DIR)).catch(() => []);
+}
+
+beforeEach(async () => {
+  root = await mkdtemp(path.join(tmpdir(), "pm-handlers-"));
+  await mkdir(path.join(root, TEMP_DIR));
+  session = { userId: 7, username: "pm", role: "User" };
+  deps = {
+    getSession: () => Promise.resolve(session),
+    uploadsRoot: () => Promise.resolve(root),
+    quotaBytes: () => 1024 * 1024,
+    checkCanAdd: vi.fn().mockResolvedValue({ ProjectId: 3, UsedBytes: 0 }),
+    addFile: vi.fn().mockResolvedValue(row),
+    sniff: sniffFile,
+    scan: scanFile,
+  };
+});
+afterEach(async () => {
+  await rm(root, { recursive: true, force: true });
+});
+
+describe("POST /api/files (ADR-0026 §3)", () => {
+  it("stores the bytes under their hash and records the attachment", async () => {
+    const res = await handleUpload(upload(PDF), deps);
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({ ok: true, data: { FileAttachmentId: 5 } });
+    expect(deps.checkCanAdd).toHaveBeenCalledWith("daily-activity", 12, 7);
+    const hash = sha(PDF);
+    expect(deps.addFile).toHaveBeenCalledWith(
+      "daily-activity",
+      12,
+      {
+        fileName: "Plan.pdf",
+        contentType: "application/pdf",
+        sizeBytes: PDF.length,
+        sha256: hash,
+        storagePath: storagePathOf(hash),
+      },
+      1024 * 1024,
+      7,
+    );
+    expect(await readdir(path.join(root, hash.slice(0, 2), hash.slice(2, 4)))).toEqual([hash]);
+    expect(await tempFiles()).toEqual([]);
+  });
+
+  it("cleans the name from the query string", async () => {
+    await handleUpload(
+      upload(PDF, { query: `owner=daily-activity&ownerId=12&name=${encodeURIComponent("..\\a/b\r\n.pdf")}` }),
+      deps,
+    );
+    expect(deps.addFile.mock.calls[0]![2].fileName).toBe("..ab.pdf");
+  });
+
+  it.each([
+    ["a cross-site request", { origin: "https://evil.example", "sec-fetch-site": "cross-site" }],
+    ["a foreign Origin", { origin: "https://evil.example", "sec-fetch-site": "" }],
+  ])("refuses %s before the session or the body", async (_l, headers) => {
+    const getSession = vi.fn();
+    const res = await handleUpload(upload(PDF, { headers }), { ...deps, getSession });
+    expect(res.status).toBe(403);
+    expect(getSession).not.toHaveBeenCalled();
+  });
+
+  it("refuses without a session", async () => {
+    session = null;
+    const res = await handleUpload(upload(PDF), deps);
+    expect(res.status).toBe(401);
+    expect(deps.checkCanAdd).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "owner=user&ownerId=12&name=a.pdf",
+    "owner=daily-activity&ownerId=0&name=a.pdf",
+    "owner=daily-activity&ownerId=abc&name=a.pdf",
+    "owner=daily-activity&ownerId=12&name=%2F%2F",
+    "owner=daily-activity&ownerId=12",
+  ])("refuses the query %s", async (query) => {
+    const res = await handleUpload(upload(PDF, { query }), deps);
+    expect(res.status).toBe(400);
+    expect(deps.checkCanAdd).not.toHaveBeenCalled();
+  });
+
+  it("refuses a declared size over 25 MB before reading anything", async () => {
+    const res = await handleUpload(
+      upload(PDF, { headers: { "content-length": String(MAX_UPLOAD_BYTES + 1) } }),
+      deps,
+    );
+    expect(res.status).toBe(413);
+    expect((await res.json()).error.message).toBe(messages.attachments.errors.tooLarge);
+    expect(deps.checkCanAdd).not.toHaveBeenCalled();
+  });
+
+  it("stops a body that grows past 25 MB and keeps nothing", async () => {
+    const chunk = Buffer.alloc(1024 * 1024);
+    chunk.write("%PDF-");
+    let sent = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (sent++ < 30) controller.enqueue(chunk);
+        else controller.close();
+      },
+    });
+    const res = await handleUpload(upload(body), deps);
+    expect(res.status).toBe(413);
+    expect(sent).toBeLessThan(30);
+    expect(deps.addFile).not.toHaveBeenCalled();
+    expect(await tempFiles()).toEqual([]);
+  });
+
+  it("refuses an empty body", async () => {
+    const res = await handleUpload(upload(Buffer.alloc(0)), deps);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.message).toBe(messages.attachments.errors.empty);
+  });
+
+  it("answers 404 when the owner's pre-check refuses (a Viewer, another project)", async () => {
+    deps.checkCanAdd.mockRejectedValue(new AppError("FORBIDDEN_ROW", "no"));
+    const res = await handleUpload(upload(PDF), deps);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ ok: false, error: { code: "NOT_FOUND" } });
+    expect(await tempFiles()).toEqual([]);
+  });
+
+  it("refuses early when the declared size cannot fit the quota", async () => {
+    deps.checkCanAdd.mockResolvedValue({ ProjectId: 3, UsedBytes: 1024 * 1024 - 5 });
+    const res = await handleUpload(
+      upload(PDF, { headers: { "content-length": String(PDF.length) } }),
+      deps,
+    );
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({
+      error: { code: "QUOTA_EXCEEDED", message: messages.errors.QUOTA_EXCEEDED },
+    });
+    expect(deps.addFile).not.toHaveBeenCalled();
+  });
+
+  it("passes on the proc's authoritative quota refusal", async () => {
+    deps.addFile.mockRejectedValue(new AppError("QUOTA_EXCEEDED", "full"));
+    const res = await handleUpload(upload(PDF), deps);
+    expect(res.status).toBe(422);
+    expect((await res.json()).error.code).toBe("QUOTA_EXCEEDED");
+  });
+
+  it.each([
+    ["a PDF named .docx", "name=Plan.docx", PDF],
+    ["an HTML page", "name=page.html", Buffer.from("<script>alert(1)</script>")],
+  ])("refuses %s (415) and keeps nothing", async (_l, name, body) => {
+    const res = await handleUpload(
+      upload(body, { query: `owner=daily-activity&ownerId=12&${name}` }),
+      deps,
+    );
+    expect(res.status).toBe(415);
+    expect((await res.json()).error.message).toBe(messages.attachments.errors.typeNotAllowed);
+    expect(deps.addFile).not.toHaveBeenCalled();
+    expect(await readdir(root)).toEqual([TEMP_DIR]);
+    expect(await tempFiles()).toEqual([]);
+  });
+
+  it("refuses what the AV hook refuses", async () => {
+    const res = await handleUpload(upload(PDF), {
+      ...deps,
+      scan: () => Promise.resolve({ clean: false, reason: "EICAR" }),
+    });
+    expect(res.status).toBe(422);
+    expect(deps.addFile).not.toHaveBeenCalled();
+    expect(await tempFiles()).toEqual([]);
+  });
+
+  it("hides unexpected failures behind INTERNAL", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    deps.addFile.mockRejectedValue(new Error("socket hang up"));
+    const res = await handleUpload(upload(PDF), deps);
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(await res.json())).not.toContain("socket");
+    error.mockRestore();
+  });
+});
+
+describe("GET /api/files/<id> (ADR-0026 §3)", () => {
+  const hash = sha(PDF);
+  let getFile: ReturnType<typeof vi.fn>;
+  let downloadDeps: DownloadDeps;
+
+  beforeEach(async () => {
+    const dir = path.join(root, hash.slice(0, 2), hash.slice(2, 4));
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, hash), PDF);
+    getFile = vi.fn().mockResolvedValue({
+      FileAttachmentId: 5,
+      FileName: "Procès-verbal.pdf",
+      ContentType: "application/pdf",
+      SizeBytes: PDF.length,
+      Sha256: hash,
+      StoragePath: storagePathOf(hash),
+      StorageLocation: null,
+    });
+    downloadDeps = { getSession: () => Promise.resolve(session), uploadsRoot: () => Promise.resolve(root), getFile };
+  });
+
+  const get = (id: string, owner = "daily-activity") =>
+    handleDownload(new Request(`${ORIGIN}/api/files/${id}?owner=${owner}`), id, downloadDeps);
+
+  it("streams the bytes as a sandboxed, uncached download", async () => {
+    const res = await get("5");
+    expect(res.status).toBe(200);
+    expect(Buffer.from(await res.arrayBuffer()).equals(PDF)).toBe(true);
+    expect(getFile).toHaveBeenCalledWith("daily-activity", 5, 7);
+    expect(res.headers.get("content-disposition")).toBe(
+      "attachment; filename=\"Proc_s-verbal.pdf\"; filename*=UTF-8''Proc%C3%A8s-verbal.pdf",
+    );
+    expect(res.headers.get("content-type")).toBe("application/pdf");
+    expect(res.headers.get("content-length")).toBe(String(PDF.length));
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(res.headers.get("content-security-policy")).toBe("default-src 'none'; sandbox");
+  });
+
+  it("refuses without a session", async () => {
+    session = null;
+    expect((await get("5")).status).toBe(401);
+    expect(getFile).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["NOT_FOUND", new AppError("NOT_FOUND", "x")],
+    ["FORBIDDEN_ROW", new AppError("FORBIDDEN_ROW", "x")],
+  ])("answers the same 404 for %s", async (_l, err) => {
+    getFile.mockRejectedValue(err);
+    const res = await get("5");
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ error: { code: "NOT_FOUND" } });
+  });
+
+  it.each([
+    ["an unknown owner", "5", "user"],
+    ["a bad id", "abc", "daily-activity"],
+    ["a negative id", "-1", "daily-activity"],
+  ])("answers 404 for %s without asking the database", async (_l, id, owner) => {
+    expect((await get(id, owner)).status).toBe(404);
+    expect(getFile).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 for a location (no bytes)", async () => {
+    getFile.mockResolvedValue({
+      FileAttachmentId: 6,
+      FileName: "Contract",
+      ContentType: null,
+      SizeBytes: null,
+      Sha256: null,
+      StoragePath: null,
+      StorageLocation: "Drawer 3",
+    });
+    expect((await get("6")).status).toBe(404);
+  });
+
+  it("answers 404 (and logs) when the bytes are gone from disk", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await unlink(path.join(root, hash.slice(0, 2), hash.slice(2, 4), hash));
+    expect((await get("5")).status).toBe(404);
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("never serves a path the database did not shape as a hash path", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    getFile.mockResolvedValue({
+      FileAttachmentId: 5,
+      FileName: "x",
+      ContentType: "application/pdf",
+      SizeBytes: 1,
+      Sha256: hash,
+      StoragePath: "../../etc/passwd",
+      StorageLocation: null,
+    });
+    expect((await get("5")).status).toBe(404);
+    error.mockRestore();
+  });
+
+  it("hides unexpected database failures behind INTERNAL", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    getFile.mockRejectedValue(new Error("pool closed"));
+    const res = await get("5");
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(await res.json())).not.toContain("pool");
+    error.mockRestore();
+  });
+});

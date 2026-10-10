@@ -17,6 +17,7 @@ import {
   listDailyActivities,
   type DailyActivityListFilters,
 } from "@/modules/daily-activities/repository/daily-activities";
+import { listAttachments } from "@/modules/file-storage/repository/attachments";
 import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
 import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
 import { DAILY_ACTIVITY_LISTS } from "@/modules/daily-activities/schemas/daily-activity";
@@ -80,6 +81,9 @@ export default async function DailyActivitiesPage({
 
   // A deep link to an activity from another project is treated as not found.
   const selected = guardProjectScope(selectedRaw, projectId);
+  const attachments = selected
+    ? await listAttachments("daily-activity", selected.DailyActivityId, session.userId)
+    : null;
 
   const totalCount = rows[0]?.TotalCount ?? 0;
   const canCreate = allows("daily-activities:create");
@@ -125,6 +129,7 @@ export default async function DailyActivitiesPage({
         </div>
         <DailyActivitySheet
           activity={selected}
+          attachments={attachments}
           isNew={isNew && canCreate}
           projectId={projectId}
           canEdit={canEdit}

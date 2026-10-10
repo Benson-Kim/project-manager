@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Attachments } from "@/components/ui/attachments/attachments";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Sheet } from "@/components/ui/dialog";
@@ -27,6 +28,7 @@ import {
   updateDailyActivityFormSchema,
 } from "../schemas/daily-activity-form";
 import { buildTodoFromDailyActivityAction } from "@/modules/todo-items/actions";
+import type { AttachmentRow } from "@/modules/file-storage/schemas/attachment";
 
 /**
  * Daily Activity detail/edit sheet  default pattern): edit is the
@@ -35,6 +37,7 @@ import { buildTodoFromDailyActivityAction } from "@/modules/todo-items/actions";
  */
 export function DailyActivitySheet({
   activity,
+  attachments = null,
   isNew,
   projectId,
   canEdit,
@@ -42,6 +45,8 @@ export function DailyActivitySheet({
   canCreateTodo,
 }: {
   activity: DailyActivityRow | null;
+  /** The open activity's attachments (usp_DailyActivity_ListFiles); null when none is open. */
+  attachments?: AttachmentRow[] | null;
   isNew: boolean;
   projectId: number | null;
   canEdit: boolean;
@@ -280,6 +285,17 @@ export function DailyActivitySheet({
               <Textarea name="comments" rows={3} defaultValue={activity?.Comments ?? ""} />
             </Field>
           </section>
+
+          {/* ── Attachments (ADR-0026): saved activities only; uploads save at once ── */}
+          {activity && attachments ? (
+            <Attachments
+              owner="daily-activity"
+              ownerId={activity.DailyActivityId}
+              files={attachments}
+              canAdd={canEdit}
+              canRemove={canEdit}
+            />
+          ) : null}
         </fieldset>
 
         <div className="flex flex-wrap items-center gap-2 px-4 py-2">
