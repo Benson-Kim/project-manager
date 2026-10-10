@@ -14,7 +14,7 @@ assumptions-constraints, parking-lot, daily-activities, todo-items/alerts, auth)
 | S1 | Done; pushed, not merged | `fix/idor-getbyid` @ dd71e2d |
 | CF | Done; pushed 2026-10-09, CI pending, not merged | `feature/datasheet` (hand-off: `.agent-scratch/datasheet/HANDOFF.md`) |
 | P1 | Implemented 2026-10-10 (ADR-0025, Tiptap v3 + sanitize-html); not pushed yet | `feature/rich-text` |
-| F1 | Not started | — |
+| F1 | Not started; prompt revised 2026-10-10 (desktop wiring now in scope, ADR-0026) | — |
 | Waves 2–8 | Not started | — |
 
 **How to use:** one prompt = one session = one branch = one PR. Paste **§0 Common
@@ -55,13 +55,12 @@ already exist twice — do not add more duplicates). S1 and CF used 017–021, s
 2026-10-09 every open reservation moved up by five (F1 017→022, R1 018→023, M1 019→024,
 I1 020→025, N1 021→026, FI1 022→027, F2 023→028, A2 024→029, RP1 025→030). If your
 number is already taken when you open the PR, take the next free number and say so in
-the PR. Never edit a migration that is merged. The next free ADR number is **0025**:
-P1 takes it, because develop's ADR-0020 is web push.
+the PR. Never edit a migration that is merged. P1 took ADR-0025
+(develop's ADR-0020 is web push), so the next free ADR number is **0026**, which F1 takes.
 
-**Desktop edition follow-ups** (done on a desktop branch, not by these prompts):
-after **F1** merges, the desktop host must set `UPLOADS_DIR` to
-`%ProgramData%\Project Manager\Uploads` and include that folder in its backups;
-after **F2**, record desktop backups through `usp_Backup_RecordRun`.
+**Desktop edition follow-ups.** D1 is merged, and every green push to develop ships a desktop
+release, so F1 does its desktop wiring itself (`UPLOADS_DIR`, the folder, backups). After **F2**,
+record desktop backups through `usp_Backup_RecordRun`.
 
 ---
 
@@ -85,7 +84,7 @@ READ FIRST (in order): LESSONS.md (repo ROOT — canonical; docs/LESSONS.md is a
 docs/AGENTS.md, docs/STANDARDS.md (esp. §12 Definition of Done), docs/MODULE-BLUEPRINT.md,
 docs/PLAN.md §2/§4/§9/§10, docs/TRACEABILITY.md, docs/source/analysis/ (requirements.md,
 access-database.md, excel-workbook.md, hololens-presentation.md — the verified source of truth;
-never open or modify the binaries in docs/source/), docs/adr/ (ADR-0001..0024). Four of them
+never open or modify the binaries in docs/source/), docs/adr/ (ADR-0001..0025). Four of them
 change how every module is built:
   ADR-0021 the access model: global role Admin|User + per-project level Viewer|Contributor|Manager;
   ADR-0022 managed dropdown lists (Admins edit values, colours and order in the app);
@@ -200,7 +199,16 @@ APP STANDARD
   a documented, client-requested exception to the no-hints rule.
 - All copy in src/lib/messages.ts (tone test enforces it); no hints, tooltips or helper text;
   44 px touch targets; mobile-first from 360 px; WCAG 2.2 AA (axe: 0 serious/critical);
-  per-route first-load JS ≤ 170 kB gzip (lazy-load heavy components).
+  per-route first-load JS ≤ 170 kB gzip (lazy-load heavy components). Measured on 2026-10-10,
+  most routes were already over it (about 205–315 kB), so don't add to first load.
+- Rich text (ADR-0025):
+  - the form schema uses richTextSchema({ max, required });
+  - the sheet uses <RichTextEditor name=…> inside a Field;
+  - display uses <RichTextView html=…> (it sanitises again);
+  - lists, CSV and search use htmlToPlainText;
+  - repositories pass stored HTML through sanitizeRichText before a sheet receives it, so legacy
+    Access markup arrives converted;
+  - never inject HTML any other way (src/tests/rich-text-boundaries.test.ts).
 - Access (ADR-0021, src/lib/auth/rbac.ts): action() permissions gate on the global role only
   (Admin | User). Inside a project the access level decides: Viewer reads; Contributor also
   creates/updates on CONTRIBUTOR_WRITE_MODULES; Manager does everything incl. delete. Add your
@@ -348,52 +356,202 @@ src/lib; demo + tests green; first-load JS budget respected; no network requests
 ### F1 — File attachments
 
 ```text
-KEY=file-storage  BRANCH=feature/file-storage  MIGRATION=022
+KEY=file-storage  BRANCH=feature/file-storage  MIGRATION=022  ADR=0026
 
-Goal: module #16 part 1 (issue #22, checklist rows 43-44): secure file attachments that any
-module can use, plus the "where are the files stored" field. Financials (FI1) is the first real
-consumer; daily activities had attachments in Access (tblDailyActivityList.Attachment) and get
-them in this PR as the reference integration.
+Status 2026-10-10: not started. This prompt was revised after P1 (rich text, ADR-0025) and D1 (the
+desktop shell, merged in develop @ 5195242). F1 does not depend on P1. Branch from the updated
+develop.
 
-Facts: no app.FileAttachment table, procs or upload code exist; docker-compose mounts an
-"uploads" volume but no env var is defined in src/lib/env.ts (scripts/backup.sh reads
-UPLOADS_DIR); Server Actions default to a 1 MB body limit and the action() wrapper does not handle
-File values; db.ts ProcParams cannot carry bytes (metadata only in SQL). STANDARDS §4 upload rules:
-sniff magic bytes, allow-list types, 25 MB cap, store outside the web root under content-hash names,
-serve through an authenticated handler with Content-Disposition: attachment + nosniff, AV-scan hook
-stub, per-project quota. PLAN §9: Admin, PM, Contributor upload; deletes follow the RBAC matrix
-(Contributors never delete).
+Goal: module #16 part 1 (checklist rows 43–44): secure file attachments that any module can
+reuse, plus row 44's "where I put the files". Daily activities are the reference integration (in
+Access: tblDailyActivityList.Attachment). Financials (FI1) is the next consumer.
 
-Do:
-1. ADR "File storage" deciding: polymorphic link (EntityName + EntityId, whitelisted entity names)
-   vs link tables; upload transport (Route Handler POST with Origin/Sec-Fetch-Site check + session +
-   RBAC, streaming to disk, recommended over raising the Server Action body limit); content-hash
-   (SHA-256) dedupe and versioning; quota; delete = soft delete of metadata + orphan sweep.
-2. Migration 022: app.FileAttachment (FileAttachmentId, ProjectId, EntityName, EntityId,
-   OriginalFileName, ContentType (sniffed), SizeBytes, Sha256, StoragePath (relative), Version,
-   StorageLocation NVARCHAR(500) NULL = row 44 "where I put the files" free text for files kept
-   elsewhere, e.g. a SharePoint/network path, + standard audit/soft-delete/RowVer columns, indexes).
-3. Procs usp_FileAttachment_Create / GetById / List (ADR-0016 + @EntityName/@EntityId filters) /
-   Update (rename, StorageLocation) / Delete, with the project check through the owning entity.
-4. src/lib/env.ts: UPLOADS_DIR (absolute path; default <cwd>/uploads outside .next; validated
-   writable at first use, not at build). Storage service src/lib/files/: hash-named sharded paths,
-   atomic write (temp + rename), magic-byte sniffing (no new dependency unless justified by ADR),
-   allow-list (pdf, docx, xlsx, pptx, png, jpg, txt, csv, msg/eml), 25 MB cap, scan hook stub.
-5. Route Handlers: POST /api/files (multipart, streaming, returns the attachment row),
-   GET /api/files/[id] (authenticated, RBAC + project check, Content-Disposition attachment,
-   nosniff, no caching), and a delete Server Action.
-6. Shared <Attachments entity="DailyActivity" entityId projectId canUpload canDelete/> component:
-   list (name, size, date, who), upload with progress and drag-and-drop + keyboard alternative,
-   download, delete with ConfirmDialog, StorageLocation field; messages; axe clean.
-7. Integrate into the daily-activity Sheet. Dockerfile: create /app/uploads owned by the runtime
-   user; compose: set UPLOADS_DIR; backup.sh already tars it — verify.
-8. Tests: Vitest (sniffing, limits, path traversal, hash naming, schemas, repository, actions);
-   Playwright: upload → list → download → delete, rejected type, too large, RBAC denial (Viewer),
-   axe.
+FACTS (verified on develop, 2026-10-10)
+- Nothing exists yet: no app.FileAttachment, no procs, no route, no UI. The latest migration is 021.
+- Server edition:
+  - src/lib/env.ts has no UPLOADS_DIR.
+  - docker-compose mounts a named volume at /app/uploads but sets no UPLOADS_DIR.
+  - The Dockerfile never creates /app/uploads, so the volume would be root-owned and the nextjs
+    user could not write to it.
+  - scripts/backup.sh tars UPLOADS_DIR when set (its upload target is still GitLab; that is F2's).
+  - uploads/ is already in .gitignore and .dockerignore.
+- Uploads cannot go through Server Actions:
+  - they have a 1 MB body default;
+  - action() parses FormData into zod, and a File value fails;
+  - ProcParams in src/lib/db.ts carries no bytes, so SQL holds metadata only.
+- src/proxy.ts matches /api/* (only /api/auth is public). Next 16 buffers every request body that
+  passes through the proxy, up to experimental.proxyClientMaxBodySize, default 10 MB. A 25 MB upload
+  through the proxy fails unless that limit is raised or the upload route leaves the matcher.
+- No multipart parser is installed, and request.formData() buffers the whole body in memory.
+- Daily activities may have NO project (migration 014). Access to project-less rows goes through
+  dbo.usp_DailyActivity_AssertAccess → usp_Project_AssertAccess @AllowProjectless = 1 (the shared
+  space in usp_Project_ResolveAccess). So an attachment's project can be NULL.
+- Access (ADR-0021/0024):
+  - requiredLevel() gives Viewer to read; Contributor to create/update on
+    CONTRIBUTOR_WRITE_MODULES (daily-activities is one); Manager to delete.
+  - Per-person overrides apply per section.
+  - src/tests/proc-access-levels.test.ts maps each proc FOLDER to ONE permission module. It demands
+    a literal @MinLevel and @Permission = N'<module>:<verb>' matching that module, and every
+    proc-name suffix must appear in its VERBS map. A permission picked at run time from an entity
+    name cannot pass it.
+- Error codes (ADR-0012): 50001–50005 are taken; a new code needs an ADR-0012 update.
+- Desktop (D1):
+  - Every green push to develop publishes a desktop release, and installed apps take it
+    automatically.
+  - The Next server runs as the signed-in Windows user.
+  - %ProgramData%\Project Manager is read-only for Users: provision.ps1 removes inheritance, and
+    only Backups gets Users:Modify.
+  - Provisioning runs only when machine.json is missing. machine.json has schemaVersion 1, and the
+    app has an elevated Repair path (electron/main.ts).
+  - Without desktop wiring, UPLOADS_DIR would default into the app's install folder, which every
+    update replaces, so files would be lost. The desktop wiring is therefore IN SCOPE for F1.
+- STANDARDS §4 upload rules:
+  - sniff magic bytes and allow-list the types;
+  - 25 MB cap;
+  - store outside the web root under content-hash names;
+  - serve through an authenticated handler with Content-Disposition: attachment + nosniff;
+  - AV-scan hook stub;
+  - per-project quota.
 
-Out of scope: backup status recording and GitHub restore (F2). Desktop host wiring (coordinator).
-Acceptance: attachments work end to end on daily activities; all STANDARDS §4 upload rules met
-and tested; ADR merged; PR lists UPLOADS_DIR under Desktop edition impact.
+DECISIONS: record them in ADR-0026 "File storage". Ask the user about the two marked ASK in one
+question before implementing.
+1. Ownership and permissions.
+   a) Owner-scoped (recommended):
+      - app.FileAttachment holds the file and has no owner columns.
+      - Each consumer adds a link table (app.DailyActivityFile).
+      - Its procs live in the OWNER's folder: db/procs/daily-activity/usp_DailyActivity_AddFile,
+        _ListFiles, _GetFile and _RemoveFile. They are checked with the owner's helper and
+        permission: daily-activities:update to add or remove (attachments were a field of the
+        record in Access), read to list or download.
+      - Real FKs, and overrides and Contributor rules follow the section with no extra work.
+      - Add the new suffixes to VERBS in proc-access-levels.test.ts.
+   b) Polymorphic:
+      - One table with EntityName/EntityId (a CHECK on a whitelist) and its own permission module
+        (e.g. "files": Contributor writes, Manager deletes, overridable as its own section).
+      - Less code per consumer, but no FK, and a Manager who revokes daily-activities:update would
+        also have to revoke files:* separately.
+2. (ASK) Removing an attachment:
+   - With 1a it is <owner>:update, so Contributors can remove (recommended: it edits the record).
+   - Keeping "Contributors never delete" makes it <owner>:delete, i.e. Managers only.
+3. Upload transport, with no new dependency:
+   - The client POSTs the raw file as the request body using XMLHttpRequest, for upload progress.
+     The owner, id and file name go in the query string.
+   - The handler streams request.body to a temp file while hashing it (SHA-256) and counting bytes.
+     It aborts at 25 MB, then renames to <UPLOADS_DIR>/<hash 0–1>/<hash 2–3>/<hash>.
+   - The proxy limit needs one of two fixes:
+     - exclude only /api/files from the proxy matcher (the handler authenticates itself, and
+       streaming is real) — recommended, pinned by a test like src/tests/proxy-csp.test.ts;
+     - or raise proxyClientMaxBodySize to 26mb, which buffers every proxied body up to that size.
+4. Dedupe and deletion:
+   - The same hash reuses the stored bytes, with one row per upload.
+   - Removing an attachment soft-deletes rows.
+   - An orphan sweep (a function plus an Admin-only action) deletes files that no live row
+     references, after a grace period that allows restores. Scheduling the sweep is F2's.
+5. Quota:
+   - Per project, from an env var (e.g. UPLOADS_QUOTA_MB_PER_PROJECT, default 2048); project-less
+     rows share one bucket.
+   - The Add proc enforces it (authoritative), and the handler pre-checks.
+   - Error: 50004 VALIDATION with a quota message, or register 50006 in ADR-0012.
+6. Row 44: an attachment row is either an uploaded file or a location reference with no bytes
+   (StorageLocation NVARCHAR(500), e.g. a SharePoint or network path). A CHECK allows exactly one.
+7. (ASK) The desktop folder must be machine-wide, because the database is:
+   - %ProgramData%\Project Manager\Uploads with Users:Modify, created by provision.ps1 and recorded
+     in machine.json (schemaVersion 2, uploadsDir).
+   - PCs provisioned before F1 need ONE elevated Repair (a UAC prompt) after the update. That
+     conflicts with the user's "admin password once per PC" decision (2026-10-09). Offer:
+     - accept one extra prompt on PCs already installed (recommended);
+     - or a per-user folder: no prompt, but files one Windows user uploads are missing for another
+       user on the same PC.
+
+DO
+1. Write ADR-0026 with those decisions, and add its README row (plus an ADR-0012 row if you add a
+   code).
+2. Migration 022:
+   - app.FileAttachment:
+     - FileAttachmentId;
+     - OriginalFileName NVARCHAR(255) NULL, ContentType (sniffed) NULL, SizeBytes BIGINT NULL;
+     - Sha256 CHAR(64) NULL, StoragePath (relative) NULL;
+     - StorageLocation NVARCHAR(500) NULL, with the file-or-location CHECK;
+     - ProjectId INT NULL, copied from the owner (for the quota);
+     - the standard audit, soft-delete and RowVer columns;
+     - indexes on Sha256 and ProjectId.
+   - For 1a: app.DailyActivityFile (DailyActivityId, FileAttachmentId, FKs, unique pair).
+   - Idempotent, no seeds (the Access attachment bytes were never extracted). Update db/README.
+3. Procs for the chosen option, to the §0 standard:
+   - a literal @MinLevel and @Permission;
+   - audit in the same transaction;
+   - NOT_FOUND distinct from FORBIDDEN_ROW.
+   usp_DailyActivity_Delete also soft-deletes the activity's links. Register the folder or suffixes
+   in proc-access-levels.test.ts.
+4. Configuration:
+   - src/lib/env.ts: UPLOADS_DIR (absolute; default <cwd>/uploads; checked writable on first use,
+     not at build) and the quota variable;
+   - .env.example;
+   - docker-compose sets UPLOADS_DIR=/app/uploads;
+   - the Dockerfile creates /app/uploads owned by nextjs before `USER nextjs`.
+5. src/lib/files/ (server only): add a client-reach guardrail like
+   src/tests/rich-text-boundaries.test.ts. It contains:
+   - sharded hash paths, temp file + rename, stream hashing with the 25 MB cap;
+   - an allow-list by magic bytes, with no new dependency:
+     - pdf "%PDF-"; png 89 50 4E 47 0D 0A 1A 0A; jpg FF D8 FF;
+     - docx/xlsx/pptx: ZIP "PK\x03\x04" whose central directory has word/, xl/ or ppt/ entries
+       (reject other ZIPs);
+     - msg: OLE CFB D0 CF 11 E0 A1 B1 1A E1, with a .msg name;
+     - txt/csv/eml: no NUL byte and valid UTF-8 (an eml also starts with header lines);
+     - the extension must agree with the sniffed type;
+   - an AV-scan hook stub;
+   - file names: strip path separators and control characters, cap at 255. Content-Disposition
+     carries an ASCII fallback plus filename*=UTF-8''… (test CR/LF and quote injection).
+6. Route Handlers:
+   - POST /api/files: session check, Origin / Sec-Fetch-Site same-origin, owner whitelist,
+     streaming as decided.
+   - GET /api/files/[id]:
+     - session check plus the owner read check;
+     - NOT_FOUND and FORBIDDEN_ROW both answer 404, like orNotFound;
+     - Content-Disposition: attachment, nosniff, Cache-Control: no-store;
+     - streams the file.
+   - Remove, rename and the location go through action().
+7. <Attachments owner="daily-activity" ownerId canAdd canRemove /> in src/components/ui/:
+   - list (name, size, date, who); upload with progress; drag-and-drop plus a keyboard path;
+     download; remove with ConfirmDialog; add-a-location; messages; 44 px targets; axe clean.
+   - Inside a sheet it sits in the record's <form>:
+     - the file input has NO name, or the record's FormData carries the File and the save fails
+       zod;
+     - its change event must not mark the record dirty (stop propagation): uploads save at once;
+     - no nested <form> in its dialogs (LESSONS §21).
+   - Show it for saved records only. When the fieldset is disabled it is read-only, but downloads
+     still work.
+8. Daily-activity sheet integration.
+9. Desktop, per decision 7:
+   - provision.ps1 creates the folder and its ACL;
+   - machine.json schemaVersion 2 with uploadsDir (electron/machine-config.ts accepts 1 and 2;
+     version 1 → Repair once);
+   - electron/next-server.ts passes UPLOADS_DIR;
+   - electron/backup.ts mirrors new files into <copyDir>\Uploads (hash names never change, so it
+     copies only missing ones);
+   - update docs/DESKTOP.md. Restoring desktop files is F2's.
+10. Tests:
+    - Vitest:
+      - sniffing (each type, spoofed extensions, a non-Office ZIP);
+      - the cap; path and name handling; hash naming and dedupe; the quota;
+      - schemas; the repository (no ActorRole sent); actions;
+      - handler logic as pure functions;
+      - proc-access-levels passes.
+    - Playwright (e2e/file-storage*.spec.ts, registered in playwright.config.ts):
+      - upload → list → download (content matches) → remove;
+      - rejected type; too large (generate the bytes in the test); location-only row;
+      - RBAC as e2e-viewer (no upload control on project 2; a POST answers 404);
+      - axe.
+
+Out of scope (F2): backup status and restore, the server backup target, scheduling the orphan
+sweep. Attachments on other modules come with their own prompts.
+
+Acceptance:
+- Attachments work end to end on daily activities, in the web and desktop editions.
+- Every STANDARDS §4 upload rule is met and tested.
+- ADR-0026 is merged.
+- The PR lists UPLOADS_DIR and the quota variable under "Desktop edition impact", and states the
+  one-time Repair prompt if that option was chosen.
 ```
 
 ---
@@ -732,8 +890,9 @@ Do:
 2. Rewrite financial + financial-document procs to the database standard (documents resolve the
    project through the financial; cascade delete; duplicate → 50005). New:
    usp_FinancialDocumentType_List, usp_FinancialDocument_Set @FinancialId @TypeId @IsRequired
-   @ReasonNotCreated @RowVer (upsert one checklist row), checklist proc gains @ActorRole and returns
-   attachment counts per document (FileAttachment EntityName 'FinancialDocument').
+   @ReasonNotCreated @RowVer (upsert one checklist row). The checklist proc returns attachment
+   counts per document, using the ownership model ADR-0026 chose (e.g. an
+   app.FinancialDocumentFile link table). No role parameter (ADR-0021, §0).
 3. src/modules/financials server slice; rbac: decide whether Contributors edit financials (PLAN §9
    "CRUD on assigned module records") — record the decision.
 4. Tests; seed counts unchanged.
