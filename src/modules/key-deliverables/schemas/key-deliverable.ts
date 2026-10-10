@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { actorAccessFields } from "@/lib/auth/actor-access";
+import type { LookupListKey } from "@/lib/lookup-lists";
 
 /**
  * KeyDeliverable (app.KeyDeliverable ← tblKeyRequirementsDeliverable) — zod
@@ -15,15 +17,15 @@ import { z } from "zod";
  */
 export const rowVerSchema = z.coerce.number().int().nonnegative();
 
-/** Fixed UI vocabularies (source data uses "Important", "Pending", "In Progress"). */
-export const DELIVERABLE_STATUSES = [
-  "Pending",
-  "In Progress",
-  "Completed",
-  "On Hold",
-  "Cancelled",
-] as const;
-export const DELIVERABLE_PRIORITIES = ["Critical", "Important", "Normal", "Low"] as const;
+/**
+ * Dropdown lists (ADR-0022; seeded by migration 018 from the source data's
+ * "Pending", "In Progress", "Important"…). The statuses statusToCompletion()
+ * and isOverdue() read by name are locked in the list.
+ */
+export const KEY_DELIVERABLE_LISTS = [
+  "key-deliverable.status",
+  "key-deliverable.priority",
+] as const satisfies readonly LookupListKey[];
 
 /** Parsed junction-table assignee entry. */
 export const assigneeEntrySchema = z.object({
@@ -42,7 +44,8 @@ export function parseAssigneesJson(raw: unknown): AssigneeEntry[] {
   const trimmed = raw.trim();
   if (trimmed === "") return [];
   const arr: unknown = JSON.parse(trimmed); // throws on malformed JSON
-  if (!Array.isArray(arr)) throw new Error(`AssigneesJson must be a JSON array, got ${JSON.stringify(arr)}`);
+  if (!Array.isArray(arr))
+    throw new Error(`AssigneesJson must be a JSON array, got ${JSON.stringify(arr)}`);
   return arr.map((a) => assigneeEntrySchema.parse(a)); // throws on schema mismatch
 }
 
@@ -69,7 +72,7 @@ export const keyDeliverableRowSchema = z
 export type KeyDeliverableRow = z.infer<typeof keyDeliverableRowSchema>;
 
 export const keyDeliverableListRowSchema = keyDeliverableRowSchema.and(
-  z.object({ TotalCount: z.number().int() }),
+  z.object({ TotalCount: z.number().int(), ...actorAccessFields }),
 );
 
 export type KeyDeliverableListRow = z.infer<typeof keyDeliverableListRowSchema>;
@@ -117,10 +120,14 @@ export interface GanttBar {
 /** Map a status string to a completion percentage for the bar fill. */
 export function statusToCompletion(status: string | null): number {
   switch (status) {
-    case "Completed":   return 100;
-    case "In Progress": return 50;
-    case "On Hold":     return 20;
-    default:            return 0;
+    case "Completed":
+      return 100;
+    case "In Progress":
+      return 50;
+    case "On Hold":
+      return 20;
+    default:
+      return 0;
   }
 }
 

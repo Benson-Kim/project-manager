@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { Menu, MenuButton, MenuLink } from "@/components/ui/menu";
 import { messages } from "@/lib/messages";
@@ -17,17 +18,44 @@ export interface ShellAlert {
 const iconButtonClass =
   "relative flex min-h-10 min-w-10 items-center justify-center rounded-md text-ink-muted hover:bg-surface-sunken";
 
+/** A to-do alarm that is due now (the open app's 30 s poll, useAlertPoller). */
+export interface ShellAlarm {
+  todoAlertId: number;
+  todoItemId: number;
+  title: string;
+}
+
 /**
  * Notifications bell (shell spec, issue #28): filled icon + red dot when
  * there are alerts, outline when none. Disclosure pattern: aria-expanded +
  * controlled panel, Escape closes and returns focus, outside click closes.
+ * Due to-do alarms come first ("Due now", each opens its to-do); while desktop
+ * notifications are not decided yet, the panel offers to turn them on (the
+ * browser only asks after a click).
  */
-export function NotificationsBell({ alerts }: { alerts: ShellAlert[] }) {
+export function NotificationsBell({
+  alerts,
+  alarms = [],
+}: {
+  alerts: ShellAlert[];
+  alarms?: ShellAlarm[];
+}) {
   const [open, setOpen] = useState(false);
+  const [canAskDesktop, setCanAskDesktop] = useState(false);
   const panelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const hasAlerts = alerts.length > 0;
+  const count = alerts.length + alarms.length;
+  const hasAlerts = count > 0;
+
+  // Notification.permission exists only in the browser: read it after mount (no hydration mismatch).
+  useEffect(() => {
+    if (!open || !("Notification" in window)) return;
+    const frame = requestAnimationFrame(() =>
+      setCanAskDesktop(Notification.permission === "default"),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -59,9 +87,7 @@ export function NotificationsBell({ alerts }: { alerts: ShellAlert[] }) {
         aria-expanded={open}
         aria-controls={panelId}
         aria-label={
-          hasAlerts
-            ? messages.app.notificationsWithCount(alerts.length)
-            : messages.app.notifications
+          hasAlerts ? messages.app.notificationsWithCount(count) : messages.app.notifications
         }
         data-testid="notifications-bell"
         data-state={hasAlerts ? "filled" : "outline"}
@@ -82,7 +108,38 @@ export function NotificationsBell({ alerts }: { alerts: ShellAlert[] }) {
         hidden={!open}
         className="absolute right-0 z-(--z-dropdown) mt-1 w-72 rounded-md border border-line bg-surface-raised py-1 shadow-lg"
       >
-        {hasAlerts ? (
+        {alarms.length > 0 ? (
+          <ul aria-label={messages.app.alarmsDue} data-testid="due-alarms">
+            {alarms.map((alarm) => (
+              <li key={alarm.todoAlertId}>
+                <Link
+                  href={`/todo?id=${alarm.todoItemId}`}
+                  onClick={() => setOpen(false)}
+                  className="flex min-h-10 flex-col justify-center px-6 py-1.5 text-sm hover:bg-surface-sunken"
+                >
+                  <span className="text-xs font-semibold text-warning">
+                    {messages.app.alarmsDue}
+                  </span>
+                  <span className="truncate font-medium text-ink">{alarm.title}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {canAskDesktop ? (
+          <button
+            type="button"
+            onClick={() =>
+              void Notification.requestPermission().then((result) =>
+                setCanAskDesktop(result === "default"),
+              )
+            }
+            className="w-full px-6 py-2 text-left text-sm font-medium text-accent hover:bg-surface-sunken"
+          >
+            {messages.app.enableDesktopAlerts}
+          </button>
+        ) : null}
+        {alerts.length > 0 ? (
           <ul aria-label={messages.app.notifications}>
             {alerts.map((alert) => (
               <li
@@ -94,9 +151,9 @@ export function NotificationsBell({ alerts }: { alerts: ShellAlert[] }) {
               </li>
             ))}
           </ul>
-        ) : (
+        ) : alarms.length === 0 ? (
           <p className="px-6 py-2 text-sm text-ink-muted">{messages.app.noNotifications}</p>
-        )}
+        ) : null}
       </div>
     </div>
   );

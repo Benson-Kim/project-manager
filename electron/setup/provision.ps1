@@ -1,7 +1,8 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Project Manager - database engine provisioning. MUST run elevated.
+  Project Manager - database engine provisioning. Runs elevated (asks for
+  administrator approval itself when started by a standard user).
 
 .DESCRIPTION
   Called by the NSIS installer (build-resources/installer.nsh, customInstall)
@@ -18,7 +19,8 @@
 
   Secrets are never written to the log.
 
-  Exit codes: 0 ok | 10 not elevated | 20 installer missing/untrusted |
+  Exit codes: 0 ok | 10 not elevated | 11 administrator approval declined |
+              20 installer missing/untrusted |
               30 SQL setup failed | 40 service/network config failed |
               50 login/config failed | 1 unexpected error
 #>
@@ -261,6 +263,22 @@ function Read-ExistingConfig {
 }
 
 # --------------------------------------------------------------------------
+# The app is installed per user, so the installer is not elevated. Ask Windows
+# for administrator approval once and run this same script elevated. This
+# happens before any logging: a standard user cannot write to $LogDir.
+$principal = New-Object Security.Principal.WindowsPrincipal ([Security.Principal.WindowsIdentity]::GetCurrent())
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+  $argList = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$PSCommandPath`" " +
+    "-SqlInstaller `"$SqlInstaller`" -InstanceName $InstanceName -Port $Port -DataRoot `"$DataRoot`""
+  try {
+    $p = Start-Process -FilePath (Join-Path $PSHOME 'powershell.exe') -ArgumentList $argList `
+      -Verb RunAs -Wait -PassThru -WindowStyle Hidden
+  } catch {
+    exit 11 # administrator approval declined
+  }
+  exit $p.ExitCode
+}
+
 $exitCode = 0
 try {
   if (-not (Test-Path -LiteralPath $LogDir)) { New-Item -ItemType Directory -Path $LogDir -Force | Out-Null }

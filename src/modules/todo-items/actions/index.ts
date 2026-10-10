@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { action } from "@/lib/action";
 import { auth } from "@/lib/auth/provider";
+import { getPushConfig } from "@/lib/push/config";
 import { messages } from "@/lib/messages";
 import {
   buildTodoFromDailyActivity,
@@ -19,13 +20,15 @@ import {
   snoozeTodoAlert,
   updateTodoAlert,
 } from "../repository/todo-alerts";
+import { upsertAlertSubscription } from "../repository/alert-subscriptions";
 import { todoItemFormSchema, updateTodoItemFormSchema } from "../schemas/todo-item-form";
 import { todoAlertFormSchema, updateTodoAlertFormSchema } from "../schemas/todo-alert-form";
+import { pushSubscriptionInput } from "../schemas/alert-subscription";
 import { deleteTodoItemInput, reorderTodoItemInput } from "../schemas/todo-item";
 import { deleteTodoAlertInput, rowVerSchema } from "../schemas/todo-alert";
 
 /**
- * Create a to-do item (RBAC todo-items:create — Admin + PM; audited in-proc).
+ * Create a to-do item (RBAC todo-items:create — project level checked in-proc, ADR-0021; audited in-proc).
  * The page is dynamic (session cookie) — router.refresh() in the sheet, no
  * static path to revalidate.
  */
@@ -36,7 +39,7 @@ export const createTodoItemAction = action({
   handler: (input, ctx) => createTodoItem(input, ctx.session.userId),
 });
 
-/** Update a to-do item (RBAC todo-items:update — Admin + PM; CONFLICT on stale RowVer). */
+/** Update a to-do item (RBAC todo-items:update — project level checked in-proc, ADR-0021; CONFLICT on stale RowVer). */
 export const updateTodoItemAction = action({
   name: "todo-items.update",
   schema: updateTodoItemFormSchema,
@@ -44,7 +47,7 @@ export const updateTodoItemAction = action({
   handler: (input, ctx) => updateTodoItem(input, ctx.session.userId),
 });
 
-/** Soft-delete a to-do item (RBAC todo-items:delete — Admin + PM; audited in-proc). */
+/** Soft-delete a to-do item (RBAC todo-items:delete — project level checked in-proc, ADR-0021; audited in-proc). */
 export const deleteTodoItemAction = action({
   name: "todo-items.delete",
   schema: deleteTodoItemInput,
@@ -57,7 +60,7 @@ export const deleteTodoItemAction = action({
 
 /**
  * Reorder a to-do item (req 13.2 — line items orderable in any order).
- * RBAC: todo-items:update — same gate as an edit (Admin + PM).
+ * RBAC: todo-items:update — same level as an edit (Contributor).
  * The proc bumps SortKey on adjacent items and audits the move in-transaction.
  */
 export const reorderTodoItemAction = action({
@@ -68,8 +71,8 @@ export const reorderTodoItemAction = action({
 });
 
 /**
- * Create a todo alert (RBAC todo-alerts:create — Contributors included per
- * PLAN.md §9 CONTRIBUTOR_WRITE_MODULES; audited in-proc).
+ * Create a todo alert (RBAC todo-alerts:create — project level checked in-proc,
+ * ADR-0021; audited in-proc).
  */
 export const createTodoAlertAction = action({
   name: "todo-alerts.create",
@@ -78,7 +81,7 @@ export const createTodoAlertAction = action({
   handler: (input, ctx) => createTodoAlert(input, ctx.session.userId),
 });
 
-/** Update a todo alert (RBAC todo-alerts:update — Contributors included). */
+/** Update a todo alert (RBAC todo-alerts:update — project level checked in-proc). */
 export const updateTodoAlertAction = action({
   name: "todo-alerts.update",
   schema: updateTodoAlertFormSchema,
@@ -106,6 +109,7 @@ export const snoozeTodoAlertAction = action({
     todoAlertId: z.coerce.number().int().positive(),
     snoozeMinutes: z.coerce.number().int().min(1).max(1440),
     rowVer: rowVerSchema,
+    localNow: z.string().max(19).optional(),
   }),
   permission: "todo-alerts:update",
   handler: (input, ctx) => snoozeTodoAlert(input, ctx.session.userId),
@@ -126,7 +130,7 @@ export const dismissTodoAlertAction = action({
 
 /**
  * Build a TodoItem from a DailyActivity row (req 13.1 — "built from daily activity list").
- * RBAC: todo-items:create — Admin + PM. The proc enforces DUPLICATE prevention server-side.
+ * RBAC: todo-items:create; Contributor on the activity's project. The proc enforces DUPLICATE prevention server-side.
  */
 export const buildTodoFromDailyActivityAction = action({
   name: "todo-items.buildFromDailyActivity",
@@ -156,3 +160,25 @@ export async function pollDueAlertsAction(): Promise<
     rowVer: r.RowVer,
   }));
 }
+
+/**
+ * Register or refresh a Web Push subscription for the current user.
+ * RBAC: todo-alerts:create — every signed-in account (ADR-0021): a
+ * subscription belongs to the user, not to a project.
+ *
+ * Returns null when Web Push is not configured server-side so the caller
+ * can gracefully fall back to foreground polling.
+ */
+export const registerPushSubscriptionAction = action({
+  name: "todo-alerts.registerPush",
+  schema: pushSubscriptionInput,
+  permission: "todo-alerts:create",
+  handler: async (input, ctx) => {
+    if (!getPushConfig()) {
+      // Push is not configured — signal that to the caller without an error.
+      return null;
+    }
+    await upsertAlertSubscription(input, ctx.session.userId);
+    return null;
+  },
+});

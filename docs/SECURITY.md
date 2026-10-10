@@ -51,22 +51,35 @@ foundation module.
 
 ## Authorization (RBAC)
 
-- Roles Admin / ProjectManager / Contributor / Viewer (`auth.Role`; the single
-  role→permission matrix is `src/lib/auth/rbac.ts`, source PLAN.md §9 — there
-  are no `auth.UserRole`/`auth.Permission` tables, roles are 1:1 on the user).
+- Two layers (ADR-0021; the single policy is `src/lib/auth/rbac.ts`, source
+  PLAN.md §9):
+  - **Global role** Admin / User (`auth.Role`, 1:1 on the user).
+  - **Per-project access level** Viewer / Contributor / Manager on the user's
+    team row (`app.ProjectAssignee.AccessLevel`). Admins hold Manager
+    everywhere; a User only reaches projects they are on.
 - Enforced in three layers:
   1. Route guard — `src/proxy.ts` + protected layouts redirect
      unauthenticated/unauthorised users.
   2. Server-action guard — every action asserts the required permission before
      calling a repository.
-  3. Stored-proc guard — mutating procs take `@ActorUserId` and validate
-     permission server-side (defence in depth), then write `audit.AuditLog`.
+  3. Stored-proc guard — every project-scoped proc takes `@ActorUserId` (never
+     a role) and calls `dbo.usp_Project_AssertAccess @MinLevel` (FORBIDDEN_ROW
+     50003), then mutations write `audit.AuditLog`. Pages render missing and
+     inaccessible records alike as not found.
+- Per-person overrides (ADR-0024, `app.ProjectPermissionOverride`): a project Manager
+  can grant or revoke create/update/delete per section for one member. The procs
+  decide (`usp_Permission_Require`; every write check names its `@Permission`). An
+  override applies only to members of the project, never to the charter or team, and
+  nobody can set their own. Every change is audited.
+- Managed dropdown lists (ADR-0022): only Admins edit list values
+  (`admin:lookup-lists`, `usp_LookupList_Set`); every Create/Update proc re-checks
+  values server-side (`usp_LookupList_AssertLabel` / `AssertOption`).
 
 ## Input/output safety
 
 - **Stored procedures only** — no inline SQL anywhere. Enforced by ESLint
   (`no-restricted-syntax` on `.query()`/`.batch()`) and a guardrail unit test
-  (`src/test/no-inline-sql.test.ts`) that fails CI on raw SQL in `src/`.
+  (`src/tests/no-inline-sql.test.ts`) that fails CI on raw SQL in `src/`.
 - zod validation at every boundary (env, server actions, repository inputs,
   proc outputs).
 - React output encoding; rich-text (notes) sanitised server-side before

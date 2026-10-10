@@ -2,7 +2,13 @@ import { app, BrowserWindow, clipboard, dialog, session, shell } from "electron"
 import { createRequire } from "module";
 import path from "path";
 import { ensureAdminAccount, resetAdminPassword, type Argon2Like } from "./admin-account";
-import { backupDatabase, latestBackup, restoreDatabase, type BackupKind, type BackupResult } from "./backup";
+import {
+  backupDatabase,
+  latestBackup,
+  restoreDatabase,
+  type BackupKind,
+  type BackupResult,
+} from "./backup";
 import { waitForSql } from "./db";
 import { applyDatabaseSchema } from "./db-apply";
 import { createLogger, describeError } from "./log";
@@ -10,7 +16,13 @@ import { readMachineConfig, SetupRequiredError, type MachineConfig } from "./mac
 import { NextServer } from "./next-server";
 import { paths } from "./paths";
 import { getServiceState, runElevatedRepair } from "./sql-service";
-import { destroyTray, initTray, showTrayHint } from "./tray";
+import {
+  destroyTray,
+  initTray,
+  setTrayUpdateActions,
+  setTrayUpdateReady,
+  showTrayHint,
+} from "./tray";
 import { setupAutoUpdater } from "./updater";
 import { SettingsStore } from "./user-settings";
 
@@ -89,7 +101,8 @@ function createMainWindow(url: string): BrowserWindow {
     }
   };
   const openExternally = (target: string) => {
-    if (/^https?:\/\//i.test(target) || /^mailto:/i.test(target)) shell.openExternal(target).catch(() => undefined);
+    if (/^https?:\/\//i.test(target) || /^mailto:/i.test(target))
+      shell.openExternal(target).catch(() => undefined);
   };
   win.webContents.setWindowOpenHandler(({ url: target }) => {
     if (!isOwn(target)) openExternally(target);
@@ -130,7 +143,12 @@ function showMain(): void {
   mainWindow.focus();
 }
 
-async function message(type: "info" | "warning" | "error", title: string, text: string, detail?: string) {
+async function message(
+  type: "info" | "warning" | "error",
+  title: string,
+  text: string,
+  detail?: string,
+) {
   const opts = { type, title, message: text, detail, buttons: ["OK"] };
   if (mainWindow?.isVisible()) await dialog.showMessageBox(mainWindow, opts);
   else await dialog.showMessageBox(opts);
@@ -164,7 +182,9 @@ async function ensureDatabaseEngine(): Promise<MachineConfig> {
     const cfg = readMachineConfig();
     const state = await getServiceState(cfg.sql.instanceName);
     if (state === "missing") throw new SetupRequiredError("The database engine is not installed.");
-    setSplashStatus(state === "running" ? "Connecting to the database…" : "Starting the database engine…");
+    setSplashStatus(
+      state === "running" ? "Connecting to the database…" : "Starting the database engine…",
+    );
     await waitForSql(cfg.sql, state === "running" ? 30_000 : 90_000);
     return cfg;
   } catch (err) {
@@ -227,7 +247,12 @@ async function backupIfDue(): Promise<void> {
     }
   } catch (err) {
     log.error("[backup] scheduled backup failed", err);
-    await message("error", "Backup failed", "The automatic backup failed.", `${describeError(err)}\n\nLog: ${log.file}`);
+    await message(
+      "error",
+      "Backup failed",
+      "The automatic backup failed.",
+      `${describeError(err)}\n\nLog: ${log.file}`,
+    );
   }
 }
 
@@ -285,14 +310,23 @@ async function restoreAction(): Promise<void> {
   const srv = server;
   const task = (async () => {
     if (busy) await busy;
-    await backupDatabase("pre-restore", { target: cfg.sql, backupDir: cfg.backupDir, copyDir: settings.get().backupCopyDir, log });
+    await backupDatabase("pre-restore", {
+      target: cfg.sql,
+      backupDir: cfg.backupDir,
+      copyDir: settings.get().backupCopyDir,
+      log,
+    });
     await srv.stopAndWait();
     try {
       await restoreDatabase(file, { target: cfg.sql, backupDir: cfg.backupDir, log });
       // An older backup may predate the current schema: upgrade it.
       await applyDatabaseSchema({ target: cfg.sql, dbDir: paths.dbDir, log });
       const pwd = await ensureAdminAccount(cfg.sql, loadArgon2(), log);
-      if (pwd) await showAdminCredentials(pwd, "The restored data had no active administrator, so one was created.");
+      if (pwd)
+        await showAdminCredentials(
+          pwd,
+          "The restored data had no active administrator, so one was created.",
+        );
     } finally {
       const url = await srv.start();
       mainWindow?.loadURL(url).catch(() => undefined);
@@ -374,30 +408,54 @@ async function bootstrap(): Promise<void> {
       log,
       onRestarted: (url) => mainWindow?.loadURL(url).catch(() => undefined),
       onFatal: (msg) => {
-        void message("error", "Project Manager stopped", msg, `Please restart the app.\nLog: ${log.file}`);
+        void message(
+          "error",
+          "Project Manager stopped",
+          msg,
+          `Please restart the app.\nLog: ${log.file}`,
+        );
       },
     });
     const url = await server.start();
 
     if (adminPassword) {
       splash?.hide();
-      await showAdminCredentials(adminPassword, "Welcome! Sign in with this administrator account.");
+      await showAdminCredentials(
+        adminPassword,
+        "Welcome! Sign in with this administrator account.",
+      );
     }
 
     mainWindow = createMainWindow(url);
-    initTray(paths.icon, {
-      open: showMain,
-      backupNow: () => void backupNowAction(),
-      openBackupsFolder: () => void shell.openPath(settings.get().backupCopyDir),
-      chooseBackupCopyFolder: () => void chooseBackupCopyFolder(),
-      restore: () => void restoreAction(),
-      resetAdminPassword: () => void resetAdminAction(),
-      openLogs: () => void shell.openPath(path.dirname(log.file)),
-      quit: () => app.quit(),
+    initTray(
+      paths.icon,
+      {
+        open: showMain,
+        backupNow: () => void backupNowAction(),
+        openBackupsFolder: () => void shell.openPath(settings.get().backupCopyDir),
+        chooseBackupCopyFolder: () => void chooseBackupCopyFolder(),
+        restore: () => void restoreAction(),
+        resetAdminPassword: () => void resetAdminAction(),
+        openLogs: () => void shell.openPath(path.dirname(log.file)),
+        quit: () => app.quit(),
+      },
+      app.getVersion(),
+    );
+    const updater = setupAutoUpdater(log, {
+      getWindow: () => mainWindow,
+      prepareToQuit: async () => {
+        quitting = true;
+        // Never cut a backup/restore off half-way for an update.
+        if (busy) await busy.catch(() => undefined);
+      },
+      onReadyChanged: setTrayUpdateReady,
     });
-    setupAutoUpdater(() => mainWindow, log, () => {
-      quitting = true;
-    });
+    if (updater) {
+      setTrayUpdateActions({
+        checkForUpdates: () => void updater.checkNow(),
+        installUpdate: () => void updater.installNow(),
+      });
+    }
 
     setTimeout(() => void backupIfDue(), 30_000);
     setInterval(() => void backupIfDue(), BACKUP_CHECK_MS);

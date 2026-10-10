@@ -35,7 +35,7 @@ export function ErrorState({ title, onRetry }: { title?: string; onRetry?: () =>
         <button
           type="button"
           onClick={onRetry}
-          className="mt-2 inline-flex min-h-10 items-center rounded-md border border-line bg-surface px-6 text-sm font-medium text-ink"
+          className="mt-2 inline-flex min-h-11 items-center rounded-md border border-line bg-surface px-6 text-sm font-medium text-ink"
         >
           {messages.app.retry}
         </button>
@@ -80,10 +80,7 @@ export function listEmptyState(
 ): React.ReactNode {
   if (filtersActive) {
     return (
-      <EmptyState
-        title={messages.list.zeroResultsTitle}
-        body={messages.list.zeroResultsBody}
-      />
+      <EmptyState title={messages.list.zeroResultsTitle} body={messages.list.zeroResultsBody} />
     );
   }
   return <EmptyState title={messages.list.emptyTitle} body={emptyBody} action={newAction} />;

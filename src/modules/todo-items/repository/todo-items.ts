@@ -67,6 +67,8 @@ export interface TodoListFilters {
   status?: string | null;
   priority?: string | null;
   projectOrActivity?: string | null;
+  /** Only project-less to-dos (the cross-project page's "No project" filter). */
+  withoutProject?: boolean;
 }
 
 export async function listTodoItems(
@@ -83,6 +85,7 @@ export async function listTodoItems(
     Status: filters.status ?? null,
     Priority: filters.priority ?? null,
     ProjectOrActivity: filters.projectOrActivity ?? null,
+    WithoutProject: filters.withoutProject ?? false,
   });
   return rows.map((r) => todoItemListRowSchema.parse(r));
 }
@@ -149,9 +152,14 @@ export async function getUpcomingAlertRows(actorUserId: number): Promise<Upcomin
  * Used by the 60-second client poller to fire browser notifications.
  * Reuses the UpcomingAlertRow shape — proc returns the same columns.
  */
-export async function getDueAlerts(actorUserId: number): Promise<DueAlertRow[]> {
+export async function getDueAlerts(
+  actorUserId: number,
+  /** The browser's wall-clock now (alerts are wall-clock times); null = UTC (server callers). */
+  localNow: Date | null = null,
+): Promise<DueAlertRow[]> {
   const rows = await execProc<DueAlertRow>("usp_Todo_GetDueAlerts", {
     ActorUserId: actorUserId,
+    LocalNow: localNow,
   });
   return rows.map((r) => dueAlertRowSchema.parse(r));
 }

@@ -1,0 +1,95 @@
+name: Desktop Release
+
+# Builds the Windows installer and publishes it as a GitHub Release. Installed
+# desktop apps watch this repo's latest release and offer the update
+# (docs/DESKTOP.md → "Updates"). Called by ci.yml once every CI job passed on a
+# push to develop (a merged PR). Skipped when nothing that reaches the app
+# changed since the last release.
+#
+# "[force-update]" in the PR title (or the pushed commit message) makes the
+# release required: installed apps warn, then restart to install it.
+
+on:
+  workflow_call:
+
+jobs:
+  release:
+    name: Build & publish installer
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    # One release at a time; a newer merge waits instead of racing for the version number.
+    concurrency:
+      group: desktop-release
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags + history: change check and release notes
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Plan release
+        id: plan
+        run: node scripts/desktop/release.mjs plan
+
+      - name: Install dependencies
+        if: steps.plan.outputs.skip != 'true'
+        env:
+          # electron-builder downloads its own Electron build; skip the dev binary.
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        run: npm ci --prefer-offline
+
+      - name: Cache SQL Server Express media
+        if: steps.plan.outputs.skip != 'true'
+        uses: actions/cache@v4
+        with:
+          path: installers/sql-express
+          key: sql-express-${{ hashFiles('scripts/desktop/sql-express.pin.json') }}
+
+      - name: Build installer
+        if: steps.plan.outputs.skip != 'true'
+        env:
+          PM_VERSION: ${{ steps.plan.outputs.version }}
+          PM_UPDATE_GITHUB: ${{ github.repository }}
+        run: npm run electron:build
+
+      - name: Update policy and release notes
+        if: steps.plan.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+          PREVIOUS: ${{ steps.plan.outputs.previous }}
+          FORCE: ${{ steps.plan.outputs.force }}
+        run: node scripts/desktop/release.mjs finalize
+
+      - name: Publish GitHub Release
+        if: steps.plan.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: |
+          exe="dist-installer/ProjectManager-Setup-${VERSION}.exe"
+          gh release create "v${VERSION}" \
+            "$exe" "$exe.blockmap" "$exe.sha256" dist-installer/latest.yml \
+            --target "${GITHUB_SHA}" \
+            --title "Project Manager ${VERSION}" \
+            --notes-file dist-installer/release-notes.md \
+            --latest
+
+      - name: Remove old releases
+        if: steps.plan.outputs.skip != 'true'
+        env:
+          # Older releases stay for differential downloads from PCs a few versions behind.
+          KEEP_RELEASES: "10"
+        run: node scripts/desktop/release.mjs prune

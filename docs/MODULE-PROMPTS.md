@@ -4,44 +4,61 @@ Ready-to-paste prompts for the agent sessions that build the rest of the app.
 Written 2026-10-06 against `develop` @ `ffaf6e6` (12 modules merged: projects,
 stakeholders, suppliers, keywords, key-deliverables, objectives, questions-answers,
 assumptions-constraints, parking-lot, daily-activities, todo-items/alerts, auth).
+**Updated 2026-10-09** after S1 (ADR-0021) and the client-feedback phase **CF**
+(ADR-0022/0023/0024, migrations 018–021): the migration numbers and §0 below include them.
+
+**Status 2026-10-09:**
+
+| Prompt | State | Where |
+|---|---|---|
+| S1 | Done; pushed, not merged | `fix/idor-getbyid` @ dd71e2d |
+| CF | Done; pushed 2026-10-09, CI pending, not merged | `feature/datasheet` (hand-off: `.agent-scratch/datasheet/HANDOFF.md`) |
+| P1 | ADR only (bf92cdf). Before implementing: renumber it ADR-0025, fix its date, move it to Tiptap v3 | `feature/rich-text` |
+| F1 | Not started | — |
+| Waves 2–8 | Not started | — |
 
 **How to use:** one prompt = one session = one branch = one PR. Paste **§0 Common
-rules** first, then the prompt. Run prompts in the wave order below; prompts in the
-same wave can run in parallel (max 3 sessions, one worktree each — see
-`COORDINATION.md`). Do not start a prompt before the PRs it depends on are merged
-to `develop`, and create its worktree from the updated `develop`.
+rules** first, then the prompt. Run prompts in the wave order below, one session at
+a time in the main checkout. The multi-worktree setup in `COORDINATION.md` was retired
+on 2026-10-08 and that file is history. Do not start a prompt before the PRs it depends
+on are merged to `develop`, and branch from the updated `develop`.
 
 ## Order, dependencies, parallel waves
 
 | Wave | Prompt | Branch | Depends on | Migration no. (reserved) |
 |---|---|---|---|---|
-| 1 | **S1** Security & data fixes (IDOR, stakeholder vocab) | `fix/idor-getbyid` | — | — |
+| 1 | **S1** Security & data fixes (IDOR, stakeholder vocab) — **done** | `fix/idor-getbyid` | — | 017 (used) |
+| 1 | **CF** Client feedback: datasheet, managed lists, layout/colours, alarms, per-person permissions — **done** | `feature/datasheet` | S1 | 018–021 (used) |
 | 1 | **P1** Shared rich-text editor + HTML sanitiser | `feature/rich-text` | — | — |
-| 1 | **F1** File attachments (uploads) | `feature/file-storage` | — | 017 |
-| 2 | **M1** Meetings — database & server layer | `feature/meetings-data` | S1 | 019 |
-| 2 | **R1** Risks & issues — database & server layer | `feature/risks-issues-data` | S1 | 018 |
-| 2 | **I1** IT resource planning — database & server layer | `feature/it-resources-data` | S1 | 020 |
+| 1 | **F1** File attachments (uploads) | `feature/file-storage` | — | 022 |
+| 1 | **D1** Desktop shell on develop + automatic desktop releases/updates | `feature/desktop-shell` | — | — |
+| 2 | **M1** Meetings — database & server layer | `feature/meetings-data` | S1, CF | 024 |
+| 2 | **R1** Risks & issues — database & server layer | `feature/risks-issues-data` | S1, CF | 023 |
+| 2 | **I1** IT resource planning — database & server layer | `feature/it-resources-data` | S1, CF | 025 |
 | 3 | **M2** Meetings — list + meeting workspace header | `feature/meetings-workspace` | M1, P1 | — |
 | 3 | **R2** Risks & issues — UI merged with assumptions | `feature/risks-issues-ui` | R1, P1 | — |
 | 3 | **I2** IT resource planning — UI | `feature/it-resources-ui` | I1, P1 | — |
 | 4 | **M3** Meetings — participants (attended / apologies) | `feature/meetings-participants` | M2 | — |
-| 4 | **N1** Notes — database, server layer, notes workspace | `feature/notes` | P1, S1 | 021 |
-| 4 | **FI1** Financials — database & server layer | `feature/financials-data` | F1, S1 | 022 |
+| 4 | **N1** Notes — database, server layer, notes workspace | `feature/notes` | P1, S1, CF | 026 |
+| 4 | **FI1** Financials — database & server layer | `feature/financials-data` | F1, S1, CF | 027 |
 | 5 | **M4** Meetings — agenda → discussion → action items, printable minutes | `feature/meetings-minutes` | M3 | — |
 | 5 | **FI2** Financials — UI (breakdown, document checklist, tracking export) | `feature/financials-ui` | FI1 | — |
-| 5 | **F2** Backup status + GitHub-based restore | `feature/backup-status` | F1 | 023 |
+| 5 | **F2** Backup status + GitHub-based restore | `feature/backup-status` | F1 | 028 |
 | 6 | **A1** Admin — users & roles | `feature/admin-users` | S1 | — |
-| 6 | **A2** Admin — audit viewer, backup status panel, settings | `feature/admin-audit` | A1, F2 | 024 |
-| 7 | **RP1** Reports — infrastructure + per-module reports | `feature/reports` | all domain modules | 025 (if needed) |
+| 6 | **A2** Admin — audit viewer, backup status panel, settings | `feature/admin-audit` | A1, F2 | 029 |
+| 7 | **RP1** Reports — infrastructure + per-module reports | `feature/reports` | all domain modules | 030 (if needed) |
 | 7 | **C1** CI/CD & security automation (GitHub) | `chore/ci-security` | — (any time) | — |
 | 8 | **RP2** Reports — detailed project report + dynamic report builder | `feature/reports-builder` | RP1 | — |
 
 Migration numbers are reserved so parallel sessions don't collide (`014`/`015`
-already exist twice — do not add more duplicates). If your number is already taken
-when you open the PR, take the next free number and say so in the PR. Never edit a
-migration that is merged.
+already exist twice — do not add more duplicates). S1 and CF used 017–021, so on
+2026-10-09 every open reservation moved up by five (F1 017→022, R1 018→023, M1 019→024,
+I1 020→025, N1 021→026, FI1 022→027, F2 023→028, A2 024→029, RP1 025→030). If your
+number is already taken when you open the PR, take the next free number and say so in
+the PR. Never edit a migration that is merged. The next free ADR number is **0025**:
+P1 takes it, because develop's ADR-0020 is web push.
 
-**Desktop edition follow-ups** (done in the desktop branch, not by these prompts):
+**Desktop edition follow-ups** (done on a desktop branch, not by these prompts):
 after **F1** merges, the desktop host must set `UPLOADS_DIR` to
 `%ProgramData%\Project Manager\Uploads` and include that folder in its backups;
 after **F2**, record desktop backups through `usp_Backup_RecordRun`.
@@ -54,26 +71,49 @@ after **F2**, record desktop backups through `usp_Backup_RecordRun`.
 COMMON RULES — Project Manager rebuild (Next.js 16 App Router + SQL Server 2022, stored procedures only)
 
 WORKSPACE
-- You work ONLY inside your worktree folder C:\Users\user\Documents\Coding\Burton\projectmanager-<KEY>
-  on branch <BRANCH> (created from origin/develop). Every file read/write and every git/terminal
-  command runs inside that folder. Never run git checkout / switch / stash to change branches.
-- node_modules is a shared junction: never run npm install / npm ci. If you need a new package,
-  write the ADR (ADR-0014 policy) and STOP to ask the coordinator to install it; give the exact
-  package names and versions.
+- Work in the main checkout C:\Users\user\Documents\Coding\Burton\projectmanager on branch
+  <BRANCH>, created from the updated develop. Do not create git worktrees. Before switching
+  branches, commit work in progress to a pushed wip/* branch; never stash or discard it silently.
+- Don't install packages on your own. If you need a new package, write the ADR (ADR-0014 policy)
+  and STOP to ask the user to approve the install; give the exact package names and versions.
+  After switching to a branch whose lockfile differs (develop carries the Electron desktop
+  shell once D1 merges), run npm ci. Before deleting any folder, read LESSONS §19 (junctions).
+- Ask the user before every commit and every push. Commit messages never carry a
+  Co-Authored-By line. Don't launch subagents; if one is truly needed, use model "sonnet".
 
 READ FIRST (in order): LESSONS.md (repo ROOT — canonical; docs/LESSONS.md is a stale copy),
 docs/AGENTS.md, docs/STANDARDS.md (esp. §12 Definition of Done), docs/MODULE-BLUEPRINT.md,
 docs/PLAN.md §2/§4/§9/§10, docs/TRACEABILITY.md, docs/source/analysis/ (requirements.md,
 access-database.md, excel-workbook.md, hololens-presentation.md — the verified source of truth;
-never open or modify the binaries in docs/source/), docs/adr/ (ADR-0001..0021 — ADR-0021 is
-the access model: global role Admin|User + per-project access level Viewer|Contributor|Manager).
-Reference implementations: parking-lot (most complete proc pattern) and assumptions-constraints
-(src/modules/<m>, src/app/(app)/projects/[id]/<m>/page.tsx, db/procs/<entity>/, e2e/<m>*.spec.ts).
+never open or modify the binaries in docs/source/), docs/adr/ (ADR-0001..0024). Four of them
+change how every module is built:
+  ADR-0021 the access model: global role Admin|User + per-project level Viewer|Contributor|Manager;
+  ADR-0022 managed dropdown lists (Admins edit values, colours and order in the app);
+  ADR-0023 DataView datasheet mode (list view is an Access-style editable grid);
+  ADR-0024 per-person permission overrides (a project Manager grants or revokes
+  create/update/delete per section for one member).
+Where STANDARDS.md or MODULE-BLUEPRINT.md disagree with these ADRs, the ADRs win.
+Reference implementations: parking-lot (most complete proc + datasheet pattern),
+assumptions-constraints, and daily-activities (cross-project list with a Project column and a
+project filter) — see src/modules/<m>, src/app/(app)/projects/[id]/<m>/page.tsx,
+db/procs/<entity>/, e2e/<m>*.spec.ts.
 
 CI / HOSTING FACTS (docs are partly stale)
 - The repo is on GitHub; CI is .github/workflows/ci.yml. Open a PULL REQUEST to develop.
   Ignore GitLab-only instructions in older docs (glab, MR templates, Duo flows, Package Registry,
-  job-trace scraping, SCHEDULE_JOB). A commit message containing [e2e] runs Playwright in CI.
+  job-trace scraping, SCHEDULE_JOB, the [db] flag).
+- CI runs on pushes to main, develop and feature/** only; a fix/** branch gets no CI until it has
+  a PR. Every run does lint (including prettier format:check), typecheck, unit tests, build, and
+  db-apply. db-apply applies all migrations, procs and seeds twice on a clean SQL Server 2022,
+  then checks db/verify/seed_counts.sql. Playwright runs only when the head commit message
+  contains [e2e].
+- Local SQL Server is 2019 Express (compat 150), so write T-SQL that runs on both versions.
+  2022-only syntax is out: IS DISTINCT FROM, GREATEST/LEAST, DATETRUNC, JSON_OBJECT/JSON_ARRAY.
+- On a Windows checkout run prettier as `npx prettier --check --end-of-line auto <files>`.
+- Every push to develop with all CI jobs green also publishes a desktop release
+  (.github/workflows/desktop-release.yml, docs/DESKTOP.md "Updates"): installed apps are offered
+  the update. Never put [force-update] in a PR title unless the user asks for it — it makes every
+  installed app restart to install the release.
 - The app ALSO ships as an offline Windows desktop app (Electron + local SQL Server Express 2022,
   loopback only). Therefore: no runtime network calls to other hosts (no CDNs, web fonts, external
   APIs); file-system paths only from validated env vars with safe defaults (src/lib/env.ts) — never
@@ -92,14 +132,46 @@ DATABASE STANDARD (apply to every proc you create or touch)
   Child tables load the parent's ProjectId first (NOT_FOUND 50001 when absent) or call an entity
   wrapper (usp_TodoItem_AssertAccess, usp_TodoAlert_AssertAccess, usp_DailyActivity_AssertAccess).
   GetById distinguishes NOT_FOUND (50001) from FORBIDDEN_ROW.
+- Per-person overrides (ADR-0024). Every project section except the charter and team can be
+  overridden. Register a new section in all three places, or the guardrail tests fail:
+    1. OVERRIDABLE_MODULES in src/lib/auth/rbac.ts (keep it sorted);
+    2. the [Module] NOT IN (...) list in db/procs/project-permission/usp_ProjectPermission_Set.sql;
+    3. SECTION_LABELS in src/modules/projects/components/permission-matrix.ts.
+  Then every write-level check of that module also names its permission:
+    EXEC dbo.usp_Project_AssertAccess ..., @MinLevel = N'Contributor', @Permission = N'<module>:create';
+  src/tests/proc-access-levels.test.ts fails when a write check omits @Permission or names the
+  wrong one. Reads never pass @Permission; reading follows the level.
+- Vocabularies are managed dropdown lists (ADR-0022), not CHECK constraints or code enums. Do all
+  five steps, or src/tests/lookup-lists.test.ts fails:
+    1. seed each list in your migration with the same (N'<entity>.<field>', N'<label>', <sort>,
+       <locked>) rows as 018_lookup_list.sql, and lock every label the code reads;
+    2. add the key to LOOKUP_LISTS in src/lib/lookup-lists.ts;
+    3. add a rename-cascade line for each text-bound list in usp_LookupList_Set;
+    4. add your migration file to the list that src/tests/lookup-lists.test.ts reads;
+    5. validate in Create/Update with:
+         EXEC dbo.usp_LookupList_AssertLabel @ListKey = N'…', @Label = @X OUTPUT, @CurrentLabel = …;
+       (usp_LookupList_AssertOption for id-bound lists). An unchanged legacy value passes;
+       a changed value must be a live option.
+  Discriminators the code branches on stay CHECKs or enums (e.g. to-do ProjectOrActivity, alert
+  RepeatUnit, IT resource CategoryKey).
 - Validate parents exist and are not deleted (50001/50004) instead of letting FK error 547 escape;
-  validate vocabularies with 50004; duplicates 50005. Error format THROW 5000x, N'CODE:message', 1 (ADR-0012).
+  duplicates 50005. Error format THROW 5000x, N'CODE:message', 1 (ADR-0012).
+- Shared rules as inline TVFs are named ufn_<Entity>_<Noun>, one per file in db/procs/<folder>/.
+  db-apply runs files in sorted path order, so the function's folder must sort before its
+  callers' folders (that is why access-level/ comes first).
 - Parent/project keys are immutable on Update (accepted but ignored) unless the prompt says otherwise.
 - RowVer check INSIDE the transaction; audit row (before/after FOR JSON PATH) in the same transaction.
 - List procs exactly per ADR-0016 (+ nullable module filters), LIKE wildcards escaped (ESCAPE N'\'),
   stable final tiebreaker on the PK; when @ProjectId is supplied, assert @MinLevel = N'Viewer';
   without it, filter to the actor's projects (EXISTS on app.ProjectAssignee with a table-qualified
   ProjectId; Admins see all) — parking-lot behaviour.
+- Every DataView list proc returns, per row, the columns the datasheet uses to gate its cells:
+    ActorAccess (ADR-0023), from CROSS APPLY dbo.ufn_AccessLevel_Resolve(...);
+    ActorGrants and ActorRevokes (ADR-0024), from
+      OUTER APPLY dbo.ufn_Permission_Overrides(@ActorRole, @ActorUserId, <alias>.ProjectId, N'<module>').
+  @ActorRole is read inside the proc from auth.[User], never passed in. Copy
+  usp_ParkingLotItem_List. Lists shown across projects (like daily activities) also return
+  ProjectName and take @WithoutProject BIT = 0.
 - Soft delete; deleting a parent soft-deletes its children in the same transaction.
 - Seeds are verbatim from access-database.md §4 and their counts are asserted by
   db/verify/seed_counts.sql — do not add or drop seed rows unless the prompt says so.
@@ -113,6 +185,19 @@ APP STANDARD
   call router.refresh() (LESSONS §17).
 - DataView for every list (never fork it); detail/edit per ADR-0010 (Sheet unless the prompt says
   full route); ConfirmDialog for destructive actions; unsaved-changes guard; forms per ADR-0009.
+- List view is a datasheet (ADR-0023) and the default view. Wire it like
+  parking-lot-view.tsx and its page:
+    - columns: build them with the factories in src/components/ui/data-view/columns.tsx
+      (text/number/date/list/boolean/project);
+    - cell edits: pass `datasheet`, with formCellSaver(<x>FormValues, update<X>Action) for saves and
+      rowAllows("<module>:<verb>") for per-row gates (src/lib/auth/actor-access.ts), so the row
+      schema spreads actorAccessFields;
+    - dropdowns: declare <X>_LISTS, wrap the page in LookupListsScope (loadLookupLists), and use
+      listChoice/listValue fields in schemas and ListOptions/ListFilter in sheets and toolbars;
+    - layout: the page loads getListPreference(session.userId, "<module>") and passes
+      initialView = initialViewOf(params.view, pref?.viewMode) and layout = pref?.layout to the view.
+  The datasheet's empty-cell placeholders ("[New … name…]", in messages.<module>.placeholders) are
+  a documented, client-requested exception to the no-hints rule.
 - All copy in src/lib/messages.ts (tone test enforces it); no hints, tooltips or helper text;
   44 px touch targets; mobile-first from 360 px; WCAG 2.2 AA (axe: 0 serious/critical);
   per-route first-load JS ≤ 170 kB gzip (lazy-load heavy components).
@@ -120,10 +205,11 @@ APP STANDARD
   (Admin | User). Inside a project the access level decides: Viewer reads; Contributor also
   creates/updates on CONTRIBUTOR_WRITE_MODULES; Manager does everything incl. delete. Add your
   module key to CONTRIBUTOR_WRITE_MODULES if project Contributors may write (append, keep sorted),
-  and register your proc folder in src/test/proc-access-levels.test.ts (MODULES map) — it fails
+  and register your proc folder in src/tests/proc-access-levels.test.ts (MODULES map) — it fails
   when a proc's @MinLevel disagrees with requiredLevel() or a proc skips the access check.
 - Pages: const allows = await getProjectPermissions(projectId, session.userId) and show actions
-  with allows("<module>:<verb>"); never can(session.role, …) on a project page. Wrap section loads
+  with allows("<module>:<verb>"). It already applies the actor's per-person overrides; never use
+  can(session.role, …) on a project page. Wrap section loads
   in orNotFound(...) and sheet lookups in orNull(...) (src/lib/row-access.ts) so an inaccessible
   project or record looks exactly like a missing one.
 - Project-scoped sections live under src/app/(app)/projects/[id]/<segment>/ and are registered in
@@ -131,13 +217,18 @@ APP STANDARD
   array (otherwise the section does not appear in the nav).
 
 SHARED FILES (edited by many sessions — append only, in your own namespace, merge origin/develop
-before your final push): src/lib/messages.ts, src/lib/auth/rbac.ts,
-src/components/shell/project-sections.ts, playwright.config.ts (testMatch regexes),
+before your final push): src/lib/messages.ts, src/lib/auth/rbac.ts, src/lib/lookup-lists.ts,
+src/components/shell/project-sections.ts, src/modules/projects/components/permission-matrix.ts,
+db/procs/lookup-list/usp_LookupList_Set.sql, db/procs/project-permission/usp_ProjectPermission_Set.sql,
+src/tests/*.test.ts (guardrail registries), playwright.config.ts (testMatch regexes),
 db/README.md, db/verify/seed_counts.sql, docs/TRACEABILITY.md.
 
 WORKFLOW
 - Baseline first: npm run test and note pre-existing failures (LESSONS §18) so you don't chase them.
-- Commit + push small checkpoints often ("[skip ci]"), Conventional Commits. Push before long jobs.
+- Commit small checkpoints often ("[skip ci]"), Conventional Commits, once the user has approved
+  committing in this session; push only with the user's OK, and push before long jobs.
+- Unit tests go in ONE tests/ folder per module (src/modules/<module>/tests/); cross-cutting
+  guardrails go in src/tests/.
 - Before asking for review: npm run lint && npm run typecheck && npm run test && npm run build, then
   self-check against STANDARDS §12. Final push with [e2e] in the message; watch CI to green.
 - Tests: Vitest for schemas, repository (mock execProc; assert no ActorRole is sent) and every
@@ -156,6 +247,10 @@ WORKFLOW
 ## Wave 1
 
 ### S1 — Security & data fixes
+
+> **DONE 2026-10-08** on `fix/idor-getbyid` (dd71e2d, pushed, not merged). It went further
+> than this prompt: ADR-0021 replaced the `@ActorRole` approach below with procs that resolve
+> the actor's role and project level themselves. Kept for history; do not re-run it.
 
 ```text
 KEY=security-fixes  BRANCH=fix/idor-getbyid
@@ -191,6 +286,16 @@ RBAC decision recorded; full test suite green; finding doc closed.
 
 ```text
 KEY=rich-text  BRANCH=feature/rich-text
+
+Status 2026-10-09: only step 1 exists — docs/adr/ADR-0020-rich-text-editor-and-sanitiser.md on
+feature/rich-text (bf92cdf). Before implementing, fix that ADR:
+  (a) renumber it ADR-0025 (develop's ADR-0020 is web push) and fix its README row;
+  (b) its date says 2026-10-10 (in the future) — set the real date;
+  (c) it pins Tiptap v2 ("^2"), but npm's latest was 3.31.4 on 2026-10-08. Move to v3 and redo
+      the dependency table from the v3 docs: several v2 extensions were folded into kits;
+  (d) pin sanitize-html (latest 2.18.0).
+Merge the updated develop (with S1 and CF) into the branch first. The branch carries the
+Electron desktop shell: run npm ci after switching to it.
 
 Goal: one shared, accessible, Word-like rich-text editor and a server-side HTML sanitiser that
 Notes, Meetings, Risks, IT resource planning and Financials will reuse (checklist rows 17-20,
@@ -243,7 +348,7 @@ src/lib; demo + tests green; first-load JS budget respected; no network requests
 ### F1 — File attachments
 
 ```text
-KEY=file-storage  BRANCH=feature/file-storage  MIGRATION=017
+KEY=file-storage  BRANCH=feature/file-storage  MIGRATION=022
 
 Goal: module #16 part 1 (issue #22, checklist rows 43-44): secure file attachments that any
 module can use, plus the "where are the files stored" field. Financials (FI1) is the first real
@@ -264,7 +369,7 @@ Do:
    vs link tables; upload transport (Route Handler POST with Origin/Sec-Fetch-Site check + session +
    RBAC, streaming to disk, recommended over raising the Server Action body limit); content-hash
    (SHA-256) dedupe and versioning; quota; delete = soft delete of metadata + orphan sweep.
-2. Migration 017: app.FileAttachment (FileAttachmentId, ProjectId, EntityName, EntityId,
+2. Migration 022: app.FileAttachment (FileAttachmentId, ProjectId, EntityName, EntityId,
    OriginalFileName, ContentType (sniffed), SizeBytes, Sha256, StoragePath (relative), Version,
    StorageLocation NVARCHAR(500) NULL = row 44 "where I put the files" free text for files kept
    elsewhere, e.g. a SharePoint/network path, + standard audit/soft-delete/RowVer columns, indexes).
@@ -298,7 +403,7 @@ and tested; ADR merged; PR lists UPLOADS_DIR under Desktop edition impact.
 ### M1 — Meetings: database & server layer
 
 ```text
-KEY=meetings-data  BRANCH=feature/meetings-data  MIGRATION=019
+KEY=meetings-data  BRANCH=feature/meetings-data  MIGRATION=024
 
 Goal: module #10 (issue #11; checklist rows 12, 13, 53, 54, 72) part 1 of 4 — make the meetings
 data layer correct and secure, and expose it through repositories/actions. No UI (M2-M4 build it).
@@ -324,7 +429,7 @@ Decisions (record in an ADR "Meetings data model"):
   apology (qryMeetingAttendees / qryMeetingApologies).
 
 Do:
-1. Migration 019: Meeting.DateReceived DATE NULL, Meeting.Objective NVARCHAR(MAX) NULL;
+1. Migration 024: Meeting.DateReceived DATE NULL, Meeting.Objective NVARCHAR(MAX) NULL;
    SortOrder INT NOT NULL DEFAULT 0 on agenda items, discussion points and action items (backfill
    by Id); MeetingActionItem.MeetingId INT NULL FK (backfill through agenda/discussion) so actions
    can't be orphaned; filtered unique index (MeetingId, StakeholderId) WHERE IsDeleted = 0 on
@@ -356,7 +461,7 @@ db/README.md updated; CI green.
 ### R1 — Risks & issues: database & server layer
 
 ```text
-KEY=risks-issues-data  BRANCH=feature/risks-issues-data  MIGRATION=018
+KEY=risks-issues-data  BRANCH=feature/risks-issues-data  MIGRATION=023
 
 Goal: module #13 (issue #14; checklist row 38) part 1 of 2 — data layer and server slice.
 
@@ -375,12 +480,18 @@ Decisions (ADR "Risk & issue vocabularies"):
   Priority and Probability = Low | Medium | High. Impact = the checklist's dimension list
   Cost | Schedule | Scope; legacy level values ('Low') stay readable (vocab enforced on write only
   for changed fields; show legacy values as-is). Write that rule down explicitly.
+- Implement the five vocabularies as managed lists (ADR-0022; §0 "Vocabularies"): seed
+  risk-issue.category, .status, .priority, .impact and .probability in migration 023 with the
+  values above. Lock every label the code reads (e.g. Status "Closed" for the overdue rule).
+  usp_LookupList_AssertLabel already keeps an unchanged legacy value, which is exactly the
+  "changed fields only" rule. Give Priority's High a colour (the user wants high-priority rows to
+  stand out) and set TintRows like the other priority lists (migration 020).
 - Title required on create/update; the migration backfills existing rows with the first 100
   plain-text characters of Description.
 - Contributors may create/update risks (operational module like assumptions) — add the key.
 
 Do:
-1. Migration 018: Title NVARCHAR(200) NULL + backfill (then NOT NULL if every row has one),
+1. Migration 023: Title NVARCHAR(200) NULL + backfill (then NOT NULL if every row has one),
    indexes for sorts (DueDate, DateIdentified, Priority).
 2. Rewrite the 5 procs to the database standard; List filters @Category @Status @Priority, search
    Title/Description(plain)/Owner, sorts Title, DateIdentified, DueDate, Priority, Status.
@@ -395,7 +506,7 @@ Acceptance: as above, ADR merged, CI green. UI follows in R2.
 ### I1 — IT resource planning: database & server layer
 
 ```text
-KEY=it-resources-data  BRANCH=feature/it-resources-data  MIGRATION=020
+KEY=it-resources-data  BRANCH=feature/it-resources-data  MIGRATION=025
 
 Goal: module #15 (issue #16; checklist rows 21-22, PPTX slide 1) part 1 of 2, plus the decision
 on ExistingSystemInterface (open question Q4 in docs/ux/project-workspace-navigation.md assigns
@@ -427,7 +538,7 @@ Decisions (ADR "IT resource planning model"):
   ("Existing systems & interfaces"); record the Q4 answer in the ADR and the UX doc.
 
 Do:
-1. Migration 020: CategoryKey + CHECK, SortOrder on both tables (backfill), unique
+1. Migration 025: CategoryKey + CHECK, SortOrder on both tables (backfill), unique
    (ProjectId, CategoryKey) for the five canonical keys (filtered: not for Other).
 2. Rewrite the category/item/interface procs to the database standard (items resolve the project
    through the category; category delete cascades). New: usp_ItResourcePlan_Get @ProjectId (port
@@ -561,7 +672,7 @@ unchanged and green.
 ### N1 — Notes
 
 ```text
-KEY=notes  BRANCH=feature/notes  MIGRATION=021
+KEY=notes  BRANCH=feature/notes  MIGRATION=026
 
 Goal: module #14 (issue #15; rows 17-20, 42, 56, 62) — notes per project that behave like a Word
 document with titled tabs and tables (P1 editor).
@@ -573,13 +684,13 @@ NoteTab_List/GetById have no scope, no reorder verb, Note_List searches raw HTML
 the notes editor a full route. notes is already in CONTRIBUTOR_WRITE_MODULES.
 
 Decision (ADR "Notes model"): a Note is a notebook; its pages are NoteTabs (each with a title =
-row 19 "a title associated to each tab"). Migration 021 converts each existing Note's
+row 19 "a title associated to each tab"). Migration 026 converts each existing Note's
 Title/Content into its first NoteTab (Note.Title stays as the notebook title; Note.Content no
 longer edited) — update db/verify/seed_counts.sql for NoteTab accordingly (7) and explain why in
 the PR. Plain-text search columns maintained by the procs (no HTML LIKE search).
 
 Do:
-1. Migration 021 (+ SearchText columns), rewrite note/note-tab procs to the database standard
+1. Migration 026 (+ SearchText columns), rewrite note/note-tab procs to the database standard
    (tabs resolve project through the note; cascade delete), add usp_NoteTab_Reorder and
    usp_Note_GetWithTabs.
 2. src/modules/notes server slice (rich text via P1).
@@ -597,7 +708,7 @@ Acceptance: rows 17-20, 42, 56, 62 satisfied; seed verification updated consiste
 ### FI1 — Financials: database & server layer
 
 ```text
-KEY=financials-data  BRANCH=feature/financials-data  MIGRATION=022
+KEY=financials-data  BRANCH=feature/financials-data  MIGRATION=027
 
 Goal: module #17 (issue #17; rows 23, 24, 64, PPTX slide 2) part 1 of 2.
 
@@ -616,7 +727,7 @@ Demande de Signature, Requisition, A1, Signed Direct Contract; "Reason for not c
 DAS OR DO?". F1 attachments are merged.
 
 Do:
-1. Migration 022 only if needed (e.g. index for sorts); keep the lookup's original spellings in
+1. Migration 027 only if needed (e.g. index for sorts); keep the lookup's original spellings in
    data and present display labels from messages.
 2. Rewrite financial + financial-document procs to the database standard (documents resolve the
    project through the financial; cascade delete; duplicate → 50005). New:
@@ -690,7 +801,7 @@ Do:
 ### F2 — Backup status + GitHub-based restore
 
 ```text
-KEY=backup-status  BRANCH=feature/backup-status  MIGRATION=023
+KEY=backup-status  BRANCH=feature/backup-status  MIGRATION=028
 
 Goal: module #16 part 2 (rows 43, 65) — every backup and restore rehearsal is recorded and
 visible, and restore works with the GitHub-hosted CI.
@@ -704,7 +815,7 @@ The desktop edition takes its own local verified backups and will record them th
 procs.
 
 Do:
-1. Migration 023: app.BackupRun (BackupRunId, Kind full/diff/log/files/rehearsal/restore,
+1. Migration 028: app.BackupRun (BackupRunId, Kind full/diff/log/files/rehearsal/restore,
    Source ci/desktop/manual, StartedAtUtc, FinishedAtUtc, Succeeded, SizeBytes, Location
    NVARCHAR(500), Checksum, Detail NVARCHAR(MAX), audit cols) — transport-agnostic.
 2. Procs usp_Backup_RecordRun (EXECUTE-able by the job login), usp_Backup_GetStatus (last
@@ -730,8 +841,13 @@ KEY=admin-users  BRANCH=feature/admin-users
 
 Goal: module #22 (issue #23) part 1 — user and role management for Admins.
 
-Facts: auth.[User] + auth.Role (4 fixed roles; the permission matrix is code in rbac.ts — no
-permission tables by design, ADR-0015/0017). Procs exist: usp_User_Create/Update/Deactivate/
+Facts: auth.[User] + auth.Role (two global roles, Admin | User, since ADR-0021; project access
+lives on app.ProjectAssignee.AccessLevel plus per-person overrides in
+app.ProjectPermissionOverride, ADR-0024). The permission matrix is code in rbac.ts, with no
+permission tables by design (ADR-0015/0017). Project teams, titles and overrides are edited on the
+project charter's team grid (title list "project-assignee.title" is an Admin-managed dropdown,
+ADR-0022) — don't duplicate that here. The usp_User_* procs have no row checks yet: add them.
+Procs exist: usp_User_Create/Update/Deactivate/
 SetPassword/BumpSessionVersion/GetById/List, usp_Role_List; SessionVersion bump revokes sessions.
 Missing: updateUser repository wrapper, unlock (FailedLoginCount/LockedUntilUtc reset),
 last-active-admin guard, self-demotion/self-deactivation guard, admin UI and route.
@@ -753,12 +869,12 @@ Do:
 ### A2 — Admin: audit viewer, backup status, settings
 
 ```text
-KEY=admin-audit  BRANCH=feature/admin-audit  MIGRATION=024
+KEY=admin-audit  BRANCH=feature/admin-audit  MIGRATION=029
 
 Goal: module #22 part 2 — audit log viewer, backup status panel, settings page.
 
 Do:
-1. Migration 024: indexes on audit.AuditLog (ActorUserId, OccurredAtUtc) and (Action, OccurredAtUtc).
+1. Migration 029: indexes on audit.AuditLog (ActorUserId, OccurredAtUtc) and (Action, OccurredAtUtc).
 2. usp_Audit_Search (ADR-0016 + filters actor, action, entity name, entity id, date range;
    Admin only) — read-only; the log is append-only.
 3. /admin/audit: DataView with filters; row Sheet shows before/after JSON as a readable diff
@@ -778,7 +894,7 @@ Do:
 ### RP1 — Reports: infrastructure + per-module reports
 
 ```text
-KEY=reports  BRANCH=feature/reports  MIGRATION=025 (only if needed)
+KEY=reports  BRANCH=feature/reports  MIGRATION=030 (only if needed)
 
 Goal: module #21 (issue #21; rows 36, 37, 49) part 1 — printable and downloadable reports for
 every module (ports of the Access rpt*/qry* listed in access-database.md §5).

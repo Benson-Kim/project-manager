@@ -21,7 +21,7 @@ const eslintConfig = defineConfig([
   prettier,
   {
     // Stored-procedure-only data access: forbid raw SQL execution APIs.
-    // (Backstop unit tests: src/test/no-inline-sql.test.ts, db-gateway.test.ts)
+    // (Backstop unit tests: src/tests/no-inline-sql.test.ts, db-gateway.test.ts)
     rules: {
       "no-restricted-syntax": [
         "error",

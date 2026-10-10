@@ -1,6 +1,8 @@
 import { z } from "zod";
+import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
+import { listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
-import { CATEGORY_OPTIONS, PRIORITY_OPTIONS } from "./question-answer";
+import type { QuestionAnswerRow } from "./question-answer";
 
 /**
  * QuestionAnswer form contract — ONE schema shared by the client Sheet form
@@ -16,28 +18,13 @@ const optionalText = (max: number) =>
     .optional()
     .transform((v) => (v ? v : null));
 
-/**
- * An optional enum field that:
- *  - accepts "" (Select default / no selection) and transforms to null
- *  - accepts a valid enum member and passes it through
- *  - rejects any other string
- */
-const optionalEnum = <T extends readonly [string, ...string[]]>(values: T) =>
-  z.preprocess(
-    (v) => (v === "" || v == null ? undefined : v),
-    z.enum(values).optional().transform((v) => v ?? null),
-  );
-
 export const questionAnswerFormSchema = z.object({
   projectId: z.coerce.number().int().positive(),
-  question: z
-    .string()
-    .trim()
-    .min(1, messages.questionsAnswers.questionRequired)
-    .max(4000),
+  question: z.string().trim().min(1, messages.questionsAnswers.questionRequired).max(4000),
   answer: optionalText(4000),
-  category: optionalEnum(CATEGORY_OPTIONS),
-  priority: optionalEnum(PRIORITY_OPTIONS),
+  /** Managed lists (ADR-0022): the proc checks the value against the live options. */
+  category: listChoice,
+  priority: listChoice,
   assignedTo: optionalText(255),
 });
 
@@ -49,3 +36,17 @@ export const updateQuestionAnswerFormSchema = questionAnswerFormSchema.extend({
 });
 
 export type UpdateQuestionAnswerFormValues = z.output<typeof updateQuestionAnswerFormSchema>;
+
+/** A Q&A record as the update form's values — what a datasheet cell edit sends (ADR-0023). */
+export function questionAnswerFormValues(row: QuestionAnswerRow): FormValues {
+  return {
+    questionAnswerId: String(row.QuestionAnswerId),
+    rowVer: String(row.RowVer),
+    projectId: formText(row.ProjectId),
+    question: row.Question,
+    answer: formText(row.Answer),
+    category: formText(row.Category),
+    priority: formText(row.Priority),
+    assignedTo: formText(row.AssignedTo),
+  };
+}

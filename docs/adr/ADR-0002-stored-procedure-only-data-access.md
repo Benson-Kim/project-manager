@@ -15,7 +15,7 @@ no injection surface, and DBA-reviewable query plans.
   parameters and zod-parse every row set.
 - No inline SQL anywhere in `src/` — no `.query()`, no `.batch()`, no SQL strings.
   Enforced twice: ESLint `no-restricted-syntax` and the guardrail test
-  `src/test/no-inline-sql.test.ts` (scans all of `src/` for SQL verbs in literals).
+  `src/tests/no-inline-sql.test.ts` (scans all of `src/` for SQL verbs in literals).
 - Procs are named `usp_<Entity>_<Verb>`, one file per proc under
   `db/procs/<entity>/`, always `CREATE OR ALTER`, applied by `scripts/db-apply.sh`.
 - Migrations `db/migrations/NNN_description.sql` are applied exactly once, tracked in

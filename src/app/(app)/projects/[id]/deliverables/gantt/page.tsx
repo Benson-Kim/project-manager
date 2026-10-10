@@ -4,12 +4,18 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
-import { AppError } from "@/lib/errors";
 import { messages } from "@/lib/messages";
+import { orNotFound } from "@/lib/row-access";
 import { GanttClient } from "@/modules/key-deliverables/components/gantt-client";
 import { PrintButton } from "@/modules/key-deliverables/components/print-button";
 import { getGanttBars } from "@/modules/key-deliverables/repository/key-deliverables";
-import type { AssigneeEntry } from "@/modules/key-deliverables/schemas/key-deliverable";
+import {
+  KEY_DELIVERABLE_LISTS,
+  type AssigneeEntry,
+} from "@/modules/key-deliverables/schemas/key-deliverable";
+import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
+import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
+import { parseProjectId } from "../../project-id";
 
 export const metadata: Metadata = {
   title: `${messages.keyDeliverables.ganttTitle} — ${messages.app.name}`,
@@ -31,16 +37,13 @@ export default async function DeliverablesGanttPage({
 }) {
   const session = await auth.requireSession();
   const { id } = await params;
-  const projectId = Number(id);
-  if (!Number.isInteger(projectId) || projectId < 1) notFound();
+  const projectId = parseProjectId(id);
+  if (projectId === null) notFound();
 
-  let bars;
-  try {
-    bars = await getGanttBars(projectId, session.userId);
-  } catch (err) {
-    if (err instanceof AppError && err.code === "NOT_FOUND") notFound();
-    throw err;
-  }
+  const [bars, lookup] = await Promise.all([
+    orNotFound(getGanttBars(projectId, session.userId)),
+    loadLookupLists(KEY_DELIVERABLE_LISTS, session),
+  ]);
 
   // Derive unique assignees by id across all bars — safe for names containing commas.
   const seenIds = new Set<number>();
@@ -74,11 +77,9 @@ export default async function DeliverablesGanttPage({
       />
       {/* Suspense required: GanttClient calls useSearchParams */}
       <Suspense>
-        <GanttClient
-          allBars={bars}
-          projectId={projectId}
-          allAssignees={allAssignees}
-        />
+        <LookupListsScope {...lookup}>
+          <GanttClient allBars={bars} projectId={projectId} allAssignees={allAssignees} />
+        </LookupListsScope>
       </Suspense>
     </>
   );

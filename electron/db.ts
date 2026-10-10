@@ -8,14 +8,12 @@ export interface DbTarget {
   database: string;
 }
 
-/**
- * Open a pool for desktop host tooling (schema apply, backup, restore, admin
- * bootstrap). The Next.js app itself keeps using src/lib/db.ts.
- */
-export function connect(
+const CONNECT_ATTEMPTS = 3;
+
+function openPool(
   target: DbTarget,
-  database: string = target.database,
-  maxConnections = 4,
+  database: string,
+  maxConnections: number,
 ): Promise<sql.ConnectionPool> {
   return new sql.ConnectionPool({
     server: target.host,
@@ -25,10 +23,35 @@ export function connect(
     database,
     options: { encrypt: true, trustServerCertificate: true },
     pool: { max: maxConnections, min: 0, idleTimeoutMillis: 30_000 },
-    connectionTimeout: 15_000,
+    connectionTimeout: 30_000,
     // Backups / restores / migrations on a slow laptop can take minutes.
     requestTimeout: 30 * 60_000,
   }).connect();
+}
+
+/** A busy PC (just updated, antivirus scanning, low memory) — worth another try. Not a wrong password. */
+function isTransient(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null)?.code;
+  return code === "ETIMEOUT" || code === "ESOCKET";
+}
+
+/**
+ * Open a pool for desktop host tooling (schema apply, backup, restore, admin
+ * bootstrap). The Next.js app itself keeps using src/lib/db.ts.
+ */
+export async function connect(
+  target: DbTarget,
+  database: string = target.database,
+  maxConnections = 4,
+): Promise<sql.ConnectionPool> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await openPool(target, database, maxConnections);
+    } catch (err) {
+      if (attempt >= CONNECT_ATTEMPTS || !isTransient(err)) throw err;
+      await new Promise((r) => setTimeout(r, 2_000));
+    }
+  }
 }
 
 /** Wait until SQL Server accepts our login (the service may still be starting). */
@@ -37,7 +60,7 @@ export async function waitForSql(target: DbTarget, timeoutMs: number): Promise<v
   let lastError: unknown;
   while (Date.now() < deadline) {
     try {
-      const pool = await connect(target, "master", 1);
+      const pool = await openPool(target, "master", 1);
       await pool.close();
       return;
     } catch (err) {

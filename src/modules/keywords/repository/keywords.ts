@@ -37,10 +37,7 @@ export async function createKeyword(
   return keywordRowSchema.parse(rows[0]);
 }
 
-export async function getKeywordById(
-  keywordId: number,
-  actorUserId: number,
-): Promise<KeywordRow> {
+export async function getKeywordById(keywordId: number, actorUserId: number): Promise<KeywordRow> {
   const rows = await execProc<KeywordRow>("usp_Keyword_GetById", {
     KeywordId: keywordId,
     ActorUserId: actorUserId,

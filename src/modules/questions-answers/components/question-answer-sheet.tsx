@@ -15,8 +15,12 @@ import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
-import { CATEGORY_OPTIONS, PRIORITY_OPTIONS, type QuestionAnswerRow } from "../schemas/question-answer";
-import { questionAnswerFormSchema, updateQuestionAnswerFormSchema } from "../schemas/question-answer-form";
+import { ListOptions } from "@/components/ui/lookup-lists";
+import type { QuestionAnswerRow } from "../schemas/question-answer";
+import {
+  questionAnswerFormSchema,
+  updateQuestionAnswerFormSchema,
+} from "../schemas/question-answer-form";
 import {
   createQuestionAnswerAction,
   deleteQuestionAnswerAction,
@@ -26,7 +30,7 @@ import {
 /**
  * Q&A detail/edit sheet (ADR-0010 default pattern): URL-synced via ?id=
  * (numeric id or "new"); closing clears the param. Project scope travels as a
- * hidden field. Contributor role can create and update but not delete.
+ * hidden field. Contributor role can update but not create/delete.
  */
 export function QuestionAnswerSheet({
   questionAnswer,
@@ -61,8 +65,17 @@ export function QuestionAnswerSheet({
     function handleBeforeNavigate(e: Event) {
       if (!isDirty) return;
       e.preventDefault();
-      const resume = (e as CustomEvent<{ resume: () => void }>).detail.resume;
-      pendingNavRef.current = resume;
+      // Runtime guard: CustomEvent<{ resume: () => void }> is not checkable at
+      // compile time, so we verify the shape before trusting it.
+      const detail = e instanceof CustomEvent ? (e.detail as unknown) : undefined;
+      const resume =
+        detail !== null &&
+        typeof detail === "object" &&
+        "resume" in (detail as object) &&
+        typeof (detail as { resume: unknown }).resume === "function"
+          ? (detail as { resume: () => void }).resume
+          : undefined;
+      pendingNavRef.current = resume ?? null;
       setShowUnsaved(true);
     }
     window.addEventListener("before-navigate", handleBeforeNavigate);
@@ -169,11 +182,7 @@ export function QuestionAnswerSheet({
           <ErrorSummary message={summary} />
           {conflict ? (
             <div>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => window.location.reload()}
-              >
+              <Button type="button" variant="secondary" onClick={() => router.refresh()}>
                 {messages.questionsAnswers.reload}
               </Button>
             </div>
@@ -183,7 +192,11 @@ export function QuestionAnswerSheet({
           <input type="hidden" name="projectId" value={questionAnswer?.ProjectId ?? projectId} />
           {questionAnswer ? (
             <>
-              <input type="hidden" name="questionAnswerId" value={questionAnswer.QuestionAnswerId} />
+              <input
+                type="hidden"
+                name="questionAnswerId"
+                value={questionAnswer.QuestionAnswerId}
+              />
               <input type="hidden" name="rowVer" value={questionAnswer.RowVer} />
             </>
           ) : null}
@@ -198,11 +211,7 @@ export function QuestionAnswerSheet({
               name="question"
               errors={form.errors.question}
             >
-              <Textarea
-                name="question"
-                rows={4}
-                defaultValue={questionAnswer?.Question ?? ""}
-              />
+              <Textarea name="question" rows={4} defaultValue={questionAnswer?.Question ?? ""} />
             </Field>
 
             <Field
@@ -210,11 +219,7 @@ export function QuestionAnswerSheet({
               name="answer"
               errors={form.errors.answer}
             >
-              <Textarea
-                name="answer"
-                rows={4}
-                defaultValue={questionAnswer?.Answer ?? ""}
-              />
+              <Textarea name="answer" rows={4} defaultValue={questionAnswer?.Answer ?? ""} />
             </Field>
 
             <Field
@@ -224,11 +229,7 @@ export function QuestionAnswerSheet({
             >
               <Select name="category" defaultValue={questionAnswer?.Category ?? ""}>
                 <option value="">—</option>
-                {CATEGORY_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {messages.questionsAnswers.categoryLabels[opt]}
-                  </option>
-                ))}
+                <ListOptions list="question-answer.category" current={questionAnswer?.Category} />
               </Select>
             </Field>
 
@@ -239,11 +240,7 @@ export function QuestionAnswerSheet({
             >
               <Select name="priority" defaultValue={questionAnswer?.Priority ?? ""}>
                 <option value="">—</option>
-                {PRIORITY_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {messages.questionsAnswers.priorityLabels[opt]}
-                  </option>
-                ))}
+                <ListOptions list="question-answer.priority" current={questionAnswer?.Priority} />
               </Select>
             </Field>
 
@@ -252,10 +249,7 @@ export function QuestionAnswerSheet({
               name="assignedTo"
               errors={form.errors.assignedTo}
             >
-              <Input
-                name="assignedTo"
-                defaultValue={questionAnswer?.AssignedTo ?? ""}
-              />
+              <Input name="assignedTo" defaultValue={questionAnswer?.AssignedTo ?? ""} />
             </Field>
           </fieldset>
 

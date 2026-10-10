@@ -24,9 +24,6 @@ function hasSessionCookie(request: NextRequest): boolean {
 
 export async function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-  // React's development build needs eval() for debugging features (rebuilding
-  // callstacks, HMR). It never uses eval() in production, so 'unsafe-eval' is
-  // scoped strictly to dev — shipping it would defeat the point of the policy.
   const scriptSrc = [
     "'self'",
     `'nonce-${nonce}'`,
@@ -64,27 +61,30 @@ export async function proxy(request: NextRequest) {
       if (hasSessionCookie(request)) loginUrl.searchParams.set("reason", "expired");
       const redirect = NextResponse.redirect(loginUrl);
       redirect.headers.set("Content-Security-Policy", csp);
+      redirect.headers.set("X-Frame-Options", "DENY");
+      redirect.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
       return redirect;
     }
-    // Forced first-login password change (STANDARDS §4): the flag travels in
-    // the JWT, so this gate needs no DB access and stays edge-safe.
     const appToken = token.appToken as { mustChangePassword?: boolean } | undefined;
     if (appToken?.mustChangePassword && pathname !== "/change-password") {
       const changeUrl = new URL("/change-password", request.url);
       const redirect = NextResponse.redirect(changeUrl);
       redirect.headers.set("Content-Security-Policy", csp);
+      redirect.headers.set("X-Frame-Options", "DENY");
+      redirect.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
       return redirect;
     }
   }
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", csp);
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   return response;
 }
 
 export const config = {
   matcher: [
-    // Everything except static assets and prebuilt files.
     {
       source: "/((?!_next/static|_next/image|favicon.ico|icons/|sw.js|robots.txt).*)",
       missing: [

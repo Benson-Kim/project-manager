@@ -1,11 +1,12 @@
 {
   "name": "project-manager",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Mobile-first rebuild of the Access project-management system (Next.js + SQL Server, stored-procedure-only data access)",
   "author": "Burton",
   "scripts": {
     "dev": "next dev",
+    "setup": "node scripts/setup.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -19,38 +20,40 @@
     "electron:dev": "node scripts/desktop/build.mjs --stage-only --skip-next && electron build/desktop-app",
     "electron:build": "node scripts/desktop/build.mjs",
     "electron:build:dir": "node scripts/desktop/build.mjs --dir",
-    "electron:test-db": "node scripts/desktop/test-db.mjs"
+    "electron:test-db": "node scripts/desktop/test-db.mjs",
+    "desktop:force-update": "node scripts/desktop/release.mjs force"
   },
   "dependencies": {
-    "@radix-ui/react-dialog": "^1.1.15",
     "argon2": "^0.44.0",
     "mssql": "^12.7.2",
     "next": "^16.3.5",
     "next-auth": "^5.0.0-beta.25",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "zod": "^4.6.2"
+    "zod": "^4.6.2",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.11.2",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/mssql": "^9.1.5",
     "@types/node": "^24.0.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@vitest/coverage-v8": "^5.0.0",
-    "electron": "^44.5.1",
-    "electron-builder": "^26.15.3",
-    "electron-updater": "^6.8.9",
-    "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "^16.3.5",
     "eslint-config-prettier": "^10.1.0",
     "prettier": "^3.9.6",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.0",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.0",
+    "@axe-core/playwright": "^4.11.2",
+    "@vitest/coverage-v8": "^5.0.0",
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
+    "electron-updater": "^6.8.9",
+    "esbuild": "^0.28.2"
   },
   "engines": {
     "node": ">=22"
