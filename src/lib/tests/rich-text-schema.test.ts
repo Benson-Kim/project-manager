@@ -20,16 +20,21 @@ describe("isEmptyRichText", () => {
     '<p style="text-align:center"></p>',
     "<p>&nbsp;</p>",
     `<p><span></span>${String.fromCharCode(0xa0)}</p>`,
+    "<h2></h2>",
+    "<blockquote><p><strong></strong></p></blockquote>",
   ])("%j is empty", (html) => {
     expect(isEmptyRichText(html)).toBe(true);
   });
 
-  it.each(["<p>x</p>", "<table><tbody><tr><td></td></tr></tbody></table>", "<ul><li></li></ul>"])(
-    "%j has content",
-    (html) => {
-      expect(isEmptyRichText(html)).toBe(false);
-    },
-  );
+  it.each([
+    "<p>x</p>",
+    "<h2>x</h2>",
+    "<p>&amp;</p>",
+    "<table><tbody><tr><td></td></tr></tbody></table>",
+    "<ul><li></li></ul>",
+  ])("%j has content", (html) => {
+    expect(isEmptyRichText(html)).toBe(false);
+  });
 });
 
 describe("richTextSchema on the server", () => {
