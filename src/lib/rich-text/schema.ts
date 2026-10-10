@@ -30,12 +30,14 @@ function currentSanitizer(): RichTextSanitizer {
 }
 
 /**
- * True when the document has no visible content: only empty paragraphs,
- * spans, line breaks and (non-breaking) spaces. "<p></p>" is Tiptap's empty
- * document. Tables and list items count as content.
+ * True when the document has no visible content: no text other than
+ * (non-breaking) spaces, and no table or list item. "<p></p>" is Tiptap's
+ * empty document; clearing a document that starts with a heading leaves
+ * "<h2></h2>", which is empty too.
  */
 export function isEmptyRichText(html: string): boolean {
-  return html.replace(/<\/?(?:p|span|br)\b[^>]*>|&nbsp;|\s/gi, "") === "";
+  if (/<(?:table|li)\b/i.test(html)) return false;
+  return html.replace(/<[^>]*>|&nbsp;|\s/gi, "") === "";
 }
 
 export interface RichTextSchemaOptions {
