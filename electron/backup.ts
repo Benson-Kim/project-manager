@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import { connect, quoteName, sql, type DbTarget } from "./db";
 import type { Logger } from "./log";
+import { mirrorUploads } from "./uploads-mirror";
 
 /**
  * Native SQL Server backups for the desktop edition.
@@ -21,6 +22,8 @@ export interface BackupOptions {
   target: DbTarget;
   backupDir: string;
   copyDir?: string;
+  /** Attachments (ADR-0026 §9): mirrored into <copyDir>\Uploads after the database copy. */
+  uploadsDir?: string;
   log: Logger;
   keepLocal?: number;
   keepCopies?: number;
@@ -30,6 +33,8 @@ export interface BackupResult {
   file: string;
   copy?: string;
   copyError?: string;
+  /** Attachment files newly copied to <copyDir>\Uploads. */
+  uploadsCopied?: number;
   bytes: number;
 }
 
@@ -78,6 +83,13 @@ export async function backupDatabase(kind: BackupKind, opts: BackupOptions): Pro
       await fs.copyFile(file, copy);
       result.copy = copy;
       await prune(opts.copyDir, target.database, opts.keepCopies ?? 30, log);
+      // The attachments sit next to the database copies: the records are useless without them.
+      if (opts.uploadsDir) {
+        result.uploadsCopied = await mirrorUploads(
+          opts.uploadsDir,
+          path.join(opts.copyDir, "Uploads"),
+        );
+      }
     } catch (err) {
       // The local backup is still good; surface the copy problem to the user.
       result.copyError = err instanceof Error ? err.message : String(err);
@@ -85,7 +97,8 @@ export async function backupDatabase(kind: BackupKind, opts: BackupOptions): Pro
     }
   }
   log.info(
-    `[backup] ok (${(size / 1048576).toFixed(1)} MB)${result.copy ? `, copied to ${result.copy}` : ""}`,
+    `[backup] ok (${(size / 1048576).toFixed(1)} MB)${result.copy ? `, copied to ${result.copy}` : ""}` +
+      (result.uploadsCopied ? `, ${result.uploadsCopied} new attachment file(s) copied` : ""),
   );
   return result;
 }

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readdir, rm, unlink, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import type { Session } from "@/lib/auth/types";
 import { AppError } from "@/lib/errors";
 import { scanFile } from "@/lib/files/scan";
@@ -30,7 +30,10 @@ const row: AttachmentRow = {
 
 let root: string;
 let session: Session | null;
-let deps: UploadDeps & { checkCanAdd: ReturnType<typeof vi.fn>; addFile: ReturnType<typeof vi.fn> };
+let deps: UploadDeps & {
+  checkCanAdd: Mock<UploadDeps["checkCanAdd"]>;
+  addFile: Mock<UploadDeps["addFile"]>;
+};
 
 function upload(
   body: BodyInit | null,
@@ -65,8 +68,10 @@ beforeEach(async () => {
     getSession: () => Promise.resolve(session),
     uploadsRoot: () => Promise.resolve(root),
     quotaBytes: () => 1024 * 1024,
-    checkCanAdd: vi.fn().mockResolvedValue({ ProjectId: 3, UsedBytes: 0 }),
-    addFile: vi.fn().mockResolvedValue(row),
+    checkCanAdd: vi
+      .fn<UploadDeps["checkCanAdd"]>()
+      .mockResolvedValue({ ProjectId: 3, UsedBytes: 0 }),
+    addFile: vi.fn<UploadDeps["addFile"]>().mockResolvedValue(row),
     sniff: sniffFile,
     scan: scanFile,
   };
@@ -236,14 +241,14 @@ describe("POST /api/files (ADR-0026 §3)", () => {
 
 describe("GET /api/files/<id> (ADR-0026 §3)", () => {
   const hash = sha(PDF);
-  let getFile: ReturnType<typeof vi.fn>;
+  let getFile: Mock<DownloadDeps["getFile"]>;
   let downloadDeps: DownloadDeps;
 
   beforeEach(async () => {
     const dir = path.join(root, hash.slice(0, 2), hash.slice(2, 4));
     await mkdir(dir, { recursive: true });
     await writeFile(path.join(dir, hash), PDF);
-    getFile = vi.fn().mockResolvedValue({
+    getFile = vi.fn<DownloadDeps["getFile"]>().mockResolvedValue({
       FileAttachmentId: 5,
       FileName: "Procès-verbal.pdf",
       ContentType: "application/pdf",

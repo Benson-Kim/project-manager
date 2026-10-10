@@ -8,6 +8,8 @@ export interface NextServerOptions {
   standaloneDir: string;
   db: DbTarget;
   authSecret: string;
+  /** Machine-wide attachments folder (machine.json uploadsDir, ADR-0026 §9). */
+  uploadsDir: string;
   log: Logger;
   /** Called after an unexpected exit has been recovered (new URL). */
   onRestarted?: (url: string) => void;
@@ -48,6 +50,8 @@ export class NextServer {
       DB_PASSWORD: opts.db.password,
       TRUST_SERVER_CERT: "true",
       AUTH_SECRET: opts.authSecret,
+      // Never the default (<cwd>/uploads): cwd is the install folder, which every update replaces.
+      UPLOADS_DIR: opts.uploadsDir,
       TRUSTED_PROXY_COUNT: "0",
       NEXT_TELEMETRY_DISABLED: "1",
     };

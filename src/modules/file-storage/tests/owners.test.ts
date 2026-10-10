@@ -30,9 +30,9 @@ describe.each(ATTACHMENT_OWNERS.map((owner) => [owner, ownerConfig(owner)] as co
     });
 
     it("its folder is covered by the access guardrail with the same module", () => {
-      const module = config.permissions.update.split(":")[0];
-      expect(config.permissions.read).toBe(`${module}:read`);
-      expect(guardrail).toMatch(new RegExp(`"?${config.folder}"?:\\s*"${module}"`));
+      const section = config.permissions.update.split(":")[0];
+      expect(config.permissions.read).toBe(`${section}:read`);
+      expect(guardrail).toMatch(new RegExp(`"?${config.folder}"?:\\s*"${section}"`));
     });
 
     it("reads at Viewer; adds, renames and removes at the module's update level", () => {

@@ -14,7 +14,8 @@
     2. TCP on 127.0.0.1:<Port> only (loopback) + firewall block rule
     3. Mixed-mode auth, service Automatic + running
     4. Dedicated login 'pm_app' (password kept in machine.json); 'sa' disabled
-    5. Backups folder writable by the SQL Server service
+    5. Backups folder writable by the SQL Server service; Uploads folder
+       (attachments) writable by every local user
     6. %ProgramData%\Project Manager\machine.json (atomic write)
 
   Secrets are never written to the log.
@@ -39,6 +40,7 @@ $ServiceName = "MSSQL`$$InstanceName"
 $ServiceSid = "NT SERVICE\MSSQL`$$InstanceName"
 $LogDir = Join-Path $DataRoot 'logs'
 $BackupDir = Join-Path $DataRoot 'Backups'
+$UploadsDir = Join-Path $DataRoot 'Uploads'
 $ConfigPath = Join-Path $DataRoot 'machine.json'
 $LogFile = Join-Path $LogDir 'provision.log'
 $SqlRegRoot = 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server'
@@ -240,7 +242,7 @@ function Start-SqlService([bool] $Restart) {
 }
 
 function Set-AccessControl {
-  foreach ($d in @($DataRoot, $LogDir, $BackupDir)) {
+  foreach ($d in @($DataRoot, $LogDir, $BackupDir, $UploadsDir)) {
     if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
   }
   # Root: SYSTEM + Administrators full, Users read (machine.json holds the DB password).
@@ -249,6 +251,10 @@ function Set-AccessControl {
   # Backups: the app (any local user) copies/prunes; the SQL service writes .bak files.
   & icacls.exe $BackupDir /grant '*S-1-5-32-545:(OI)(CI)M' | Out-Null
   if ($LASTEXITCODE -ne 0) { throw [ProvisionError]::new(50, "icacls failed on $BackupDir") }
+  # Uploads (attachments, ADR-0026): the app server runs as whichever local user is
+  # signed in, and the records are shared by all of them, so every user writes here.
+  & icacls.exe $UploadsDir /grant '*S-1-5-32-545:(OI)(CI)M' | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw [ProvisionError]::new(50, "icacls failed on $UploadsDir") }
 }
 
 function Grant-ServiceBackupAccess {
@@ -354,6 +360,8 @@ SELECT 1;
     }
     authSecret       = $authSecret
     backupDir        = $BackupDir
+    # Added by F1 (ADR-0026); schemaVersion stays 1 so 1.0.x apps on this PC still read the file.
+    uploadsDir       = $UploadsDir
     provisionedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
   }
   $tmp = "$ConfigPath.tmp"
