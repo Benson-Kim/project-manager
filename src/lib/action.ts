@@ -5,6 +5,9 @@ import { can } from "./auth/rbac";
 import type { Permission, Session } from "./auth/types";
 import { AppError, type AppErrorCode } from "./errors";
 import { messages } from "./messages";
+// Installs the rich-text sanitiser for richTextSchema (ADR-0025): every action
+// input is parsed here, and a server-side parse without it throws.
+import "./rich-text/sanitize";
 
 /**
  * Typed Server Action wrapper : validate → authenticate → authorise
