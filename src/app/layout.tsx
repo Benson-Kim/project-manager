@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Poppins } from "next/font/google";
+import Script from "next/script";
 import { headers } from "next/headers";
 import { LiveAnnouncer } from "@/components/ui/announcer";
 import { Toaster } from "@/components/ui/toast";
@@ -46,7 +47,12 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <Script
+          id="theme-init"
+          strategy="beforeInteractive"
+          nonce={nonce}
+          dangerouslySetInnerHTML={{ __html: themeInitScript }}
+        />
       </head>
       <body className={`${poppins.variable} min-h-dvh font-sans antialiased`}>
         <ThemeProvider>

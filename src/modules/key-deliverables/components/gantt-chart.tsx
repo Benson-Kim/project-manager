@@ -14,10 +14,14 @@ const DAY_MS = 86_400_000;
 function barBgClass(priority: string | null, overdue: boolean): string {
   if (overdue) return "bg-danger";
   switch (priority) {
-    case "Critical":  return "bg-danger";
-    case "Important": return "bg-accent-strong";
-    case "Low":       return "bg-success";
-    default:          return "bg-accent"; // Normal + null
+    case "Critical":
+      return "bg-danger";
+    case "Important":
+      return "bg-accent-strong";
+    case "Low":
+      return "bg-success";
+    default:
+      return "bg-accent"; // Normal + null
   }
 }
 
@@ -25,10 +29,14 @@ function barBgClass(priority: string | null, overdue: boolean): string {
 function fillBgClass(priority: string | null, overdue: boolean): string {
   if (overdue) return "bg-on-accent opacity-30";
   switch (priority) {
-    case "Critical":  return "bg-on-danger opacity-30";
-    case "Important": return "bg-on-accent opacity-30";
-    case "Low":       return "bg-on-accent opacity-30";
-    default:          return "bg-on-accent opacity-30";
+    case "Critical":
+      return "bg-on-danger opacity-30";
+    case "Important":
+      return "bg-on-accent opacity-30";
+    case "Low":
+      return "bg-on-accent opacity-30";
+    default:
+      return "bg-on-accent opacity-30";
   }
 }
 
@@ -100,10 +108,7 @@ const WEEK_ONLY_THRESHOLD = 365;
 export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: number }) {
   if (bars.length === 0) {
     return (
-      <EmptyState
-        title={messages.list.emptyTitle}
-        body={messages.keyDeliverables.ganttEmptyBody}
-      />
+      <EmptyState title={messages.list.emptyTitle} body={messages.keyDeliverables.ganttEmptyBody} />
     );
   }
 
@@ -111,21 +116,20 @@ export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: n
   const maxMs = Math.max(...bars.map((b) => b.end.getTime()));
   // Pad 2 days each side so edge bars and labels are never clipped.
   const rangeStart = new Date(minMs - 2 * DAY_MS);
-  const rangeEnd   = new Date(maxMs + 2 * DAY_MS);
+  const rangeEnd = new Date(maxMs + 2 * DAY_MS);
   // span is always the full bar coordinate range — never capped.
   const span = Math.max(rangeEnd.getTime() - rangeStart.getTime(), DAY_MS);
 
-  const pct = (ms: number) =>
-    ((ms - rangeStart.getTime()) / span) * 100;
+  const pct = (ms: number) => ((ms - rangeStart.getTime()) / span) * 100;
 
-  const today       = new Date();
-  const todayLeft   = pct(today.getTime());
-  const showToday   = todayLeft >= 0 && todayLeft <= 100;
+  const today = new Date();
+  const todayLeft = pct(today.getTime());
+  const showToday = todayLeft >= 0 && todayLeft <= 100;
 
   const totalDays = Math.round(span / DAY_MS);
   // Suppress day ticks for large windows to bound DOM node count.
   const weeks = weekStarts(rangeStart, rangeEnd);
-  const days  = totalDays <= DAY_TICK_THRESHOLD ? allDays(rangeStart, rangeEnd) : [];
+  const days = totalDays <= DAY_TICK_THRESHOLD ? allDays(rangeStart, rangeEnd) : [];
 
   // Minimum chart width scales with total days; px-per-day shrinks for wide windows.
   const pxPerDay = totalDays <= DAY_TICK_THRESHOLD ? 28 : totalDays <= WEEK_ONLY_THRESHOLD ? 14 : 4;
@@ -137,7 +141,6 @@ export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: n
       data-testid="gantt-chart"
     >
       <div style={{ minWidth: `${minWidthPx}px` }}>
-
         {/* ΓöÇΓöÇ Timeline header (sticky top) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
         <div
           className="sticky top-0 z-(--z-nav) grid grid-cols-[10rem_1fr] border-b border-line bg-surface sm:grid-cols-[16rem_1fr]"
@@ -206,7 +209,7 @@ export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: n
         {/* ΓöÇΓöÇ Bar rows ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
         <ul className="m-0 list-none p-0">
           {bars.map((bar, i) => {
-            const barLeft  = pct(bar.start.getTime());
+            const barLeft = pct(bar.start.getTime());
             const barRight = pct(bar.end.getTime());
             const barWidth = Math.max(barRight - barLeft, 0.5);
             const labelLeft = barLeft + barWidth;
@@ -239,7 +242,8 @@ export function GanttChart({ bars, projectId }: { bars: GanttBar[]; projectId: n
                     {[bar.status, bar.priority].filter(Boolean).join(" · ")}
                     {bar.overdue ? (
                       <span className="ml-1 font-medium text-danger">
-                        {" "}{messages.keyDeliverables.overdue}
+                        {" "}
+                        {messages.keyDeliverables.overdue}
                       </span>
                     ) : null}
                   </span>

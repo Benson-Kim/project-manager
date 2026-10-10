@@ -1,82 +1,51 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { ListFilter } from "@/components/ui/data-view/list-filter";
+import { ProjectFilter } from "@/components/ui/data-view/project-filter";
+import { SearchInput } from "@/components/ui/data-view/search-input";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { Select } from "@/components/ui/form/inputs";
 import { Toolbar } from "@/components/ui/toolbar";
 import { messages } from "@/lib/messages";
-import { PROJECT_OR_ACTIVITY, TODO_PRIORITIES, TODO_STATUSES } from "../schemas/todo-item";
+import { PROJECT_OR_ACTIVITY } from "../schemas/todo-item";
 
 /**
- * To-do toolbar: search + status filter + priority filter + view toggle.
- * Project scope comes from the route.
+ * To-do toolbar: search + project filter (/todo only) + status filter +
+ * priority filter + type filter + view toggle. On a project page the route
+ * scopes it.
  */
-export function TodoToolbar({ children }: { children?: React.ReactNode }) {
+export function TodoToolbar({
+  projectFilterOptions,
+  children,
+}: {
+  /** The projects of /todo's project filter; omitted on a project page. */
+  projectFilterOptions?: readonly { id: number; name: string }[];
+  children?: React.ReactNode;
+}) {
   const { searchParams, update } = useListUrlState();
-  const [query, setQuery] = useState(searchParams.get("q") ?? "");
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => () => clearTimeout(debounceRef.current ?? undefined), []);
-
-  const onChange = (value: string) => {
-    setQuery(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => update({ q: value || null }), 250);
-  };
 
   return (
     <Toolbar>
-      {/* Search */}
-      <label className="min-w-0 flex-1">
-        <span className="sr-only">{messages.list.search}</span>
-        <input
-          type="search"
-          autoComplete="off"
-          placeholder={messages.list.search}
-          data-testid="todo-search"
-          className="min-h-10 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink"
-          value={query}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      </label>
+      <SearchInput testId="todo-search" placeholder={messages.list.search} />
+      {projectFilterOptions ? <ProjectFilter options={projectFilterOptions} /> : null}
 
       {/* Status filter */}
-      <label>
-        <span className="sr-only">{messages.todoItems.status}</span>
-        <Select
-          name="status"
-          data-testid="filter-status"
-          value={searchParams.get("status") ?? ""}
-          onChange={(e) => update({ status: e.target.value || null })}
-          className="w-auto"
-        >
-          <option value="">{messages.todoItems.allStatuses}</option>
-          {TODO_STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </Select>
-      </label>
+      <ListFilter
+        list="todo-item.status"
+        param="status"
+        label={messages.todoItems.status}
+        allLabel={messages.todoItems.allStatuses}
+        testId="filter-status"
+      />
 
       {/* Priority filter */}
-      <label>
-        <span className="sr-only">{messages.todoItems.priority}</span>
-        <Select
-          name="priority"
-          data-testid="filter-priority"
-          value={searchParams.get("priority") ?? ""}
-          onChange={(e) => update({ priority: e.target.value || null })}
-          className="w-auto"
-        >
-          <option value="">{messages.todoItems.allPriorities}</option>
-          {TODO_PRIORITIES.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </Select>
-      </label>
+      <ListFilter
+        list="todo-item.priority"
+        param="priority"
+        label={messages.todoItems.priority}
+        allLabel={messages.todoItems.allPriorities}
+        testId="filter-priority"
+      />
 
       {/* Type filter (Project / Daily Activity / None) */}
       <label>
@@ -85,7 +54,7 @@ export function TodoToolbar({ children }: { children?: React.ReactNode }) {
           name="projectOrActivity"
           data-testid="filter-type"
           value={searchParams.get("projectOrActivity") ?? ""}
-          onChange={(e) => update({ projectOrActivity: e.target.value || null })}
+          onChange={(e) => update({ projectOrActivity: e.target.value || null, page: null })}
           className="w-auto"
         >
           <option value="">{messages.todoItems.allTypes}</option>

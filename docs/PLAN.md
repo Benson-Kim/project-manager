@@ -238,22 +238,45 @@ Manual utility jobs: `verify:sources` (re-verify the extraction),
 
 ## 9. Roles & permissions matrix
 
-Roles: **Admin** ▸ **ProjectManager (PM)** ▸ **Contributor** ▸ **Viewer**.
-Enforced in three layers: route guard (proxy + layout), server-action guard,
-and proc-level `@ActorUserId` permission check. All mutations audit-logged.
+Access has two layers ([ADR-0021](adr/ADR-0021-per-project-access-levels.md)):
+a **global role**, **Admin** or **User**, and a **project access level**,
+**Manager** ▸ **Contributor** ▸ **Viewer**. The level is held per project on the
+team row (`app.ProjectAssignee.AccessLevel`), so one person can manage project 1
+and only view project 10. Admins hold Manager everywhere. A User sees only the
+projects they are on, and gets Contributor on project-less records (activities
+and to-dos outside any project). Enforced in three layers:
+- the route guard (proxy + layout);
+- the server-action guard (global role);
+- the procs (`dbo.usp_Project_AssertAccess @MinLevel`, FORBIDDEN_ROW).
 
-| Capability | Admin | PM | Contributor | Viewer |
+The UI shows only what the level allows (`canInProject`). All mutations are
+audit-logged.
+
+**Per-person overrides** ([ADR-0024](adr/ADR-0024-per-person-permission-overrides.md)): on the project team, a Manager (or an
+Admin) can grant or revoke create, update and delete per section for one member, through the
+cog next to that person. So a Contributor can be allowed to delete parking-lot items, or a
+Viewer allowed to add keywords. Reading always follows the level, and the charter and team
+are never overridden. Nobody can change their own overrides. The procs enforce it
+(`usp_Permission_Require`, `@Permission` on every write check), and pages and datasheet rows
+show it (`allowsWithOverrides`, `rowAllows`).
+
+| Capability | Admin | Manager | Contributor | Viewer |
 |---|---|---|---|---|
-| View all modules & reports | ✔ | ✔ | ✔ | ✔ |
+| View the project's modules & reports | ✔ | ✔ | ✔ | ✔ |
 | Export/print/download reports | ✔ | ✔ | ✔ | ✔ |
-| CRUD on own projects (all domain modules) | ✔ | ✔ | ✖ | ✖ |
-| CRUD on assigned module records | ✔ | ✔ | ✔ | ✖ |
-| Manage project assignees (PMs/sponsors/BAs) | ✔ | ✔ | ✖ | ✖ |
+| Create/edit planning records (charter, deliverables, objectives, keywords, stakeholders, suppliers) | ✔ | ✔ | ✖ | ✖ |
+| Create/edit operational records (activities, to-dos, alerts, Q&A, parking lot, assumptions, meetings, notes) | ✔ | ✔ | ✔ | ✖ |
+| Delete records | ✔ | ✔ | ✖ | ✖ |
+| Manage the project team and access levels | ✔ | ✔ | ✖ | ✖ |
 | Upload/delete file attachments | ✔ | ✔ | ✔ | ✖ |
+| Create a project (creator becomes its Manager) | ✔ | any User | any User | any User |
 | Manage users, roles, permissions | ✔ | ✖ | ✖ | ✖ |
 | View audit log / backup status | ✔ | ✖ | ✖ | ✖ |
 | Trigger backup / restore runbook actions | ✔ | ✖ | ✖ | ✖ |
 | Application settings | ✔ | ✖ | ✖ | ✖ |
+
+To-dos are personal: only their owner, a project Manager or an Admin can open
+one. Project-less to-dos are fully their owner's.
 
 Full security design: [`docs/SECURITY.md`](SECURITY.md).
 

@@ -1,5 +1,5 @@
 ﻿-- usp_TodoItem_Delete — soft delete with rowversion concurrency + in-transaction audit.
--- THROW 50003 FORBIDDEN_ROW : actor is not the TodoItem creator nor Admin/ProjectManager.
+-- THROW 50003 FORBIDDEN_ROW : to-do access rule (dbo.usp_TodoItem_AssertAccess, ADR-0021).
 -- Entity app.TodoItem (source: tblTodoList (core; alert columns → TodoAlert)). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
@@ -12,35 +12,13 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
+    EXEC dbo.usp_TodoItem_AssertAccess
+         @TodoItemId = @TodoItemId, @ActorUserId = @ActorUserId, @MinLevel = N'Manager', @Permission = N'todo-items:delete';
+
     DECLARE @CurrentVer BIGINT =
         (SELECT CAST(RowVer AS BIGINT) FROM app.TodoItem WHERE TodoItemId = @TodoItemId AND IsDeleted = 0);
-    IF @CurrentVer IS NULL
-        THROW 50001, N'NOT_FOUND:TodoItem not found', 1;
     IF @CurrentVer <> @RowVer
         THROW 50002, N'CONFLICT:TodoItem was modified by someone else', 1;
-
-    -- Row-level auth: actor must be the creator OR hold Admin/ProjectManager role.
-    IF NOT EXISTS (
-        SELECT 1 FROM app.TodoItem ti
-        WHERE  ti.TodoItemId = @TodoItemId
-          AND  ti.IsDeleted  = 0
-          AND  (
-                   ti.CreatedBy = @ActorUserId
-                   OR EXISTS (
-                       SELECT 1 FROM auth.[User] u
-                       WHERE  u.UserId = @ActorUserId
-                         AND  u.RoleId IN (
-                                  SELECT RoleId FROM auth.[Role]
-                                  WHERE  Name IN (N'Admin', N'ProjectManager')
-                              )
-                   )
-               )
-    )
-    BEGIN
-        IF NOT EXISTS (SELECT 1 FROM app.TodoItem WHERE TodoItemId = @TodoItemId AND IsDeleted = 0)
-            THROW 50001, N'NOT_FOUND:TodoItem not found', 1;
-        THROW 50003, N'FORBIDDEN_ROW:You do not have access to this record', 1;
-    END
 
     BEGIN TRAN;
 

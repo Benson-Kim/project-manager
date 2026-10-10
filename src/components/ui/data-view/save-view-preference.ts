@@ -3,17 +3,26 @@
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { auth } from "@/lib/auth/provider";
+import { listLayoutSchema } from "@/lib/list-layout";
 import { VIEW_MODES } from "@/lib/list-params";
-import { setViewPreference } from "@/lib/repositories/view-preference";
+import { setListLayout, setViewPreference } from "@/lib/repositories/view-preference";
+
+const moduleKeySchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(50)
+  .regex(/^[a-z0-9-]+$/);
 
 const inputSchema = z.object({
-  moduleKey: z
-    .string()
-    .trim()
-    .min(1)
-    .max(50)
-    .regex(/^[a-z0-9-]+$/),
+  moduleKey: moduleKeySchema,
   viewMode: z.enum(VIEW_MODES),
+});
+
+const layoutInput = z.object({
+  moduleKey: moduleKeySchema,
+  /** Column order, widths and row height; null resets to the module's default. */
+  layout: listLayoutSchema.nullable(),
 });
 
 /**
@@ -41,6 +50,22 @@ export async function saveViewPreference(rawInput: unknown): Promise<void> {
     } catch {
       // Preference persistence is best-effort; the cookie already applied.
     }
+  }
+}
+
+/**
+ * Datasheet layout (ADR-0023, migration 019) — same exemption as the view
+ * mode: a per-user UI preference. Signed-in only (every list route is gated).
+ */
+export async function saveListLayout(rawInput: unknown): Promise<void> {
+  const parsed = layoutInput.safeParse(rawInput);
+  if (!parsed.success) return;
+  const session = await auth.getSession();
+  if (!session) return;
+  try {
+    await setListLayout(session.userId, parsed.data.moduleKey, parsed.data.layout);
+  } catch {
+    // Best-effort, like the view mode: the arrangement already applies on screen.
   }
 }
 

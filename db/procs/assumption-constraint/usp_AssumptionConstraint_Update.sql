@@ -1,28 +1,51 @@
-﻿-- usp_AssumptionConstraint_Update — full-row update with rowversion concurrency (50002 CONFLICT) + in-transaction audit.
--- Entity app.AssumptionConstraint (source: tblAssumptionsConstraints). Module: database-schema-and-procs (#3).
+-- usp_AssumptionConstraint_Update — full-row update with rowversion concurrency (50002 CONFLICT) + in-transaction audit.
+-- Project ownership check: @ActorUserId must be an assignee of the record's current project (FORBIDDEN_ROW 50003).
+-- Admin role bypass: an Admin actor (role read from auth.User) skips the ProjectAssignee check.
+-- ProjectId is immutable: the stored project is always kept; @ProjectId is accepted for
+--   the action-layer form contract but ignored (prevents cross-project record relocation
+--   via forged payload — Codex review comment #4162765942).
+-- Vocabulary enforcement: Type must be Assumption | Constraint | NULL; Impact must be High | Medium | Low | NULL.
+-- Dropdown values (ADR-0022): Type and Impact must be live options of their lists, or unchanged (VALIDATION 50004),
+--   and are stored as listed.
+-- Entity app.AssumptionConstraint (source: tblAssumptionsConstraints). Module: assumptions-constraints (#13).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_AssumptionConstraint_Update
     @AssumptionConstraintId INT,
-    @ProjectId INT,
-    @Type NVARCHAR(255) = NULL,
-    @Description NVARCHAR(MAX) = NULL,
-    @IsValidated BIT,
-    @Impact NVARCHAR(255) = NULL,
-    @MitigationPlan NVARCHAR(MAX) = NULL,
-    @RowVer BIGINT,
-    @ActorUserId INT
+    @ProjectId              INT,          -- accepted but ignored; ProjectId is immutable
+    @Type                   NVARCHAR(255)  = NULL,
+    @Description            NVARCHAR(MAX)  = NULL,
+    @IsValidated            BIT,
+    @Impact                 NVARCHAR(255)  = NULL,
+    @MitigationPlan         NVARCHAR(MAX)  = NULL,
+    @RowVer                 BIGINT,
+    @ActorUserId            INT
 AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    DECLARE @CurrentVer BIGINT =
-        (SELECT CAST(RowVer AS BIGINT) FROM app.AssumptionConstraint WHERE AssumptionConstraintId = @AssumptionConstraintId AND IsDeleted = 0);
+    DECLARE @CurrentVer BIGINT, @RowProjectId INT, @CurrentType NVARCHAR(255), @CurrentImpact NVARCHAR(255);
+    SELECT @CurrentVer = CAST(RowVer AS BIGINT), @RowProjectId = ProjectId,
+           @CurrentType = [Type], @CurrentImpact = Impact
+    FROM app.AssumptionConstraint WHERE AssumptionConstraintId = @AssumptionConstraintId AND IsDeleted = 0;
     IF @CurrentVer IS NULL
         THROW 50001, N'NOT_FOUND:AssumptionConstraint not found', 1;
+
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
+         @MinLevel = N'Contributor', @Permission = N'assumptions-constraints:update', @AllowProjectless = 0;
+    SET @ProjectId = @RowProjectId;
+
     IF @CurrentVer <> @RowVer
         THROW 50002, N'CONFLICT:AssumptionConstraint was modified by someone else', 1;
+
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'assumption-constraint.type', @Label = @Type OUTPUT,
+         @CurrentLabel = @CurrentType;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'assumption-constraint.impact', @Label = @Impact OUTPUT,
+         @CurrentLabel = @CurrentImpact;
 
     BEGIN TRAN;
 
@@ -32,7 +55,7 @@ BEGIN
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 
     UPDATE app.AssumptionConstraint SET
-        [ProjectId] = @ProjectId,
+        -- ProjectId intentionally omitted — immutable after creation.
         [Type] = @Type,
         [Description] = @Description,
         [IsValidated] = @IsValidated,

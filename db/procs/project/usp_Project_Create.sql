@@ -1,4 +1,8 @@
 -- usp_Project_Create — insert one app.Project row; audits in-transaction; returns the new row.
+-- A non-Admin creator becomes the project's manager (title 'Project manager' — locked in the managed title list, ADR-0024 — access Manager,
+--   ADR-0021) in the same transaction, so they can open what they just created.
+-- Dropdown values (ADR-0022): ProjectStatus, ProjectPriority, ProjectPhase and RiskLevel must be live options of their lists (VALIDATION 50004),
+--   and are stored as listed.
 -- Entity app.Project (source: tblProjectFramework). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
@@ -42,6 +46,20 @@ BEGIN
     SET XACT_ABORT ON;
     IF @ProjectName IS NULL OR LTRIM(RTRIM(@ProjectName)) = N''
         THROW 50004, N'VALIDATION:ProjectName is required', 1;
+
+    -- The actor's role is read from auth.User, never trusted from the caller.
+    DECLARE @ActorRole NVARCHAR(50);
+    EXEC dbo.usp_User_GetActorRole @UserId = @ActorUserId, @Role = @ActorRole OUTPUT;
+
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'project.status', @Label = @ProjectStatus OUTPUT;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'project.priority', @Label = @ProjectPriority OUTPUT;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'project.phase', @Label = @ProjectPhase OUTPUT;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'project.risk-level', @Label = @RiskLevel OUTPUT;
+
     BEGIN TRAN;
 
     INSERT INTO app.Project ([ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel], CreatedBy)
@@ -54,6 +72,20 @@ BEGIN
             (SELECT ProjectId, [ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel]
              FROM app.Project WHERE ProjectId = @Id
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
+
+    IF @ActorRole <> N'Admin'
+    BEGIN
+        INSERT INTO app.ProjectAssignee ([ProjectId], [Role], [PersonName], [UserId], [AccessLevel], CreatedBy)
+        SELECT @Id, N'Project manager', u.DisplayName, u.UserId, N'Manager', @ActorUserId
+        FROM auth.[User] u WHERE u.UserId = @ActorUserId;
+        DECLARE @AssigneeId INT = SCOPE_IDENTITY();
+
+        INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, AfterJson)
+        VALUES (@ActorUserId, N'Create', N'app.ProjectAssignee', CAST(@AssigneeId AS NVARCHAR(64)),
+                (SELECT ProjectAssigneeId, [ProjectId], [Role], [PersonName], [UserId], [AccessLevel]
+                 FROM app.ProjectAssignee WHERE ProjectAssigneeId = @AssigneeId
+                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
+    END;
 
     COMMIT;
 

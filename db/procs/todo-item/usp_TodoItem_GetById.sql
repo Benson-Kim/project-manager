@@ -1,16 +1,18 @@
 -- usp_TodoItem_GetById — fetch one active app.TodoItem row; THROW 50001 when absent/soft-deleted.
--- Entity app.TodoItem (source: tblTodoList (core; alert columns → TodoAlert)). Module: database-schema-and-procs (#3).
+-- Row-level access: dbo.usp_TodoItem_AssertAccess (ADR-0021) — your own to-dos in projects you can
+--   read or outside any project; anyone's to-dos in projects you manage. NOT_FOUND (50001) vs FORBIDDEN_ROW (50003).
+-- Entity app.TodoItem (source: tblTodoList (core; alert columns → TodoAlert)). Module: todo-items (#20).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_TodoItem_GetById
-    @TodoItemId INT,
+    @TodoItemId  INT,
     @ActorUserId INT
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    IF NOT EXISTS (SELECT 1 FROM app.TodoItem WHERE TodoItemId = @TodoItemId AND IsDeleted = 0)
-        THROW 50001, N'NOT_FOUND:TodoItem not found', 1;
+    EXEC dbo.usp_TodoItem_AssertAccess
+         @TodoItemId = @TodoItemId, @ActorUserId = @ActorUserId, @MinLevel = N'Viewer';
 
     SELECT TodoItemId,
            [ProjectId],

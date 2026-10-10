@@ -1,41 +1,63 @@
 "use client";
 
+import { textColumn } from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
+import { formCellSaver } from "@/components/ui/data-view/datasheet";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { listEmptyState } from "@/components/ui/states";
+import { rowAllows } from "@/lib/auth/actor-access";
 import { formatDate } from "@/lib/format";
+import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
-import type { ObjectiveListRow } from "../schemas/objective";
+import { createObjectiveAction, updateObjectiveAction } from "../actions";
+import type { ObjectiveListRow, ObjectiveRow } from "../schemas/objective";
+import { objectiveFormValues } from "../schemas/objective-form";
 import { ObjectivesToolbar } from "./objectives-toolbar";
 
-const columns: DataViewColumn<ObjectiveListRow>[] = [
-  {
+type Row = ObjectiveListRow;
+const P = messages.objectives.placeholders;
+
+const columns: DataViewColumn<Row>[] = [
+  textColumn({
     key: "ObjectiveText",
     header: messages.objectives.objectiveText,
     priority: 1,
-    render: (r) => r.ObjectiveText,
-  },
-  {
+    field: "objectiveText",
+    value: (r) => r.ObjectiveText,
+    placeholder: P.objectiveText,
+    maxLength: 2000,
+  }),
+  textColumn({
     key: "QMeasurable",
     header: messages.objectives.qMeasurable,
     priority: 2,
-    render: (r) => r.QMeasurable,
-  },
-  {
+    field: "qMeasurable",
+    value: (r) => r.QMeasurable,
+    placeholder: P.qMeasurable,
+    maxLength: 255,
+  }),
+  textColumn({
     key: "QAlignmentStrategy",
     header: messages.objectives.qAlignmentStrategy,
     priority: 2,
-    render: (r) => r.QAlignmentStrategy,
-  },
+    field: "qAlignmentStrategy",
+    value: (r) => r.QAlignmentStrategy,
+    placeholder: P.qAlignmentStrategy,
+    maxLength: 255,
+  }),
   {
     key: "CreatedAtUtc",
-    header: "Added",
+    header: messages.objectives.addedAt,
     priority: 3,
     render: (r) => formatDate(r.CreatedAtUtc),
   },
 ];
+
+/** Datasheet edits go through the same update action as the Sheet (ADR-0023). */
+const saveCell = formCellSaver<Row, ObjectiveRow>(objectiveFormValues, updateObjectiveAction);
+const canEditRow = rowAllows("objectives:update");
 
 /** Objectives list (module #9): DataView; opening a row syncs ?id= sheet. */
 export function ObjectivesView({
@@ -43,13 +65,21 @@ export function ObjectivesView({
   totalCount,
   page,
   initialView,
+  layout,
   filtersActive,
+  projectId,
+  canCreate,
   newObjectiveAction,
 }: {
   rows: ObjectiveListRow[];
+  projectId: number;
+  /** Shows the datasheet's new-entry row. */
+  canCreate: boolean;
   totalCount: number;
   page: number;
   initialView: ViewMode;
+  /** The user's saved datasheet layout (DataView initialLayout). */
+  layout?: ListLayout | null;
   filtersActive: boolean;
   newObjectiveAction?: React.ReactNode;
 }) {
@@ -62,6 +92,7 @@ export function ObjectivesView({
       totalCount={totalCount}
       page={page}
       initialView={initialView}
+      initialLayout={layout}
       getRowId={(row) => row.ObjectiveId}
       getRowLabel={(row) => row.ObjectiveText ?? messages.app.untitled}
       onOpen={(row) => update({ id: String(row.ObjectiveId) })}
@@ -78,9 +109,14 @@ export function ObjectivesView({
         </div>
       )}
       columns={columns}
-      renderToolbar={(viewToggle) => (
-        <ObjectivesToolbar>{viewToggle}</ObjectivesToolbar>
-      )}
+      datasheet={{
+        canEditRow,
+        saveCell,
+        addRow: canCreate
+          ? { add: (values) => createObjectiveAction({ ...values, projectId: String(projectId) }) }
+          : undefined,
+      }}
+      renderToolbar={(viewToggle) => <ObjectivesToolbar>{viewToggle}</ObjectivesToolbar>}
       empty={listEmptyState(filtersActive, messages.objectives.emptyBody, newObjectiveAction)}
     />
   );

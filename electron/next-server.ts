@@ -119,7 +119,9 @@ function findFreePort(): Promise<number> {
     srv.once("error", reject);
     srv.listen(0, "127.0.0.1", () => {
       const addr = srv.address();
-      srv.close(() => (addr && typeof addr !== "string" ? resolve(addr.port) : reject(new Error("no free port"))));
+      srv.close(() =>
+        addr && typeof addr !== "string" ? resolve(addr.port) : reject(new Error("no free port")),
+      );
     });
   });
 }

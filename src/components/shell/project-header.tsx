@@ -80,9 +80,7 @@ export function ProjectHeader({
         aria-haspopup="listbox"
         aria-autocomplete="list"
         aria-activedescendant={
-          open && filtered[activeIndex]
-            ? `${listboxId}-${filtered[activeIndex].id}`
-            : undefined
+          open && filtered[activeIndex] ? `${listboxId}-${filtered[activeIndex].id}` : undefined
         }
         aria-label={messages.projects.jumpToProject}
         autoComplete="off"
@@ -123,7 +121,7 @@ export function ProjectHeader({
         id={listboxId}
         role="listbox"
         hidden={!open}
-        className="absolute z-(--z-dropdown) mt-1 max-h-60 w-full overflow-auto rounded-xl border border-line bg-surface-raised py-1 shadow-lg"
+        className="absolute z-(--z-dropdown) mt-1 max-h-60 w-full overflow-auto rounded-lg border border-line bg-surface-raised shadow-lg"
       >
         {filtered.map((option, index) => (
           <li
@@ -131,8 +129,10 @@ export function ProjectHeader({
             id={`${listboxId}-${option.id}`}
             role="option"
             aria-selected={option.id === projectId}
-            className={`flex min-h-11 cursor-pointer items-center px-4 text-sm ${
-              index === activeIndex ? "bg-accent-soft text-ink" : "text-ink hover:bg-surface-sunken"
+            className={`flex min-h-11 cursor-pointer items-center px-4 py-2.5 text-sm whitespace-nowrap first:rounded-t-lg last:rounded-b-lg transition-colors duration-(--duration-fast) ${
+              index === activeIndex
+                ? "bg-accent-soft text-ink"
+                : "text-ink-muted hover:text-ink hover:bg-surface-raised"
             }`}
             onMouseDown={(event) => event.preventDefault()}
             onMouseEnter={() => setActiveIndex(index)}

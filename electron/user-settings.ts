@@ -10,7 +10,8 @@ export interface UserSettings {
 }
 
 function defaultCopyDir(): string {
-  const oneDrive = process.env.OneDriveCommercial || process.env.OneDrive || process.env.OneDriveConsumer;
+  const oneDrive =
+    process.env.OneDriveCommercial || process.env.OneDrive || process.env.OneDriveConsumer;
   if (oneDrive && fs.existsSync(oneDrive)) return path.join(oneDrive, "Project Manager Backups");
   return path.join(os.homedir(), "Documents", "Project Manager Backups");
 }

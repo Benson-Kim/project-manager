@@ -1,32 +1,27 @@
 -- usp_Supplier_Delete — soft delete with atomic rowversion concurrency + actor scope + in-transaction audit.
 -- RowVer is included in the UPDATE predicate to eliminate the TOCTOU race (same fix as Update).
--- Actor project-scope: ProjectManagers may only delete suppliers in their assigned projects.
--- Admin bypass: @ActorRole = N'Admin' skips the project-scope check.
+-- Row-level access: the actor needs Manager on the row's project (dbo.usp_Project_AssertAccess,
+--   ADR-0021; FORBIDDEN_ROW 50003). Admins hold Manager everywhere.
 -- Entity app.Supplier (source: tbl3rdPartySupplier). Module: suppliers (#7).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Supplier_Delete
     @SupplierId INT,
     @RowVer BIGINT,
-    @ActorUserId INT,
-    @ActorRole NVARCHAR(50) = NULL
+    @ActorUserId INT
 AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    IF NOT EXISTS (SELECT 1 FROM app.Supplier WHERE SupplierId = @SupplierId AND IsDeleted = 0)
+    DECLARE @RowProjectId INT;
+    SELECT @RowProjectId = ProjectId FROM app.Supplier WHERE SupplierId = @SupplierId AND IsDeleted = 0;
+    IF @@ROWCOUNT = 0
         THROW 50001, N'NOT_FOUND:Supplier not found', 1;
 
-    -- Actor project-scope: the actor must be assigned to the owning project. Admins bypass.
-    IF ISNULL(@ActorRole, '') <> N'Admin'
-       AND NOT EXISTS (
-           SELECT 1 FROM app.Supplier s
-           JOIN app.ProjectAssignee pa ON pa.ProjectId = s.ProjectId AND pa.UserId = @ActorUserId
-                                      AND pa.IsDeleted = 0
-           WHERE s.SupplierId = @SupplierId AND s.IsDeleted = 0
-       )
-        THROW 50003, N'FORBIDDEN_ROW:You are not assigned to this project', 1;
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
+         @MinLevel = N'Manager', @Permission = N'suppliers:delete', @AllowProjectless = 0;
 
     BEGIN TRAN;
 

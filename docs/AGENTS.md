@@ -42,7 +42,7 @@ printable reports.
   gateway is `src/lib/db.ts` (`execProc`); enforced by ESLint and guardrail tests.
   Soft delete + `ROWVERSION` concurrency + audit columns on every entity; list procs
   follow the ADR-0016 contract; errors via the THROW registry (ADR-0012).
-- **Auth.js RBAC** (`Admin`, `ProjectManager`, `Contributor`, `Viewer`) — contract in
+- **Auth.js RBAC** (global `Admin` | `User` + per-project `Viewer` | `Contributor` | `Manager`, ADR-0021) — contract in
   `src/lib/auth/` (stub until module #4; interface is final). Every mutation is
   RBAC-guarded and audit-logged (`audit.AuditLog`, written by the proc).
 - **Backups**: scheduled CI `BACKUP DATABASE` → GitLab Generic Package Registry, with

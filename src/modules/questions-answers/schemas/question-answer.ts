@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { actorAccessFields } from "@/lib/auth/actor-access";
+import { listValue, type LookupListKey } from "@/lib/lookup-lists";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 
 /**
@@ -10,11 +12,11 @@ import { rowVerSchema } from "@/modules/projects/schemas/project";
  * rejected by the DB layer.
  */
 
-export const CATEGORY_OPTIONS = ["General", "Technical", "Budget", "Other"] as const;
-export const PRIORITY_OPTIONS = ["Critical", "High", "Medium", "Low"] as const;
-
-export type QACategory = (typeof CATEGORY_OPTIONS)[number];
-export type QAPriority = (typeof PRIORITY_OPTIONS)[number];
+/** Dropdown lists (ADR-0022; migration 018 replaced the CHECK constraints of migration 009). */
+export const QUESTION_ANSWER_LISTS = [
+  "question-answer.category",
+  "question-answer.priority",
+] as const satisfies readonly LookupListKey[];
 
 export const questionAnswerRowSchema = z.object({
   QuestionAnswerId: z.number().int(),
@@ -33,6 +35,7 @@ export type QuestionAnswerRow = z.infer<typeof questionAnswerRowSchema>;
 
 export const questionAnswerListRowSchema = questionAnswerRowSchema.extend({
   TotalCount: z.number().int(),
+  ...actorAccessFields,
 });
 
 export type QuestionAnswerListRow = z.infer<typeof questionAnswerListRowSchema>;
@@ -43,8 +46,8 @@ export const createQuestionAnswerInput = z.object({
   projectId: z.number().int().positive(),
   question: z.string().trim().min(1).max(4000),
   answer: z.string().trim().max(4000).nullish(),
-  category: z.enum(CATEGORY_OPTIONS).nullish(),
-  priority: z.enum(PRIORITY_OPTIONS).nullish(),
+  category: listValue.nullish(),
+  priority: listValue.nullish(),
   assignedTo: z.string().trim().max(255).nullish(),
 });
 

@@ -1,4 +1,5 @@
 import { execProc } from "@/lib/db";
+import { parseLocalWallClock } from "@/lib/local-time";
 import { z } from "zod";
 import {
   createTodoAlertInput,
@@ -21,6 +22,8 @@ const snoozeInput = z.object({
   todoAlertId: z.number().int().positive(),
   snoozeMinutes: z.number().int().min(1).max(1440),
   rowVer: rowVerSchema,
+  /** The browser's wall clock ("YYYY-MM-DDTHH:mm:ss"): the snooze counts from the user's now. */
+  localNow: z.string().optional(),
 });
 
 /** Input schema for dismiss (validated before the proc call). */
@@ -131,6 +134,7 @@ export async function snoozeTodoAlert(
     SnoozeMinutes: parsed.snoozeMinutes,
     RowVer: parsed.rowVer,
     ActorUserId: actorUserId,
+    LocalNow: parseLocalWallClock(parsed.localNow),
   });
   return todoAlertRowSchema.parse(rows[0]);
 }

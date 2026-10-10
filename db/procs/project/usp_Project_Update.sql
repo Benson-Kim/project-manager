@@ -1,4 +1,8 @@
 ﻿-- usp_Project_Update — full-row update with rowversion concurrency (50002 CONFLICT) + in-transaction audit.
+-- Row-level access: the actor needs Manager on the project (dbo.usp_Project_AssertAccess,
+--   ADR-0021; FORBIDDEN_ROW 50003).
+-- Dropdown values (ADR-0022): ProjectStatus, ProjectPriority, ProjectPhase and RiskLevel must be live options of their lists, or unchanged (VALIDATION 50004),
+--   and are stored as listed.
 -- Entity app.Project (source: tblProjectFramework). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
@@ -43,12 +47,32 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    DECLARE @CurrentVer BIGINT =
-        (SELECT CAST(RowVer AS BIGINT) FROM app.Project WHERE ProjectId = @ProjectId AND IsDeleted = 0);
+    DECLARE @CurrentVer BIGINT, @CurrentStatus NVARCHAR(50), @CurrentPriority NVARCHAR(50),
+            @CurrentPhase NVARCHAR(50), @CurrentRiskLevel NVARCHAR(50);
+    SELECT @CurrentVer = CAST(RowVer AS BIGINT), @CurrentStatus = ProjectStatus,
+           @CurrentPriority = ProjectPriority, @CurrentPhase = ProjectPhase, @CurrentRiskLevel = RiskLevel
+    FROM app.Project WHERE ProjectId = @ProjectId AND IsDeleted = 0;
     IF @CurrentVer IS NULL
         THROW 50001, N'NOT_FOUND:Project not found', 1;
+
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @ProjectId, @ActorUserId = @ActorUserId, @MinLevel = N'Manager';
+
     IF @CurrentVer <> @RowVer
         THROW 50002, N'CONFLICT:Project was modified by someone else', 1;
+
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'project.status', @Label = @ProjectStatus OUTPUT,
+         @CurrentLabel = @CurrentStatus;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'project.priority', @Label = @ProjectPriority OUTPUT,
+         @CurrentLabel = @CurrentPriority;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'project.phase', @Label = @ProjectPhase OUTPUT,
+         @CurrentLabel = @CurrentPhase;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'project.risk-level', @Label = @RiskLevel OUTPUT,
+         @CurrentLabel = @CurrentRiskLevel;
 
     BEGIN TRAN;
 

@@ -13,7 +13,7 @@ import {
 import { deleteDailyActivityInput } from "../schemas/daily-activity";
 
 /**
- * Create a daily activity (RBAC daily-activities:create — Admin + PM; audited in-proc).
+ * Create a daily activity (RBAC daily-activities:create — project level checked in-proc, ADR-0021; audited in-proc).
  * The page is dynamic (session cookie) and the sheet calls router.refresh() on success —
  * no static path to revalidate (ADR-0018 project-scoped route).
  */
@@ -24,7 +24,7 @@ export const createDailyActivityAction = action({
   handler: (input, ctx) => createDailyActivity(input, ctx.session.userId),
 });
 
-/** Update a daily activity (RBAC daily-activities:update — Admin + PM; CONFLICT on stale RowVer). */
+/** Update a daily activity (RBAC daily-activities:update — project level checked in-proc, ADR-0021; CONFLICT on stale RowVer). */
 export const updateDailyActivityAction = action({
   name: "daily-activities.update",
   schema: updateDailyActivityFormSchema,
@@ -32,7 +32,7 @@ export const updateDailyActivityAction = action({
   handler: (input, ctx) => updateDailyActivity(input, ctx.session.userId),
 });
 
-/** Soft-delete a daily activity (RBAC daily-activities:delete — Admin + PM; audited in-proc). */
+/** Soft-delete a daily activity (RBAC daily-activities:delete — project level checked in-proc, ADR-0021; audited in-proc). */
 export const deleteDailyActivityAction = action({
   name: "daily-activities.delete",
   schema: deleteDailyActivityInput,

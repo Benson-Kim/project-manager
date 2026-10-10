@@ -1,5 +1,5 @@
 -- usp_TodoAlert_List — paged/filtered list per ADR-0016. Search columns: (none). Sort whitelist: AlertDay.
--- Actor scope: only alerts whose parent TodoItem.CreatedBy = @ActorUserId are returned (Admin/PM see all).
+-- Actor scope: alerts of to-dos the actor may read (dbo.ufn_TodoItem_AccessLevel, ADR-0021).
 -- Entity app.TodoAlert (source: tblTodoList (alert engine columns, 1:1)). Module: database-schema-and-procs (#3).
 
 -- @ProjectId is accepted for contract uniformity but ignored (entity is not project-scoped).
@@ -17,10 +17,18 @@ CREATE OR ALTER PROCEDURE dbo.usp_TodoAlert_List
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    -- The actor's role is read from auth.User, never trusted from the caller.
+    DECLARE @ActorRole NVARCHAR(50);
+    EXEC dbo.usp_User_GetActorRole @UserId = @ActorUserId, @Role = @ActorRole OUTPUT;
     SET @Page     = CASE WHEN @Page IS NULL OR @Page < 1 THEN 1 ELSE @Page END;
     SET @PageSize = CASE WHEN @PageSize IS NULL OR @PageSize < 1 THEN 1
                          WHEN @PageSize > 100 THEN 100 ELSE @PageSize END;
     SET @SortDir  = CASE WHEN LOWER(@SortDir) = 'desc' THEN 'desc' ELSE 'asc' END;
+
+    IF @TodoItemId IS NOT NULL
+        EXEC dbo.usp_TodoItem_AssertAccess
+             @TodoItemId = @TodoItemId, @ActorUserId = @ActorUserId, @MinLevel = N'Viewer';
 
     SELECT a.TodoAlertId,
            a.[TodoItemId],
@@ -41,19 +49,12 @@ BEGIN
     FROM app.TodoAlert AS a
     INNER JOIN app.TodoItem AS t
         ON t.TodoItemId = a.TodoItemId AND t.IsDeleted = 0
+    CROSS APPLY dbo.ufn_TodoItem_AccessLevel(@ActorRole, @ActorUserId, t.ProjectId, t.CreatedBy) acc
     WHERE a.IsDeleted = 0
       AND (@TodoItemId IS NULL OR a.[TodoItemId] = @TodoItemId)
-      AND (
-              t.CreatedBy = @ActorUserId
-              OR EXISTS (
-                  SELECT 1 FROM auth.[User] u
-                  WHERE  u.UserId = @ActorUserId
-                    AND  u.RoleId IN (
-                             SELECT RoleId FROM auth.[Role]
-                             WHERE  Name IN (N'Admin', N'ProjectManager')
-                         )
-              )
-          )
+      -- Visibility = the to-do rule (ADR-0021): Admin sees all; otherwise your own to-dos outside
+      -- any project or in projects you are assigned to, plus every to-do of the projects you manage.
+      AND acc.AccessLevel IS NOT NULL
     ORDER BY
         CASE WHEN @SortBy = N'AlertDay' AND @SortDir = 'asc'  THEN a.[AlertDay] END ASC,
         CASE WHEN @SortBy = N'AlertDay' AND @SortDir = 'desc' THEN a.[AlertDay] END DESC,

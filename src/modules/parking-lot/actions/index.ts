@@ -1,0 +1,49 @@
+"use server";
+
+import { action } from "@/lib/action";
+import {
+  createParkingLotItem,
+  deleteParkingLotItem,
+  updateParkingLotItem,
+} from "../repository/parking-lot-items";
+import {
+  parkingLotItemFormSchema,
+  updateParkingLotItemFormSchema,
+} from "../schemas/parking-lot-item-form";
+import { deleteParkingLotItemInput } from "../schemas/parking-lot-item";
+
+/**
+ * Create a parking lot item (RBAC parking-lot:create — project level checked in-proc, ADR-0021;
+ * audited in-proc). Project Contributors can create (rbac.ts CONTRIBUTOR_WRITE_MODULES).
+ */
+export const createParkingLotItemAction = action({
+  name: "parking-lot.create",
+  schema: parkingLotItemFormSchema,
+  permission: "parking-lot:create",
+  handler: (input, ctx) => createParkingLotItem(input, ctx.session.userId),
+});
+
+/**
+ * Update a parking lot item (RBAC parking-lot:update — project level checked in-proc, ADR-0021;
+ * audited in-proc).
+ */
+export const updateParkingLotItemAction = action({
+  name: "parking-lot.update",
+  schema: updateParkingLotItemFormSchema,
+  permission: "parking-lot:update",
+  handler: (input, ctx) => updateParkingLotItem(input, ctx.session.userId),
+});
+
+/**
+ * Soft-delete a parking lot item (RBAC parking-lot:delete — project level checked in-proc, ADR-0021;
+ * audited in-proc).
+ */
+export const deleteParkingLotItemAction = action({
+  name: "parking-lot.delete",
+  schema: deleteParkingLotItemInput,
+  permission: "parking-lot:delete",
+  handler: async (input, ctx) => {
+    await deleteParkingLotItem(input.parkingLotItemId, input.rowVer, ctx.session.userId);
+    return { parkingLotItemId: input.parkingLotItemId };
+  },
+});

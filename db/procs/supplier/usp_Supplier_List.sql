@@ -1,16 +1,20 @@
 -- usp_Supplier_List — paged/filtered list per ADR-0016. Search columns: SupplierName, ContactPerson, City.
 -- Sort whitelist: SupplierName, ContractStartDate, ContractEndDate, Rating.
 -- @Rating filter: when supplied, restricts rows to the matching rating value.
--- Actor project-scope: non-Admin actors only see suppliers in their assigned projects (FORBIDDEN_ROW
---   defense-in-depth; the page also scopes by @ProjectId but the proc enforces independently).
--- Admin bypass: @ActorRole = N'Admin' returns all rows (still scoped by @ProjectId when supplied).
+-- Row-level access: a supplied @ProjectId must be accessible (dbo.usp_Project_AssertAccess ->
+--   FORBIDDEN_ROW 50003); cross-project reads (@ProjectId NULL) return only rows of projects the
+--   actor is assigned to (Admin sees all). LIKE wildcards in @Search are escaped.
 -- ContractEndDate ASC sort: NULLs placed last so known expiring contracts surface first.
+-- ActorAccess (ADR-0023): the actor's access level on each row's project (dbo.ufn_AccessLevel_Resolve);
+--   the datasheet uses it to decide per row whether cells are editable. The cross-project filter
+--   reads the same rule: a row is listed when the actor has a level on it.
 -- Entity app.Supplier (source: tbl3rdPartySupplier). Module: suppliers (#7).
+-- ActorGrants / ActorRevokes (ADR-0024): the actor's per-person overrides of 'suppliers' in the
+--   row's project (dbo.ufn_Permission_Overrides), so the datasheet gates cells as the procs do.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Supplier_List
     @ActorUserId INT,
-    @ActorRole   NVARCHAR(50)  = NULL,
     @ProjectId   INT           = NULL,
     @Rating      NVARCHAR(255) = NULL,
     @Search      NVARCHAR(100) = NULL,
@@ -21,10 +25,21 @@ CREATE OR ALTER PROCEDURE dbo.usp_Supplier_List
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    -- The actor's role is read from auth.User, never trusted from the caller.
+    DECLARE @ActorRole NVARCHAR(50);
+    EXEC dbo.usp_User_GetActorRole @UserId = @ActorUserId, @Role = @ActorRole OUTPUT;
     SET @Page     = CASE WHEN @Page IS NULL OR @Page < 1 THEN 1 ELSE @Page END;
     SET @PageSize = CASE WHEN @PageSize IS NULL OR @PageSize < 1 THEN 1
                          WHEN @PageSize > 100 THEN 100 ELSE @PageSize END;
     SET @SortDir  = CASE WHEN LOWER(@SortDir) = 'desc' THEN 'desc' ELSE 'asc' END;
+
+    IF @ProjectId IS NOT NULL
+        EXEC dbo.usp_Project_AssertAccess
+             @ProjectId = @ProjectId, @ActorUserId = @ActorUserId, @MinLevel = N'Viewer';
+
+    IF @Search IS NOT NULL
+        SET @Search = REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'), N'_', N'\_');
 
     SELECT SupplierId,
            [ProjectId],
@@ -42,26 +57,20 @@ BEGIN
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer,
+           acc.AccessLevel AS ActorAccess,
+           ov.Grants AS ActorGrants,
+           ov.Revokes AS ActorRevokes,
            TotalCount = COUNT(*) OVER ()
     FROM app.Supplier s
+    CROSS APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, s.ProjectId, 0) acc
+    OUTER APPLY dbo.ufn_Permission_Overrides(@ActorRole, @ActorUserId, s.ProjectId, N'suppliers') ov
     WHERE s.IsDeleted = 0
       AND (@ProjectId IS NULL OR s.ProjectId = @ProjectId)
       AND (@Rating IS NULL OR s.[Rating] = @Rating)
-      AND (@Search IS NULL OR s.[SupplierName] LIKE N'%' + @Search + N'%'
-           OR s.[ContactPerson] LIKE N'%' + @Search + N'%'
-           OR s.[City] LIKE N'%' + @Search + N'%')
-      -- Actor project-scope: restrict to projects the actor is assigned to (Admins bypass).
-      -- pa.ProjectId is compared to the outer s.ProjectId — the alias prevents the
-      -- ambiguous self-join that made this predicate always true (P1 fix).
-      AND (
-          ISNULL(@ActorRole, '') = N'Admin'
-          OR EXISTS (
-              SELECT 1 FROM app.ProjectAssignee pa
-              WHERE pa.ProjectId = s.ProjectId
-                AND pa.UserId    = @ActorUserId
-                AND pa.IsDeleted = 0
-          )
-      )
+      AND (@Search IS NULL OR s.[SupplierName] LIKE N'%' + @Search + N'%' ESCAPE N'\'
+           OR s.[ContactPerson] LIKE N'%' + @Search + N'%' ESCAPE N'\'
+           OR s.[City] LIKE N'%' + @Search + N'%' ESCAPE N'\')
+      AND (@ProjectId IS NOT NULL OR acc.AccessLevel IS NOT NULL)
     ORDER BY
         CASE WHEN @SortBy = N'SupplierName' AND @SortDir = 'asc'  THEN [SupplierName] END ASC,
         CASE WHEN @SortBy = N'SupplierName' AND @SortDir = 'desc' THEN [SupplierName] END DESC,

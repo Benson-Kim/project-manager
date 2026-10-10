@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
+import { expectListed } from "./support/datasheet";
 
 /**
  * Suppliers module (#7) — project-scoped route /projects/2/suppliers
@@ -26,7 +27,7 @@ test("create supplier happy path — appears in the list", async ({ page }) => {
   await expect(form).toHaveCount(0); // sheet closed, ?id= cleared
 
   await page.goto(`/projects/2/suppliers?q=${encodeURIComponent(supplierName)}`);
-  await expect(page.getByText(supplierName).first()).toBeVisible();
+  await expectListed(page, supplierName);
 });
 
 test("validation failure — bad email shows inline error and focuses the summary", async ({

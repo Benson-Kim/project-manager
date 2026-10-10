@@ -3,12 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
-import { Select } from "@/components/ui/form/inputs";
 import { Toolbar } from "@/components/ui/toolbar";
 import { messages } from "@/lib/messages";
 import { searchProjectsAction } from "../actions";
 import type { ProjectSearchRow } from "../schemas/project";
-import { PROJECT_PRIORITIES, PROJECT_STATUSES } from "../schemas/project-form";
+import { ListFilter } from "@/components/ui/data-view/list-filter";
 
 /**
  * Projects toolbar: the search input doubles as the type-ahead jump-to-project
@@ -102,41 +101,47 @@ export function ProjectsToolbar({ children }: { children?: React.ReactNode }) {
             onKeyDown={onKeyDown}
           />
         </label>
+        <ul
+          id={listboxId}
+          role="listbox"
+          aria-label={messages.projects.jumpToProject}
+          hidden={!open}
+          className="absolute z-(--z-dropdown) mt-1 max-h-60 w-full overflow-auto rounded-lg border border-line bg-surface-raised shadow-lg"
+        >
+          {suggestions.map((row, index) => (
+            <li
+              key={row.ProjectId}
+              id={`${listboxId}-${row.ProjectId}`}
+              role="option"
+              aria-selected={index === activeIndex}
+              className={`flex min-h-11 cursor-pointer items-center px-4 text-sm first:rounded-t-lg last:rounded-b-lg ${
+                index === activeIndex ? "bg-accent-soft text-ink" : "text-ink-muted hover:text-ink"
+              }`}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                jumpTo(row);
+              }}
+              onMouseEnter={() => setActiveIndex(index)}
+            >
+              {row.ProjectName}
+            </li>
+          ))}
+        </ul>
       </div>
-      <label>
-        <span className="sr-only">{messages.projects.status}</span>
-        <Select
-          name="status"
-          data-testid="filter-status"
-          value={searchParams.get("status") ?? ""}
-          onChange={(e) => update({ status: e.target.value || null })}
-          className="w-auto"
-        >
-          <option value="">{messages.projects.allStatuses}</option>
-          {PROJECT_STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </Select>
-      </label>
-      <label>
-        <span className="sr-only">{messages.projects.priority}</span>
-        <Select
-          name="priority"
-          data-testid="filter-priority"
-          value={searchParams.get("priority") ?? ""}
-          onChange={(e) => update({ priority: e.target.value || null })}
-          className="w-auto"
-        >
-          <option value="">{messages.projects.allPriorities}</option>
-          {PROJECT_PRIORITIES.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </Select>
-      </label>
+      <ListFilter
+        list="project.status"
+        param="status"
+        label={messages.projects.status}
+        allLabel={messages.projects.allStatuses}
+        testId="filter-status"
+      />
+      <ListFilter
+        list="project.priority"
+        param="priority"
+        label={messages.projects.priority}
+        allLabel={messages.projects.allPriorities}
+        testId="filter-priority"
+      />
       {children}
     </Toolbar>
   );

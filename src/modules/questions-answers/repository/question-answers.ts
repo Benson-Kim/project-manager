@@ -1,4 +1,5 @@
 import { execProc } from "@/lib/db";
+import { AppError } from "@/lib/errors";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
 import {
   createQuestionAnswerInput,
@@ -36,14 +37,13 @@ function toProcParams(input: CreateQuestionAnswerParsed) {
 export async function createQuestionAnswer(
   input: CreateQuestionAnswerInput,
   actorUserId: number,
-  actorRole: string,
 ): Promise<QuestionAnswerRow> {
   const parsed = createQuestionAnswerInput.parse(input);
   const rows = await execProc<QuestionAnswerRow>("usp_QuestionAnswer_Create", {
     ...toProcParams(parsed),
     ActorUserId: actorUserId,
-    ActorRole: actorRole,
   });
+  if (!rows[0]) throw new AppError("NOT_FOUND", "Question/answer creation returned no row");
   return questionAnswerRowSchema.parse(rows[0]);
 }
 
@@ -55,13 +55,14 @@ export async function getQuestionAnswerById(
     QuestionAnswerId: questionAnswerId,
     ActorUserId: actorUserId,
   });
+  if (!rows[0]) throw new AppError("NOT_FOUND", `Question/answer ${questionAnswerId} not found`);
   return questionAnswerRowSchema.parse(rows[0]);
 }
 
 export async function listQuestionAnswers(
   params: ListParams,
   actorUserId: number,
-  projectId: number | null = null,
+  projectId: number,
   filters: QAListFilters = {},
   pageSize: number = DEFAULT_PAGE_SIZE,
 ): Promise<QuestionAnswerListRow[]> {
@@ -78,7 +79,6 @@ export async function listQuestionAnswers(
 export async function updateQuestionAnswer(
   input: UpdateQuestionAnswerInput,
   actorUserId: number,
-  actorRole: string,
 ): Promise<QuestionAnswerRow> {
   const parsed = updateQuestionAnswerInput.parse(input);
   const rows = await execProc<QuestionAnswerRow>("usp_QuestionAnswer_Update", {
@@ -90,8 +90,12 @@ export async function updateQuestionAnswer(
     AssignedTo: parsed.assignedTo ?? null,
     RowVer: parsed.rowVer,
     ActorUserId: actorUserId,
-    ActorRole: actorRole,
   });
+  if (!rows[0])
+    throw new AppError(
+      "NOT_FOUND",
+      `Question/answer ${parsed.questionAnswerId} not found or modified`,
+    );
   return questionAnswerRowSchema.parse(rows[0]);
 }
 
@@ -99,12 +103,10 @@ export async function deleteQuestionAnswer(
   questionAnswerId: number,
   rowVer: number,
   actorUserId: number,
-  actorRole: string,
 ): Promise<void> {
   await execProc("usp_QuestionAnswer_Delete", {
     QuestionAnswerId: questionAnswerId,
     RowVer: rowVer,
     ActorUserId: actorUserId,
-    ActorRole: actorRole,
   });
 }

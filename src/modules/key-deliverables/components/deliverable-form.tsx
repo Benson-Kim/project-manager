@@ -8,6 +8,7 @@ import { Field, useFieldContext } from "@/components/ui/form/field";
 import { DatePicker, Select, Textarea } from "@/components/ui/form/inputs";
 import { useSheetFormActions } from "@/components/ui/form/use-sheet-form-actions";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
+import { ListOptions } from "@/components/ui/lookup-lists";
 import { messages } from "@/lib/messages";
 import { toDateInput } from "@/lib/format";
 import {
@@ -16,11 +17,7 @@ import {
   updateKeyDeliverableAction,
 } from "../actions";
 
-import {
-  DELIVERABLE_PRIORITIES,
-  DELIVERABLE_STATUSES,
-  type KeyDeliverableRow,
-} from "../schemas/key-deliverable";
+import type { KeyDeliverableRow } from "../schemas/key-deliverable";
 import {
   keyDeliverableFormSchema,
   updateKeyDeliverableFormSchema,
@@ -250,7 +247,10 @@ export function DeliverableForm({
               keyDeliverableId: deliverable.KeyDeliverableId,
               rowVer: deliverable.RowVer,
             })
-          : Promise.resolve({ ok: false as const, error: { code: "NOT_FOUND" as const, message: "" } }),
+          : Promise.resolve({
+              ok: false as const,
+              error: { code: "NOT_FOUND" as const, message: "" },
+            }),
     });
 
   return (
@@ -292,7 +292,10 @@ export function DeliverableForm({
             name="requestedDate"
             errors={form.errors.requestedDate}
           >
-            <DatePicker name="requestedDate" defaultValue={toDateInput(deliverable?.RequestedDate)} />
+            <DatePicker
+              name="requestedDate"
+              defaultValue={toDateInput(deliverable?.RequestedDate)}
+            />
           </Field>
           <Field
             label={messages.keyDeliverables.deadline}
@@ -304,21 +307,17 @@ export function DeliverableForm({
           <Field label={messages.keyDeliverables.status} name="status" errors={form.errors.status}>
             <Select name="status" defaultValue={deliverable?.Status ?? ""}>
               <option value="">{messages.projects.none}</option>
-              {DELIVERABLE_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
+              <ListOptions list="key-deliverable.status" current={deliverable?.Status} />
             </Select>
           </Field>
-          <Field label={messages.keyDeliverables.priority} name="priority" errors={form.errors.priority}>
+          <Field
+            label={messages.keyDeliverables.priority}
+            name="priority"
+            errors={form.errors.priority}
+          >
             <Select name="priority" defaultValue={deliverable?.Priority ?? ""}>
               <option value="">{messages.projects.none}</option>
-              {DELIVERABLE_PRIORITIES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
+              <ListOptions list="key-deliverable.priority" current={deliverable?.Priority} />
             </Select>
           </Field>
         </div>

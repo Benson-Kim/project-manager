@@ -1,7 +1,6 @@
 import { execProc } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
-import { listActivityStatuses } from "@/lib/repositories/activity-status";
 import {
   createDailyActivityInput,
   dailyActivityListRowSchema,
@@ -18,10 +17,9 @@ import {
 export interface DailyActivityListFilters {
   activityStatusId?: number | null;
   taskType?: string | null;
+  /** Only project-less activities (the cross-project page's "No project" filter). */
+  withoutProject?: boolean;
 }
-
-export type { ActivityStatus } from "@/lib/repositories/activity-status";
-export { listActivityStatuses };
 
 /**
  * Daily Activity repository — stored procedures only , zod row
@@ -85,6 +83,7 @@ export async function listDailyActivities(
     ...toProcListParams(params, pageSize),
     ActivityStatusId: filters.activityStatusId ?? null,
     TaskType: filters.taskType ?? null,
+    WithoutProject: filters.withoutProject ?? false,
   });
   return rows.map((r) => dailyActivityListRowSchema.parse(r));
 }
@@ -115,4 +114,3 @@ export async function deleteDailyActivity(
     ActorUserId: actorUserId,
   });
 }
-

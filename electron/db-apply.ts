@@ -50,7 +50,9 @@ export async function applyDatabaseSchema(opts: ApplyOptions): Promise<ApplyResu
     const r = await master
       .request()
       .input("db", sql.NVarChar, target.database)
-      .query<{ exists: number }>("SELECT CASE WHEN DB_ID(@db) IS NULL THEN 0 ELSE 1 END AS [exists]");
+      .query<{ exists: number }>(
+        "SELECT CASE WHEN DB_ID(@db) IS NULL THEN 0 ELSE 1 END AS [exists]",
+      );
     if (r.recordset[0].exists === 0) {
       await master.request().batch(`CREATE DATABASE ${quoteName(target.database)}`);
       result.createdDatabase = true;

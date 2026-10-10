@@ -1,6 +1,8 @@
 -- usp_TodoItem_Create — insert one app.TodoItem row; row-level auth (project membership);
 -- audits in-transaction; returns the new row.
--- THROW 50003 FORBIDDEN_ROW : actor is not a member of the given project (when ProjectId is supplied).
+-- THROW 50003 FORBIDDEN_ROW : no Contributor access to @ProjectId, or @DailyActivityId unreadable (ADR-0021).
+-- Dropdown values (ADR-0022): Status and Priority must be live options of their lists (VALIDATION 50004),
+--   and are stored as listed.
 -- Entity app.TodoItem (source: tblTodoList). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
@@ -20,29 +22,19 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    -- Row-level auth: when creating under a project, actor must own/manage it or be Admin/PM.
-    IF @ProjectId IS NOT NULL
-    BEGIN
-        IF NOT EXISTS (
-            SELECT 1 FROM auth.[User] u
-            WHERE  u.UserId = @ActorUserId
-              AND  u.RoleId IN (
-                       SELECT RoleId FROM auth.[Role]
-                       WHERE  Name IN (N'Admin', N'ProjectManager')
-                   )
-        )
-        AND NOT EXISTS (
-            SELECT 1 FROM app.TodoItem ti
-            WHERE  ti.ProjectId = @ProjectId AND ti.CreatedBy = @ActorUserId AND ti.IsDeleted = 0
-        )
-        AND NOT EXISTS (
-            SELECT 1 FROM app.Project p
-            WHERE  p.ProjectId = @ProjectId
-              AND  p.IsDeleted  = 0
-              AND  p.CreatedBy  = @ActorUserId
-        )
-            THROW 50003, N'FORBIDDEN_ROW:You do not have access to this project', 1;
-    END
+    -- Row-level access (ADR-0021): a project to-do needs Contributor there (project-less
+    -- to-dos are personal); a linked activity must be readable.
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
+         @MinLevel = N'Contributor', @Permission = N'todo-items:create', @AllowProjectless = 1;
+    IF @DailyActivityId IS NOT NULL
+        EXEC dbo.usp_DailyActivity_AssertAccess
+             @DailyActivityId = @DailyActivityId, @ActorUserId = @ActorUserId, @MinLevel = N'Viewer';
+
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'todo-item.status', @Label = @Status OUTPUT;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'todo-item.priority', @Label = @Priority OUTPUT;
 
     BEGIN TRAN;
 

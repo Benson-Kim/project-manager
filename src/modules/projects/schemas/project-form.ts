@@ -1,5 +1,9 @@
 import { z } from "zod";
+import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
+import { toDateInput } from "@/lib/format";
+import { listChoice, type LookupListKey } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
+import type { ProjectRow } from "./project";
 
 /**
  * Charter form contract ): ONE schema shared by the client form
@@ -8,23 +12,13 @@ import { messages } from "@/lib/messages";
  * input shape (booleans for the MSSS flags, numbers for costs, Dates).
  */
 
-/** Fixed UI vocabularies (checklist add-ons, requirements row 69). */
-export const PROJECT_STATUSES = [
-  "Not started",
-  "In progress",
-  "On hold",
-  "Completed",
-  "Cancelled",
-] as const;
-export const PROJECT_PRIORITIES = ["High", "Medium", "Low"] as const;
-export const PROJECT_PHASES = [
-  "Initiation",
-  "Planning",
-  "Execution",
-  "Monitoring",
-  "Closure",
-] as const;
-export const RISK_LEVELS = ["High", "Medium", "Low"] as const;
+/** Dropdown lists (checklist add-ons, requirements row 69; ADR-0022). */
+export const PROJECT_LISTS = [
+  "project.status",
+  "project.priority",
+  "project.phase",
+  "project.risk-level",
+] as const satisfies readonly LookupListKey[];
 
 const optionalText = (max: number) =>
   z
@@ -85,11 +79,12 @@ export const projectFormSchema = z.object({
   startDate: dateInput,
   endDate: dateInput,
   similarProject: flag,
-  projectPriority: optionalText(50),
+  /** Managed lists (ADR-0022): the proc checks these against the live options. */
+  projectPriority: listChoice,
   estimatedCompletionDate: dateInput,
-  projectStatus: optionalText(50),
-  projectPhase: optionalText(50),
-  riskLevel: optionalText(50),
+  projectStatus: listChoice,
+  projectPhase: listChoice,
+  riskLevel: listChoice,
 });
 
 export type ProjectFormValues = z.output<typeof projectFormSchema>;
@@ -100,3 +95,45 @@ export const updateProjectFormSchema = projectFormSchema.extend({
 });
 
 export type UpdateProjectFormValues = z.output<typeof updateProjectFormSchema>;
+
+const flagValue = (value: boolean) => (value ? "on" : "");
+
+/** A project as the charter form's values — what a datasheet cell edit sends (ADR-0023). */
+export function projectFormValues(row: ProjectRow): FormValues {
+  return {
+    projectId: String(row.ProjectId),
+    rowVer: String(row.RowVer),
+    projectName: row.ProjectName,
+    projectManager: formText(row.ProjectManager),
+    businessAnalyst: formText(row.BusinessAnalyst),
+    projectSponsor: formText(row.ProjectSponsor),
+    projectDocs: formText(row.ProjectDocs),
+    dateOfProject: toDateInput(row.DateOfProject),
+    problemStatement: formText(row.ProblemStatement),
+    currentState: formText(row.CurrentState),
+    futureState: formText(row.FutureState),
+    userImpact: formText(row.UserImpact),
+    mandate: formText(row.Mandate),
+    projectStatusCom: formText(row.ProjectStatusCom),
+    existBusMod: formText(row.ExistBusMod),
+    a1: flagValue(row.A1),
+    da: flagValue(row.DA),
+    das: flagValue(row.DAS),
+    purchaseOrder: flagValue(row.PurchaseOrder),
+    requisition: flagValue(row.Requisition),
+    do: flagValue(row.DO),
+    financingSource: formText(row.FinancingSource),
+    financingCost: formText(row.FinancingCost),
+    recurrentCost: formText(row.RecurrentCost),
+    purchaseEquipment: flagValue(row.PurchaseEquipment),
+    equipmentNotes: formText(row.EquipmentNotes),
+    startDate: toDateInput(row.StartDate),
+    endDate: toDateInput(row.EndDate),
+    similarProject: flagValue(row.SimilarProject),
+    projectPriority: formText(row.ProjectPriority),
+    estimatedCompletionDate: toDateInput(row.EstimatedCompletionDate),
+    projectStatus: formText(row.ProjectStatus),
+    projectPhase: formText(row.ProjectPhase),
+    riskLevel: formText(row.RiskLevel),
+  };
+}

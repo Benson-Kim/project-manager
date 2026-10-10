@@ -25,7 +25,11 @@ the full rules and examples derived from these decisions.
 | [0014](ADR-0014-dependency-policy-and-pins.md) | Dependency policy and the eslint/typescript pins | Accepted |
 | [0015](ADR-0015-auth-stub-contract.md) | Auth provider interface stubbed until module #4; contract final now | Accepted |
 | [0016](ADR-0016-list-proc-contract.md) | List stored-procedure contract (paging, sorting, search, TotalCount) | Accepted |
-| [0017](ADR-0017-auth-sessions-and-login-protection.md) | Auth sessions and login-attempt rate limiting | Accepted |
-| [0018](ADR-0018-project-workspace-navigation.md) | Project workspace navigation: nested layout + scrollable section links | Accepted |
-| [0019](ADR-0019-project-workspace-navigation-disclosure-nav.md) | Project workspace navigation: grouped disclosure nav (supersedes ADR-0018 §2) | Accepted |
-| [0020](ADR-0020-rich-text-editor-and-sanitiser.md) | Rich-text editing (Tiptap) and HTML sanitisation (sanitize-html) | Accepted |
+| [0017](ADR-0017-auth-sessions-and-login-protection.md) | Auth sessions, JWT strategy, login-rate limiting, password policy | Accepted |
+| [0018](ADR-0018-project-workspace-navigation.md) | Project workspace navigation: nested layout + scrollable section links | Superseded by ADR-0019 §2 |
+| [0019](ADR-0019-project-section-nav-grouped-disclosure.md) | Project section nav: grouped disclosure buttons supersede flat scrollable row | Accepted |
+| [0020](ADR-0020-web-push-todo-alert-delivery.md) | Event-driven Web Push todo-alert delivery | Accepted |
+| [0021](ADR-0021-per-project-access-levels.md) | Per-project access levels; global roles collapse to Admin and User | Accepted |
+| [0022](ADR-0022-managed-lookup-lists.md) | Managed dropdown lists (Admin-edited, rename cascade, option colours) | Accepted |
+| [0023](ADR-0023-dataview-datasheet-mode.md) | DataView datasheet mode: in-cell editing, new-entry row, per-user layout, cross-project Project column | Accepted (amends 0006, 0016) |
+| [0024](ADR-0024-per-person-permission-overrides.md) | Per-person permission overrides (team cog) and editable team titles | Accepted (amends 0021, 0022) |

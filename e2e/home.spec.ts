@@ -11,5 +11,5 @@ test("PWA manifest is served", async ({ request }) => {
   const res = await request.get("/manifest.webmanifest");
   expect(res.ok()).toBeTruthy();
   const manifest = await res.json();
-  expect(manifest.name).toBe("Project Manager");
+  expect(manifest.name).toBe("Saeol Project Manager");
 });

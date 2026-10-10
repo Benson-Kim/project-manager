@@ -23,6 +23,9 @@ const skipNext = args.has("--skip-next");
 const appDir = join(root, "build", "desktop-app");
 const standalone = join(root, ".next", "standalone");
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf-8"));
+// CI stamps each release with its own version (scripts/desktop/release.mjs plan).
+const version = process.env.PM_VERSION || pkg.version;
+if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`Invalid version "${version}" (expected x.y.z)`);
 
 const step = (m) => console.log(`\n▶ ${m}`);
 const run = (cmd) => execSync(cmd, { cwd: root, stdio: "inherit", env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1" } });
@@ -85,7 +88,7 @@ writeFileSync(
     {
       name: pkg.name,
       productName: "Project Manager",
-      version: pkg.version,
+      version,
       description: "Project Manager desktop edition",
       author: pkg.author,
       main: "main.js",
@@ -96,7 +99,7 @@ writeFileSync(
     2,
   ),
 );
-console.log(`  version ${pkg.version}, commit ${commit || "?"}${dirty ? " (uncommitted changes!)" : ""}`);
+console.log(`  version ${version}, commit ${commit || "?"}${dirty ? " (uncommitted changes!)" : ""}`);
 
 if (stageOnly) process.exit(0);
 
@@ -123,6 +126,7 @@ for (const rel of [
   "standalone/node_modules/argon2",
   "standalone/public",
   "setup/provision.ps1",
+  "setup/remove-all-users-install.ps1",
   "sql-express/SQLEXPR_x64_ENU.exe",
   "icon.ico",
 ]) {
@@ -143,15 +147,28 @@ if (existsSync(join(unpacked, "app.asar.unpacked"))) problems.push("app.asar.unp
 if ((await sha256(join(unpacked, "sql-express", "SQLEXPR_x64_ENU.exe"))) !== JSON.parse(readFileSync(join(root, "scripts", "desktop", "sql-express.pin.json"), "utf-8")).sha256) {
   problems.push("packaged SQL Server media differs from the pinned file (was it re-signed?)");
 }
+const hasFeed = process.env.PM_UPDATE_FEED !== "off";
+// electron-builder writes app-update.yml (the feed address) only for installer builds, not --dir.
+if (hasFeed && !dirOnly && !existsSync(join(unpacked, "app-update.yml"))) problems.push("resources/app-update.yml missing (update feed)");
 if (problems.length) throw new Error(`Package check failed:\n  - ${problems.join("\n  - ")}`);
 console.log(`  app.asar ${(statSync(join(unpacked, "app.asar")).size / 1024).toFixed(0)} KB; server, db scripts, SQL media, provisioning present; no .env files`);
 if (!dirOnly) {
-  const exe = join(root, "dist-installer", `ProjectManager-Setup-${pkg.version}.exe`);
+  const exe = join(root, "dist-installer", `ProjectManager-Setup-${version}.exe`);
   console.log(`\n✔ ${exe}`);
   const hash = await sha256(exe);
   // Ship this next to the installer so a copy (USB, download) can be checked on
   // the target PC: Get-FileHash <exe> must print the same value.
-  writeFileSync(`${exe}.sha256`, `${hash} *ProjectManager-Setup-${pkg.version}.exe\n`);
+  writeFileSync(`${exe}.sha256`, `${hash} *ProjectManager-Setup-${version}.exe\n`);
   console.log(`  size   ${(statSync(exe).size / 1048576).toFixed(1)} MB`);
   console.log(`  sha256 ${hash}  (also in ${basename(exe)}.sha256)`);
+  if (hasFeed) {
+    // What the release workflow publishes: latest.yml tells installed apps about
+    // this version, the .blockmap lets them download only the changed blocks.
+    const feed = join(root, "dist-installer", "latest.yml");
+    if (!existsSync(feed) || !readFileSync(feed, "utf-8").includes(`version: ${version}`)) {
+      throw new Error("dist-installer/latest.yml is missing or describes another version");
+    }
+    if (!existsSync(`${exe}.blockmap`)) throw new Error(`${basename(exe)}.blockmap is missing`);
+    console.log(`  update feed files: latest.yml, ${basename(exe)}.blockmap`);
+  }
 }

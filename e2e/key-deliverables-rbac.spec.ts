@@ -27,5 +27,7 @@ test("viewer deliverable sheet is read-only — no save or delete, fields disabl
   await expect(page.getByTestId("deliverable-form")).toBeVisible();
   await expect(page.getByTestId("deliverable-save")).toHaveCount(0);
   await expect(page.getByTestId("deliverable-delete")).toHaveCount(0);
-  await expect(page.getByLabel(messages.keyDeliverables.requirement)).toBeDisabled();
+  await expect(
+    page.getByTestId("deliverable-form").getByLabel(messages.keyDeliverables.requirement),
+  ).toBeDisabled();
 });

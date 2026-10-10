@@ -31,9 +31,7 @@ function toProcParams(input: CreateKeyDeliverableParsed) {
     RequestedDate: input.requestedDate ?? null,
     Deadline: input.deadline ?? null,
     AssigneeIds:
-      input.assigneeIds && input.assigneeIds.length > 0
-        ? JSON.stringify(input.assigneeIds)
-        : null,
+      input.assigneeIds && input.assigneeIds.length > 0 ? JSON.stringify(input.assigneeIds) : null,
     Priority: input.priority ?? null,
     Status: input.status ?? null,
   };
@@ -133,7 +131,10 @@ export async function getGanttBars(
         start = r.RequestedDate;
       } else if (r.CreatedAtUtc.getTime() <= r.Deadline.getTime()) {
         start = r.CreatedAtUtc;
-      } else if (r.ProjectStartDate != null && r.ProjectStartDate.getTime() <= r.Deadline.getTime()) {
+      } else if (
+        r.ProjectStartDate != null &&
+        r.ProjectStartDate.getTime() <= r.Deadline.getTime()
+      ) {
         // Imported/seed rows: CreatedAtUtc is the seed timestamp (later than the
         // deadline), so fall back to the project start date to preserve the
         // project-duration bar.

@@ -71,7 +71,14 @@ export const Switch = forwardRef<HTMLInputElement, SwitchProps>(function Switch(
     >
       <span className="text-sm text-ink">{label}</span>
       <span className="relative inline-flex">
-        <input ref={ref} type="checkbox" role="switch" className="peer sr-only" {...props} />
+        {/* Transparent over the track, so the native input itself takes the click. */}
+        <input
+          ref={ref}
+          type="checkbox"
+          role="switch"
+          className="peer absolute inset-0 z-10 m-0 cursor-pointer appearance-none opacity-0"
+          {...props}
+        />
         <span
           aria-hidden="true"
           className="block h-6 w-10 rounded-full bg-ink-faint transition-colors duration-(--duration-fast) peer-checked:bg-accent peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus"

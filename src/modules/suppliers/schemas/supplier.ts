@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { actorAccessFields } from "@/lib/auth/actor-access";
+import type { LookupListKey } from "@/lib/lookup-lists";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 
 /**
@@ -6,8 +8,8 @@ import { rowVerSchema } from "@/modules/projects/schemas/project";
  * mirrors the SELECT shape of usp_Supplier_{Create,GetById,List,Update}.
  */
 
-/** UI rating vocabulary (module #7; seed data uses Excellent/Good — DB column stays free-text). */
-export const SUPPLIER_RATINGS = ["Excellent", "Good", "Fair", "Poor"] as const;
+/** Dropdown list (module #7, ADR-0022; seed data uses Excellent/Good). */
+export const SUPPLIER_LISTS = ["supplier.rating"] as const satisfies readonly LookupListKey[];
 
 export const supplierRowSchema = z.object({
   SupplierId: z.number().int(),
@@ -32,6 +34,7 @@ export type SupplierRow = z.infer<typeof supplierRowSchema>;
 
 export const supplierListRowSchema = supplierRowSchema.extend({
   TotalCount: z.number().int(),
+  ...actorAccessFields,
 });
 
 export type SupplierListRow = z.infer<typeof supplierListRowSchema>;
