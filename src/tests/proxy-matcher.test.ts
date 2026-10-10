@@ -1,6 +1,11 @@
-import { getMiddlewareMatchers } from "next/dist/build/analysis/get-page-static-info";
+import * as staticInfo from "next/dist/build/analysis/get-page-static-info";
 import { describe, expect, it } from "vitest";
 import { config } from "../proxy";
+
+// Exported by Next at runtime but absent from its .d.ts.
+const { getMiddlewareMatchers } = staticInfo as unknown as {
+  getMiddlewareMatchers(matchers: unknown, nextConfig: object): Array<{ regexp: string }>;
+};
 
 /**
  * Guardrail (ADR-0026 §3): only the attachment routes skip the proxy, which
@@ -8,7 +13,7 @@ import { config } from "../proxy";
  * everything else. The matcher is compiled with Next's own code, so this is
  * what the server will match.
  */
-const [matcher] = getMiddlewareMatchers(config.matcher, {} as never);
+const [matcher] = getMiddlewareMatchers(config.matcher, {});
 const proxied = (pathname: string) => new RegExp(matcher!.regexp).test(pathname);
 
 describe("proxy matcher", () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatDate, toDateInput } from "../format";
+import { formatDate, formatFileSize, toDateInput } from "../format";
 
 describe("formatDate", () => {
   it("formats a Date as medium en-CA", () => {
@@ -31,5 +31,26 @@ describe("toDateInput", () => {
   });
   it("returns empty string for undefined", () => {
     expect(toDateInput(undefined)).toBe("");
+  });
+});
+
+describe("formatFileSize", () => {
+  it.each([
+    [0, "0 bytes"],
+    [1, "1 byte"],
+    [820, "820 bytes"],
+    [1024, "1 KB"],
+    [1536, "1.5 KB"],
+    [14 * 1024 + 300, "14 KB"],
+    [2.44 * 1024 * 1024, "2.4 MB"],
+    [25 * 1024 * 1024, "25 MB"],
+    [3 * 1024 ** 3, "3 GB"],
+    [5000 * 1024 ** 3, "5000 GB"],
+  ])("%d bytes → %s", (bytes, text) => {
+    expect(formatFileSize(bytes)).toBe(text);
+  });
+
+  it.each([null, undefined, -1, Number.NaN])("%s → empty", (value) => {
+    expect(formatFileSize(value)).toBe("");
   });
 });
