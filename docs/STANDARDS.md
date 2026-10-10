@@ -272,6 +272,15 @@ in-button spinner + double-submit guard; error summary focused on server failure
 success toast + announcer; unsaved-changes guard on dirty forms; optimistic updates
 only for harmless toggles/reorder.
 
+Rich text ([ADR-0025](adr/ADR-0025-rich-text-editor-and-sanitiser.md)): the form schema
+uses `richTextSchema({ max, required })` (`src/lib/rich-text/schema.ts`), the sheet uses
+`<RichTextEditor name=…>` inside a `Field`, and read-only and print views use
+`<RichTextView html=…>`. Lists, CSV and search use `htmlToPlainText`. Repositories pass
+stored HTML through `sanitizeRichText` before it reaches a sheet, so legacy Access markup
+(`<font>`) arrives converted. Never render stored HTML any other way. Prose `Input`/`Textarea`
+fields are spell-checked; identifiers (usernames, codes, phone, e-mail) pass
+`spellCheck={false}`.
+
 ### 5.5 Detail/edit ([ADR-0010](adr/ADR-0010-detail-edit-pattern.md))
 
 Record open = `Sheet` (bottom sheet < md, right panel ≥ md), URL-synced (`?id=`),

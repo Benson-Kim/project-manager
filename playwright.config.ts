@@ -21,7 +21,7 @@ export default defineConfig({
     {
       name: "app",
       testMatch:
-        /(home|kitchen-sink|projects|key-deliverables|shell|stakeholders|suppliers|daily-activities|todo-items|questions-answers|parking-lot|assumptions-constraints|datasheet)\.spec\.ts/,
+        /(home|kitchen-sink|projects|key-deliverables|shell|stakeholders|suppliers|daily-activities|todo-items|questions-answers|parking-lot|assumptions-constraints|datasheet|rich-text)\.spec\.ts/,
       dependencies: ["setup"],
       use: { storageState: "e2e/.auth/pm.json" },
     },
