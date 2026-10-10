@@ -59,9 +59,20 @@ Constraints found on develop (2026-10-10):
 - **Rejected alternative: polymorphic** (`EntityName/EntityId` plus a separate
   "files" permission module). It has no FK, and a Manager who revokes
   `daily-activities:update` would also have to revoke `files:*`.
-- **Owner registry.** The app keeps one registry (`src/lib/files/owners.ts`)
-  mapping an owner key (`daily-activity`) to its procs, id parameter and
-  permissions. A consumer adds a link table, its procs and one registry entry.
+- **Owner registry.** The app keeps one registry
+  (`src/modules/file-storage/repository/owners.ts`) mapping an owner key
+  (`daily-activity`) to its procs, id parameter and permissions. A consumer
+  adds a link table, its procs, the key in `ATTACHMENT_OWNERS` and one
+  registry entry; `owners.test.ts` checks the procs exist and that the access
+  guardrail covers their folder.
+- **Where the code lives.**
+  - `src/lib/files/` (server only): storage, sniffing, the AV hook, the sweep
+    and HTTP helpers.
+  - `src/lib/file-names.ts` (pure, client-safe): name cleaning and
+    `Content-Disposition`.
+  - `src/modules/file-storage/`: schemas, the repository, the actions and the
+    route-handler logic. `src/tests/file-storage-boundaries.test.ts` keeps the
+    server-only parts and every `node:` built-in out of client modules.
 
 ### 2. Removing an attachment needs `<owner>:update` (user decision 2026-10-10)
 

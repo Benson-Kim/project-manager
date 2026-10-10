@@ -17,16 +17,19 @@ Installer (per user, no admin rights needed)
       ├─ TCP 127.0.0.1:14330 only + firewall block rule           (not reachable from the network)
       ├─ login pm_app (random password), sa disabled
       ├─ %ProgramData%\Project Manager\Backups  (writable by the SQL service)
-      └─ %ProgramData%\Project Manager\machine.json  (DB credentials + auth secret, all users)
+      ├─ %ProgramData%\Project Manager\Uploads  (attachments; writable by every local user, ADR-0026)
+      └─ %ProgramData%\Project Manager\machine.json  (DB credentials, auth secret, uploadsDir; all users)
 
 App launch (normal user, no admin needed)
  ├─ reads machine.json, waits for SQL Server        → offers elevated Repair if anything is wrong
+ │    (a PC provisioned before F1 has no uploadsDir: one short Repair after that update)
  ├─ applies the schema                               (electron/db-apply.ts)
  │    migrations once each, in a transaction, with a backup first when upgrading
  │    stored procedures only when they changed, seeds once each
  ├─ ensures an active admin account exists           → shows a one-time password if it created one
- ├─ starts the Next.js standalone server on 127.0.0.1:<random port>
- └─ daily verified backup → copied to the user's backup folder (OneDrive by default)
+ ├─ starts the Next.js standalone server on 127.0.0.1:<random port>   (UPLOADS_DIR = uploadsDir)
+ └─ daily verified backup → copied to the user's backup folder (OneDrive by default),
+      new attachment files mirrored into <backup folder>\Uploads
 ```
 
 ## Building the installer (Windows x64 developer PC)
@@ -171,6 +174,8 @@ administrator password…*, *Open log files*, *Check for updates*, the version,
 | Database | SQL Server instance `PROJECTMGR`, database `ProjectManager` |
 | Backups (on this PC, last 14) | `%ProgramData%\Project Manager\Backups` |
 | Backup copies (last 30) | per user; default `%OneDrive%\Project Manager Backups`, else `Documents\Project Manager Backups` |
+| Attachments (ADR-0026) | `%ProgramData%\Project Manager\Uploads`, files named by their SHA-256 in `ab\cd\` shards; shared by every Windows user on the PC |
+| Attachment copies | `<backup copy folder>\Uploads` — new files are added after each backup, nothing is deleted there |
 | App logs | `%APPDATA%\Project Manager\logs\main.log` |
 | Setup/repair log | `%ProgramData%\Project Manager\logs\provision.log` |
 | SQL Server setup logs | `C:\Program Files\Microsoft SQL Server\160\Setup Bootstrap\Log` |
@@ -184,6 +189,11 @@ administrator password…*, *Open log files*, *Check for updates*, the version,
   another PC). Older backups are upgraded to the current schema automatically.
 - **Move to a new PC:** install there, then *Restore from backup…* with the
   latest copy.
+- **Attachments are not in the `.bak`.** Their bytes live in the Uploads
+  folder; the database holds only names, sizes and hashes. A restore brings
+  the records back; to bring the files back, copy `<backup copy folder>\Uploads`
+  into `%ProgramData%\Project Manager\Uploads` (keep the `ab\cd\` folders).
+  An in-app file restore is F2's.
 
 ## Uninstall
 
@@ -195,6 +205,11 @@ that Windows account only; the database and backups stay (client data). To remov
 
 - *"Database setup needed"* on start → click **Repair** (re-runs provisioning
   elevated; safe to repeat). Details in `provision.log`.
+- *"One-time setup needed"* after an update → the update needs something only
+  an administrator can create (first case: the shared Uploads folder, F1).
+  Click **Repair** and approve the prompt; it takes about a minute, once per
+  PC. machine.json keeps `schemaVersion: 1` so an older app another Windows
+  user still runs on the same PC keeps working.
 - Admin locked out / password lost → tray → *Reset administrator password…*.
 - Anything else → tray → *Open log files* and send `main.log`.
 
@@ -207,13 +222,15 @@ electron/
   sql-service.ts     service state + elevated Repair
   db-apply.ts        migrations / procs / seeds (port of scripts/db-apply.sh)
   backup.ts          BACKUP / VERIFYONLY / copy / retention / RESTORE
+  uploads-mirror.ts  copies new attachment files to <backup copy folder>\Uploads (tests/)
   admin-account.ts   admin bootstrap and password reset (argon2id)
   next-server.ts     Next.js standalone child process (auto-restart)
   updater.ts         background download, optional/required update prompts
   update-policy.ts   required-update rule + release-notes text (tests/)
   setup/provision.ps1  idempotent engine provisioning (asks for admin approval itself)
   setup/remove-all-users-install.ps1  removes a pre-1.0 all-users copy (keeps data)
-  tests/             update-policy.test.ts (vitest), db-integration.ts (npm run electron:test-db)
+  tests/             update-policy, machine-config, uploads-mirror (vitest); db-integration.ts
+                     (npm run electron:test-db)
 build-resources/     icon.ico/png, installerHeader.bmp + installerSidebar.bmp (wizard logo,
                      24-bit, from icon.png), installer.nsh (NSIS hook that runs provision.ps1)
 electron-builder.config.cjs
