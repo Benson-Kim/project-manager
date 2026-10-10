@@ -58,6 +58,16 @@ export function RichTextDemo({
           <Button type="submit">Preview</Button>
         </div>
       </form>
+      {/* Read-only sheets disable their fieldset; the editor follows it. */}
+      <fieldset disabled className="mt-6 max-w-2xl">
+        <Field label="Archived copy" name="archivedCopy">
+          <RichTextEditor
+            name="archivedCopy"
+            defaultValue={defaultValue}
+            testId="ks-rich-text-readonly"
+          />
+        </Field>
+      </fieldset>
       <h3 className="mt-6 mb-2 text-sm font-semibold text-ink">Saved and rendered</h3>
       <div className="max-w-2xl rounded-md border border-line p-3">{preview}</div>
       <h3 className="mt-6 mb-2 text-sm font-semibold text-ink">Access value, converted</h3>
