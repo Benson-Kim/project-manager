@@ -191,10 +191,14 @@ administrator password…*, *Open log files*, *Check for updates*, the version,
 - **Move to a new PC:** install there, then *Restore from backup…* with the
   latest copy.
 - **Attachments are not in the `.bak`.** Their bytes live in the Uploads
-  folder; the database holds only names, sizes and hashes. A restore brings
-  the records back; to bring the files back, copy `<backup copy folder>\Uploads`
-  into `%ProgramData%\Project Manager\Uploads` (keep the `ab\cd\` folders).
-  An in-app file restore is F2's.
+  folder; the database holds only names, sizes and hashes.
+  - *Restore from backup…* copies the files back after the database. It
+    copies every file the Uploads folder lacks, first from `Uploads` next to
+    the chosen `.bak`, then from `<backup copy folder>\Uploads`. The final
+    message says how many.
+  - By hand (e.g. attachments were still off when you restored): copy
+    `<backup copy folder>\Uploads` into `%ProgramData%\Project Manager\Uploads`,
+    keeping the `ab\cd\` folders.
 
 ## Uninstall
 
