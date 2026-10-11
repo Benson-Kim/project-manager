@@ -38,6 +38,7 @@ import type { AttachmentRow } from "@/modules/file-storage/schemas/attachment";
 export function DailyActivitySheet({
   activity,
   attachments = null,
+  uploadsEnabled,
   isNew,
   projectId,
   canEdit,
@@ -47,6 +48,8 @@ export function DailyActivitySheet({
   activity: DailyActivityRow | null;
   /** The open activity's attachments (usp_DailyActivity_ListFiles); null when none is open. */
   attachments?: AttachmentRow[] | null;
+  /** False on a desktop PC whose uploads folder is not set up yet (ADR-0026 §9). */
+  uploadsEnabled: boolean;
   isNew: boolean;
   projectId: number | null;
   canEdit: boolean;
@@ -294,6 +297,7 @@ export function DailyActivitySheet({
               files={attachments}
               canAdd={canEdit}
               canRemove={canEdit}
+              uploadsEnabled={uploadsEnabled}
             />
           ) : null}
         </fieldset>

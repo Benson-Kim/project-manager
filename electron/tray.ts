@@ -12,6 +12,8 @@ export interface TrayActions {
   /** Present only when the build has an update feed. */
   checkForUpdates?(): void;
   installUpdate?(): void;
+  /** Present only while this PC has no attachments folder (ADR-0026 §9). */
+  setUpAttachments?(): void;
 }
 
 let tray: Tray | null = null;
@@ -36,6 +38,14 @@ function buildMenu(a: TrayActions): Menu {
     { label: "Choose backup copy folder…", click: a.chooseBackupCopyFolder },
     { label: "Restore from backup…", click: a.restore },
     { type: "separator" },
+    ...(a.setUpAttachments
+      ? [
+          {
+            label: "Set up attachments (administrator)…",
+            click: a.setUpAttachments,
+          } as MenuItemConstructorOptions,
+        ]
+      : []),
     { label: "Reset administrator password…", click: a.resetAdminPassword },
     { label: "Open log files", click: a.openLogs },
     ...(a.checkForUpdates

@@ -1,4 +1,4 @@
-import { getUploadsEnv } from "@/lib/env";
+import { getUploadsEnv, uploadsEnabled } from "@/lib/env";
 import { scanFile } from "@/lib/files/scan";
 import { sniffFile } from "@/lib/files/sniff";
 import { uploadsRoot } from "@/lib/files/store";
@@ -10,6 +10,7 @@ import type { UploadDeps } from "./upload";
 /** The real wiring for the /api/files route files (the handlers take it injected, for tests). */
 export const uploadDeps: UploadDeps = {
   getSession: getFileSession,
+  uploadsEnabled,
   uploadsRoot,
   quotaBytes: () => getUploadsEnv().UPLOADS_QUOTA_MB_PER_PROJECT * 1024 * 1024,
   checkCanAdd: checkCanAddAttachment,

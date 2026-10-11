@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { action } from "@/lib/action";
+import { uploadsEnabled } from "@/lib/env";
 import { uploadsRoot } from "@/lib/files/store";
 import { SWEEP_GRACE_DAYS, sweepOrphanFiles } from "@/lib/files/sweep";
 import {
@@ -75,6 +76,8 @@ export const sweepOrphanFilesAction = action({
   schema: z.object({}),
   permission: "admin:files",
   handler: async (_input, ctx) => {
+    // Uploads off (a desktop PC not set up for them yet): nothing is stored to sweep.
+    if (!uploadsEnabled()) return { deleted: 0, kept: 0, tempDeleted: 0 };
     const retained = await listRetainedHashes(SWEEP_GRACE_DAYS, ctx.session.userId);
     return sweepOrphanFiles(await uploadsRoot(), retained, { graceDays: SWEEP_GRACE_DAYS });
   },

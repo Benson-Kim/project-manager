@@ -376,6 +376,9 @@ export const messages = {
       failedWith: (name: string, reason: string) => `${name}: ${reason}`,
       nameRequired: "Enter a name.",
       locationRequired: "Enter where the file is kept.",
+      /** Desktop PC set up before attachments existed, until IT runs the one-time setup (ADR-0026 §9). */
+      notSetUp:
+        "File uploads are not set up on this PC yet. Your IT administrator can turn them on.",
     },
   },
   todoItems: {

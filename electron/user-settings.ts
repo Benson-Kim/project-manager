@@ -7,6 +7,11 @@ export interface UserSettings {
   /** Where each backup is copied (should be off this disk: OneDrive, share, USB). */
   backupCopyDir: string;
   trayHintShown: boolean;
+  /**
+   * The start-up offer to set up attachments (ADR-0026 §9) was shown once to
+   * this Windows user; afterwards it lives in the tray only.
+   */
+  attachmentsSetupOffered: boolean;
 }
 
 function defaultCopyDir(): string {
@@ -22,7 +27,11 @@ export class SettingsStore {
 
   constructor(dir: string) {
     this.file = path.join(dir, "settings.json");
-    this.data = { backupCopyDir: defaultCopyDir(), trayHintShown: false };
+    this.data = {
+      backupCopyDir: defaultCopyDir(),
+      trayHintShown: false,
+      attachmentsSetupOffered: false,
+    };
     try {
       const parsed = JSON.parse(fs.readFileSync(this.file, "utf-8")) as Partial<UserSettings>;
       this.data = { ...this.data, ...parsed };

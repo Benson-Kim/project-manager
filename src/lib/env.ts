@@ -53,6 +53,17 @@ const uploadsEnvSchema = z.object({
 
 export type UploadsEnv = z.infer<typeof uploadsEnvSchema>;
 
+/**
+ * False when the deployment switched uploads off with `UPLOADS_ENABLED=false`.
+ * The desktop does that on a PC provisioned before F1, whose machine.json has
+ * no uploads folder until an administrator runs Repair (ADR-0026 §9). The rest
+ * of the app works, locations included; UPLOADS_DIR is then never used.
+ * Read on its own, so a page can ask without validating the folder settings.
+ */
+export function uploadsEnabled(): boolean {
+  return process.env.UPLOADS_ENABLED?.trim().toLowerCase() !== "false";
+}
+
 /** Validated at first use, like getEnv(). */
 export function getUploadsEnv(): UploadsEnv {
   return uploadsEnvSchema.parse({

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
+import { uploadsEnabled } from "@/lib/env";
 import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getListPreference } from "@/lib/repositories/view-preference";
@@ -130,6 +131,7 @@ export default async function DailyActivitiesPage({
         <DailyActivitySheet
           activity={selected}
           attachments={attachments}
+          uploadsEnabled={uploadsEnabled()}
           isNew={isNew && canCreate}
           projectId={projectId}
           canEdit={canEdit}

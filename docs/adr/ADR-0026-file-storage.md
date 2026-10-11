@@ -179,7 +179,10 @@ The extension must agree with the sniffed type, and anything else is refused
 - `src/lib/env.ts` gains:
   - `UPLOADS_DIR`: absolute; default `<cwd>/uploads`; created and checked
     writable on first use, not at build;
-  - `UPLOADS_QUOTA_MB_PER_PROJECT`.
+  - `UPLOADS_QUOTA_MB_PER_PROJECT`;
+  - `UPLOADS_ENABLED`: only an explicit `false` switches uploads off (§9).
+    Uploads then answer 503 with their own message, the sweep has nothing to
+    do, and `UPLOADS_DIR` is never touched.
 - `docker-compose.yml` sets `UPLOADS_DIR=/app/uploads` on the existing volume.
 - The `Dockerfile` creates `/app/uploads`, owned by `nextjs`, before
   `USER nextjs`, so the named volume is writable.
@@ -192,11 +195,24 @@ The extension must agree with the sniffed type, and anything else is refused
   records are shared by every Windows user on the PC, so their files must be
   too.
 - **machine.json gains `uploadsDir`, and `schemaVersion` stays 1.**
-  - The new app requires `uploadsDir`. Without it, it raises
-    `SetupRequiredError` and offers the existing elevated **Repair**.
-  - PCs provisioned before F1 therefore show ONE administrator prompt after the
-    update. The user accepted this exception to "admin password once per PC" on
-    2026-10-10.
+- **A PC provisioned before F1 has no `uploadsDir`, and this never blocks the
+  app** (amended 2026-10-11).
+  - Only an administrator can create the folder, and the client's staff run as
+    standard Windows users (user, 2026-10-11).
+  - The app starts with uploads off: `electron/next-server.ts` sets
+    `UPLOADS_ENABLED=false` and never lets the server fall back to
+    `<cwd>/uploads`.
+  - Locations, downloads, rename and remove still work. Attachments shows that
+    IT can turn uploads on.
+  - Each Windows user is offered the setup once at start-up ("Set up now" /
+    "Later"). The tray keeps "Set up attachments (administrator)…" until it is
+    done; after it, the app restarts to use the folder.
+  - IT can also run `provision.ps1` elevated, remotely (docs/DESKTOP.md).
+  - The first version made `uploadsDir` required: a missing one raised
+    `SetupRequiredError` and the blocking Repair dialog. **Rejected after review
+    (2026-10-11).** Every green push to develop auto-updates installed PCs, so
+    every standard user would have been locked out of the whole app until IT
+    visited their PC.
   - The prompt suggested schemaVersion 2. That was rejected: installs are per
     user, so a 1.0.x app on the same PC would reject version 2. Its Repair would
     run the old `provision.ps1`, which writes version 1 again, and the two apps
@@ -242,6 +258,9 @@ refreshes with `router.refresh()`. The client never fetches it.
   - the desktop mirrors them next to its database copies.
 - `/api/files` has no proxy CSP, so its handlers set their own headers. Any
   other route stays behind the proxy (pinned by test).
-- PCs installed before F1 need one administrator approval after updating.
+- PCs installed before F1 have no file uploads until an administrator approves
+  the one-time setup. Nothing else waits for it.
+- **Desktop rule:** a change that needs an administrator turns its feature off
+  until IT acts. It never blocks start-up.
 - Open for F2: scheduling the sweep, restoring files (desktop and server), and
   moving `scripts/backup.sh` off GitLab.

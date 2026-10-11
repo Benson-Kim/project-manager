@@ -45,6 +45,11 @@ export interface AttachmentsProps {
   canAdd: boolean;
   /** Remove (also the owner's update permission, user decision 2026-10-10). */
   canRemove: boolean;
+  /**
+   * False on a desktop PC whose uploads folder IT has not set up yet (ADR-0026 §9):
+   * no file upload, but locations, downloads, rename and remove still work.
+   */
+  uploadsEnabled: boolean;
 }
 
 interface Upload {
@@ -55,7 +60,15 @@ interface Upload {
 
 const stop = (event: React.SyntheticEvent) => event.stopPropagation();
 
-export function Attachments({ owner, ownerId, files, canAdd, canRemove }: AttachmentsProps) {
+export function Attachments({
+  owner,
+  ownerId,
+  files,
+  canAdd,
+  canRemove,
+  uploadsEnabled,
+}: AttachmentsProps) {
+  const canUpload = canAdd && uploadsEnabled;
   const router = useRouter();
   const { toast } = useToast();
   const { announce } = useAnnouncer();
@@ -125,7 +138,7 @@ export function Attachments({ owner, ownerId, files, canAdd, canRemove }: Attach
   }
 
   const onDrop = (event: React.DragEvent) => {
-    if (!canAdd) return;
+    if (!canUpload) return;
     event.preventDefault();
     setDragging(false);
     void uploadAll(Array.from(event.dataTransfer.files));
@@ -142,7 +155,7 @@ export function Attachments({ owner, ownerId, files, canAdd, canRemove }: Attach
       onInput={stop}
       onBlur={stop}
       onDragOver={(event) => {
-        if (!canAdd || !event.dataTransfer.types.includes("Files")) return;
+        if (!canUpload || !event.dataTransfer.types.includes("Files")) return;
         event.preventDefault();
         setDragging(true);
       }}
@@ -155,7 +168,7 @@ export function Attachments({ owner, ownerId, files, canAdd, canRemove }: Attach
 
       {empty ? (
         <p className="px-4 text-sm text-ink-muted">
-          {canAdd ? messages.attachments.empty : messages.attachments.emptyReadOnly}
+          {canUpload ? messages.attachments.empty : messages.attachments.emptyReadOnly}
         </p>
       ) : (
         <ul className="flex flex-col px-4" data-testid="attachments-list">
@@ -185,28 +198,38 @@ export function Attachments({ owner, ownerId, files, canAdd, canRemove }: Attach
         </ul>
       )}
 
+      {canAdd && !uploadsEnabled ? (
+        <p className="px-4 text-sm text-ink-muted" data-testid="attachments-not-set-up">
+          {messages.attachments.errors.notSetUp}
+        </p>
+      ) : null}
+
       {canAdd ? (
         <div className="flex flex-wrap gap-2 px-4">
-          <input
-            ref={inputRef}
-            type="file"
-            multiple
-            hidden
-            accept={ACCEPTED_EXTENSIONS.join(",")}
-            data-testid="attachments-input"
-            onChange={(event) => {
-              const list = Array.from(event.currentTarget.files ?? []);
-              event.currentTarget.value = "";
-              void uploadAll(list);
-            }}
-          />
-          <Button
-            variant="secondary"
-            onClick={() => inputRef.current?.click()}
-            data-testid="attachments-add-file"
-          >
-            {messages.attachments.addFile}
-          </Button>
+          {canUpload ? (
+            <>
+              <input
+                ref={inputRef}
+                type="file"
+                multiple
+                hidden
+                accept={ACCEPTED_EXTENSIONS.join(",")}
+                data-testid="attachments-input"
+                onChange={(event) => {
+                  const list = Array.from(event.currentTarget.files ?? []);
+                  event.currentTarget.value = "";
+                  void uploadAll(list);
+                }}
+              />
+              <Button
+                variant="secondary"
+                onClick={() => inputRef.current?.click()}
+                data-testid="attachments-add-file"
+              >
+                {messages.attachments.addFile}
+              </Button>
+            </>
+          ) : null}
           <Button
             variant="secondary"
             onClick={() => setAddingLocation(true)}

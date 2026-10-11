@@ -54,24 +54,30 @@ describe("readMachineConfig (ADR-0026 §9)", () => {
     expect(readMachineConfig(file()).uploadsDir).toBe("U");
   });
 
-  it("asks for the short one-time Repair on a PC provisioned before F1", () => {
-    write(v1);
-    const err = setupError();
-    expect(err.kind).toBe("upgrade");
-    expect(err.message).toMatch(/attachments/);
-  });
+  it.each([
+    ["no uploadsDir", v1],
+    ["an empty uploadsDir", { ...v1, uploadsDir: "" }],
+  ])(
+    "a PC provisioned before F1 (%s) still starts: uploads are off, nothing to repair",
+    (_l, content) => {
+      write(content);
+      const config = readMachineConfig(file());
+      expect(config.uploadsDir).toBeUndefined();
+      expect(config.sql.instanceName).toBe("PROJECTMGR");
+    },
+  );
 
   it("keeps schemaVersion 1: a newer number is refused like before (1.0.x apps do the same)", () => {
     write({ ...v1, schemaVersion: 2, uploadsDir: "U" });
-    expect(setupError().kind).toBe("setup");
+    expect(setupError().message).toMatch(/incomplete/);
   });
 
   it.each([
-    ["missing", null],
-    ["unreadable", "{not json"],
-    ["incomplete", { ...v1, sql: { ...v1.sql, password: "" }, uploadsDir: "U" }],
-  ])("a %s config needs the full setup", (_l, content) => {
+    ["missing", null, /not found/],
+    ["unreadable", "{not json", /unreadable/],
+    ["incomplete", { ...v1, sql: { ...v1.sql, password: "" }, uploadsDir: "U" }, /incomplete/],
+  ])("a %s config needs the full setup", (_l, content, reason) => {
     if (content !== null) write(content);
-    expect(setupError().kind).toBe("setup");
+    expect(setupError().message).toMatch(reason);
   });
 });
