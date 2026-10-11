@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   commitUpload,
   discardUpload,
+  freeBytes,
   receiveUpload,
   resolveStoredFile,
   storagePathOf,
@@ -163,6 +164,14 @@ describe("commitUpload and dedupe", () => {
     await discardUpload(upload);
     await discardUpload(upload);
     expect(await readdir(path.join(root, TEMP_DIR))).toEqual([]);
+  });
+});
+
+describe("freeBytes", () => {
+  it("reports the space left on the uploads disk", async () => {
+    const free = await freeBytes(root);
+    expect(Number.isSafeInteger(free)).toBe(true);
+    expect(free).toBeGreaterThan(0);
   });
 });
 

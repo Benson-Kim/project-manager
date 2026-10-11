@@ -23,8 +23,9 @@ import {
  * POST /api/files?owner=<owner>&ownerId=<id>&name=<file name> — the body is
  * the file itself (ADR-0026 §3). Answers the ActionResult shape as JSON.
  *
- * Order matters: same-origin, session, uploads on, query, declared size, then the OWNER's
- * access pre-check — all before a single byte of the body is read — then
+ * Order matters: same-origin, session, uploads on, query, declared size, the OWNER's
+ * access pre-check, then the disk's free-space floor — all before a single
+ * byte of the body is read — then
  * stream to a temp file (hash + 25 MB cap), sniff, scan, store under the hash,
  * and record it through the owner's AddFile proc (authoritative access and
  * quota). Server only; the route file wires the real dependencies.
@@ -35,6 +36,9 @@ export interface UploadDeps {
   uploadsEnabled(): boolean;
   uploadsRoot(): Promise<string>;
   quotaBytes(): number;
+  /** Free space an upload must leave on the uploads disk (0: no check). */
+  minFreeBytes(): number;
+  freeBytes(root: string): Promise<number>;
   checkCanAdd(owner: AttachmentOwner, ownerId: number, actor: number): Promise<AttachmentQuota>;
   addFile(
     owner: AttachmentOwner,
@@ -101,6 +105,15 @@ export async function handleUpload(request: Request, deps: UploadDeps): Promise<
     }
 
     const root = await deps.uploadsRoot();
+    const minFree = deps.minFreeBytes();
+    if (minFree > 0) {
+      const incoming = Number.isFinite(declared) ? declared : MAX_UPLOAD_BYTES;
+      const free = await deps.freeBytes(root);
+      if (free - incoming < minFree) {
+        console.warn(`[files.upload] refused: ${free} bytes free, floor ${minFree}`);
+        return fail(507, "INTERNAL", messages.attachments.errors.diskFull);
+      }
+    }
     pending = await receiveUpload(request.body, root, MAX_UPLOAD_BYTES);
 
     const sniffed = await deps.sniff(pending.tempPath, name);

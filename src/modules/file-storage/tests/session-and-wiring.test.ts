@@ -11,6 +11,7 @@ vi.mock("@/lib/auth/config", () => ({ auth: () => Promise.resolve(token) }));
 vi.mock("@/lib/db", () => ({ execProc: vi.fn() }));
 
 import { uploadsEnabled } from "@/lib/env";
+import { freeBytes } from "@/lib/files/store";
 import { AppError, type AppErrorCode } from "@/lib/errors";
 import { downloadDeps, uploadDeps } from "../handlers/deps";
 import { getFileSession } from "../handlers/session";
@@ -64,7 +65,10 @@ describe("route wiring", () => {
 
   it("uses the file session and the quota from the environment, in bytes", () => {
     vi.stubEnv("UPLOADS_QUOTA_MB_PER_PROJECT", "3");
+    vi.stubEnv("UPLOADS_MIN_FREE_MB", "5");
     expect(uploadDeps.quotaBytes()).toBe(3 * 1024 * 1024);
+    expect(uploadDeps.minFreeBytes()).toBe(5 * 1024 * 1024);
+    expect(uploadDeps.freeBytes).toBe(freeBytes);
     expect(uploadDeps.getSession).toBe(getFileSession);
     expect(downloadDeps.getSession).toBe(getFileSession);
     expect(uploadDeps.uploadsEnabled).toBe(uploadsEnabled);

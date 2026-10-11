@@ -69,6 +69,8 @@ beforeEach(async () => {
     uploadsEnabled: () => true,
     uploadsRoot: () => Promise.resolve(root),
     quotaBytes: () => 1024 * 1024,
+    minFreeBytes: () => 0,
+    freeBytes: () => Promise.resolve(Number.MAX_SAFE_INTEGER),
     checkCanAdd: vi
       .fn<UploadDeps["checkCanAdd"]>()
       .mockResolvedValue({ ProjectId: 3, UsedBytes: 0 }),
@@ -123,6 +125,48 @@ describe("POST /api/files (ADR-0026 §3)", () => {
     const res = await handleUpload(upload(PDF, { headers }), { ...deps, getSession });
     expect(res.status).toBe(403);
     expect(getSession).not.toHaveBeenCalled();
+  });
+
+  describe("the disk's free-space floor (ADR-0026 §6)", () => {
+    const MB = 1024 * 1024;
+    const floored = (free: number) => ({
+      ...deps,
+      minFreeBytes: () => 100 * MB,
+      freeBytes: vi.fn<UploadDeps["freeBytes"]>().mockResolvedValue(free),
+    });
+    const declared = () => upload(PDF, { headers: { "content-length": String(PDF.length) } });
+
+    it("refuses (507) before reading a byte when the upload would go below it", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      const d = floored(100 * MB + PDF.length - 1);
+      const res = await handleUpload(declared(), d);
+      expect(res.status).toBe(507);
+      expect(await res.json()).toMatchObject({
+        error: { message: messages.attachments.errors.diskFull },
+      });
+      expect(d.freeBytes).toHaveBeenCalledWith(root);
+      expect(deps.addFile).not.toHaveBeenCalled();
+      expect(await tempFiles()).toEqual([]);
+      warn.mockRestore();
+    });
+
+    it("lets it through when the upload leaves the floor free", async () => {
+      const res = await handleUpload(declared(), floored(100 * MB + PDF.length));
+      expect(res.status).toBe(201);
+    });
+
+    it("assumes the 25 MB cap for a body of unknown length", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(PDF);
+          controller.close();
+        },
+      });
+      const res = await handleUpload(upload(stream), floored(100 * MB + MAX_UPLOAD_BYTES - 1));
+      expect(res.status).toBe(507);
+      warn.mockRestore();
+    });
   });
 
   it("answers 503 'not set up' when uploads are off, before any access check or byte (ADR-0026 §9)", async () => {

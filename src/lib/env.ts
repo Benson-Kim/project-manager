@@ -49,6 +49,12 @@ const uploadsEnvSchema = z.object({
     .refine((v) => path.isAbsolute(v), "UPLOADS_DIR must be an absolute path"),
   /** Uploaded bytes each project may hold; project-less records share one bucket. */
   UPLOADS_QUOTA_MB_PER_PROJECT: z.coerce.number().int().positive().default(2048),
+  /**
+   * Free space an upload must leave on the uploads disk; 0 turns the check
+   * off. The quota is a fair share per project, not a disk guard (ADR-0026 §6),
+   * and on the desktop this disk also holds SQL Server's files and backups.
+   */
+  UPLOADS_MIN_FREE_MB: z.coerce.number().int().min(0).default(2048),
 });
 
 export type UploadsEnv = z.infer<typeof uploadsEnvSchema>;
@@ -69,6 +75,7 @@ export function getUploadsEnv(): UploadsEnv {
   return uploadsEnvSchema.parse({
     UPLOADS_DIR: process.env.UPLOADS_DIR,
     UPLOADS_QUOTA_MB_PER_PROJECT: process.env.UPLOADS_QUOTA_MB_PER_PROJECT,
+    UPLOADS_MIN_FREE_MB: process.env.UPLOADS_MIN_FREE_MB,
   });
 }
 
