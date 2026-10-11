@@ -109,6 +109,11 @@ its attachments in the same transaction. Moving an activity to another project
 - **Download.** `GET /api/files/<id>?owner=daily-activity`:
   - needs a session and the owner's read check;
   - NOT_FOUND and FORBIDDEN_ROW both answer 404, like `orNotFound`;
+  - the stored file must be the row's size (else 404) and hash to its SHA-256.
+    `verifySha256` holds the last chunk back until the hash is known, so wrong
+    bytes never arrive complete; the download fails instead. The bytes can
+    change on disk: desktop users can write the Uploads folder (§9), and disks
+    and scanners damage files (added 2026-10-11);
   - it streams the file with `Content-Disposition: attachment` (an ASCII
     fallback plus `filename*=UTF-8''…`), `X-Content-Type-Options: nosniff`,
     `Cache-Control: no-store` and a `default-src 'none'; sandbox` CSP.
@@ -139,6 +144,12 @@ The extension must agree with the sniffed type, and anything else is refused
 ### 5. Dedupe, deletion and the orphan sweep
 
 - **Dedupe.** The same hash reuses the stored bytes, with one row per upload.
+  - The stored file is reused only when it is the upload's size; otherwise
+    the upload replaces it.
+  - Reuse sets the file's modification time to now. Without that, a re-upload
+    of an orphan older than the grace period could be deleted by a sweep that
+    read its retained hashes just before the new row existed (added
+    2026-10-11).
 - **Sweep.** `sweepOrphanFiles()` (`src/lib/files/sweep.ts`) asks
   `usp_FileAttachment_ListRetained` (Admin only) for the hashes that a live
   row, or a row deleted within the grace period (30 days), still references.

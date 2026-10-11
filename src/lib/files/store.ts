@@ -1,8 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import { constants, createWriteStream } from "node:fs";
-import { access, lstat, mkdir, rename, unlink } from "node:fs/promises";
+import { access, lstat, mkdir, rename, unlink, utimes } from "node:fs/promises";
 import path from "node:path";
 import { once } from "node:events";
+import { Transform } from "node:stream";
 import { finished } from "node:stream/promises";
 import { getUploadsEnv, uploadsEnabled } from "@/lib/env";
 
@@ -130,7 +131,7 @@ export async function commitUpload(root: string, upload: ReceivedUpload): Promis
   const storagePath = storagePathOf(upload.sha256);
   const dest = resolveStoredFile(root, storagePath);
   await mkdir(path.dirname(dest), { recursive: true });
-  if (await isFile(dest)) {
+  if (await reuseStored(dest, upload.size)) {
     await discardUpload(upload);
     return storagePath;
   }
@@ -139,20 +140,73 @@ export async function commitUpload(root: string, upload: ReceivedUpload): Promis
   } catch (err) {
     // A parallel upload of the same bytes won the race (or Windows holds the
     // existing file open for a download): the stored copy is identical.
-    if (!(await isFile(dest))) throw err;
+    if (!(await reuseStored(dest, upload.size))) throw err;
     await discardUpload(upload);
   }
   return storagePath;
+}
+
+/**
+ * Whether a stored file can stand in for the upload (dedupe). It must be a
+ * regular file of the upload's size: anything else is replaced by the upload.
+ * Its modification time is set to now, because the orphan sweep judges age by
+ * it (sweep.ts): an orphan reused today must not be deleted for being old while
+ * its new row is being written. Checked again after touching it, in case the
+ * sweep removed it in between.
+ */
+async function reuseStored(file: string, size: number): Promise<boolean> {
+  if ((await sizeOf(file)) !== size) return false;
+  const now = new Date();
+  // Best effort: a scanner or a download may hold the file; it is still identical.
+  await utimes(file, now, now).catch(() => undefined);
+  return (await sizeOf(file)) === size;
+}
+
+async function sizeOf(file: string): Promise<number | null> {
+  try {
+    const info = await lstat(file);
+    return info.isFile() ? info.size : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function discardUpload(upload: Pick<ReceivedUpload, "tempPath">): Promise<void> {
   await unlink(upload.tempPath).catch(() => undefined);
 }
 
-async function isFile(file: string): Promise<boolean> {
-  try {
-    return (await lstat(file)).isFile();
-  } catch {
-    return false;
+/** A stored file's bytes no longer hash to the name they were stored under. */
+export class StoredFileChangedError extends Error {
+  constructor() {
+    super("The stored bytes do not match their SHA-256");
+    this.name = "StoredFileChangedError";
   }
+}
+
+/**
+ * A pass-through for a download that hashes what it streams and fails at the
+ * end when the bytes are not `sha256`: changed or damaged on disk (a desktop
+ * user can write the Uploads folder; a disk or a scanner can damage a file).
+ * The last chunk is held back until the hash is known, so a client never gets
+ * a complete copy of wrong bytes: the response ends short of its
+ * Content-Length and the browser marks the download failed.
+ */
+export function verifySha256(sha256: string): Transform {
+  const hash = createHash("sha256");
+  let held: Buffer | null = null;
+  return new Transform({
+    transform(chunk: Buffer, _encoding, done) {
+      hash.update(chunk);
+      const previous = held;
+      held = chunk;
+      done(null, previous);
+    },
+    flush(done) {
+      if (hash.digest("hex") !== sha256) {
+        done(new StoredFileChangedError());
+        return;
+      }
+      done(null, held);
+    },
+  });
 }
