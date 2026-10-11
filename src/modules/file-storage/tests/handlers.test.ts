@@ -345,6 +345,28 @@ describe("GET /api/files/<id> (ADR-0026 §3)", () => {
     error.mockRestore();
   });
 
+  it("answers 404 (and logs) when the stored file is not the recorded size", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await writeFile(path.join(root, hash.slice(0, 2), hash.slice(2, 4), hash), "replaced");
+    expect((await get("5")).status).toBe(404);
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("never delivers all the bytes of a same-size file whose hash is wrong", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const tampered = Buffer.from(PDF);
+    tampered[tampered.length - 2] = 0x21; // same size, other bytes
+    await writeFile(path.join(root, hash.slice(0, 2), hash.slice(2, 4), hash), tampered);
+    const res = await get("5");
+    expect(res.status).toBe(200);
+    await expect(res.arrayBuffer()).rejects.toThrow();
+    await vi.waitFor(() =>
+      expect(error).toHaveBeenCalledWith(expect.stringContaining("stored bytes changed")),
+    );
+    error.mockRestore();
+  });
+
   it("never serves a path the database did not shape as a hash path", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     getFile.mockResolvedValue({

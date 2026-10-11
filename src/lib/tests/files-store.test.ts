@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { finished } from "node:stream/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   commitUpload,
@@ -9,8 +10,10 @@ import {
   receiveUpload,
   resolveStoredFile,
   storagePathOf,
+  StoredFileChangedError,
   TEMP_DIR,
   UploadsDisabledError,
+  verifySha256,
   UploadTooLargeError,
   uploadsRoot,
 } from "../files/store";
@@ -132,11 +135,63 @@ describe("commitUpload and dedupe", () => {
     expect(await readdir(path.join(root, TEMP_DIR))).toEqual([]);
   });
 
+  it("restarts the sweep's grace period on a reused file (an old orphan uploaded again)", async () => {
+    const first = await receiveUpload(body([Buffer.from("again")]).stream, root, 1024);
+    const stored = resolveStoredFile(root, await commitUpload(root, first));
+    const longAgo = new Date("2026-01-01T00:00:00Z");
+    await utimes(stored, longAgo, longAgo);
+
+    const second = await receiveUpload(body([Buffer.from("again")]).stream, root, 1024);
+    await commitUpload(root, second);
+    expect((await stat(stored)).mtimeMs).toBeGreaterThan(Date.now() - 60_000);
+    expect(await readdir(path.join(root, TEMP_DIR))).toEqual([]);
+  });
+
+  it("replaces a stored file whose size is not the upload's instead of trusting it", async () => {
+    const upload = await receiveUpload(body([Buffer.from("genuine")]).stream, root, 1024);
+    const stored = resolveStoredFile(root, storagePathOf(upload.sha256));
+    await mkdir(path.dirname(stored), { recursive: true });
+    await writeFile(stored, "planted bytes, longer than the upload");
+
+    await commitUpload(root, upload);
+    expect(await readFile(stored, "utf8")).toBe("genuine");
+    expect(await readdir(path.join(root, TEMP_DIR))).toEqual([]);
+  });
+
   it("discardUpload removes a temp file and ignores a missing one", async () => {
     const upload = await receiveUpload(body([Buffer.from("x")]).stream, root, 1024);
     await discardUpload(upload);
     await discardUpload(upload);
     expect(await readdir(path.join(root, TEMP_DIR))).toEqual([]);
+  });
+});
+
+describe("verifySha256 (downloads)", () => {
+  async function run(chunks: string[], expected: string) {
+    const out: string[] = [];
+    const verify = verifySha256(expected);
+    verify.on("data", (c: Buffer) => out.push(c.toString()));
+    const done = finished(verify);
+    for (const c of chunks) verify.write(Buffer.from(c));
+    verify.end();
+    try {
+      await done;
+      return { out, error: null };
+    } catch (error) {
+      return { out, error };
+    }
+  }
+
+  it("passes matching bytes through unchanged, across chunks", async () => {
+    const r = await run(["ab", "cd", "ef"], sha("abcdef"));
+    expect(r.error).toBeNull();
+    expect(r.out.join("")).toBe("abcdef");
+  });
+
+  it("fails on other bytes and never emits the last chunk", async () => {
+    const r = await run(["ab", "cd", "ef"], sha("abcdeX"));
+    expect(r.error).toBeInstanceOf(StoredFileChangedError);
+    expect(r.out.join("")).not.toContain("ef");
   });
 });
 
