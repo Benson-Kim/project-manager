@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { constants, createWriteStream } from "node:fs";
-import { access, lstat, mkdir, rename, unlink, utimes } from "node:fs/promises";
+import { access, lstat, mkdir, rename, statfs, unlink, utimes } from "node:fs/promises";
 import path from "node:path";
 import { once } from "node:events";
 import { Transform } from "node:stream";
@@ -45,6 +45,12 @@ export async function uploadsRoot(): Promise<string> {
   await access(root, constants.W_OK);
   checkedRoot = root;
   return root;
+}
+
+/** Bytes this process may still write on the disk that holds `dir`. */
+export async function freeBytes(dir: string): Promise<number> {
+  const disk = await statfs(dir);
+  return disk.bavail * disk.bsize;
 }
 
 /** The stored file's path relative to the root: "ab/cd/abcd…". */

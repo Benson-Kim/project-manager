@@ -161,8 +161,21 @@ The extension must agree with the sniffed type, and anything else is refused
 - A restore older than the grace period gets its rows back, but their bytes may
   be gone.
 
-### 6. Quota per project
+### 6. Quota per project, and a free-space floor
 
+- **The quota is a fair share per project, not a disk guard** (amended
+  2026-10-11).
+  - It counts live rows only, so removing a file frees quota at once while its
+    bytes stay on disk until the sweep (§5).
+  - Any User can create a project and so get a fresh quota.
+  - Moving an activity to another project does not check that project's
+    quota.
+- **The floor is the disk guard.** Before reading a byte, the handler refuses
+  an upload (507, its own message) that would leave less than
+  `UPLOADS_MIN_FREE_MB` (default 2048; 0 turns it off) free on the uploads
+  disk (`fs.statfs`). It counts the declared size, or 25 MB for a body without
+  `Content-Length`. On the desktop that disk also holds SQL Server's files and
+  backups, so a full disk would stop the database, not just uploads.
 - **Size.** `UPLOADS_QUOTA_MB_PER_PROJECT`, default 2048. Project-less rows
   share one bucket.
 - **What counts.** Uploaded bytes per row, so a deduplicated file still counts,
@@ -191,6 +204,7 @@ The extension must agree with the sniffed type, and anything else is refused
   - `UPLOADS_DIR`: absolute; default `<cwd>/uploads`; created and checked
     writable on first use, not at build;
   - `UPLOADS_QUOTA_MB_PER_PROJECT`;
+  - `UPLOADS_MIN_FREE_MB` (§6);
   - `UPLOADS_ENABLED`: only an explicit `false` switches uploads off (§9).
     Uploads then answer 503 with their own message, the sweep has nothing to
     do, and `UPLOADS_DIR` is never touched.

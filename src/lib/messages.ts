@@ -379,6 +379,8 @@ export const messages = {
       /** Desktop PC set up before attachments existed, until IT runs the one-time setup (ADR-0026 §9). */
       notSetUp:
         "File uploads are not set up on this PC yet. Your IT administrator can turn them on.",
+      /** The disk's free-space floor (UPLOADS_MIN_FREE_MB, ADR-0026 §6). */
+      diskFull: "The disk is almost full, so uploads are paused. Tell your administrator.",
     },
   },
   todoItems: {

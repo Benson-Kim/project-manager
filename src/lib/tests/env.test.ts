@@ -35,27 +35,36 @@ describe("uploads env (ADR-0026)", () => {
     process.env = { ...saved };
   });
 
-  it("defaults to <cwd>/uploads and 2048 MB per project, with no database settings", () => {
+  it("defaults to <cwd>/uploads, 2048 MB per project and a 2048 MB free-space floor, with no database settings", () => {
     delete process.env.UPLOADS_DIR;
     delete process.env.UPLOADS_QUOTA_MB_PER_PROJECT;
+    delete process.env.UPLOADS_MIN_FREE_MB;
     delete process.env.DB_PASSWORD;
     expect(getUploadsEnv()).toEqual({
       UPLOADS_DIR: path.join(process.cwd(), "uploads"),
       UPLOADS_QUOTA_MB_PER_PROJECT: 2048,
+      UPLOADS_MIN_FREE_MB: 2048,
     });
   });
 
-  it("takes an absolute UPLOADS_DIR and a quota", () => {
+  it("takes an absolute UPLOADS_DIR, a quota and a floor (0 turns the floor off)", () => {
     const dir = path.resolve("some", "uploads");
     process.env.UPLOADS_DIR = ` ${dir} `;
     process.env.UPLOADS_QUOTA_MB_PER_PROJECT = "500";
-    expect(getUploadsEnv()).toEqual({ UPLOADS_DIR: dir, UPLOADS_QUOTA_MB_PER_PROJECT: 500 });
+    process.env.UPLOADS_MIN_FREE_MB = "0";
+    expect(getUploadsEnv()).toEqual({
+      UPLOADS_DIR: dir,
+      UPLOADS_QUOTA_MB_PER_PROJECT: 500,
+      UPLOADS_MIN_FREE_MB: 0,
+    });
   });
 
   it.each([
     ["UPLOADS_DIR", "relative/uploads"],
     ["UPLOADS_QUOTA_MB_PER_PROJECT", "0"],
     ["UPLOADS_QUOTA_MB_PER_PROJECT", "lots"],
+    ["UPLOADS_MIN_FREE_MB", "-1"],
+    ["UPLOADS_MIN_FREE_MB", "plenty"],
   ])("rejects %s=%j", (key, value) => {
     process.env[key] = value;
     expect(() => getUploadsEnv()).toThrow();

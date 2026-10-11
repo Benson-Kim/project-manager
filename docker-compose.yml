@@ -59,6 +59,7 @@ services:
       # Attachments (ADR-0026): the bytes live on the uploads volume below.
       UPLOADS_DIR: /app/uploads
       UPLOADS_QUOTA_MB_PER_PROJECT: "${UPLOADS_QUOTA_MB_PER_PROJECT:-2048}"
+      UPLOADS_MIN_FREE_MB: "${UPLOADS_MIN_FREE_MB:-2048}"
     ports:
       - "3000:3000"
     volumes:
