@@ -23,7 +23,7 @@ import {
  * POST /api/files?owner=<owner>&ownerId=<id>&name=<file name> — the body is
  * the file itself (ADR-0026 §3). Answers the ActionResult shape as JSON.
  *
- * Order matters: same-origin, session, query, declared size, then the OWNER's
+ * Order matters: same-origin, session, uploads on, query, declared size, then the OWNER's
  * access pre-check — all before a single byte of the body is read — then
  * stream to a temp file (hash + 25 MB cap), sniff, scan, store under the hash,
  * and record it through the owner's AddFile proc (authoritative access and
@@ -31,6 +31,8 @@ import {
  */
 export interface UploadDeps {
   getSession(): Promise<Session | null>;
+  /** False on a desktop PC whose uploads folder an administrator has not set up yet. */
+  uploadsEnabled(): boolean;
   uploadsRoot(): Promise<string>;
   quotaBytes(): number;
   checkCanAdd(owner: AttachmentOwner, ownerId: number, actor: number): Promise<AttachmentQuota>;
@@ -74,6 +76,7 @@ export async function handleUpload(request: Request, deps: UploadDeps): Promise<
   if (!isSameOrigin(request.headers)) return fail(403, "FORBIDDEN");
   const session = await deps.getSession();
   if (!session) return fail(401, "UNAUTHENTICATED");
+  if (!deps.uploadsEnabled()) return fail(503, "INTERNAL", messages.attachments.errors.notSetUp);
 
   const query = uploadQuerySchema.safeParse(
     Object.fromEntries(new URL(request.url).searchParams.entries()),

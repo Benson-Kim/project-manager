@@ -22,7 +22,8 @@ Installer (per user, no admin rights needed)
 
 App launch (normal user, no admin needed)
  ├─ reads machine.json, waits for SQL Server        → offers elevated Repair if anything is wrong
- │    (a PC provisioned before F1 has no uploadsDir: one short Repair after that update)
+ │    (a PC provisioned before F1 has no uploadsDir: the app runs with file uploads off
+ │     and offers the one-time setup once per user; it never blocks start-up, ADR-0026 §9)
  ├─ applies the schema                               (electron/db-apply.ts)
  │    migrations once each, in a transaction, with a backup first when upgrading
  │    stored procedures only when they changed, seeds once each
@@ -205,11 +206,27 @@ that Windows account only; the database and backups stay (client data). To remov
 
 - *"Database setup needed"* on start → click **Repair** (re-runs provisioning
   elevated; safe to repeat). Details in `provision.log`.
-- *"One-time setup needed"* after an update → the update needs something only
-  an administrator can create (first case: the shared Uploads folder, F1).
-  Click **Repair** and approve the prompt; it takes about a minute, once per
-  PC. machine.json keeps `schemaVersion: 1` so an older app another Windows
-  user still runs on the same PC keeps working.
+- *"Attachments need a one-time setup"* after an update, or *"File uploads are
+  not set up on this PC yet"* in a record → the PC was provisioned before F1,
+  and only an administrator can create the shared Uploads folder. Everything
+  else works meanwhile, including locations.
+  - **At the PC:** tray → *Set up attachments (administrator)…*, approve the
+    prompt with an administrator account, then restart the app.
+  - **Remotely** (as an administrator, or as SYSTEM from a deployment tool;
+    safe to repeat; it is the same script the installer and Repair run):
+
+    ```powershell
+    $app = Get-Item 'C:\Users\*\AppData\Local\Programs\Project Manager\resources' | Select-Object -First 1
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$($app.FullName)\setup\provision.ps1" `
+      -SqlInstaller "$($app.FullName)\sql-express\SQLEXPR_x64_ENU.exe"
+    ```
+
+    Exit code 0 means done. Each user gets uploads the next time they start the
+    app. machine.json keeps `schemaVersion: 1`, so an older app that another
+    Windows user still runs on the same PC keeps working.
+- **Rule for future desktop changes:** anything that needs an administrator
+  turns its feature off until IT acts. It never blocks start-up, because the
+  client's staff are standard users and updates install themselves.
 - Admin locked out / password lost → tray → *Reset administrator password…*.
 - Anything else → tray → *Open log files* and send `main.log`.
 
@@ -229,7 +246,7 @@ electron/
   update-policy.ts   required-update rule + release-notes text (tests/)
   setup/provision.ps1  idempotent engine provisioning (asks for admin approval itself)
   setup/remove-all-users-install.ps1  removes a pre-1.0 all-users copy (keeps data)
-  tests/             update-policy, machine-config, uploads-mirror (vitest); db-integration.ts
+  tests/             update-policy, machine-config, next-server-env, uploads-mirror (vitest); db-integration.ts
                      (npm run electron:test-db)
 build-resources/     icon.ico/png, installerHeader.bmp + installerSidebar.bmp (wizard logo,
                      24-bit, from icon.png), installer.nsh (NSIS hook that runs provision.ps1)

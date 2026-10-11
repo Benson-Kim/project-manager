@@ -189,39 +189,106 @@ async function ensureDatabaseEngine(): Promise<MachineConfig> {
     return cfg;
   } catch (err) {
     log.error("[startup] database engine not ready", err);
-    // A one-time step for a newer app (e.g. the attachments folder, ADR-0026) is
-    // quick: the engine is already installed, so provisioning only fills the gap.
-    const upgrade = err instanceof SetupRequiredError && err.kind === "upgrade";
     const { response } = await dialog.showMessageBox({
       type: "warning",
-      title: upgrade ? "One-time setup needed" : "Database setup needed",
-      message: upgrade
-        ? "Project Manager needs administrator approval once to finish this update."
-        : "Project Manager needs to finish setting up its database engine.",
+      title: "Database setup needed",
+      message: "Project Manager needs to finish setting up its database engine.",
       detail:
         `${err instanceof Error ? err.message : String(err)}\n\n` +
-        (upgrade
-          ? "Click Repair and approve the Windows administrator prompt. It takes about a minute and is needed only once on this PC."
-          : "Click Repair and approve the Windows administrator prompt. A first-time setup takes 5–15 minutes."),
+        "Click Repair and approve the Windows administrator prompt. A first-time setup takes 5–15 minutes.",
       buttons: ["Repair", "Quit"],
       defaultId: 0,
       cancelId: 1,
     });
     if (response !== 0) throw new Error("Database setup was not completed.");
-    setSplashStatus(
-      upgrade
-        ? "Finishing the update…"
-        : "Repairing the database engine (this can take several minutes)…",
-    );
+    setSplashStatus("Repairing the database engine (this can take several minutes)…");
     const code = await runElevatedRepair(paths.provisionScript, paths.sqlInstaller, log);
     if (code !== 0) {
-      throw new Error(
-        `Database repair failed (code ${code}). Details: ${path.join(process.env.ProgramData ?? "C:\\ProgramData", "Project Manager", "logs", "provision.log")}`,
-      );
+      throw new Error(`Database repair failed (code ${code}). Details: ${provisionLog()}`);
     }
     const cfg = readMachineConfig();
     await waitForSql(cfg.sql, 90_000);
     return cfg;
+  }
+}
+
+function provisionLog(): string {
+  const programData = process.env.ProgramData ?? "C:\\ProgramData";
+  return path.join(programData, "Project Manager", "logs", "provision.log");
+}
+
+// ---------------------------------------------------------------------------
+// Attachments folder (ADR-0026 §9). A PC provisioned before F1 has no
+// uploadsDir, and only an administrator can create it. The client's staff are
+// standard users, so this never blocks the app: uploads stay off (locations
+// still work), the offer comes once per Windows user at start-up, and the tray
+// keeps it until it is done. IT can also run provision.ps1 (docs/DESKTOP.md).
+
+/** Elevated provisioning (idempotent), then machine.json again; throws when it fails. */
+async function setUpAttachmentsFolder(): Promise<MachineConfig> {
+  const code = await runElevatedRepair(paths.provisionScript, paths.sqlInstaller, log);
+  if (code !== 0) throw new Error(`Setup failed (code ${code}). Details: ${provisionLog()}`);
+  const cfg = readMachineConfig();
+  if (!cfg.uploadsDir) {
+    throw new Error(`Setup finished without an attachments folder. Details: ${provisionLog()}`);
+  }
+  return cfg;
+}
+
+/** The one start-up offer per Windows user; returns the config to run with. */
+async function offerAttachmentsSetup(cfg: MachineConfig): Promise<MachineConfig> {
+  if (cfg.uploadsDir) return cfg;
+  log.info("[attachments] no uploads folder on this PC: uploads are off");
+  if (settings.get().attachmentsSetupOffered) return cfg;
+  settings.set({ attachmentsSetupOffered: true });
+  const { response } = await dialog.showMessageBox({
+    type: "info",
+    title: "Attachments need a one-time setup",
+    message: "Turning on file attachments needs a Windows administrator, once on this PC.",
+    detail:
+      "If you are not an administrator, click Later. Everything else works, and your IT " +
+      'administrator can turn attachments on from the tray menu ("Set up attachments") or remotely.',
+    buttons: ["Set up now", "Later"],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  });
+  if (response !== 0) return cfg;
+  setSplashStatus("Setting up attachments…");
+  try {
+    return await setUpAttachmentsFolder();
+  } catch (err) {
+    log.error("[attachments] setup failed", err);
+    await message(
+      "warning",
+      "Attachments are still off",
+      "Attachments could not be set up. Everything else works.",
+      `${describeError(err)}\n\nTray menu → "Set up attachments (administrator)…" tries again.`,
+    );
+    return cfg;
+  }
+}
+
+/** Tray: set the folder up later (e.g. when IT is at the PC), then restart to use it. */
+async function setUpAttachmentsAction(): Promise<void> {
+  try {
+    config = await setUpAttachmentsFolder();
+  } catch (err) {
+    log.error("[attachments] setup failed", err);
+    await message("error", "Setup failed", "Attachments could not be set up.", describeError(err));
+    return;
+  }
+  const { response } = await dialog.showMessageBox({
+    type: "info",
+    title: "Attachments are set up",
+    message: "Restart Project Manager to start using attachments.",
+    buttons: ["Restart now", "Later"],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (response === 0) {
+    app.relaunch();
+    app.quit();
   }
 }
 
@@ -391,7 +458,7 @@ async function bootstrap(): Promise<void> {
   splash = createSplash();
 
   try {
-    config = await ensureDatabaseEngine();
+    config = await offerAttachmentsSetup(await ensureDatabaseEngine());
     const cfg = config;
 
     setSplashStatus("Checking the database…");
@@ -453,6 +520,7 @@ async function bootstrap(): Promise<void> {
         resetAdminPassword: () => void resetAdminAction(),
         openLogs: () => void shell.openPath(path.dirname(log.file)),
         quit: () => app.quit(),
+        ...(cfg.uploadsDir ? {} : { setUpAttachments: () => void setUpAttachmentsAction() }),
       },
       app.getVersion(),
     );

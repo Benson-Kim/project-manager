@@ -1,6 +1,6 @@
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { getEnv, getUploadsEnv } from "../env";
+import { getEnv, getUploadsEnv, uploadsEnabled } from "../env";
 
 describe("env validation (zod at every boundary)", () => {
   const saved = { ...process.env };
@@ -59,5 +59,23 @@ describe("uploads env (ADR-0026)", () => {
   ])("rejects %s=%j", (key, value) => {
     process.env[key] = value;
     expect(() => getUploadsEnv()).toThrow();
+  });
+
+  it.each([
+    [undefined, true],
+    ["true", true],
+    ["", true],
+    ["false", false],
+    [" FALSE ", false],
+  ])("UPLOADS_ENABLED=%j → uploads on: %s (only an explicit false switches them off)", (v, on) => {
+    if (v === undefined) delete process.env.UPLOADS_ENABLED;
+    else process.env.UPLOADS_ENABLED = v;
+    expect(uploadsEnabled()).toBe(on);
+  });
+
+  it("answers without validating the folder settings", () => {
+    process.env.UPLOADS_ENABLED = "false";
+    process.env.UPLOADS_DIR = "relative/uploads";
+    expect(uploadsEnabled()).toBe(false);
   });
 });

@@ -66,6 +66,7 @@ beforeEach(async () => {
   session = { userId: 7, username: "pm", role: "User" };
   deps = {
     getSession: () => Promise.resolve(session),
+    uploadsEnabled: () => true,
     uploadsRoot: () => Promise.resolve(root),
     quotaBytes: () => 1024 * 1024,
     checkCanAdd: vi
@@ -122,6 +123,22 @@ describe("POST /api/files (ADR-0026 §3)", () => {
     const res = await handleUpload(upload(PDF, { headers }), { ...deps, getSession });
     expect(res.status).toBe(403);
     expect(getSession).not.toHaveBeenCalled();
+  });
+
+  it("answers 503 'not set up' when uploads are off, before any access check or byte (ADR-0026 §9)", async () => {
+    const uploadsRoot = vi.fn();
+    const res = await handleUpload(upload(PDF), {
+      ...deps,
+      uploadsEnabled: () => false,
+      uploadsRoot,
+    });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({
+      ok: false,
+      error: { message: messages.attachments.errors.notSetUp },
+    });
+    expect(deps.checkCanAdd).not.toHaveBeenCalled();
+    expect(uploadsRoot).not.toHaveBeenCalled();
   });
 
   it("refuses without a session", async () => {

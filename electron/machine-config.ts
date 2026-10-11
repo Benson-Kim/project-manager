@@ -21,23 +21,18 @@ export interface MachineConfig {
   backupDir: string;
   /**
    * Attachments (ADR-0026 §9): %ProgramData%\Project Manager\Uploads, writable
-   * by every local user like Backups. Written by provision.ps1 since F1; a PC
-   * provisioned before F1 has none, and the app asks for one Repair.
+   * by every local user like Backups. Written by provision.ps1 since F1. A PC
+   * provisioned before F1 has none, and only an administrator can create it;
+   * the client's staff are standard users, so the app runs with uploads off
+   * until IT sets it up (main.ts), never blocking start-up.
    */
-  uploadsDir: string;
+  uploadsDir?: string;
 }
 
 export class SetupRequiredError extends Error {
-  /**
-   * "upgrade": the engine is fine and only the one-time step for a newer app is
-   * missing (a short Repair); "setup": the engine itself needs (re)installing.
-   */
-  readonly kind: "setup" | "upgrade";
-
-  constructor(message: string, kind: "setup" | "upgrade" = "setup") {
+  constructor(message: string) {
     super(message);
     this.name = "SetupRequiredError";
-    this.kind = kind;
   }
 }
 
@@ -78,11 +73,5 @@ export function readMachineConfig(file = machineConfigPath()): MachineConfig {
   ) {
     throw new SetupRequiredError(`Database configuration is incomplete (${file}).`);
   }
-  if (!c.uploadsDir) {
-    throw new SetupRequiredError(
-      "This update needs a shared folder for attachments, which Windows only lets an administrator create.",
-      "upgrade",
-    );
-  }
-  return c as MachineConfig;
+  return { ...(c as MachineConfig), uploadsDir: c.uploadsDir || undefined };
 }

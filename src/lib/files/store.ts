@@ -4,7 +4,7 @@ import { access, lstat, mkdir, rename, unlink } from "node:fs/promises";
 import path from "node:path";
 import { once } from "node:events";
 import { finished } from "node:stream/promises";
-import { getUploadsEnv } from "@/lib/env";
+import { getUploadsEnv, uploadsEnabled } from "@/lib/env";
 
 /**
  * Attachment storage on disk (ADR-0026 §3, STANDARDS §4). Server only — kept
@@ -23,11 +23,21 @@ const HASH = /^[0-9a-f]{64}$/;
 
 let checkedRoot: string | null = null;
 
+/** Uploads are switched off here (UPLOADS_ENABLED=false, ADR-0026 §9). */
+export class UploadsDisabledError extends Error {
+  constructor() {
+    super("Uploads are switched off on this installation");
+    this.name = "UploadsDisabledError";
+  }
+}
+
 /**
  * UPLOADS_DIR, created and checked writable on first use (not at build time).
  * Throws when the folder cannot be written: the handler logs it and answers 500.
+ * Throws UploadsDisabledError when uploads are off, before touching any folder.
  */
 export async function uploadsRoot(): Promise<string> {
+  if (!uploadsEnabled()) throw new UploadsDisabledError();
   const root = getUploadsEnv().UPLOADS_DIR;
   if (checkedRoot === root) return root;
   await mkdir(path.join(root, TEMP_DIR), { recursive: true });

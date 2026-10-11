@@ -10,6 +10,7 @@ vi.mock("@/lib/auth/provider", () => ({
 vi.mock("@/lib/auth/config", () => ({ auth: () => Promise.resolve(token) }));
 vi.mock("@/lib/db", () => ({ execProc: vi.fn() }));
 
+import { uploadsEnabled } from "@/lib/env";
 import { AppError, type AppErrorCode } from "@/lib/errors";
 import { downloadDeps, uploadDeps } from "../handlers/deps";
 import { getFileSession } from "../handlers/session";
@@ -66,5 +67,6 @@ describe("route wiring", () => {
     expect(uploadDeps.quotaBytes()).toBe(3 * 1024 * 1024);
     expect(uploadDeps.getSession).toBe(getFileSession);
     expect(downloadDeps.getSession).toBe(getFileSession);
+    expect(uploadDeps.uploadsEnabled).toBe(uploadsEnabled);
   });
 });

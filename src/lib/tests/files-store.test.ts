@@ -10,6 +10,7 @@ import {
   resolveStoredFile,
   storagePathOf,
   TEMP_DIR,
+  UploadsDisabledError,
   UploadTooLargeError,
   uploadsRoot,
 } from "../files/store";
@@ -152,5 +153,13 @@ describe("uploadsRoot", () => {
     await writeFile(file, "x");
     vi.stubEnv("UPLOADS_DIR", file);
     await expect(uploadsRoot()).rejects.toThrow();
+  });
+
+  it("refuses when uploads are off, without creating any folder (ADR-0026 §9)", async () => {
+    const dir = path.join(root, "never", "uploads");
+    vi.stubEnv("UPLOADS_DIR", dir);
+    vi.stubEnv("UPLOADS_ENABLED", "false");
+    await expect(uploadsRoot()).rejects.toBeInstanceOf(UploadsDisabledError);
+    await expect(readdir(path.join(root, "never"))).rejects.toThrow();
   });
 });

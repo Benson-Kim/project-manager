@@ -161,4 +161,17 @@ describe("attachment actions (ADR-0026)", () => {
     expect(result).toEqual({ ok: true, data: { deleted: 2, kept: 1, tempDeleted: 0 } });
     expect(sweep).toHaveBeenCalledWith("/uploads", new Set(["a".repeat(64)]), { graceDays: 30 });
   });
+
+  it("the sweep has nothing to do while uploads are off (ADR-0026 §9)", async () => {
+    session = { userId: 1, username: "admin", role: "Admin" };
+    vi.stubEnv("UPLOADS_ENABLED", "false");
+    try {
+      const result = await sweepOrphanFilesAction({});
+      expect(result).toEqual({ ok: true, data: { deleted: 0, kept: 0, tempDeleted: 0 } });
+      expect(execProc).not.toHaveBeenCalled();
+      expect(sweep).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });

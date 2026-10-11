@@ -8,13 +8,43 @@ export interface NextServerOptions {
   standaloneDir: string;
   db: DbTarget;
   authSecret: string;
-  /** Machine-wide attachments folder (machine.json uploadsDir, ADR-0026 §9). */
-  uploadsDir: string;
+  /**
+   * Machine-wide attachments folder (machine.json uploadsDir, ADR-0026 §9);
+   * missing on a PC provisioned before F1 until IT sets it up.
+   */
+  uploadsDir?: string;
   log: Logger;
   /** Called after an unexpected exit has been recovered (new URL). */
   onRestarted?: (url: string) => void;
   /** Called when the server keeps crashing and we gave up. */
   onFatal?: (message: string) => void;
+}
+
+/** The server's environment: loopback only, the machine's database and its folders. */
+export function nextServerEnv(
+  opts: Pick<NextServerOptions, "db" | "authSecret" | "uploadsDir">,
+  port: number,
+  base: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  return {
+    ...base,
+    NODE_ENV: "production",
+    HOSTNAME: "127.0.0.1",
+    PORT: String(port),
+    DB_SERVER: opts.db.host,
+    DB_PORT: String(opts.db.port),
+    DB_NAME: opts.db.database,
+    DB_USER: opts.db.user,
+    DB_PASSWORD: opts.db.password,
+    TRUST_SERVER_CERT: "true",
+    AUTH_SECRET: opts.authSecret,
+    // Never the default (<cwd>/uploads): cwd is the install folder, which every update replaces.
+    // Without the machine folder, uploads are off until IT sets it up (ADR-0026 §9).
+    UPLOADS_ENABLED: opts.uploadsDir ? "true" : "false",
+    UPLOADS_DIR: opts.uploadsDir ?? "",
+    TRUSTED_PROXY_COUNT: "0",
+    NEXT_TELEMETRY_DISABLED: "1",
+  };
 }
 
 /**
@@ -38,27 +68,9 @@ export class NextServer {
     this.stopping = false;
     this.port = await findFreePort();
     const { opts } = this;
-    const env: NodeJS.ProcessEnv = {
-      ...process.env,
-      NODE_ENV: "production",
-      HOSTNAME: "127.0.0.1",
-      PORT: String(this.port),
-      DB_SERVER: opts.db.host,
-      DB_PORT: String(opts.db.port),
-      DB_NAME: opts.db.database,
-      DB_USER: opts.db.user,
-      DB_PASSWORD: opts.db.password,
-      TRUST_SERVER_CERT: "true",
-      AUTH_SECRET: opts.authSecret,
-      // Never the default (<cwd>/uploads): cwd is the install folder, which every update replaces.
-      UPLOADS_DIR: opts.uploadsDir,
-      TRUSTED_PROXY_COUNT: "0",
-      NEXT_TELEMETRY_DISABLED: "1",
-    };
-
     const proc = fork(path.join(opts.standaloneDir, "server.js"), [], {
       cwd: opts.standaloneDir,
-      env,
+      env: nextServerEnv(opts, this.port),
       stdio: "pipe",
     });
     this.proc = proc;
