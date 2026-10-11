@@ -3,7 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mirrorUploads } from "../uploads-mirror";
+import { mirrorUploads, restoreSources, restoreUploads } from "../uploads-mirror";
 
 let root: string;
 let src: string;
@@ -65,5 +65,32 @@ describe("mirrorUploads (ADR-0026 §9)", () => {
 
   it("does nothing when there is no uploads folder yet", async () => {
     expect(await mirrorUploads(path.join(root, "absent"), dest)).toBe(0);
+  });
+});
+
+describe("restore: files back after the database (ADR-0026 §9)", () => {
+  it("looks next to the chosen backup first, then in the copy folder, each once", () => {
+    const copyDir = path.join(root, "OneDrive", "Project Manager Backups");
+    const share = path.join(root, "Share");
+    expect(restoreSources(path.join(share, "ProjectManager_x.bak"), copyDir)).toEqual([
+      path.join(share, "Uploads"),
+      path.join(copyDir, "Uploads"),
+    ]);
+    expect(restoreSources(path.join(copyDir, "ProjectManager_x.bak"), copyDir)).toEqual([
+      path.join(copyDir, "Uploads"),
+    ]);
+  });
+
+  it("copies back only the files the uploads folder lacks, from every source", async () => {
+    const copy = path.join(root, "Copy", "Uploads");
+    const share = path.join(root, "Share", "Uploads");
+    const kept = store(src, "still here");
+    store(copy, "still here");
+    const fromCopy = store(copy, "from the copy folder");
+    const fromShare = store(share, "from the share");
+    expect(await restoreUploads([share, copy, path.join(root, "absent")], src)).toBe(2);
+    expect(fs.readFileSync(path.join(src, fromCopy), "utf8")).toBe("from the copy folder");
+    expect(fs.readFileSync(path.join(src, fromShare), "utf8")).toBe("from the share");
+    expect(fs.readFileSync(path.join(src, kept), "utf8")).toBe("still here");
   });
 });

@@ -33,6 +33,27 @@ export async function mirrorUploads(sourceDir: string, targetDir: string): Promi
   return copied;
 }
 
+/**
+ * Where a restore finds attachment files: next to the chosen .bak (a backup
+ * copy folder keeps them in <folder>\Uploads), then in this user's copy
+ * folder. Each folder once, in that order.
+ */
+export function restoreSources(bakFile: string, copyDir: string): string[] {
+  const candidates = [path.join(path.dirname(bakFile), "Uploads"), path.join(copyDir, "Uploads")];
+  const key = (dir: string) => path.resolve(dir).toLowerCase();
+  return candidates.filter((dir, i) => candidates.findIndex((d) => key(d) === key(dir)) === i);
+}
+
+/**
+ * After a database restore: copy back every attachment file the uploads
+ * folder lacks (the .bak holds only the rows). Returns how many were copied.
+ */
+export async function restoreUploads(sources: string[], uploadsDir: string): Promise<number> {
+  let copied = 0;
+  for (const dir of sources) copied += await mirrorUploads(dir, uploadsDir);
+  return copied;
+}
+
 async function subdirs(dir: string): Promise<string[]> {
   try {
     const entries = await fs.readdir(dir, { withFileTypes: true });

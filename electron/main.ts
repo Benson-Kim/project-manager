@@ -24,6 +24,7 @@ import {
   showTrayHint,
 } from "./tray";
 import { setupAutoUpdater } from "./updater";
+import { restoreSources, restoreUploads } from "./uploads-mirror";
 import { SettingsStore } from "./user-settings";
 
 // A fixed, explicit profile folder (otherwise Electron derives it from the
@@ -387,6 +388,7 @@ async function restoreAction(): Promise<void> {
 
   const cfg = config;
   const srv = server;
+  let filesNote: string | undefined;
   const task = (async () => {
     if (busy) await busy;
     await backupDatabase("pre-restore", {
@@ -401,6 +403,7 @@ async function restoreAction(): Promise<void> {
       await restoreDatabase(file, { target: cfg.sql, backupDir: cfg.backupDir, log });
       // An older backup may predate the current schema: upgrade it.
       await applyDatabaseSchema({ target: cfg.sql, dbDir: paths.dbDir, log });
+      filesNote = await restoreAttachmentFiles(cfg, file);
       const pwd = await ensureAdminAccount(cfg.sql, loadArgon2(), log);
       if (pwd)
         await showAdminCredentials(
@@ -417,7 +420,7 @@ async function restoreAction(): Promise<void> {
   });
   try {
     await task;
-    await message("info", "Restore complete", "Your data was restored from the backup.");
+    await message("info", "Restore complete", "Your data was restored from the backup.", filesNote);
   } catch (err) {
     log.error("[restore] failed", err);
     await message(
@@ -425,6 +428,30 @@ async function restoreAction(): Promise<void> {
       "Restore failed",
       "The restore did not complete.",
       `${describeError(err)}\n\nA safety backup of the previous data is in:\n${cfg.backupDir}`,
+    );
+  }
+}
+
+/**
+ * Attachments are not in the .bak (ADR-0026 §9): copy back the files kept next
+ * to the backup copies. Never fails the restore; returns a line for the user.
+ */
+async function restoreAttachmentFiles(cfg: MachineConfig, bakFile: string): Promise<string> {
+  const sources = restoreSources(bakFile, settings.get().backupCopyDir);
+  if (!cfg.uploadsDir) {
+    return `Attachments are off on this PC, so their files were not copied back. They stay in ${sources.join(" and ")}.`;
+  }
+  try {
+    const copied = await restoreUploads(sources, cfg.uploadsDir);
+    log.info(`[restore] ${copied} attachment file(s) copied back from ${sources.join(", ")}`);
+    return copied > 0
+      ? `${copied} attachment file(s) copied back.`
+      : "No attachment files were missing.";
+  } catch (err) {
+    log.error("[restore] attachment files", err);
+    return (
+      `Attachment files could not all be copied back: ${describeError(err)}\n\n` +
+      `Copy ${sources[0]} into ${cfg.uploadsDir} (keep the folders inside).`
     );
   }
 }

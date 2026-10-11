@@ -231,8 +231,14 @@ The extension must agree with the sniffed type, and anything else is refused
 - **Server env.** `electron/next-server.ts` passes `UPLOADS_DIR`.
 - **Backups.** After each backup, `electron/backup.ts` mirrors new files into
   `<copy folder>\Uploads`. Hash names never change, so only missing files are
-  copied, and a failed mirror is reported like a failed copy. **Restoring files
-  is F2's.**
+  copied, and a failed mirror is reported like a failed copy.
+- **Restore** (added 2026-10-11). After the database, *Restore from backup…*
+  copies back every file the Uploads folder lacks. It looks in `Uploads` next
+  to the chosen `.bak`, then in `<copy folder>\Uploads`.
+  - Before this, the records came back with every download answering 404,
+    while the bytes sat unused in the copy folder.
+  - A copy failure never fails the restore; the final message says what to
+    copy by hand.
 - **Rejected alternatives:**
   - a per-user folder: another Windows user could not open the files;
   - `C:\Users\Public\Documents`: it needs no prompt, but it is visible and
@@ -273,5 +279,5 @@ refreshes with `router.refresh()`. The client never fetches it.
   the one-time setup. Nothing else waits for it.
 - **Desktop rule:** a change that needs an administrator turns its feature off
   until IT acts. It never blocks start-up.
-- Open for F2: scheduling the sweep, restoring files (desktop and server), and
-  moving `scripts/backup.sh` off GitLab.
+- Open for F2: scheduling the sweep, restoring files on the server edition,
+  and moving `scripts/backup.sh` off GitLab.
