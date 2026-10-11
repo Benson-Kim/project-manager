@@ -10,14 +10,14 @@ import type { StoredFileRow } from "../repository/attachments";
 import { downloadParamsSchema, type AttachmentOwner } from "../schemas/attachment";
 
 /**
- * GET /api/files/<id>?owner=<owner> (ADR-0026 §3): the owner's read check, then
- * the stored bytes as a download. Anything the actor may not see — unknown id,
+ * GET /api/files/<id>?owner=<owner> (ADR-0026 §3). fileRoute has already
+ * checked the session; this does the owner's read check, then serves the
+ * stored bytes as a download. Anything the actor may not see — unknown id,
  * another project's file, a location row (no bytes), bytes missing on disk or
  * of the wrong size — answers the same 404, like orNotFound. Bytes of the
  * right size whose SHA-256 is wrong end the stream early. Server only.
  */
 export interface DownloadDeps {
-  getSession(): Promise<Session | null>;
   uploadsRoot(): Promise<string>;
   getFile(owner: AttachmentOwner, fileAttachmentId: number, actor: number): Promise<StoredFileRow>;
 }
@@ -27,16 +27,10 @@ const notFound = () =>
 
 export async function handleDownload(
   request: Request,
+  session: Session,
   id: string,
   deps: DownloadDeps,
 ): Promise<Response> {
-  const session = await deps.getSession();
-  if (!session) {
-    return json(
-      { ok: false, error: { code: "UNAUTHENTICATED", message: messages.errors.UNAUTHENTICATED } },
-      401,
-    );
-  }
   const params = downloadParamsSchema.safeParse({
     owner: new URL(request.url).searchParams.get("owner"),
     id,

@@ -96,12 +96,18 @@ foundation module.
     stored paths are CHECK-constrained to the hash shape, so no row can point
     elsewhere. Names are display-only and cleaned of separators and control
     characters.
-  - `POST /api/files` (outside the proxy so it can stream): same-origin check,
-    session (refused while a password change is pending), then the owner's
-    access proc BEFORE the body is read. Viewers and outsiders get 404.
-  - `GET /api/files/<id>`: the owner's read check; 404 for anything not
-    visible; `Content-Disposition: attachment` (RFC 8187 name), `nosniff`,
-    `no-store`, `default-src 'none'; sandbox`.
+  - Every `/api/files` route is outside the proxy (so uploads can stream) and
+    is built with `fileRoute`. That applies the proxy's gate: same-origin for
+    anything but GET/HEAD, and a session (refused while a password change is
+    pending). A guardrail test fails any route file there that is not.
+  - `POST /api/files`: the owner's access proc and a free-space floor BEFORE
+    the body is read. Viewers and outsiders get 404.
+  - `GET /api/files/<id>`:
+    - the owner's read check, with 404 for anything not visible;
+    - the stored file's size and SHA-256 are checked, and changed bytes never
+      arrive complete;
+    - headers: `Content-Disposition: attachment` (RFC 8187 name), `nosniff`,
+      `no-store`, `default-src 'none'; sandbox`.
   - AV-scan hook stub (`src/lib/files/scan.ts`); orphan sweep Admin-only.
 
 ## Security headers

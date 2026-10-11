@@ -87,8 +87,10 @@ its attachments in the same transaction. Moving an activity to another project
   XMLHttpRequest, which gives upload progress. The owner, the owner id and the
   file name travel in the query string:
   `POST /api/files?owner=daily-activity&ownerId=12&name=…`.
-- **Checks in the handler, in order:**
-  1. a same-origin request (`Sec-Fetch-Site`, then `Origin` against the host);
+- **Checks, in order.** The first two are `fileRoute`'s (see "Proxy"); the
+  rest are the handler's:
+  1. a same-origin request (`Sec-Fetch-Site`, then `Origin` against the host),
+     for any method but GET and HEAD;
   2. a session, refusing one that must still change its password, because the
      proxy is bypassed (see below);
   3. the owner key from the whitelist;
@@ -101,9 +103,19 @@ its attachments in the same transaction. Moving an activity to another project
   `<UPLOADS_DIR>/<hash 0–1>/<hash 2–3>/<hash>`.
   - The temp folder is `<UPLOADS_DIR>/.tmp`, so the rename stays on one volume.
 - **Proxy.** `/api/files` is excluded from the proxy matcher, so bodies stream
-  and no 10 MB limit applies. The handler authenticates itself.
-  `src/tests/proxy-matcher.test.ts` compiles the matcher with Next's own
-  function and pins that only `/api/files` and `/api/files/…` are skipped.
+  and no 10 MB limit applies. `src/tests/proxy-matcher.test.ts` compiles the
+  matcher with Next's own function and pins that only `/api/files` and
+  `/api/files/…` are skipped.
+  - **The gate lives in one place** (amended 2026-10-11). Every method a route
+    file under `src/app/api/files` exports is
+    `fileRoute(handler)` (`src/modules/file-storage/handlers/file-route.ts`).
+    It applies checks 1 and 2, then calls the handler with the session.
+  - `src/tests/file-storage-boundaries.test.ts` fails a route file there that
+    exports a plain function, an arrow function, a re-export, or a `fileRoute`
+    not imported from that module.
+  - Reason: the skip covers the whole prefix. A later route (a preview, a
+    zip) written as a plain handler would serve files by sequential id to
+    anyone.
   - Raising `proxyClientMaxBodySize` to 26 MB was rejected: it buffers every
     proxied body up to that size.
 - **Download.** `GET /api/files/<id>?owner=daily-activity`:
