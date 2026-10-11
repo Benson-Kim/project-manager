@@ -1,6 +1,6 @@
 import type { Session } from "@/lib/auth/types";
 import { AppError, type AppErrorCode } from "@/lib/errors";
-import { isSameOrigin, json } from "@/lib/files/http";
+import { json } from "@/lib/files/http";
 import type { ScanResult } from "@/lib/files/scan";
 import type { SniffResult } from "@/lib/files/sniff";
 import {
@@ -23,15 +23,14 @@ import {
  * POST /api/files?owner=<owner>&ownerId=<id>&name=<file name> — the body is
  * the file itself (ADR-0026 §3). Answers the ActionResult shape as JSON.
  *
- * Order matters: same-origin, session, uploads on, query, declared size, the OWNER's
- * access pre-check, then the disk's free-space floor — all before a single
- * byte of the body is read — then
- * stream to a temp file (hash + 25 MB cap), sniff, scan, store under the hash,
- * and record it through the owner's AddFile proc (authoritative access and
- * quota). Server only; the route file wires the real dependencies.
+ * Order matters. fileRoute has already checked same-origin and the session.
+ * Then: uploads on, query, declared size, the OWNER's access pre-check, the
+ * disk's free-space floor — all before a single byte of the body is read —
+ * then stream to a temp file (hash + 25 MB cap), sniff, scan, store under the
+ * hash, and record it through the owner's AddFile proc (authoritative access
+ * and quota). Server only; the route file wires the real dependencies.
  */
 export interface UploadDeps {
-  getSession(): Promise<Session | null>;
   /** False on a desktop PC whose uploads folder an administrator has not set up yet. */
   uploadsEnabled(): boolean;
   uploadsRoot(): Promise<string>;
@@ -76,10 +75,11 @@ export function failFromAppError(err: AppError): Response {
   }
 }
 
-export async function handleUpload(request: Request, deps: UploadDeps): Promise<Response> {
-  if (!isSameOrigin(request.headers)) return fail(403, "FORBIDDEN");
-  const session = await deps.getSession();
-  if (!session) return fail(401, "UNAUTHENTICATED");
+export async function handleUpload(
+  request: Request,
+  session: Session,
+  deps: UploadDeps,
+): Promise<Response> {
   if (!deps.uploadsEnabled()) return fail(503, "INTERNAL", messages.attachments.errors.notSetUp);
 
   const query = uploadQuerySchema.safeParse(

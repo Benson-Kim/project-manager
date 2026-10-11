@@ -212,8 +212,9 @@ export const createSupplier = action({
   hook stub, quota per project. Implemented once ([ADR-0026](adr/ADR-0026-file-storage.md)):
   a module attaches files by adding an owner (link table + `usp_<Owner>_*File` procs +
   a registry entry) and rendering `<Attachments>` inside its sheet's form; it never
-  handles bytes itself. `/api/files` is the only route outside the proxy and checks
-  session, same-origin and access itself.
+  handles bytes itself. `/api/files` is the only route outside the proxy. Every
+  method a route file there exports is `fileRoute(handler)`, which checks
+  same-origin and the session (guardrail test); the handler checks access.
 - **Secrets**: GitLab CI/CD variables only; `.env.example` documents shape. No secret
   ever in code, logs or client bundles.
 - **Logging**: structured server logs without PII/credentials/tokens; log error codes

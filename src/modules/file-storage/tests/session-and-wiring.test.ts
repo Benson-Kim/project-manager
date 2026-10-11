@@ -14,6 +14,7 @@ import { uploadsEnabled } from "@/lib/env";
 import { freeBytes } from "@/lib/files/store";
 import { AppError, type AppErrorCode } from "@/lib/errors";
 import { downloadDeps, uploadDeps } from "../handlers/deps";
+import { fileRoute } from "../handlers/file-route";
 import { getFileSession } from "../handlers/session";
 import { failFromAppError } from "../handlers/upload";
 
@@ -35,6 +36,60 @@ describe("getFileSession: the proxy's rules for routes outside it (ADR-0026 §3)
   it("is null while the account must still change its password", async () => {
     token = { appToken: { mustChangePassword: true } };
     expect(await getFileSession()).toBeNull();
+  });
+});
+
+describe("fileRoute: the proxy's gate for every /api/files route (ADR-0026 §3)", () => {
+  const ORIGIN = "http://127.0.0.1:3000";
+  const handler = vi.fn((_req: Request, s: Session, ctx: { id: string }) =>
+    Promise.resolve(new Response(`${s.userId}:${ctx.id}`)),
+  );
+  const route = fileRoute(handler);
+  const request = (method: string, headers: Record<string, string> = {}) =>
+    new Request(`${ORIGIN}/api/files`, {
+      method,
+      headers: { host: "127.0.0.1:3000", ...headers },
+    });
+  const sameOrigin = { origin: ORIGIN, "sec-fetch-site": "same-origin" };
+
+  beforeEach(() => {
+    session = { userId: 7, username: "pm", role: "User" };
+    token = { appToken: { mustChangePassword: false } };
+    handler.mockClear();
+  });
+
+  it("runs the handler with the session and the route context", async () => {
+    const res = await route(request("POST", sameOrigin), { id: "5" });
+    expect(await res.text()).toBe("7:5");
+  });
+
+  it.each([
+    [
+      "a cross-site POST",
+      "POST",
+      { origin: "https://evil.example", "sec-fetch-site": "cross-site" },
+    ],
+    ["a foreign Origin", "POST", { origin: "https://evil.example" }],
+    ["a cross-site DELETE", "DELETE", { "sec-fetch-site": "cross-site" }],
+  ])("refuses %s (403) before the session", async (_l, method, headers) => {
+    session = null; // would be 401 if the session were checked first
+    const res = await route(request(method, headers), { id: "5" });
+    expect(res.status).toBe(403);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("lets a GET through without Origin (a download link)", async () => {
+    expect((await route(request("GET"), { id: "5" })).status).toBe(200);
+  });
+
+  it.each([
+    ["signed out", () => (session = null)],
+    ["the password must still change", () => (token = { appToken: { mustChangePassword: true } })],
+  ])("answers 401 when %s, without running the handler", async (_l, arrange) => {
+    arrange();
+    const res = await route(request("GET"), { id: "5" });
+    expect(res.status).toBe(401);
+    expect(handler).not.toHaveBeenCalled();
   });
 });
 
@@ -63,14 +118,13 @@ describe("route wiring", () => {
     vi.unstubAllEnvs();
   });
 
-  it("uses the file session and the quota from the environment, in bytes", () => {
+  it("uses the quota and the free-space floor from the environment, in bytes", () => {
     vi.stubEnv("UPLOADS_QUOTA_MB_PER_PROJECT", "3");
     vi.stubEnv("UPLOADS_MIN_FREE_MB", "5");
     expect(uploadDeps.quotaBytes()).toBe(3 * 1024 * 1024);
     expect(uploadDeps.minFreeBytes()).toBe(5 * 1024 * 1024);
     expect(uploadDeps.freeBytes).toBe(freeBytes);
-    expect(uploadDeps.getSession).toBe(getFileSession);
-    expect(downloadDeps.getSession).toBe(getFileSession);
     expect(uploadDeps.uploadsEnabled).toBe(uploadsEnabled);
+    expect(downloadDeps.getFile).toBeTypeOf("function");
   });
 });

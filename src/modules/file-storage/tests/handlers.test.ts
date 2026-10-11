@@ -28,12 +28,16 @@ const row: AttachmentRow = {
   RowVer: 9,
 };
 
+/** fileRoute has checked same-origin and the session (tests/session-and-wiring.test.ts). */
+const user: Session = { userId: 7, username: "pm", role: "User" };
+
 let root: string;
-let session: Session | null;
 let deps: UploadDeps & {
   checkCanAdd: Mock<UploadDeps["checkCanAdd"]>;
   addFile: Mock<UploadDeps["addFile"]>;
 };
+
+const post = (request: Request, d: UploadDeps = deps) => handleUpload(request, user, d);
 
 function upload(
   body: BodyInit | null,
@@ -63,9 +67,7 @@ async function tempFiles() {
 beforeEach(async () => {
   root = await mkdtemp(path.join(tmpdir(), "pm-handlers-"));
   await mkdir(path.join(root, TEMP_DIR));
-  session = { userId: 7, username: "pm", role: "User" };
   deps = {
-    getSession: () => Promise.resolve(session),
     uploadsEnabled: () => true,
     uploadsRoot: () => Promise.resolve(root),
     quotaBytes: () => 1024 * 1024,
@@ -85,7 +87,7 @@ afterEach(async () => {
 
 describe("POST /api/files (ADR-0026 §3)", () => {
   it("stores the bytes under their hash and records the attachment", async () => {
-    const res = await handleUpload(upload(PDF), deps);
+    const res = await post(upload(PDF), deps);
     expect(res.status).toBe(201);
     expect(await res.json()).toMatchObject({ ok: true, data: { FileAttachmentId: 5 } });
     expect(deps.checkCanAdd).toHaveBeenCalledWith("daily-activity", 12, 7);
@@ -108,23 +110,13 @@ describe("POST /api/files (ADR-0026 §3)", () => {
   });
 
   it("cleans the name from the query string", async () => {
-    await handleUpload(
+    await post(
       upload(PDF, {
         query: `owner=daily-activity&ownerId=12&name=${encodeURIComponent("..\\a/b\r\n.pdf")}`,
       }),
       deps,
     );
     expect(deps.addFile.mock.calls[0]![2].fileName).toBe("..ab.pdf");
-  });
-
-  it.each([
-    ["a cross-site request", { origin: "https://evil.example", "sec-fetch-site": "cross-site" }],
-    ["a foreign Origin", { origin: "https://evil.example", "sec-fetch-site": "" }],
-  ])("refuses %s before the session or the body", async (_l, headers) => {
-    const getSession = vi.fn();
-    const res = await handleUpload(upload(PDF, { headers }), { ...deps, getSession });
-    expect(res.status).toBe(403);
-    expect(getSession).not.toHaveBeenCalled();
   });
 
   describe("the disk's free-space floor (ADR-0026 §6)", () => {
@@ -139,7 +131,7 @@ describe("POST /api/files (ADR-0026 §3)", () => {
     it("refuses (507) before reading a byte when the upload would go below it", async () => {
       const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
       const d = floored(100 * MB + PDF.length - 1);
-      const res = await handleUpload(declared(), d);
+      const res = await post(declared(), d);
       expect(res.status).toBe(507);
       expect(await res.json()).toMatchObject({
         error: { message: messages.attachments.errors.diskFull },
@@ -151,7 +143,7 @@ describe("POST /api/files (ADR-0026 §3)", () => {
     });
 
     it("lets it through when the upload leaves the floor free", async () => {
-      const res = await handleUpload(declared(), floored(100 * MB + PDF.length));
+      const res = await post(declared(), floored(100 * MB + PDF.length));
       expect(res.status).toBe(201);
     });
 
@@ -163,7 +155,7 @@ describe("POST /api/files (ADR-0026 §3)", () => {
           controller.close();
         },
       });
-      const res = await handleUpload(upload(stream), floored(100 * MB + MAX_UPLOAD_BYTES - 1));
+      const res = await post(upload(stream), floored(100 * MB + MAX_UPLOAD_BYTES - 1));
       expect(res.status).toBe(507);
       warn.mockRestore();
     });
@@ -171,7 +163,7 @@ describe("POST /api/files (ADR-0026 §3)", () => {
 
   it("answers 503 'not set up' when uploads are off, before any access check or byte (ADR-0026 §9)", async () => {
     const uploadsRoot = vi.fn();
-    const res = await handleUpload(upload(PDF), {
+    const res = await post(upload(PDF), {
       ...deps,
       uploadsEnabled: () => false,
       uploadsRoot,
@@ -185,13 +177,6 @@ describe("POST /api/files (ADR-0026 §3)", () => {
     expect(uploadsRoot).not.toHaveBeenCalled();
   });
 
-  it("refuses without a session", async () => {
-    session = null;
-    const res = await handleUpload(upload(PDF), deps);
-    expect(res.status).toBe(401);
-    expect(deps.checkCanAdd).not.toHaveBeenCalled();
-  });
-
   it.each([
     "owner=user&ownerId=12&name=a.pdf",
     "owner=daily-activity&ownerId=0&name=a.pdf",
@@ -199,13 +184,13 @@ describe("POST /api/files (ADR-0026 §3)", () => {
     "owner=daily-activity&ownerId=12&name=%2F%2F",
     "owner=daily-activity&ownerId=12",
   ])("refuses the query %s", async (query) => {
-    const res = await handleUpload(upload(PDF, { query }), deps);
+    const res = await post(upload(PDF, { query }), deps);
     expect(res.status).toBe(400);
     expect(deps.checkCanAdd).not.toHaveBeenCalled();
   });
 
   it("refuses a declared size over 25 MB before reading anything", async () => {
-    const res = await handleUpload(
+    const res = await post(
       upload(PDF, { headers: { "content-length": String(MAX_UPLOAD_BYTES + 1) } }),
       deps,
     );
@@ -224,7 +209,7 @@ describe("POST /api/files (ADR-0026 §3)", () => {
         else controller.close();
       },
     });
-    const res = await handleUpload(upload(body), deps);
+    const res = await post(upload(body), deps);
     expect(res.status).toBe(413);
     expect(sent).toBeLessThan(30);
     expect(deps.addFile).not.toHaveBeenCalled();
@@ -232,14 +217,14 @@ describe("POST /api/files (ADR-0026 §3)", () => {
   });
 
   it("refuses an empty body", async () => {
-    const res = await handleUpload(upload(Buffer.alloc(0)), deps);
+    const res = await post(upload(Buffer.alloc(0)), deps);
     expect(res.status).toBe(400);
     expect((await res.json()).error.message).toBe(messages.attachments.errors.empty);
   });
 
   it("answers 404 when the owner's pre-check refuses (a Viewer, another project)", async () => {
     deps.checkCanAdd.mockRejectedValue(new AppError("FORBIDDEN_ROW", "no"));
-    const res = await handleUpload(upload(PDF), deps);
+    const res = await post(upload(PDF), deps);
     expect(res.status).toBe(404);
     expect(await res.json()).toMatchObject({ ok: false, error: { code: "NOT_FOUND" } });
     expect(await tempFiles()).toEqual([]);
@@ -247,7 +232,7 @@ describe("POST /api/files (ADR-0026 §3)", () => {
 
   it("refuses early when the declared size cannot fit the quota", async () => {
     deps.checkCanAdd.mockResolvedValue({ ProjectId: 3, UsedBytes: 1024 * 1024 - 5 });
-    const res = await handleUpload(
+    const res = await post(
       upload(PDF, { headers: { "content-length": String(PDF.length) } }),
       deps,
     );
@@ -260,7 +245,7 @@ describe("POST /api/files (ADR-0026 §3)", () => {
 
   it("passes on the proc's authoritative quota refusal", async () => {
     deps.addFile.mockRejectedValue(new AppError("QUOTA_EXCEEDED", "full"));
-    const res = await handleUpload(upload(PDF), deps);
+    const res = await post(upload(PDF), deps);
     expect(res.status).toBe(422);
     expect((await res.json()).error.code).toBe("QUOTA_EXCEEDED");
   });
@@ -269,7 +254,7 @@ describe("POST /api/files (ADR-0026 §3)", () => {
     ["a PDF named .docx", "name=Plan.docx", PDF],
     ["an HTML page", "name=page.html", Buffer.from("<script>alert(1)</script>")],
   ])("refuses %s (415) and keeps nothing", async (_l, name, body) => {
-    const res = await handleUpload(
+    const res = await post(
       upload(body, { query: `owner=daily-activity&ownerId=12&${name}` }),
       deps,
     );
@@ -281,7 +266,7 @@ describe("POST /api/files (ADR-0026 §3)", () => {
   });
 
   it("refuses what the AV hook refuses", async () => {
-    const res = await handleUpload(upload(PDF), {
+    const res = await post(upload(PDF), {
       ...deps,
       scan: () => Promise.resolve({ clean: false, reason: "EICAR" }),
     });
@@ -293,7 +278,7 @@ describe("POST /api/files (ADR-0026 §3)", () => {
   it("hides unexpected failures behind INTERNAL", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     deps.addFile.mockRejectedValue(new Error("socket hang up"));
-    const res = await handleUpload(upload(PDF), deps);
+    const res = await post(upload(PDF), deps);
     expect(res.status).toBe(500);
     expect(JSON.stringify(await res.json())).not.toContain("socket");
     error.mockRestore();
@@ -319,14 +304,13 @@ describe("GET /api/files/<id> (ADR-0026 §3)", () => {
       StorageLocation: null,
     });
     downloadDeps = {
-      getSession: () => Promise.resolve(session),
       uploadsRoot: () => Promise.resolve(root),
       getFile,
     };
   });
 
   const get = (id: string, owner = "daily-activity") =>
-    handleDownload(new Request(`${ORIGIN}/api/files/${id}?owner=${owner}`), id, downloadDeps);
+    handleDownload(new Request(`${ORIGIN}/api/files/${id}?owner=${owner}`), user, id, downloadDeps);
 
   it("streams the bytes as a sandboxed, uncached download", async () => {
     const res = await get("5");
@@ -341,12 +325,6 @@ describe("GET /api/files/<id> (ADR-0026 §3)", () => {
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(res.headers.get("cache-control")).toBe("no-store");
     expect(res.headers.get("content-security-policy")).toBe("default-src 'none'; sandbox");
-  });
-
-  it("refuses without a session", async () => {
-    session = null;
-    expect((await get("5")).status).toBe(401);
-    expect(getFile).not.toHaveBeenCalled();
   });
 
   it.each([
