@@ -54,7 +54,7 @@ export async function sweepOrphanFiles(
     }
   }
 
-  const temp = path.join(root, TEMP_DIR);
+  const temp = path.join(/* turbopackIgnore: true */ root, TEMP_DIR);
   for (const name of await fileNames(temp)) {
     const file = path.join(temp, name);
     if ((await modifiedAt(file)) < now.getTime() - DAY_MS && (await remove(file))) {

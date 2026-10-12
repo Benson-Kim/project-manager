@@ -40,12 +40,16 @@ const uploadsEnvSchema = z.object({
   /**
    * Where attachment bytes live, outside the web root: absolute; default
    * `<cwd>/uploads`. Docker sets /app/uploads (a volume); the desktop sets
-   * %ProgramData%\Project Manager\Uploads from machine.json.
+   * %ProgramData%\Project Manager\Uploads from machine.json. turbopackIgnore:
+   * output tracing would otherwise copy the build machine's <cwd>/uploads into
+   * the standalone server (the Docker image, the desktop installer).
    */
   UPLOADS_DIR: z
     .string()
     .optional()
-    .transform((v) => (v && v.trim() ? v.trim() : path.join(process.cwd(), "uploads")))
+    .transform((v) =>
+      v && v.trim() ? v.trim() : path.join(/* turbopackIgnore: true */ process.cwd(), "uploads"),
+    )
     .refine((v) => path.isAbsolute(v), "UPLOADS_DIR must be an absolute path"),
   /** Uploaded bytes each project may hold; project-less records share one bucket. */
   UPLOADS_QUOTA_MB_PER_PROJECT: z.coerce.number().int().positive().default(2048),

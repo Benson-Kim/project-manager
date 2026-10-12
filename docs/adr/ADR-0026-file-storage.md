@@ -125,7 +125,9 @@ its attachments in the same transaction. Moving an activity to another project
     `verifySha256` holds the last chunk back until the hash is known, so wrong
     bytes never arrive complete; the download fails instead. The bytes can
     change on disk: desktop users can write the Uploads folder (§9), and disks
-    and scanners damage files (added 2026-10-11);
+    and scanners damage files (added 2026-10-11). The desktop shell has no
+    download bar, so it tells the user when a download is refused or cut off
+    (`watchDownloads()` in `electron/main.ts`);
   - it streams the file with `Content-Disposition: attachment` (an ASCII
     fallback plus `filename*=UTF-8''…`), `X-Content-Type-Options: nosniff`,
     `Cache-Control: no-store` and a `default-src 'none'; sandbox` CSP.

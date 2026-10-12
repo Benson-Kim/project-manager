@@ -177,7 +177,7 @@ administrator password…*, *Open log files*, *Check for updates*, the version,
 | Backup copies (last 30) | per user; default `%OneDrive%\Project Manager Backups`, else `Documents\Project Manager Backups` |
 | Attachments (ADR-0026) | `%ProgramData%\Project Manager\Uploads`, files named by their SHA-256 in `ab\cd\` shards; shared by every Windows user on the PC |
 | Attachment copies | `<backup copy folder>\Uploads` — new files are added after each backup, nothing is deleted there |
-| App logs | `%APPDATA%\Project Manager\logs\main.log` |
+| App logs | `%APPDATA%\Project Manager\logs\main.log` (rotates at 5 MB; `main.log.1`–`.3` are older) |
 | Setup/repair log | `%ProgramData%\Project Manager\logs\provision.log` |
 | SQL Server setup logs | `C:\Program Files\Microsoft SQL Server\160\Setup Bootstrap\Log` |
 
@@ -231,6 +231,11 @@ that Windows account only; the database and backups stay (client data). To remov
 - **Rule for future desktop changes:** anything that needs an administrator
   turns its feature off until IT acts. It never blocks start-up, because the
   client's staff are standard users and updates install themselves.
+- *"Download failed … The stored file may have been changed, damaged or removed
+  on this PC"* → the file in the Uploads folder no longer matches what was
+  uploaded (edited, deleted, quarantined by antivirus, or a disk error), so the
+  app refuses to hand it out. Restore it from `<backup copy folder>\Uploads`
+  (same `ab\cd\<hash>` path); `main.log` names the attachment.
 - Admin locked out / password lost → tray → *Reset administrator password…*.
 - Anything else → tray → *Open log files* and send `main.log`.
 
@@ -250,12 +255,13 @@ electron/
   update-policy.ts   required-update rule + release-notes text (tests/)
   setup/provision.ps1  idempotent engine provisioning (asks for admin approval itself)
   setup/remove-all-users-install.ps1  removes a pre-1.0 all-users copy (keeps data)
-  tests/             update-policy, machine-config, next-server-env, uploads-mirror (vitest); db-integration.ts
+  tests/             update-policy, machine-config, next-server-env, uploads-mirror, log (vitest); db-integration.ts
                      (npm run electron:test-db)
 build-resources/     icon.ico/png, installerHeader.bmp + installerSidebar.bmp (wizard logo,
                      24-bit, from icon.png), installer.nsh (NSIS hook that runs provision.ps1)
 electron-builder.config.cjs
-scripts/desktop/     build.mjs, fetch-sql-express.mjs, sql-express.pin.json, test-db.mjs,
+scripts/desktop/     build.mjs (refuses a standalone with build-machine files or missing traced files),
+                     fetch-sql-express.mjs, sql-express.pin.json, test-db.mjs,
                      release.mjs (CI release steps + force command; tests/)
 .github/workflows/desktop-release.yml   called by ci.yml after a green push to develop
 ```

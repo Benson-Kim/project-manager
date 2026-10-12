@@ -175,6 +175,41 @@ async function showAdminCredentials(password: string, reason: string): Promise<v
   }
 }
 
+/**
+ * Attachment downloads. Electron has no download bar, so a failed download
+ * would end silently after the Save dialog: the server answers 404 when a
+ * stored file is gone, and cuts the response off when its bytes changed
+ * (ADR-0026 §3). A cut-off download is only "interrupted" (resumable, never
+ * done), so end it. Say so either way; a cancelled Save dialog stays quiet.
+ */
+function watchDownloads(): void {
+  session.defaultSession.on("will-download", (_e, item) => {
+    const name = item.getFilename();
+    item.setSaveDialogOptions({ title: `Save ${name}` });
+    let reported = false;
+    const failed = () => {
+      if (reported) return;
+      reported = true;
+      log.warn(`[download] ${name}: interrupted (${item.getURL()})`);
+      void message(
+        "warning",
+        "Download failed",
+        `${name} could not be downloaded.`,
+        "The stored file may have been changed, damaged or removed on this PC. " +
+          "Ask your administrator to restore it from a backup.",
+      );
+    };
+    item.on("updated", (_e2, state) => {
+      if (state !== "interrupted") return;
+      failed();
+      item.cancel();
+    });
+    item.once("done", (_e2, state) => {
+      if (state === "interrupted") failed();
+    });
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Database engine readiness (with an elevated repair path).
 
@@ -482,6 +517,7 @@ async function resetAdminAction(): Promise<void> {
 async function bootstrap(): Promise<void> {
   log.info(`=== Project Manager ${app.getVersion()} starting (packaged=${app.isPackaged}) ===`);
   session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
+  watchDownloads();
   splash = createSplash();
 
   try {
