@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { FormValues } from "@/components/ui/data-view/datasheet";
+import { datesInOrder } from "@/lib/date-range";
 import { toDateInput } from "@/lib/format";
 import { listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
@@ -49,6 +50,16 @@ export const keyDeliverableFormSchema = z
     priority: listChoice,
     status: listChoice,
   })
+  .superRefine(
+    datesInOrder({
+      start: "requestedDate",
+      end: "deadline",
+      message: messages.errors.dateOrder(
+        messages.keyDeliverables.deadline,
+        messages.keyDeliverables.requestedDate,
+      ),
+    }),
+  )
   .transform((raw) => {
     const raw_ = raw["assigneeIds[]"];
     // After validation each entry is already number | null; flatten single → array.

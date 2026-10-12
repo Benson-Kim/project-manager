@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
+import { datesInOrder } from "@/lib/date-range";
 import { toDateInput } from "@/lib/format";
 import { listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
@@ -34,7 +35,7 @@ const vocab = <T extends readonly [string, ...string[]]>(values: T) =>
     .refine((v) => !v || (values as readonly string[]).includes(v), messages.errors.VALIDATION)
     .transform((v) => (v ? (v as T[number]) : null));
 
-export const todoItemFormSchema = z.object({
+const todoItemFields = z.object({
   // FormData emits "" when no project is selected (global create).
   // Coerce it to null so the repo receives NULL rather than 0.
   projectId: z
@@ -57,12 +58,22 @@ export const todoItemFormSchema = z.object({
   notes: optionalLongText(),
 });
 
+const todoDates = datesInOrder({
+  start: "startDate",
+  end: "dueDate",
+  message: messages.errors.dateOrder(messages.todoItems.dueDate, messages.todoItems.startDate),
+});
+
+export const todoItemFormSchema = todoItemFields.superRefine(todoDates);
+
 export type TodoItemFormValues = z.output<typeof todoItemFormSchema>;
 
-export const updateTodoItemFormSchema = todoItemFormSchema.extend({
-  todoItemId: z.coerce.number().int().positive(),
-  rowVer: rowVerSchema,
-});
+export const updateTodoItemFormSchema = todoItemFields
+  .extend({
+    todoItemId: z.coerce.number().int().positive(),
+    rowVer: rowVerSchema,
+  })
+  .superRefine(todoDates);
 
 export type UpdateTodoItemFormValues = z.output<typeof updateTodoItemFormSchema>;
 

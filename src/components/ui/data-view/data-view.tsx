@@ -18,7 +18,7 @@ import { EmptyState } from "../states";
 import { useToast } from "../toast";
 import { TONES } from "../tones";
 import { TableLayoutDialog } from "./table-layout-dialog";
-import { CELL_WIDTH, DEFAULT_ROW_HEIGHT, isEditableTarget } from "./datasheet";
+import { CELL_WIDTH, DEFAULT_ROW_HEIGHT, failureMessage, isEditableTarget } from "./datasheet";
 import {
   DatasheetAddRow,
   DatasheetCell,
@@ -178,7 +178,7 @@ export function DataView<Row>({
     if (!sheet || !column.edit) return false;
     const result = await sheet.saveCell(row, column.edit.field, value);
     if (!result.ok) {
-      toast({ variant: "error", title: result.error.message });
+      toast({ variant: "error", title: failureMessage(result.error) });
       return false;
     }
     setSaved((current) => new Map(current).set(getRowId(row), { ...row, ...result.data }));
@@ -193,7 +193,7 @@ export function DataView<Row>({
       announce(messages.datasheet.added);
       router.refresh();
     } else {
-      toast({ variant: "error", title: result.error.message });
+      toast({ variant: "error", title: failureMessage(result.error) });
     }
     return result;
   };

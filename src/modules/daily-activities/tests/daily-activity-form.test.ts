@@ -117,3 +117,24 @@ describe("updateDailyActivityFormSchema", () => {
     expect(parsed.rowVer).toBe(100);
   });
 });
+
+describe("activity dates in order", () => {
+  const update = { ...minimal, dailyActivityId: "1", rowVer: "1" };
+
+  it.each([
+    ["create", dailyActivityFormSchema, minimal],
+    ["update", updateDailyActivityFormSchema, update],
+  ] as const)("%s rejects a complete date before the request date", (_, schema, values) => {
+    const result = schema.safeParse({
+      ...values,
+      requestDate: "2026-05-20",
+      completeDate: "2026-05-19",
+    });
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        path: ["completeDate"],
+        message: "Complete date can't be before request date.",
+      }),
+    ]);
+  });
+});

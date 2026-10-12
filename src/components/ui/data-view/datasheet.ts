@@ -136,6 +136,19 @@ export function invalidFields(fieldErrors: Record<string, string[]> | undefined)
   return new Set(Object.keys(fieldErrors ?? {}));
 }
 
+/**
+ * What a failed save says in the toast: the first field's own message (e.g. "Due
+ * date can't be before start date."), since a cell edit has no field to show it
+ * under; the generic message when the action gave none.
+ */
+export function failureMessage(error: {
+  message: string;
+  fieldErrors?: Record<string, string[]>;
+}): string {
+  const first = Object.values(error.fieldErrors ?? {}).find((list) => list.length > 0);
+  return first?.[0] ?? error.message;
+}
+
 /** Row height until the user drags a row edge (client feedback §2: spacious rows). */
 export const DEFAULT_ROW_HEIGHT = 48;
 

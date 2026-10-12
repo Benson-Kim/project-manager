@@ -30,6 +30,9 @@ BEGIN
     EXEC dbo.usp_LookupList_AssertLabel
          @ListKey = N'key-deliverable.status', @Label = @Status OUTPUT;
 
+    IF @Deadline < @RequestedDate
+        THROW 50004, N'VALIDATION:Deadline cannot be before RequestedDate', 1;
+
     BEGIN TRAN;
 
     INSERT INTO app.KeyDeliverable

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
+import { datesInOrder } from "@/lib/date-range";
 import { toDateInput } from "@/lib/format";
 import { listChoice, type LookupListKey } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
@@ -51,7 +52,7 @@ const dateInput = z
   .refine((v) => !v || !Number.isNaN(Date.parse(v)), messages.projects.invalidDate)
   .transform((v) => (v ? new Date(v) : null));
 
-export const projectFormSchema = z.object({
+const projectFields = z.object({
   projectName: z.string().trim().min(1, messages.projects.nameRequired).max(255),
   projectManager: optionalText(255),
   businessAnalyst: optionalText(255),
@@ -87,12 +88,32 @@ export const projectFormSchema = z.object({
   riskLevel: listChoice,
 });
 
+const projectDates = datesInOrder(
+  {
+    start: "startDate",
+    end: "endDate",
+    message: messages.errors.dateOrder(messages.projects.endDate, messages.projects.startDate),
+  },
+  {
+    start: "startDate",
+    end: "estimatedCompletionDate",
+    message: messages.errors.dateOrder(
+      messages.projects.estimatedCompletion,
+      messages.projects.startDate,
+    ),
+  },
+);
+
+export const projectFormSchema = projectFields.superRefine(projectDates);
+
 export type ProjectFormValues = z.output<typeof projectFormSchema>;
 
-export const updateProjectFormSchema = projectFormSchema.extend({
-  projectId: z.coerce.number().int().positive(),
-  rowVer: z.coerce.number().int().nonnegative(),
-});
+export const updateProjectFormSchema = projectFields
+  .extend({
+    projectId: z.coerce.number().int().positive(),
+    rowVer: z.coerce.number().int().nonnegative(),
+  })
+  .superRefine(projectDates);
 
 export type UpdateProjectFormValues = z.output<typeof updateProjectFormSchema>;
 

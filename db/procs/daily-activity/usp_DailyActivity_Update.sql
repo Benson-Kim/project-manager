@@ -68,6 +68,9 @@ BEGIN
          @ListKey = N'daily-activity.task-type', @Label = @TaskType OUTPUT,
          @CurrentLabel = @CurrentTaskType;
 
+    IF @CompleteDate < @RequestDate
+        THROW 50004, N'VALIDATION:CompleteDate cannot be before RequestDate', 1;
+
     BEGIN TRAN;
 
     DECLARE @Before NVARCHAR(MAX) =

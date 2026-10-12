@@ -46,6 +46,9 @@ BEGIN
          @ListKey = N'key-deliverable.status', @Label = @Status OUTPUT,
          @CurrentLabel = @CurrentStatus;
 
+    IF @Deadline < @RequestedDate
+        THROW 50004, N'VALIDATION:Deadline cannot be before RequestedDate', 1;
+
     BEGIN TRAN;
 
     DECLARE @Before NVARCHAR(MAX) =

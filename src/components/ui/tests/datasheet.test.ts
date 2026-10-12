@@ -3,6 +3,7 @@ import type { LookupLists } from "@/lib/lookup-lists";
 import {
   cellChoices,
   emptyDraft,
+  failureMessage,
   formCellSaver,
   formText,
   hasDraft,
@@ -131,5 +132,25 @@ describe("datasheet helpers (ADR-0023)", () => {
     const failure = { ok: false, error: { code: "CONFLICT", message: "Reload" } } as const;
     const save = formCellSaver<Row, Row>(() => ({}), vi.fn().mockResolvedValue(failure));
     expect(await save({ Id: 1, Status: null, RowVer: 1 }, "status", "x")).toBe(failure);
+  });
+});
+
+describe("failureMessage", () => {
+  it("prefers the first field's own message", () => {
+    expect(
+      failureMessage({
+        message: "Check the highlighted fields.",
+        fieldErrors: { dueDate: ["Due date can't be before start date."] },
+      }),
+    ).toBe("Due date can't be before start date.");
+  });
+
+  it("falls back to the action's message", () => {
+    expect(failureMessage({ message: "Someone else changed this record." })).toBe(
+      "Someone else changed this record.",
+    );
+    expect(failureMessage({ message: "Check the highlighted fields.", fieldErrors: { a: [] } })).toBe(
+      "Check the highlighted fields.",
+    );
   });
 });
