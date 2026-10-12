@@ -601,6 +601,10 @@ async function bootstrap(): Promise<void> {
       uploadsDir: cfg.uploadsDir,
       log,
       onRestarted: (url) => mainWindow?.loadURL(url).catch(() => undefined),
+      onSlowStart: () =>
+        setSplashStatus(
+          "Still starting… Right after the computer starts, this can take a few minutes.",
+        ),
       onFatal: (msg) => {
         void message(
           "error",
