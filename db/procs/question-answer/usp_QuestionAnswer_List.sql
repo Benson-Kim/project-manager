@@ -1,6 +1,6 @@
 -- usp_QuestionAnswer_List — paged/filtered list per ADR-0016.
 -- Search columns: Question, Answer, AssignedTo.
--- Sort whitelist: Question, Category, Priority, AssignedTo.
+-- Sort whitelist: Question, Answer, Category, Priority, AssignedTo.
 -- Filter: @Category, @Priority (nullable — NULL means all).
 -- Row-level access: a supplied @ProjectId must be accessible (dbo.usp_Project_AssertAccess ->
 --   FORBIDDEN_ROW 50003); cross-project reads (@ProjectId NULL) return only rows of projects the
@@ -73,6 +73,8 @@ BEGIN
     ORDER BY
         CASE WHEN @SortBy = N'Question'   AND @SortDir = 'asc'  THEN Question   END ASC,
         CASE WHEN @SortBy = N'Question'   AND @SortDir = 'desc' THEN Question   END DESC,
+        CASE WHEN @SortBy = N'Answer'     AND @SortDir = 'asc'  THEN Answer     END ASC,
+        CASE WHEN @SortBy = N'Answer'     AND @SortDir = 'desc' THEN Answer     END DESC,
         CASE WHEN @SortBy = N'Category'   AND @SortDir = 'asc'  THEN Category   END ASC,
         CASE WHEN @SortBy = N'Category'   AND @SortDir = 'desc' THEN Category   END DESC,
         CASE WHEN @SortBy = N'Priority'   AND @SortDir = 'asc'  THEN Priority   END ASC,
