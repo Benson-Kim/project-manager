@@ -21,17 +21,19 @@ import {
 } from "./backup";
 import { waitForSql } from "./db";
 import { applyDatabaseSchema } from "./db-apply";
+import { createDbWatchdog } from "./db-watchdog";
 import { createLogger, describeError } from "./log";
 import { readMachineConfig, SetupRequiredError, type MachineConfig } from "./machine-config";
 import { NextServer } from "./next-server";
 import { paths } from "./paths";
-import { getServiceState, runElevatedRepair } from "./sql-service";
+import { getServiceState, isListening, runElevatedRepair, startService } from "./sql-service";
 import {
   destroyTray,
   initTray,
   setTrayUpdateActions,
   setTrayUpdateReady,
   showTrayHint,
+  showTrayNotice,
 } from "./tray";
 import { setupAutoUpdater } from "./updater";
 import { restoreSources, restoreUploads } from "./uploads-mirror";
@@ -49,6 +51,7 @@ const settings = new SettingsStore(app.getPath("userData"));
 
 const BACKUP_INTERVAL_MS = 24 * 60 * 60_000;
 const BACKUP_CHECK_MS = 60 * 60_000;
+const DB_CHECK_MS = 30_000;
 
 let config: MachineConfig | null = null;
 let server: NextServer | null = null;
@@ -658,6 +661,32 @@ async function bootstrap(): Promise<void> {
 
     setTimeout(() => void backupIfDue(), 30_000);
     setInterval(() => void backupIfDue(), BACKUP_CHECK_MS);
+
+    const watchdog = createDbWatchdog({
+      reachable: () => isListening(cfg.sql.host, cfg.sql.port),
+      serviceState: () => getServiceState(cfg.sql.instanceName),
+      startService: () => startService(cfg.sql.instanceName, log),
+      waitForSql: () => waitForSql(cfg.sql, 90_000),
+      onRecovered: () =>
+        showTrayNotice(
+          "The database was restarted",
+          "It had stopped. If a page shows an error, open it again.",
+        ),
+      onDown: () =>
+        void message(
+          "warning",
+          "The database has stopped",
+          "Project Manager's database has stopped, so nothing can be opened or saved right now.",
+          "Restart the computer to start it again.\n\n" +
+            "If this happens again, ask IT to run the Project Manager setup again: " +
+            "after that the app restarts the database by itself.",
+        ),
+      log,
+    });
+    // Not during a backup or restore: a restore takes the database offline on purpose.
+    setInterval(() => {
+      if (!busy) void watchdog.check();
+    }, DB_CHECK_MS);
   } catch (err) {
     log.error("[startup] failed", err);
     splash?.close();
