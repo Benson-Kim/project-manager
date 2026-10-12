@@ -9,8 +9,8 @@ import { messages } from "./messages";
  * app.DailyActivity.ActivityStatusId, which stores the option id.
  *
  * This registry names every list the app reads; src/tests/lookup-lists.test.ts
- * keeps it equal to the lists the migrations seed (018, 021) and to the rename
- * cascade in dbo.usp_LookupList_Set.
+ * keeps it equal to the lists the migrations seed (018, 021, 031) and to the
+ * rename cascade in dbo.usp_LookupList_Set.
  */
 export const LOOKUP_LISTS = [
   "project.status",
@@ -33,6 +33,8 @@ export const LOOKUP_LISTS = [
   "todo-item.priority",
   // Team titles (migration 021, ADR-0024): display only; access comes from the level + overrides.
   "project-assignee.title",
+  // Parking lot status (migration 031, client feedback 2026-10-12): Active and Resolved are locked.
+  "parking-lot-item.status",
 ] as const;
 
 export type LookupListKey = (typeof LOOKUP_LISTS)[number];

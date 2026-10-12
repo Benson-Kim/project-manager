@@ -24,6 +24,7 @@ BEGIN
            [ParkingLotItem],
            [StakeholderId],
            [IsStrikethrough],
+           [Status],
            [FollowUpActions],
            [Owner],
            CreatedAtUtc,

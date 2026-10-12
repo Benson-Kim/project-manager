@@ -7,6 +7,8 @@ import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-
 import { messages } from "@/lib/messages";
 import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNotFound, orNull } from "@/lib/row-access";
+import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
+import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { ParkingLotItemSheet } from "@/modules/parking-lot/components/parking-lot-item-sheet";
 import { ParkingLotView } from "@/modules/parking-lot/components/parking-lot-view";
@@ -14,6 +16,7 @@ import {
   getParkingLotItemById,
   listParkingLotItems,
 } from "@/modules/parking-lot/repository/parking-lot-items";
+import { PARKING_LOT_LISTS } from "@/modules/parking-lot/schemas/parking-lot-item";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { parseProjectId } from "../project-id";
 
@@ -23,7 +26,8 @@ export const metadata: Metadata = {
 
 /**
  * Parking lot list — project-scoped section under
- * /projects/[id]/parking-lot; DataView + search + status filter;
+ * /projects/[id]/parking-lot; DataView + search + status filter (managed list, migration 031;
+ * a bookmarked ?status=active|resolved still matches, the proc compares case-insensitively);
  * detail/edit in the URL-synced Sheet (?id=<n> | ?id=new, ADR-0010).
  * Default sort: ParkingLotItem asc.
  */
@@ -47,18 +51,16 @@ export default async function ParkingLotPage({
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
-  const isStrikethrough =
-    flat.status === "resolved" ? true : flat.status === "active" ? false : null;
+  const status = flat.status?.trim() || null;
 
-  const [rows, preference, selectedRaw, allows] = await Promise.all([
-    orNotFound(
-      listParkingLotItems(effectiveParams, session.userId, projectId, { isStrikethrough }),
-    ),
+  const [rows, preference, selectedRaw, allows, lookup] = await Promise.all([
+    orNotFound(listParkingLotItems(effectiveParams, session.userId, projectId, { status })),
     getListPreference(session.userId, "parking-lot").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? orNull(getParkingLotItemById(selectedId, session.userId))
       : null,
     getProjectPermissions(projectId, session.userId),
+    loadLookupLists(PARKING_LOT_LISTS, session),
   ]);
 
   // Cross-project leak guard: deep links to another project's item yield not-found.
@@ -83,27 +85,29 @@ export default async function ParkingLotPage({
   return (
     <>
       <PageHeader title={messages.parkingLot.title} action={canCreate ? newItemLink : undefined} />
-      <div className="mt-3 flex flex-col flex-1">
-        <ParkingLotView
+      <LookupListsScope {...lookup}>
+        <div className="mt-3 flex flex-col flex-1">
+          <ParkingLotView
+            projectId={projectId}
+            canCreate={canCreate}
+            rows={rows}
+            totalCount={totalCount}
+            page={effectiveParams.page}
+            initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}
+            layout={preference?.layout}
+            filtersActive={filtersActive}
+            newItemAction={canCreate ? newItemLink : undefined}
+          />
+        </div>
+        <ParkingLotItemSheet
+          key={selected?.ParkingLotItemId ?? (isNew ? "new" : "closed")}
+          item={selected}
+          isNew={isNew && canCreate}
           projectId={projectId}
-          canCreate={canCreate}
-          rows={rows}
-          totalCount={totalCount}
-          page={effectiveParams.page}
-          initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}
-          layout={preference?.layout}
-          filtersActive={filtersActive}
-          newItemAction={canCreate ? newItemLink : undefined}
+          canEdit={canEdit}
+          canDelete={canDelete}
         />
-      </div>
-      <ParkingLotItemSheet
-        key={selected?.ParkingLotItemId ?? (isNew ? "new" : "closed")}
-        item={selected}
-        isNew={isNew && canCreate}
-        projectId={projectId}
-        canEdit={canEdit}
-        canDelete={canDelete}
-      />
+      </LookupListsScope>
     </>
   );
 }

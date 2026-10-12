@@ -1,5 +1,7 @@
 -- usp_ParkingLotItem_List — paged/filtered list per ADR-0016.
--- Search columns: ParkingLotItem. Sort whitelist: ParkingLotItem, IsStrikethrough.
+-- Search columns: ParkingLotItem. Sort whitelist: ParkingLotItem, Status, IsStrikethrough.
+-- Filters: @Status (a 'parking-lot-item.status' label, migration 031); @IsStrikethrough is kept for
+--   app versions from before 031.
 -- Row-level access: a supplied @ProjectId must be accessible (dbo.usp_Project_AssertAccess ->
 --   FORBIDDEN_ROW 50003); cross-project reads (@ProjectId NULL) return only rows of projects the
 --   actor is assigned to (Admin sees all). LIKE wildcards in @Search are escaped.
@@ -21,7 +23,8 @@ CREATE OR ALTER PROCEDURE dbo.usp_ParkingLotItem_List
     @SortDir         VARCHAR(4)    = 'asc',
     @Page            INT           = 1,
     @PageSize        INT           = 25,
-    @IsStrikethrough BIT           = NULL
+    @IsStrikethrough BIT           = NULL,
+    @Status          NVARCHAR(50)  = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -46,6 +49,7 @@ BEGIN
            [ParkingLotItem],
            [StakeholderId],
            [IsStrikethrough],
+           [Status],
            [FollowUpActions],
            [Owner],
            CreatedAtUtc,
@@ -63,9 +67,12 @@ BEGIN
       AND (@ProjectId IS NOT NULL OR acc.AccessLevel IS NOT NULL)
       AND (@Search IS NULL OR [ParkingLotItem] LIKE N'%' + @Search + N'%' ESCAPE N'\')
       AND (@IsStrikethrough IS NULL OR [IsStrikethrough] = @IsStrikethrough)
+      AND (@Status IS NULL OR [Status] = @Status)
     ORDER BY
         CASE WHEN @SortBy = N'ParkingLotItem'   AND @SortDir = 'asc'  THEN [ParkingLotItem] END ASC,
         CASE WHEN @SortBy = N'ParkingLotItem'   AND @SortDir = 'desc' THEN [ParkingLotItem] END DESC,
+        CASE WHEN @SortBy = N'Status'           AND @SortDir = 'asc'  THEN [Status] END ASC,
+        CASE WHEN @SortBy = N'Status'           AND @SortDir = 'desc' THEN [Status] END DESC,
         CASE WHEN @SortBy = N'IsStrikethrough'  AND @SortDir = 'asc'  THEN [IsStrikethrough] END ASC,
         CASE WHEN @SortBy = N'IsStrikethrough'  AND @SortDir = 'desc' THEN [IsStrikethrough] END DESC,
         [ParkingLotItem] ASC,

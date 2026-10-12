@@ -265,6 +265,7 @@ describe("datasheet form values round-trip through each update form schema", () 
           ParkingLotItem: "Later",
           StakeholderId: 7,
           IsStrikethrough: true,
+          Status: "Resolved",
           FollowUpActions: "Ask",
           Owner: "Ann",
           ...audit,
@@ -273,7 +274,7 @@ describe("datasheet form values round-trip through each update form schema", () 
     ).toMatchObject({
       parkingLotItem: "Later",
       stakeholderId: 7,
-      isStrikethrough: true,
+      status: "Resolved",
       followUpActions: "Ask",
       owner: "Ann",
     });

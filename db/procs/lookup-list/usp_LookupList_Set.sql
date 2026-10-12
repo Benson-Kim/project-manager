@@ -195,6 +195,9 @@ BEGIN
         ELSE IF @ListKey = N'project-assignee.title'
             UPDATE t SET [Role] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
             FROM app.ProjectAssignee t JOIN @Renamed r ON t.[Role] = r.OldLabel;
+        ELSE IF @ListKey = N'parking-lot-item.status'
+            UPDATE t SET [Status] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
+            FROM app.ParkingLotItem t JOIN @Renamed r ON t.[Status] = r.OldLabel;
     END;
 
     -- 5. Move the list's RowVer so a stale editor gets CONFLICT (and set row colouring).

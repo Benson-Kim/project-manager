@@ -6,7 +6,7 @@ import {
 
 /**
  * ParkingLotItem form contract (#18): FormData strings → repository input shape.
- * Covers required item text, optional stakeholderId → null, checkbox coercion,
+ * Covers required item text, optional stakeholderId → null, status list choice,
  * rowVer coercion.
  */
 
@@ -18,7 +18,7 @@ describe("parkingLotItemFormSchema", () => {
     expect(parsed.projectId).toBe(2);
     expect(parsed.parkingLotItem).toBe("Something to discuss");
     expect(parsed.stakeholderId).toBeNull();
-    expect(parsed.isStrikethrough).toBe(false);
+    expect(parsed.status).toBeNull();
   });
 
   it("trims and keeps a supplied item", () => {
@@ -52,19 +52,16 @@ describe("parkingLotItemFormSchema", () => {
     expect(parsed.stakeholderId).toBe(3);
   });
 
-  it("coerces checkbox 'on' to true", () => {
-    const parsed = parkingLotItemFormSchema.parse({ ...minimal, isStrikethrough: "on" });
-    expect(parsed.isStrikethrough).toBe(true);
+  it("keeps a status label and turns '' into null (the proc keeps or defaults it)", () => {
+    expect(parkingLotItemFormSchema.parse({ ...minimal, status: "Resolved" }).status).toBe(
+      "Resolved",
+    );
+    expect(parkingLotItemFormSchema.parse({ ...minimal, status: "" }).status).toBeNull();
   });
 
-  it("coerces absent checkbox to false", () => {
-    const parsed = parkingLotItemFormSchema.parse({ ...minimal });
-    expect(parsed.isStrikethrough).toBe(false);
-  });
-
-  it("coerces boolean true to true", () => {
-    const parsed = parkingLotItemFormSchema.parse({ ...minimal, isStrikethrough: true });
-    expect(parsed.isStrikethrough).toBe(true);
+  it("rejects a status longer than a list label", () => {
+    const result = parkingLotItemFormSchema.safeParse({ ...minimal, status: "x".repeat(51) });
+    expect(result.error?.issues.map((i) => i.path)).toEqual([["status"]]);
   });
 
   it("coerces empty-string followUpActions to null", () => {
