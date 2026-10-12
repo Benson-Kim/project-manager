@@ -55,8 +55,10 @@ already exist twice — do not add more duplicates). S1 and CF used 017–021, s
 2026-10-09 every open reservation moved up by five (F1 017→022, R1 018→023, M1 019→024,
 I1 020→025, N1 021→026, FI1 022→027, F2 023→028, A2 024→029, RP1 025→030). If your
 number is already taken when you open the PR, take the next free number and say so in
-the PR. Never edit a migration that is merged. P1 took ADR-0025
-(develop's ADR-0020 is web push), so the next free ADR number is **0026**, which F1 takes.
+the PR. Client feedback of 2026-10-12 (on `feature/file-storage`) took **031**
+(parking lot status) and seed 030; the next free migration is 032. Never edit a
+migration that is merged. P1 took ADR-0025 (develop's ADR-0020 is web push) and F1
+took 0026, so the next free ADR number is **0027**.
 
 **Desktop edition follow-ups.** D1 is merged, and every green push to develop ships a desktop
 release, so F1 does its desktop wiring itself (`UPLOADS_DIR`, the folder, backups). After **F2**,

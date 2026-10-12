@@ -98,3 +98,20 @@ mobile.
   stretches the whole page so the ✓ / × buttons go off-screen.
 - e2e specs must not depend on cards: `expectListed`, `openListed` and
   `expectNotListed` (`e2e/support/datasheet.ts`) work in both views.
+
+## Amendment 2026-10-12: sticky header and wrapped text (client feedback)
+
+- **Sticky header.** A horizontal scroller also captures vertical stickiness, so
+  the table scrolls inside its own box, at most one screen under the app header
+  (`max-h-[calc(100dvh-5rem)]`), and `thead` sticks to it. `scroll-pt-14`
+  keeps arrowed rows clear of the header. Print shows the whole table.
+- **Wrapped text.** Text cells are `<textarea rows=1>` with
+  `field-sizing: content`: text wraps and the row grows to show all of it (the
+  row height is the minimum). Browsers without field-sizing scroll inside the
+  cell. Enter still saves. Memo fields (`maxLength` above 255 or none) take
+  Shift+Enter for a new line; single-line fields turn pasted line breaks into
+  spaces. An `<input>` strips line breaks, so focusing and leaving a
+  multi-line cell used to save it without them.
+- Read-only cells and headers wrap instead of truncating.
+- A failed cell save toasts the field's own message (`failureMessage`), e.g.
+  "Due date can't be before start date.", since the cell has nowhere to show it.

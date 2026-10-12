@@ -16,6 +16,7 @@ Installer (per user, no admin rights needed)
       ├─ installs SQL Server 2022 Express, instance PROJECTMGR   (first install only)
       ├─ TCP 127.0.0.1:14330 only + firewall block rule           (not reachable from the network)
       ├─ login pm_app (random password), sa disabled
+      ├─ service restarts itself after a failure; signed-in users may start it (not stop or configure)
       ├─ %ProgramData%\Project Manager\Backups  (writable by the SQL service)
       ├─ %ProgramData%\Project Manager\Uploads  (attachments; writable by every local user, ADR-0026)
       └─ %ProgramData%\Project Manager\machine.json  (DB credentials, auth secret, uploadsDir; all users)
@@ -29,6 +30,9 @@ App launch (normal user, no admin needed)
  │    stored procedures only when they changed, seeds once each
  ├─ ensures an active admin account exists           → shows a one-time password if it created one
  ├─ starts the Next.js standalone server on 127.0.0.1:<random port>   (UPLOADS_DIR = uploadsDir)
+ │    waits up to 3 minutes: right after Windows starts, the first start is slow
+ ├─ every 30 s checks the database engine still answers; if it stopped, starts it
+ │    (allowed once provisioning granted it) or tells the user once to restart the PC
  └─ daily verified backup → copied to the user's backup folder (OneDrive by default),
       new attachment files mirrored into <backup folder>\Uploads
 ```
@@ -161,6 +165,10 @@ Uses a throwaway database `PM_DesktopTest_<random>` and drops it afterwards.
    password (with a *Copy password* button); the app forces a new password at
    first sign-in.
 3. Work. Closing the window keeps it in the tray, where backups keep running.
+   *Open in new window* (header, next to the bell) opens the current page in a
+   window of its own, to move it to another screen. It opens where the last one
+   was closed, or on a screen other than the main window's. Shift- or Ctrl-click
+   on a link does the same.
 
 Tray menu: *Install update X.Y.Z* (when one is ready), *Back up now*, *Open
 backups folder*, *Choose backup copy folder…*, *Restore from backup…*, *Reset
@@ -237,6 +245,15 @@ that Windows account only; the database and backups stay (client data). To remov
   app refuses to hand it out. Restore it from `<backup copy folder>\Uploads`
   (same `ab\cd\<hash>` path); `main.log` names the attachment.
 - Admin locked out / password lost → tray → *Reset administrator password…*.
+- *"Sign in is not possible: the database is not responding"*, or a *"The
+  database has stopped"* dialog → the SQL Server service stopped (2026-10-12 a
+  client's stopped at 04:59, likely an update, and every sign-in failed for
+  hours). Restart the PC. Once IT has run provisioning again (the remote command
+  above, safe to repeat) the service restarts after a failure and the app starts
+  it by itself; PCs provisioned before that only get the dialog.
+- *"The application server did not start within 180s"* → start the app again;
+  the second start is faster. `main.log` shows how long `[next]` took to say
+  Ready.
 - Anything else → tray → *Open log files* and send `main.log`.
 
 ## Source layout
