@@ -10,8 +10,10 @@ import {
   invalidFields,
   isCellChanged,
   isEditableTarget,
+  singleLine,
   type CellEditor,
 } from "../data-view/datasheet";
+import { textColumn } from "../data-view/columns";
 
 interface Row {
   Id: number;
@@ -152,5 +154,29 @@ describe("failureMessage", () => {
     expect(failureMessage({ message: "Check the highlighted fields.", fieldErrors: { a: [] } })).toBe(
       "Check the highlighted fields.",
     );
+  });
+});
+
+describe("text cells (client feedback 2026-10-12: wrap)", () => {
+  it("singleLine turns pasted line breaks into spaces", () => {
+    expect(singleLine("Call vendor\nabout invoice\r\nnow")).toBe("Call vendor about invoice now");
+    expect(singleLine("one line")).toBe("one line");
+  });
+
+  const column = (maxLength?: number) =>
+    textColumn<{ Text: string | null }>({
+      key: "Text",
+      header: "Text",
+      priority: 1,
+      field: "text",
+      value: (r) => r.Text,
+      placeholder: "[Text…]",
+      maxLength,
+    });
+
+  it("memo text (over 255 characters, or unbounded) is multiline", () => {
+    expect(column(4000).edit?.multiline).toBe(true);
+    expect(column(undefined).edit?.multiline).toBe(true);
+    expect(column(255).edit?.multiline).toBe(false);
   });
 });

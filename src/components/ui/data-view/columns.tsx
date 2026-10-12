@@ -40,6 +40,7 @@ export function textColumn<Row>(
       value: (row) => formText(spec.value(row)),
       placeholder: spec.placeholder,
       maxLength: spec.maxLength,
+      multiline: spec.maxLength === undefined || spec.maxLength > 255,
     },
   };
 }

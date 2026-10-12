@@ -418,13 +418,19 @@ export function DataView<Row>({
           ) : (
             // `relative`: absolutely positioned descendants (sr-only labels) belong to this
             // scroller, not to <main> — else a wide table stretches the whole page.
-            <div className="relative overflow-x-auto">
+            // A horizontal scroller also captures vertical stickiness, so the table scrolls in
+            // its own box (at most one screen under the app header) and the header row sticks
+            // to it (client feedback, 2026-10-12); scroll-pt keeps arrowed rows clear of it.
+            <div
+              data-testid="data-view-scroller"
+              className="relative max-h-[calc(100dvh-5rem)] scroll-pt-14 overflow-auto print:max-h-none print:overflow-visible"
+            >
               <table
                 data-testid="data-view-table"
                 style={{ "--row-h": `${rowHeight}px` } as React.CSSProperties}
                 className="w-full border-collapse border border-line text-sm"
               >
-                <thead>
+                <thead className="sticky top-0 z-20 print:static">
                   <tr>
                     {bulkActions ? (
                       <th
@@ -541,7 +547,7 @@ export function DataView<Row>({
                             <td
                               key={col.key}
                               style={style}
-                              className={`relative ${cellClass} ${style ? "truncate" : ""} ${priorityClass[col.priority]}`}
+                              className={`relative ${cellClass} whitespace-pre-line ${style ? "wrap-anywhere" : "wrap-break-word"} ${priorityClass[col.priority]}`}
                             >
                               {col.render(row)}
                               {handle}
