@@ -22,6 +22,7 @@ export const messages = {
     themeLight: "Light",
     themeDark: "Dark",
     themeToggle: "Toggle theme",
+    openInNewWindow: "Open in new window",
     notifications: "Notifications",
     notificationsWithCount: (n: number) => `Notifications — ${n} pending`,
     noNotifications: "No notifications",

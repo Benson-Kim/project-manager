@@ -1,6 +1,7 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
+import type { Placement } from "./window-placement";
 
 /** Per-Windows-user preferences (machine-wide settings live in machine.json). */
 export interface UserSettings {
@@ -12,6 +13,8 @@ export interface UserSettings {
    * this Windows user; afterwards it lives in the tray only.
    */
   attachmentsSetupOffered: boolean;
+  /** Where the last detached window was closed, so the next one opens there. */
+  detachedWindow?: Placement;
 }
 
 function defaultCopyDir(): string {
