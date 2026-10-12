@@ -43,6 +43,11 @@ export interface CellEditor<Row> {
   /** The new-entry row's starting value (e.g. the filtered project); "" by default. */
   initial?: string;
   maxLength?: number;
+  /**
+   * Memo text (longer than 255 characters, Access MEMO): Shift+Enter starts a
+   * new line. Other text cells stay on one line: a pasted line break becomes a space.
+   */
+  multiline?: boolean;
   min?: number;
   max?: number;
 }
@@ -106,6 +111,11 @@ export function cellChoices<Row>(
     choices.push({ value: current.value, label: current.label ?? current.value });
   }
   return choices;
+}
+
+/** What a single-line text cell keeps of typed or pasted text: line breaks become spaces. */
+export function singleLine(value: string): string {
+  return value.replace(/\r?\n/g, " ");
 }
 
 /** Whether a committed value differs from the row's (text compares trimmed, like the form schemas). */

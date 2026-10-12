@@ -15,6 +15,7 @@ import {
   hasDraft,
   invalidFields,
   isCellChanged,
+  singleLine,
   type CellEditor,
 } from "./datasheet";
 import { priorityClass, type DataViewColumn } from "./types";
@@ -37,10 +38,20 @@ export const editableCellClass = "h-(--row-h) border border-line p-0 align-middl
  * Cells read as text until touched: hover tints them, focus turns them into a
  * white input. Text inherits the row's colour (a tinted row, migration 020).
  */
-const controlClass =
-  "h-(--row-h) w-full min-w-0 border-0 bg-transparent px-3 text-sm text-inherit " +
+const controlLook =
+  "w-full min-w-0 border-0 bg-transparent px-3 text-sm text-inherit " +
   "hover:bg-surface-sunken focus:bg-surface focus:text-ink placeholder:text-ink-muted " +
   "aria-invalid:bg-danger-soft disabled:opacity-60";
+const controlClass = `h-(--row-h) ${controlLook}`;
+
+/**
+ * Text wraps and the cell grows to show all of it (client feedback, 2026-10-12):
+ * at least the row height, one line centred in it. Browsers without
+ * field-sizing scroll inside the cell instead.
+ */
+const textControlClass =
+  "block min-h-(--row-h) resize-none py-[min(0.875rem,calc((var(--row-h)_-_1.25rem)/2))] " +
+  `leading-5 field-sizing-content wrap-anywhere ${controlLook}`;
 
 /** The select choice that opens the list editor instead of picking a value. */
 const EDIT_LIST = "__edit-list__";
@@ -80,7 +91,10 @@ function CellControl<Row>({
   onEditList,
 }: CellControlProps<Row>) {
   const { lists } = useLookupLists();
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const onKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
+  ) => {
+    if (e.key === "Enter" && e.shiftKey && editor.multiline) return;
     if (e.key === "Enter") {
       e.preventDefault();
       onEnter(e.currentTarget.value);
@@ -123,6 +137,24 @@ function CellControl<Row>({
         ))}
         {onEditList ? <option value={EDIT_LIST}>{messages.lookupLists.editInline}</option> : null}
       </select>
+    );
+  }
+
+  if (editor.kind === "text") {
+    return (
+      <textarea
+        {...aria}
+        rows={1}
+        value={value}
+        placeholder={placeholder}
+        maxLength={editor.maxLength}
+        onChange={(e) =>
+          onChange(editor.multiline ? e.target.value : singleLine(e.target.value))
+        }
+        onKeyDown={onKeyDown}
+        onBlur={onBlur ? (e) => onBlur(e.currentTarget.value) : undefined}
+        className={`${textControlClass} cursor-text`}
+      />
     );
   }
 
@@ -251,7 +283,7 @@ export function DatasheetAddRow<Row>({
     setPending(false);
     if (result.ok) {
       reset();
-      rowRef.current?.querySelector<HTMLElement>("input, select")?.focus();
+      rowRef.current?.querySelector<HTMLElement>("input, select, textarea")?.focus();
     } else {
       setInvalid(invalidFields(result.error.fieldErrors));
     }
@@ -387,7 +419,7 @@ export function HeaderCell<Row>({
       className={`relative border border-line px-3 py-2 text-left font-medium text-ink-muted ${drag ? "cursor-grab active:cursor-grabbing" : ""} ${drag?.over ? "bg-accent-soft" : "bg-surface-raised"} ${drag?.dragging ? "opacity-50" : ""} ${column.edit && !width ? CELL_WIDTH[column.edit.kind] : ""} ${priorityClass[column.priority]}`}
     >
       <div className="flex min-h-10 items-center justify-between gap-1">
-        <span className="truncate">{column.header}</span>
+        <span className="wrap-break-word">{column.header}</span>
         {list && canEditLists ? (
           <IconButton
             label={messages.lookupLists.edit(column.header)}
