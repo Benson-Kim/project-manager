@@ -17,7 +17,12 @@ import { getUploadsEnv, uploadsEnabled } from "@/lib/env";
  * Identical bytes share one stored file; SQL Server keeps the metadata.
  */
 
-/** Temp files live under the root so committing is a rename on one volume. */
+/**
+ * Temp files live under the root so committing is a rename on one volume.
+ * Every path.join(root, TEMP_DIR) carries turbopackIgnore: with `root` unknown
+ * at build time, output tracing reads it as "<any folder>/.tmp" and copies such
+ * folders from the build machine into the standalone server.
+ */
 export const TEMP_DIR = ".tmp";
 
 const HASH = /^[0-9a-f]{64}$/;
@@ -41,7 +46,7 @@ export async function uploadsRoot(): Promise<string> {
   if (!uploadsEnabled()) throw new UploadsDisabledError();
   const root = getUploadsEnv().UPLOADS_DIR;
   if (checkedRoot === root) return root;
-  await mkdir(path.join(root, TEMP_DIR), { recursive: true });
+  await mkdir(path.join(/* turbopackIgnore: true */ root, TEMP_DIR), { recursive: true });
   await access(root, constants.W_OK);
   checkedRoot = root;
   return root;
@@ -96,7 +101,7 @@ export async function receiveUpload(
   root: string,
   maxBytes: number,
 ): Promise<ReceivedUpload> {
-  const tempPath = path.join(root, TEMP_DIR, randomUUID());
+  const tempPath = path.join(/* turbopackIgnore: true */ root, TEMP_DIR, randomUUID());
   const out = createWriteStream(tempPath, { flags: "wx" });
   const hash = createHash("sha256");
   const reader = body.getReader();

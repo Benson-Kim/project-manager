@@ -10,7 +10,7 @@
 // esbuild into build/desktop-app → electron-builder → report.
 import { execFileSync, execSync } from "node:child_process";
 import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import { sha256, verifySqlMedia } from "./fetch-sql-express.mjs";
@@ -62,6 +62,27 @@ for (const f of readdirSync(standalone)) {
 }
 if (!existsSync(join(standalone, "node_modules", "argon2"))) {
   throw new Error("argon2 missing from the standalone output (needed for the admin account)");
+}
+// Output tracing follows runtime paths: a regression could ship the build
+// machine's own files (uploads, temp folders). And when copying a traced file
+// fails, `next build` still exits 0 with a route missing its chunks. Check both.
+const SHIPPED = new Set([".next", "node_modules", "public", "package.json", "server.js"]);
+const extra = readdirSync(standalone).filter((f) => !SHIPPED.has(f));
+if (extra.length) {
+  throw new Error(`Unexpected entries in the standalone output (build-machine files?): ${extra.join(", ")}`);
+}
+const serverDir = join(root, ".next", "server");
+const missing = new Set();
+for (const f of readdirSync(serverDir, { recursive: true })) {
+  if (!String(f).endsWith(".nft.json")) continue;
+  const trace = join(serverDir, String(f));
+  for (const file of JSON.parse(readFileSync(trace, "utf-8")).files) {
+    const inRepo = relative(root, resolve(dirname(trace), file));
+    if (!inRepo.startsWith("..") && !existsSync(join(standalone, inRepo))) missing.add(inRepo);
+  }
+}
+if (missing.size) {
+  throw new Error(`Traced files missing from the standalone output:\n  ${[...missing].slice(0, 20).join("\n  ")}`);
 }
 
 // 3. Electron main process --------------------------------------------------
