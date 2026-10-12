@@ -114,6 +114,10 @@ export function listColumn<Row>(
   spec: ColumnSpec<Row, string | number | null> & {
     list: LookupListKey;
     currentLabel?: (row: Row) => string | null;
+    /** false: every record has a value, so the select offers no empty choice. */
+    clearable?: boolean;
+    /** The new-entry row's starting value (a label of the list). */
+    initial?: string;
   },
 ): DataViewColumn<Row> {
   const label = spec.currentLabel ?? ((row: Row) => formText(spec.value(row)) || null);
@@ -134,6 +138,8 @@ export function listColumn<Row>(
       value: (row) => formText(spec.value(row)),
       currentLabel: spec.currentLabel,
       placeholder: spec.placeholder,
+      clearable: spec.clearable,
+      initial: spec.initial,
     },
   };
 }

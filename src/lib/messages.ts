@@ -68,7 +68,7 @@ export const messages = {
     INTERNAL: "Something went wrong. Try again.",
     summaryTitle: "The form could not be saved",
     dateOrder: (later: string, earlier: string) =>
-      `${later} can't be before ${earlier.toLowerCase()}.`,
+      `${later} can't be before ${String(earlier).toLowerCase()}.`,
   },
   auth: {
     loginTitle: "Sign in",
@@ -642,7 +642,7 @@ export const messages = {
     placeholders: {
       item: "[New item…]",
       owner: "[Owner…]",
-      strikethrough: "[Resolved?]",
+      status: "[Select status…]",
     },
     title: "Parking lot",
     entity: "item",
@@ -650,12 +650,11 @@ export const messages = {
     item: "Item",
     itemRequired: "Enter an item",
     participant: "Participant",
-    strikethrough: "Resolved",
+    status: "Status",
     followUpActions: "Follow-up actions",
     owner: "Owner",
     allParticipants: "All participants",
     allStatuses: "All statuses",
-    active: "Active",
     resolved: "Resolved",
     emptyBody: "Add the first parking lot item for this project.",
     reload: "Reload",

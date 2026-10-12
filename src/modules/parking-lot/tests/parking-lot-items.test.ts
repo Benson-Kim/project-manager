@@ -21,6 +21,7 @@ function dbRow(overrides: Record<string, unknown> = {}) {
     ParkingLotItem: "Something to discuss",
     StakeholderId: 1,
     IsStrikethrough: false,
+    Status: "Active",
     FollowUpActions: null,
     Owner: null,
     CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),
@@ -35,7 +36,7 @@ describe("parking-lot-items repository", () => {
 
   it("create requires a non-empty item", async () => {
     await expect(
-      createParkingLotItem({ projectId: 2, parkingLotItem: "  ", isStrikethrough: false }, 7),
+      createParkingLotItem({ projectId: 2, parkingLotItem: "  " }, 7),
     ).rejects.toThrow();
     expect(execProc).not.toHaveBeenCalled();
   });
@@ -54,7 +55,8 @@ describe("parking-lot-items repository", () => {
     expect(params.ParkingLotItem).toBe("Something to discuss");
     expect(params.ActorUserId).toBe(7);
     expect(params.StakeholderId).toBeNull();
-    expect(params.IsStrikethrough).toBe(false);
+    expect(params.Status).toBeNull();
+    expect(params).not.toHaveProperty("IsStrikethrough");
   });
 
   it("create forwards optional stakeholderId when provided", async () => {
@@ -84,26 +86,20 @@ describe("parking-lot-items repository", () => {
       SortDir: "asc",
       Page: 2,
       PageSize: 25,
-      IsStrikethrough: null,
+      Status: null,
     });
   });
 
-  it("list forwards IsStrikethrough filter=true", async () => {
+  it("list forwards the status filter", async () => {
     execProc.mockResolvedValue([
-      dbRow({ IsStrikethrough: true, TotalCount: 1, ActorAccess: "Manager" }),
+      dbRow({ IsStrikethrough: true, Status: "Resolved", TotalCount: 1, ActorAccess: "Manager" }),
     ]);
     const params = listParamsSchema.parse({});
-    await listParkingLotItems(params, 1, 2, { isStrikethrough: true });
+    const rows = await listParkingLotItems(params, 1, 2, { status: "Resolved" });
     const [, procParams] = execProc.mock.calls[0] as [string, Record<string, unknown>];
-    expect(procParams.IsStrikethrough).toBe(true);
-  });
-
-  it("list forwards IsStrikethrough filter=false", async () => {
-    execProc.mockResolvedValue([dbRow({ TotalCount: 1, ActorAccess: "Manager" })]);
-    const params = listParamsSchema.parse({});
-    await listParkingLotItems(params, 1, 2, { isStrikethrough: false });
-    const [, procParams] = execProc.mock.calls[0] as [string, Record<string, unknown>];
-    expect(procParams.IsStrikethrough).toBe(false);
+    expect(procParams.Status).toBe("Resolved");
+    expect(procParams).not.toHaveProperty("IsStrikethrough");
+    expect(rows[0].Status).toBe("Resolved");
   });
 
   it("list rejects contract-breaking rows", async () => {
@@ -121,7 +117,7 @@ describe("parking-lot-items repository", () => {
         rowVer: 42,
         projectId: 2,
         parkingLotItem: "Updated item",
-        isStrikethrough: true,
+        status: "On hold",
       },
       1,
     );
@@ -129,7 +125,7 @@ describe("parking-lot-items repository", () => {
     expect(proc).toBe("usp_ParkingLotItem_Update");
     expect(params.RowVer).toBe(42);
     expect(params.ParkingLotItemId).toBe(3);
-    expect(params.IsStrikethrough).toBe(true);
+    expect(params.Status).toBe("On hold");
   });
 
   it("update forwards followUpActions and owner to the proc", async () => {
@@ -140,7 +136,6 @@ describe("parking-lot-items repository", () => {
         rowVer: 42,
         projectId: 2,
         parkingLotItem: "Updated item",
-        isStrikethrough: false,
         followUpActions: "Check with team",
         owner: "Alice",
       },
