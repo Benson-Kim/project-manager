@@ -18,7 +18,18 @@ export interface NextServerOptions {
   onRestarted?: (url: string) => void;
   /** Called when the server keeps crashing and we gave up. */
   onFatal?: (message: string) => void;
+  /** Called once when starting takes longer than usual (the splash says so). */
+  onSlowStart?: () => void;
 }
+
+/**
+ * A cold start right after Windows signs in is slow: on a client PC the server
+ * took 54 s to boot and its first page another ~20 s, past the old 60 s limit
+ * (main.log 2026-10-12). Each check may wait for that first page.
+ */
+export const START_TIMEOUT_MS = 180_000;
+export const FIRST_PAGE_TIMEOUT_MS = 30_000;
+export const SLOW_START_MS = 45_000;
 
 /** The server's environment: loopback only, the machine's database and its folders. */
 export function nextServerEnv(
@@ -84,7 +95,12 @@ export class NextServer {
       void this.recover();
     });
 
-    await waitForHttp(`${this.url}/login`, 60_000, () => this.proc === proc);
+    const slow = setTimeout(() => opts.onSlowStart?.(), SLOW_START_MS);
+    try {
+      await waitForHttp(`${this.url}/login`, START_TIMEOUT_MS, () => this.proc === proc);
+    } finally {
+      clearTimeout(slow);
+    }
     opts.log.info(`[next] ready at ${this.url}`);
     return this.url;
   }
@@ -147,7 +163,10 @@ async function waitForHttp(url: string, timeoutMs: number, alive: () => boolean)
   while (Date.now() < deadline) {
     if (!alive()) throw new Error("The application server stopped while starting (see log).");
     try {
-      const res = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(5_000) });
+      const res = await fetch(url, {
+        redirect: "manual",
+        signal: AbortSignal.timeout(FIRST_PAGE_TIMEOUT_MS),
+      });
       if (res.status < 500) return;
     } catch {
       /* not listening yet */
