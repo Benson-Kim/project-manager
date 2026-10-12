@@ -98,6 +98,11 @@ export function showTrayHint(): void {
   });
 }
 
+/** A short Windows notification from the tray, for news that needs no answer. */
+export function showTrayNotice(title: string, content: string): void {
+  tray?.displayBalloon({ title, content, iconType: "info" });
+}
+
 export function destroyTray(): void {
   tray?.destroy();
   tray = null;

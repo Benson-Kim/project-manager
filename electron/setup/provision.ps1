@@ -241,6 +241,25 @@ function Start-SqlService([bool] $Restart) {
   Write-Log 'SQL Server is accepting connections.'
 }
 
+# A stopped engine takes the whole app down: on a client PC the service stopped at 04:59 and
+# stayed stopped while the PC ran on (main.log 2026-10-12). Windows now restarts it after a
+# failure, and the app's watchdog may start it: interactive users get SERVICE_START (RP) on
+# this one service and nothing more (not stop, not configure). Warnings only: the app works
+# without either, it just can't recover on its own.
+function Set-ServiceRecovery {
+  & sc.exe failure $ServiceName reset= 86400 actions= restart/60000/restart/60000/restart/300000 | Out-Null
+  if ($LASTEXITCODE -ne 0) { Write-Log "WARNING: could not set restart-on-failure for $ServiceName (exit $LASTEXITCODE)." }
+  & sc.exe failureflag $ServiceName 1 | Out-Null
+  $sddl = & sc.exe sdshow $ServiceName | Where-Object { $_ -match 'D:' } | Select-Object -First 1
+  if (-not $sddl) { Write-Log "WARNING: could not read the permissions of $ServiceName."; return }
+  $sddl = "$sddl".Trim()
+  if ($sddl -match '\(A;;RP;;;IU\)') { return }
+  $updated = $sddl -replace '^(.*?D:[A-Z]*)', '$1(A;;RP;;;IU)'
+  & sc.exe sdset $ServiceName $updated | Out-Null
+  if ($LASTEXITCODE -eq 0) { Write-Log "Signed-in users may now start $ServiceName." }
+  else { Write-Log "WARNING: could not let signed-in users start $ServiceName (exit $LASTEXITCODE)." }
+}
+
 function Set-AccessControl {
   foreach ($d in @($DataRoot, $LogDir, $BackupDir, $UploadsDir)) {
     if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
@@ -308,6 +327,7 @@ try {
   $changed = Set-NetworkConfiguration $instanceId
   Set-FirewallRule
   Start-SqlService $changed
+  Set-ServiceRecovery
   Grant-ServiceBackupAccess
 
   # Logins: connect as the elevated Windows administrator (sysadmin via BUILTIN\Administrators).
