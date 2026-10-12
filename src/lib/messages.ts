@@ -583,6 +583,7 @@ export const messages = {
     placeholders: {
       objectiveText: "[New objective…]",
       qMeasurable: "[How is it measured…]",
+      qSuccess: "[Success criteria…]",
       qAlignmentStrategy: "[Strategy alignment…]",
     },
     title: "Objectives",
@@ -616,6 +617,7 @@ export const messages = {
   questionsAnswers: {
     placeholders: {
       question: "[New question…]",
+      answer: "[Answer…]",
       category: "[Select category…]",
       priority: "[Select priority…]",
       assignedTo: "[Assign to…]",
