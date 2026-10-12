@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
+import { datesInOrder } from "@/lib/date-range";
 import { toDateInput } from "@/lib/format";
 import { listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
@@ -27,7 +28,7 @@ const dateInput = z
   .refine((v) => !v || !Number.isNaN(Date.parse(v)), messages.suppliers.invalidDate)
   .transform((v) => (v ? new Date(v) : null));
 
-export const supplierFormSchema = z.object({
+const supplierFields = z.object({
   projectId: z.coerce.number().int().positive(),
   supplierName: z.string().trim().min(1, messages.suppliers.supplierNameRequired).max(255),
   contactPerson: optionalText(255),
@@ -49,12 +50,25 @@ export const supplierFormSchema = z.object({
   postalCode: optionalText(255),
 });
 
+const contractDates = datesInOrder({
+  start: "contractStartDate",
+  end: "contractEndDate",
+  message: messages.errors.dateOrder(
+    messages.suppliers.contractEndDate,
+    messages.suppliers.contractStartDate,
+  ),
+});
+
+export const supplierFormSchema = supplierFields.superRefine(contractDates);
+
 export type SupplierFormValues = z.output<typeof supplierFormSchema>;
 
-export const updateSupplierFormSchema = supplierFormSchema.extend({
-  supplierId: z.coerce.number().int().positive(),
-  rowVer: z.coerce.number().int().nonnegative(),
-});
+export const updateSupplierFormSchema = supplierFields
+  .extend({
+    supplierId: z.coerce.number().int().positive(),
+    rowVer: z.coerce.number().int().nonnegative(),
+  })
+  .superRefine(contractDates);
 
 export type UpdateSupplierFormValues = z.output<typeof updateSupplierFormSchema>;
 

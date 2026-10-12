@@ -67,6 +67,8 @@ export const messages = {
     QUOTA_EXCEEDED: "This project has no room left for this file.",
     INTERNAL: "Something went wrong. Try again.",
     summaryTitle: "The form could not be saved",
+    dateOrder: (later: string, earlier: string) =>
+      `${later} can't be before ${earlier.toLowerCase()}.`,
   },
   auth: {
     loginTitle: "Sign in",

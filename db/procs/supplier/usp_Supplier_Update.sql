@@ -48,6 +48,9 @@ BEGIN
          @ListKey = N'supplier.rating', @Label = @Rating OUTPUT,
          @CurrentLabel = @CurrentRating;
 
+    IF @ContractEndDate < @ContractStartDate
+        THROW 50004, N'VALIDATION:ContractEndDate cannot be before ContractStartDate', 1;
+
     BEGIN TRAN;
 
     DECLARE @Before NVARCHAR(MAX) =

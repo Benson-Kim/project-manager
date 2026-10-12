@@ -110,3 +110,25 @@ describe("isOverdue", () => {
     expect(isOverdue(new Date("2026-09-01"), "Cancelled", now)).toBe(false);
   });
 });
+
+describe("deliverable dates in order", () => {
+  const base = { projectId: "2", keyRequirement: "R" };
+  const update = { ...base, keyDeliverableId: "1", rowVer: "1" };
+
+  it.each([
+    ["create", keyDeliverableFormSchema, base],
+    ["update", updateKeyDeliverableFormSchema, update],
+  ] as const)("%s rejects a deadline before the requested date", (_, schema, values) => {
+    const result = schema.safeParse({
+      ...values,
+      requestedDate: "2026-10-01",
+      deadline: "2026-09-30",
+    });
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        path: ["deadline"],
+        message: "Deadline can't be before requested date.",
+      }),
+    ]);
+  });
+});
