@@ -1,4 +1,14 @@
-import { app, BrowserWindow, clipboard, dialog, session, shell } from "electron";
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  screen,
+  session,
+  shell,
+  type BrowserWindowConstructorOptions,
+  type WebContents,
+} from "electron";
 import { createRequire } from "module";
 import path from "path";
 import { ensureAdminAccount, resetAdminPassword, type Argon2Like } from "./admin-account";
@@ -26,6 +36,7 @@ import {
 import { setupAutoUpdater } from "./updater";
 import { restoreSources, restoreUploads } from "./uploads-mirror";
 import { SettingsStore } from "./user-settings";
+import { detachedPlacement, type Placement } from "./window-placement";
 
 // A fixed, explicit profile folder (otherwise Electron derives it from the
 // package name). Must be set before anything touches app paths.
@@ -79,21 +90,21 @@ function createSplash(): BrowserWindow {
   return win;
 }
 
-function createMainWindow(url: string): BrowserWindow {
-  const origin = new URL(url).origin;
-  const win = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 360,
-    minHeight: 600,
-    show: false,
-    title: "Project Manager",
-    icon: paths.icon,
-    autoHideMenuBar: true,
-    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
-  });
+const appWindowOptions = {
+  minWidth: 360,
+  minHeight: 600,
+  title: "Project Manager",
+  icon: paths.icon,
+  autoHideMenuBar: true,
+  webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
+} satisfies BrowserWindowConstructorOptions;
 
-  // Only our own local server is shown in-app; anything else opens in the browser.
+/**
+ * Only our own local server is shown in-app; anything else opens in the browser.
+ * A page of ours asking for a new window ("Open in new window", Shift/Ctrl-click)
+ * gets a detached window of its own, which the user can move to another display.
+ */
+function guardContents(contents: WebContents, origin: string): void {
   const isOwn = (target: string) => {
     try {
       return new URL(target).origin === new URL(server?.url ?? origin).origin;
@@ -105,16 +116,54 @@ function createMainWindow(url: string): BrowserWindow {
     if (/^https?:\/\//i.test(target) || /^mailto:/i.test(target))
       shell.openExternal(target).catch(() => undefined);
   };
-  win.webContents.setWindowOpenHandler(({ url: target }) => {
-    if (!isOwn(target)) openExternally(target);
-    return { action: "deny" };
+  let placement: Placement | null = null;
+  contents.setWindowOpenHandler(({ url: target }) => {
+    if (!isOwn(target)) {
+      openExternally(target);
+      return { action: "deny" };
+    }
+    placement = detachedWindowPlacement();
+    return {
+      action: "allow",
+      overrideBrowserWindowOptions: { ...appWindowOptions, ...placement.bounds },
+    };
   });
-  win.webContents.on("will-navigate", (e, target) => {
+  contents.on("did-create-window", (child) => {
+    if (placement?.maximized) child.maximize();
+    placement = null;
+    guardContents(child.webContents, origin);
+    child.on("close", () => {
+      settings.set({
+        detachedWindow: { bounds: child.getNormalBounds(), maximized: child.isMaximized() },
+      });
+    });
+  });
+  contents.on("will-navigate", (e, target) => {
     if (!isOwn(target)) {
       e.preventDefault();
       openExternally(target);
     }
   });
+}
+
+function detachedWindowPlacement(): Placement {
+  const mainBounds = mainWindow?.getNormalBounds() ?? { x: 0, y: 0, width: 1280, height: 800 };
+  return detachedPlacement({
+    saved: settings.get().detachedWindow,
+    workAreas: screen.getAllDisplays().map((display) => display.workArea),
+    mainArea: screen.getDisplayMatching(mainBounds).workArea,
+    mainBounds,
+  });
+}
+
+function createMainWindow(url: string): BrowserWindow {
+  const win = new BrowserWindow({
+    ...appWindowOptions,
+    width: 1280,
+    height: 800,
+    show: false,
+  });
+  guardContents(win.webContents, new URL(url).origin);
 
   win.once("ready-to-show", () => {
     splash?.close();
