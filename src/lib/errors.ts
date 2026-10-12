@@ -50,3 +50,20 @@ export function appErrorFromProc(throwNumber: number, rawMessage: string): AppEr
 export function isAppError(err: unknown): err is AppError {
   return err instanceof AppError;
 }
+
+/**
+ * The database server could not be reached or stopped answering (a stopped
+ * SQL Server service, not a proc's own error). Still INTERNAL to every action;
+ * the sign-in page names it, because "check your password" sent a client
+ * looking for a forgotten password while the database was down.
+ */
+export class DatabaseUnavailableError extends AppError {
+  constructor() {
+    super("INTERNAL", "Database unavailable");
+    this.name = "DatabaseUnavailableError";
+  }
+}
+
+export function isDatabaseUnavailable(err: unknown): err is DatabaseUnavailableError {
+  return err instanceof DatabaseUnavailableError;
+}

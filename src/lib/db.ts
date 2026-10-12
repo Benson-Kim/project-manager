@@ -1,6 +1,6 @@
 import sql from "mssql";
 import { getEnv } from "./env";
-import { AppError, appErrorFromProc } from "./errors";
+import { AppError, appErrorFromProc, DatabaseUnavailableError } from "./errors";
 
 /**
  * Shared connection pool. ALL data access goes through stored procedures —
@@ -58,6 +58,24 @@ export async function closePool(): Promise<void> {
   }
 }
 
+/** The server is down or not answering: no connection, or a request that never came back. */
+export function isUnreachable(err: unknown): boolean {
+  if (err instanceof sql.ConnectionError) return true;
+  const { name, code } = (err ?? {}) as { name?: unknown; code?: unknown };
+  if (name === "ConnectionError") return true;
+  return code === "ETIMEOUT" || code === "ESOCKET" || code === "ECONNCLOSED" || code === "ENOTOPEN";
+}
+
+/** The pool, or DatabaseUnavailableError when the server can't be reached. */
+async function connectedPool(): Promise<sql.ConnectionPool> {
+  try {
+    return await getPool();
+  } catch (err) {
+    console.error("[db] connect failed:", err);
+    throw isUnreachable(err) ? new DatabaseUnavailableError() : err;
+  }
+}
+
 export type ProcParams = Record<string, string | number | boolean | Date | null>;
 
 export interface ProcResult<T> {
@@ -86,6 +104,7 @@ async function bindAndExecute<T>(
       }
     }
     console.error(`[db] ${procName} failed:`, err);
+    if (isUnreachable(err)) throw new DatabaseUnavailableError();
     throw new AppError("INTERNAL", "Database operation failed");
   }
 }
@@ -104,7 +123,7 @@ export async function execProcFull<T = unknown>(
   procName: string,
   params: ProcParams = {},
 ): Promise<ProcResult<T>> {
-  const p = await getPool();
+  const p = await connectedPool();
   const result = await bindAndExecute<T>(p.request(), procName, params);
   return {
     rows: (result.recordset ?? []) as T[],
@@ -132,7 +151,7 @@ export async function execProcTx<T = unknown>(
  *   });
  */
 export async function withTransaction<T>(fn: (tx: sql.Transaction) => Promise<T>): Promise<T> {
-  const p = await getPool();
+  const p = await connectedPool();
   const tx = new sql.Transaction(p);
   await tx.begin();
   try {
