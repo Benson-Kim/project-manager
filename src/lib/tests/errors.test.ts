@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { AppError, appErrorFromProc, isAppError } from "../errors";
+import {
+  AppError,
+  appErrorFromProc,
+  DatabaseUnavailableError,
+  isAppError,
+  isDatabaseUnavailable,
+} from "../errors";
 
 describe("appErrorFromProc ", () => {
   it("maps registered THROW numbers to codes and strips the code prefix", () => {
@@ -29,5 +35,18 @@ describe("appErrorFromProc ", () => {
   it("isAppError narrows correctly", () => {
     expect(isAppError(new AppError("NOT_FOUND", "x"))).toBe(true);
     expect(isAppError(new Error("x"))).toBe(false);
+  });
+});
+
+describe("DatabaseUnavailableError", () => {
+  it("is an INTERNAL AppError to every action, and recognisable for the sign-in page", () => {
+    const err = new DatabaseUnavailableError();
+    expect(isAppError(err)).toBe(true);
+    expect(err.code).toBe("INTERNAL");
+    expect(isDatabaseUnavailable(err)).toBe(true);
+    expect(isDatabaseUnavailable(new AppError("INTERNAL", "Database operation failed"))).toBe(
+      false,
+    );
+    expect(isDatabaseUnavailable(undefined)).toBe(false);
   });
 });

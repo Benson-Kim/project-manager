@@ -82,6 +82,9 @@ export const messages = {
     // Generic on purpose: never reveals whether the username exists,
     // is locked or is inactive (STANDARDS ┬º4).
     loginFailed: "Sign in failed. Check your username and password and try again.",
+    // Same for every username: it says the database is down, nothing about the account.
+    databaseUnavailable:
+      "Sign in is not possible: the database is not responding. Try again shortly.",
     loginErrorTitle: "You could not be signed in",
     sessionExpired: "Your session has expired. Sign in again.",
     changePasswordTitle: "Choose a new password",
