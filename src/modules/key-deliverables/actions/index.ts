@@ -5,12 +5,24 @@ import {
   createKeyDeliverable,
   updateKeyDeliverable,
   deleteKeyDeliverable,
+  deleteWbsItem,
+  getWbs,
+  moveKeyDeliverable,
+  renameKeyDeliverable,
+  rescheduleKeyDeliverable,
 } from "../repository/key-deliverables";
 import {
   keyDeliverableFormSchema,
   updateKeyDeliverableFormSchema,
 } from "../schemas/key-deliverable-form";
-import { deleteKeyDeliverableInput } from "../schemas/key-deliverable";
+import {
+  addWbsItemInput,
+  deleteKeyDeliverableInput,
+  deleteWbsItemInput,
+  moveWbsItemInput,
+  renameWbsItemInput,
+  rescheduleWbsItemInput,
+} from "../schemas/key-deliverable";
 
 /**
  * Revalidation targets for all deliverable mutations.
@@ -48,4 +60,63 @@ export const deleteKeyDeliverableAction = action({
     await deleteKeyDeliverable(input.keyDeliverableId, input.rowVer, ctx.session.userId);
     return { deleted: true as const };
   },
+});
+
+/*
+ * Work breakdown editor (ADR-0027). Each edit answers with the project's whole
+ * breakdown, which the editor shows in place of its own guess, so these do not
+ * revalidate: the page is dynamic and nothing else on it changes.
+ */
+
+/** Add an item under a parent, after a sibling or last; answers with its id too. */
+export const addWbsItemAction = action({
+  name: "key-deliverables.wbs-add",
+  schema: addWbsItemInput,
+  permission: "key-deliverables:create",
+  handler: async (input, ctx) => {
+    const row = await createKeyDeliverable(
+      {
+        projectId: input.projectId,
+        keyRequirement: input.name,
+        startDate: input.start,
+        deadline: input.end,
+        parentId: input.parentId,
+        afterId: input.afterId,
+      },
+      ctx.session.userId,
+    );
+    const wbs = await getWbs(input.projectId, ctx.session.userId);
+    return { id: row.KeyDeliverableId, ...wbs };
+  },
+});
+
+/** Indent, outdent, move up or down: a new parent and place among its children. */
+export const moveWbsItemAction = action({
+  name: "key-deliverables.wbs-move",
+  schema: moveWbsItemInput,
+  permission: "key-deliverables:update",
+  handler: (input, ctx) => moveKeyDeliverable(input, ctx.session.userId),
+});
+
+/** New dates from a dragged or stretched bar, or a date typed in the outline. */
+export const rescheduleWbsItemAction = action({
+  name: "key-deliverables.wbs-reschedule",
+  schema: rescheduleWbsItemInput,
+  permission: "key-deliverables:update",
+  handler: (input, ctx) => rescheduleKeyDeliverable(input, ctx.session.userId),
+});
+
+export const renameWbsItemAction = action({
+  name: "key-deliverables.wbs-rename",
+  schema: renameWbsItemInput,
+  permission: "key-deliverables:update",
+  handler: (input, ctx) => renameKeyDeliverable(input, ctx.session.userId),
+});
+
+/** Delete an item and its whole branch. */
+export const deleteWbsItemAction = action({
+  name: "key-deliverables.wbs-delete",
+  schema: deleteWbsItemInput,
+  permission: "key-deliverables:delete",
+  handler: (input, ctx) => deleteWbsItem(input, ctx.session.userId),
 });

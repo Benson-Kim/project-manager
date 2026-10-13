@@ -9,6 +9,7 @@ import { DatePicker, Select, Textarea } from "@/components/ui/form/inputs";
 import { useSheetFormActions } from "@/components/ui/form/use-sheet-form-actions";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { ListOptions } from "@/components/ui/lookup-lists";
+import { OPTION_COLORS } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
 import { toDateInput } from "@/lib/format";
 import {
@@ -23,6 +24,7 @@ import {
   updateKeyDeliverableFormSchema,
 } from "../schemas/key-deliverable-form";
 import type { StakeholderOption } from "../repository/stakeholder-options";
+import { todayUtc } from "../schemas/wbs";
 
 /** Chip tag for a selected assignee. */
 function AssigneeChip({
@@ -217,6 +219,9 @@ export function DeliverableForm({
 }) {
   const schema = deliverable ? updateKeyDeliverableFormSchema : keyDeliverableFormSchema;
   const form = useZodForm(schema);
+  /** A parent's dates come from its sub-items (ADR-0027); the form shows them, read-only. */
+  const rolledUp = deliverable?.HasChildren === true;
+  const [defaultStart] = useState(todayUtc);
 
   // Multi-assignee state — initialised from the row's Assignees array.
   const [selectedAssignees, setSelectedAssignees] = useState<{ id: number; name: string }[]>(
@@ -288,6 +293,36 @@ export function DeliverableForm({
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field
+            label={
+              rolledUp
+                ? messages.keyDeliverables.rolledUp(messages.keyDeliverables.startDate)
+                : messages.keyDeliverables.startDate
+            }
+            name="startDate"
+            errors={form.errors.startDate}
+          >
+            <DatePicker
+              name="startDate"
+              readOnly={rolledUp}
+              defaultValue={toDateInput(deliverable ? deliverable.StartDate : defaultStart)}
+            />
+          </Field>
+          <Field
+            label={
+              rolledUp
+                ? messages.keyDeliverables.rolledUp(messages.keyDeliverables.deadline)
+                : messages.keyDeliverables.deadline
+            }
+            name="deadline"
+            errors={form.errors.deadline}
+          >
+            <DatePicker
+              name="deadline"
+              readOnly={rolledUp}
+              defaultValue={toDateInput(deliverable?.Deadline)}
+            />
+          </Field>
+          <Field
             label={messages.keyDeliverables.requestedDate}
             name="requestedDate"
             errors={form.errors.requestedDate}
@@ -297,12 +332,15 @@ export function DeliverableForm({
               defaultValue={toDateInput(deliverable?.RequestedDate)}
             />
           </Field>
-          <Field
-            label={messages.keyDeliverables.deadline}
-            name="deadline"
-            errors={form.errors.deadline}
-          >
-            <DatePicker name="deadline" defaultValue={toDateInput(deliverable?.Deadline)} />
+          <Field label={messages.keyDeliverables.color} name="color" errors={form.errors.color}>
+            <Select name="color" defaultValue={deliverable?.Color ?? ""}>
+              <option value="">{messages.keyDeliverables.colorFromParent}</option>
+              {OPTION_COLORS.map((c) => (
+                <option key={c} value={c}>
+                  {messages.lookupLists.colors[c]}
+                </option>
+              ))}
+            </Select>
           </Field>
           <Field label={messages.keyDeliverables.status} name="status" errors={form.errors.status}>
             <Select name="status" defaultValue={deliverable?.Status ?? ""}>

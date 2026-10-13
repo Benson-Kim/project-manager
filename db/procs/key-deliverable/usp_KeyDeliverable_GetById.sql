@@ -23,11 +23,19 @@ BEGIN
 
     SELECT kd.KeyDeliverableId,
            kd.[ProjectId],
+           kd.ParentKeyDeliverableId,
+           kd.SortOrder,
            kd.[KeyRequirement],
            kd.[RequestedDate],
+           kd.StartDate,
            kd.[Deadline],
            kd.[Priority],
            kd.[Status],
+           kd.Color,
+           CAST(CASE WHEN EXISTS (SELECT 1 FROM app.KeyDeliverable AS ch
+                                  WHERE ch.ParentKeyDeliverableId = kd.KeyDeliverableId
+                                    AND ch.IsDeleted = 0)
+                     THEN 1 ELSE 0 END AS BIT) AS HasChildren,
            kd.CreatedAtUtc,
            kd.UpdatedAtUtc,
            CAST(kd.RowVer AS BIGINT) AS RowVer,

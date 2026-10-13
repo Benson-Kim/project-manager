@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { actorAccessFields } from "@/lib/auth/actor-access";
-import type { LookupListKey } from "@/lib/lookup-lists";
+import { OPTION_COLORS, type LookupListKey } from "@/lib/lookup-lists";
+import { messages } from "@/lib/messages";
+import { utcDay, type WbsItem } from "./wbs";
 
 /**
  * KeyDeliverable (app.KeyDeliverable ← tblKeyRequirementsDeliverable) — zod
@@ -14,6 +16,11 @@ import type { LookupListKey } from "@/lib/lookup-lists";
  * - AssignedToStakeholderId: removed; replaced by junction table.
  * - AssigneeNames: comma-separated display string from junction table.
  * - AssigneesJson: JSON array [{id, name}] from junction table.
+ *
+ * Work breakdown (migration 032, ADR-0027): ParentKeyDeliverableId, SortOrder,
+ * StartDate (the bar's first day; Deadline is its last), Color, and HasChildren
+ * (a parent's dates are rolled up from its sub-items). Optional so a row from a
+ * database before 032 still parses.
  */
 export const rowVerSchema = z.coerce.number().int().nonnegative();
 
@@ -49,15 +56,23 @@ export function parseAssigneesJson(raw: unknown): AssigneeEntry[] {
   return arr.map((a) => assigneeEntrySchema.parse(a)); // throws on schema mismatch
 }
 
+/** A bar colour: a palette key (CK_KeyDeliverable_Color); NULL takes the parent's. */
+export const wbsColorSchema = z.enum(OPTION_COLORS).nullable();
+
 export const keyDeliverableRowSchema = z
   .object({
     KeyDeliverableId: z.number().int(),
     ProjectId: z.number().int().nullable(),
     KeyRequirement: z.string().nullable(),
+    ParentKeyDeliverableId: z.number().int().nullable().optional(),
+    SortOrder: z.number().int().optional(),
     RequestedDate: z.date().nullable().optional(),
+    StartDate: z.date().nullable().optional(),
     Deadline: z.date().nullable(),
     Priority: z.string().nullable(),
     Status: z.string().nullable(),
+    Color: wbsColorSchema.optional(),
+    HasChildren: z.boolean().optional(),
     CreatedAtUtc: z.date(),
     UpdatedAtUtc: z.date().nullable(),
     RowVer: rowVerSchema,
@@ -72,49 +87,68 @@ export const keyDeliverableRowSchema = z
 export type KeyDeliverableRow = z.infer<typeof keyDeliverableRowSchema>;
 
 export const keyDeliverableListRowSchema = keyDeliverableRowSchema.and(
-  z.object({ TotalCount: z.number().int(), ...actorAccessFields }),
+  z.object({
+    TotalCount: z.number().int(),
+    /** "1.2.3", the item's number in its project's breakdown. */
+    WbsCode: z.string().nullable().optional(),
+    ...actorAccessFields,
+  }),
 );
 
 export type KeyDeliverableListRow = z.infer<typeof keyDeliverableListRowSchema>;
 
+/** usp_KeyDeliverable_GanttData row: one item of the project's work breakdown. */
+export const wbsRowSchema = z
+  .object({
+    KeyDeliverableId: z.number().int(),
+    ProjectId: z.number().int().nullable(),
+    ParentKeyDeliverableId: z.number().int().nullable(),
+    SortOrder: z.number().int(),
+    KeyRequirement: z.string().nullable(),
+    RequestedDate: z.date().nullable(),
+    StartDate: z.date().nullable(),
+    Deadline: z.date().nullable(),
+    Priority: z.string().nullable(),
+    Status: z.string().nullable(),
+    Color: wbsColorSchema,
+    AssigneeNames: z.string().nullable().optional(),
+    AssigneesJson: z.unknown().optional(),
+    CreatedAtUtc: z.date(),
+    RowVer: rowVerSchema,
+  })
+  .transform((r): WbsItem => ({
+    id: r.KeyDeliverableId,
+    parentId: r.ParentKeyDeliverableId,
+    sortOrder: r.SortOrder,
+    name: r.KeyRequirement ?? "",
+    requestedDate: r.RequestedDate,
+    start: r.StartDate,
+    end: r.Deadline,
+    status: r.Status,
+    priority: r.Priority,
+    color: r.Color,
+    assigneeNames: r.AssigneeNames?.trim() || null,
+    assignees: parseAssigneesJson(r.AssigneesJson),
+    rowVer: r.RowVer,
+  }));
+
 /**
- * usp_KeyDeliverable_GanttData row. Bar start = RequestedDate when set,
- * else CreatedAtUtc (clamped to deadline). End = Deadline.
+ * The project columns on every usp_KeyDeliverable_GanttData row (on its one
+ * row when the project has no items yet).
  */
-export const ganttRowSchema = z.object({
-  KeyDeliverableId: z.number().int(),
-  ProjectId: z.number().int().nullable(),
-  KeyRequirement: z.string().nullable(),
-  RequestedDate: z.date().nullable().optional(),
-  Deadline: z.date().nullable(),
-  Priority: z.string().nullable(),
-  Status: z.string().nullable(),
-  AssigneeNames: z.string().nullable().optional(),
-  AssigneesJson: z.unknown().optional(),
-  CreatedAtUtc: z.date(),
+export const wbsWindowSchema = z.object({
   ProjectStartDate: z.date().nullable(),
   ProjectEndDate: z.date().nullable(),
-  RowVer: rowVerSchema,
+  Stamp: z.coerce.number().int().nonnegative(),
 });
 
-export type GanttRow = z.infer<typeof ganttRowSchema>;
-
-/** A drawable Gantt bar (deliverables without a deadline are not drawable). */
-export interface GanttBar {
-  id: number;
-  requirement: string;
-  /** RequestedDate ?? CreatedAtUtc clamped to <= end. */
-  start: Date;
-  end: Date;
-  status: string | null;
-  priority: string | null;
-  /** Comma-separated display string — kept for the visible bar label only. */
-  assigneeNames: string | null;
-  /** Structured assignees parsed from AssigneesJson — use for filtering. */
-  assignees: AssigneeEntry[];
-  overdue: boolean;
-  /** 0–100: visual completion fill derived from status. */
-  completionPct: number;
+/** The project's breakdown and its window (for a first item's default dates). */
+export interface WbsData {
+  items: WbsItem[];
+  projectStart: Date | null;
+  projectEnd: Date | null;
+  /** Orders two reads of the breakdown: the larger one is the newer. */
+  stamp: number;
 }
 
 /** Map a status string to a completion percentage for the bar fill. */
@@ -131,21 +165,34 @@ export function statusToCompletion(status: string | null): number {
   }
 }
 
-export const createKeyDeliverableInput = z.object({
+const deliverableFields = {
   projectId: z.number().int().positive(),
   keyRequirement: z.string().trim().min(1).max(4000),
   requestedDate: z.coerce.date().nullish(),
+  startDate: z.coerce.date().nullish(),
   deadline: z.coerce.date().nullish(),
   assigneeIds: z.array(z.number().int().positive()).nullish(),
   priority: z.string().trim().max(255).nullish(),
   status: z.string().trim().max(255).nullish(),
+  /** Omitted = keep the colour (update); null = the parent's colour. */
+  color: wbsColorSchema.optional(),
+};
+
+const itemId = z.number().int().positive();
+
+/** A new deliverable goes under parentId (null = top level), after the sibling afterId or last. */
+export const createKeyDeliverableInput = z.object({
+  ...deliverableFields,
+  parentId: itemId.nullish(),
+  afterId: itemId.nullish(),
 });
 
 export type CreateKeyDeliverableInput = z.input<typeof createKeyDeliverableInput>;
 export type CreateKeyDeliverableParsed = z.infer<typeof createKeyDeliverableInput>;
 
-export const updateKeyDeliverableInput = createKeyDeliverableInput.extend({
-  keyDeliverableId: z.number().int().positive(),
+export const updateKeyDeliverableInput = z.object({
+  ...deliverableFields,
+  keyDeliverableId: itemId,
   rowVer: rowVerSchema,
 });
 
@@ -158,6 +205,64 @@ export const deleteKeyDeliverableInput = z.object({
 });
 
 export type DeleteKeyDeliverableInput = z.input<typeof deleteKeyDeliverableInput>;
+
+/** A bar's day: a real date between 1900 and 2200, at UTC midnight. */
+const wbsDay = z.coerce
+  .date()
+  .refine((d) => {
+    const year = d.getUTCFullYear();
+    return !Number.isNaN(d.getTime()) && year >= 1900 && year <= 2200;
+  }, messages.keyDeliverables.invalidDate)
+  .transform(utcDay);
+
+const endNotBeforeStart = {
+  path: ["end"],
+  message: messages.errors.dateOrder(
+    messages.keyDeliverables.deadline,
+    messages.keyDeliverables.startDate,
+  ),
+};
+
+/** Work breakdown edits (ADR-0027): JSON from the editor, not FormData. */
+export const addWbsItemInput = z
+  .object({
+    projectId: itemId,
+    name: z.string().trim().min(1, messages.keyDeliverables.requirementRequired).max(4000),
+    parentId: itemId.nullable(),
+    afterId: itemId.nullable(),
+    start: wbsDay,
+    end: wbsDay,
+  })
+  .refine((v) => v.end.getTime() >= v.start.getTime(), endNotBeforeStart);
+
+export type AddWbsItemInput = z.input<typeof addWbsItemInput>;
+
+export const moveWbsItemInput = z.object({
+  id: itemId,
+  parentId: itemId.nullable(),
+  position: z.number().int().min(1).max(100_000),
+  rowVer: rowVerSchema,
+});
+
+export type MoveWbsItemInput = z.input<typeof moveWbsItemInput>;
+
+export const rescheduleWbsItemInput = z
+  .object({ id: itemId, start: wbsDay, end: wbsDay, rowVer: rowVerSchema })
+  .refine((v) => v.end.getTime() >= v.start.getTime(), endNotBeforeStart);
+
+export type RescheduleWbsItemInput = z.input<typeof rescheduleWbsItemInput>;
+
+export const renameWbsItemInput = z.object({
+  id: itemId,
+  name: z.string().trim().min(1, messages.keyDeliverables.requirementRequired).max(4000),
+  rowVer: rowVerSchema,
+});
+
+export type RenameWbsItemInput = z.input<typeof renameWbsItemInput>;
+
+export const deleteWbsItemInput = z.object({ id: itemId, rowVer: rowVerSchema });
+
+export type DeleteWbsItemInput = z.input<typeof deleteWbsItemInput>;
 
 /** Module filter params (URL ⇄ usp_KeyDeliverable_List @Status/@Priority). */
 export const keyDeliverableFiltersSchema = z.object({
