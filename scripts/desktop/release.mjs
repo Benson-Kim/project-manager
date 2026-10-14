@@ -149,12 +149,31 @@ function output(values) {
   }
 }
 
-function latestReleaseTag() {
-  return gh(["release", "view", "--json", "tagName", "-q", ".tagName"], { allowFail: true }) || "";
+/** gh's answer for a repository without releases; any other gh failure is not "no release". */
+export function isNoReleaseError(message) {
+  return /release not found/i.test(String(message ?? ""));
 }
 
+/**
+ * The newest release's tag, or "" when there is none yet. A failed lookup throws:
+ * taken for "no release", it would publish without the previous minimumVersion.
+ */
+function latestReleaseTag() {
+  try {
+    return gh(["release", "view", "--json", "tagName", "-q", ".tagName"]) || "";
+  } catch (err) {
+    if (isNoReleaseError(err.message)) return "";
+    throw err;
+  }
+}
+
+/** A release's latest.yml; throws when it cannot be read, so its policy is never dropped silently. */
 function releaseYml(tag) {
-  return gh(["release", "download", tag, "-p", "latest.yml", "-O", "-"], { allowFail: true });
+  try {
+    return gh(["release", "download", tag, "-p", "latest.yml", "-O", "-"]);
+  } catch (err) {
+    throw new Error(`Could not read latest.yml of ${tag}, so its update policy cannot be carried: ${err.message}`);
+  }
 }
 
 function plan() {

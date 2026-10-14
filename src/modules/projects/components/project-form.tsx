@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
+import { StoredDates } from "@/components/ui/form/stored-dates";
 import { DatePicker, Input, Select, Switch, Textarea } from "@/components/ui/form/inputs";
 import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
@@ -159,6 +160,13 @@ export function ProjectForm({
         <>
           <input type="hidden" name="projectId" value={project.ProjectId} />
           <input type="hidden" name="rowVer" value={project.RowVer} />
+          <StoredDates
+            dates={{
+              startDate: project.StartDate,
+              endDate: project.EndDate,
+              estimatedCompletionDate: project.EstimatedCompletionDate,
+            }}
+          />
         </>
       ) : null}
 

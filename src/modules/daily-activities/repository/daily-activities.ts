@@ -1,4 +1,5 @@
 import { execProc } from "@/lib/db";
+import { uploadsQuotaBytes } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
 import {
@@ -97,6 +98,8 @@ export async function updateDailyActivity(
     DailyActivityId: parsed.dailyActivityId,
     ProjectId: parsed.projectId,
     ...toProcParams(parsed),
+    // A move takes the activity's attachments along; they must fit the new project's quota.
+    QuotaBytes: uploadsQuotaBytes(),
     RowVer: parsed.rowVer,
     ActorUserId: actorUserId,
   });
