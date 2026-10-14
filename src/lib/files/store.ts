@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { constants, createWriteStream } from "node:fs";
+import { constants, createReadStream, createWriteStream } from "node:fs";
 import { access, lstat, mkdir, rename, statfs, unlink, utimes } from "node:fs/promises";
 import path from "node:path";
 import { once } from "node:events";
@@ -151,16 +151,17 @@ export async function commitUpload(root: string, upload: ReceivedUpload): Promis
   const storagePath = storagePathOf(upload.sha256);
   const dest = resolveStoredFile(root, storagePath);
   await mkdir(path.dirname(dest), { recursive: true });
-  if (await reuseStored(dest, upload.size)) {
+  if (await reuseStored(dest, upload)) {
     await discardUpload(upload);
     return storagePath;
   }
   try {
+    // Replaces a damaged stored file too: the upload's bytes are the ones its name promises.
     await rename(upload.tempPath, dest);
   } catch (err) {
     // A parallel upload of the same bytes won the race (or Windows holds the
-    // existing file open for a download): the stored copy is identical.
-    if (!(await reuseStored(dest, upload.size))) throw err;
+    // existing file open for a download): use it only when its bytes are right.
+    if (!(await reuseStored(dest, upload))) throw err;
     await discardUpload(upload);
   }
   return storagePath;
@@ -168,18 +169,34 @@ export async function commitUpload(root: string, upload: ReceivedUpload): Promis
 
 /**
  * Whether a stored file can stand in for the upload (dedupe). It must be a
- * regular file of the upload's size: anything else is replaced by the upload.
- * Its modification time is set to now, because the orphan sweep judges age by
- * it (sweep.ts): an orphan reused today must not be deleted for being old while
- * its new row is being written. Checked again after touching it, in case the
- * sweep removed it in between.
+ * regular file of the upload's size whose bytes still hash to its name:
+ * anything else (damaged on disk, edited by hand) is replaced by the upload,
+ * so uploading the original again repairs it. Its modification time is set to
+ * now, because the orphan sweep judges age by it (sweep.ts): an orphan reused
+ * today must not be deleted for being old while its new row is being written.
+ * Checked again after touching it, in case the sweep removed it in between.
  */
-async function reuseStored(file: string, size: number): Promise<boolean> {
-  if ((await sizeOf(file)) !== size) return false;
+async function reuseStored(
+  file: string,
+  upload: Pick<ReceivedUpload, "size" | "sha256">,
+): Promise<boolean> {
+  if ((await sizeOf(file)) !== upload.size) return false;
+  if ((await sha256Of(file)) !== upload.sha256) return false;
   const now = new Date();
   // Best effort: a scanner or a download may hold the file; it is still identical.
   await utimes(file, now, now).catch(() => undefined);
-  return (await sizeOf(file)) === size;
+  return (await sizeOf(file)) === upload.size;
+}
+
+/** The file's SHA-256 in hex, or null when it cannot be read. */
+async function sha256Of(file: string): Promise<string | null> {
+  try {
+    const hash = createHash("sha256");
+    for await (const chunk of createReadStream(file)) hash.update(chunk as Buffer);
+    return hash.digest("hex");
+  } catch {
+    return null;
+  }
 }
 
 async function sizeOf(file: string): Promise<number | null> {

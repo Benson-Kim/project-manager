@@ -160,6 +160,18 @@ describe("commitUpload and dedupe", () => {
     expect(await readdir(path.join(root, TEMP_DIR))).toEqual([]);
   });
 
+  it("repairs a damaged stored file of the same size with the uploaded bytes", async () => {
+    const upload = await receiveUpload(body([Buffer.from("genuine")]).stream, root, 1024);
+    const stored = resolveStoredFile(root, storagePathOf(upload.sha256));
+    await mkdir(path.dirname(stored), { recursive: true });
+    await writeFile(stored, "damaged");
+
+    await commitUpload(root, upload);
+    expect(await readFile(stored, "utf8")).toBe("genuine");
+    expect(sha(await readFile(stored))).toBe(upload.sha256);
+    expect(await readdir(path.join(root, TEMP_DIR))).toEqual([]);
+  });
+
   it("discardUpload removes a temp file and ignores a missing one", async () => {
     const upload = await receiveUpload(body([Buffer.from("x")]).stream, root, 1024);
     await discardUpload(upload);

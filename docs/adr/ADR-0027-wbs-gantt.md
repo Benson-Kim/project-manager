@@ -128,9 +128,14 @@ RowVer optimistic concurrency stays per item, as everywhere (ADR-0011).
   `applyMove`, `applyReschedule` and the rollup in `buildWbs`. It then saves the changes one at a
   time, in order, each with the item's current RowVer. The server's answer replaces the guess, and
   a refused change is undone with an error toast.
-- **Freshness stamp.** `usp_KeyDeliverable_GanttData` reads `MIN_ACTIVE_ROWVERSION()` before its
-  rows and returns it as `Stamp`. The editor keeps whichever breakdown has the larger stamp, so a
-  page refresh that started before a save cannot put back the older breakdown.
+- **Freshness stamp.** `usp_KeyDeliverable_GanttData` reads the newest `RowVer` among the
+  project's items, deleted ones included, before its rows and returns it as `Stamp`. A save
+  answer is kept when its stamp is not older than the editor's; a page refresh likewise (an equal
+  stamp is the same items, maybe with newer assignee names). So a refresh that started before a
+  save cannot put back the older breakdown. Every write to an item, Rename included, locks the
+  project row first, so RowVer order is commit order. (Amended 2026-10-14: the stamp was
+  `MIN_ACTIVE_ROWVERSION()`, which stays put while any other transaction in the database is open,
+  so a refresh after editing an item's details could be refused and leave stale RowVers behind.)
 
 ### 6. Older app versions on the same database
 

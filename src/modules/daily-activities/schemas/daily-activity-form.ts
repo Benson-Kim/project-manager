@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
-import { datesInOrder } from "@/lib/date-range";
+import { datesInOrder, datesWere, storedDates } from "@/lib/date-range";
 import { toDateInput } from "@/lib/format";
 import { listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
@@ -90,6 +90,7 @@ export const updateDailyActivityFormSchema = dailyActivityFields
   .extend({
     dailyActivityId: z.coerce.number().int().positive(),
     rowVer: z.coerce.number().int().nonnegative(),
+    ...datesWere("requestDate", "completeDate"),
   })
   .superRefine(activityDates);
 
@@ -109,6 +110,7 @@ export function dailyActivityFormValues(row: DailyActivityRow): FormValues {
     comments: formText(row.Comments),
     requestDate: toDateInput(row.RequestDate),
     completeDate: toDateInput(row.CompleteDate),
+    ...storedDates({ requestDate: row.RequestDate, completeDate: row.CompleteDate }),
     contactMethod: formText(row.ContactMethod),
     timeSpent: formText(row.TimeSpent),
     assignedTo: formText(row.AssignedTo),
