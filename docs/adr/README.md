@@ -36,3 +36,4 @@ the full rules and examples derived from these decisions.
 | [0025](ADR-0025-rich-text-editor-and-sanitiser.md) | Rich-text editing (Tiptap v3) and server-side HTML sanitisation (sanitize-html) | Accepted |
 | [0026](ADR-0026-file-storage.md) | File storage: owner-scoped attachments, streamed uploads, quota, desktop uploads folder | Accepted (amends 0003, 0012) |
 | [0027](ADR-0027-wbs-gantt.md) | Key deliverables as a work breakdown that draws an editable Gantt | Accepted |
+| [0028](ADR-0028-meetings-data-model.md) | Meetings data model: minutes tree, participants, meeting-row lock, reorder and set contracts | Accepted |
