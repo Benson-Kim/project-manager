@@ -11,22 +11,38 @@ const inputBase =
   "min-h-10 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink " +
   "aria-invalid:border-danger";
 
+/**
+ * Prose fields are spell-checked in the page language (checklist row 42; lang
+ * comes from <html>). Usernames, codes and identifiers opt out with
+ * spellCheck={false}; browsers never check password, email or number inputs.
+ */
+const SPELLCHECKED_TYPES = new Set([undefined, "text", "search"]);
+
 export const Input = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
-  function Input({ className, ...props }, ref) {
+  function Input({ className, spellCheck, ...props }, ref) {
     const aria = useFieldAria();
-    return <input ref={ref} className={`${inputBase} ${className ?? ""}`} {...aria} {...props} />;
+    return (
+      <input
+        ref={ref}
+        className={`${inputBase} ${className ?? ""}`}
+        spellCheck={spellCheck ?? (SPELLCHECKED_TYPES.has(props.type) ? true : undefined)}
+        {...aria}
+        {...props}
+      />
+    );
   },
 );
 
 export const Textarea = forwardRef<
   HTMLTextAreaElement,
   React.TextareaHTMLAttributes<HTMLTextAreaElement>
->(function Textarea({ className, ...props }, ref) {
+>(function Textarea({ className, spellCheck = true, ...props }, ref) {
   const aria = useFieldAria();
   return (
     <textarea
       ref={ref}
       rows={props.rows ?? 4}
+      spellCheck={spellCheck}
       className={`w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink aria-invalid:border-danger ${className ?? ""}`}
       {...aria}
       {...props}

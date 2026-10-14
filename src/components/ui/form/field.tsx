@@ -9,6 +9,8 @@ import { createContext, useContext, useId } from "react";
  */
 interface FieldContextValue {
   inputId: string;
+  /** For controls a <label for> cannot name (the rich-text editor's surface). */
+  labelId: string;
   errorId: string;
   invalid: boolean;
 }
@@ -30,13 +32,14 @@ export interface FieldProps {
 export function Field({ label, name, errors, children }: FieldProps) {
   const id = useId();
   const inputId = `${id}-input`;
+  const labelId = `${id}-label`;
   const errorId = `${id}-error`;
   const invalid = Boolean(errors && errors.length > 0);
 
   return (
-    <FieldContext.Provider value={{ inputId, errorId, invalid }}>
+    <FieldContext.Provider value={{ inputId, labelId, errorId, invalid }}>
       <div className="flex flex-col gap-1" data-field={name}>
-        <label htmlFor={inputId} className="text-sm text-ink leading-6">
+        <label id={labelId} htmlFor={inputId} className="text-sm text-ink leading-6">
           {label}
         </label>
         {children}

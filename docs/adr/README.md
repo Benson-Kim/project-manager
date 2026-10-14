@@ -33,3 +33,4 @@ the full rules and examples derived from these decisions.
 | [0022](ADR-0022-managed-lookup-lists.md) | Managed dropdown lists (Admin-edited, rename cascade, option colours) | Accepted |
 | [0023](ADR-0023-dataview-datasheet-mode.md) | DataView datasheet mode: in-cell editing, new-entry row, per-user layout, cross-project Project column | Accepted (amends 0006, 0016) |
 | [0024](ADR-0024-per-person-permission-overrides.md) | Per-person permission overrides (team cog) and editable team titles | Accepted (amends 0021, 0022) |
+| [0025](ADR-0025-rich-text-editor-and-sanitiser.md) | Rich-text editing (Tiptap v3) and server-side HTML sanitisation (sanitize-html) | Accepted |
