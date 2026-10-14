@@ -12,6 +12,7 @@ import {
   resolveStoredFile,
   storagePathOf,
   StoredFileChangedError,
+  storedFilesRoot,
   TEMP_DIR,
   UploadsDisabledError,
   verifySha256,
@@ -225,5 +226,14 @@ describe("uploadsRoot", () => {
     vi.stubEnv("UPLOADS_ENABLED", "false");
     await expect(uploadsRoot()).rejects.toBeInstanceOf(UploadsDisabledError);
     await expect(readdir(path.join(root, "never"))).rejects.toThrow();
+  });
+});
+
+describe("storedFilesRoot (downloads)", () => {
+  it("answers UPLOADS_DIR when uploads are off, creating nothing", () => {
+    const dir = path.join(root, "kept", "uploads");
+    vi.stubEnv("UPLOADS_DIR", dir);
+    vi.stubEnv("UPLOADS_ENABLED", "false");
+    expect(storedFilesRoot()).toBe(dir);
   });
 });

@@ -50,6 +50,16 @@ export interface UploadDeps {
   scan(filePath: string): Promise<ScanResult>;
 }
 
+/**
+ * Bytes promised to uploads that passed the free-space floor and are not stored
+ * or dropped yet. Parallel uploads all read the same free space before any of
+ * them writes, so each counts the others' promises against the floor. Bytes
+ * already written are then counted twice, which errs on the side of refusing.
+ * Kept in this server process, the only one writing the folder (one per Docker
+ * container or desktop install).
+ */
+let reservedBytes = 0;
+
 function fail(status: number, code: AppErrorCode, message?: string): Response {
   return json({ ok: false, error: { code, message: message ?? messages.errors[code] } }, status);
 }
@@ -98,6 +108,7 @@ export async function handleUpload(
 
   const quotaBytes = deps.quotaBytes();
   let pending: ReceivedUpload | null = null;
+  let reserved = 0;
   try {
     const quota = await deps.checkCanAdd(owner, ownerId, session.userId);
     if (Number.isFinite(declared) && quota.UsedBytes + declared > quotaBytes) {
@@ -107,12 +118,18 @@ export async function handleUpload(
     const root = await deps.uploadsRoot();
     const minFree = deps.minFreeBytes();
     if (minFree > 0) {
-      const incoming = Number.isFinite(declared) ? declared : MAX_UPLOAD_BYTES;
+      // Only a positive whole size counts: a negative one would shrink everyone's reservation.
+      const incoming = Number.isInteger(declared) && declared > 0 ? declared : MAX_UPLOAD_BYTES;
       const free = await deps.freeBytes(root);
-      if (free - incoming < minFree) {
-        console.warn(`[files.upload] refused: ${free} bytes free, floor ${minFree}`);
+      // No await from this check to the reservation: a parallel upload sees it.
+      if (free - reservedBytes - incoming < minFree) {
+        console.warn(
+          `[files.upload] refused: ${free} bytes free, ${reservedBytes} reserved, floor ${minFree}`,
+        );
         return fail(507, "INTERNAL", messages.attachments.errors.diskFull);
       }
+      reserved = incoming;
+      reservedBytes += reserved;
     }
     pending = await receiveUpload(request.body, root, MAX_UPLOAD_BYTES);
 
@@ -153,6 +170,7 @@ export async function handleUpload(
     console.error("[files.upload] failed:", err);
     return fail(500, "INTERNAL");
   } finally {
+    reservedBytes -= reserved;
     if (pending) await discardUpload(pending);
   }
 }

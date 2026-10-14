@@ -52,6 +52,15 @@ export async function uploadsRoot(): Promise<string> {
   return root;
 }
 
+/**
+ * UPLOADS_DIR for reading stored files: neither created nor checked writable,
+ * and still answered when uploads are switched off, so files stored earlier stay
+ * downloadable from a read-only or switched-off uploads folder.
+ */
+export function storedFilesRoot(): string {
+  return getUploadsEnv().UPLOADS_DIR;
+}
+
 /** Bytes this process may still write on the disk that holds `dir`. */
 export async function freeBytes(dir: string): Promise<number> {
   const disk = await statfs(dir);

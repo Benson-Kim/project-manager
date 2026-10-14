@@ -147,6 +147,50 @@ describe("POST /api/files (ADR-0026 §3)", () => {
       expect(res.status).toBe(201);
     });
 
+    it("counts uploads still being received against the floor, until each one ends", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      // Both read the free space before either writes: room for one of them only.
+      let release!: () => void;
+      const bothAsked = new Promise<void>((resolve) => (release = resolve));
+      let asked = 0;
+      const d = {
+        ...floored(100 * MB + PDF.length),
+        freeBytes: vi.fn<UploadDeps["freeBytes"]>(async () => {
+          if (++asked === 2) release();
+          await bothAsked;
+          return 100 * MB + PDF.length;
+        }),
+      };
+      const statuses = (await Promise.all([post(declared(), d), post(declared(), d)])).map(
+        (r) => r.status,
+      );
+      expect(statuses.sort()).toEqual([201, 507]);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining(`${PDF.length} reserved`));
+
+      // Both ended (one stored, one refused): nothing is held any more.
+      expect((await post(declared(), floored(100 * MB + PDF.length))).status).toBe(201);
+      warn.mockRestore();
+    });
+
+    it("frees the reservation when the upload is refused after it", async () => {
+      const refused = await post(declared(), {
+        ...floored(100 * MB + PDF.length),
+        scan: () => Promise.resolve({ clean: false, reason: "EICAR" }),
+      });
+      expect(refused.status).toBe(422);
+      expect((await post(declared(), floored(100 * MB + PDF.length))).status).toBe(201);
+    });
+
+    it("reserves the 25 MB cap for a declared size that is not a positive whole number", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      const res = await post(
+        upload(PDF, { headers: { "content-length": "-5" } }),
+        floored(100 * MB + MAX_UPLOAD_BYTES - 1),
+      );
+      expect(res.status).toBe(507);
+      warn.mockRestore();
+    });
+
     it("assumes the 25 MB cap for a body of unknown length", async () => {
       const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
       const stream = new ReadableStream<Uint8Array>({
@@ -304,7 +348,7 @@ describe("GET /api/files/<id> (ADR-0026 §3)", () => {
       StorageLocation: null,
     });
     downloadDeps = {
-      uploadsRoot: () => Promise.resolve(root),
+      storedFilesRoot: () => root,
       getFile,
     };
   });
