@@ -534,6 +534,7 @@ export function DataView<Row>({
                                 row={row}
                                 editor={col.edit}
                                 label={messages.datasheet.cellLabel(col.header, rowLabel(row))}
+                                header={col.header}
                                 onSave={(value) => saveCell(row, col, value)}
                                 onEditList={
                                   col.edit.list && editList
@@ -549,7 +550,14 @@ export function DataView<Row>({
                               style={style}
                               className={`relative ${cellClass} whitespace-pre-line ${style ? "wrap-anywhere" : "wrap-break-word"} ${priorityClass[col.priority]}`}
                             >
-                              {col.render(row)}
+                              {col.edit?.kind === "rich" ? (
+                                // Rich text keeps to the row height, as in the editable cell.
+                                <div className="max-h-[calc(var(--row-h)-1rem)] overflow-hidden">
+                                  {col.render(row)}
+                                </div>
+                              ) : (
+                                col.render(row)
+                              )}
                               {handle}
                             </td>
                           );

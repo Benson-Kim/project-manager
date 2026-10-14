@@ -115,3 +115,37 @@ mobile.
 - Read-only cells and headers wrap instead of truncating.
 - A failed cell save toasts the field's own message (`failureMessage`), e.g.
   "Due date can't be before start date.", since the cell has nowhere to show it.
+
+## Amendment 2026-10-14: rich-text cells (meetings, ADR-0028)
+
+The user decided on 2026-10-11 that rich-text fields are edited in the datasheet, not
+shown read-only. Meetings is the first module with them (Objective).
+
+- **Column.** `richTextColumn` declares a cell of kind `rich`. The cell shows the
+  formatted text clamped to the row height, as a button named like any cell
+  ("Objective, Weekly progress") and described by its text in one plain line.
+  Links inside it are inert, so the cell is one tab stop.
+- **Editing.** Enter, F2 or a click opens the shared editor (ADR-0025) in a panel under
+  the cell, or over it when there is no room below. Shift+F2 opens a larger editor in a
+  dialog, like Access's Zoom box; the panel's "Larger editor" button does the same.
+  Save or Ctrl+Enter commits and Esc cancels. Leaving the panel commits, as leaving an
+  Access cell does. A failed save toasts the message and keeps the editor open with the
+  text, so a long edit is never lost to a conflict.
+- **Panel.** `AnchoredPanel` (in `dialog.tsx`, the one overlay engine) is a non-modal
+  Radix dialog at a fixed position. It follows the cell while the table or the page
+  scrolls. Focus returns to the cell unless the user moved on to something else.
+  Clicks and keys inside it never reach the row, so they don't open the record or move
+  the active row; text typed in a contenteditable counts as typing in a control
+  (`isEditableTarget`).
+- **The view comes from the server.** The sanitiser never ships to the browser
+  (ADR-0025), so the page renders each row's `RichTextView` and passes it with the row
+  (`RichCellView`: the node and the HTML it was rendered from). After a save, until the
+  refresh brings the new view, the cell shows the saved text as plain text
+  (`previewText`), which React escapes.
+- **List rows carry the full HTML.** `formCellSaver` rebuilds the whole update form from
+  the list row, so a list that returned a preview or plain text would cut the field on
+  the next edit of any other cell. `src/tests/datasheet-form-values.test.ts` pins the
+  meetings round trip, and `e2e/meetings.spec.ts` edits Location and checks that
+  Objective keeps its formatting.
+- **New-entry row.** A rich cell there opens the same editor and keeps the HTML in the
+  draft until the row is added.

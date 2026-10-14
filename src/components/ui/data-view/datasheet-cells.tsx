@@ -15,9 +15,11 @@ import {
   hasDraft,
   invalidFields,
   isCellChanged,
+  previewText,
   singleLine,
   type CellEditor,
 } from "./datasheet";
+import { RichTextCell } from "./rich-text-cell";
 import { priorityClass, type DataViewColumn } from "./types";
 
 /**
@@ -73,6 +75,11 @@ interface CellControlProps<Row> {
   commitSelect?: boolean;
   /** Admins: a list-bound select ends with "Edit list…", which opens the list editor. */
   onEditList?: () => void;
+  /** Rich text: the column header (names the editor) and what the closed cell shows. */
+  header?: string;
+  display?: React.ReactNode;
+  /** Rich text: takes the editor's HTML; resolves true when it was kept. */
+  onCommitRich?: (html: string) => Promise<boolean>;
 }
 
 function CellControl<Row>({
@@ -89,6 +96,9 @@ function CellControl<Row>({
   onBlur,
   commitSelect,
   onEditList,
+  header,
+  display,
+  onCommitRich,
 }: CellControlProps<Row>) {
   const { lists } = useLookupLists();
   const onKeyDown = (
@@ -108,6 +118,27 @@ function CellControl<Row>({
     "aria-invalid": invalid || undefined,
     "aria-busy": pending || undefined,
   };
+
+  if (editor.kind === "rich") {
+    return (
+      <RichTextCell
+        value={value}
+        display={display ?? previewText(value)}
+        label={label}
+        header={header ?? label}
+        placeholder={placeholder}
+        invalid={invalid}
+        pending={pending}
+        onCommit={
+          onCommitRich ??
+          (async (html) => {
+            onChange(html);
+            return true;
+          })
+        }
+      />
+    );
+  }
 
   if (editor.kind === "select") {
     // A coloured value tints its cell (migration 020).
@@ -178,12 +209,15 @@ export function DatasheetCell<Row>({
   row,
   editor,
   label,
+  header,
   onSave,
   onEditList,
 }: {
   row: Row;
   editor: CellEditor<Row>;
   label: string;
+  /** The column header (names a rich cell's editor). */
+  header?: string;
   /** Resolves true when saved; false restores the row's value. */
   onSave: (value: string) => Promise<boolean>;
   onEditList?: () => void;
@@ -207,11 +241,26 @@ export function DatasheetCell<Row>({
     if (!saved) setValue(original);
   };
 
+  // Rich text: the editor stays open with the text when the save fails.
+  const commitRich = async (next: string) => {
+    if (pending) return false;
+    if (!isCellChanged(editor.kind, original, next)) return true;
+    setPending(true);
+    setValue(next);
+    const saved = await onSave(next);
+    setPending(false);
+    if (!saved) setValue(original);
+    return saved;
+  };
+
   return (
     <CellControl
       editor={editor}
       value={value}
       label={label}
+      header={header}
+      display={value === original ? editor.display?.(row) : previewText(value)}
+      onCommitRich={commitRich}
       pending={pending}
       choices={
         editor.kind === "select"
@@ -303,6 +352,7 @@ export function DatasheetAddRow<Row>({
                 editor={edit}
                 value={draft[edit.field] ?? ""}
                 label={messages.datasheet.newEntryField(column.header)}
+                header={column.header}
                 placeholder={edit.placeholder}
                 invalid={invalid.has(edit.field)}
                 choices={edit.kind === "select" ? cellChoices(edit, lists) : []}
