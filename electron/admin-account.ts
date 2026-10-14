@@ -104,6 +104,11 @@ async function setAdminPassword(pool: sql.ConnectionPool, argon2: Argon2Like): P
            VALUES (@username, @hash, N'Administrator', @roleId, 1, 0);
            SELECT N'created' AS outcome;
        END
+       -- Seed 029 gives migrated to-dos and their alerts to the administrator, but on a new
+       -- desktop database it runs before this account exists (the admin seed is skipped there).
+       DECLARE @adminId INT = (SELECT UserId FROM auth.[User] WHERE Username = @username AND IsDeleted = 0);
+       UPDATE app.TodoItem SET CreatedBy = @adminId WHERE CreatedBy = 0;
+       UPDATE app.TodoAlert SET CreatedBy = @adminId WHERE CreatedBy = 0;
        COMMIT;`,
     );
   if (!result.recordset[0]?.outcome) throw new Error("Administrator account could not be saved");
