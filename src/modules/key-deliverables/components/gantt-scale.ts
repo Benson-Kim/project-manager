@@ -103,6 +103,14 @@ export function barBox(
   return { left, width: Math.max((dayDiff(start, end) + 1) * timeline.pxPerDay, 4) };
 }
 
+/** The smallest box a pointer or a finger has to hit, however short a bar is drawn. */
+export const BAR_HIT_PX = 40;
+
+/** Pixels added on each side of a bar narrower than BAR_HIT_PX to reach it. */
+export function barHitPad(width: number): number {
+  return Math.max(0, (BAR_HIT_PX - width) / 2);
+}
+
 /** The day under an x position. */
 export function dayAt(timeline: Timeline, x: number): Date {
   return addDays(timeline.start, Math.floor(x / timeline.pxPerDay));
