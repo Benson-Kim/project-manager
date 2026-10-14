@@ -3,7 +3,9 @@
 --   * An item without sub-items takes @StartDate and @Deadline as given.
 --   * An item with sub-items takes its dates from them, so it can only be moved: the whole branch
 --     shifts by the same number of days, and a different length is VALIDATION.
---   Then the parents' dates are rolled up.
+--   Then the dates of the item and the items above it are rolled up; nothing else can move.
+--   * Deadline >= RequestedDate, as Create and Update require (VALIDATION): for the item and for
+--     every sub-item a shift moves; the roll-up checks the parents.
 -- Row-level access: the row's project must be accessible (dbo.usp_Project_AssertAccess,
 --   FORBIDDEN_ROW 50003; Admin bypass); rowversion concurrency on the item (50002 CONFLICT).
 -- Each changed row is audited (Action 'Reschedule'). Returns the item's ProjectId.
@@ -26,9 +28,10 @@ BEGIN
     IF @Deadline < @StartDate
         THROW 50004, N'VALIDATION:Deadline cannot be before StartDate', 1;
 
-    DECLARE @CurrentVer BIGINT, @RowProjectId INT, @CurrentStart DATETIME2, @CurrentEnd DATETIME2;
+    DECLARE @CurrentVer BIGINT, @RowProjectId INT, @CurrentStart DATETIME2, @CurrentEnd DATETIME2,
+            @RequestedDate DATETIME2;
     SELECT @CurrentVer = CAST(RowVer AS BIGINT), @RowProjectId = ProjectId,
-           @CurrentStart = StartDate, @CurrentEnd = [Deadline]
+           @CurrentStart = StartDate, @CurrentEnd = [Deadline], @RequestedDate = [RequestedDate]
     FROM app.KeyDeliverable WHERE KeyDeliverableId = @KeyDeliverableId AND IsDeleted = 0;
     IF @CurrentVer IS NULL
         THROW 50001, N'NOT_FOUND:KeyDeliverable not found', 1;
@@ -39,6 +42,9 @@ BEGIN
 
     IF @CurrentVer <> @RowVer
         THROW 50002, N'CONFLICT:KeyDeliverable was modified by someone else', 1;
+
+    IF @Deadline < @RequestedDate
+        THROW 50004, N'VALIDATION:Deadline cannot be before RequestedDate', 1;
 
     DECLARE @Changed TABLE (
         KeyDeliverableId INT PRIMARY KEY,
@@ -60,6 +66,12 @@ BEGIN
             THROW 50004, N'VALIDATION:An item with sub-items can be moved, not stretched', 1;
 
         DECLARE @Shift INT = DATEDIFF(DAY, @CurrentStart, @StartDate);
+
+        IF EXISTS (SELECT 1
+                   FROM dbo.ufn_KeyDeliverable_Branch(@KeyDeliverableId) AS b
+                   JOIN app.KeyDeliverable AS kd ON kd.KeyDeliverableId = b.KeyDeliverableId
+                   WHERE b.Depth > 0 AND DATEADD(DAY, @Shift, kd.[Deadline]) < kd.[RequestedDate])
+            THROW 50004, N'VALIDATION:A sub-item would end before its requested date', 1;
 
         UPDATE kd SET
             StartDate    = DATEADD(DAY, @Shift, kd.StartDate),
@@ -98,7 +110,8 @@ BEGIN
            (SELECT c.NewStart AS StartDate, c.NewEnd AS [Deadline] FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
     FROM @Changed AS c;
 
-    EXEC dbo.usp_KeyDeliverable_RollUp @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId;
+    EXEC dbo.usp_KeyDeliverable_RollUp
+         @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId, @FromKeyDeliverableId = @KeyDeliverableId;
 
     COMMIT;
 

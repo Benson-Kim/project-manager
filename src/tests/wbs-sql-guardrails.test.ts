@@ -50,6 +50,29 @@ describe("work breakdown SQL guardrails", () => {
     }
   });
 
+  it("rolls up only the changed item's branch, and a move also the branch it left", () => {
+    for (const proc of ["Create", "Update", "Delete", "Move", "Reschedule"]) {
+      expect(sql(`${PROCS}/usp_KeyDeliverable_${proc}.sql`), proc).toMatch(
+        /EXEC dbo\.usp_KeyDeliverable_RollUp\s+@ProjectId = @\w+, @ActorUserId = @ActorUserId, @FromKeyDeliverableId = @(Id|KeyDeliverableId);/,
+      );
+    }
+    expect(sql(`${PROCS}/usp_KeyDeliverable_Move.sql`)).toMatch(
+      /@OldParent IS NOT NULL[^\n]*\n\s+EXEC dbo\.usp_KeyDeliverable_RollUp\s[^;]*@FromKeyDeliverableId = @OldParent;/,
+    );
+    expect(sql(`${PROCS}/usp_KeyDeliverable_RollUp.sql`)).toContain(
+      "WHERE (up.Lvl = 0 OR up.IsDeleted = 0) AND up.Lvl < 50",
+    );
+  });
+
+  it("keeps an item, its sub-items and its parents ending on or after their requested dates", () => {
+    const reschedule = sql(`${PROCS}/usp_KeyDeliverable_Reschedule.sql`);
+    expect(reschedule).toContain("Deadline cannot be before RequestedDate");
+    expect(reschedule).toContain("A sub-item would end before its requested date");
+    expect(sql(`${PROCS}/usp_KeyDeliverable_RollUp.sql`)).toMatch(
+      /WHERE c\.NewEnd < kd\.RequestedDate\s+AND \(c\.OldEnd IS NULL OR c\.OldEnd >= kd\.RequestedDate\)\)\s+THROW 50004, N'VALIDATION:A parent would end before its requested date'/,
+    );
+  });
+
   it("gives an app from before the breakdown only the rows it can read", () => {
     const gantt = sql(`${PROCS}/usp_KeyDeliverable_GanttData.sql`);
     expect(gantt).toMatch(/@WithProjectRow\s+BIT\s+= 0/);

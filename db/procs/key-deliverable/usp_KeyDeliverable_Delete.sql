@@ -69,7 +69,8 @@ BEGIN
     SELECT @ActorUserId, N'Delete', N'app.KeyDeliverable', CAST(b.KeyDeliverableId AS NVARCHAR(64)), b.BeforeJson
     FROM @Branch AS b;
 
-    EXEC dbo.usp_KeyDeliverable_RollUp @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId;
+    EXEC dbo.usp_KeyDeliverable_RollUp
+         @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId, @FromKeyDeliverableId = @KeyDeliverableId;
 
     COMMIT;
 
