@@ -120,6 +120,10 @@ its attachments in the same transaction. Moving an activity to another project
     proxied body up to that size.
 - **Download.** `GET /api/files/<id>?owner=daily-activity`:
   - needs a session and the owner's read check;
+  - reads from `storedFilesRoot()`, which neither creates the folder nor needs
+    it writable, and still answers when uploads are off. Files stored earlier
+    stay downloadable with `UPLOADS_ENABLED=false` or a read-only volume
+    (amended 2026-10-14: `uploadsRoot()` made every such download a 404);
   - NOT_FOUND and FORBIDDEN_ROW both answer 404, like `orNotFound`;
   - the stored file must be the row's size (else 404) and hash to its SHA-256.
     `verifySha256` holds the last chunk back until the hash is known, so wrong
@@ -171,6 +175,14 @@ The extension must agree with the sniffed type, and anything else is refused
   - stored files that no retained row references and that are older than the
     grace period;
   - temp files left by aborted uploads.
+- **A reuse during a sweep** (amended 2026-10-14). The sweep reads a file's
+  age, then deletes it; a reuse could touch the file
+  and record its row in between, and lose its bytes. A file judged old is now
+  renamed aside (`<hash>.<uuid>.sweep`) and its age read again: a reuse that
+  touched it first is seen and the file goes back; one that comes later finds
+  it gone and stores its own copy. An aside file left by a stopped sweep is put
+  back by the next one. This holds across processes, so it stays correct when
+  F2 schedules the sweep elsewhere.
 - An Admin-only action runs the sweep. **Scheduling it is F2's.**
 - A restore older than the grace period gets its rows back, but their bytes may
   be gone.
@@ -190,6 +202,13 @@ The extension must agree with the sniffed type, and anything else is refused
   disk (`fs.statfs`). It counts the declared size, or 25 MB for a body without
   `Content-Length`. On the desktop that disk also holds SQL Server's files and
   backups, so a full disk would stop the database, not just uploads.
+  - **Parallel uploads** (amended 2026-10-14). They all read the same free
+    space before any writes, so each one that passes
+    reserves its size until it is stored or dropped, and the next one counts
+    the reservations against the floor. Bytes already written are then counted
+    twice, which errs on the side of refusing. The reservations live in the
+    server process, the only one that writes the folder (one per Docker
+    container or desktop install).
 - **Size.** `UPLOADS_QUOTA_MB_PER_PROJECT`, default 2048. Project-less rows
   share one bucket.
 - **What counts.** Uploaded bytes per row, so a deduplicated file still counts,
@@ -197,6 +216,17 @@ The extension must agree with the sniffed type, and anything else is refused
 - **Enforcement.** `usp_<Owner>_AddFile` is authoritative: it sums the bucket
   under an exclusive app lock (`sp_getapplock` on `file-quota:<project|none>`),
   so two parallel uploads cannot both slip under the limit.
+  - **The bucket is read under a lock on the owner** (amended 2026-10-14).
+    AddFile opens its transaction first, reads the live owner
+    `WITH (UPDLOCK, HOLDLOCK)` and checks access once, under that lock.
+    Before, it read the owner's project outside the transaction: a move in
+    between charged the file to the old project, and a delete left a live,
+    quota-consuming attachment on a deleted owner. A move or delete now waits
+    for COMMIT (verified locally with two sessions: the move hit its 1 s lock
+    timeout while the attachment transaction was open). The lock order (owner
+    row, quota lock, attachment rows) matches `usp_DailyActivity_Update` and
+    `_Delete`. Measured on 66,000 attachment rows: 74 logical reads per call,
+    the same as before.
 - **Pre-check.** The handler checks early with `CanAddFile` and
   `Content-Length`.
 - **Error.** The new code **50006 `QUOTA_EXCEEDED`** (registered in ADR-0012).
@@ -260,9 +290,22 @@ The extension must agree with the sniffed type, and anything else is refused
 - **Backups.** After each backup, `electron/backup.ts` mirrors new files into
   `<copy folder>\Uploads`. Hash names never change, so only missing files are
   copied, and a failed mirror is reported like a failed copy.
+  - **Unreadable folders and damaged files fail the copy** (amended
+    2026-10-14). The mirror used to read any folder it could not list
+    (missing, access denied, I/O error) as empty, so a backup
+    reported success with no attachments. A folder that cannot be read now
+    throws; the Uploads folder is created by provisioning, so its absence is
+    an error too. Each copied file is hashed before it is kept, and a source
+    whose bytes no longer match its name is not copied and is named in the
+    copy error.
 - **Restore** (added 2026-10-11). After the database, *Restore from backup…*
   copies back every file the Uploads folder lacks. It looks in `Uploads` next
   to the chosen `.bak`, then in `<copy folder>\Uploads`.
+  - It also replaces a file the Uploads folder holds damaged (its bytes no
+    longer hash to its name), which is what downloads tell desktop users to
+    restore for (amended 2026-10-14). It used to skip any file that existed
+    and report "no attachment files were missing". A file that no source has
+    intact is counted in the final message.
   - Before this, the records came back with every download answering 404,
     while the bytes sat unused in the copy folder.
   - A copy failure never fails the restore; the final message says what to
