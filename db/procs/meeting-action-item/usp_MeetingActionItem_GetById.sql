@@ -1,27 +1,44 @@
--- usp_MeetingActionItem_GetById — fetch one active app.MeetingActionItem row; THROW 50001 when absent/soft-deleted.
--- Entity app.MeetingActionItem (source: tblMeetingActionItems). Module: database-schema-and-procs (#3).
+-- usp_MeetingActionItem_GetById — one live action item with its person responsible's name (module
+-- #10, ADR-0028). The project is found through the action's meeting; an action of a deleted meeting
+-- is NOT_FOUND (50001), one without a meeting (Access orphan) is Admin-only.
+-- Access: Viewer (FORBIDDEN_ROW 50003).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_MeetingActionItem_GetById
     @MeetingActionItemId INT,
-    @ActorUserId INT
+    @ActorUserId         INT
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    IF NOT EXISTS (SELECT 1 FROM app.MeetingActionItem WHERE MeetingActionItemId = @MeetingActionItemId AND IsDeleted = 0)
+    DECLARE @RowProjectId INT;
+    SELECT @RowProjectId = m.ProjectId
+    FROM app.MeetingActionItem AS ai
+    LEFT JOIN app.Meeting AS m ON m.MeetingId = ai.MeetingId
+    WHERE ai.MeetingActionItemId = @MeetingActionItemId AND ai.IsDeleted = 0
+      AND (ai.MeetingId IS NULL OR m.IsDeleted = 0);
+    IF @@ROWCOUNT = 0
         THROW 50001, N'NOT_FOUND:MeetingActionItem not found', 1;
 
-    SELECT MeetingActionItemId,
-           [DiscussionPointId],
-           [AgendaItemId],
-           [Action],
-           [AssignedToStakeholderId],
-           [DueDate],
-           CreatedAtUtc,
-           UpdatedAtUtc,
-           CAST(RowVer AS BIGINT) AS RowVer
-    FROM app.MeetingActionItem
-    WHERE MeetingActionItemId = @MeetingActionItemId AND IsDeleted = 0;
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
+         @MinLevel = N'Viewer', @AllowProjectless = 0;
+
+    SELECT ai.MeetingActionItemId,
+           ai.[MeetingId],
+           ai.[AgendaItemId],
+           ai.[DiscussionPointId],
+           ai.[Action],
+           ai.[AssignedToStakeholderId],
+           TRIM(CONCAT(s.FirstName, N' ', s.LastName)) AS AssigneeName,
+           ai.[DueDate],
+           ai.SortOrder,
+           ai.CreatedAtUtc,
+           ai.UpdatedAtUtc,
+           CAST(ai.RowVer AS BIGINT) AS RowVer,
+           @RowProjectId AS ProjectId
+    FROM app.MeetingActionItem AS ai
+    LEFT JOIN app.Stakeholder AS s ON s.StakeholderId = ai.AssignedToStakeholderId
+    WHERE ai.MeetingActionItemId = @MeetingActionItemId AND ai.IsDeleted = 0;
 END;
 GO
