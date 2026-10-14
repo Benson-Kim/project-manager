@@ -86,6 +86,30 @@ test.describe("rich-text editor (ADR-0025)", () => {
     await expect(page).not.toHaveURL(/richText=/);
   });
 
+  test("validates on blur after moving through the toolbar and the link dialog", async ({
+    page,
+  }) => {
+    const editor = await openEditor(page);
+    const form = page.getByTestId("ks-rich-text-form");
+    const toolbar = page.getByRole("toolbar", { name: "Formatting" });
+    await editor.click();
+    await clear(page);
+    await page.keyboard.press("Control+K");
+    const dialog = page.getByRole("dialog", { name: "Link" });
+    await expect(dialog).toBeVisible();
+    await expect(form.getByText("Enter some text")).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(editor).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(toolbar.locator(":focus")).toHaveCount(1);
+    await expect(form.getByText("Enter some text")).toHaveCount(0);
+    await page.keyboard.press("Shift+Tab");
+    await expect(toolbar.locator(":focus")).toHaveCount(0);
+    await expect(form.getByText("Enter some text")).toBeVisible();
+    await expect(editor).toHaveAttribute("aria-invalid", "true");
+  });
+
   test("the server sanitises submitted HTML before rendering it", async ({ page }) => {
     let dialogs = 0;
     page.on("dialog", (d) => {
