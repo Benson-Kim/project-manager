@@ -128,6 +128,33 @@ export interface MeetingWorkspace {
   stamp: number;
 }
 
+// ── Participant roster (usp_Meeting_GetRoster) ───────────────────────────────
+
+export const rosterEntrySchema = z.object({
+  StakeholderId: z.number().int(),
+  /** "Name - Position, Organization" (Access qryMeetingAttendees). */
+  Label: z.string(),
+  /** Both null for a stakeholder who is not invited. */
+  MeetingParticipantId: z.number().int().nullable(),
+  IsApology: z.boolean().nullable(),
+  /** A participant who is no longer a live stakeholder of the project: kept, read-only. */
+  IsHistorical: z.boolean(),
+});
+export type RosterEntry = z.infer<typeof rosterEntrySchema>;
+
+export const meetingRosterRowSchema = z.object({
+  ProjectId: z.number().int().nullable(),
+  MeetingId: z.number().int(),
+  ParticipantsStamp: rowVerSchema,
+  RosterJson: jsonArray(rosterEntrySchema),
+});
+
+/** The participant panel's people, with the stamp read before them. */
+export interface MeetingRoster {
+  entries: RosterEntry[];
+  stamp: number;
+}
+
 // ── Child rows (Create / Update / GetById / List of the child procs) ─────────
 
 export const agendaItemRowSchema = z.object({

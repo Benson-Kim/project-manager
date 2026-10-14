@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { meetingDateFilter, meetingTimes } from "../schemas/meeting-display";
+import { attendanceSummary, meetingDateFilter, meetingTimes } from "../schemas/meeting-display";
 
 describe("meetingTimes", () => {
   it("shows the start and end as a range", () => {
@@ -29,5 +29,15 @@ describe("meetingDateFilter", () => {
     expect(meetingDateFilter("17/12/2024")).toBeNull();
     expect(meetingDateFilter("2024-13-45")).toBeNull();
     expect(meetingDateFilter("2024-12-17' OR 1=1")).toBeNull();
+  });
+});
+
+describe("attendanceSummary", () => {
+  it("shows attendees and apologies, leaving out a count of 0", () => {
+    expect(attendanceSummary(2, 1)).toBe("2 attended · 1 apology");
+    expect(attendanceSummary(1, 3)).toBe("1 attended · 3 apologies");
+    expect(attendanceSummary(4, 0)).toBe("4 attended");
+    expect(attendanceSummary(0, 2)).toBe("2 apologies");
+    expect(attendanceSummary(0, 0)).toBe("");
   });
 });

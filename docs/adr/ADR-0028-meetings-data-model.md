@@ -234,3 +234,37 @@ Child lists are not paged. A meeting has tens of items, and the reorder limit is
   rolled-back transaction. That check is not part of CI (user decision 2026-10-14). The db-apply
   CI job applies the migration, the procs and seed 032 with unchanged seed counts.
 - Writes to one meeting's minutes are serialised, which is cheap at this scale.
+
+## Amendment 2026-10-14: the participant roster (M3)
+
+The panel lists everyone it can mark, not only the current participants, so it reads a new proc,
+`usp_Meeting_GetRoster @MeetingId` (Viewer on the meeting's project). It answers one row:
+
+- `ParticipantsStamp`, computed as in `usp_Meeting_GetWorkspace` but read BEFORE the people. A
+  participant change that lands between the two reads makes the panel's rows newer than its stamp,
+  so the save is a CONFLICT instead of overwriting that change. The page reads the workspace and
+  the roster in parallel, so the panel never pairs the workspace's stamp with the roster's rows.
+- `RosterJson` (`FOR JSON PATH, INCLUDE_NULL_VALUES`), `[{StakeholderId, Label,
+  MeetingParticipantId, IsApology, IsHistorical}]`:
+  - every live stakeholder of the meeting's project, LEFT JOINed to their live participant row
+    (`MeetingParticipantId` and `IsApology` null = not invited);
+  - then the meeting's participants who are not live stakeholders of the project
+    (`IsHistorical = 1`). These are exactly the rows Set leaves alone (§5), so the panel shows them
+    read-only and never sends them.
+  - Each part is in name order. The label is written out in full, as §5 requires.
+- At most 1000 people (Set's limit, `MEETING_PARTICIPANTS_MAX`). Current participants are picked
+  first, so a save from a cut roster never removes a participant the panel did not show.
+
+The panel keeps the choices the user made over what the roster read. Save sends Set the live
+attendees and apologies once, with the roster's stamp; Set answers with the re-read workspace,
+whose participants become the panel's new saved state. A page refresh that brings a newer stamp
+replaces the panel's roster only when it holds no unsaved choices; otherwise the save conflicts
+and Reload takes the newer roster.
+
+The header form and the panel share one unsaved-changes guard (`UnsavedChangesScope`,
+`src/components/ui/form/unsaved-scope.tsx`): each guard intercepts navigation on its own, so two
+would ask twice. The parts report whether they are dirty and the scope asks once.
+
+The stakeholder picker moved to the stakeholders module (`stakeholders/repository/
+stakeholder-options.ts`, `stakeholders/components/stakeholder-picker.tsx`), which ADR-0001 allows
+other modules to use. Key deliverables uses it unchanged; the meeting action items (M4) will too.
