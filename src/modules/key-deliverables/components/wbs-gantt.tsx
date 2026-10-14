@@ -166,11 +166,12 @@ export function WbsGantt({
 
   const [confirmed, setConfirmed] = useState<Confirmed>({ items: data.items, stamp: data.stamp });
   const [seenData, setSeenData] = useState(data);
-  // A page refresh (the details sheet, an error) brings the breakdown again;
-  // it is taken only when newer than what the last save answered with.
+  // A page refresh (the details sheet, an error) brings the breakdown again; it
+  // is taken unless older than what the last save answered with. An equal stamp
+  // is the same items, possibly with newer assignee names or project dates.
   if (data !== seenData) {
     setSeenData(data);
-    if (data.stamp > confirmed.stamp) setConfirmed({ items: data.items, stamp: data.stamp });
+    if (data.stamp >= confirmed.stamp) setConfirmed({ items: data.items, stamp: data.stamp });
   }
   const confirmedRef = useRef(confirmed);
   useEffect(() => {

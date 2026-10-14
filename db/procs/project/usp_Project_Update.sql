@@ -4,6 +4,8 @@
 -- Dropdown values (ADR-0022): ProjectStatus, ProjectPriority, ProjectPhase and RiskLevel must be live options of their lists, or unchanged (VALIDATION 50004),
 --   and are stored as listed.
 -- Entity app.Project (source: tblProjectFramework). Module: database-schema-and-procs (#3).
+-- Dates in order (VALIDATION 50004) only when one of the pair changes: a record saved with them
+--   inverted before the rule existed can still be edited without rewriting its history.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Project_Update
@@ -48,9 +50,11 @@ BEGIN
     SET XACT_ABORT ON;
 
     DECLARE @CurrentVer BIGINT, @CurrentStatus NVARCHAR(50), @CurrentPriority NVARCHAR(50),
-            @CurrentPhase NVARCHAR(50), @CurrentRiskLevel NVARCHAR(50);
+            @CurrentPhase NVARCHAR(50), @CurrentRiskLevel NVARCHAR(50),
+            @CurrentStart DATETIME2, @CurrentEnd DATETIME2, @CurrentEstimated DATETIME2;
     SELECT @CurrentVer = CAST(RowVer AS BIGINT), @CurrentStatus = ProjectStatus,
-           @CurrentPriority = ProjectPriority, @CurrentPhase = ProjectPhase, @CurrentRiskLevel = RiskLevel
+           @CurrentPriority = ProjectPriority, @CurrentPhase = ProjectPhase, @CurrentRiskLevel = RiskLevel,
+           @CurrentStart = StartDate, @CurrentEnd = EndDate, @CurrentEstimated = EstimatedCompletionDate
     FROM app.Project WHERE ProjectId = @ProjectId AND IsDeleted = 0;
     IF @CurrentVer IS NULL
         THROW 50001, N'NOT_FOUND:Project not found', 1;
@@ -74,7 +78,14 @@ BEGIN
          @ListKey = N'project.risk-level', @Label = @RiskLevel OUTPUT,
          @CurrentLabel = @CurrentRiskLevel;
 
-    IF @EndDate < @StartDate OR @EstimatedCompletionDate < @StartDate
+    IF (@EndDate < @StartDate
+        AND (@CurrentStart IS NULL OR @CurrentEnd IS NULL
+             OR CAST(@StartDate AS DATE) <> CAST(@CurrentStart AS DATE)
+             OR CAST(@EndDate AS DATE) <> CAST(@CurrentEnd AS DATE)))
+       OR (@EstimatedCompletionDate < @StartDate
+        AND (@CurrentStart IS NULL OR @CurrentEstimated IS NULL
+             OR CAST(@StartDate AS DATE) <> CAST(@CurrentStart AS DATE)
+             OR CAST(@EstimatedCompletionDate AS DATE) <> CAST(@CurrentEstimated AS DATE)))
         THROW 50004, N'VALIDATION:EndDate and EstimatedCompletionDate cannot be before StartDate', 1;
 
     BEGIN TRAN;

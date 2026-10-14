@@ -211,6 +211,20 @@ describe("isApproachingDeadline", () => {
 describe("to-do dates in order", () => {
   const update = { ...minimal, todoItemId: "1", rowVer: "1" };
 
+  it("lets a to-do saved with inverted dates (to-dos 3 and 10) change status while they stay", () => {
+    const legacy = {
+      ...update,
+      startDate: "2024-12-27",
+      dueDate: "2024-12-24",
+      startDateWas: "2024-12-27",
+      dueDateWas: "2024-12-24",
+    };
+    expect(updateTodoItemFormSchema.safeParse({ ...legacy, status: "Done" }).success).toBe(true);
+    expect(updateTodoItemFormSchema.safeParse({ ...legacy, dueDate: "2024-12-25" }).success).toBe(
+      false,
+    );
+  });
+
   it.each([
     ["create", todoItemFormSchema, minimal],
     ["update", updateTodoItemFormSchema, update],

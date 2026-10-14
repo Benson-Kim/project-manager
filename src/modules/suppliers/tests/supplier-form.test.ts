@@ -98,6 +98,26 @@ describe("updateSupplierFormSchema", () => {
 describe("contract dates in order", () => {
   const update = { ...minimal, supplierId: "1", rowVer: "1" };
 
+  // Supplier 13 as migrated from Access: its contract ends before it starts.
+  const legacy = {
+    ...update,
+    contractStartDate: "2024-12-26",
+    contractEndDate: "2024-12-17",
+    contractStartDateWas: "2024-12-26",
+    contractEndDateWas: "2024-12-17",
+  };
+
+  it("lets a contract saved with inverted dates be edited while they stay as stored", () => {
+    expect(updateSupplierFormSchema.safeParse({ ...legacy, supplierName: "Renamed" }).success).toBe(
+      true,
+    );
+  });
+
+  it("refuses the inverted dates once one of them changes", () => {
+    const result = updateSupplierFormSchema.safeParse({ ...legacy, contractEndDate: "2024-12-20" });
+    expect(result.error?.issues.map((i) => i.path)).toEqual([["contractEndDate"]]);
+  });
+
   it.each([
     ["create", supplierFormSchema, minimal],
     ["update", updateSupplierFormSchema, update],

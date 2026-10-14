@@ -8,6 +8,8 @@
 -- Dropdown values (ADR-0022): Rating must be live options of their lists, or unchanged (VALIDATION 50004),
 --   and are stored as listed.
 -- Entity app.Supplier (source: tbl3rdPartySupplier). Module: suppliers (#7).
+-- Dates in order (VALIDATION 50004) only when one of the pair changes: a record saved with them
+--   inverted before the rule existed can still be edited without rewriting its history.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Supplier_Update
@@ -33,8 +35,10 @@ BEGIN
 
     -- Verify the row exists (NOT_FOUND) before entering the transaction so we
     -- give a useful error even when RowVer is stale.
-    DECLARE @RowProjectId INT, @CurrentRating NVARCHAR(255);
-    SELECT @RowProjectId = ProjectId, @CurrentRating = Rating
+    DECLARE @RowProjectId INT, @CurrentRating NVARCHAR(255),
+            @CurrentContractStart DATETIME2, @CurrentContractEnd DATETIME2;
+    SELECT @RowProjectId = ProjectId, @CurrentRating = Rating,
+           @CurrentContractStart = ContractStartDate, @CurrentContractEnd = ContractEndDate
     FROM app.Supplier WHERE SupplierId = @SupplierId AND IsDeleted = 0;
     IF @@ROWCOUNT = 0
         THROW 50001, N'NOT_FOUND:Supplier not found', 1;
@@ -49,6 +53,9 @@ BEGIN
          @CurrentLabel = @CurrentRating;
 
     IF @ContractEndDate < @ContractStartDate
+       AND (@CurrentContractStart IS NULL OR @CurrentContractEnd IS NULL
+            OR CAST(@ContractStartDate AS DATE) <> CAST(@CurrentContractStart AS DATE)
+            OR CAST(@ContractEndDate AS DATE) <> CAST(@CurrentContractEnd AS DATE))
         THROW 50004, N'VALIDATION:ContractEndDate cannot be before ContractStartDate', 1;
 
     BEGIN TRAN;
