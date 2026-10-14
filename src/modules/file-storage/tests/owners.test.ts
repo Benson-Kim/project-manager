@@ -29,6 +29,21 @@ describe.each(ATTACHMENT_OWNERS.map((owner) => [owner, ownerConfig(owner)] as co
       }
     });
 
+    it("its add proc locks the live owner, then checks access, inside the transaction", () => {
+      // A move or delete between the check and the insert would charge the wrong quota bucket,
+      // or attach to a deleted owner (ADR-0026 §6).
+      const source = readFileSync(
+        path.join("db", "procs", config.folder, `${config.procs.add}.sql`),
+        "utf8",
+      ).replace(/--.*$/gm, "");
+      const begin = source.indexOf("BEGIN TRAN");
+      const lock = source.search(/WITH\s*\(\s*UPDLOCK\s*,\s*HOLDLOCK\s*\)/);
+      const access = source.search(/EXEC\s+dbo\.usp_\w+_AssertAccess/);
+      expect(begin, "BEGIN TRAN").toBeGreaterThan(-1);
+      expect(lock, "owner read WITH (UPDLOCK, HOLDLOCK)").toBeGreaterThan(begin);
+      expect(access, "access check under the lock").toBeGreaterThan(lock);
+    });
+
     it("its folder is covered by the access guardrail with the same module", () => {
       const section = config.permissions.update.split(":")[0];
       expect(config.permissions.read).toBe(`${section}:read`);

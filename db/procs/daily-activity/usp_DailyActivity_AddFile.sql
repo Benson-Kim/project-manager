@@ -9,6 +9,11 @@
 --     rows share one bucket), counted over live rows. The sum runs under an exclusive app lock on
 --     the bucket, so parallel uploads cannot both slip under it: THROW 50006 QUOTA_EXCEEDED.
 --   * ProjectId is copied from the activity (usp_DailyActivity_Update keeps it in step on a move).
+--     The transaction opens first: the live activity is read under UPDLOCK, HOLDLOCK and access is
+--     checked once, under that lock. A concurrent move or delete waits for COMMIT, so the attachment
+--     is charged to the project the activity is in, by someone with access there, and never outlives
+--     it. Lock order (activity row, then quota lock, then attachment rows) matches
+--     usp_DailyActivity_Update and _Delete (activity row first).
 -- THROW 50001 NOT_FOUND | 50003 FORBIDDEN_ROW | 50004 VALIDATION | 50006 QUOTA_EXCEEDED.
 -- Entities app.FileAttachment, app.DailyActivityFile. Module: file-storage (F1).
 USE ProjectManager;
@@ -28,6 +33,15 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
+    BEGIN TRAN;
+
+    DECLARE @ProjectId INT;
+    SELECT @ProjectId = ProjectId
+    FROM app.DailyActivity WITH (UPDLOCK, HOLDLOCK)
+    WHERE DailyActivityId = @DailyActivityId AND IsDeleted = 0;
+    IF @@ROWCOUNT = 0
+        THROW 50001, N'NOT_FOUND:DailyActivity not found', 1;
+
     EXEC dbo.usp_DailyActivity_AssertAccess
          @DailyActivityId = @DailyActivityId, @ActorUserId = @ActorUserId,
          @MinLevel = N'Contributor', @Permission = N'daily-activities:update';
@@ -43,11 +57,6 @@ BEGIN
                          OR @SizeBytes IS NULL OR @ContentType IS NULL))
        OR (@IsFile = 0 AND @StorageLocation IS NULL)
         THROW 50004, N'VALIDATION:An attachment is either a file or a location', 1;
-
-    DECLARE @ProjectId INT =
-        (SELECT ProjectId FROM app.DailyActivity WHERE DailyActivityId = @DailyActivityId);
-
-    BEGIN TRAN;
 
     IF @IsFile = 1
     BEGIN
