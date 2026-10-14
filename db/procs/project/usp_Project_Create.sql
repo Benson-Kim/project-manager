@@ -60,6 +60,9 @@ BEGIN
     EXEC dbo.usp_LookupList_AssertLabel
          @ListKey = N'project.risk-level', @Label = @RiskLevel OUTPUT;
 
+    IF @EndDate < @StartDate OR @EstimatedCompletionDate < @StartDate
+        THROW 50004, N'VALIDATION:EndDate and EstimatedCompletionDate cannot be before StartDate', 1;
+
     BEGIN TRAN;
 
     INSERT INTO app.Project ([ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel], CreatedBy)

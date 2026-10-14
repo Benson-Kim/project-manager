@@ -43,8 +43,15 @@ export interface CellEditor<Row> {
   /** The new-entry row's starting value (e.g. the filtered project); "" by default. */
   initial?: string;
   maxLength?: number;
+  /**
+   * Memo text (longer than 255 characters, Access MEMO): Shift+Enter starts a
+   * new line. Other text cells stay on one line: a pasted line break becomes a space.
+   */
+  multiline?: boolean;
   min?: number;
   max?: number;
+  /** Whether this row's cell can be edited (e.g. not a parent's rolled-up date); every row by default. */
+  editable?: (row: Row) => boolean;
 }
 
 export interface DatasheetConfig<Row> {
@@ -108,6 +115,11 @@ export function cellChoices<Row>(
   return choices;
 }
 
+/** What a single-line text cell keeps of typed or pasted text: line breaks become spaces. */
+export function singleLine(value: string): string {
+  return value.replace(/\r?\n/g, " ");
+}
+
 /** Whether a committed value differs from the row's (text compares trimmed, like the form schemas). */
 export function isCellChanged(kind: CellKind, original: string, next: string): boolean {
   return kind === "text" ? original.trim() !== next.trim() : original !== next;
@@ -134,6 +146,19 @@ export function hasDraft(
 /** The fields an action rejected, from ActionResult.error.fieldErrors keys. */
 export function invalidFields(fieldErrors: Record<string, string[]> | undefined): Set<string> {
   return new Set(Object.keys(fieldErrors ?? {}));
+}
+
+/**
+ * What a failed save says in the toast: the first field's own message (e.g. "Due
+ * date can't be before start date."), since a cell edit has no field to show it
+ * under; the generic message when the action gave none.
+ */
+export function failureMessage(error: {
+  message: string;
+  fieldErrors?: Record<string, string[]>;
+}): string {
+  const first = Object.values(error.fieldErrors ?? {}).find((list) => list.length > 0);
+  return first?.[0] ?? error.message;
 }
 
 /** Row height until the user drags a row edge (client feedback §2: spacious rows). */

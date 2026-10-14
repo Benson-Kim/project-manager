@@ -10,10 +10,23 @@ import type { DbTarget } from "./db";
  * app out of its own data.
  */
 export interface MachineConfig {
+  /**
+   * Stays 1 when fields are added: desktop installs are per user, so a 1.0.x
+   * app on the same PC must keep reading the file (it ignores new fields). A
+   * new version would make it offer Repair and rewrite the file without them.
+   */
   schemaVersion: 1;
   sql: DbTarget & { instanceName: string };
   authSecret: string;
   backupDir: string;
+  /**
+   * Attachments (ADR-0026 §9): %ProgramData%\Project Manager\Uploads, writable
+   * by every local user like Backups. Written by provision.ps1 since F1. A PC
+   * provisioned before F1 has none, and only an administrator can create it;
+   * the client's staff are standard users, so the app runs with uploads off
+   * until IT sets it up (main.ts), never blocking start-up.
+   */
+  uploadsDir?: string;
 }
 
 export class SetupRequiredError extends Error {
@@ -60,5 +73,5 @@ export function readMachineConfig(file = machineConfigPath()): MachineConfig {
   ) {
     throw new SetupRequiredError(`Database configuration is incomplete (${file}).`);
   }
-  return c as MachineConfig;
+  return { ...(c as MachineConfig), uploadsDir: c.uploadsDir || undefined };
 }

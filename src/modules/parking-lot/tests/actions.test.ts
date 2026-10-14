@@ -41,6 +41,7 @@ function dbRow(overrides: Record<string, unknown> = {}) {
     ParkingLotItem: "Something to discuss",
     StakeholderId: 1,
     IsStrikethrough: false,
+    Status: "Active",
     FollowUpActions: null,
     Owner: null,
     CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),

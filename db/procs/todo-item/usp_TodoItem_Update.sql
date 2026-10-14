@@ -3,6 +3,7 @@
 -- THROW 50001 NOT_FOUND  : row does not exist or is soft-deleted.
 -- THROW 50002 CONFLICT   : RowVer mismatch (check-then-update is atomic via WHERE clause).
 -- THROW 50003 FORBIDDEN_ROW : to-do access rule (dbo.usp_TodoItem_AssertAccess, ADR-0021).
+-- THROW 50004 VALIDATION : DueDate before StartDate.
 -- Dropdown values (ADR-0022): Status and Priority must be live options of their lists, or unchanged (VALIDATION 50004),
 --   and are stored as listed.
 -- Entity app.TodoItem (source: tblTodoList). Module: database-schema-and-procs (#3).
@@ -46,6 +47,9 @@ BEGIN
     EXEC dbo.usp_LookupList_AssertLabel
          @ListKey = N'todo-item.priority', @Label = @Priority OUTPUT,
          @CurrentLabel = @CurrentPriority;
+
+    IF @DueDate < @StartDate
+        THROW 50004, N'VALIDATION:DueDate cannot be before StartDate', 1;
 
     BEGIN TRAN;
 

@@ -18,7 +18,7 @@ import { EmptyState } from "../states";
 import { useToast } from "../toast";
 import { TONES } from "../tones";
 import { TableLayoutDialog } from "./table-layout-dialog";
-import { CELL_WIDTH, DEFAULT_ROW_HEIGHT, isEditableTarget } from "./datasheet";
+import { CELL_WIDTH, DEFAULT_ROW_HEIGHT, failureMessage, isEditableTarget } from "./datasheet";
 import {
   DatasheetAddRow,
   DatasheetCell,
@@ -178,7 +178,7 @@ export function DataView<Row>({
     if (!sheet || !column.edit) return false;
     const result = await sheet.saveCell(row, column.edit.field, value);
     if (!result.ok) {
-      toast({ variant: "error", title: result.error.message });
+      toast({ variant: "error", title: failureMessage(result.error) });
       return false;
     }
     setSaved((current) => new Map(current).set(getRowId(row), { ...row, ...result.data }));
@@ -193,7 +193,7 @@ export function DataView<Row>({
       announce(messages.datasheet.added);
       router.refresh();
     } else {
-      toast({ variant: "error", title: result.error.message });
+      toast({ variant: "error", title: failureMessage(result.error) });
     }
     return result;
   };
@@ -418,13 +418,19 @@ export function DataView<Row>({
           ) : (
             // `relative`: absolutely positioned descendants (sr-only labels) belong to this
             // scroller, not to <main> — else a wide table stretches the whole page.
-            <div className="relative overflow-x-auto">
+            // A horizontal scroller also captures vertical stickiness, so the table scrolls in
+            // its own box (at most one screen under the app header) and the header row sticks
+            // to it (client feedback, 2026-10-12); scroll-pt keeps arrowed rows clear of it.
+            <div
+              data-testid="data-view-scroller"
+              className="relative max-h-[calc(100dvh-5rem)] scroll-pt-14 overflow-auto print:max-h-none print:overflow-visible"
+            >
               <table
                 data-testid="data-view-table"
                 style={{ "--row-h": `${rowHeight}px` } as React.CSSProperties}
                 className="w-full border-collapse border border-line text-sm"
               >
-                <thead>
+                <thead className="sticky top-0 z-20 print:static">
                   <tr>
                     {bulkActions ? (
                       <th
@@ -518,7 +524,7 @@ export function DataView<Row>({
                         {shownColumns.map((col, colIndex) => {
                           const handle = !bulkActions && colIndex === 0 ? rowHandle : null;
                           const style = columnStyle(col);
-                          return editable && col.edit ? (
+                          return editable && col.edit && (col.edit.editable?.(row) ?? true) ? (
                             <td
                               key={col.key}
                               style={style}
@@ -541,7 +547,7 @@ export function DataView<Row>({
                             <td
                               key={col.key}
                               style={style}
-                              className={`relative ${cellClass} ${style ? "truncate" : ""} ${priorityClass[col.priority]}`}
+                              className={`relative ${cellClass} whitespace-pre-line ${style ? "wrap-anywhere" : "wrap-break-word"} ${priorityClass[col.priority]}`}
                             >
                               {col.render(row)}
                               {handle}

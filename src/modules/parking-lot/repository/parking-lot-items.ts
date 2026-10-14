@@ -18,14 +18,15 @@ import {
  */
 
 export interface ParkingLotListFilters {
-  isStrikethrough?: boolean | null;
+  /** A 'parking-lot-item.status' label; null = all. */
+  status?: string | null;
 }
 
 function toProcParams(input: CreateParkingLotItemParsed) {
   return {
     ParkingLotItem: input.parkingLotItem,
     StakeholderId: input.stakeholderId ?? null,
-    IsStrikethrough: input.isStrikethrough,
+    Status: input.status ?? null,
     FollowUpActions: input.followUpActions ?? null,
     Owner: input.owner ?? null,
   };
@@ -62,13 +63,11 @@ export async function listParkingLotItems(
   filters: ParkingLotListFilters = {},
   pageSize: number = DEFAULT_PAGE_SIZE,
 ): Promise<ParkingLotItemListRow[]> {
-  const isStrikethrough =
-    filters.isStrikethrough === true ? true : filters.isStrikethrough === false ? false : null;
   const rows = await execProc<ParkingLotItemListRow>("usp_ParkingLotItem_List", {
     ActorUserId: actorUserId,
     ProjectId: projectId,
     ...toProcListParams(params, pageSize),
-    IsStrikethrough: isStrikethrough,
+    Status: filters.status ?? null,
   });
   return rows.map((r) => parkingLotItemListRowSchema.parse(r));
 }

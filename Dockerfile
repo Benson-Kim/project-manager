@@ -24,6 +24,10 @@ RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
 COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=build --chown=nextjs:nodejs /app/public ./public
+# Attachments (ADR-0026): the named volume mounted here takes this folder's
+# owner on first use, so it must exist and belong to nextjs before USER.
+RUN mkdir -p /app/uploads && chown nextjs:nodejs /app/uploads
+ENV UPLOADS_DIR=/app/uploads
 USER nextjs
 EXPOSE 3000
 ENV HOSTNAME=0.0.0.0 PORT=3000
