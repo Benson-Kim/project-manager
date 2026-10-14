@@ -1,7 +1,7 @@
 "use client";
 
 import { EditorContent, useEditor } from "@tiptap/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EditorToolbar } from "./editor-toolbar";
 import { richTextExtensions } from "./extensions";
 import { LinkDialog } from "./link-dialog";
@@ -55,7 +55,13 @@ export function EditorSurface({
 }: EditorSurfaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [bridgeDisabled, setBridgeDisabled] = useState(() => bridge.matches(":disabled"));
-  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkOpen, setLinkOpenState] = useState(false);
+  // Set in the handlers: focus enters the dialog before a passive effect could copy the state.
+  const linkOpenRef = useRef(false);
+  const setLinkOpen = useCallback((open: boolean) => {
+    linkOpenRef.current = open;
+    setLinkOpenState(open);
+  }, []);
   const editable = !bridgeDisabled && !readOnly;
 
   const editorProps = useMemo(
@@ -77,7 +83,7 @@ export function EditorSurface({
         return true;
       },
     }),
-    [inputId, labelId, errorId, invalid, editable],
+    [inputId, labelId, errorId, invalid, editable, setLinkOpen],
   );
 
   const editor = useEditor({
@@ -92,12 +98,20 @@ export function EditorSurface({
       writeBridge(bridge, html);
       onChange?.(html);
     },
-    onBlur: ({ event }) => {
-      // Moving into the toolbar or the table menu is not leaving the field.
-      if (containerRef.current?.contains(event.relatedTarget as Node | null)) return;
-      bridge.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
-    },
   });
+
+  // Native, not React: a React handler would also hear blurs inside the portalled link dialog.
+  // Moving between the text, the toolbar, the table menu and the link dialog stays in the field.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const onFocusOut = (event: FocusEvent) => {
+      if (linkOpenRef.current || container.contains(event.relatedTarget as Node | null)) return;
+      bridge.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    };
+    container.addEventListener("focusout", onFocusOut);
+    return () => container.removeEventListener("focusout", onFocusOut);
+  }, [editor, bridge]);
 
   // Follow the bridge's disabled state: its own attribute and an enclosing fieldset's.
   useEffect(() => {
