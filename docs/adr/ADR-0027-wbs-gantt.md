@@ -61,6 +61,27 @@ items at the bottom of its branch.
   number of days.
 - **A parent cannot be stretched.** `usp_KeyDeliverable_Reschedule` refuses a new span, and
   `usp_KeyDeliverable_Update` refuses changed dates on a parent.
+- **No end before its requested date** (amended 2026-10-14). Create and Update already refuse a
+  deadline before the row's own requested date. That now holds for dates set by a drag or by the
+  rollup:
+  - Reschedule refuses an item's new end before its requested date, and a branch move that would
+    end a sub-item before its own;
+  - RollUp refuses any change that would end a parent before its requested date, so Create,
+    Update, Delete and Move keep the rule too. A parent that already ended before its requested
+    date is not held to it;
+  - the editor checks the same rules before it sends a drag (`requestedDateClash`), and says which
+    one stopped it.
+- **The rollup works on one branch** (amended 2026-10-14). `@FromKeyDeliverableId` recomputes that
+  item and the items above it, which is all one change can move. Every write proc passes its own
+  item: Move also passes its old parent, and Delete passes the item it has just deleted, whose
+  parents still count. Without it the whole project is recomputed; no proc does that now. Measured
+  on a 1,620-item project (two runs, a noisy machine):
+  - Reschedule an item: ~210 ms → ~15–25 ms;
+  - move a 151-item branch: ~270 ms → ~60–70 ms;
+  - Create, Update, Move and Delete: ~250–400 ms → ~20–45 ms;
+  - the rollup's reads: ~44,000 → ~1,750.
+
+  After each kind of write, a whole-project rollup finds nothing left to change.
 - **One bar per item.** Split work is done with sub-items.
 
 ### 3. At most ten levels
@@ -147,7 +168,15 @@ sticky two-row date header and a sticky name column.
   - drag across the empty track of an undated item to draw its bar;
   - the dates are written beside every bar, and highlighted while dragging;
   - weekend shading, day or week lines, a today line;
-  - a completion fill from the status.
+  - a completion fill from the status;
+  - each bar is a button at least 40 px each way (STANDARDS §5.3), centred on however thin or
+    short the bar is drawn; the focus ring stays on the drawn bar (amended 2026-10-14).
+- **Elsewhere in the module** (amended 2026-10-14):
+  - in the list's datasheet a parent's Start and Deadline are shown, not edited (a column can name
+    the rows whose cells are edited, `ColumnSpec.editable`);
+  - deleting a parent from its details names how many sub-items go with it, as the editor's delete
+    does. `usp_KeyDeliverable_GetById` returns `SubItemCount`, which costs ~7 ms more for an item
+    with 160 items below it.
 - **Colours** come only from the palette enum. Each maps to Tailwind classes written out in full,
   and no style string comes from data.
 
@@ -202,6 +231,7 @@ would hide the parents that give items their place. The list view keeps its filt
   and labelled as set by its sub-items.
 - Every write proc on the module takes the project lock. Writes to one project's deliverables are
   serialised, which is cheap at this scale.
-- Rollup and renumbering run on each edit over the project's live items, without paging. A project
-  has tens to hundreds of items, not thousands.
+- Renumbering runs on each edit over one list of siblings, and the rollup over the changed branch
+  and the items above it (amended 2026-10-14; it was the whole project). A project has tens to
+  hundreds of items, not thousands.
 - Printing uses the same page. The Months scale fits the most time on a sheet.
