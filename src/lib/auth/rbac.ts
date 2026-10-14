@@ -82,6 +82,7 @@ export const OVERRIDABLE_MODULES = [
   "daily-activities",
   "key-deliverables",
   "keywords",
+  "meetings",
   "objectives",
   "parking-lot",
   "questions-answers",
