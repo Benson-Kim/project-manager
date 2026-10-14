@@ -162,7 +162,7 @@ test.describe.serial("demo screenshots", () => {
   // ── 07  Gantt chart ──────────────────────────────────────────────────────
 
   test("07 — Gantt chart (project 2)", async () => {
-    await page.goto("/projects/2/deliverables/gantt");
+    await page.goto("/projects/2/deliverables/gantt?view=gantt");
     await expect(
       page.getByRole("heading", { name: messages.keyDeliverables.ganttTitle }),
     ).toBeVisible();
@@ -171,12 +171,22 @@ test.describe.serial("demo screenshots", () => {
     await snap(page, "07-gantt-chart");
   });
 
+  // ── 07a WBS diagram ──────────────────────────────────────────────────────
+
+  test("07a — WBS diagram (project 2)", async () => {
+    await page.goto("/projects/2/deliverables/gantt?view=wbs");
+    await expect(page.getByTestId("wbs-diagram")).toBeVisible();
+    await settle(page);
+    await snap(page, "07a-wbs-diagram");
+  });
+
   // ── 08  Gantt chart — mobile 390 px ─────────────────────────────────────
 
   test("08 — Gantt chart at 390 px (mobile)", async () => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/projects/2/deliverables/gantt");
+    await page.goto("/projects/2/deliverables/gantt?view=gantt");
     await expect(page.getByTestId("gantt-chart")).toBeVisible();
+    await page.getByTestId("wbs-tab-chart").click();
     await settle(page);
     await snap(page, "08-gantt-mobile");
   });
@@ -276,7 +286,7 @@ test.describe.serial("demo screenshots", () => {
   // ── 18  Dark mode — Gantt chart ──────────────────────────────────────────
 
   test("18 — Gantt chart in dark mode", async () => {
-    await page.goto("/projects/2/deliverables/gantt");
+    await page.goto("/projects/2/deliverables/gantt?view=gantt");
     await expect(page.getByTestId("gantt-chart")).toBeVisible();
     await page.evaluate(() => {
       document.documentElement.setAttribute("data-theme", "dark");

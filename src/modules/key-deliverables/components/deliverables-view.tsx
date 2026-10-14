@@ -10,7 +10,7 @@ import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { listEmptyState } from "@/components/ui/states";
 
 import { rowAllows } from "@/lib/auth/actor-access";
-import { formatDate } from "@/lib/format";
+import { formatDate, toDateInput } from "@/lib/format";
 import { messages } from "@/lib/messages";
 import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
@@ -23,6 +23,7 @@ import {
   type KeyDeliverableRow,
 } from "../schemas/key-deliverable";
 import { deliverableFormValues } from "../schemas/key-deliverable-form";
+import { todayUtc } from "../schemas/wbs";
 
 import { DeliverableForm } from "./deliverable-form";
 import { DeliverablesToolbar } from "./deliverables-toolbar";
@@ -47,6 +48,12 @@ function StatusCell({ row }: { row: Row }) {
 const P = messages.keyDeliverables.placeholders;
 
 const columns: DataViewColumn<Row>[] = [
+  {
+    key: "WbsCode",
+    header: messages.keyDeliverables.wbsCode,
+    priority: 1,
+    render: (r) => <span className="tabular-nums">{r.WbsCode ?? ""}</span>,
+  },
   textColumn({
     key: "KeyRequirement",
     header: messages.keyDeliverables.requirement,
@@ -57,6 +64,16 @@ const columns: DataViewColumn<Row>[] = [
     maxLength: 4000,
     render: (r) => <span className="line-clamp-2">{rowLabel(r)}</span>,
   }),
+  // A parent's dates come from its sub-items (ADR-0027): shown, never edited here.
+  dateColumn({
+    key: "StartDate",
+    header: messages.keyDeliverables.startDate,
+    priority: 2,
+    field: "startDate",
+    value: (r) => r.StartDate ?? null,
+    placeholder: P.startDate,
+    editable: (r) => !r.HasChildren,
+  }),
   dateColumn({
     key: "Deadline",
     header: messages.keyDeliverables.deadline,
@@ -64,6 +81,7 @@ const columns: DataViewColumn<Row>[] = [
     field: "deadline",
     value: (r) => r.Deadline,
     placeholder: P.deadline,
+    editable: (r) => !r.HasChildren,
   }),
   listColumn({
     key: "Status",
@@ -156,7 +174,10 @@ export function DeliverablesView({
         renderToolbar={(viewToggle) => <DeliverablesToolbar>{viewToggle}</DeliverablesToolbar>}
         renderCard={(row) => (
           <div className="flex flex-col gap-2">
-            <p className="line-clamp-2 text-sm font-semibold text-ink">{rowLabel(row)}</p>
+            <p className="line-clamp-2 text-sm font-semibold text-ink">
+              {row.WbsCode ? <span className="mr-1.5 tabular-nums">{row.WbsCode}</span> : null}
+              {rowLabel(row)}
+            </p>
             <div className="flex flex-wrap gap-1.5">
               <Badge value={row.Status} />
               <Badge value={row.Priority} />
@@ -164,8 +185,10 @@ export function DeliverablesView({
                 <Badge value={messages.keyDeliverables.overdue} />
               ) : null}
             </div>
-            {row.Deadline ? (
-              <p className="text-xs text-ink-muted">{formatDate(row.Deadline)}</p>
+            {row.StartDate || row.Deadline ? (
+              <p className="text-xs text-ink-muted">
+                {[formatDate(row.StartDate), formatDate(row.Deadline)].filter(Boolean).join(" – ")}
+              </p>
             ) : null}
             {row.AssigneeNames ? (
               <p className="text-xs text-ink-muted">{row.AssigneeNames}</p>
@@ -179,7 +202,11 @@ export function DeliverablesView({
           addRow: canCreate
             ? {
                 add: (values) =>
-                  createKeyDeliverableAction({ ...values, projectId: String(projectId) }),
+                  createKeyDeliverableAction({
+                    ...values,
+                    startDate: values.startDate || toDateInput(todayUtc()),
+                    projectId: String(projectId),
+                  }),
               }
             : undefined,
         }}

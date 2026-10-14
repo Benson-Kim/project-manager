@@ -37,6 +37,10 @@ const VERBS: Record<string, string> = {
   BuildFromDailyActivity: "create",
   Update: "update",
   Reorder: "update",
+  // Work breakdown (ADR-0027): placing, dating and naming an item edit it.
+  Move: "update",
+  Reschedule: "update",
+  Rename: "update",
   Dismiss: "update",
   Snooze: "update",
   Set: "update",
@@ -59,6 +63,10 @@ const EXEMPT: Record<string, string> = {
   usp_Todo_GetDueAlerts:
     "returns the actor's alerts and own to-dos, filtered by the to-do rule (ufn_TodoItem_AccessLevel)",
   usp_Todo_GetUpcomingAlerts: "returns only the actor's own to-dos (CreatedBy)",
+  usp_KeyDeliverable_AssertPlacement:
+    "checks a parent inside the write procs' transaction, after their own access check",
+  usp_KeyDeliverable_RollUp:
+    "recomputes parent dates inside the write procs' transaction, after their own access check",
 };
 
 /** The access helpers themselves (they take @MinLevel as a parameter). */
