@@ -1,7 +1,7 @@
 import { getUploadsEnv, uploadsEnabled } from "@/lib/env";
 import { scanFile } from "@/lib/files/scan";
 import { sniffFile } from "@/lib/files/sniff";
-import { freeBytes, uploadsRoot } from "@/lib/files/store";
+import { freeBytes, storedFilesRoot, uploadsRoot } from "@/lib/files/store";
 import { addFileAttachment, checkCanAddAttachment, getStoredFile } from "../repository/attachments";
 import type { DownloadDeps } from "./download";
 import type { UploadDeps } from "./upload";
@@ -20,6 +20,6 @@ export const uploadDeps: UploadDeps = {
 };
 
 export const downloadDeps: DownloadDeps = {
-  uploadsRoot,
+  storedFilesRoot,
   getFile: getStoredFile,
 };

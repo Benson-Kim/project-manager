@@ -18,7 +18,8 @@ import { downloadParamsSchema, type AttachmentOwner } from "../schemas/attachmen
  * right size whose SHA-256 is wrong end the stream early. Server only.
  */
 export interface DownloadDeps {
-  uploadsRoot(): Promise<string>;
+  /** Read-only: downloads keep working when uploads are off or the folder is read-only. */
+  storedFilesRoot(): string;
   getFile(owner: AttachmentOwner, fileAttachmentId: number, actor: number): Promise<StoredFileRow>;
 }
 
@@ -53,7 +54,7 @@ export async function handleDownload(
   let absolute: string;
   let size: number;
   try {
-    absolute = resolveStoredFile(await deps.uploadsRoot(), file.StoragePath);
+    absolute = resolveStoredFile(deps.storedFilesRoot(), file.StoragePath);
     const info = await stat(absolute);
     if (!info.isFile()) throw new Error("not a file");
     if (file.SizeBytes !== null && info.size !== file.SizeBytes) {
