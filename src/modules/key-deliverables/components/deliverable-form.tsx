@@ -221,6 +221,11 @@ export function DeliverableForm({
   const form = useZodForm(schema);
   /** A parent's dates come from its sub-items (ADR-0027); the form shows them, read-only. */
   const rolledUp = deliverable?.HasChildren === true;
+  const subItems = deliverable?.SubItemCount ?? 0;
+  const deliverableName = deliverable
+    ? (deliverable.KeyRequirement ??
+      messages.keyDeliverables.deliverableFallback(deliverable.KeyDeliverableId))
+    : "";
   const [defaultStart] = useState(todayUtc);
 
   // Multi-assignee state — initialised from the row's Assignees array.
@@ -399,12 +404,14 @@ export function DeliverableForm({
         <ConfirmDialog
           open={confirmDelete}
           onOpenChange={setConfirmDelete}
-          title={messages.confirmDelete.title(
-            messages.keyDeliverables.entity,
-            deliverable.KeyRequirement ??
-              messages.keyDeliverables.deliverableFallback(deliverable.KeyDeliverableId),
-          )}
-          body={messages.confirmDelete.body}
+          title={
+            subItems > 0
+              ? messages.keyDeliverables.wbs.deleteTitle(deliverableName, subItems)
+              : messages.confirmDelete.title(messages.keyDeliverables.entity, deliverableName)
+          }
+          body={
+            subItems > 0 ? messages.keyDeliverables.wbs.deleteBody : messages.confirmDelete.body
+          }
           confirmLabel={messages.actions.delete}
           onConfirm={onDelete}
           pending={pending}

@@ -16,6 +16,7 @@ import {
   rescheduleKeyDeliverable,
   updateKeyDeliverable,
 } from "../repository/key-deliverables";
+import { rescheduleWbsItemInput, updateKeyDeliverableInput } from "../schemas/key-deliverable";
 
 function dbRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -311,5 +312,31 @@ describe("key-deliverables repository", () => {
       ).rejects.toThrow("returned no ProjectId");
       expect(execProc).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+describe("key-deliverable inputs", () => {
+  it("drop the derived fields a row is read with, so a save cannot set them", () => {
+    const parsed = updateKeyDeliverableInput.parse({
+      projectId: 2,
+      keyRequirement: "Walls",
+      keyDeliverableId: 22,
+      rowVer: 1,
+      SubItemCount: 0,
+      HasChildren: false,
+      subItemCount: 0,
+      hasChildren: false,
+    });
+    for (const key of ["SubItemCount", "HasChildren", "subItemCount", "hasChildren"]) {
+      expect(parsed).not.toHaveProperty(key);
+    }
+    const reschedule = rescheduleWbsItemInput.parse({
+      id: 22,
+      start: "2024-05-01",
+      end: "2024-05-02",
+      rowVer: 1,
+      HasChildren: false,
+    });
+    expect(reschedule).not.toHaveProperty("HasChildren");
   });
 });

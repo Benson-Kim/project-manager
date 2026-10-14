@@ -1,7 +1,7 @@
 -- ufn_KeyDeliverable_Branch — an item and every live item below it in the work breakdown
 -- (ADR-0027), with Depth 0 for the item itself, 1 for its sub-items, and so on. Empty when the
 -- item is gone. Procs only; the application never calls it.
--- Callers: usp_KeyDeliverable_{AssertPlacement,Delete,Reschedule}.
+-- Callers: usp_KeyDeliverable_{AssertPlacement,Delete,GetById,Reschedule}.
 -- Lives beside the procs; db-apply creates ufn_* before usp_* in a folder.
 USE ProjectManager;
 GO

@@ -2,6 +2,7 @@
 -- THROW 50001 when absent/soft-deleted.
 -- Row-level access via dbo.usp_Project_AssertAccess: NOT_FOUND (50001) vs FORBIDDEN_ROW (50003);
 --   Admin bypass; project-less rows are refused for non-Admins.
+-- SubItemCount: how many items below it in the work breakdown (ADR-0027) a delete would also remove.
 -- Entity app.KeyDeliverable (source: tblKeyRequirementsDeliverable). Module: key-deliverables (#9).
 USE ProjectManager;
 GO
@@ -36,6 +37,8 @@ BEGIN
                                   WHERE ch.ParentKeyDeliverableId = kd.KeyDeliverableId
                                     AND ch.IsDeleted = 0)
                      THEN 1 ELSE 0 END AS BIT) AS HasChildren,
+           (SELECT COUNT(*) FROM dbo.ufn_KeyDeliverable_Branch(kd.KeyDeliverableId) AS b
+            WHERE b.Depth > 0) AS SubItemCount,
            kd.CreatedAtUtc,
            kd.UpdatedAtUtc,
            CAST(kd.RowVer AS BIGINT) AS RowVer,
