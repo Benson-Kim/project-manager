@@ -168,6 +168,10 @@ Why these are **exact pins**, unlike the caret ranges elsewhere:
 All of them are MIT and pure JavaScript, with no install scripts that build native code
 and no network access at runtime. No `serverExternalPackages` entry is needed.
 
+`sanitize-html@2.18.0` declares `node >=22.12.0`, so `engines.node` in `package.json`
+(and the lockfile's root entry) is `>=22.12.0`, not `>=22`. The Docker image and CI use
+the latest Node 22 and already meet it.
+
 ## Consequences
 
 - **Bundle.** Tiptap + ProseMirror (with prosemirror-tables and linkifyjs) build to one chunk
