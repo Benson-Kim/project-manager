@@ -54,7 +54,7 @@ const LOCK = "FROM app.Meeting WITH (UPDLOCK, HOLDLOCK)";
 /** Meetings' rules live in the procs (ADR-0028); these keep them from drifting. */
 describe("meeting SQL guardrails", () => {
   it("finds every meeting proc", () => {
-    expect(PROCS.size).toBe(33);
+    expect(PROCS.size).toBe(34);
   });
 
   it("labels participants the same way everywhere", () => {
@@ -64,6 +64,7 @@ describe("meeting SQL guardrails", () => {
         "usp_Meeting_GetApologies",
         "usp_Meeting_GetAttendees",
         "usp_Meeting_GetParticipants",
+        "usp_Meeting_GetRoster",
         "usp_Meeting_GetWorkspace",
         "usp_MeetingParticipant_Create",
         "usp_MeetingParticipant_GetById",
@@ -179,6 +180,19 @@ describe("meeting SQL guardrails", () => {
   it("keeps null keys in the workspace's JSON collections", () => {
     const workspace = sql("usp_Meeting_GetWorkspace");
     expect(workspace.match(/FOR JSON PATH, INCLUDE_NULL_VALUES\) AS \w+Json/g)).toHaveLength(4);
+    expect(sql("usp_Meeting_GetRoster")).toContain(
+      "FOR JSON PATH, INCLUDE_NULL_VALUES) AS RosterJson",
+    );
+  });
+
+  it("builds the roster from the meeting's own project, stamp first, within Set's limit", () => {
+    const roster = sql("usp_Meeting_GetRoster");
+    expect(roster).toContain("WHERE s.ProjectId = @RowProjectId AND s.IsDeleted = 0");
+    expect(roster).toContain("AND live.ProjectId = @RowProjectId AND live.IsDeleted = 0");
+    const stamp = roster.indexOf("DECLARE @ParticipantsStamp");
+    expect(stamp).toBeGreaterThan(roster.indexOf("usp_Project_AssertAccess"));
+    expect(stamp).toBeLessThan(roster.indexOf("FROM app.Stakeholder"));
+    expect(roster).toContain(`WHERE r.Pick <= ${MEETING_PARTICIPANTS_MAX}`);
   });
 
   it("calls no other meeting proc or function, since the two runners order the folders differently", () => {

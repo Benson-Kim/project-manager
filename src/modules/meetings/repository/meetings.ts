@@ -4,11 +4,13 @@ import { sanitizeRichText } from "@/lib/rich-text/sanitize";
 import {
   attendeeRowSchema,
   meetingListRowSchema,
+  meetingRosterRowSchema,
   meetingRowSchema,
   meetingScopeRowSchema,
   meetingWorkspaceRowSchema,
   type AttendeeRow,
   type MeetingListRow,
+  type MeetingRoster,
   type MeetingRow,
   type MeetingWorkspace,
 } from "../schemas/meeting";
@@ -177,6 +179,23 @@ export async function getMeetingWorkspace(
     participantsStamp: ParticipantsStamp,
     stamp: Stamp,
   };
+}
+
+/**
+ * The participant panel: every live stakeholder of the meeting's project with
+ * their state, then participants kept for history (usp_Meeting_GetRoster). The
+ * stamp is the one a save must send back.
+ */
+export async function getMeetingRoster(
+  meetingId: number,
+  actorUserId: number,
+): Promise<MeetingRoster> {
+  const rows = await execProc("usp_Meeting_GetRoster", {
+    MeetingId: meetingId,
+    ActorUserId: actorUserId,
+  });
+  const row = meetingRosterRowSchema.parse(rows[0]);
+  return { entries: row.RosterJson, stamp: row.ParticipantsStamp };
 }
 
 /** The printed minutes' "Present" lines. */

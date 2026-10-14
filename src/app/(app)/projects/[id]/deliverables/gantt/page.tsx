@@ -18,7 +18,7 @@ import {
   getKeyDeliverableById,
   getWbs,
 } from "@/modules/key-deliverables/repository/key-deliverables";
-import { listStakeholderOptions } from "@/modules/key-deliverables/repository/stakeholder-options";
+import { listStakeholderOptions } from "@/modules/stakeholders/repository/stakeholder-options";
 import { KEY_DELIVERABLE_LISTS } from "@/modules/key-deliverables/schemas/key-deliverable";
 import { todayUtc } from "@/modules/key-deliverables/schemas/wbs";
 import { getProjectCached } from "../../get-project";

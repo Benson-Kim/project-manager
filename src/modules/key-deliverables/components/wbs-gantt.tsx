@@ -19,7 +19,7 @@ import {
   renameWbsItemAction,
   rescheduleWbsItemAction,
 } from "../actions";
-import type { StakeholderOption } from "../repository/stakeholder-options";
+import type { StakeholderOption } from "@/modules/stakeholders/repository/stakeholder-options";
 import type { KeyDeliverableRow, WbsData } from "../schemas/key-deliverable";
 import {
   MAX_WBS_DEPTH,

@@ -1,13 +1,18 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { messages } from "../src/lib/messages";
+import { attendanceSummary } from "../src/modules/meetings/schemas/meeting-display";
 import { escapeRegExp, expectListed, expectNotListed } from "./support/datasheet";
 
 /**
- * Meetings (module #10, M2): the section, the datasheet list with its
- * rich-text cell, and the meeting workspace header (full route, ADR-0010).
- * Runs as e2e-pm, a Manager on project 2. Seeded meeting 1 ("Progress
- * Achieved") is on project 2; meeting 2 is on project 24, which e2e-pm is not on.
+ * Meetings (module #10, M2 and M3): the section, the datasheet list with its
+ * rich-text cell, the meeting workspace header (full route, ADR-0010) and its
+ * participant panel. Runs as e2e-pm, a Manager on project 2. Seeded meeting 1
+ * ("Progress Achieved") is on project 2 with Gary Cantrall and Stakeholder
+ * Firstname attending and Test2Firstname's apology; meeting 2 is on project 24,
+ * which e2e-pm is not on. Other specs add stakeholders to project 2 in
+ * parallel, so the participant tests find people by name and change only the
+ * meetings they create.
  */
 
 const M = messages.meetings;
@@ -40,6 +45,20 @@ async function writeRich(page: Page, name: string, plain: string, bold: string) 
   await page.keyboard.type(bold);
   await page.keyboard.press("Control+B");
 }
+
+/** A person's radio group in the participant panel, found by the start of their label. */
+function participant(page: Page, name: string) {
+  return page
+    .getByTestId("participants-panel")
+    .getByRole("group", { name: new RegExp(`^${escapeRegExp(name)}`) });
+}
+
+function attendance(page: Page, name: string, value: keyof typeof M.attendance) {
+  return participant(page, name).getByRole("radio", { name: M.attendance[value], exact: true });
+}
+
+const counts = (attended: number, apologies: number) =>
+  `${M.attendedCount(attended)} · ${M.apologyCount(apologies)}`;
 
 async function axeClean(page: Page) {
   const results = await new AxeBuilder({ page }).analyze();
@@ -174,6 +193,7 @@ test("axe: the meeting workspace has no serious or critical violations", async (
   await expect(page.getByRole("textbox", { name: M.description, exact: true })).toBeVisible({
     timeout: 15_000,
   });
+  await expect(attendance(page, "Gary Cantrall", "attended")).toBeChecked();
   expect(await axeClean(page)).toEqual([]);
 });
 
@@ -183,4 +203,112 @@ test("the workspace links back to the list", async ({ page }) => {
   await expect(trail.getByText("Progress Achieved")).toHaveAttribute("aria-current", "page");
   await trail.getByRole("link", { name: M.title }).click();
   await expect(page).toHaveURL(new RegExp(`${escapeRegExp("/projects/2/meetings")}$`));
+});
+
+test("participants: the seeded meeting shows who attended and who sent apologies", async ({
+  page,
+}) => {
+  await page.goto("/projects/2/meetings/1");
+  const panel = page.getByTestId("participants-panel");
+  await expect(panel.getByRole("heading", { name: M.participants, level: 2 })).toBeVisible();
+  await expect(panel.getByTestId("participant-counts")).toHaveText(counts(2, 1));
+  await expect(attendance(page, "Gary Cantrall", "attended")).toBeChecked();
+  await expect(attendance(page, "Stakeholder Firstname", "attended")).toBeChecked();
+  await expect(attendance(page, "Test2Firstname", "apology")).toBeChecked();
+  await expect(participant(page, "Gary Cantrall")).toHaveAccessibleName(
+    /^Gary Cantrall - Software Engineer, Organization and efficiency/,
+  );
+});
+
+test("participants: mark attended and apology, save, reload keeps them, the list counts them", async ({
+  page,
+}) => {
+  const title = `E2E participants ${Date.now()}`;
+  await newMeeting(page);
+  const panel = page.getByTestId("participants-panel");
+  await expect(panel.getByTestId("participant-counts")).toHaveText(counts(0, 0));
+  await expect(attendance(page, "Gary Cantrall", "none")).toBeChecked();
+  await expect(page.getByTestId("participants-save")).toBeDisabled();
+
+  await attendance(page, "Gary Cantrall", "attended").check();
+  await attendance(page, "Test2Firstname", "apology").check();
+  await expect(panel.getByTestId("participant-counts")).toHaveText(counts(1, 1));
+  // The search narrows the list and keeps the choices made.
+  await panel.getByLabel(M.searchParticipants).fill("test2");
+  await expect(participant(page, "Gary Cantrall")).toHaveCount(0);
+  await expect(attendance(page, "Test2Firstname", "apology")).toBeChecked();
+  await panel.getByLabel(M.searchParticipants).fill("");
+  await expect(attendance(page, "Gary Cantrall", "attended")).toBeChecked();
+
+  // New meeting shows no toast, so this one is the panel's.
+  await page.getByTestId("participants-save").click();
+  await expectToast(page, messages.feedback.saved);
+  await page.reload();
+  await expect(attendance(page, "Gary Cantrall", "attended")).toBeChecked();
+  await expect(attendance(page, "Test2Firstname", "apology")).toBeChecked();
+  await expect(attendance(page, "Stakeholder Firstname", "none")).toBeChecked();
+  await expect(panel.getByTestId("participant-counts")).toHaveText(counts(1, 1));
+
+  // A title to find the meeting by in the list.
+  const form = page.getByTestId("meeting-header-form");
+  await expect(form.getByRole("textbox", { name: M.objective, exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
+  await form.getByLabel(M.subject).fill(title);
+  await page.getByTestId("meeting-save").click();
+  await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
+
+  await page.goto(`/projects/2/meetings?view=list&q=${encodeURIComponent(title)}`);
+  await expectListed(page, title);
+  await expect(
+    page.getByTestId("data-view-table").getByText(attendanceSummary(1, 1)),
+  ).toBeVisible();
+});
+
+test("participants: with both forms unsaved, leaving asks once", async ({ page }) => {
+  const form = await newMeeting(page);
+  const url = page.url();
+  await attendance(page, "Gary Cantrall", "apology").check();
+  await form.getByLabel(M.subject).fill("Unsaved title");
+
+  const trail = page.getByRole("navigation", { name: messages.nav.breadcrumb });
+  await trail.getByRole("link", { name: M.title }).click();
+  const dialog = page.getByRole("dialog", { name: messages.feedback.unsavedChangesTitle });
+  await expect(dialog).toHaveCount(1);
+  await dialog.getByRole("button", { name: messages.actions.cancel }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page).toHaveURL(url);
+  await expect(attendance(page, "Gary Cantrall", "apology")).toBeChecked();
+  await expect(form.getByLabel(M.subject)).toHaveValue("Unsaved title");
+
+  // The header's Cancel asks too, then Discard leaves without asking again.
+  await form.getByRole("button", { name: messages.actions.cancel }).click();
+  await expect(dialog).toHaveCount(1);
+  await dialog.getByRole("button", { name: messages.feedback.discard }).click();
+  await page.waitForURL(/\/projects\/2\/meetings$/);
+  await expect(dialog).toHaveCount(0);
+});
+
+test("participants: a save from a stale panel conflicts and reloads", async ({ page }) => {
+  await newMeeting(page);
+  const other = await page.context().newPage();
+  await other.goto(page.url());
+  // The editor surface exists only on the client: once it shows, the page is hydrated.
+  await expect(other.getByRole("textbox", { name: M.objective, exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
+
+  await attendance(page, "Gary Cantrall", "attended").check();
+  await page.getByTestId("participants-save").click();
+  await expectToast(page, messages.feedback.saved);
+
+  await attendance(other, "Gary Cantrall", "apology").check();
+  await other.getByTestId("participants-save").click();
+  const panel = other.getByTestId("participants-panel");
+  await expect(panel.getByRole("alert")).toContainText(messages.errors.CONFLICT);
+  await panel.getByRole("button", { name: M.reload }).click();
+  await expect(attendance(other, "Gary Cantrall", "attended")).toBeChecked();
+  await expect(panel.getByRole("alert")).toHaveCount(0);
+  await expect(other.getByTestId("participants-save")).toBeDisabled();
+  await other.close();
 });

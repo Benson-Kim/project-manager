@@ -95,3 +95,36 @@ export function workspaceDbRow(overrides: Record<string, unknown> = {}) {
 export function scopeDbRow(overrides: Record<string, unknown> = {}) {
   return { ProjectId: 24, MeetingId: 2, ...overrides };
 }
+
+/** One usp_Meeting_GetRoster row: the stamp and the people as a FOR JSON string. */
+export function rosterDbRow(overrides: Record<string, unknown> = {}) {
+  return {
+    ProjectId: 24,
+    MeetingId: 2,
+    ParticipantsStamp: "2004",
+    RosterJson: JSON.stringify([
+      {
+        StakeholderId: 3,
+        Label: "Gary Cantrall - Software Engineer, Organization and efficiency",
+        MeetingParticipantId: 1,
+        IsApology: false,
+        IsHistorical: false,
+      },
+      {
+        StakeholderId: 4,
+        Label: "Lucy Taylor",
+        MeetingParticipantId: null,
+        IsApology: null,
+        IsHistorical: false,
+      },
+      {
+        StakeholderId: 9,
+        Label: "Tome Green",
+        MeetingParticipantId: 5,
+        IsApology: true,
+        IsHistorical: true,
+      },
+    ]),
+    ...overrides,
+  };
+}

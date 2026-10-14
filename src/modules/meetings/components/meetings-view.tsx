@@ -13,7 +13,7 @@ import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { createMeetingAction, updateMeetingAction } from "../actions";
 import type { MeetingListRow, MeetingRow } from "../schemas/meeting";
-import { meetingTimes } from "../schemas/meeting-display";
+import { attendanceSummary, meetingTimes } from "../schemas/meeting-display";
 import { meetingFormValues } from "../schemas/meeting-form";
 import { MeetingsToolbar } from "./meetings-toolbar";
 
@@ -64,7 +64,11 @@ const columns: DataViewColumn<Row>[] = [
     key: "Attendees",
     header: M.attendees,
     priority: 2,
-    render: (r) => r.AttendeeCount,
+    render: (r) => (
+      <span className="whitespace-nowrap">
+        {attendanceSummary(r.AttendeeCount, r.ApologyCount)}
+      </span>
+    ),
   },
   richTextColumn({
     key: "Objective",
@@ -123,6 +127,7 @@ export function MeetingsView({
       onOpen={open}
       renderCard={(row) => {
         const times = meetingTimes(row.StartTime, row.EndTime);
+        const attendance = attendanceSummary(row.AttendeeCount, row.ApologyCount);
         return (
           <div className="flex flex-col gap-1.5">
             <p className="line-clamp-2 text-sm font-semibold text-ink">
@@ -131,6 +136,7 @@ export function MeetingsView({
             <p className="text-sm text-ink-muted">
               {[formatDate(row.StartDate), times, row.Location].filter(Boolean).join(" · ")}
             </p>
+            {attendance ? <p className="text-sm text-ink-muted">{attendance}</p> : null}
             {row.views.Objective.html === row.Objective && row.Objective ? (
               <div className="line-clamp-3 text-sm text-ink">{row.views.Objective.node}</div>
             ) : null}

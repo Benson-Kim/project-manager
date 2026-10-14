@@ -1,14 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useAnnouncer } from "@/components/ui/announcer";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { DatePicker, Input } from "@/components/ui/form/inputs";
-import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
+import { useUnsavedPart } from "@/components/ui/form/unsaved-scope";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
 import { useToast } from "@/components/ui/toast";
@@ -29,7 +29,9 @@ function shortTitle(subject: string | null): string {
  * The meeting header (checklist rows 54, 72) on the workspace page: one form,
  * blur and submit validation against the same schema as the action, CONFLICT
  * with a reload, delete behind a confirmation, and unsaved changes guarding
- * the way out. The page remounts it (key = RowVer) when the meeting changes.
+ * the way out through the page's UnsavedChangesScope, which it shares with the
+ * participant panel. The page remounts it (key = RowVer) when the meeting
+ * changes.
  */
 export function MeetingHeaderForm({
   meeting,
@@ -52,26 +54,11 @@ export function MeetingHeaderForm({
   const [conflict, setConflict] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
-  const [showUnsaved, setShowUnsaved] = useState(false);
-  const pendingNavRef = useRef<(() => void) | null>(null);
-  const { markClean } = useUnsavedChangesGuard(isDirty);
+  const { leave, markClean, forgetAll } = useUnsavedPart("meeting-header", isDirty);
   const clean = () => {
     markClean();
     setIsDirty(false);
   };
-
-  useEffect(() => {
-    function onBeforeNavigate(event: Event) {
-      if (!isDirty) return;
-      event.preventDefault();
-      const detail = (event as CustomEvent<{ resume?: unknown }>).detail;
-      pendingNavRef.current =
-        typeof detail?.resume === "function" ? (detail.resume as () => void) : null;
-      setShowUnsaved(true);
-    }
-    window.addEventListener("before-navigate", onBeforeNavigate);
-    return () => window.removeEventListener("before-navigate", onBeforeNavigate);
-  }, [isDirty]);
 
   const expired = (code: string) => {
     if (code !== "UNAUTHENTICATED") return false;
@@ -112,7 +99,8 @@ export function MeetingHeaderForm({
       });
       setConfirmDelete(false);
       if (result.ok) {
-        clean();
+        forgetAll();
+        setIsDirty(false);
         toast({ variant: "success", title: messages.feedback.deleted });
         announce(messages.feedback.deleted);
         router.push(listHref);
@@ -122,22 +110,7 @@ export function MeetingHeaderForm({
       }
     });
 
-  const back = () => {
-    if (isDirty) {
-      pendingNavRef.current = () => router.push(listHref);
-      setShowUnsaved(true);
-    } else {
-      router.push(listHref);
-    }
-  };
-
-  const discardAndNavigate = () => {
-    const resume = pendingNavRef.current;
-    pendingNavRef.current = null;
-    setShowUnsaved(false);
-    clean();
-    resume?.();
-  };
+  const back = () => leave(() => router.push(listHref));
 
   const errors = form.errors;
 
@@ -243,17 +216,6 @@ export function MeetingHeaderForm({
         confirmLabel={messages.actions.delete}
         onConfirm={onDelete}
         pending={pending}
-      />
-      <ConfirmDialog
-        open={showUnsaved}
-        onOpenChange={(open) => {
-          setShowUnsaved(open);
-          if (!open) pendingNavRef.current = null;
-        }}
-        title={messages.feedback.unsavedChangesTitle}
-        body={messages.feedback.unsavedChangesBody}
-        confirmLabel={messages.feedback.discard}
-        onConfirm={discardAndNavigate}
       />
     </form>
   );
