@@ -93,7 +93,11 @@ BEGIN
              FROM app.KeyDeliverable WHERE KeyDeliverableId = @KeyDeliverableId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
-    EXEC dbo.usp_KeyDeliverable_RollUp @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId;
+    EXEC dbo.usp_KeyDeliverable_RollUp
+         @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId, @FromKeyDeliverableId = @KeyDeliverableId;
+    IF @OldParent IS NOT NULL AND @OldParent <> ISNULL(@ParentKeyDeliverableId, 0)
+        EXEC dbo.usp_KeyDeliverable_RollUp
+             @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId, @FromKeyDeliverableId = @OldParent;
 
     COMMIT;
 
