@@ -7,6 +7,7 @@ import { expectListed } from "./support/datasheet";
 /**
  * Key deliverables module (#9) — create happy path, validation failure, the
  * WBS and Gantt editor (ADR-0027: add, indent, rename, drag, stretch, scale,
+ * a parent's read-only dates in the datasheet, the sub-item delete warning,
  * delete; desktop + 360 px), the WBS diagram (add, rename, drag and drop,
  * the round trip with the Gantt, keyboard, delete) and axe scans on the list,
  * the diagram and the Gantt.
@@ -127,6 +128,8 @@ test("WBS: add, indent with Tab, rename, drag, stretch, change scale, delete", a
   const end0 = await endField.inputValue();
   await childBar.scrollIntoViewIfNeeded();
   let box = (await childBar.boundingBox())!;
+  // However thin the bar is drawn, it is a 40 px target.
+  expect(box.height).toBeGreaterThanOrEqual(40);
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 + 3 * 32, box.y + box.height / 2, { steps: 8 });
@@ -171,7 +174,27 @@ test("WBS: add, indent with Tab, rename, drag, stretch, change scale, delete", a
   await page.getByTestId("wbs-scale-month").click();
   await expect(page.getByTestId(`gantt-bar-${childId}`)).toBeVisible();
 
+  // In the list's datasheet a parent's dates are shown, not edited; its sub-item's are edited.
+  const KD = messages.keyDeliverables;
+  const cell = (column: string, row: string) =>
+    page.getByLabel(messages.datasheet.cellLabel(column, row), { exact: true });
+  await page.goto(`/projects/2/deliverables?view=list&q=${stamp}`);
+  await expect(cell(KD.deadline, `E2E task ${stamp}`)).toBeVisible();
+  await expect(cell(KD.startDate, `E2E task ${stamp}`)).toBeVisible();
+  await expect(cell(KD.deadline, `E2E phase ${stamp}`)).toHaveCount(0);
+  await expect(cell(KD.startDate, `E2E phase ${stamp}`)).toHaveCount(0);
+
+  // Its details warn that deleting it deletes its sub-item too.
+  await page.goto(`/projects/2/deliverables?d=${parentId}`);
+  await page.getByTestId("deliverable-delete").click();
+  await expect(
+    page.getByRole("heading", { name: W.deleteTitle(`E2E phase ${stamp}`, 1) }),
+  ).toBeVisible();
+  await expect(page.getByText(W.deleteBody)).toBeVisible();
+  await page.getByRole("button", { name: messages.actions.cancel }).click();
+
   // Delete the first item: its sub-item goes with it.
+  await page.goto("/projects/2/deliverables/gantt?view=gantt&scale=month");
   await page.getByLabel(W.nameOf(parentCode), { exact: true }).focus();
   await page.getByTestId("wbs-delete").click();
   await expect(
