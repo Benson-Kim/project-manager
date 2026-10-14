@@ -22,12 +22,13 @@ export async function expectListed(page: Page, text: string): Promise<void> {
 
 /**
  * Opens a listed record: its card in grid view, or its row's "Open" button in
- * a list-view datasheet (whose cells are inputs, not text).
+ * a list-view datasheet. A text cell is a textarea whose content is the value,
+ * so it matches by text too and comes before the button; it is left out.
  */
 export async function openListed(page: Page, text: string): Promise<void> {
   await page
     .getByRole("button", { name: messages.datasheet.open(text) })
-    .or(page.getByText(text))
+    .or(page.getByText(text).and(page.locator(":not(textarea)")))
     .first()
     .click();
 }

@@ -1,9 +1,10 @@
 "use client";
 
-import { booleanColumn, textColumn } from "@/components/ui/data-view/columns";
+import { listColumn, textColumn } from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
 import { formCellSaver } from "@/components/ui/data-view/datasheet";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
+import { ListBadge } from "@/components/ui/lookup-lists";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { listEmptyState } from "@/components/ui/states";
 import { rowAllows } from "@/lib/auth/actor-access";
@@ -11,7 +12,11 @@ import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { createParkingLotItemAction, updateParkingLotItemAction } from "../actions";
-import type { ParkingLotItemListRow, ParkingLotItemRow } from "../schemas/parking-lot-item";
+import {
+  PARKING_LOT_STATUS,
+  type ParkingLotItemListRow,
+  type ParkingLotItemRow,
+} from "../schemas/parking-lot-item";
 import { parkingLotItemFormValues } from "../schemas/parking-lot-item-form";
 import { ParkingLotToolbar } from "./parking-lot-toolbar";
 
@@ -49,21 +54,17 @@ const columns: DataViewColumn<Row>[] = [
     placeholder: P.owner,
     maxLength: 255,
   }),
-  booleanColumn({
-    key: "IsStrikethrough",
-    header: messages.parkingLot.strikethrough,
+  // A managed list (migration 031): every item has a status, a new one starts Active.
+  listColumn({
+    key: "Status",
+    header: messages.parkingLot.status,
     priority: 2,
-    field: "isStrikethrough",
-    value: (r) => r.IsStrikethrough,
-    yes: messages.parkingLot.resolved,
-    no: messages.parkingLot.active,
-    placeholder: P.strikethrough,
-    render: (r) =>
-      r.IsStrikethrough ? (
-        <span className="text-sm text-ink-muted">{messages.parkingLot.resolved}</span>
-      ) : (
-        <span className="text-sm text-ink">{messages.parkingLot.active}</span>
-      ),
+    field: "status",
+    list: "parking-lot-item.status",
+    value: (r) => r.Status,
+    placeholder: P.status,
+    clearable: false,
+    initial: PARKING_LOT_STATUS.active,
   }),
 ];
 
@@ -76,7 +77,7 @@ const canEditRow = rowAllows("parking-lot:update");
 
 /**
  * Parking lot list (module #18): DataView grid + list; opening a row syncs ?id= (Sheet).
- * Card: item text (struck through when resolved), resolved badge.
+ * Card: item text (struck through when resolved), status badge.
  */
 export function ParkingLotView({
   rows,
@@ -132,9 +133,7 @@ export function ParkingLotView({
           >
             {row.ParkingLotItem ?? messages.app.untitled}
           </p>
-          {row.IsStrikethrough ? (
-            <span className="text-xs text-ink-muted">{messages.parkingLot.resolved}</span>
-          ) : null}
+          <ListBadge list="parking-lot-item.status" value={row.Status} />
         </div>
       )}
       columns={columns}

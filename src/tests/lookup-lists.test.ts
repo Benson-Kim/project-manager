@@ -14,8 +14,13 @@ import { ID_BOUND_LISTS, LOOKUP_LISTS } from "@/lib/lookup-lists";
  */
 const read = (...path: string[]) => readFileSync(join(...path), "utf8");
 
-// Lists are seeded by 018 and by later migrations that add one (021: team titles).
-const migration = ["018_lookup_list.sql", "021_project_permissions.sql"]
+// Lists are seeded by 018 and by later migrations that add one (021: team titles; 031: parking
+// lot status).
+const migration = [
+  "018_lookup_list.sql",
+  "021_project_permissions.sql",
+  "031_parking_lot_status.sql",
+]
   .map((file) => read("db", "migrations", file))
   .join(String.fromCharCode(10));
 const setProc = read("db", "procs", "lookup-list", "usp_LookupList_Set.sql");
@@ -78,6 +83,9 @@ describe("managed dropdown lists stay in step (ADR-0022)", () => {
         "assumption-constraint.type:Constraint",
         // usp_Project_Create gives a new project's creator this title (migration 021)
         "project-assignee.title:Project manager",
+        // a new parking lot item starts Active; Resolved strikes it through (migration 031)
+        "parking-lot-item.status:Active",
+        "parking-lot-item.status:Resolved",
       ].sort(),
     );
   });

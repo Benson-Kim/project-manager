@@ -22,6 +22,24 @@ export function formatDate(value: Date | string | null | undefined): string {
 }
 
 /**
+ * A file size for display, in the units Windows Explorer uses (1 KB = 1024
+ * bytes): "820 bytes", "14 KB", "2.4 MB". Empty for null/undefined.
+ */
+export function formatFileSize(bytes: number | null | undefined): string {
+  if (bytes == null || !Number.isFinite(bytes) || bytes < 0) return "";
+  if (bytes < 1024) return `${bytes} ${bytes === 1 ? "byte" : "bytes"}`;
+  const units = ["KB", "MB", "GB"];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  const rounded = value < 10 ? Math.round(value * 10) / 10 : Math.round(value);
+  return `${rounded} ${units[unit]}`;
+}
+
+/**
  * Convert a Date (or ISO string) to the YYYY-MM-DD string expected by
  * <input type="date">. Returns an empty string for null/undefined so the
  * input renders as empty (not "Invalid Date").

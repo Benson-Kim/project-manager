@@ -1,3 +1,4 @@
+import path from "node:path";
 import { z } from "zod";
 
 const envSchema = z.object({
@@ -30,6 +31,57 @@ const envSchema = z.object({
 });
 
 export type Env = z.infer<typeof envSchema>;
+
+/**
+ * File storage (ADR-0026). Kept apart from envSchema so the upload handler and
+ * the sweep need no database settings to find their folder.
+ */
+const uploadsEnvSchema = z.object({
+  /**
+   * Where attachment bytes live, outside the web root: absolute; default
+   * `<cwd>/uploads`. Docker sets /app/uploads (a volume); the desktop sets
+   * %ProgramData%\Project Manager\Uploads from machine.json. turbopackIgnore:
+   * output tracing would otherwise copy the build machine's <cwd>/uploads into
+   * the standalone server (the Docker image, the desktop installer).
+   */
+  UPLOADS_DIR: z
+    .string()
+    .optional()
+    .transform((v) =>
+      v && v.trim() ? v.trim() : path.join(/* turbopackIgnore: true */ process.cwd(), "uploads"),
+    )
+    .refine((v) => path.isAbsolute(v), "UPLOADS_DIR must be an absolute path"),
+  /** Uploaded bytes each project may hold; project-less records share one bucket. */
+  UPLOADS_QUOTA_MB_PER_PROJECT: z.coerce.number().int().positive().default(2048),
+  /**
+   * Free space an upload must leave on the uploads disk; 0 turns the check
+   * off. The quota is a fair share per project, not a disk guard (ADR-0026 §6),
+   * and on the desktop this disk also holds SQL Server's files and backups.
+   */
+  UPLOADS_MIN_FREE_MB: z.coerce.number().int().min(0).default(2048),
+});
+
+export type UploadsEnv = z.infer<typeof uploadsEnvSchema>;
+
+/**
+ * False when the deployment switched uploads off with `UPLOADS_ENABLED=false`.
+ * The desktop does that on a PC provisioned before F1, whose machine.json has
+ * no uploads folder until an administrator runs Repair (ADR-0026 §9). The rest
+ * of the app works, locations included; UPLOADS_DIR is then never used.
+ * Read on its own, so a page can ask without validating the folder settings.
+ */
+export function uploadsEnabled(): boolean {
+  return process.env.UPLOADS_ENABLED?.trim().toLowerCase() !== "false";
+}
+
+/** Validated at first use, like getEnv(). */
+export function getUploadsEnv(): UploadsEnv {
+  return uploadsEnvSchema.parse({
+    UPLOADS_DIR: process.env.UPLOADS_DIR,
+    UPLOADS_QUOTA_MB_PER_PROJECT: process.env.UPLOADS_QUOTA_MB_PER_PROJECT,
+    UPLOADS_MIN_FREE_MB: process.env.UPLOADS_MIN_FREE_MB,
+  });
+}
 
 /** Validated at first use (not at build time) so `next build` needs no secrets. */
 export function getEnv(): Env {

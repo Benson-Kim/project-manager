@@ -7,7 +7,7 @@ import { messages } from "@/lib/messages";
 import { logoutAction } from "@/modules/auth/actions";
 import { useTheme } from "../theme/theme-provider";
 import { initialsFrom } from "./initials";
-import { BellIcon, MoonIcon, SunIcon } from "./shell-icons";
+import { BellIcon, MoonIcon, NewWindowIcon, SunIcon } from "./shell-icons";
 
 export interface ShellAlert {
   id: number;
@@ -179,6 +179,31 @@ export function ThemeToggle() {
     >
       <SunIcon className="size-5 dark:hidden" />
       <MoonIcon className="hidden size-5 dark:block" />
+    </button>
+  );
+}
+
+/**
+ * Opens this page in a window of its own, to move it onto another display
+ * (client feedback 2026-10-12). The desktop app places it on the other screen and
+ * remembers where it was left; a browser opens a separate window. Not on phones.
+ */
+export function NewWindowButton() {
+  return (
+    <button
+      type="button"
+      aria-label={messages.app.openInNewWindow}
+      data-testid="open-in-new-window"
+      className={`${iconButtonClass} max-sm:hidden`}
+      onClick={() =>
+        window.open(
+          window.location.href,
+          "_blank",
+          `popup,noopener,width=${window.outerWidth},height=${window.outerHeight}`,
+        )
+      }
+    >
+      <NewWindowIcon />
     </button>
   );
 }

@@ -66,3 +66,39 @@ describe("updateProjectFormSchema", () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe("project dates in order", () => {
+  const base = { projectName: "X" };
+  const update = { ...base, projectId: "1", rowVer: "1" };
+
+  it.each([
+    ["create", projectFormSchema, base],
+    ["update", updateProjectFormSchema, update],
+  ] as const)("%s rejects an end date before the start date, on endDate", (_, schema, values) => {
+    const result = schema.safeParse({ ...values, startDate: "2026-03-10", endDate: "2026-03-09" });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        path: ["endDate"],
+        message: "End date can't be before start date.",
+      }),
+    ]);
+  });
+
+  it("rejects an estimated completion before the start date", () => {
+    const result = projectFormSchema.safeParse({
+      ...base,
+      startDate: "2026-03-10",
+      estimatedCompletionDate: "2026-01-01",
+    });
+    expect(result.error?.issues.map((i) => i.path)).toEqual([["estimatedCompletionDate"]]);
+  });
+
+  it("accepts the same day, and a range with one side empty", () => {
+    expect(
+      projectFormSchema.safeParse({ ...base, startDate: "2026-03-10", endDate: "2026-03-10" })
+        .success,
+    ).toBe(true);
+    expect(projectFormSchema.safeParse({ ...base, endDate: "2020-01-01" }).success).toBe(true);
+  });
+});

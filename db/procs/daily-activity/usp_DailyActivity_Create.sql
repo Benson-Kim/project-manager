@@ -40,6 +40,9 @@ BEGIN
     EXEC dbo.usp_LookupList_AssertLabel
          @ListKey = N'daily-activity.task-type', @Label = @TaskType OUTPUT;
 
+    IF @CompleteDate < @RequestDate
+        THROW 50004, N'VALIDATION:CompleteDate cannot be before RequestDate', 1;
+
     BEGIN TRAN;
 
     INSERT INTO app.DailyActivity ([ProjectId], [ActivityStatusId], [Requester], [Task], [MyActivity], [ActivityDate], [Comments], [RequestDate], [Status], [CompleteDate], [ContactMethod], [TimeSpent], [AssignedTo], [TaskType], [Progress], CreatedBy)

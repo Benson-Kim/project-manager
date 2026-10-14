@@ -94,3 +94,33 @@ describe("updateSupplierFormSchema", () => {
     expect(parsed.rowVer).toBe(77);
   });
 });
+
+describe("contract dates in order", () => {
+  const update = { ...minimal, supplierId: "1", rowVer: "1" };
+
+  it.each([
+    ["create", supplierFormSchema, minimal],
+    ["update", updateSupplierFormSchema, update],
+  ] as const)("%s rejects a contract end before the contract start", (_, schema, values) => {
+    const result = schema.safeParse({
+      ...values,
+      contractStartDate: "2026-06-01",
+      contractEndDate: "2026-05-31",
+    });
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        path: ["contractEndDate"],
+        message: "Contract end can't be before contract start.",
+      }),
+    ]);
+  });
+
+  it("accepts an end on the start day", () => {
+    const result = supplierFormSchema.safeParse({
+      ...minimal,
+      contractStartDate: "2026-06-01",
+      contractEndDate: "2026-06-01",
+    });
+    expect(result.success).toBe(true);
+  });
+});

@@ -16,17 +16,25 @@ Installer (per user, no admin rights needed)
       ├─ installs SQL Server 2022 Express, instance PROJECTMGR   (first install only)
       ├─ TCP 127.0.0.1:14330 only + firewall block rule           (not reachable from the network)
       ├─ login pm_app (random password), sa disabled
+      ├─ service restarts itself after a failure; signed-in users may start it (not stop or configure)
       ├─ %ProgramData%\Project Manager\Backups  (writable by the SQL service)
-      └─ %ProgramData%\Project Manager\machine.json  (DB credentials + auth secret, all users)
+      ├─ %ProgramData%\Project Manager\Uploads  (attachments; writable by every local user, ADR-0026)
+      └─ %ProgramData%\Project Manager\machine.json  (DB credentials, auth secret, uploadsDir; all users)
 
 App launch (normal user, no admin needed)
  ├─ reads machine.json, waits for SQL Server        → offers elevated Repair if anything is wrong
+ │    (a PC provisioned before F1 has no uploadsDir: the app runs with file uploads off
+ │     and offers the one-time setup once per user; it never blocks start-up, ADR-0026 §9)
  ├─ applies the schema                               (electron/db-apply.ts)
  │    migrations once each, in a transaction, with a backup first when upgrading
  │    stored procedures only when they changed, seeds once each
  ├─ ensures an active admin account exists           → shows a one-time password if it created one
- ├─ starts the Next.js standalone server on 127.0.0.1:<random port>
- └─ daily verified backup → copied to the user's backup folder (OneDrive by default)
+ ├─ starts the Next.js standalone server on 127.0.0.1:<random port>   (UPLOADS_DIR = uploadsDir)
+ │    waits up to 3 minutes: right after Windows starts, the first start is slow
+ ├─ every 30 s checks the database engine still answers; if it stopped, starts it
+ │    (allowed once provisioning granted it) or tells the user once to restart the PC
+ └─ daily verified backup → copied to the user's backup folder (OneDrive by default),
+      new attachment files mirrored into <backup folder>\Uploads
 ```
 
 ## Building the installer (Windows x64 developer PC)
@@ -157,6 +165,10 @@ Uses a throwaway database `PM_DesktopTest_<random>` and drops it afterwards.
    password (with a *Copy password* button); the app forces a new password at
    first sign-in.
 3. Work. Closing the window keeps it in the tray, where backups keep running.
+   *Open in new window* (header, next to the bell) opens the current page in a
+   window of its own, to move it to another screen. It opens where the last one
+   was closed, or on a screen other than the main window's. Shift- or Ctrl-click
+   on a link does the same.
 
 Tray menu: *Install update X.Y.Z* (when one is ready), *Back up now*, *Open
 backups folder*, *Choose backup copy folder…*, *Restore from backup…*, *Reset
@@ -171,7 +183,9 @@ administrator password…*, *Open log files*, *Check for updates*, the version,
 | Database | SQL Server instance `PROJECTMGR`, database `ProjectManager` |
 | Backups (on this PC, last 14) | `%ProgramData%\Project Manager\Backups` |
 | Backup copies (last 30) | per user; default `%OneDrive%\Project Manager Backups`, else `Documents\Project Manager Backups` |
-| App logs | `%APPDATA%\Project Manager\logs\main.log` |
+| Attachments (ADR-0026) | `%ProgramData%\Project Manager\Uploads`, files named by their SHA-256 in `ab\cd\` shards; shared by every Windows user on the PC |
+| Attachment copies | `<backup copy folder>\Uploads` — new files are added after each backup, nothing is deleted there |
+| App logs | `%APPDATA%\Project Manager\logs\main.log` (rotates at 5 MB; `main.log.1`–`.3` are older) |
 | Setup/repair log | `%ProgramData%\Project Manager\logs\provision.log` |
 | SQL Server setup logs | `C:\Program Files\Microsoft SQL Server\160\Setup Bootstrap\Log` |
 
@@ -184,6 +198,15 @@ administrator password…*, *Open log files*, *Check for updates*, the version,
   another PC). Older backups are upgraded to the current schema automatically.
 - **Move to a new PC:** install there, then *Restore from backup…* with the
   latest copy.
+- **Attachments are not in the `.bak`.** Their bytes live in the Uploads
+  folder; the database holds only names, sizes and hashes.
+  - *Restore from backup…* copies the files back after the database. It
+    copies every file the Uploads folder lacks, first from `Uploads` next to
+    the chosen `.bak`, then from `<backup copy folder>\Uploads`. The final
+    message says how many.
+  - By hand (e.g. attachments were still off when you restored): copy
+    `<backup copy folder>\Uploads` into `%ProgramData%\Project Manager\Uploads`,
+    keeping the `ab\cd\` folders.
 
 ## Uninstall
 
@@ -195,7 +218,42 @@ that Windows account only; the database and backups stay (client data). To remov
 
 - *"Database setup needed"* on start → click **Repair** (re-runs provisioning
   elevated; safe to repeat). Details in `provision.log`.
+- *"Attachments need a one-time setup"* after an update, or *"File uploads are
+  not set up on this PC yet"* in a record → the PC was provisioned before F1,
+  and only an administrator can create the shared Uploads folder. Everything
+  else works meanwhile, including locations.
+  - **At the PC:** tray → *Set up attachments (administrator)…*, approve the
+    prompt with an administrator account, then restart the app.
+  - **Remotely** (as an administrator, or as SYSTEM from a deployment tool;
+    safe to repeat; it is the same script the installer and Repair run):
+
+    ```powershell
+    $app = Get-Item 'C:\Users\*\AppData\Local\Programs\Project Manager\resources' | Select-Object -First 1
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$($app.FullName)\setup\provision.ps1" `
+      -SqlInstaller "$($app.FullName)\sql-express\SQLEXPR_x64_ENU.exe"
+    ```
+
+    Exit code 0 means done. Each user gets uploads the next time they start the
+    app. machine.json keeps `schemaVersion: 1`, so an older app that another
+    Windows user still runs on the same PC keeps working.
+- **Rule for future desktop changes:** anything that needs an administrator
+  turns its feature off until IT acts. It never blocks start-up, because the
+  client's staff are standard users and updates install themselves.
+- *"Download failed … The stored file may have been changed, damaged or removed
+  on this PC"* → the file in the Uploads folder no longer matches what was
+  uploaded (edited, deleted, quarantined by antivirus, or a disk error), so the
+  app refuses to hand it out. Restore it from `<backup copy folder>\Uploads`
+  (same `ab\cd\<hash>` path); `main.log` names the attachment.
 - Admin locked out / password lost → tray → *Reset administrator password…*.
+- *"Sign in is not possible: the database is not responding"*, or a *"The
+  database has stopped"* dialog → the SQL Server service stopped (2026-10-12 a
+  client's stopped at 04:59, likely an update, and every sign-in failed for
+  hours). Restart the PC. Once IT has run provisioning again (the remote command
+  above, safe to repeat) the service restarts after a failure and the app starts
+  it by itself; PCs provisioned before that only get the dialog.
+- *"The application server did not start within 180s"* → start the app again;
+  the second start is faster. `main.log` shows how long `[next]` took to say
+  Ready.
 - Anything else → tray → *Open log files* and send `main.log`.
 
 ## Source layout
@@ -207,17 +265,20 @@ electron/
   sql-service.ts     service state + elevated Repair
   db-apply.ts        migrations / procs / seeds (port of scripts/db-apply.sh)
   backup.ts          BACKUP / VERIFYONLY / copy / retention / RESTORE
+  uploads-mirror.ts  copies new attachment files to <backup copy folder>\Uploads (tests/)
   admin-account.ts   admin bootstrap and password reset (argon2id)
   next-server.ts     Next.js standalone child process (auto-restart)
   updater.ts         background download, optional/required update prompts
   update-policy.ts   required-update rule + release-notes text (tests/)
   setup/provision.ps1  idempotent engine provisioning (asks for admin approval itself)
   setup/remove-all-users-install.ps1  removes a pre-1.0 all-users copy (keeps data)
-  tests/             update-policy.test.ts (vitest), db-integration.ts (npm run electron:test-db)
+  tests/             update-policy, machine-config, next-server-env, uploads-mirror, log (vitest); db-integration.ts
+                     (npm run electron:test-db)
 build-resources/     icon.ico/png, installerHeader.bmp + installerSidebar.bmp (wizard logo,
                      24-bit, from icon.png), installer.nsh (NSIS hook that runs provision.ps1)
 electron-builder.config.cjs
-scripts/desktop/     build.mjs, fetch-sql-express.mjs, sql-express.pin.json, test-db.mjs,
+scripts/desktop/     build.mjs (refuses a standalone with build-machine files or missing traced files),
+                     fetch-sql-express.mjs, sql-express.pin.json, test-db.mjs,
                      release.mjs (CI release steps + force command; tests/)
 .github/workflows/desktop-release.yml   called by ci.yml after a green push to develop
 ```

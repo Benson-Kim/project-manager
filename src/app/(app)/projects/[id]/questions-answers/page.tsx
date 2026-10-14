@@ -21,7 +21,7 @@ import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-list
 import { QUESTION_ANSWER_LISTS } from "@/modules/questions-answers/schemas/question-answer";
 
 /** Allowed sort columns for Q&A — prevents arbitrary strings reaching the proc. */
-const QA_SORT_COLUMNS = new Set(["Question", "Answer", "Category", "Priority", "CreatedAtUtc"]);
+const QA_SORT_COLUMNS = new Set(["Question", "Answer", "Category", "Priority", "AssignedTo"]);
 
 export const metadata: Metadata = {
   title: `${messages.questionsAnswers.title} — ${messages.app.name}`,

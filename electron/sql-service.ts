@@ -1,7 +1,8 @@
 import { execFile } from "child_process";
+import net from "net";
 import path from "path";
 import { promisify } from "util";
-import type { Logger } from "./log";
+import { describeError, type Logger } from "./log";
 
 const execFileAsync = promisify(execFile);
 
@@ -67,5 +68,36 @@ export async function runElevatedRepair(
     }
     if (typeof e.code === "number") return e.code;
     throw err;
+  }
+}
+
+/** Whether something accepts TCP connections there (cheap: no login, no PowerShell). */
+export function isListening(host: string, port: number, timeoutMs = 5_000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = net.connect({ host, port });
+    const done = (ok: boolean) => {
+      socket.destroy();
+      resolve(ok);
+    };
+    socket.setTimeout(timeoutMs, () => done(false));
+    socket.once("connect", () => done(true));
+    socket.once("error", () => done(false));
+  });
+}
+
+/**
+ * Asks Windows to start the instance's service. Standard users may do this only
+ * once provisioning granted it (provision.ps1 Set-ServiceRecovery); false otherwise.
+ */
+export async function startService(instanceName: string, log: Logger): Promise<boolean> {
+  try {
+    await execFileAsync("sc.exe", ["start", `MSSQL$${instanceName}`], {
+      windowsHide: true,
+      timeout: 30_000,
+    });
+    return true;
+  } catch (err) {
+    log.warn(`[db-watchdog] could not start MSSQL$${instanceName}: ${describeError(err)}`);
+    return false;
   }
 }
