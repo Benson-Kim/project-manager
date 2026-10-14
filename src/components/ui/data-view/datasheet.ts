@@ -50,6 +50,8 @@ export interface CellEditor<Row> {
   multiline?: boolean;
   min?: number;
   max?: number;
+  /** Whether this row's cell can be edited (e.g. not a parent's rolled-up date); every row by default. */
+  editable?: (row: Row) => boolean;
 }
 
 export interface DatasheetConfig<Row> {
