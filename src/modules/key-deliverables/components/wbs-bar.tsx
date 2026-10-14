@@ -6,7 +6,7 @@ import { formatDate } from "@/lib/format";
 import { messages } from "@/lib/messages";
 import { statusToCompletion } from "../schemas/key-deliverable";
 import { addDays, dayDiff, durationDays, type WbsNode } from "../schemas/wbs";
-import { barBox, dayAt, type Timeline } from "./gantt-scale";
+import { barBox, barHitPad, dayAt, type Timeline } from "./gantt-scale";
 
 export interface Span {
   start: Date;
@@ -65,7 +65,8 @@ interface Drag {
  * to move it, its ends to change its start or end. An item with sub-items is a
  * summary bracket over its branch: dragging it moves the whole branch. Whole
  * days only. Keyboard: ← → move a day; Shift+← → move the end; Enter opens the
- * details.
+ * details. The button is at least 40 px each way, so a short or thin bar can
+ * still be hit; the bar is drawn in the middle of it.
  */
 export function WbsBar({
   node,
@@ -83,6 +84,7 @@ export function WbsBar({
   const summary = node.childIds.length > 0;
   const tone = TONE[node.color];
   const { left, width } = barBox(timeline, node.start, node.end);
+  const pad = barHitPad(width);
   const name = node.item.name || messages.keyDeliverables.deliverableFallback(id);
   const label = messages.keyDeliverables.wbs.barName(
     node.code,
@@ -155,10 +157,10 @@ export function WbsBar({
       data-testid={`gantt-bar-${id}`}
       data-gantt-bar={id}
       aria-label={summary ? `${label}, ${messages.keyDeliverables.wbs.summaryNote}` : label}
-      className={`group absolute top-1/2 -translate-y-1/2 touch-none outline-offset-2 focus-visible:outline-2 focus-visible:outline-focus ${
-        summary ? "h-4" : "h-6"
-      } ${editable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
-      style={{ left, width }}
+      className={`group absolute top-1/2 h-10 -translate-y-1/2 touch-none outline-none ${
+        editable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
+      }`}
+      style={{ left: left - pad, width: width + 2 * pad }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -168,58 +170,56 @@ export function WbsBar({
       onBlur={on.flush}
       onDoubleClick={() => on.open(id)}
     >
-      {summary ? (
-        <>
-          <span
-            aria-hidden="true"
-            className={`absolute inset-x-0 top-0 h-2 rounded-sm ${tone.ink}`}
-          />
-          <span
-            aria-hidden="true"
-            className={`absolute top-0 left-0 h-4 w-2 [clip-path:polygon(0_0,100%_0,0_100%)] ${tone.ink}`}
-          />
-          <span
-            aria-hidden="true"
-            className={`absolute top-0 right-0 h-4 w-2 [clip-path:polygon(0_0,100%_0,100%_100%)] ${tone.ink}`}
-          />
-        </>
-      ) : (
-        <>
-          <span
-            aria-hidden="true"
-            className={`absolute inset-0 overflow-hidden rounded-sm border ${tone.bar}`}
-          >
+      <span
+        aria-hidden="true"
+        className={`pointer-events-none absolute top-1/2 -translate-y-1/2 rounded-sm outline-offset-2 group-focus-visible:outline-2 group-focus-visible:outline-focus ${summary ? "h-4" : "h-6"}`}
+        style={{ left: pad, right: pad }}
+      >
+        {summary ? (
+          <>
+            <span className={`absolute inset-x-0 top-0 h-2 rounded-sm ${tone.ink}`} />
+            <span
+              className={`absolute top-0 left-0 h-4 w-2 [clip-path:polygon(0_0,100%_0,0_100%)] ${tone.ink}`}
+            />
+            <span
+              className={`absolute top-0 right-0 h-4 w-2 [clip-path:polygon(0_0,100%_0,100%_100%)] ${tone.ink}`}
+            />
+          </>
+        ) : (
+          <span className={`absolute inset-0 overflow-hidden rounded-sm border ${tone.bar}`}>
             <span
               className={`absolute inset-y-0 left-0 ${tone.ink}`}
               style={{ width: `${statusToCompletion(node.item.status)}%` }}
             />
           </span>
-          {editable ? (
-            <>
-              <span
-                aria-hidden="true"
-                data-edge="start"
-                className="absolute inset-y-0 -left-1.5 flex w-3 cursor-ew-resize items-center justify-center"
-              >
-                <span
-                  data-edge="start"
-                  className="h-3 w-1 rounded-full bg-ink-muted opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
-                />
-              </span>
-              <span
-                aria-hidden="true"
-                data-edge="end"
-                className="absolute inset-y-0 -right-1.5 flex w-3 cursor-ew-resize items-center justify-center"
-              >
-                <span
-                  data-edge="end"
-                  className="h-3 w-1 rounded-full bg-ink-muted opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
-                />
-              </span>
-            </>
-          ) : null}
+        )}
+      </span>
+      {!summary && editable ? (
+        <>
+          <span
+            aria-hidden="true"
+            data-edge="start"
+            className="absolute inset-y-0 flex w-3 cursor-ew-resize items-center justify-center"
+            style={{ left: pad - 6 }}
+          >
+            <span
+              data-edge="start"
+              className="h-3 w-1 rounded-full bg-ink-muted opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+            />
+          </span>
+          <span
+            aria-hidden="true"
+            data-edge="end"
+            className="absolute inset-y-0 flex w-3 cursor-ew-resize items-center justify-center"
+            style={{ right: pad - 6 }}
+          >
+            <span
+              data-edge="end"
+              className="h-3 w-1 rounded-full bg-ink-muted opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+            />
+          </span>
         </>
-      )}
+      ) : null}
     </button>
   );
 }

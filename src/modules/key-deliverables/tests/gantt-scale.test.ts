@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  BAR_HIT_PX,
   barBox,
+  barHitPad,
   dayAt,
   defaultScale,
   headerRows,
@@ -68,6 +70,13 @@ describe("geometry", () => {
   it("keeps a one-day bar visible at the month scale", () => {
     const months = makeTimeline("month", { min: d("2024-04-16"), max: d("2024-05-31") }, today);
     expect(barBox(months, d("2024-04-16"), d("2024-04-16")).width).toBe(4);
+  });
+
+  it("pads a short bar out to a box a finger can hit, and leaves a long one as drawn", () => {
+    expect(barHitPad(4)).toBe(18);
+    expect(4 + 2 * barHitPad(4)).toBe(BAR_HIT_PX);
+    expect(barHitPad(BAR_HIT_PX)).toBe(0);
+    expect(barHitPad(128)).toBe(0);
   });
 
   it("finds the day under the pointer, for snapping to whole days", () => {
