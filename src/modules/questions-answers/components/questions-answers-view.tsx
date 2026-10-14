@@ -29,6 +29,15 @@ const columns: DataViewColumn<Row>[] = [
     placeholder: P.question,
     maxLength: 4000,
   }),
+  textColumn({
+    key: "Answer",
+    header: messages.questionsAnswers.answer,
+    priority: 1,
+    field: "answer",
+    value: (r) => r.Answer,
+    placeholder: P.answer,
+    maxLength: 4000,
+  }),
   listColumn({
     key: "Category",
     header: messages.questionsAnswers.category,
@@ -67,7 +76,7 @@ const canEditRow = rowAllows("questions-answers:update");
 
 /**
  * Q&A list (module #11): DataView grid + list; opening a row syncs ?id= (Sheet).
- * Card: question text truncated to 2 lines, category badge, priority badge.
+ * Card: question text truncated to 2 lines, answer to 3, category badge, priority badge.
  * List view is a datasheet (ADR-0023): editable cells and a new-entry row.
  */
 export function QuestionsAnswersView({
@@ -113,6 +122,7 @@ export function QuestionsAnswersView({
         <div className="flex flex-col gap-1.5">
           {/* Question truncated to 2 lines per spec */}
           <p className="line-clamp-2 text-sm font-semibold text-ink">{row.Question}</p>
+          {row.Answer ? <p className="line-clamp-3 text-sm text-ink-muted">{row.Answer}</p> : null}
           <div className="flex flex-wrap gap-1.5">
             <Badge value={row.Category} />
             <Badge value={row.Priority} />

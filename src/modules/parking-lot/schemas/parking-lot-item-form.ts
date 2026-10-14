@@ -1,13 +1,13 @@
 import { z } from "zod";
 import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
+import { listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
 import type { ParkingLotItemRow } from "./parking-lot-item";
 
 /**
  * ParkingLot form contract — ONE schema shared by the client Sheet form
  * (blur + submit validation over FormData strings) and the server actions.
- * FormData values are strings — "" → null for optional fields;
- * checkbox "on"/absent → boolean.
+ * FormData values are strings — "" → null for optional fields.
  */
 
 export const parkingLotItemFormSchema = z.object({
@@ -17,7 +17,8 @@ export const parkingLotItemFormSchema = z.object({
     (v) => (v === "" || v == null ? null : Number(v)),
     z.number().int().positive().nullable(),
   ),
-  isStrikethrough: z.preprocess((v) => v === "on" || v === true || v === "true", z.boolean()),
+  /** Managed list (ADR-0022): the proc checks the value against the live options. */
+  status: listChoice,
   followUpActions: z.preprocess(
     (v) => (v === "" || v == null ? null : String(v).trim()),
     z.string().max(4000).nullable(),
@@ -45,7 +46,7 @@ export function parkingLotItemFormValues(row: ParkingLotItemRow): FormValues {
     projectId: String(row.ProjectId),
     parkingLotItem: formText(row.ParkingLotItem),
     stakeholderId: formText(row.StakeholderId),
-    isStrikethrough: row.IsStrikethrough ? "on" : "",
+    status: formText(row.Status),
     followUpActions: formText(row.FollowUpActions),
     owner: formText(row.Owner),
   };

@@ -2,21 +2,19 @@ import { execProc } from "@/lib/db";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
 import {
   createKeyDeliverableInput,
-  ganttRowSchema,
-  isOverdue,
   keyDeliverableListRowSchema,
   keyDeliverableRowSchema,
-  parseAssigneesJson,
-  statusToCompletion,
   updateKeyDeliverableInput,
+  wbsRowSchema,
+  wbsWindowSchema,
   type CreateKeyDeliverableInput,
   type CreateKeyDeliverableParsed,
-  type GanttBar,
-  type GanttRow,
   type KeyDeliverableFilters,
   type KeyDeliverableListRow,
   type KeyDeliverableRow,
   type UpdateKeyDeliverableInput,
+  type UpdateKeyDeliverableParsed,
+  type WbsData,
 } from "../schemas/key-deliverable";
 
 /**
@@ -24,11 +22,12 @@ import {
  * zod-parsed at the boundary (STANDARDS §2.5), list params forwarded 1:1.
  */
 
-function toProcParams(input: CreateKeyDeliverableParsed) {
+function fieldParams(input: CreateKeyDeliverableParsed | UpdateKeyDeliverableParsed) {
   return {
     ProjectId: input.projectId,
     KeyRequirement: input.keyRequirement,
     RequestedDate: input.requestedDate ?? null,
+    StartDate: input.startDate ?? null,
     Deadline: input.deadline ?? null,
     AssigneeIds:
       input.assigneeIds && input.assigneeIds.length > 0 ? JSON.stringify(input.assigneeIds) : null,
@@ -43,7 +42,10 @@ export async function createKeyDeliverable(
 ): Promise<KeyDeliverableRow> {
   const parsed = createKeyDeliverableInput.parse(input);
   const rows = await execProc<KeyDeliverableRow>("usp_KeyDeliverable_Create", {
-    ...toProcParams(parsed),
+    ...fieldParams(parsed),
+    Color: parsed.color ?? null,
+    ParentKeyDeliverableId: parsed.parentId ?? null,
+    AfterKeyDeliverableId: parsed.afterId ?? null,
     ActorUserId: actorUserId,
   });
   return keyDeliverableRowSchema.parse(rows[0]);
@@ -84,7 +86,9 @@ export async function updateKeyDeliverable(
   const parsed = updateKeyDeliverableInput.parse(input);
   const rows = await execProc<KeyDeliverableRow>("usp_KeyDeliverable_Update", {
     KeyDeliverableId: parsed.keyDeliverableId,
-    ...toProcParams(parsed),
+    ...fieldParams(parsed),
+    Color: parsed.color ?? null,
+    ColorSet: parsed.color === undefined ? 0 : 1,
     RowVer: parsed.rowVer,
     ActorUserId: actorUserId,
   });
@@ -103,57 +107,89 @@ export async function deleteKeyDeliverable(
   });
 }
 
-/**
- * Gantt data (usp_KeyDeliverable_GanttData): map rows to drawable bars.
- * Bar start priority:
- *   1. RequestedDate (the date the deliverable was formally requested)
- *   2. CreatedAtUtc clamped to <= deadline (legacy / imported rows)
- *   3. ProjectStartDate (imported/seed rows whose CreatedAtUtc > deadline because
- *      the row was seeded after the project started — preserves project-duration bars)
- *   4. deadline itself (degenerate: all dates in the past with no project start)
- * Rows without a deadline are not drawable and are skipped.
- */
-export async function getGanttBars(
-  projectId: number,
-  actorUserId: number,
-  now: Date = new Date(),
-): Promise<GanttBar[]> {
-  const rows = await execProc<GanttRow>("usp_KeyDeliverable_GanttData", {
+/** The project's work breakdown (usp_KeyDeliverable_GanttData, ADR-0027). */
+export async function getWbs(projectId: number, actorUserId: number): Promise<WbsData> {
+  const rows = await execProc<Record<string, unknown>>("usp_KeyDeliverable_GanttData", {
     ProjectId: projectId,
     ActorUserId: actorUserId,
+    WithProjectRow: 1,
   });
-  return rows
-    .map((r) => ganttRowSchema.parse(r))
-    .filter((r): r is GanttRow & { Deadline: Date } => r.Deadline !== null)
-    .map((r) => {
-      let start: Date;
-      if (r.RequestedDate != null && r.RequestedDate.getTime() <= r.Deadline.getTime()) {
-        start = r.RequestedDate;
-      } else if (r.CreatedAtUtc.getTime() <= r.Deadline.getTime()) {
-        start = r.CreatedAtUtc;
-      } else if (
-        r.ProjectStartDate != null &&
-        r.ProjectStartDate.getTime() <= r.Deadline.getTime()
-      ) {
-        // Imported/seed rows: CreatedAtUtc is the seed timestamp (later than the
-        // deadline), so fall back to the project start date to preserve the
-        // project-duration bar.
-        start = r.ProjectStartDate;
-      } else {
-        start = r.Deadline;
-      }
-      const rawNames = r.AssigneeNames?.trim() ?? "";
-      return {
-        id: r.KeyDeliverableId,
-        requirement: r.KeyRequirement ?? "",
-        start,
-        end: r.Deadline,
-        status: r.Status,
-        priority: r.Priority,
-        assigneeNames: rawNames || null,
-        assignees: parseAssigneesJson(r.AssigneesJson),
-        overdue: isOverdue(r.Deadline, r.Status, now),
-        completionPct: statusToCompletion(r.Status),
-      };
-    });
+  const project = rows[0] ? wbsWindowSchema.parse(rows[0]) : null;
+  return {
+    items: rows.filter((r) => r.KeyDeliverableId != null).map((r) => wbsRowSchema.parse(r)),
+    projectStart: project?.ProjectStartDate ?? null,
+    projectEnd: project?.ProjectEndDate ?? null,
+    stamp: project?.Stamp ?? 0,
+  };
+}
+
+/**
+ * Work breakdown edits return the project's whole breakdown afterwards, read
+ * for the project the proc reports (never one the caller names), so the
+ * editor shows every renumbered sibling and rolled-up parent at once.
+ */
+async function wbsAfter(
+  proc: string,
+  params: Record<string, unknown>,
+  actorUserId: number,
+): Promise<WbsData> {
+  const rows = await execProc<{ ProjectId: number }>(proc, { ...params, ActorUserId: actorUserId });
+  const projectId = rows[0]?.ProjectId;
+  if (typeof projectId !== "number") throw new Error(`${proc} returned no ProjectId`);
+  return getWbs(projectId, actorUserId);
+}
+
+export function moveKeyDeliverable(
+  input: { id: number; parentId: number | null; position: number; rowVer: number },
+  actorUserId: number,
+): Promise<WbsData> {
+  return wbsAfter(
+    "usp_KeyDeliverable_Move",
+    {
+      KeyDeliverableId: input.id,
+      ParentKeyDeliverableId: input.parentId,
+      Position: input.position,
+      RowVer: input.rowVer,
+    },
+    actorUserId,
+  );
+}
+
+export function rescheduleKeyDeliverable(
+  input: { id: number; start: Date; end: Date; rowVer: number },
+  actorUserId: number,
+): Promise<WbsData> {
+  return wbsAfter(
+    "usp_KeyDeliverable_Reschedule",
+    {
+      KeyDeliverableId: input.id,
+      StartDate: input.start,
+      Deadline: input.end,
+      RowVer: input.rowVer,
+    },
+    actorUserId,
+  );
+}
+
+export function renameKeyDeliverable(
+  input: { id: number; name: string; rowVer: number },
+  actorUserId: number,
+): Promise<WbsData> {
+  return wbsAfter(
+    "usp_KeyDeliverable_Rename",
+    { KeyDeliverableId: input.id, KeyRequirement: input.name, RowVer: input.rowVer },
+    actorUserId,
+  );
+}
+
+/** Delete an item and its whole branch. */
+export function deleteWbsItem(
+  input: { id: number; rowVer: number },
+  actorUserId: number,
+): Promise<WbsData> {
+  return wbsAfter(
+    "usp_KeyDeliverable_Delete",
+    { KeyDeliverableId: input.id, RowVer: input.rowVer },
+    actorUserId,
+  );
 }

@@ -20,8 +20,9 @@ without leaking SQL details to clients.
   | 50003 | `FORBIDDEN_ROW` | row-level access denied (403) |
   | 50004 | `VALIDATION` | business-rule violation (422) |
   | 50005 | `DUPLICATE` | unique violation surfaced deliberately (409) |
+  | 50006 | `QUOTA_EXCEEDED` | a project's attachment quota would be exceeded (422; ADR-0026) |
 
-  Numbers 50006+ may be registered here by later ADR/STANDARDS updates only.
+  Numbers 50007+ may be registered here by later ADR/STANDARDS updates only.
 - `src/lib/db.ts` maps mssql `RequestError` with number 50001–50999 to
   `AppError { code, message }`; any other DB error becomes `AppError { code:
   "INTERNAL" }` with the original logged server-side only.

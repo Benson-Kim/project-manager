@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { auth } from "@/lib/auth/provider";
+import { uploadsEnabled } from "@/lib/env";
 import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getListPreference } from "@/lib/repositories/view-preference";
@@ -11,6 +12,7 @@ import {
   listDailyActivities,
   type DailyActivityListFilters,
 } from "@/modules/daily-activities/repository/daily-activities";
+import { listAttachments } from "@/modules/file-storage/repository/attachments";
 import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
 import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
 import { DAILY_ACTIVITY_LISTS } from "@/modules/daily-activities/schemas/daily-activity";
@@ -80,7 +82,10 @@ export default async function GlobalDailyActivitiesPage({
       : null,
   ]);
   // New activities start project-less; an open activity follows its own project (ADR-0021).
-  const allows = await getProjectPermissions(selected?.ProjectId ?? null, session.userId);
+  const [allows, attachments] = await Promise.all([
+    getProjectPermissions(selected?.ProjectId ?? null, session.userId),
+    selected ? listAttachments("daily-activity", selected.DailyActivityId, session.userId) : null,
+  ]);
 
   const totalCount = rows[0]?.TotalCount ?? 0;
   const canCreate = allows("daily-activities:create");
@@ -117,6 +122,8 @@ export default async function GlobalDailyActivitiesPage({
         {/* Sheet: create (project-unscoped, projectId=null) or edit/view */}
         <DailyActivitySheet
           activity={selected}
+          attachments={attachments}
+          uploadsEnabled={uploadsEnabled()}
           isNew={isNew && canCreate}
           projectId={selected?.ProjectId ?? null}
           canEdit={canEdit}

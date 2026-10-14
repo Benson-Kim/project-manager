@@ -123,30 +123,24 @@ test("new item with followUpActions and owner — saved and visible on reopen", 
   await expect(editForm.getByLabel(messages.parkingLot.owner)).toHaveValue("Alice");
 });
 
-test("strikethrough toggle — resolved item shows strike styling and resolved label", async ({
-  page,
-}) => {
-  // Open seeded item 3 and toggle it to resolved
-  await page.goto("/projects/2/parking-lot?id=3");
+test("status list — a Resolved item shows its status and strike styling", async ({ page }) => {
+  // Open seeded item 5 (Active) and resolve it (migration 031: Status is a managed list)
+  await page.goto("/projects/2/parking-lot?id=5");
   const form = page.getByTestId("parking-lot-form");
   await expect(form).toBeVisible();
-  const toggle = form.getByRole("switch", { name: messages.parkingLot.strikethrough });
-  const wasChecked = await toggle.isChecked();
-  // Ensure it starts unchecked for a clean test; if already checked, uncheck first
-  if (wasChecked) await toggle.click();
-  await toggle.click();
-  await expect(toggle).toBeChecked();
+  const status = form.getByLabel(messages.parkingLot.status);
+  await status.selectOption(messages.parkingLot.resolved);
+  await expect(status).toHaveValue(messages.parkingLot.resolved);
   await page.getByTestId("parking-lot-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.saved }).first(),
   ).toBeVisible();
 
-  // After save, the card shows the resolved label (grid view: the datasheet holds it as a cell
-  // value, and the toolbar filter has a hidden "Resolved" option).
-  await page.goto("/projects/2/parking-lot?view=grid");
-  await expect(
-    page.getByTestId("data-view-grid").getByText(messages.parkingLot.resolved).first(),
-  ).toBeVisible();
+  // After save, the card shows the Resolved badge and the struck-through item.
+  await page.goto("/projects/2/parking-lot?view=grid&status=Resolved");
+  const grid = page.getByTestId("data-view-grid");
+  await expect(grid.getByText(messages.parkingLot.resolved).first()).toBeVisible();
+  await expect(grid.locator("p.line-through").first()).toBeVisible();
 });
 
 test("axe scan on the parking lot list has no serious or critical violations", async ({ page }) => {

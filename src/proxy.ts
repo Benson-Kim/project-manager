@@ -83,10 +83,17 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
+/**
+ * /api/files is left out (ADR-0026 §3): the proxy buffers every request body up
+ * to 10 MB, and attachment uploads stream up to 25 MB. Those handlers check the
+ * session, same-origin and access themselves and set their own headers.
+ * src/tests/proxy-matcher.test.ts compiles this with Next's own matcher code.
+ */
 export const config = {
   matcher: [
     {
-      source: "/((?!_next/static|_next/image|favicon.ico|icons/|sw.js|robots.txt).*)",
+      source:
+        "/((?!_next/static|_next/image|favicon.ico|icons/|sw.js|robots.txt|api/files(?:/|$)).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

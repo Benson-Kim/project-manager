@@ -6,7 +6,13 @@ import { Sheet } from "@/components/ui/dialog";
 import { messages } from "@/lib/messages";
 import { useAlertPoller } from "@/modules/todo-items/components/use-alert-poller";
 import { useAnnouncer } from "../ui/announcer";
-import { AvatarMenu, NotificationsBell, ThemeToggle, type ShellAlert } from "./header-actions";
+import {
+  AvatarMenu,
+  NewWindowButton,
+  NotificationsBell,
+  ThemeToggle,
+  type ShellAlert,
+} from "./header-actions";
 import { pageTitleFor } from "./nav-items";
 import { OfflineBanner } from "./offline-banner";
 import { RouteProgress } from "./route-progress";
@@ -111,6 +117,7 @@ export function AppShell({
               </p>
             )}
             <div className="ml-auto flex items-center gap-2">
+              <NewWindowButton />
               <NotificationsBell alerts={alerts} alarms={dueAlarms} />
               <ThemeToggle />
               <AvatarMenu username={username} />

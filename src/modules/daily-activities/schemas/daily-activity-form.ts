@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
+import { datesInOrder } from "@/lib/date-range";
 import { toDateInput } from "@/lib/format";
 import { listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
@@ -44,7 +45,7 @@ const intInput = (min: number, max: number, message: string) =>
     )
     .transform((v) => (v ? Number(v) : null));
 
-export const dailyActivityFormSchema = z.object({
+const dailyActivityFields = z.object({
   // FormData emits "" or "0" when no project is selected (global create).
   // Coerce both to null so the repo receives NULL rather than 0.
   projectId: z
@@ -72,12 +73,25 @@ export const dailyActivityFormSchema = z.object({
   progress: intInput(0, 100, messages.dailyActivities.invalidNumber),
 });
 
+const activityDates = datesInOrder({
+  start: "requestDate",
+  end: "completeDate",
+  message: messages.errors.dateOrder(
+    messages.dailyActivities.completeDate,
+    messages.dailyActivities.requestDate,
+  ),
+});
+
+export const dailyActivityFormSchema = dailyActivityFields.superRefine(activityDates);
+
 export type DailyActivityFormValues = z.output<typeof dailyActivityFormSchema>;
 
-export const updateDailyActivityFormSchema = dailyActivityFormSchema.extend({
-  dailyActivityId: z.coerce.number().int().positive(),
-  rowVer: z.coerce.number().int().nonnegative(),
-});
+export const updateDailyActivityFormSchema = dailyActivityFields
+  .extend({
+    dailyActivityId: z.coerce.number().int().positive(),
+    rowVer: z.coerce.number().int().nonnegative(),
+  })
+  .superRefine(activityDates);
 
 export type UpdateDailyActivityFormValues = z.output<typeof updateDailyActivityFormSchema>;
 

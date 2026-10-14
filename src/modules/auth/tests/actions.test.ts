@@ -32,6 +32,7 @@ import { AuthError } from "next-auth";
 import { auth as authProvider } from "@/lib/auth/provider";
 import { signIn, signOut } from "@/lib/auth/config";
 import { verifyPassword } from "@/lib/auth/password";
+import { AppError, DatabaseUnavailableError } from "@/lib/errors";
 import { messages } from "@/lib/messages";
 import { deactivateAlertSubscriptionsByUser } from "@/modules/todo-items/repository/alert-subscriptions";
 import { changePasswordAction, loginAction, logoutAction } from "../actions";
@@ -106,6 +107,30 @@ describe("loginAction", () => {
 
   it("AuthError from signIn: ONE generic failure message (no enumeration)", async () => {
     mockSignIn.mockRejectedValue(new AuthError("CredentialsSignin"));
+    const result = await loginAction(null, loginForm());
+    expect(result).toEqual({
+      ok: false,
+      error: { code: "UNAUTHENTICATED", message: messages.auth.loginFailed },
+    });
+  });
+
+  it("a database that can't be reached is named, not called a wrong password", async () => {
+    mockSignIn.mockRejectedValue(
+      new AuthError("CallbackRouteError", { cause: { err: new DatabaseUnavailableError() } }),
+    );
+    const result = await loginAction(null, loginForm());
+    expect(result).toEqual({
+      ok: false,
+      error: { code: "INTERNAL", message: messages.auth.databaseUnavailable },
+    });
+  });
+
+  it("any other failure inside authorize keeps the generic message", async () => {
+    mockSignIn.mockRejectedValue(
+      new AuthError("CallbackRouteError", {
+        cause: { err: new AppError("INTERNAL", "Database operation failed") },
+      }),
+    );
     const result = await loginAction(null, loginForm());
     expect(result).toEqual({
       ok: false,

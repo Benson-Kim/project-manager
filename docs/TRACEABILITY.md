@@ -50,8 +50,8 @@ restated as an acceptance criterion in its module issue.
 | 40 | Navigation form to form | foundation (app shell/nav) + every module | #2 | feature/foundation |
 | 41 | Check every field on every form | every module (DoD: field parity vs source) + QA gate | #1 (DoD), all | all |
 | 42 | Spell check / grammar | P1: spellcheck in the rich-text editor and on Input/Textarea prose fields (lang from `<html>`) | #15, #2 | feature/rich-text |
-| 43 | How do I back up my data? | file-storage-and-backup | #22 | feature/file-storage-and-backup |
-| 44 | Field to capture where files are stored | file-storage-and-backup (`app.FileAttachment.StorageLocation`) | #22 | feature/file-storage-and-backup |
+| 43 | How do I back up my data? | F1 (ADR-0026): attachment bytes outside SQL in `UPLOADS_DIR`; the desktop mirrors them next to its database copies (`<copy folder>\Uploads`), the server's `scripts/backup.sh` tars them. Scheduled sweep, file restore and GitHub backups: F2 | #22 | feature/file-storage |
+| 44 | Field to capture where files are stored | F1 (ADR-0026): an attachment is an uploaded file or a location (`app.FileAttachment.StorageLocation`: a URL, network path or place), on daily activities first | #22 | feature/file-storage |
 | 45 | Virus-check of executable | resolved by web-app architecture (no executable distributed) — documented | #1 | — |
 | 46 | Enhanced data availability | foundation (web app + backups + staging/prod) | #2, #22 | feature/foundation |
 | 47 | UX user experience | foundation design system + every module (DoD) | #2, all | all |
@@ -74,7 +74,7 @@ restated as an acceptance criterion in its module issue.
 | 64 | Financial tracking spreadsheet equivalent | financials (budget breakdown view/export) | #17 | feature/financials |
 | 65 | Export & import data (backups) | file-storage-and-backup (+ admin) | #22, #23 | feature/file-storage-and-backup |
 | 66 | Calendar with reminders for to-dos | todo-alerts (calendar view) | #20 | feature/todo-alerts |
-| 67 | Gantt from key-deliverable dates (start date required) | key-deliverables (delivered — CSS-grid Gantt at `/projects/[id]/deliverables/gantt`; start = CreatedAtUtc, end = Deadline) | #9 | feature/key-deliverables |
+| 67 | Gantt from key-deliverable dates (start date required) | key-deliverables (rebuilt 2026-10-13, ADR-0027 — key deliverables are a work breakdown up to 10 levels (codes 1, 1.1, 1.1.1 …, indented) that draws the Gantt at `/projects/[id]/deliverables/gantt`; the WBS is also drawn as the checklist's box diagram (`?view=wbs`, the default: project on top, top-level boxes across, sub-items stacked and indented), where items are added, renamed, deleted and moved by drag and drop, and their dates typed in the box; a WBS \| Gantt switch shares one editor, so a change in either shows in the other at once; add, rename, indent, move and delete in the outline show at once on the chart; start date required, parent dates roll up; bars drag, stretch and draw with the cursor; days / weeks / months scale with the dates in the header and beside each bar; migration 032, seed 031) | #9 | feature/key-deliverables, feature/wbs-gantt |
 | 68 | "Add ons" (header) | — header | — | — |
 | 69 | Project screen add-ons (priority, est. completion, phase, risk level, status) | projects | #5 | feature/projects |
 | 70 | Stakeholder screen add-ons (email, comm pref, engagement, role description) | stakeholders | #6 | feature/stakeholders |

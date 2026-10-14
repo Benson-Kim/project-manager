@@ -147,3 +147,19 @@ export function SidebarIcon({
     </svg>
   );
 }
+
+/** A window with an arrow leaving it: open this page in a window of its own. */
+export function NewWindowIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
+      <path
+        d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4M14 4h6v6M20 4l-9 9"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}

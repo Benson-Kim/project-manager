@@ -207,3 +207,29 @@ describe("isApproachingDeadline", () => {
     expect(isApproachingDeadline({ DueDate: null, Status: "In Progress" })).toBe(false);
   });
 });
+
+describe("to-do dates in order", () => {
+  const update = { ...minimal, todoItemId: "1", rowVer: "1" };
+
+  it.each([
+    ["create", todoItemFormSchema, minimal],
+    ["update", updateTodoItemFormSchema, update],
+  ] as const)("%s rejects a due date before the start date", (_, schema, values) => {
+    const result = schema.safeParse({ ...values, startDate: "2026-04-02", dueDate: "2026-04-01" });
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        path: ["dueDate"],
+        message: "Due date can't be before start date.",
+      }),
+    ]);
+  });
+
+  it("reports only the invalid date when one does not parse", () => {
+    const result = todoItemFormSchema.safeParse({
+      ...minimal,
+      startDate: "not a date",
+      dueDate: "2026-04-01",
+    });
+    expect(result.error?.issues.map((i) => i.path)).toEqual([["startDate"]]);
+  });
+});

@@ -39,6 +39,15 @@ const columns: DataViewColumn<Row>[] = [
     maxLength: 255,
   }),
   textColumn({
+    key: "QSuccess",
+    header: messages.objectives.qSuccess,
+    priority: 2,
+    field: "qSuccess",
+    value: (r) => r.QSuccess,
+    placeholder: P.qSuccess,
+    maxLength: 2000,
+  }),
+  textColumn({
     key: "QAlignmentStrategy",
     header: messages.objectives.qAlignmentStrategy,
     priority: 2,
@@ -104,6 +113,11 @@ export function ObjectivesView({
           {row.QMeasurable ? (
             <p className="text-xs text-ink-muted">
               {messages.objectives.qMeasurable}: {row.QMeasurable}
+            </p>
+          ) : null}
+          {row.QSuccess ? (
+            <p className="text-xs text-ink-muted">
+              {messages.objectives.qSuccess}: {row.QSuccess}
             </p>
           ) : null}
         </div>

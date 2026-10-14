@@ -3,14 +3,17 @@ import type { LookupLists } from "@/lib/lookup-lists";
 import {
   cellChoices,
   emptyDraft,
+  failureMessage,
   formCellSaver,
   formText,
   hasDraft,
   invalidFields,
   isCellChanged,
   isEditableTarget,
+  singleLine,
   type CellEditor,
 } from "../data-view/datasheet";
+import { textColumn } from "../data-view/columns";
 
 interface Row {
   Id: number;
@@ -131,5 +134,49 @@ describe("datasheet helpers (ADR-0023)", () => {
     const failure = { ok: false, error: { code: "CONFLICT", message: "Reload" } } as const;
     const save = formCellSaver<Row, Row>(() => ({}), vi.fn().mockResolvedValue(failure));
     expect(await save({ Id: 1, Status: null, RowVer: 1 }, "status", "x")).toBe(failure);
+  });
+});
+
+describe("failureMessage", () => {
+  it("prefers the first field's own message", () => {
+    expect(
+      failureMessage({
+        message: "Check the highlighted fields.",
+        fieldErrors: { dueDate: ["Due date can't be before start date."] },
+      }),
+    ).toBe("Due date can't be before start date.");
+  });
+
+  it("falls back to the action's message", () => {
+    expect(failureMessage({ message: "Someone else changed this record." })).toBe(
+      "Someone else changed this record.",
+    );
+    expect(
+      failureMessage({ message: "Check the highlighted fields.", fieldErrors: { a: [] } }),
+    ).toBe("Check the highlighted fields.");
+  });
+});
+
+describe("text cells (client feedback 2026-10-12: wrap)", () => {
+  it("singleLine turns pasted line breaks into spaces", () => {
+    expect(singleLine("Call vendor\nabout invoice\r\nnow")).toBe("Call vendor about invoice now");
+    expect(singleLine("one line")).toBe("one line");
+  });
+
+  const column = (maxLength?: number) =>
+    textColumn<{ Text: string | null }>({
+      key: "Text",
+      header: "Text",
+      priority: 1,
+      field: "text",
+      value: (r) => r.Text,
+      placeholder: "[Text…]",
+      maxLength,
+    });
+
+  it("memo text (over 255 characters, or unbounded) is multiline", () => {
+    expect(column(4000).edit?.multiline).toBe(true);
+    expect(column(undefined).edit?.multiline).toBe(true);
+    expect(column(255).edit?.multiline).toBe(false);
   });
 });

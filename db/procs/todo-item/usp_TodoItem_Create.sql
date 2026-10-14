@@ -1,6 +1,7 @@
 -- usp_TodoItem_Create — insert one app.TodoItem row; row-level auth (project membership);
 -- audits in-transaction; returns the new row.
 -- THROW 50003 FORBIDDEN_ROW : no Contributor access to @ProjectId, or @DailyActivityId unreadable (ADR-0021).
+-- THROW 50004 VALIDATION : DueDate before StartDate.
 -- Dropdown values (ADR-0022): Status and Priority must be live options of their lists (VALIDATION 50004),
 --   and are stored as listed.
 -- Entity app.TodoItem (source: tblTodoList). Module: database-schema-and-procs (#3).
@@ -35,6 +36,9 @@ BEGIN
          @ListKey = N'todo-item.status', @Label = @Status OUTPUT;
     EXEC dbo.usp_LookupList_AssertLabel
          @ListKey = N'todo-item.priority', @Label = @Priority OUTPUT;
+
+    IF @DueDate < @StartDate
+        THROW 50004, N'VALIDATION:DueDate cannot be before StartDate', 1;
 
     BEGIN TRAN;
 
