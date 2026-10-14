@@ -64,6 +64,7 @@ const columns: DataViewColumn<Row>[] = [
     maxLength: 4000,
     render: (r) => <span className="line-clamp-2">{rowLabel(r)}</span>,
   }),
+  // A parent's dates come from its sub-items (ADR-0027): shown, never edited here.
   dateColumn({
     key: "StartDate",
     header: messages.keyDeliverables.startDate,
@@ -71,6 +72,7 @@ const columns: DataViewColumn<Row>[] = [
     field: "startDate",
     value: (r) => r.StartDate ?? null,
     placeholder: P.startDate,
+    editable: (r) => !r.HasChildren,
   }),
   dateColumn({
     key: "Deadline",
@@ -79,6 +81,7 @@ const columns: DataViewColumn<Row>[] = [
     field: "deadline",
     value: (r) => r.Deadline,
     placeholder: P.deadline,
+    editable: (r) => !r.HasChildren,
   }),
   listColumn({
     key: "Status",

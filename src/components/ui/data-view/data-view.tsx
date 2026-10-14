@@ -524,7 +524,7 @@ export function DataView<Row>({
                         {shownColumns.map((col, colIndex) => {
                           const handle = !bulkActions && colIndex === 0 ? rowHandle : null;
                           const style = columnStyle(col);
-                          return editable && col.edit ? (
+                          return editable && col.edit && (col.edit.editable?.(row) ?? true) ? (
                             <td
                               key={col.key}
                               style={style}
