@@ -35,6 +35,7 @@ import {
   moveUpTarget,
   newItemDates,
   outdentTarget,
+  requestedDateClash,
   visibleIds,
   wbsBounds,
   type Placement,
@@ -393,6 +394,22 @@ export function WbsGantt({
           messages.keyDeliverables.deadline,
           messages.keyDeliverables.startDate,
         ),
+      });
+      return;
+    }
+    const clash = requestedDateClash(items, wbs, id, start, end);
+    if (clash) {
+      toast({
+        variant: "error",
+        title:
+          clash === "item"
+            ? messages.errors.dateOrder(
+                messages.keyDeliverables.deadline,
+                messages.keyDeliverables.requestedDate,
+              )
+            : clash === "subItem"
+              ? W.subItemBeforeRequested
+              : W.parentBeforeRequested,
       });
       return;
     }

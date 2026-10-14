@@ -15,6 +15,7 @@ import {
   moveUpTarget,
   newItemDates,
   outdentTarget,
+  requestedDateClash,
   todayUtc,
   visibleIds,
   wbsBounds,
@@ -292,6 +293,48 @@ describe("applyReschedule (what usp_KeyDeliverable_Reschedule does)", () => {
       end: d("2024-05-07"),
     });
     expect(out.find((r) => r.id === 22)).toEqual(rows.find((r) => r.id === 22));
+  });
+});
+
+describe("requestedDateClash (what usp_KeyDeliverable_Reschedule refuses)", () => {
+  const clash = (rows: WbsItem[], id: number, start: string, end: string) =>
+    requestedDateClash(rows, buildWbs(rows), id, d(start), d(end));
+  const withRequested = (requested: Record<number, string>) =>
+    building().map((r) => (requested[r.id] ? { ...r, requestedDate: d(requested[r.id]!) } : r));
+
+  it("lets an item end on its requested date, not before it", () => {
+    const rows = withRequested({ 22: "2024-05-20" });
+    expect(clash(rows, 22, "2024-05-01", "2024-05-20")).toBeNull();
+    expect(clash(rows, 22, "2024-05-01", "2024-05-19")).toBe("item");
+  });
+
+  it("refuses moving a branch when a sub-item would end before its requested date", () => {
+    const rows = withRequested({ 211: "2024-04-23" });
+    expect(clash(rows, 21, "2024-04-20", "2024-04-28")).toBe("subItem");
+    expect(clash(rows, 21, "2024-04-22", "2024-04-30")).toBeNull();
+  });
+
+  it("refuses a change that would end a parent before its requested date", () => {
+    const rows = withRequested({ 20: "2024-05-25" });
+    expect(clash(rows, 22, "2024-05-01", "2024-05-24")).toBe("parent");
+    expect(clash(rows, 22, "2024-05-01", "2024-05-25")).toBeNull();
+  });
+
+  it("checks every parent up the branch, not only the nearest", () => {
+    const rows = withRequested({ 20: "2024-04-29" });
+    const deep = rows.map((r) => (r.id === 22 ? { ...r, end: d("2024-04-28") } : r));
+    expect(clash(deep, 212, "2024-04-25", "2024-04-29")).toBeNull();
+    expect(clash(deep, 212, "2024-04-25", "2024-04-28")).toBe("parent");
+  });
+
+  it("lets a parent that already ends before its requested date be", () => {
+    const rows = withRequested({ 20: "2024-06-15" });
+    expect(clash(rows, 22, "2024-05-01", "2024-05-24")).toBeNull();
+  });
+
+  it("ignores items without a requested date or an end", () => {
+    expect(clash(building(), 22, "2024-05-01", "2024-05-02")).toBeNull();
+    expect(clash(building(), 999, "2024-05-01", "2024-05-02")).toBeNull();
   });
 });
 

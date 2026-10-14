@@ -339,6 +339,43 @@ export function applyReschedule(
   );
 }
 
+export type RequestedDateClash = "item" | "subItem" | "parent";
+
+function endsBefore(end: Date | null, requested: Date | null): boolean {
+  return end !== null && requested !== null && end.getTime() < requested.getTime();
+}
+
+/**
+ * What usp_KeyDeliverable_Reschedule refuses so that no end comes before its
+ * requested date: the item's new end, a sub-item its move shifts, or a parent
+ * whose rolled-up end moves; a parent already ending before it is let be.
+ */
+export function requestedDateClash(
+  items: readonly WbsItem[],
+  wbs: Wbs,
+  id: number,
+  start: Date,
+  end: Date,
+): RequestedDateClash | null {
+  const node = wbs.nodes.get(id);
+  if (!node) return null;
+  if (endsBefore(end, node.item.requestedDate)) return "item";
+  const next = buildWbs(applyReschedule(items, wbs, id, start, end));
+  const shiftedLate = (sub: number) => {
+    const row = next.nodes.get(sub)?.item;
+    return row !== undefined && endsBefore(row.end, row.requestedDate);
+  };
+  if (descendantIds(wbs, id).some(shiftedLate)) return "subItem";
+  for (let up = node.parentId; up !== null; up = wbs.nodes.get(up)?.parentId ?? null) {
+    const before = wbs.nodes.get(up);
+    const after = next.nodes.get(up);
+    if (!before || !after) break;
+    const requested = before.item.requestedDate;
+    if (!endsBefore(before.end, requested) && endsBefore(after.end, requested)) return "parent";
+  }
+  return null;
+}
+
 /**
  * Dates for a new item, so it always has a bar to drag:
  * - the first sub-item of an item takes that item's dates, so adding it does
