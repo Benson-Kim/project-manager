@@ -18,9 +18,10 @@ import { utcDay, type WbsItem } from "./wbs";
  * - AssigneesJson: JSON array [{id, name}] from junction table.
  *
  * Work breakdown (migration 032, ADR-0027): ParentKeyDeliverableId, SortOrder,
- * StartDate (the bar's first day; Deadline is its last), Color, and HasChildren
- * (a parent's dates are rolled up from its sub-items). Optional so a row from a
- * database before 032 still parses.
+ * StartDate (the bar's first day; Deadline is its last), Color, HasChildren
+ * (a parent's dates are rolled up from its sub-items) and, from GetById only,
+ * SubItemCount (the items below it that a delete also removes). Optional so a row
+ * from a database before 032 still parses.
  */
 export const rowVerSchema = z.coerce.number().int().nonnegative();
 
@@ -73,6 +74,7 @@ export const keyDeliverableRowSchema = z
     Status: z.string().nullable(),
     Color: wbsColorSchema.optional(),
     HasChildren: z.boolean().optional(),
+    SubItemCount: z.number().int().nonnegative().optional(),
     CreatedAtUtc: z.date(),
     UpdatedAtUtc: z.date().nullable(),
     RowVer: rowVerSchema,
