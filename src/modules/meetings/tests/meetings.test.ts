@@ -240,6 +240,54 @@ describe("meetings repository: workspace", () => {
   });
 });
 
+describe("meetings repository: rich text leaves sanitised (ADR-0025)", () => {
+  const legacy = {
+    Objective: '<div><font face="Arial">Plan</font><script>alert(1)</script></div>',
+    Description: '<p onclick="x()">Notes</p>',
+    Conclusion: "<p></p>",
+  };
+
+  it("converts legacy markup and strips scripts on every meeting read", async () => {
+    execProc.mockResolvedValue([meetingListDbRow(legacy)]);
+    const [listed] = await listMeetings(24, listParamsSchema.parse({}), ACTOR);
+    expect(listed.Objective).toBe('<p><span style="font-family:Arial">Plan</span></p>');
+    expect(listed.Description).toBe("<p>Notes</p>");
+    expect(listed.Conclusion).toBe("<p></p>");
+    expect(listed.AttendeeCount).toBe(2);
+
+    execProc.mockResolvedValue([meetingDbRow(legacy)]);
+    expect((await getMeetingById(2, ACTOR)).Objective).not.toContain("script");
+    expect((await createMeetingDraft(24, ACTOR)).Description).toBe("<p>Notes</p>");
+  });
+
+  it("sanitises the workspace's meeting and discussion points", async () => {
+    execProc.mockResolvedValue([
+      workspaceDbRow({
+        ...legacy,
+        DiscussionPointsJson: JSON.stringify([
+          {
+            MeetingDiscussionPointId: 1,
+            AgendaItemId: 1,
+            DiscussionPoint: '<p>Agreed<img src=x onerror="alert(1)"></p>',
+            SortOrder: 1,
+            RowVer: 2002,
+          },
+        ]),
+      }),
+    ]);
+    const ws = await getMeetingWorkspace(2, ACTOR);
+    expect(ws.meeting.Description).toBe("<p>Notes</p>");
+    expect(ws.discussionPoints[0].DiscussionPoint).toBe("<p>Agreed</p>");
+  });
+
+  it("keeps empty fields empty", async () => {
+    execProc.mockResolvedValue([meetingDbRow({ Objective: null, Description: "" })]);
+    const row = await getMeetingById(2, ACTOR);
+    expect(row.Objective).toBeNull();
+    expect(row.Description).toBe("");
+  });
+});
+
 describe("meetings repository: minutes and participants", () => {
   it("re-reads the meeting the proc reports, not the one the caller named", async () => {
     answerWith(scopeDbRow({ MeetingId: 9 }));

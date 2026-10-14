@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import "@/lib/rich-text/sanitize";
 import {
   assumptionConstraintFormValues,
   updateAssumptionConstraintFormSchema,
@@ -15,6 +16,10 @@ import {
   keywordFormValues,
   updateKeywordFormSchema,
 } from "@/modules/keywords/schemas/keyword-form";
+import {
+  meetingFormValues,
+  updateMeetingFormSchema,
+} from "@/modules/meetings/schemas/meeting-form";
 import {
   objectiveFormValues,
   updateObjectiveFormSchema,
@@ -367,6 +372,46 @@ describe("datasheet form values round-trip through each update form schema", () 
       projectStatus: "In progress",
       projectPhase: "Planning",
       riskLevel: "Low",
+    });
+  });
+  it("meetings keep every rich field whole, and the times, when another cell is edited", () => {
+    const objective = "<p>Review the <strong>budget</strong></p><ul><li><p>Q1</p></li></ul>";
+    const description = "<table><tbody><tr><td><p>Cell</p></td></tr></tbody></table>";
+    const conclusion =
+      '<p style="text-align:center"><a href="https://example.com" rel="noopener noreferrer">Agreed</a></p>';
+    const parsed = updateMeetingFormSchema.parse({
+      ...meetingFormValues({
+        MeetingId: 4,
+        ProjectId: 2,
+        Subject: "Steering",
+        Objective: objective,
+        DateReceived: day("2026-10-01"),
+        Description: description,
+        Location: "Board room",
+        StartDate: day("2026-10-09"),
+        StartTime: "09:00",
+        EndTime: "10:30",
+        Conclusion: conclusion,
+        NextMeeting: day("2026-10-16"),
+        FollowupAction: "Minutes out",
+        ...audit,
+      }),
+      location: "Room 2",
+    });
+    expect(parsed).toMatchObject({
+      meetingId: 4,
+      rowVer: 42,
+      subject: "Steering",
+      objective,
+      description,
+      conclusion,
+      location: "Room 2",
+      startDate: day("2026-10-09"),
+      startTime: "09:00",
+      endTime: "10:30",
+      dateReceived: day("2026-10-01"),
+      nextMeeting: day("2026-10-16"),
+      followupAction: "Minutes out",
     });
   });
 });
