@@ -4,6 +4,7 @@ import { AuthError } from "next-auth";
 import { auth as authProvider } from "@/lib/auth/provider";
 import { signIn, signOut } from "@/lib/auth/config";
 import { verifyPassword } from "@/lib/auth/password";
+import { isDatabaseUnavailable } from "@/lib/errors";
 import { messages } from "@/lib/messages";
 import type { ActionResult } from "@/lib/action";
 import { deactivateAlertSubscriptionsByUser } from "@/modules/todo-items/repository/alert-subscriptions";
@@ -38,6 +39,15 @@ export async function loginAction(
     return { ok: false, error: { code: "INTERNAL", message: messages.errors.INTERNAL } };
   } catch (err) {
     if (err instanceof AuthError) {
+      // A database that can't be reached fails every sign-in alike, so naming it reveals
+      // nothing about the account; calling it a wrong password sent the client hunting
+      // for a forgotten one while the database was down (2026-10-12).
+      if (isDatabaseUnavailable((err.cause as { err?: unknown } | undefined)?.err)) {
+        return {
+          ok: false,
+          error: { code: "INTERNAL", message: messages.auth.databaseUnavailable },
+        };
+      }
       return {
         ok: false,
         error: { code: "UNAUTHENTICATED", message: messages.auth.loginFailed },

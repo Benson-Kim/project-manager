@@ -37,6 +37,9 @@ BEGIN
     EXEC dbo.usp_LookupList_AssertLabel
          @ListKey = N'supplier.rating', @Label = @Rating OUTPUT;
 
+    IF @ContractEndDate < @ContractStartDate
+        THROW 50004, N'VALIDATION:ContractEndDate cannot be before ContractStartDate', 1;
+
     BEGIN TRAN;
 
     INSERT INTO app.Supplier ([ProjectId], [SupplierName], [ContactPerson], [EmailAddress], [ContractStartDate], [ContractEndDate], [Rating], [Address], [ProvinceOrState], [Country], [PostalCode], [City], CreatedBy)

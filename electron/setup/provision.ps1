@@ -14,7 +14,8 @@
     2. TCP on 127.0.0.1:<Port> only (loopback) + firewall block rule
     3. Mixed-mode auth, service Automatic + running
     4. Dedicated login 'pm_app' (password kept in machine.json); 'sa' disabled
-    5. Backups folder writable by the SQL Server service
+    5. Backups folder writable by the SQL Server service; Uploads folder
+       (attachments) writable by every local user
     6. %ProgramData%\Project Manager\machine.json (atomic write)
 
   Secrets are never written to the log.
@@ -39,6 +40,7 @@ $ServiceName = "MSSQL`$$InstanceName"
 $ServiceSid = "NT SERVICE\MSSQL`$$InstanceName"
 $LogDir = Join-Path $DataRoot 'logs'
 $BackupDir = Join-Path $DataRoot 'Backups'
+$UploadsDir = Join-Path $DataRoot 'Uploads'
 $ConfigPath = Join-Path $DataRoot 'machine.json'
 $LogFile = Join-Path $LogDir 'provision.log'
 $SqlRegRoot = 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server'
@@ -239,8 +241,27 @@ function Start-SqlService([bool] $Restart) {
   Write-Log 'SQL Server is accepting connections.'
 }
 
+# A stopped engine takes the whole app down: on a client PC the service stopped at 04:59 and
+# stayed stopped while the PC ran on (main.log 2026-10-12). Windows now restarts it after a
+# failure, and the app's watchdog may start it: interactive users get SERVICE_START (RP) on
+# this one service and nothing more (not stop, not configure). Warnings only: the app works
+# without either, it just can't recover on its own.
+function Set-ServiceRecovery {
+  & sc.exe failure $ServiceName reset= 86400 actions= restart/60000/restart/60000/restart/300000 | Out-Null
+  if ($LASTEXITCODE -ne 0) { Write-Log "WARNING: could not set restart-on-failure for $ServiceName (exit $LASTEXITCODE)." }
+  & sc.exe failureflag $ServiceName 1 | Out-Null
+  $sddl = & sc.exe sdshow $ServiceName | Where-Object { $_ -match 'D:' } | Select-Object -First 1
+  if (-not $sddl) { Write-Log "WARNING: could not read the permissions of $ServiceName."; return }
+  $sddl = "$sddl".Trim()
+  if ($sddl -match '\(A;;RP;;;IU\)') { return }
+  $updated = $sddl -replace '^(.*?D:[A-Z]*)', '$1(A;;RP;;;IU)'
+  & sc.exe sdset $ServiceName $updated | Out-Null
+  if ($LASTEXITCODE -eq 0) { Write-Log "Signed-in users may now start $ServiceName." }
+  else { Write-Log "WARNING: could not let signed-in users start $ServiceName (exit $LASTEXITCODE)." }
+}
+
 function Set-AccessControl {
-  foreach ($d in @($DataRoot, $LogDir, $BackupDir)) {
+  foreach ($d in @($DataRoot, $LogDir, $BackupDir, $UploadsDir)) {
     if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
   }
   # Root: SYSTEM + Administrators full, Users read (machine.json holds the DB password).
@@ -249,6 +270,10 @@ function Set-AccessControl {
   # Backups: the app (any local user) copies/prunes; the SQL service writes .bak files.
   & icacls.exe $BackupDir /grant '*S-1-5-32-545:(OI)(CI)M' | Out-Null
   if ($LASTEXITCODE -ne 0) { throw [ProvisionError]::new(50, "icacls failed on $BackupDir") }
+  # Uploads (attachments, ADR-0026): the app server runs as whichever local user is
+  # signed in, and the records are shared by all of them, so every user writes here.
+  & icacls.exe $UploadsDir /grant '*S-1-5-32-545:(OI)(CI)M' | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw [ProvisionError]::new(50, "icacls failed on $UploadsDir") }
 }
 
 function Grant-ServiceBackupAccess {
@@ -302,6 +327,7 @@ try {
   $changed = Set-NetworkConfiguration $instanceId
   Set-FirewallRule
   Start-SqlService $changed
+  Set-ServiceRecovery
   Grant-ServiceBackupAccess
 
   # Logins: connect as the elevated Windows administrator (sysadmin via BUILTIN\Administrators).
@@ -354,6 +380,8 @@ SELECT 1;
     }
     authSecret       = $authSecret
     backupDir        = $BackupDir
+    # Added by F1 (ADR-0026); schemaVersion stays 1 so 1.0.x apps on this PC still read the file.
+    uploadsDir       = $UploadsDir
     provisionedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
   }
   $tmp = "$ConfigPath.tmp"

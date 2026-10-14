@@ -129,31 +129,15 @@ function GroupTrigger({
 // ---------------------------------------------------------------------------
 
 type OpenState = Record<string, boolean>;
-type OpenAction = { type: "toggle"; key: string } | { type: "reset"; activeKey: string | null };
+type OpenAction = { type: "toggle"; key: string } | { type: "close" };
 
 function openReducer(state: OpenState, action: OpenAction): OpenState {
   switch (action.type) {
-    case "toggle": {
-      const next: OpenState = {};
-      for (const k of Object.keys(state)) next[k] = false;
-      next[action.key] = !state[action.key];
-      return next;
-    }
-    case "reset": {
-      const next: OpenState = {};
-      for (const k of Object.keys(state)) next[k] = false;
-      if (action.activeKey) next[action.activeKey] = true;
-      return next;
-    }
+    case "toggle":
+      return { [action.key]: !state[action.key] };
+    case "close":
+      return {};
   }
-}
-
-function initialOpenState(pathname: string, projectId: number): OpenState {
-  const state: OpenState = {};
-  for (const group of projectSectionGroups) {
-    state[group.key] = isGroupActive(pathname, projectId, group);
-  }
-  return state;
 }
 
 // ---------------------------------------------------------------------------
@@ -163,8 +147,8 @@ function initialOpenState(pathname: string, projectId: number): OpenState {
 /**
  * Project section navigation (ADR-0019): four group disclosure buttons
  * (Overview / Planning / People / Activity), each toggling a dropdown panel
- * of section links. The active group's panel opens on mount; route changes
- * re-evaluate which group is active and reset the rest.
+ * of section links. Every panel starts closed (the active group's pill stays
+ * highlighted) and a route change closes any open panel.
  *
  * ARIA disclosure pattern: buttons are aria-expanded, panels are role="group".
  *
@@ -181,9 +165,7 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
   // One ref per group so we can read the trigger's viewport position.
   const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
-  const [openState, dispatch] = useReducer(openReducer, null, () =>
-    initialOpenState(pathname, projectId),
-  );
+  const [openState, dispatch] = useReducer(openReducer, {});
 
   // Track the pixel position of each open trigger so the portal panel can
   // position itself correctly. Updated whenever openState changes.
@@ -224,12 +206,9 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
     };
   }, [openState]);
 
-  // Reset panel open/close state on every route change: re-evaluate which
-  // group is active and collapse any stale open group (review #4162765957).
+  // Close any open panel on every route change (review #4162765957).
   useEffect(() => {
-    const activeKey =
-      projectSectionGroups.find((g) => isGroupActive(pathname, projectId, g))?.key ?? null;
-    dispatch({ type: "reset", activeKey });
+    dispatch({ type: "close" });
   }, [pathname, projectId]);
 
   // Close all panels on outside click. The panels are portalled to <body>, so
@@ -239,7 +218,7 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
     const onPointerDown = (e: PointerEvent) => {
       const target = e.target as Element | null;
       if (navRef.current?.contains(target) || target?.closest?.("[data-section-panel]")) return;
-      dispatch({ type: "reset", activeKey: null });
+      dispatch({ type: "close" });
     };
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
@@ -270,7 +249,7 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
               },
             }}
             onToggle={() => dispatch({ type: "toggle", key: group.key })}
-            onClose={() => dispatch({ type: "reset", activeKey: null })}
+            onClose={() => dispatch({ type: "close" })}
           />
         ))}
       </ul>
@@ -306,7 +285,7 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
                   href={sectionHref(projectId, section)}
                   aria-current={current ? "page" : undefined}
                   className={linkClass(current)}
-                  onClick={() => dispatch({ type: "reset", activeKey: null })}
+                  onClick={() => dispatch({ type: "close" })}
                 >
                   {section.label}
                 </Link>

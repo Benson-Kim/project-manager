@@ -24,6 +24,8 @@ interface ColumnSpec<Row, Value> {
   placeholder: string;
   /** Read-only rendering (cards use renderCard); defaults per kind. */
   render?: (row: Row) => React.ReactNode;
+  /** Rows whose cell can be edited; every row the actor may edit by default. */
+  editable?: (row: Row) => boolean;
 }
 
 export function textColumn<Row>(
@@ -40,6 +42,8 @@ export function textColumn<Row>(
       value: (row) => formText(spec.value(row)),
       placeholder: spec.placeholder,
       maxLength: spec.maxLength,
+      multiline: spec.maxLength === undefined || spec.maxLength > 255,
+      editable: spec.editable,
     },
   };
 }
@@ -59,6 +63,7 @@ export function numberColumn<Row>(
       placeholder: spec.placeholder,
       min: spec.min,
       max: spec.max,
+      editable: spec.editable,
     },
   };
 }
@@ -74,6 +79,7 @@ export function dateColumn<Row>(spec: ColumnSpec<Row, Date | null>): DataViewCol
       field: spec.field,
       value: (row) => toDateInput(spec.value(row)),
       placeholder: spec.placeholder,
+      editable: spec.editable,
     },
   };
 }
@@ -100,6 +106,7 @@ export function booleanColumn<Row>(
       ],
       clearable: false,
       placeholder: spec.placeholder,
+      editable: spec.editable,
     },
   };
 }
@@ -113,6 +120,10 @@ export function listColumn<Row>(
   spec: ColumnSpec<Row, string | number | null> & {
     list: LookupListKey;
     currentLabel?: (row: Row) => string | null;
+    /** false: every record has a value, so the select offers no empty choice. */
+    clearable?: boolean;
+    /** The new-entry row's starting value (a label of the list). */
+    initial?: string;
   },
 ): DataViewColumn<Row> {
   const label = spec.currentLabel ?? ((row: Row) => formText(spec.value(row)) || null);
@@ -133,6 +144,9 @@ export function listColumn<Row>(
       value: (row) => formText(spec.value(row)),
       currentLabel: spec.currentLabel,
       placeholder: spec.placeholder,
+      clearable: spec.clearable,
+      initial: spec.initial,
+      editable: spec.editable,
     },
   };
 }

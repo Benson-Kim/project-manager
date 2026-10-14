@@ -9,13 +9,14 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Sheet } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
-import { Input, Switch, Textarea } from "@/components/ui/form/inputs";
+import { Input, Select, Textarea } from "@/components/ui/form/inputs";
 import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { useToast } from "@/components/ui/toast";
+import { ListOptions } from "@/components/ui/lookup-lists";
 import { messages } from "@/lib/messages";
-import type { ParkingLotItemRow } from "../schemas/parking-lot-item";
+import { PARKING_LOT_STATUS, type ParkingLotItemRow } from "../schemas/parking-lot-item";
 import {
   parkingLotItemFormSchema,
   updateParkingLotItemFormSchema,
@@ -29,7 +30,7 @@ import {
 /**
  * Parking lot detail/edit sheet (ADR-0010 default pattern): URL-synced via ?id=
  * (numeric id or "new"); closing clears the param. Project scope travels as a
- * hidden field. The resolved toggle maps to IsStrikethrough.
+ * hidden field. Status is a managed list (migration 031); a new item starts Active.
  */
 export function ParkingLotItemSheet({
   item,
@@ -246,11 +247,11 @@ export function ParkingLotItemSheet({
               <Input name="owner" defaultValue={item?.Owner ?? ""} />
             </Field>
 
-            <Switch
-              name="isStrikethrough"
-              label={messages.parkingLot.strikethrough}
-              defaultChecked={item?.IsStrikethrough ?? false}
-            />
+            <Field label={messages.parkingLot.status} name="status" errors={form.errors.status}>
+              <Select name="status" defaultValue={item?.Status ?? PARKING_LOT_STATUS.active}>
+                <ListOptions list="parking-lot-item.status" current={item?.Status} />
+              </Select>
+            </Field>
           </fieldset>
 
           <div className="flex flex-wrap items-center gap-2 px-4 py-2">

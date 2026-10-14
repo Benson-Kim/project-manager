@@ -20,7 +20,8 @@ so that rows stand out.
   - `app.LookupOption`: `Label NVARCHAR(50)`, `SortOrder`, `IsLocked`, `Color`
     (020), soft delete and audit columns. A filtered unique index covers
     `(ListKey, Label)` for live options.
-- **18 lists**, seeded from one `@Seed` table in 018. The registry
+- **18 lists**, seeded from one `@Seed` table in 018 (later migrations add one
+  each: 021 `project-assignee.title`, 031 `parking-lot-item.status`). The registry
   `LOOKUP_LISTS` (`src/lib/lookup-lists.ts`) must match the seeds, the rename
   cascade and the id-bound list. `src/tests/lookup-lists.test.ts` checks this.
 - **How records store values:**
@@ -83,3 +84,18 @@ so that rows stand out.
   - the Assert call in the entity's Create/Update procs.
 - Overdue to-dos are a date rule, not a list value. Their red row is a
   module-level `rowTone` (ADR-0023) and wins over list colours.
+
+## Amendment 2026-10-12: parking lot status (migration 031)
+
+Client feedback: the parking lot's yes/no "Resolved" column should be a list
+like the other dropdowns, with values the client can add and colour.
+
+- `app.ParkingLotItem.Status NVARCHAR(50)`, bound to `parking-lot-item.status`.
+  "Active" and "Resolved" are locked: a new item starts Active, and Resolved
+  strikes the item through. The column header is now "Status".
+- `IsStrikethrough` stays. The procs keep it equal to `Status = 'Resolved'` and
+  still accept `@IsStrikethrough`, so an app version from before 031 that
+  still runs on the same PC (per-user installs, one database) keeps working.
+- Seed 030 gives the imported Access rows a status on a new database (seeds run
+  after migrations). The procs never store a NULL status, so it only ever
+  matches never-set rows, even though the shell `db-apply` re-runs seeds.

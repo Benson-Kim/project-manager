@@ -42,6 +42,8 @@ IF (SELECT COUNT(*) FROM app.[LookupOption] WHERE ListKey = N'daily-activity.sta
 IF (SELECT COUNT(*) FROM auth.[Role]) <> 2 SET @Errors += N'auth.Role<>2 (got ' + CAST((SELECT COUNT(*) FROM auth.[Role]) AS NVARCHAR(12)) + N'); ';
 IF (SELECT COUNT(*) FROM auth.[User] WHERE Username = N'admin' AND IsDeleted = 0) <> 1 SET @Errors += N'auth.User admin<>1 (got ' + CAST((SELECT COUNT(*) FROM auth.[User] WHERE Username = N'admin' AND IsDeleted = 0) AS NVARCHAR(12)) + N'); ';
 IF (SELECT MustChangePassword FROM auth.[User] WHERE Username = N'admin' AND IsDeleted = 0) <> 1 SET @Errors += N'admin MustChangePassword<>1; ';
+IF EXISTS (SELECT 1 FROM app.[ParkingLotItem] WHERE [Status] IS NULL) SET @Errors += N'ParkingLotItem without Status (seed 030); ';
+IF (SELECT COUNT(*) FROM app.[ParkingLotItem] WHERE [Status] = N'Resolved') <> (SELECT COUNT(*) FROM app.[ParkingLotItem] WHERE IsStrikethrough = 1) SET @Errors += N'ParkingLotItem Resolved<>IsStrikethrough; ';
 IF LEN(@Errors) > 0
 BEGIN
     DECLARE @Msg NVARCHAR(2048) = N'Seed count mismatch: ' + LEFT(@Errors, 2000);

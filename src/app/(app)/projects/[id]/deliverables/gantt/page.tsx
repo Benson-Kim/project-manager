@@ -1,20 +1,27 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
+import { flattenSearchParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
-import { orNotFound } from "@/lib/row-access";
-import { GanttClient } from "@/modules/key-deliverables/components/gantt-client";
-import { PrintButton } from "@/modules/key-deliverables/components/print-button";
-import { getGanttBars } from "@/modules/key-deliverables/repository/key-deliverables";
-import {
-  KEY_DELIVERABLE_LISTS,
-  type AssigneeEntry,
-} from "@/modules/key-deliverables/schemas/key-deliverable";
+import { guardProjectScope } from "@/lib/project-page-helpers";
+import { orNotFound, orNull } from "@/lib/row-access";
+import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
 import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
+import { isGanttScale } from "@/modules/key-deliverables/components/gantt-scale";
+import { isWbsView } from "@/modules/key-deliverables/components/wbs-diagram-layout";
+import { PrintButton } from "@/modules/key-deliverables/components/print-button";
+import { WbsGantt } from "@/modules/key-deliverables/components/wbs-gantt";
+import {
+  getKeyDeliverableById,
+  getWbs,
+} from "@/modules/key-deliverables/repository/key-deliverables";
+import { listStakeholderOptions } from "@/modules/key-deliverables/repository/stakeholder-options";
+import { KEY_DELIVERABLE_LISTS } from "@/modules/key-deliverables/schemas/key-deliverable";
+import { todayUtc } from "@/modules/key-deliverables/schemas/wbs";
+import { getProjectCached } from "../../get-project";
 import { parseProjectId } from "../../project-id";
 
 export const metadata: Metadata = {
@@ -22,41 +29,37 @@ export const metadata: Metadata = {
 };
 
 /**
- * Deliverables Gantt (module #9, ADR-0010 full-route exception under the
- * ADR-0018 project workspace): Server Component CSS-grid bar chart from
- * usp_KeyDeliverable_GanttData. The print stylesheet (`print:` variants) is
- * the report/downloadable view.
- *
- * Filtering (status / priority / assignee) is applied client-side inside
- * GanttClient; the full bar list is fetched once server-side.
+ * WBS and Gantt (module #9, checklist row 67, ADR-0027): the project's key
+ * deliverables as a work breakdown that draws the Gantt, edited in place.
+ * ?view=wbs|gantt picks the WBS diagram (the default) or the Gantt;
+ * ?scale=day|week|month picks the timeline; ?d=<id> opens an item's details.
+ * The print stylesheet is the report view.
  */
 export default async function DeliverablesGanttPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const session = await auth.requireSession();
   const { id } = await params;
   const projectId = parseProjectId(id);
   if (projectId === null) notFound();
 
-  const [bars, lookup] = await Promise.all([
-    orNotFound(getGanttBars(projectId, session.userId)),
+  const raw = flattenSearchParams(await searchParams);
+  const openId = raw.d && /^\d+$/.test(raw.d) ? Number(raw.d) : null;
+
+  const [project, data, allows, assigneeOptions, openRaw, lookup] = await Promise.all([
+    orNotFound(getProjectCached(projectId, session.userId)),
+    orNotFound(getWbs(projectId, session.userId)),
+    getProjectPermissions(projectId, session.userId),
+    listStakeholderOptions(projectId, session.userId),
+    openId ? orNull(getKeyDeliverableById(openId, session.userId)) : null,
     loadLookupLists(KEY_DELIVERABLE_LISTS, session),
   ]);
-
-  // Derive unique assignees by id across all bars — safe for names containing commas.
-  const seenIds = new Set<number>();
-  const allAssignees: AssigneeEntry[] = [];
-  for (const bar of bars) {
-    for (const a of bar.assignees) {
-      if (!seenIds.has(a.id)) {
-        seenIds.add(a.id);
-        allAssignees.push(a);
-      }
-    }
-  }
-  allAssignees.sort((a, b) => a.name.localeCompare(b.name, "en-CA"));
+  // A deep link to another project's deliverable is treated as not found.
+  const openDeliverable = guardProjectScope(openRaw, projectId) ?? undefined;
 
   return (
     <>
@@ -75,12 +78,24 @@ export default async function DeliverablesGanttPage({
           </div>
         }
       />
-      {/* Suspense required: GanttClient calls useSearchParams */}
-      <Suspense>
+      <div className="mt-3 pb-8">
         <LookupListsScope {...lookup}>
-          <GanttClient allBars={bars} projectId={projectId} allAssignees={allAssignees} />
+          <WbsGantt
+            projectId={projectId}
+            projectName={project.ProjectName}
+            data={data}
+            today={todayUtc()}
+            initialView={isWbsView(raw.view) ? raw.view : "wbs"}
+            initialScale={isGanttScale(raw.scale) ? raw.scale : null}
+            canCreate={allows("key-deliverables:create")}
+            canEdit={allows("key-deliverables:update")}
+            canDelete={allows("key-deliverables:delete")}
+            openDeliverable={openDeliverable}
+            sheetOpen={Boolean(openDeliverable)}
+            assigneeOptions={assigneeOptions}
+          />
         </LookupListsScope>
-      </Suspense>
+      </div>
     </>
   );
 }

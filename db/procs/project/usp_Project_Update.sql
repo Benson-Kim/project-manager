@@ -74,6 +74,9 @@ BEGIN
          @ListKey = N'project.risk-level', @Label = @RiskLevel OUTPUT,
          @CurrentLabel = @CurrentRiskLevel;
 
+    IF @EndDate < @StartDate OR @EstimatedCompletionDate < @StartDate
+        THROW 50004, N'VALIDATION:EndDate and EstimatedCompletionDate cannot be before StartDate', 1;
+
     BEGIN TRAN;
 
     DECLARE @Before NVARCHAR(MAX) =

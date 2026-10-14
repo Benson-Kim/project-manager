@@ -88,9 +88,27 @@ foundation module.
   `richTextSchema` inside `action()` and by `RichTextView`). HTML is injected
   only by `RichTextView` and the theme script (guardrail
   `src/tests/rich-text-boundaries.test.ts`).
-- File uploads (module 16): extension + MIME allow-list, size caps, content
-  hashing, no execution from the uploads volume, download via streaming route
-  with `Content-Disposition: attachment`.
+- File uploads (module 16, [ADR-0026](adr/ADR-0026-file-storage.md)):
+  - Types are decided by magic bytes (Office files by their ZIP directory,
+    macros refused), and the extension must agree; 25 MB cap enforced while
+    streaming; per-project quota in the AddFile proc (50006).
+  - Bytes live outside the web root and SQL, named by SHA-256 in `UPLOADS_DIR`;
+    stored paths are CHECK-constrained to the hash shape, so no row can point
+    elsewhere. Names are display-only and cleaned of separators and control
+    characters.
+  - Every `/api/files` route is outside the proxy (so uploads can stream) and
+    is built with `fileRoute`. That applies the proxy's gate: same-origin for
+    anything but GET/HEAD, and a session (refused while a password change is
+    pending). A guardrail test fails any route file there that is not.
+  - `POST /api/files`: the owner's access proc and a free-space floor BEFORE
+    the body is read. Viewers and outsiders get 404.
+  - `GET /api/files/<id>`:
+    - the owner's read check, with 404 for anything not visible;
+    - the stored file's size and SHA-256 are checked, and changed bytes never
+      arrive complete;
+    - headers: `Content-Disposition: attachment` (RFC 8187 name), `nosniff`,
+      `no-store`, `default-src 'none'; sandbox`.
+  - AV-scan hook stub (`src/lib/files/scan.ts`); orphan sweep Admin-only.
 
 ## Security headers
 

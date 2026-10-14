@@ -144,7 +144,7 @@ return `ProjectName` and take `@WithoutProject`.
   never sequential auto-commit calls for related writes.
 - Business failures use the THROW registry ([ADR-0012](adr/ADR-0012-proc-error-contract.md)):
   50001 `NOT_FOUND`, 50002 `CONFLICT`, 50003 `FORBIDDEN_ROW`, 50004 `VALIDATION`,
-  50005 `DUPLICATE`. Example:
+  50005 `DUPLICATE`, 50006 `QUOTA_EXCEEDED` ([ADR-0026](adr/ADR-0026-file-storage.md)). Example:
   `IF @@ROWCOUNT = 0 THROW 50001, N'NOT_FOUND:Supplier not found', 1;`
 
 ### 2.5 Typed result mapping
@@ -209,7 +209,12 @@ export const createSupplier = action({
 - **Uploads** (module #22): sniff magic bytes (never trust extension/MIME), allowlist
   types, 25 MB cap, store outside web root under content-hash names, serve via
   authenticated handler with `Content-Disposition: attachment` + `nosniff`, AV-scan
-  hook stub, quota per project.
+  hook stub, quota per project. Implemented once ([ADR-0026](adr/ADR-0026-file-storage.md)):
+  a module attaches files by adding an owner (link table + `usp_<Owner>_*File` procs +
+  a registry entry) and rendering `<Attachments>` inside its sheet's form; it never
+  handles bytes itself. `/api/files` is the only route outside the proxy. Every
+  method a route file there exports is `fileRoute(handler)`, which checks
+  same-origin and the session (guardrail test); the handler checks access.
 - **Secrets**: GitLab CI/CD variables only; `.env.example` documents shape. No secret
   ever in code, logs or client bundles.
 - **Logging**: structured server logs without PII/credentials/tokens; log error codes

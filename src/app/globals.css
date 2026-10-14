@@ -387,18 +387,13 @@ button:focus-visible {
     size: A4 landscape;
   }
 
-  /* The Gantt scroll container: remove clipping, let it flow to full width. */
+  /* The WBS and Gantt scroll container: no clipping, no height cap, so every
+     row prints. The Months scale fits the most time on a page. */
   [data-testid="gantt-chart"] {
     overflow: visible !important;
+    max-height: none !important;
     border: none !important;
     border-radius: 0 !important;
-    width: 100% !important;
-  }
-
-  /* The inner min-width div: let the browser scale it to fit the page. */
-  [data-testid="gantt-chart"] > div {
-    min-width: unset !important;
-    width: 100% !important;
   }
 
   /* Sticky positioning does not apply to print; remove it so columns lay out
@@ -407,7 +402,7 @@ button:focus-visible {
     position: static !important;
   }
 
-  /* Avoid page breaks inside a bar row. */
+  /* Avoid page breaks inside a row. */
   [data-testid="gantt-chart"] li {
     break-inside: avoid;
     page-break-inside: avoid;

@@ -1,12 +1,20 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
+import type { Placement } from "./window-placement";
 
 /** Per-Windows-user preferences (machine-wide settings live in machine.json). */
 export interface UserSettings {
   /** Where each backup is copied (should be off this disk: OneDrive, share, USB). */
   backupCopyDir: string;
   trayHintShown: boolean;
+  /**
+   * The start-up offer to set up attachments (ADR-0026 §9) was shown once to
+   * this Windows user; afterwards it lives in the tray only.
+   */
+  attachmentsSetupOffered: boolean;
+  /** Where the last detached window was closed, so the next one opens there. */
+  detachedWindow?: Placement;
 }
 
 function defaultCopyDir(): string {
@@ -22,7 +30,11 @@ export class SettingsStore {
 
   constructor(dir: string) {
     this.file = path.join(dir, "settings.json");
-    this.data = { backupCopyDir: defaultCopyDir(), trayHintShown: false };
+    this.data = {
+      backupCopyDir: defaultCopyDir(),
+      trayHintShown: false,
+      attachmentsSetupOffered: false,
+    };
     try {
       const parsed = JSON.parse(fs.readFileSync(this.file, "utf-8")) as Partial<UserSettings>;
       this.data = { ...this.data, ...parsed };

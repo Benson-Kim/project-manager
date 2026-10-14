@@ -1,4 +1,14 @@
-import { app, BrowserWindow, clipboard, dialog, session, shell } from "electron";
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  screen,
+  session,
+  shell,
+  type BrowserWindowConstructorOptions,
+  type WebContents,
+} from "electron";
 import { createRequire } from "module";
 import path from "path";
 import { ensureAdminAccount, resetAdminPassword, type Argon2Like } from "./admin-account";
@@ -11,20 +21,24 @@ import {
 } from "./backup";
 import { waitForSql } from "./db";
 import { applyDatabaseSchema } from "./db-apply";
+import { createDbWatchdog } from "./db-watchdog";
 import { createLogger, describeError } from "./log";
 import { readMachineConfig, SetupRequiredError, type MachineConfig } from "./machine-config";
 import { NextServer } from "./next-server";
 import { paths } from "./paths";
-import { getServiceState, runElevatedRepair } from "./sql-service";
+import { getServiceState, isListening, runElevatedRepair, startService } from "./sql-service";
 import {
   destroyTray,
   initTray,
   setTrayUpdateActions,
   setTrayUpdateReady,
   showTrayHint,
+  showTrayNotice,
 } from "./tray";
 import { setupAutoUpdater } from "./updater";
+import { restoreSources, restoreUploads } from "./uploads-mirror";
 import { SettingsStore } from "./user-settings";
+import { detachedPlacement, type Placement } from "./window-placement";
 
 // A fixed, explicit profile folder (otherwise Electron derives it from the
 // package name). Must be set before anything touches app paths.
@@ -37,6 +51,7 @@ const settings = new SettingsStore(app.getPath("userData"));
 
 const BACKUP_INTERVAL_MS = 24 * 60 * 60_000;
 const BACKUP_CHECK_MS = 60 * 60_000;
+const DB_CHECK_MS = 30_000;
 
 let config: MachineConfig | null = null;
 let server: NextServer | null = null;
@@ -78,21 +93,21 @@ function createSplash(): BrowserWindow {
   return win;
 }
 
-function createMainWindow(url: string): BrowserWindow {
-  const origin = new URL(url).origin;
-  const win = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 360,
-    minHeight: 600,
-    show: false,
-    title: "Project Manager",
-    icon: paths.icon,
-    autoHideMenuBar: true,
-    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
-  });
+const appWindowOptions = {
+  minWidth: 360,
+  minHeight: 600,
+  title: "Project Manager",
+  icon: paths.icon,
+  autoHideMenuBar: true,
+  webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
+} satisfies BrowserWindowConstructorOptions;
 
-  // Only our own local server is shown in-app; anything else opens in the browser.
+/**
+ * Only our own local server is shown in-app; anything else opens in the browser.
+ * A page of ours asking for a new window ("Open in new window", Shift/Ctrl-click)
+ * gets a detached window of its own, which the user can move to another display.
+ */
+function guardContents(contents: WebContents, origin: string): void {
   const isOwn = (target: string) => {
     try {
       return new URL(target).origin === new URL(server?.url ?? origin).origin;
@@ -104,16 +119,54 @@ function createMainWindow(url: string): BrowserWindow {
     if (/^https?:\/\//i.test(target) || /^mailto:/i.test(target))
       shell.openExternal(target).catch(() => undefined);
   };
-  win.webContents.setWindowOpenHandler(({ url: target }) => {
-    if (!isOwn(target)) openExternally(target);
-    return { action: "deny" };
+  let placement: Placement | null = null;
+  contents.setWindowOpenHandler(({ url: target }) => {
+    if (!isOwn(target)) {
+      openExternally(target);
+      return { action: "deny" };
+    }
+    placement = detachedWindowPlacement();
+    return {
+      action: "allow",
+      overrideBrowserWindowOptions: { ...appWindowOptions, ...placement.bounds },
+    };
   });
-  win.webContents.on("will-navigate", (e, target) => {
+  contents.on("did-create-window", (child) => {
+    if (placement?.maximized) child.maximize();
+    placement = null;
+    guardContents(child.webContents, origin);
+    child.on("close", () => {
+      settings.set({
+        detachedWindow: { bounds: child.getNormalBounds(), maximized: child.isMaximized() },
+      });
+    });
+  });
+  contents.on("will-navigate", (e, target) => {
     if (!isOwn(target)) {
       e.preventDefault();
       openExternally(target);
     }
   });
+}
+
+function detachedWindowPlacement(): Placement {
+  const mainBounds = mainWindow?.getNormalBounds() ?? { x: 0, y: 0, width: 1280, height: 800 };
+  return detachedPlacement({
+    saved: settings.get().detachedWindow,
+    workAreas: screen.getAllDisplays().map((display) => display.workArea),
+    mainArea: screen.getDisplayMatching(mainBounds).workArea,
+    mainBounds,
+  });
+}
+
+function createMainWindow(url: string): BrowserWindow {
+  const win = new BrowserWindow({
+    ...appWindowOptions,
+    width: 1280,
+    height: 800,
+    show: false,
+  });
+  guardContents(win.webContents, new URL(url).origin);
 
   win.once("ready-to-show", () => {
     splash?.close();
@@ -174,6 +227,41 @@ async function showAdminCredentials(password: string, reason: string): Promise<v
   }
 }
 
+/**
+ * Attachment downloads. Electron has no download bar, so a failed download
+ * would end silently after the Save dialog: the server answers 404 when a
+ * stored file is gone, and cuts the response off when its bytes changed
+ * (ADR-0026 §3). A cut-off download is only "interrupted" (resumable, never
+ * done), so end it. Say so either way; a cancelled Save dialog stays quiet.
+ */
+function watchDownloads(): void {
+  session.defaultSession.on("will-download", (_e, item) => {
+    const name = item.getFilename();
+    item.setSaveDialogOptions({ title: `Save ${name}` });
+    let reported = false;
+    const failed = () => {
+      if (reported) return;
+      reported = true;
+      log.warn(`[download] ${name}: interrupted (${item.getURL()})`);
+      void message(
+        "warning",
+        "Download failed",
+        `${name} could not be downloaded.`,
+        "The stored file may have been changed, damaged or removed on this PC. " +
+          "Ask your administrator to restore it from a backup.",
+      );
+    };
+    item.on("updated", (_e2, state) => {
+      if (state !== "interrupted") return;
+      failed();
+      item.cancel();
+    });
+    item.once("done", (_e2, state) => {
+      if (state === "interrupted") failed();
+    });
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Database engine readiness (with an elevated repair path).
 
@@ -204,13 +292,91 @@ async function ensureDatabaseEngine(): Promise<MachineConfig> {
     setSplashStatus("Repairing the database engine (this can take several minutes)…");
     const code = await runElevatedRepair(paths.provisionScript, paths.sqlInstaller, log);
     if (code !== 0) {
-      throw new Error(
-        `Database repair failed (code ${code}). Details: ${path.join(process.env.ProgramData ?? "C:\\ProgramData", "Project Manager", "logs", "provision.log")}`,
-      );
+      throw new Error(`Database repair failed (code ${code}). Details: ${provisionLog()}`);
     }
     const cfg = readMachineConfig();
     await waitForSql(cfg.sql, 90_000);
     return cfg;
+  }
+}
+
+function provisionLog(): string {
+  const programData = process.env.ProgramData ?? "C:\\ProgramData";
+  return path.join(programData, "Project Manager", "logs", "provision.log");
+}
+
+// ---------------------------------------------------------------------------
+// Attachments folder (ADR-0026 §9). A PC provisioned before F1 has no
+// uploadsDir, and only an administrator can create it. The client's staff are
+// standard users, so this never blocks the app: uploads stay off (locations
+// still work), the offer comes once per Windows user at start-up, and the tray
+// keeps it until it is done. IT can also run provision.ps1 (docs/DESKTOP.md).
+
+/** Elevated provisioning (idempotent), then machine.json again; throws when it fails. */
+async function setUpAttachmentsFolder(): Promise<MachineConfig> {
+  const code = await runElevatedRepair(paths.provisionScript, paths.sqlInstaller, log);
+  if (code !== 0) throw new Error(`Setup failed (code ${code}). Details: ${provisionLog()}`);
+  const cfg = readMachineConfig();
+  if (!cfg.uploadsDir) {
+    throw new Error(`Setup finished without an attachments folder. Details: ${provisionLog()}`);
+  }
+  return cfg;
+}
+
+/** The one start-up offer per Windows user; returns the config to run with. */
+async function offerAttachmentsSetup(cfg: MachineConfig): Promise<MachineConfig> {
+  if (cfg.uploadsDir) return cfg;
+  log.info("[attachments] no uploads folder on this PC: uploads are off");
+  if (settings.get().attachmentsSetupOffered) return cfg;
+  settings.set({ attachmentsSetupOffered: true });
+  const { response } = await dialog.showMessageBox({
+    type: "info",
+    title: "Attachments need a one-time setup",
+    message: "Turning on file attachments needs a Windows administrator, once on this PC.",
+    detail:
+      "If you are not an administrator, click Later. Everything else works, and your IT " +
+      'administrator can turn attachments on from the tray menu ("Set up attachments") or remotely.',
+    buttons: ["Set up now", "Later"],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  });
+  if (response !== 0) return cfg;
+  setSplashStatus("Setting up attachments…");
+  try {
+    return await setUpAttachmentsFolder();
+  } catch (err) {
+    log.error("[attachments] setup failed", err);
+    await message(
+      "warning",
+      "Attachments are still off",
+      "Attachments could not be set up. Everything else works.",
+      `${describeError(err)}\n\nTray menu → "Set up attachments (administrator)…" tries again.`,
+    );
+    return cfg;
+  }
+}
+
+/** Tray: set the folder up later (e.g. when IT is at the PC), then restart to use it. */
+async function setUpAttachmentsAction(): Promise<void> {
+  try {
+    config = await setUpAttachmentsFolder();
+  } catch (err) {
+    log.error("[attachments] setup failed", err);
+    await message("error", "Setup failed", "Attachments could not be set up.", describeError(err));
+    return;
+  }
+  const { response } = await dialog.showMessageBox({
+    type: "info",
+    title: "Attachments are set up",
+    message: "Restart Project Manager to start using attachments.",
+    buttons: ["Restart now", "Later"],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (response === 0) {
+    app.relaunch();
+    app.quit();
   }
 }
 
@@ -223,6 +389,7 @@ async function runBackup(kind: BackupKind): Promise<BackupResult> {
     target: config.sql,
     backupDir: config.backupDir,
     copyDir: settings.get().backupCopyDir,
+    uploadsDir: config.uploadsDir,
     log,
   });
   busy = task.finally(() => {
@@ -308,12 +475,14 @@ async function restoreAction(): Promise<void> {
 
   const cfg = config;
   const srv = server;
+  let filesNote: string | undefined;
   const task = (async () => {
     if (busy) await busy;
     await backupDatabase("pre-restore", {
       target: cfg.sql,
       backupDir: cfg.backupDir,
       copyDir: settings.get().backupCopyDir,
+      uploadsDir: cfg.uploadsDir,
       log,
     });
     await srv.stopAndWait();
@@ -321,6 +490,7 @@ async function restoreAction(): Promise<void> {
       await restoreDatabase(file, { target: cfg.sql, backupDir: cfg.backupDir, log });
       // An older backup may predate the current schema: upgrade it.
       await applyDatabaseSchema({ target: cfg.sql, dbDir: paths.dbDir, log });
+      filesNote = await restoreAttachmentFiles(cfg, file);
       const pwd = await ensureAdminAccount(cfg.sql, loadArgon2(), log);
       if (pwd)
         await showAdminCredentials(
@@ -337,7 +507,7 @@ async function restoreAction(): Promise<void> {
   });
   try {
     await task;
-    await message("info", "Restore complete", "Your data was restored from the backup.");
+    await message("info", "Restore complete", "Your data was restored from the backup.", filesNote);
   } catch (err) {
     log.error("[restore] failed", err);
     await message(
@@ -345,6 +515,37 @@ async function restoreAction(): Promise<void> {
       "Restore failed",
       "The restore did not complete.",
       `${describeError(err)}\n\nA safety backup of the previous data is in:\n${cfg.backupDir}`,
+    );
+  }
+}
+
+/**
+ * Attachments are not in the .bak (ADR-0026 §9): copy back the files kept next
+ * to the backup copies. Never fails the restore; returns a line for the user.
+ */
+async function restoreAttachmentFiles(cfg: MachineConfig, bakFile: string): Promise<string> {
+  const sources = restoreSources(bakFile, settings.get().backupCopyDir);
+  if (!cfg.uploadsDir) {
+    return `Attachments are off on this PC, so their files were not copied back. They stay in ${sources.join(" and ")}.`;
+  }
+  try {
+    const { copied, damaged } = await restoreUploads(sources, cfg.uploadsDir);
+    log.info(`[restore] ${copied} attachment file(s) copied back from ${sources.join(", ")}`);
+    if (damaged.length > 0) {
+      log.warn(`[restore] damaged in every source: ${damaged.join(", ")}`);
+      return (
+        `${copied} attachment file(s) copied back. ${damaged.length} file(s) are damaged ` +
+        `in every backup copy and could not be restored.`
+      );
+    }
+    return copied > 0
+      ? `${copied} attachment file(s) copied back.`
+      : "No attachment files were missing or damaged.";
+  } catch (err) {
+    log.error("[restore] attachment files", err);
+    return (
+      `Attachment files could not all be copied back: ${describeError(err)}\n\n` +
+      `Copy ${sources[0]} into ${cfg.uploadsDir} (keep the folders inside).`
     );
   }
 }
@@ -375,10 +576,11 @@ async function resetAdminAction(): Promise<void> {
 async function bootstrap(): Promise<void> {
   log.info(`=== Project Manager ${app.getVersion()} starting (packaged=${app.isPackaged}) ===`);
   session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
+  watchDownloads();
   splash = createSplash();
 
   try {
-    config = await ensureDatabaseEngine();
+    config = await offerAttachmentsSetup(await ensureDatabaseEngine());
     const cfg = config;
 
     setSplashStatus("Checking the database…");
@@ -392,6 +594,7 @@ async function bootstrap(): Promise<void> {
           target: cfg.sql,
           backupDir: cfg.backupDir,
           copyDir: settings.get().backupCopyDir,
+          uploadsDir: cfg.uploadsDir,
           log,
         });
         setSplashStatus("Upgrading the database…");
@@ -405,8 +608,13 @@ async function bootstrap(): Promise<void> {
       standaloneDir: paths.standaloneDir,
       db: cfg.sql,
       authSecret: cfg.authSecret,
+      uploadsDir: cfg.uploadsDir,
       log,
       onRestarted: (url) => mainWindow?.loadURL(url).catch(() => undefined),
+      onSlowStart: () =>
+        setSplashStatus(
+          "Still starting… Right after the computer starts, this can take a few minutes.",
+        ),
       onFatal: (msg) => {
         void message(
           "error",
@@ -438,6 +646,7 @@ async function bootstrap(): Promise<void> {
         resetAdminPassword: () => void resetAdminAction(),
         openLogs: () => void shell.openPath(path.dirname(log.file)),
         quit: () => app.quit(),
+        ...(cfg.uploadsDir ? {} : { setUpAttachments: () => void setUpAttachmentsAction() }),
       },
       app.getVersion(),
     );
@@ -459,6 +668,32 @@ async function bootstrap(): Promise<void> {
 
     setTimeout(() => void backupIfDue(), 30_000);
     setInterval(() => void backupIfDue(), BACKUP_CHECK_MS);
+
+    const watchdog = createDbWatchdog({
+      reachable: () => isListening(cfg.sql.host, cfg.sql.port),
+      serviceState: () => getServiceState(cfg.sql.instanceName),
+      startService: () => startService(cfg.sql.instanceName, log),
+      waitForSql: () => waitForSql(cfg.sql, 90_000),
+      onRecovered: () =>
+        showTrayNotice(
+          "The database was restarted",
+          "It had stopped. If a page shows an error, open it again.",
+        ),
+      onDown: () =>
+        void message(
+          "warning",
+          "The database has stopped",
+          "Project Manager's database has stopped, so nothing can be opened or saved right now.",
+          "Restart the computer to start it again.\n\n" +
+            "If this happens again, ask IT to run the Project Manager setup again: " +
+            "after that the app restarts the database by itself.",
+        ),
+      log,
+    });
+    // Not during a backup or restore: a restore takes the database offline on purpose.
+    setInterval(() => {
+      if (!busy) void watchdog.check();
+    }, DB_CHECK_MS);
   } catch (err) {
     log.error("[startup] failed", err);
     splash?.close();
