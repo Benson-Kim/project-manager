@@ -6,9 +6,12 @@ import path from "path";
 /**
  * Attachment backups for the desktop edition (ADR-0026 §9). Stored files are
  * named by their SHA-256 and never change, so mirroring = copying the ones the
- * copy folder lacks; nothing is ever overwritten or deleted there (a restore
- * may still need bytes the app has since swept). Only the hash shards are
- * copied: <src>/<h0h1>/<h2h3>/<hash>; temp files of running uploads are not.
+ * copy folder lacks, or holds damaged; nothing is ever deleted there (a restore
+ * may still need bytes the app has since swept). A backup takes a copy of the
+ * wrong size as damaged (a truncated or half-synced file); hashing every copy on
+ * each daily run would read, and on OneDrive download, the whole folder again.
+ * A restore hashes them. Only the hash shards are copied:
+ * <src>/<h0h1>/<h2h3>/<hash>; temp files of running uploads are not.
  * Each file lands under a temporary name first and is kept only when its bytes
  * hash to its name, so neither an interrupted copy nor a damaged source leaves
  * a file that a later run would take as good. A folder that cannot be read
@@ -18,7 +21,10 @@ const SHARD = /^[0-9a-f]{2}$/;
 const HASH = /^[0-9a-f]{64}$/;
 
 export interface MirrorOptions {
-  /** Hash the target's existing files too, and replace those whose bytes changed (restore). */
+  /**
+   * Hash the target's existing files too, and replace those whose bytes changed (restore).
+   * Without it, only a target file whose size differs from the source is replaced (backup).
+   */
   replaceDamaged?: boolean;
 }
 
@@ -40,11 +46,17 @@ export async function mirrorUploads(
       const shard = path.join(sourceDir, a, b);
       for (const name of await files(shard)) {
         if (!HASH.test(name) || !name.startsWith(a + b)) continue;
+        const source = path.join(shard, name);
         const dest = path.join(targetDir, a, b, name);
-        if ((await exists(dest)) && (!replaceDamaged || (await sha256Of(dest)) === name)) continue;
+        if (await exists(dest)) {
+          const intact = replaceDamaged
+            ? (await sha256Of(dest)) === name
+            : (await fs.stat(dest)).size === (await fs.stat(source)).size;
+          if (intact) continue;
+        }
         await fs.mkdir(path.dirname(dest), { recursive: true });
         const partial = `${dest}.partial`;
-        await fs.copyFile(path.join(shard, name), partial);
+        await fs.copyFile(source, partial);
         if ((await sha256Of(partial)) !== name) {
           await fs.unlink(partial);
           result.damaged.push(`${a}/${b}/${name}`);

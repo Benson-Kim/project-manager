@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Sheet } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
+import { StoredDates } from "@/components/ui/form/stored-dates";
 import { DatePicker, Input, Select, Textarea } from "@/components/ui/form/inputs";
 import { SectionHeading } from "@/components/ui/form/section-heading";
 import { useSheetFormActions } from "@/components/ui/form/use-sheet-form-actions";
@@ -128,6 +129,12 @@ export function DailyActivitySheet({
           <>
             <input type="hidden" name="dailyActivityId" value={activity.DailyActivityId} />
             <input type="hidden" name="rowVer" value={activity.RowVer} />
+            <StoredDates
+              dates={{
+                requestDate: activity.RequestDate,
+                completeDate: activity.CompleteDate,
+              }}
+            />
           </>
         ) : null}
 
