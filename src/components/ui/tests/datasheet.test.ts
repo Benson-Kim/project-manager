@@ -151,9 +151,9 @@ describe("failureMessage", () => {
     expect(failureMessage({ message: "Someone else changed this record." })).toBe(
       "Someone else changed this record.",
     );
-    expect(failureMessage({ message: "Check the highlighted fields.", fieldErrors: { a: [] } })).toBe(
-      "Check the highlighted fields.",
-    );
+    expect(
+      failureMessage({ message: "Check the highlighted fields.", fieldErrors: { a: [] } }),
+    ).toBe("Check the highlighted fields.");
   });
 });
 
