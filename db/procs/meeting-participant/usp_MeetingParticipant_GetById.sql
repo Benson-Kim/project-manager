@@ -1,25 +1,40 @@
--- usp_MeetingParticipant_GetById — fetch one active app.MeetingParticipant row; THROW 50001 when absent/soft-deleted.
--- Entity app.MeetingParticipant (source: tblMeetingParticipants). Module: database-schema-and-procs (#3).
+-- usp_MeetingParticipant_GetById — one live participant with its label (module #10, ADR-0028).
+-- The project is found through the meeting; a participant of a deleted meeting is NOT_FOUND (50001),
+-- one without a meeting (Access orphan) is Admin-only. Access: Viewer (FORBIDDEN_ROW 50003).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_MeetingParticipant_GetById
     @MeetingParticipantId INT,
-    @ActorUserId INT
+    @ActorUserId          INT
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    IF NOT EXISTS (SELECT 1 FROM app.MeetingParticipant WHERE MeetingParticipantId = @MeetingParticipantId AND IsDeleted = 0)
+    DECLARE @RowProjectId INT;
+    SELECT @RowProjectId = m.ProjectId
+    FROM app.MeetingParticipant AS mp
+    LEFT JOIN app.Meeting AS m ON m.MeetingId = mp.MeetingId
+    WHERE mp.MeetingParticipantId = @MeetingParticipantId AND mp.IsDeleted = 0
+      AND (mp.MeetingId IS NULL OR m.IsDeleted = 0);
+    IF @@ROWCOUNT = 0
         THROW 50001, N'NOT_FOUND:MeetingParticipant not found', 1;
 
-    SELECT MeetingParticipantId,
-           [MeetingId],
-           [StakeholderId],
-           [IsApology],
-           CreatedAtUtc,
-           UpdatedAtUtc,
-           CAST(RowVer AS BIGINT) AS RowVer
-    FROM app.MeetingParticipant
-    WHERE MeetingParticipantId = @MeetingParticipantId AND IsDeleted = 0;
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
+         @MinLevel = N'Viewer', @AllowProjectless = 0;
+
+    SELECT mp.MeetingParticipantId,
+           mp.MeetingId,
+           mp.StakeholderId,
+           CONCAT(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N' - ' + NULLIF(TRIM(s.OrgTitle), N''), N', ' + NULLIF(TRIM(s.DepartmentOrganization), N'')) AS Label,
+           mp.[IsApology],
+           s.IsDeleted AS StakeholderIsDeleted,
+           mp.CreatedAtUtc,
+           mp.UpdatedAtUtc,
+           CAST(mp.RowVer AS BIGINT) AS RowVer,
+           @RowProjectId AS ProjectId
+    FROM app.MeetingParticipant AS mp
+    JOIN app.Stakeholder AS s ON s.StakeholderId = mp.StakeholderId
+    WHERE mp.MeetingParticipantId = @MeetingParticipantId AND mp.IsDeleted = 0;
 END;
 GO

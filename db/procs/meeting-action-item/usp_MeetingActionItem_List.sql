@@ -1,46 +1,41 @@
--- usp_MeetingActionItem_List — paged/filtered list per ADR-0016. Search columns: Action. Sort whitelist: DueDate.
--- Entity app.MeetingActionItem (source: tblMeetingActionItems). Module: database-schema-and-procs (#3).
-
--- @ProjectId is accepted for contract uniformity but ignored (entity is not project-scoped).
+-- usp_MeetingActionItem_List — the live action items of one meeting with their person responsible's
+-- name, grouped by agenda item and discussion point in position order (module #10, ADR-0028). A
+-- child collection: no paging or search.
+-- Access: Viewer on the meeting's project (FORBIDDEN_ROW 50003); NOT_FOUND 50001 for a missing meeting.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_MeetingActionItem_List
-    @ActorUserId INT,
-    @ProjectId   INT           = NULL,
-    @Search      NVARCHAR(100) = NULL,
-    @SortBy      NVARCHAR(50)  = NULL,
-    @SortDir     VARCHAR(4)    = 'asc',
-    @Page        INT           = 1,
-    @PageSize    INT           = 25,
-    @AgendaItemId INT = NULL,
-    @DiscussionPointId INT = NULL
+    @MeetingId   INT,
+    @ActorUserId INT
 AS
 BEGIN
     SET NOCOUNT ON;
-    SET @Page     = CASE WHEN @Page IS NULL OR @Page < 1 THEN 1 ELSE @Page END;
-    SET @PageSize = CASE WHEN @PageSize IS NULL OR @PageSize < 1 THEN 1
-                         WHEN @PageSize > 100 THEN 100 ELSE @PageSize END;
-    SET @SortDir  = CASE WHEN LOWER(@SortDir) = 'desc' THEN 'desc' ELSE 'asc' END;
 
-    SELECT MeetingActionItemId,
-           [DiscussionPointId],
-           [AgendaItemId],
-           [Action],
-           [AssignedToStakeholderId],
-           [DueDate],
-           CreatedAtUtc,
-           UpdatedAtUtc,
-           CAST(RowVer AS BIGINT) AS RowVer,
-           TotalCount = COUNT(*) OVER ()
-    FROM app.MeetingActionItem
-    WHERE IsDeleted = 0
-      AND (@AgendaItemId IS NULL OR [AgendaItemId] = @AgendaItemId)
-      AND (@DiscussionPointId IS NULL OR [DiscussionPointId] = @DiscussionPointId)
-      AND (@Search IS NULL OR [Action] LIKE N'%' + @Search + N'%')
-    ORDER BY
-        CASE WHEN @SortBy = N'DueDate' AND @SortDir = 'asc'  THEN [DueDate] END ASC,
-        CASE WHEN @SortBy = N'DueDate' AND @SortDir = 'desc' THEN [DueDate] END DESC,
-        MeetingActionItemId ASC
-    OFFSET (@Page - 1) * @PageSize ROWS FETCH NEXT @PageSize ROWS ONLY;
+    DECLARE @RowProjectId INT;
+    SELECT @RowProjectId = ProjectId FROM app.Meeting WHERE MeetingId = @MeetingId AND IsDeleted = 0;
+    IF @@ROWCOUNT = 0
+        THROW 50001, N'NOT_FOUND:Meeting not found', 1;
+
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
+         @MinLevel = N'Viewer', @AllowProjectless = 0;
+
+    SELECT ai.MeetingActionItemId,
+           ai.[MeetingId],
+           ai.[AgendaItemId],
+           ai.[DiscussionPointId],
+           ai.[Action],
+           ai.[AssignedToStakeholderId],
+           TRIM(CONCAT(s.FirstName, N' ', s.LastName)) AS AssigneeName,
+           ai.[DueDate],
+           ai.SortOrder,
+           ai.CreatedAtUtc,
+           ai.UpdatedAtUtc,
+           CAST(ai.RowVer AS BIGINT) AS RowVer,
+           @RowProjectId AS ProjectId
+    FROM app.MeetingActionItem AS ai
+    LEFT JOIN app.Stakeholder AS s ON s.StakeholderId = ai.AssignedToStakeholderId
+    WHERE ai.MeetingId = @MeetingId AND ai.IsDeleted = 0
+    ORDER BY ai.AgendaItemId, ai.DiscussionPointId, ai.SortOrder, ai.MeetingActionItemId;
 END;
 GO
