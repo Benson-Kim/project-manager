@@ -2,7 +2,7 @@ import { formatDate, toDateInput } from "@/lib/format";
 import type { ListChoice, LookupListKey } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
 import { ListBadge } from "../lookup-lists";
-import { formText } from "./datasheet";
+import { formText, previewText, type RichCellView } from "./datasheet";
 import type { DataViewColumn } from "./types";
 
 /**
@@ -43,6 +43,38 @@ export function textColumn<Row>(
       placeholder: spec.placeholder,
       maxLength: spec.maxLength,
       multiline: spec.maxLength === undefined || spec.maxLength > 255,
+      editable: spec.editable,
+    },
+  };
+}
+
+/**
+ * A rich-text column (ADR-0023 amendment, ADR-0025). The cell shows the
+ * formatted text clamped to the row height; Enter, F2 or a click opens the
+ * shared editor in a panel under the cell, Shift+F2 the larger editor (like
+ * Access's Zoom box). `view` is the server-rendered RichTextView of the
+ * stored HTML, since the sanitiser never ships to the browser; while it is
+ * stale after a save the cell shows the new text plainly until the refresh.
+ */
+export function richTextColumn<Row>(
+  spec: ColumnSpec<Row, string | null> & { view: (row: Row) => RichCellView },
+): DataViewColumn<Row> {
+  const display = (row: Row) => {
+    const view = spec.view(row);
+    const html = spec.value(row);
+    return view.html === html ? view.node : previewText(html);
+  };
+  return {
+    key: spec.key,
+    header: spec.header,
+    priority: spec.priority,
+    render: spec.render ?? display,
+    edit: {
+      kind: "rich",
+      field: spec.field,
+      value: (row) => formText(spec.value(row)),
+      placeholder: spec.placeholder,
+      display,
       editable: spec.editable,
     },
   };
