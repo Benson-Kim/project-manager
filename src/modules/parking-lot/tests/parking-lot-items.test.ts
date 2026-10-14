@@ -35,9 +35,7 @@ describe("parking-lot-items repository", () => {
   beforeEach(() => execProc.mockReset());
 
   it("create requires a non-empty item", async () => {
-    await expect(
-      createParkingLotItem({ projectId: 2, parkingLotItem: "  " }, 7),
-    ).rejects.toThrow();
+    await expect(createParkingLotItem({ projectId: 2, parkingLotItem: "  " }, 7)).rejects.toThrow();
     expect(execProc).not.toHaveBeenCalled();
   });
 

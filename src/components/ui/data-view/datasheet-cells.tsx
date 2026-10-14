@@ -148,9 +148,7 @@ function CellControl<Row>({
         value={value}
         placeholder={placeholder}
         maxLength={editor.maxLength}
-        onChange={(e) =>
-          onChange(editor.multiline ? e.target.value : singleLine(e.target.value))
-        }
+        onChange={(e) => onChange(editor.multiline ? e.target.value : singleLine(e.target.value))}
         onKeyDown={onKeyDown}
         onBlur={onBlur ? (e) => onBlur(e.currentTarget.value) : undefined}
         className={`${textControlClass} cursor-text`}
