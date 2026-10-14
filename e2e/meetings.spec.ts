@@ -23,6 +23,10 @@ async function newMeeting(page: Page) {
   await page.waitForURL(/\/projects\/2\/meetings\/\d+$/);
   const form = page.getByTestId("meeting-header-form");
   await expect(form).toBeVisible();
+  // The editor surface exists only on the client: once it shows, the form is hydrated.
+  await expect(form.getByRole("textbox", { name: M.objective, exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
   return form;
 }
 
@@ -91,9 +95,12 @@ test("validation: a title is required and the end must come after the start", as
   const form = await newMeeting(page);
   await form.getByLabel(M.startTime).fill("10:00");
   await form.getByLabel(M.endTime).fill("09:30");
+  // Blur first: the message that blur shows moves Save down between mousedown and mouseup,
+  // so a click that blurs the field as it lands misses the button.
+  await form.getByLabel(M.endTime).blur();
+  await expect(form.getByText(M.endAfterStart)).toBeVisible();
   await page.getByTestId("meeting-save").click();
   await expect(form.getByText(M.titleRequired)).toBeVisible();
-  await expect(form.getByText(M.endAfterStart)).toBeVisible();
   const summary = page.getByRole("alert").filter({ hasText: messages.errors.summaryTitle });
   await expect(summary).toBeVisible();
 });
