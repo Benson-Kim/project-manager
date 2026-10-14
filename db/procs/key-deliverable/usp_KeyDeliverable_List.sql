@@ -1,6 +1,9 @@
 -- usp_KeyDeliverable_List — paged/filtered list per ADR-0016 with assignee names.
--- Search columns: KeyRequirement. Sort whitelist: Deadline, Priority, Status.
+-- Search columns: KeyRequirement. Sort whitelist: Wbs, StartDate, Deadline, Priority, Status.
 -- Filters @Status/@Priority added by module #9 (list page filter bar).
+-- Work breakdown (ADR-0027): WbsCode is the item's number in its project's breakdown ("1.2.3",
+--   each part the item's place among its live siblings) and the Wbs sort follows it, so the list
+--   reads in breakdown order. HasChildren marks items whose dates come from their sub-items.
 -- Row-level access: a supplied @ProjectId must be accessible (dbo.usp_Project_AssertAccess ->
 --   FORBIDDEN_ROW 50003); cross-project reads (@ProjectId NULL) return only rows of projects the
 --   actor is assigned to (Admin sees all). LIKE wildcards in @Search are escaped.
@@ -41,13 +44,45 @@ BEGIN
     IF @Search IS NOT NULL
         SET @Search = REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'), N'_', N'\_');
 
+    WITH placed AS (
+        SELECT k.KeyDeliverableId, k.ParentKeyDeliverableId,
+               ROW_NUMBER() OVER (PARTITION BY k.ProjectId, k.ParentKeyDeliverableId
+                                  ORDER BY k.SortOrder, k.KeyDeliverableId) AS Position
+        FROM app.KeyDeliverable AS k
+        WHERE k.IsDeleted = 0 AND (@ProjectId IS NULL OR k.ProjectId = @ProjectId)
+    ),
+    wbs AS (
+        SELECT p.KeyDeliverableId,
+               CAST(p.Position AS NVARCHAR(400)) AS WbsCode,
+               CAST(RIGHT(N'0000' + CAST(p.Position AS NVARCHAR(10)), 5) AS NVARCHAR(400)) AS WbsKey,
+               1 AS Lvl
+        FROM placed AS p
+        WHERE p.ParentKeyDeliverableId IS NULL
+        UNION ALL
+        SELECT c.KeyDeliverableId,
+               CAST(w.WbsCode + N'.' + CAST(c.Position AS NVARCHAR(10)) AS NVARCHAR(400)),
+               CAST(w.WbsKey + N'.' + RIGHT(N'0000' + CAST(c.Position AS NVARCHAR(10)), 5) AS NVARCHAR(400)),
+               w.Lvl + 1
+        FROM wbs AS w
+        JOIN placed AS c ON c.ParentKeyDeliverableId = w.KeyDeliverableId
+        WHERE w.Lvl < 50
+    )
     SELECT kd.KeyDeliverableId,
            kd.[ProjectId],
+           kd.ParentKeyDeliverableId,
+           kd.SortOrder,
+           w.WbsCode,
            kd.[KeyRequirement],
            kd.[RequestedDate],
+           kd.StartDate,
            kd.[Deadline],
            kd.[Priority],
            kd.[Status],
+           kd.Color,
+           CAST(CASE WHEN EXISTS (SELECT 1 FROM app.KeyDeliverable AS ch
+                                  WHERE ch.ParentKeyDeliverableId = kd.KeyDeliverableId
+                                    AND ch.IsDeleted = 0)
+                     THEN 1 ELSE 0 END AS BIT) AS HasChildren,
            kd.CreatedAtUtc,
            kd.UpdatedAtUtc,
            CAST(kd.RowVer AS BIGINT) AS RowVer,
@@ -75,6 +110,7 @@ BEGIN
            ov.Revokes AS ActorRevokes,
            TotalCount = COUNT(*) OVER ()
     FROM app.KeyDeliverable AS kd
+    LEFT JOIN wbs AS w ON w.KeyDeliverableId = kd.KeyDeliverableId
     CROSS APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, kd.ProjectId, 0) acc
     OUTER APPLY dbo.ufn_Permission_Overrides(@ActorRole, @ActorUserId, kd.ProjectId, N'key-deliverables') ov
     WHERE kd.IsDeleted = 0
@@ -84,6 +120,10 @@ BEGIN
       AND (@Status IS NULL OR kd.[Status] = @Status)
       AND (@Priority IS NULL OR kd.[Priority] = @Priority)
     ORDER BY
+        CASE WHEN @SortBy = N'Wbs' AND @SortDir = 'asc'  THEN w.WbsKey END ASC,
+        CASE WHEN @SortBy = N'Wbs' AND @SortDir = 'desc' THEN w.WbsKey END DESC,
+        CASE WHEN @SortBy = N'StartDate' AND @SortDir = 'asc'  THEN kd.StartDate END ASC,
+        CASE WHEN @SortBy = N'StartDate' AND @SortDir = 'desc' THEN kd.StartDate END DESC,
         CASE WHEN @SortBy = N'Deadline' AND @SortDir = 'asc'  THEN kd.[Deadline] END ASC,
         CASE WHEN @SortBy = N'Deadline' AND @SortDir = 'desc' THEN kd.[Deadline] END DESC,
         CASE WHEN @SortBy = N'Priority' AND @SortDir = 'asc'  THEN kd.[Priority] END ASC,

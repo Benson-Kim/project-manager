@@ -80,8 +80,7 @@ test.describe("project workspace", () => {
     // The project-switcher combobox is the header component for project routes.
     const switcher = page.getByRole("combobox", { name: messages.projects.jumpToProject });
     await expect(switcher).toBeVisible();
-    // The section nav is grouped: the Overview group button should be expanded (active group
-    // auto-opens on load) and the Charter link inside it carries aria-current="page".
+    // The section nav is grouped; the Charter link carries aria-current="page".
     const nav = page.getByRole("navigation", { name: messages.projects.sectionsNav });
 
     // ADR-0019: the Overview group has exactly one section (Charter). It renders
@@ -100,6 +99,27 @@ test.describe("project workspace", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
       messages.projects.charterSection,
     );
+  });
+
+  test("section menus stay closed until their group is clicked", async ({ page }) => {
+    await page.goto("/projects/2/deliverables");
+    const nav = page.getByRole("navigation", { name: messages.projects.sectionsNav });
+    const planningBtn = nav.getByRole("button", { name: messages.planning.title });
+    const panel = page.getByRole("group", { name: messages.planning.title });
+
+    // The current section's group is not opened over the page on load.
+    await expect(planningBtn).toHaveAttribute("aria-expanded", "false");
+    await expect(panel).toHaveCount(0);
+
+    await planningBtn.click();
+    await expect(planningBtn).toHaveAttribute("aria-expanded", "true");
+    await expect(
+      panel.getByRole("link", { name: messages.projects.deliverablesSection }),
+    ).toHaveAttribute("aria-current", "page");
+
+    await page.getByRole("heading", { level: 1 }).click();
+    await expect(panel).toHaveCount(0);
+    await expect(planningBtn).toHaveAttribute("aria-expanded", "false");
   });
 
   test("team cog: a manager grants a section permission per person, then resets it (ADR-0024)", async ({

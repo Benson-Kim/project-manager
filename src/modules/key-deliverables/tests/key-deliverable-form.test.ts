@@ -9,6 +9,7 @@ describe("keyDeliverableFormSchema", () => {
   it("coerces FormData strings into the repository input shape", () => {
     const parsed = keyDeliverableFormSchema.parse({
       projectId: "2",
+      startDate: "2026-09-01",
       keyRequirement: "  Fast reports generation  ",
       requestedDate: "2026-10-01",
       deadline: "2026-12-26",
@@ -26,6 +27,7 @@ describe("keyDeliverableFormSchema", () => {
   it("accepts a single assigneeId[] string (FormData single-value case)", () => {
     const parsed = keyDeliverableFormSchema.parse({
       projectId: "2",
+      startDate: "2026-09-01",
       keyRequirement: "R",
       "assigneeIds[]": "5",
     });
@@ -35,6 +37,7 @@ describe("keyDeliverableFormSchema", () => {
   it("turns empty optional strings into null", () => {
     const parsed = keyDeliverableFormSchema.parse({
       projectId: "2",
+      startDate: "2026-09-01",
       keyRequirement: "Requirement",
       requestedDate: "",
       deadline: "",
@@ -51,6 +54,7 @@ describe("keyDeliverableFormSchema", () => {
   it("rejects an empty requirement and an invalid date", () => {
     const result = keyDeliverableFormSchema.safeParse({
       projectId: "2",
+      startDate: "2026-09-01",
       keyRequirement: "   ",
       deadline: "not-a-date",
     });
@@ -67,27 +71,68 @@ describe("keyDeliverableFormSchema", () => {
     expect(() =>
       keyDeliverableFormSchema.safeParse({
         projectId: "2",
+        startDate: "2026-09-01",
         keyRequirement: "R",
         "assigneeIds[]": "abc",
       }),
     ).not.toThrow();
     const result = keyDeliverableFormSchema.safeParse({
       projectId: "2",
+      startDate: "2026-09-01",
       keyRequirement: "R",
       "assigneeIds[]": ["5", "abc"],
     });
     expect(result.success).toBe(false);
   });
 
+  it("requires a start date and keeps the deadline on or after it", () => {
+    const missing = keyDeliverableFormSchema.safeParse({ projectId: "2", keyRequirement: "R" });
+    expect(missing.error?.issues).toEqual([
+      expect.objectContaining({ path: ["startDate"], message: "Enter a start date" }),
+    ]);
+    const reversed = keyDeliverableFormSchema.safeParse({
+      projectId: "2",
+      keyRequirement: "R",
+      startDate: "2026-09-10",
+      deadline: "2026-09-09",
+    });
+    expect(reversed.error?.issues).toEqual([
+      expect.objectContaining({
+        path: ["deadline"],
+        message: "Deadline can't be before start date.",
+      }),
+    ]);
+    const parsed = keyDeliverableFormSchema.parse({
+      projectId: "2",
+      keyRequirement: "R",
+      startDate: "2026-09-09",
+      deadline: "2026-09-09",
+    });
+    expect(parsed.startDate).toEqual(new Date("2026-09-09"));
+  });
+
+  it("takes a palette colour, or empty for the parent's, and nothing else", () => {
+    const base = { projectId: "2", keyRequirement: "R", startDate: "2026-09-01" };
+    expect(keyDeliverableFormSchema.parse({ ...base, color: "green" }).color).toBe("green");
+    expect(keyDeliverableFormSchema.parse({ ...base, color: "" }).color).toBeNull();
+    expect(keyDeliverableFormSchema.parse(base).color).toBeNull();
+    expect(keyDeliverableFormSchema.safeParse({ ...base, color: "#ff0000" }).success).toBe(false);
+    expect(
+      keyDeliverableFormSchema.safeParse({ ...base, color: "red;background:url(x)" }).success,
+    ).toBe(false);
+  });
+
   it("update variant requires id and rowVer", () => {
     expect(
       updateKeyDeliverableFormSchema.safeParse({
         projectId: "2",
+        startDate: "2026-09-01",
         keyRequirement: "R",
       }).success,
     ).toBe(false);
     const parsed = updateKeyDeliverableFormSchema.parse({
       projectId: "2",
+      startDate: "2026-09-01",
       keyRequirement: "R",
       keyDeliverableId: "7",
       rowVer: "2001",
@@ -112,7 +157,7 @@ describe("isOverdue", () => {
 });
 
 describe("deliverable dates in order", () => {
-  const base = { projectId: "2", keyRequirement: "R" };
+  const base = { projectId: "2", keyRequirement: "R", startDate: "2026-09-01" };
   const update = { ...base, keyDeliverableId: "1", rowVer: "1" };
 
   it.each([

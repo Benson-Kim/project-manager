@@ -29,7 +29,7 @@ export const metadata: Metadata = {
 
 /**
  * Deliverables list (module #9, ADR-0018 project section): DataView scoped by
- * @ProjectId, status/priority filters, default sort Deadline asc, URL-synced
+ * @ProjectId, status/priority filters, default sort in WBS order, URL-synced
  * Sheet (?d=new | ?d=<id>).
  */
 export default async function DeliverablesPage({
@@ -46,7 +46,7 @@ export default async function DeliverablesPage({
 
   const raw = await searchParams;
   const listParams = parseListParams(raw);
-  if (!listParams.sort) listParams.sort = "Deadline"; // default sort Deadline asc
+  if (!listParams.sort) listParams.sort = "Wbs"; // default: breakdown order (ADR-0027)
   const filtersParsed = keyDeliverableFiltersSchema.safeParse(flattenSearchParams(raw));
   const filters = filtersParsed.success ? filtersParsed.data : {};
   const dParam = flattenSearchParams(raw).d;
