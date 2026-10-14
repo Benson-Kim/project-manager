@@ -1,4 +1,5 @@
-import { lstat, readdir, unlink } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { lstat, readdir, rename, unlink } from "node:fs/promises";
 import path from "node:path";
 import { TEMP_DIR } from "./store";
 
@@ -13,12 +14,19 @@ import { TEMP_DIR } from "./store";
  * It deletes only regular files whose names are exactly hashes inside the
  * <h0h1>/<h2h3> shards (or anything in .tmp), never a folder, and it never
  * follows links. Scheduling it is F2's. Server only.
+ *
+ * An upload of the same bytes may reuse a file while the sweep runs (store.ts
+ * reuseStored sets its modification time to now, then checks it is still
+ * there). So a file judged old is renamed aside and its age read again: a
+ * reuse that touched it first is seen and the file goes back; one that comes
+ * later finds it gone and stores its own copy.
  */
 
 export const SWEEP_GRACE_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SHARD = /^[0-9a-f]{2}$/;
 const HASH = /^[0-9a-f]{64}$/;
+const ASIDE = /^([0-9a-f]{64}).[0-9a-f-]{36}.sweep$/;
 
 export interface SweepResult {
   /** Stored files deleted. */
@@ -43,11 +51,17 @@ export async function sweepOrphanFiles(
       if (!SHARD.test(b)) continue;
       const shard = path.join(root, a, b);
       for (const name of await fileNames(shard)) {
+        const aside = ASIDE.exec(name);
+        if (aside) {
+          // Left by a sweep that stopped half-way: never lose bytes, the next sweep judges them.
+          await restore(path.join(shard, name), path.join(shard, aside[1]!));
+          continue;
+        }
         if (!HASH.test(name) || !name.startsWith(a + b)) continue;
         const file = path.join(shard, name);
         if (retained.has(name) || (await modifiedAt(file)) > cutoff) {
           result.kept++;
-        } else if (await remove(file)) {
+        } else if (await removeIfStillOld(file, cutoff)) {
           result.deleted++;
         }
       }
@@ -89,6 +103,30 @@ async function modifiedAt(file: string): Promise<number> {
     return stat.isFile() ? stat.mtimeMs : Number.POSITIVE_INFINITY;
   } catch {
     return Number.POSITIVE_INFINITY;
+  }
+}
+
+/** Deletes a stored file judged old, unless an upload reused it meanwhile (see the header). */
+async function removeIfStillOld(file: string, cutoff: number): Promise<boolean> {
+  const aside = `${file}.${randomUUID()}.sweep`;
+  try {
+    await rename(file, aside);
+  } catch {
+    return false; // in use or already gone: the next sweep retries
+  }
+  if ((await modifiedAt(aside)) > cutoff) {
+    await restore(aside, file);
+    return false;
+  }
+  return remove(aside);
+}
+
+/** Puts a renamed-aside file back; when an upload has stored the same bytes there since, drops it. */
+async function restore(aside: string, file: string): Promise<void> {
+  try {
+    await rename(aside, file);
+  } catch {
+    if ((await modifiedAt(file)) !== Number.POSITIVE_INFINITY) await remove(aside);
   }
 }
 
