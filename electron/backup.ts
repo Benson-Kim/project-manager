@@ -84,11 +84,17 @@ export async function backupDatabase(kind: BackupKind, opts: BackupOptions): Pro
       result.copy = copy;
       await prune(opts.copyDir, target.database, opts.keepCopies ?? 30, log);
       // The attachments sit next to the database copies: the records are useless without them.
+      // A folder that cannot be read throws, so the copy is reported failed, not complete.
       if (opts.uploadsDir) {
-        result.uploadsCopied = await mirrorUploads(
-          opts.uploadsDir,
-          path.join(opts.copyDir, "Uploads"),
-        );
+        const mirrored = await mirrorUploads(opts.uploadsDir, path.join(opts.copyDir, "Uploads"));
+        result.uploadsCopied = mirrored.copied;
+        if (mirrored.damaged.length > 0) {
+          throw new Error(
+            `${mirrored.damaged.length} attachment file(s) in ${opts.uploadsDir} are damaged ` +
+              `and were not copied: ${mirrored.damaged.slice(0, 5).join(", ")}` +
+              (mirrored.damaged.length > 5 ? " and more" : ""),
+          );
+        }
       }
     } catch (err) {
       // The local backup is still good; surface the copy problem to the user.

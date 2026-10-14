@@ -529,11 +529,18 @@ async function restoreAttachmentFiles(cfg: MachineConfig, bakFile: string): Prom
     return `Attachments are off on this PC, so their files were not copied back. They stay in ${sources.join(" and ")}.`;
   }
   try {
-    const copied = await restoreUploads(sources, cfg.uploadsDir);
+    const { copied, damaged } = await restoreUploads(sources, cfg.uploadsDir);
     log.info(`[restore] ${copied} attachment file(s) copied back from ${sources.join(", ")}`);
+    if (damaged.length > 0) {
+      log.warn(`[restore] damaged in every source: ${damaged.join(", ")}`);
+      return (
+        `${copied} attachment file(s) copied back. ${damaged.length} file(s) are damaged ` +
+        `in every backup copy and could not be restored.`
+      );
+    }
     return copied > 0
       ? `${copied} attachment file(s) copied back.`
-      : "No attachment files were missing.";
+      : "No attachment files were missing or damaged.";
   } catch (err) {
     log.error("[restore] attachment files", err);
     return (
