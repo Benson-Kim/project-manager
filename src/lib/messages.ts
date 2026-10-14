@@ -549,6 +549,8 @@ export const messages = {
         "They will be removed from the WBS and the Gantt. An administrator can restore them.",
       moved: (code: string) => `Moved to ${code}`,
       rescheduled: (start: string, end: string) => `Now ${start} to ${end}`,
+      subItemBeforeRequested: "A sub-item would end before its requested date.",
+      parentBeforeRequested: "A parent would end before its requested date.",
       added: (code: string) => `Added item ${code}`,
       deleted: "Deleted",
       maxDepth: "A work breakdown has at most 10 levels.",
