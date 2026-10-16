@@ -12,11 +12,19 @@ workspace proxy blocks npmjs.org, so versions are verified through the
 
 - **Policy**: latest stable for everything; `package-lock.json` committed; `npm ci`
   always; every new *runtime* dependency requires an ADR; Renovate + scheduled
-  `npm audit fix` keep things current; `lockfile:generate` refreshes the lockfile in
+  `npm audit fix` keep things current (Dependabot since 2026-10-16, see SECURITY.md); `lockfile:generate` refreshes the lockfile in
   CI (commit-message flag `[lockfile]`), and emits it via the job trace because
   workspace tokens cannot download artifacts.
 - **Verified 2026-09-15** (CI report, pipeline `lockfile:generate`): next 16.3.5,
   react 19.3.0, mssql 12.7.2, zod 4.6.5 — all latest stable.
+- **2026-10-16**: next and eslint-config-next moved to 16.4.2 (advisories
+  GHSA-vcvr-r3jv-pc5j and six more on 16.0.0–16.3.7: next/og image RCE, a
+  pending `use cache` fill leaking Draft Mode content, and others), with the
+  non-major transitive fixes for sharp and source-map-js. The security workflow
+  fails on a high advisory in **production** dependencies and only reports the
+  dev tool chain, because `braces` (eslint → @next/eslint-plugin-next →
+  fast-glob → micromatch) carries a stack-exhaustion advisory with no fixed
+  version to move to, and it never runs on a server or a client PC.
 - **eslint stays ^9** (a ^10 unpin was attempted and reverted): eslint 10 removed
   the deprecated `context.getFilename()` API, and `eslint-plugin-react@7.37.5`
   (bundled by `eslint-config-next@16.3.5`, peer range `^3 || … || ^9.7`) still calls
