@@ -62,6 +62,7 @@ export const messages = {
     UNAUTHENTICATED: "Sign in to continue.",
     FORBIDDEN: "You do not have permission to do this.",
     FORBIDDEN_ROW: "You do not have access to this record.",
+    RATE_LIMITED: "Too many changes in one minute. Wait a moment and try again.",
     NOT_FOUND: "This record no longer exists.",
     CONFLICT: "Someone else changed this record. Reload to see the latest version.",
     DUPLICATE: "A record with this name already exists.",

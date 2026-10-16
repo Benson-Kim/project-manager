@@ -2,6 +2,7 @@ import { revalidatePath, updateTag } from "next/cache";
 import { z } from "zod";
 import { auth } from "./auth/provider";
 import { can } from "./auth/rbac";
+import { takeUserSlot } from "./rate-limit";
 import type { Permission, Session } from "./auth/types";
 import { AppError, type AppErrorCode } from "./errors";
 import { messages } from "./messages";
@@ -11,7 +12,7 @@ import "./rich-text/sanitize";
 
 /**
  * Typed Server Action wrapper : validate → authenticate → authorise
- * → execute → map errors → revalidate. Handlers pass ctx.session.userId to the
+ * → throttle → execute → map errors → revalidate. Handlers pass ctx.session.userId to the
  * repository; mutation procs write the audit row in-transaction ).
  * Never throws to the client (redirect() excepted — Next rethrows it).
  */
@@ -100,6 +101,14 @@ export function action<TSchema extends z.ZodType, TOutput>(
         return {
           ok: false,
           error: { code: "FORBIDDEN", message: messages.errors.FORBIDDEN },
+        };
+      }
+
+      // 3b. Throttle (ADR-0031): a fixed window of actions per user and minute.
+      if (!takeUserSlot("actions", session.userId).allowed) {
+        return {
+          ok: false,
+          error: { code: "RATE_LIMITED", message: messages.errors.RATE_LIMITED },
         };
       }
 

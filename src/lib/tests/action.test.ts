@@ -25,6 +25,7 @@ vi.mock("../auth/provider", () => ({
 
 import { action } from "../action";
 import { AppError } from "../errors";
+import { resetRateLimits } from "../rate-limit";
 import { richTextSchema } from "../rich-text/schema";
 
 const schema = z.object({ name: z.string().min(1, "Enter a name") });
@@ -183,5 +184,24 @@ describe("action() wrapper ", () => {
     const fd = new FormData();
     fd.set("body", '<div>Hi<img src=x onerror="alert(1)"><script>alert(1)</script></div>');
     expect(await run(fd)).toEqual({ ok: true, data: "<p>Hi</p>" });
+  });
+});
+
+describe("throttle (ADR-0031)", () => {
+  it("refuses the call over the per-minute limit with RATE_LIMITED", async () => {
+    const previous = process.env.RATE_LIMIT_ACTIONS_PER_MINUTE;
+    process.env.RATE_LIMIT_ACTIONS_PER_MINUTE = "1";
+    resetRateLimits();
+    session = { userId: 4242, username: "busy", role: "User" };
+    const run = makeAction(async (input) => input.name);
+    try {
+      expect(await run({ name: "first" })).toEqual({ ok: true, data: "first" });
+      const second = await run({ name: "second" });
+      expect(second.ok).toBe(false);
+      if (!second.ok) expect(second.error.code).toBe("RATE_LIMITED");
+    } finally {
+      process.env.RATE_LIMIT_ACTIONS_PER_MINUTE = previous;
+      resetRateLimits();
+    }
   });
 });
