@@ -15,7 +15,7 @@ Installer (per user, no admin rights needed)
     runs resources\setup\provision.ps1  (admin prompt, once; idempotent; also the app's "Repair")
       ├─ installs SQL Server 2022 Express, instance PROJECTMGR   (first install only)
       ├─ TCP 127.0.0.1:14330 only + firewall block rule           (not reachable from the network)
-      ├─ login pm_app (random password), sa disabled
+      ├─ login pm_app (random password): dbcreator + db_owner of its database, not sysadmin; sa disabled
       ├─ service restarts itself after a failure; signed-in users may start it (not stop or configure)
       ├─ %ProgramData%\Project Manager\Backups  (writable by the SQL service)
       ├─ %ProgramData%\Project Manager\Uploads  (attachments; writable by every local user, ADR-0026)
@@ -282,3 +282,19 @@ scripts/desktop/     build.mjs (refuses a standalone with build-machine files or
                      release.mjs (CI release steps + force command; tests/)
 .github/workflows/desktop-release.yml   called by ci.yml after a green push to develop
 ```
+
+## Security notes (whole-codebase review, 2026-10-16)
+
+- **One PC, one database, one circle of trust.** `machine.json` (the `pm_app` password, the auth
+  secret, the folders) is readable by every local Windows account, because the app runs as the
+  signed-in user and must open the database. Anyone with a local account on the PC can therefore
+  read and change everything in it. The desktop edition is meant for a PC whose Windows accounts
+  all belong to people who may see the project data; an office that needs separate people kept
+  apart runs the server edition (ADR-0032).
+- **Least privilege on the instance.** Provisioning makes `pm_app` `dbcreator` (it creates and
+  then owns the database) and `db_owner` of `ProjectManager`; it is not `sysadmin`, `sa` stays
+  disabled and `xp_cmdshell` off. A PC provisioned before 2026-10-16 keeps the old grant until
+  **Repair** runs once (the app offers it; it needs an administrator).
+- **Backups leave the PC in clear.** The daily `.bak` copied to the backup folder (OneDrive by
+  default) is not encrypted by SQL Server; it relies on the account's OneDrive protection and
+  BitLocker on the disk. Point the copy at a folder you consider safe for project financials.

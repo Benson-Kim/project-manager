@@ -356,7 +356,21 @@ IF SUSER_ID(N'pm_app') IS NULL
 ELSE
     ALTER LOGIN [pm_app] WITH PASSWORD = N'$appPassword', CHECK_POLICY = OFF, CHECK_EXPIRATION = OFF;
 ALTER LOGIN [pm_app] ENABLE;
-IF IS_SRVROLEMEMBER(N'sysadmin', N'pm_app') = 0 ALTER SERVER ROLE [sysadmin] ADD MEMBER [pm_app];
+-- Least privilege (ADR-0031 review): the app creates and owns its database (dbcreator), and is
+-- db_owner there; it is not sysadmin. A PC provisioned before this change is demoted by Repair.
+IF IS_SRVROLEMEMBER(N'sysadmin', N'pm_app') = 1 ALTER SERVER ROLE [sysadmin] DROP MEMBER [pm_app];
+IF IS_SRVROLEMEMBER(N'dbcreator', N'pm_app') = 0 ALTER SERVER ROLE [dbcreator] ADD MEMBER [pm_app];
+IF DB_ID(N'ProjectManager') IS NOT NULL
+    EXEC(N'USE [ProjectManager];
+DECLARE @principal SYSNAME = (SELECT name FROM sys.database_principals WHERE sid = SUSER_SID(N''pm_app''));
+IF @principal IS NULL BEGIN CREATE USER [pm_app] FOR LOGIN [pm_app]; SET @principal = N''pm_app''; END;
+IF @principal <> N''dbo'' AND ISNULL(IS_ROLEMEMBER(N''db_owner'', @principal), 0) = 0
+BEGIN
+    DECLARE @grant NVARCHAR(400) = N''ALTER ROLE [db_owner] ADD MEMBER '' + QUOTENAME(@principal) + N'';'';
+    EXEC(@grant);
+END;');
+EXEC sp_configure N'show advanced options', 1; RECONFIGURE;
+EXEC sp_configure N'xp_cmdshell', 0; RECONFIGURE;
 ALTER LOGIN [sa] WITH PASSWORD = N'$saPassword';
 ALTER LOGIN [sa] DISABLE;
 SELECT 1;
@@ -366,7 +380,7 @@ SELECT 1;
   } catch {
     throw [ProvisionError]::new(50, "Configuring SQL logins failed: $($_.Exception.Message)")
   }
-  Write-Log "Login 'pm_app' configured; 'sa' disabled."
+  Write-Log "Login 'pm_app' configured (dbcreator + db_owner, not sysadmin); 'sa' disabled."
 
   $config = [ordered]@{
     schemaVersion    = 1
