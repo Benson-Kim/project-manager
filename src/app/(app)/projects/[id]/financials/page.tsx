@@ -21,8 +21,9 @@ export const metadata: Metadata = { title: `${M.title} — ${messages.app.name}`
 
 /**
  * The project's financials (ADR-0029): one row per budget sheet (a project can
- * hold several, e.g. one per funding envelope). Managers create them from a
- * master template or blank.
+ * hold several, e.g. one per funding envelope), with its document checklist
+ * status (ADR-0030). Managers create them from a master template or blank.
+ * "Export all to CSV" writes one row per financial (any reader).
  */
 export default async function FinancialsPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth.requireSession();
@@ -53,6 +54,17 @@ export default async function FinancialsPage({ params }: { params: Promise<{ id:
           ) : undefined
         }
       />
+      {rows.length > 0 ? (
+        <p className="mb-3">
+          <a
+            href={`/projects/${projectId}/financials/export`}
+            className="inline-flex min-h-10 items-center text-sm text-accent underline"
+            data-testid="export-project-csv"
+          >
+            {M.exportProjectCsv}
+          </a>
+        </p>
+      ) : null}
       {rows.length === 0 ? (
         <EmptyState title={M.title} body={M.emptyBody} />
       ) : (
@@ -72,6 +84,15 @@ export default async function FinancialsPage({ params }: { params: Promise<{ id:
                   </span>
                   {row.BudgetEnvelope ? (
                     <span className="text-sm text-ink-muted">{row.BudgetEnvelope}</span>
+                  ) : null}
+                  {row.DocumentCount > 0 ? (
+                    <span className="text-sm text-ink-muted" data-testid="financial-documents">
+                      {M.documents.summary(
+                        row.DocumentsRequired,
+                        row.DocumentsRequiredWithFile,
+                        row.DocumentsUndecided,
+                      )}
+                    </span>
                   ) : null}
                   {row.Budget !== null ? (
                     <span className="text-sm text-ink tabular-nums sm:ml-auto">

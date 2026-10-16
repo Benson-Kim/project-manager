@@ -4,13 +4,16 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
+import { uploadsEnabled } from "@/lib/env";
 import { messages } from "@/lib/messages";
 import { orNotFound } from "@/lib/row-access";
 import { fiscalYearLabel } from "@/modules/financials/calc/fiscal";
 import { BudgetPlanner } from "@/modules/financials/components/budget-planner";
+import { DocumentsPanel } from "@/modules/financials/components/documents-panel";
 import { MonitoringPanel } from "@/modules/financials/components/monitoring-panel";
 import { SettingsPanel } from "@/modules/financials/components/settings-panel";
 import { getFinancialSheet } from "@/modules/financials/repository/financials";
+import { listTemplates } from "@/modules/financials/repository/templates";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { parseProjectId } from "../../project-id";
 
@@ -18,11 +21,12 @@ const M = messages.financials;
 
 export const metadata: Metadata = { title: `${M.title} — ${messages.app.name}` };
 
-const TABS = ["budget", "monitoring", "settings"] as const;
+const TABS = ["budget", "monitoring", "documents", "settings"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = {
   budget: M.budgetTab,
   monitoring: M.monitoringTab,
+  documents: M.documentsTab,
   settings: M.settings,
 };
 
@@ -30,8 +34,8 @@ const idSchema = z.coerce.number().int().positive();
 
 /**
  * One financial (ADR-0029; ADR-0010 full-route exception like the meeting
- * workspace): the budget planner, monitoring and the financial's own
- * settings, one tab per ?tab=. A financial of another project than the
+ * workspace): the budget planner, monitoring, the document checklist
+ * (ADR-0030) and the financial's own settings, one tab per ?tab=. A financial of another project than the
  * path's is not found.
  */
 export default async function FinancialPage({
@@ -83,7 +87,24 @@ export default async function FinancialPage({
         {fiscalYearLabel(f.firstFiscalYear + f.horizonYears - 1, f.startMonth)}
         {f.templateName ? ` · ${f.templateName}` : ""}
       </p>
-      <nav aria-label={M.title} className="mb-4 flex gap-1 border-b border-line">
+      <p className="-mt-1 mb-3 flex flex-wrap gap-x-4 text-sm" data-testid="financial-outputs">
+        <Link
+          href={`${base}/print`}
+          className="inline-flex min-h-10 items-center text-accent underline"
+        >
+          {M.print}
+        </Link>
+        <a href={`${base}/pdf`} className="inline-flex min-h-10 items-center text-accent underline">
+          {M.downloadPdf}
+        </a>
+        <a
+          href={`${base}/export`}
+          className="inline-flex min-h-10 items-center text-accent underline"
+        >
+          {M.exportCsv}
+        </a>
+      </p>
+      <nav aria-label={M.title} className="mb-4 flex flex-wrap gap-1 border-b border-line">
         {TABS.map((t) => (
           <Link
             key={t}
@@ -102,6 +123,22 @@ export default async function FinancialPage({
       </nav>
       {tab === "budget" ? <BudgetPlanner sheet={sheet} {...can} /> : null}
       {tab === "monitoring" ? <MonitoringPanel sheet={sheet} {...ledger} /> : null}
+      {tab === "documents" ? (
+        <DocumentsPanel
+          sheet={sheet}
+          templates={
+            can.canCreate
+              ? (await listTemplates(session.userId)).map((t) => ({
+                  id: t.id,
+                  name: t.name,
+                  isDefault: t.isDefault,
+                }))
+              : []
+          }
+          {...can}
+          uploadsEnabled={uploadsEnabled()}
+        />
+      ) : null}
       {tab === "settings" ? (
         <SettingsPanel
           key={f.rowVer}

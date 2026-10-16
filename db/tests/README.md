@@ -8,6 +8,11 @@ and prints `N passed, M failed`.
 
 - `financials-procs.cjs` — ADR-0029/0031: financial templates, financials, lines, transactions,
   tax profiles.
+- `financial-documents-procs.cjs` — ADR-0030: template documents and their validation, the
+  snapshot copy, roles and overrides, access across projects, duplicate names, caps, moves, copy
+  from a template, attachments (quota, cross-owner ids both ways), cascades, dropped legacy procs.
+- `financial-documents-race.cjs` — ADR-0030 under concurrency: the document cap, unique names
+  (creates, copies, renames), the file quota, and delete versus attach.
 
 Run one locally with the `.env` of a throwaway database: `node db/tests/financials-procs.cjs`.
 Never run them against a database anyone depends on: they create projects and leave

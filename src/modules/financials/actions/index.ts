@@ -14,7 +14,21 @@ import {
   updateLine,
   updateTransaction,
 } from "../repository/financials";
+import {
+  copyDocumentsFromTemplate,
+  createDocument,
+  deleteDocument,
+  moveDocument,
+  updateDocument,
+} from "../repository/documents";
 import { deleteTemplate, saveTemplate } from "../repository/templates";
+import {
+  copyDocumentsInput,
+  createDocumentInput,
+  deleteDocumentInput,
+  moveDocumentInput,
+  updateDocumentInput,
+} from "../schemas/documents";
 import {
   createFinancialInput,
   createLineInput,
@@ -170,5 +184,60 @@ export const deleteTransactionAction = action({
   handler: async (input, ctx) => {
     await deleteTransaction(input.transactionId, input.rowVer, ctx.session.userId);
     return { transactionId: input.transactionId };
+  },
+});
+
+export const createDocumentAction = action({
+  name: "financials.createDocument",
+  schema: createDocumentInput,
+  permission: "financials:create",
+  handler: async (input, ctx) => {
+    const saved = await createDocument(input, ctx.session.userId);
+    return { documentId: saved.FinancialDocumentId, rowVer: saved.RowVer };
+  },
+});
+
+export const updateDocumentAction = action({
+  name: "financials.updateDocument",
+  schema: updateDocumentInput,
+  permission: "financials:update",
+  handler: async (input, ctx) => {
+    const saved = await updateDocument(input, ctx.session.userId);
+    return { documentId: saved.FinancialDocumentId, rowVer: saved.RowVer };
+  },
+});
+
+export const moveDocumentAction = action({
+  name: "financials.moveDocument",
+  schema: moveDocumentInput,
+  permission: "financials:update",
+  handler: async (input, ctx) => {
+    const saved = await moveDocument(
+      input.documentId,
+      input.direction,
+      input.rowVer,
+      ctx.session.userId,
+    );
+    return { documentId: saved.FinancialDocumentId, rowVer: saved.RowVer };
+  },
+});
+
+export const deleteDocumentAction = action({
+  name: "financials.deleteDocument",
+  schema: deleteDocumentInput,
+  permission: "financials:delete",
+  handler: async (input, ctx) => {
+    await deleteDocument(input.documentId, input.rowVer, ctx.session.userId);
+    return { documentId: input.documentId };
+  },
+});
+
+export const copyDocumentsAction = action({
+  name: "financials.copyDocuments",
+  schema: copyDocumentsInput,
+  permission: "financials:create",
+  handler: async (input, ctx) => {
+    const added = await copyDocumentsFromTemplate(input, ctx.session.userId);
+    return { financialId: input.financialId, added };
   },
 });

@@ -6,7 +6,9 @@ import { messages } from "../src/lib/messages";
  * create, no line or transaction controls, settings disabled — and master
  * templates are read-only for anyone but an Admin. The procs refuse the writes
  * too (FORBIDDEN_ROW; .agent-scratch/financials/proc-check.cjs locally).
- * Seeded financial 1 belongs to project 2.
+ * Seeded financial 1 belongs to project 2. The document checklist (ADR-0030)
+ * is read-only too: no add, copy, edit, move, remove or one-click reason; the
+ * attachments list and the print, PDF and CSV outputs stay available.
  */
 
 const M = messages.financials;
@@ -29,6 +31,26 @@ test("viewer reads financials without write controls", async ({ page }) => {
   await expect(page.getByTestId("save-breakdown")).toHaveCount(0);
   await expect(page.getByTestId("delete-financial")).toHaveCount(0);
   await expect(page.getByLabel(M.titleLabel)).toBeDisabled();
+});
+
+test("viewer reads the document checklist without write controls", async ({ page }) => {
+  await page.goto("/projects/2/financials/1?tab=documents");
+  await expect(page.getByTestId("documents-panel")).toBeVisible();
+  await expect(page.getByTestId(/^document-\d+$/)).toHaveCount(9);
+  await expect(page.getByTestId("add-document")).toHaveCount(0);
+  await expect(page.getByTestId("copy-documents")).toHaveCount(0);
+  await expect(page.getByTestId("use-suggestion")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: messages.actions.edit })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: M.documents.removeLabel })).toHaveCount(0);
+  await expect(page.getByTestId("attachments-add-location")).toHaveCount(0);
+  await expect(page.getByTestId("attachments").first()).toBeVisible();
+
+  const pdf = await page.request.get("/projects/2/financials/1/pdf");
+  expect(pdf.status()).toBe(200);
+  const csv = await page.request.get("/projects/2/financials/export");
+  expect(csv.status()).toBe(200);
+  await page.goto("/projects/2/financials/1/print");
+  await expect(page.getByTestId("financial-print")).toBeVisible();
 });
 
 test("viewer reads templates but cannot create one", async ({ page }) => {

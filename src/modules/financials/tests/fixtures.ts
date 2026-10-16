@@ -75,7 +75,7 @@ function line(
   };
 }
 
-/** usp_Financial_GetSheet's five result sets for the workbook's Budget Execution tab. */
+/** usp_Financial_GetSheet's result sets for the workbook's Budget Execution tab, with a checklist. */
 export function workbookSheetSets(): unknown[][] {
   return [
     [financialRow()],
@@ -112,7 +112,59 @@ export function workbookSheetSets(): unknown[][] {
       tx(6, 20, 2500, 0.056879),
       tx(7, 20, 3000, 0.056879),
     ],
+    [
+      documentRow(31, "DA (Dossier d'affaires)", null, 1, [
+        { kind: "noCapital", reason: "Non-capitalizable." },
+        { kind: "budgetBelow", amount: "200000.00", reason: "Under 200,000 $." },
+      ]),
+      documentRow(32, "Signed direct contract", true, 2, [], 1),
+      documentRow(33, "A1", false, 3, [], 0, "Not needed"),
+    ],
+    [
+      {
+        FinancialDocumentId: 32,
+        FileAttachmentId: 901,
+        FileName: "contract.pdf",
+        ContentType: "application/pdf",
+        SizeBytes: "2048",
+        StorageLocation: null,
+        CreatedAtUtc: new Date("2026-10-16T00:00:00Z"),
+        CreatedByName: "PM",
+        RowVer: "300",
+      },
+    ],
   ];
+}
+
+/** One row of usp_Financial_GetSheet's checklist set (ADR-0030). */
+export function documentRow(
+  id: number,
+  name: string,
+  required: boolean | null,
+  sortOrder: number,
+  suggestions: unknown[] = [],
+  fileCount = 0,
+  reason: string | null = null,
+) {
+  return {
+    FinancialDocumentId: id,
+    Name: name,
+    IsRequired: required,
+    ReasonNotCreated: reason,
+    Suggestions: JSON.stringify(suggestions),
+    SortOrder: sortOrder,
+    FileCount: fileCount,
+    RowVer: String(400 + id),
+  };
+}
+
+/** The documents migration 033 adds to the default template (quotes un-doubled). */
+export function migrationTemplateDocuments(): unknown {
+  const sql = readFileSync(join("db", "migrations", "033_financial_documents.sql"), "utf8");
+  const from = sql.indexOf("N'[", sql.indexOf("@Documents"));
+  const to = sql.indexOf("]';", from);
+  if (from < 0 || to < 0) throw new Error("template documents not found in migration 033");
+  return JSON.parse(sql.slice(from + 2, to + 1).replace(/''/g, "'"));
 }
 
 function tx(id: number, lineId: number, amount: number, rate: number) {

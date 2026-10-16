@@ -4,6 +4,8 @@
 --   3. live lines in section, SortOrder
 --   4. typed amounts of those lines
 --   5. live transactions of those lines, by date
+--   6. live checklist documents in SortOrder (ADR-0030), with their live attachment count
+--   7. the live attachments of those documents, newest first, shaped like usp_<Owner>_ListFiles
 -- Access: Viewer on its project (usp_Financial_AssertAccess; NOT_FOUND 50001, FORBIDDEN_ROW 50003).
 -- No transaction: a read that held shared locks under REPEATABLE READ blocked writers, and a
 -- cancelled request left it open on the pooled connection (LESSONS 30). Pages re-read after
@@ -54,5 +56,30 @@ BEGIN
     JOIN app.FinancialLine AS l ON l.FinancialLineId = t.FinancialLineId
     WHERE l.FinancialId = @FinancialId AND l.IsDeleted = 0 AND t.IsDeleted = 0
     ORDER BY t.TransactionDate, t.FinancialTransactionId;
+
+    SELECT d.FinancialDocumentId, d.[Name], d.IsRequired, d.ReasonNotCreated, d.Suggestions, d.SortOrder,
+           (SELECT COUNT(*) FROM app.FinancialDocumentFile AS l
+            JOIN app.FileAttachment AS f ON f.FileAttachmentId = l.FileAttachmentId
+            WHERE l.FinancialDocumentId = d.FinancialDocumentId AND f.IsDeleted = 0) AS FileCount,
+           CAST(d.RowVer AS BIGINT) AS RowVer
+    FROM app.FinancialDocument AS d
+    WHERE d.FinancialId = @FinancialId AND d.IsDeleted = 0
+    ORDER BY d.SortOrder, d.FinancialDocumentId;
+
+    SELECT l.FinancialDocumentId,
+           f.FileAttachmentId,
+           f.FileName,
+           f.ContentType,
+           f.SizeBytes,
+           f.StorageLocation,
+           f.CreatedAtUtc,
+           u.DisplayName AS CreatedByName,
+           CAST(f.RowVer AS BIGINT) AS RowVer
+    FROM app.FinancialDocumentFile AS l
+    JOIN app.FinancialDocument AS d ON d.FinancialDocumentId = l.FinancialDocumentId
+    JOIN app.FileAttachment AS f ON f.FileAttachmentId = l.FileAttachmentId
+    LEFT JOIN auth.[User] AS u ON u.UserId = f.CreatedBy
+    WHERE d.FinancialId = @FinancialId AND d.IsDeleted = 0 AND f.IsDeleted = 0
+    ORDER BY f.CreatedAtUtc DESC, f.FileAttachmentId DESC;
 END;
 GO

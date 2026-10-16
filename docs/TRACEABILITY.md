@@ -30,8 +30,8 @@ restated as an acceptance criterion in its module issue.
 | 20 | 9.3 Word-like tools | notes; toolbar in the shared editor (P1, ADR-0025) | #15 | feature/notes; editor: feature/rich-text |
 | 21 | 10-IT Resource Planning | it-resource-planning | #16 | feature/it-resource-planning |
 | 22 | 10.1 mock-up fields editable | it-resource-planning (PPTX slide 1) | #16 | feature/it-resource-planning |
-| 23 | 11-Financials | financials: master templates (Settings) + project financials with budget planner, monitoring, CSV export (ADR-0029); document checklist pending | #17 | feature/financials-calculator |
-| 24 | 11.1 mock-up fields editable | financials Settings tab "Financial breakdown" (PPTX slide 2 fields, ADR-0029); document checklist pending | #17 | feature/financials-calculator |
+| 23 | 11-Financials | financials: master templates (Settings) + project financials with budget planner, monitoring, CSV export (ADR-0029); document checklist per financial with advisory reasons and attachments, print view, PDF, project CSV (ADR-0030) | #17 | feature/financials-calculator |
+| 24 | 11.1 mock-up fields editable | financials Settings tab "Financial breakdown" (PPTX slide 2 fields, ADR-0029); Documents tab "Financial documents required?" with required / reason / files per document (ADR-0030) | #17 | feature/financials-calculator |
 | 25 | 12-Parking Lot Items | parking-lot | #18 | feature/parking-lot |
 | 26 | 12.1 strikethrough content | parking-lot | #18 | feature/parking-lot |
 | 27 | 12.2 mock-up fields editable | parking-lot (PPTX slide 3) | #18 | feature/parking-lot |
@@ -71,7 +71,7 @@ restated as an acceptance criterion in its module issue.
 | 61 | Import mechanism from the Access database | database-schema-and-procs (seeds from extraction — delivered, MR !6) | #3 | feature/database-schema-and-procs |
 | 62 | Font (Microsoft Word) | shared editor font family (system fonts) and size controls (P1, ADR-0025) | #15 | feature/rich-text |
 | 63 | "Potential Additional Requirements" (header) | — header | — | — |
-| 64 | Financial tracking spreadsheet equivalent | financials: `Financials Calculated.xlsx` as a calculator (Budget Execution -> Budget tab, Monitoring execution budget -> Monitoring tab, 1-7 years) + CSV export (ADR-0029) | #17 | feature/financials-calculator |
+| 64 | Financial tracking spreadsheet equivalent | financials: `Financials Calculated.xlsx` as a calculator (Budget Execution -> Budget tab, Monitoring execution budget -> Monitoring tab, 1-7 years) + CSV export (ADR-0029), project-wide CSV with document columns, print view and PDF (ADR-0030) | #17 | feature/financials-calculator |
 | 65 | Export & import data (backups) | file-storage-and-backup (+ admin) | #22, #23 | feature/file-storage-and-backup |
 | 66 | Calendar with reminders for to-dos | todo-alerts (calendar view) | #20 | feature/todo-alerts |
 | 67 | Gantt from key-deliverable dates (start date required) | key-deliverables (rebuilt 2026-10-13, ADR-0027 — key deliverables are a work breakdown up to 10 levels (codes 1, 1.1, 1.1.1 …, indented) that draws the Gantt at `/projects/[id]/deliverables/gantt`; the WBS is also drawn as the checklist's box diagram (`?view=wbs`, the default: project on top, top-level boxes across, sub-items stacked and indented), where items are added, renamed, deleted and moved by drag and drop, and their dates typed in the box; a WBS \| Gantt switch shares one editor, so a change in either shows in the other at once; add, rename, indent, move and delete in the outline show at once on the chart; start date required, parent dates roll up; bars drag, stretch and draw with the cursor; days / weeks / months scale with the dates in the header and beside each bar; migration 032, seed 031) | #9 | feature/key-deliverables, feature/wbs-gantt |

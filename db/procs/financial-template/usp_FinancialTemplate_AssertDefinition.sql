@@ -5,7 +5,10 @@
 --   costCategories / fundingSources: usp_Financial_AssertLabelList;
 --   lines: at most 300, section operating / capital / other, description 1-255, category and
 --   source at most 150, taxProfileKey null or a listed key, isRecurrent true/false/absent,
---   amount null or 0-999,999,999.99 with at most two decimals.
+--   amount null or 0-999,999,999.99 with at most two decimals;
+--   documents (ADR-0030; optional, older templates have none): at most 50, name 1-200 and unique,
+--   required true / false / null, reason null or at most 2000, suggestions per
+--   usp_FinancialDocument_AssertSuggestions (at most one of each kind per document).
 -- The app validates the same shape with zod (src/modules/financials/schemas/template.ts).
 USE ProjectManager;
 GO
@@ -84,5 +87,53 @@ BEGIN
            OR ISNULL(JSON_VALUE(l.[value], N'$.isRecurrent'), N'false') NOT IN (N'true', N'false')
     )
         THROW 50004, N'VALIDATION:A standard line is incomplete or out of range', 1;
+
+    IF JSON_QUERY(@Definition, N'$.documents') IS NOT NULL
+       OR JSON_VALUE(@Definition, N'$.documents') IS NOT NULL
+    BEGIN
+        IF LEFT(ISNULL(JSON_QUERY(@Definition, N'$.documents'), N''), 1) <> N'['
+            THROW 50004, N'VALIDATION:Documents must be a list', 1;
+        IF (SELECT COUNT(*) FROM OPENJSON(@Definition, N'$.documents')) > 50
+            THROW 50004, N'VALIDATION:A template can hold at most 50 documents', 1;
+        IF EXISTS (SELECT 1 FROM OPENJSON(@Definition, N'$.documents') WHERE [type] <> 5)
+            THROW 50004, N'VALIDATION:A document is incomplete or out of range', 1;
+
+        DECLARE @Docs TABLE ([Name] NVARCHAR(4000), [Required] NVARCHAR(4000), RequiredType INT,
+                             Reason NVARCHAR(MAX), ReasonType INT, Suggestions NVARCHAR(MAX), SuggestionsType INT);
+        INSERT INTO @Docs ([Name], [Required], RequiredType, Reason, ReasonType, Suggestions, SuggestionsType)
+        SELECT LTRIM(RTRIM(JSON_VALUE(d.[value], N'$.name'))),
+               (SELECT r.[value] FROM OPENJSON(d.[value]) AS r WHERE r.[key] = N'required'),
+               (SELECT r.[type] FROM OPENJSON(d.[value]) AS r WHERE r.[key] = N'required'),
+               (SELECT r.[value] FROM OPENJSON(d.[value]) AS r WHERE r.[key] = N'reason' AND r.[type] = 1),
+               (SELECT r.[type] FROM OPENJSON(d.[value]) AS r WHERE r.[key] = N'reason'),
+               JSON_QUERY(d.[value], N'$.suggestions'),
+               (SELECT r.[type] FROM OPENJSON(d.[value]) AS r WHERE r.[key] = N'suggestions')
+        FROM OPENJSON(@Definition, N'$.documents') AS d;
+
+        IF EXISTS (SELECT 1 FROM @Docs
+                   WHERE ISNULL(LEN([Name]), 0) NOT BETWEEN 1 AND 200
+                      OR ISNULL(RequiredType, 0) NOT IN (0, 3)
+                      OR ISNULL(ReasonType, 0) NOT IN (0, 1)
+                      OR LEN(LTRIM(RTRIM(Reason))) > 2000
+                      OR ISNULL(SuggestionsType, 4) <> 4)
+            THROW 50004, N'VALIDATION:A document is incomplete or out of range', 1;
+        IF EXISTS (SELECT [Name] FROM @Docs GROUP BY [Name] HAVING COUNT(*) > 1)
+            THROW 50004, N'VALIDATION:Document names must be unique', 1;
+        IF EXISTS (SELECT 1 FROM @Docs AS d
+                   CROSS APPLY OPENJSON(ISNULL(d.Suggestions, N'[]')) AS s WHERE s.[type] <> 5)
+            THROW 50004, N'VALIDATION:A suggestion is incomplete or out of range', 1;
+        IF EXISTS (SELECT 1 FROM @Docs WHERE (SELECT COUNT(*) FROM OPENJSON(ISNULL(Suggestions, N'[]'))) > 2)
+           OR EXISTS (SELECT 1 FROM @Docs AS d
+                      CROSS APPLY (SELECT JSON_VALUE(s.[value], N'$.kind') AS Kind
+                                   FROM OPENJSON(ISNULL(d.Suggestions, N'[]')) AS s) AS k
+                      GROUP BY d.[Name], k.Kind HAVING COUNT(*) > 1)
+            THROW 50004, N'VALIDATION:A document can hold at most one suggestion of each kind', 1;
+
+        DECLARE @AllSuggestions NVARCHAR(MAX) =
+            N'[' + ISNULL((SELECT STRING_AGG(CAST(s.[value] AS NVARCHAR(MAX)), N',')
+                           FROM @Docs AS d
+                           CROSS APPLY OPENJSON(ISNULL(d.Suggestions, N'[]')) AS s), N'') + N']';
+        EXEC dbo.usp_FinancialDocument_AssertSuggestions @Suggestions = @AllSuggestions, @MaxPerDocument = NULL;
+    END;
 END;
 GO

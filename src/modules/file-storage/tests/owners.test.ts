@@ -51,8 +51,11 @@ describe.each(ATTACHMENT_OWNERS.map((owner) => [owner, ownerConfig(owner)] as co
     });
 
     it("reads at Viewer; adds, renames and removes at the module's update level", () => {
+      // The update level is the section's own: Contributor for daily activities, Manager for
+      // financials (not a Contributor module, ADR-0029). Never the section's delete permission.
       expect(requiredLevel(config.permissions.read)).toBe("Viewer");
-      expect(requiredLevel(config.permissions.update)).not.toBe("Manager");
+      expect(config.permissions.update).toMatch(/:update$/);
+      expect(requiredLevel(config.permissions.update)).not.toBe("Viewer");
     });
   },
 );

@@ -34,14 +34,15 @@ export function useFinancialAction() {
       {
         success = messages.feedback.saved,
         onSuccess,
-      }: { success?: string; onSuccess?: (data: T) => void } = {},
+      }: { success?: string | ((data: T) => string); onSuccess?: (data: T) => void } = {},
     ) => {
       reset();
       startTransition(async () => {
         const result = await call();
         if (result.ok) {
-          toast({ variant: "success", title: success });
-          announce(success);
+          const title = typeof success === "function" ? success(result.data) : success;
+          toast({ variant: "success", title });
+          announce(title);
           onSuccess?.(result.data);
           router.refresh();
           return;
@@ -74,9 +75,4 @@ export function useFinancialAction() {
     setSummary,
     setFieldErrors,
   };
-}
-
-/** Field errors of one path ("amounts.0.amount") or of everything under a prefix. */
-export function errorsAt(errors: Record<string, string[]>, path: string): string[] | undefined {
-  return errors[path];
 }

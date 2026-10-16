@@ -175,7 +175,10 @@ jobs:
           DB_PASSWORD: "Ci-Ephemeral!Passw0rd1"
           DB_NAME: ProjectManager
           TRUST_SERVER_CERT: "true"
-        run: node db/tests/financials-procs.cjs
+        run: |
+          node db/tests/financials-procs.cjs
+          node db/tests/financial-documents-procs.cjs
+          node db/tests/financial-documents-race.cjs
 
   e2e-tests:
     name: Playwright E2E Smoke Tests
