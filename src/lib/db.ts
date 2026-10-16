@@ -132,6 +132,16 @@ export async function execProcFull<T = unknown>(
   };
 }
 
+/** Execute a stored procedure that returns several result sets, in order. */
+export async function execProcSets(
+  procName: string,
+  params: ProcParams = {},
+): Promise<unknown[][]> {
+  const p = await connectedPool();
+  const result = await bindAndExecute<unknown>(p.request(), procName, params);
+  return (result.recordsets ?? []) as unknown[][];
+}
+
 /** Execute a stored procedure inside an existing transaction. */
 export async function execProcTx<T = unknown>(
   tx: sql.Transaction,

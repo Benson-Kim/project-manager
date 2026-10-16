@@ -43,6 +43,7 @@ export const projectSections: ProjectSection[] = [
     label: messages.projects.assumptionsConstraintsSection,
     match: "prefix",
   },
+  { segment: "financials", label: messages.projects.financialsSection, match: "prefix" },
 ];
 
 /** Sections grouped for the disclosure nav (ADR-0018). */
@@ -62,6 +63,7 @@ export const projectSectionGroups: ProjectSectionGroup[] = [
         "questions-answers",
         "parking-lot",
         "assumptions-constraints",
+        "financials",
       ].includes(s.segment),
     ),
   },

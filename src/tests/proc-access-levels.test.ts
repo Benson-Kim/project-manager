@@ -23,6 +23,10 @@ const MODULES: Record<string, string> = {
   "assumption-constraint": "assumptions-constraints",
   "todo-item": "todo-items",
   "todo-alert": "todo-alerts",
+  financial: "financials",
+  "financial-line": "financials",
+  "financial-transaction": "financial-tax-invoices",
+  "financial-tax-profile": "financial-tax-invoices",
   project: "projects",
   "project-assignee": "projects",
 };
@@ -33,6 +37,9 @@ const VERBS: Record<string, string> = {
   List: "read",
   ListOptions: "read",
   GanttData: "read",
+  // Financials calculator (ADR-0029).
+  GetSheet: "read",
+  GetDocumentChecklist: "read",
   Create: "create",
   BuildFromDailyActivity: "create",
   Update: "update",
@@ -65,6 +72,9 @@ const EXEMPT: Record<string, string> = {
   usp_Todo_GetUpcomingAlerts: "returns only the actor's own to-dos (CreatedBy)",
   usp_KeyDeliverable_AssertPlacement:
     "checks a parent inside the write procs' transaction, after their own access check",
+  usp_Financial_AssertLabelList: "checks a JSON list of labels; no data access",
+  usp_FinancialLine_SetAmounts:
+    "replaces a line's amounts inside the line write procs' transaction, after their own access check",
   usp_KeyDeliverable_RollUp:
     "recomputes parent dates inside the write procs' transaction, after their own access check",
 };

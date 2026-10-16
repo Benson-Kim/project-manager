@@ -80,6 +80,8 @@ export function canInProject(level: AccessLevel | null, permission: Permission):
 export const OVERRIDABLE_MODULES = [
   "assumptions-constraints",
   "daily-activities",
+  "financial-tax-invoices",
+  "financials",
   "key-deliverables",
   "keywords",
   "objectives",

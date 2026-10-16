@@ -14,8 +14,15 @@ export default async function Page() {
       <PageHeader title={messages.nav.settings} />
       <p className="text-sm text-ink-muted">{messages.app.moduleNotAvailable}</p>
       <Link
-        href="/projects"
+        href="/settings/financial-templates"
+        data-testid="financial-templates-link"
         className="mt-3 inline-flex min-h-10 items-center text-sm font-medium text-accent underline"
+      >
+        {messages.financials.templates.title}
+      </Link>
+      <Link
+        href="/projects"
+        className="mt-3 ml-4 inline-flex min-h-10 items-center text-sm font-medium text-accent underline"
       >
         {messages.app.goToProjects}
       </Link>

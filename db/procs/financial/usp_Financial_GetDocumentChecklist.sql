@@ -3,6 +3,7 @@
 -- financial's junction state (required flag / skip reason) where one exists.
 -- Port of the tblFinancials → tblProjectFinancialDocuments → tblFinancialDocuments
 -- chain (qryFinancialsExtended).
+-- Access: Viewer on the financial's project (usp_Financial_AssertAccess, ADR-0021/0029).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Financial_GetDocumentChecklist
@@ -12,8 +13,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    IF NOT EXISTS (SELECT 1 FROM app.Financial WHERE FinancialId = @FinancialId AND IsDeleted = 0)
-        THROW 50001, N'NOT_FOUND:Financial not found', 1;
+    EXEC dbo.usp_Financial_AssertAccess
+         @FinancialId = @FinancialId, @ActorUserId = @ActorUserId, @MinLevel = N'Viewer';
 
     SELECT dt.FinancialDocumentTypeId,
            dt.DocumentType,
