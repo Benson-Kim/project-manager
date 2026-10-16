@@ -64,7 +64,16 @@ jobs:
         env:
           PM_VERSION: ${{ steps.plan.outputs.version }}
           PM_UPDATE_GITHUB: ${{ github.repository }}
-        run: npm run electron:build
+          # Code signing (ADR-0034): the publisher certificate from the repository's secrets
+          # and its subject from the PM_PUBLISHER variable. Absent = unsigned, with a warning.
+          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          PM_PUBLISHER: ${{ vars.PM_PUBLISHER }}
+        run: |
+          if [ -z "$CSC_LINK" ]; then
+            echo "::warning::Unsigned installer: installed apps will not verify this release's signature. Set WIN_CSC_LINK, WIN_CSC_KEY_PASSWORD and PM_PUBLISHER (docs/DESKTOP.md, Code signing)."
+          fi
+          npm run electron:build
 
       - name: Update policy and release notes
         if: steps.plan.outputs.skip != 'true'

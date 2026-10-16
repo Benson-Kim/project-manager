@@ -276,6 +276,35 @@ function Set-AccessControl {
   if ($LASTEXITCODE -ne 0) { throw [ProvisionError]::new(50, "icacls failed on $UploadsDir") }
 }
 
+function Import-PublisherCertificate {
+  # Updates are verified against the publisher (ADR-0034): an installed app refuses an
+  # installer whose Authenticode signature does not chain to a root this PC trusts with
+  # that subject. The installer ships the office's self-issued certificate; trust it
+  # here, once, while elevated. Never fatal: the app runs without it, updates wait for
+  # the next Repair.
+  $cer = Join-Path $PSScriptRoot 'publisher.cer'
+  if (-not (Test-Path -LiteralPath $cer)) {
+    Write-Log 'No publisher.cer shipped: update signatures are not verified on this PC.'
+    return
+  }
+  try {
+    $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 $cer
+    foreach ($storeName in @('Root', 'TrustedPublisher')) {
+      $store = New-Object System.Security.Cryptography.X509Certificates.X509Store($storeName, 'LocalMachine')
+      $store.Open('ReadWrite')
+      try {
+        $present = @($store.Certificates | Where-Object { $_.Thumbprint -eq $cert.Thumbprint }).Count -gt 0
+        if (-not $present) {
+          $store.Add($cert)
+          Write-Log "Publisher certificate $($cert.Thumbprint) ($($cert.Subject)) added to LocalMachine\$storeName."
+        }
+      } finally { $store.Close() }
+    }
+  } catch {
+    Write-Log "WARNING: could not trust the publisher certificate: $($_.Exception.Message). Updates will not install until Repair succeeds."
+  }
+}
+
 function Grant-ServiceBackupAccess {
   & icacls.exe $BackupDir /grant "${ServiceSid}:(OI)(CI)M" | Out-Null
   if ($LASTEXITCODE -ne 0) { throw [ProvisionError]::new(50, "Could not grant $ServiceSid access to $BackupDir") }
@@ -315,6 +344,7 @@ try {
   }
 
   Set-AccessControl
+  Import-PublisherCertificate
 
   if (-not (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) {
     Install-SqlExpress

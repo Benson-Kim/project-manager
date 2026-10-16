@@ -163,11 +163,13 @@ foundation module.
 - Supply chain: every third-party action is pinned to a commit SHA; the default
   `GITHUB_TOKEN` is read-only at workflow level (CodeQL adds
   `security-events: write`, the desktop release job its own `contents: write`).
-  The desktop installer is **not code-signed** (no certificate yet); the
-  updater's only integrity check is the sha512 in the release's `latest.yml`,
-  so write access to GitHub releases equals code execution on every client PC.
-  Protected branches and the two-maintainer release rule are the control until
-  a certificate exists.
+  Desktop releases are signed with the office's publisher certificate and
+  every installed app verifies an update's Authenticode signature against it
+  before installing ([ADR-0034](adr/ADR-0034-desktop-update-signing.md)):
+  writing a GitHub release is no longer enough to put code on a client PC, the
+  signing key is. Until the `WIN_CSC_*` secrets exist the release job builds
+  unsigned with a warning; protected branches and the two-maintainer release
+  rule remain the only control until then.
 - Playbook: security PRs are reviewed/merged first; a red develop run from a
   security workflow blocks releases to main.
 
