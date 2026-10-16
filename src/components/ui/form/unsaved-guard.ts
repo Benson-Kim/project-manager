@@ -44,3 +44,19 @@ export function guardedHref(
   if (dest.pathname === current.pathname && dest.search === current.search) return null;
   return dest.pathname + dest.search + dest.hash;
 }
+
+/**
+ * Whether a history.pushState / replaceState call leaves the page. The App
+ * Router re-writes the current URL with replaceState on every commit,
+ * router.refresh() included; that is not a navigation and must not ask.
+ */
+export function leavesPage(url: string | URL | null | undefined, currentUrl: string): boolean {
+  if (url == null) return false;
+  const current = new URL(currentUrl);
+  const dest = new URL(String(url), current);
+  return (
+    dest.origin !== current.origin ||
+    dest.pathname !== current.pathname ||
+    dest.search !== current.search
+  );
+}

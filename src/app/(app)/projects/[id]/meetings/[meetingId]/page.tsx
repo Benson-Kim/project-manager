@@ -1,15 +1,19 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { UnsavedChangesScope } from "@/components/ui/form/unsaved-scope";
 import { PageHeader } from "@/components/ui/page-header";
+import { RichTextView } from "@/components/ui/rich-text/rich-text-view";
 import { auth } from "@/lib/auth/provider";
 import { messages } from "@/lib/messages";
 import { guardProjectScope } from "@/lib/project-page-helpers";
 import { orNotFound } from "@/lib/row-access";
 import { MeetingHeaderForm } from "@/modules/meetings/components/meeting-header-form";
+import { MinutesEditor } from "@/modules/meetings/components/minutes-editor";
 import { ParticipantsPanel } from "@/modules/meetings/components/participants-panel";
 import { getMeetingRoster, getMeetingWorkspace } from "@/modules/meetings/repository/meetings";
+import { todayIso } from "@/modules/meetings/schemas/minutes";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { parseProjectId } from "../../project-id";
 
@@ -23,8 +27,9 @@ const M = messages.meetings;
  * Meeting workspace — /projects/[id]/meetings/[meetingId], the ADR-0010
  * full-route exception: the header form, with the agenda and minutes in the
  * main column and the participants in the right-hand column (desktop; below
- * the header on smaller screens). Both forms share one unsaved-changes guard.
- * A meeting of another project, or one the actor can't open, is not found.
+ * the header on smaller screens). Every form on the page shares one
+ * unsaved-changes guard. A meeting of another project, or one the actor
+ * can't open, is not found.
  */
 export default async function MeetingPage({
   params,
@@ -47,6 +52,12 @@ export default async function MeetingPage({
 
   const listHref = `/projects/${projectId}/meetings`;
   const title = meeting.Subject ?? messages.app.untitled;
+  const pointViews = Object.fromEntries(
+    workspace.discussionPoints.map((point) => [
+      point.MeetingDiscussionPointId,
+      { html: point.DiscussionPoint, node: <RichTextView html={point.DiscussionPoint} /> },
+    ]),
+  );
 
   return (
     <div className="mx-auto w-full max-w-7xl">
@@ -62,10 +73,28 @@ export default async function MeetingPage({
               canEdit={allows("meetings:update")}
               canDelete={allows("meetings:delete")}
             />
-            <section aria-labelledby="meeting-minutes-heading">
-              <h2 id="meeting-minutes-heading" className="text-base font-medium text-ink">
-                {M.minutes}
-              </h2>
+            <section aria-labelledby="meeting-minutes-heading" className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 id="meeting-minutes-heading" className="text-base font-medium text-ink">
+                  {M.minutes}
+                </h2>
+                <Link
+                  href={`${listHref}/${meeting.MeetingId}/print`}
+                  data-testid="minutes-print-link"
+                  className="inline-flex min-h-11 items-center text-sm font-medium text-accent underline"
+                >
+                  {M.printView}
+                </Link>
+              </div>
+              <MinutesEditor
+                workspace={workspace}
+                pointViews={pointViews}
+                roster={roster.entries}
+                today={todayIso()}
+                canCreate={allows("meetings:create")}
+                canEdit={allows("meetings:update")}
+                canDelete={allows("meetings:delete")}
+              />
             </section>
           </div>
           <aside aria-labelledby="meeting-participants-heading" className="min-w-0">
