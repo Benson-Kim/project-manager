@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { auth } from "@/lib/auth/provider";
 import { toCsv } from "@/lib/csv";
+import { takeUserSlot } from "@/lib/rate-limit";
 import { isRowUnavailable } from "@/lib/row-access";
 import { financialCsvRows } from "@/modules/financials/calc/export";
 import { getFinancialSheet } from "@/modules/financials/repository/financials";
@@ -26,6 +27,13 @@ export async function GET(
 ) {
   const session = await auth.getSession();
   if (!session) return status(401);
+  const slot = takeUserSlot("exports", session.userId);
+  if (!slot.allowed) {
+    return new Response(null, {
+      status: 429,
+      headers: { "Retry-After": String(slot.retryAfterSeconds), "Cache-Control": "no-store" },
+    });
+  }
   const { id, financialId } = await params;
   const projectId = idSchema.safeParse(id);
   const sheetId = idSchema.safeParse(financialId);

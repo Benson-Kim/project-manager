@@ -13,6 +13,7 @@ export const APP_ERROR_CODES = [
   "QUOTA_EXCEEDED", // 50006 — a project's attachment quota is full (ADR-0026)
   "UNAUTHENTICATED",
   "FORBIDDEN",
+  "RATE_LIMITED", // too many requests in a minute (429; ADR-0031), never from a proc
   "INTERNAL",
 ] as const;
 

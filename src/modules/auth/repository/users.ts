@@ -116,9 +116,11 @@ export async function recordLoginAttempt(
 }
 
 /** Fixed-window 5/min/IP — Record increments atomically and reports Allowed. */
-export async function recordIpLoginAttempt(ipAddress: string): Promise<RateLimitState> {
+/** The IP window (ADR-0031): `limit` attempts per minute for this address. */
+export async function recordIpLoginAttempt(ipAddress: string, limit = 5): Promise<RateLimitState> {
   const rows = await execProc<RateLimitState>("usp_LoginAttempt_Record", {
     IpAddress: ipAddress,
+    Limit: limit,
   });
   return rateLimitStateSchema.parse(rows[0]);
 }

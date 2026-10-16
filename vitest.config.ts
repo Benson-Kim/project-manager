@@ -12,6 +12,8 @@ export default defineConfig({
     // electron/ and scripts/desktop/ hold the desktop host and its release helper.
     include: ["src/**/*.test.ts", "electron/**/*.test.ts", "scripts/**/*.test.mjs"],
     environment: "node",
+    // The action throttle (ADR-0031) is off in the unit suite; rate-limit.test.ts tests it.
+    env: { RATE_LIMIT_ACTIONS_PER_MINUTE: "0", RATE_LIMIT_EXPORTS_PER_MINUTE: "0" },
     coverage: {
       provider: "v8",
       // Scope: all logic in lib/ and modules/. Component files (.tsx) are

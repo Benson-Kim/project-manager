@@ -33,7 +33,13 @@ import {
   recordLoginAttempt,
 } from "@/modules/auth/repository/users";
 import { getEnv } from "@/lib/env";
-import { authorizeCredentials, getTrustedIp } from "../config";
+import {
+  authorizeCredentials,
+  getTrustedIp,
+  KNOWN_IP_LOGIN_LIMIT,
+  SHARED_LOGIN_LIMIT,
+  UNKNOWN_USER_HASH,
+} from "../config";
 import { verifyPassword } from "../password";
 
 const mockGetEnv = vi.mocked(getEnv);
@@ -157,7 +163,8 @@ describe("authorizeCredentials (issue #4 required cases)", () => {
     mockGetUser.mockResolvedValue(null);
     expect(await authorizeCredentials(credentials, proxyRequest)).toBeNull();
     expect(mockAuditUnknown).toHaveBeenCalledWith("10.0.0.1");
-    expect(mockVerify).not.toHaveBeenCalled();
+    // ADR-0031: the dummy verification keeps the timing of a known username.
+    expect(mockVerify).toHaveBeenCalledWith(UNKNOWN_USER_HASH, credentials.password);
   });
 
   it("locked account: null before any password verification", async () => {
@@ -210,7 +217,7 @@ describe("authorizeCredentials (issue #4 required cases)", () => {
     mockVerify.mockResolvedValue(true);
     const spoofed = { headers: new Headers({ "x-forwarded-for": "evil.1.2.3" }) };
     await authorizeCredentials(credentials, spoofed);
-    expect(mockIpAttempt).toHaveBeenCalledWith("unknown");
+    expect(mockIpAttempt).toHaveBeenCalledWith("unknown", SHARED_LOGIN_LIMIT);
     expect(mockUserAttempt).toHaveBeenCalledWith(7, true, "unknown");
   });
 
@@ -228,6 +235,6 @@ describe("authorizeCredentials (issue #4 required cases)", () => {
       headers: new Headers({ "x-forwarded-for": "evil.1.2.3, 10.0.0.99" }),
     };
     await authorizeCredentials(credentials, spoofed);
-    expect(mockIpAttempt).toHaveBeenCalledWith("evil.1.2.3");
+    expect(mockIpAttempt).toHaveBeenCalledWith("evil.1.2.3", KNOWN_IP_LOGIN_LIMIT);
   });
 });
