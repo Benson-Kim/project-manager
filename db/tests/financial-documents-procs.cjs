@@ -262,9 +262,10 @@ const spath = (n) => { const h = sha(n); return `${h.slice(0, 2)}/${h.slice(2, 4
   const [[live]] = await exec("usp_FinancialDocument_CanAddFile", { FinancialDocumentId: undecided.FinancialDocumentId, ActorUserId: PM }).catch(() => [[null]]);
   ok(live === null, "can-add on a deleted financial's document fails");
 
-  // Legacy procs are gone
-  const [[legacy]] = await exec("sp_executesql", { stmt: "SELECT COUNT(*) AS n FROM sys.procedures WHERE name IN ('usp_FinancialDocument_GetById','usp_FinancialDocument_List','usp_Financial_GetDocumentChecklist')" }).catch(() => [[{ n: -1 }]]);
-  ok(legacy.n === 0, `legacy procs dropped (${legacy.n})`);
+  // Legacy procs are gone (dropped by migration 033): calling one is error 2812.
+  for (const proc of ["usp_FinancialDocument_GetById", "usp_FinancialDocument_List", "usp_Financial_GetDocumentChecklist"]) {
+    await expectCode(2812, `${proc} dropped`, () => exec(proc, { ActorUserId: PM }));
+  }
 
   // Parallel creates of the same name: exactly one wins
   const [[fin3]] = await exec("usp_Financial_Create", { ProjectId: P, Title: "Race", FirstFiscalYear: 2023, ActorUserId: PM });
