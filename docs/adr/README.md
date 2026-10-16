@@ -41,3 +41,4 @@ the full rules and examples derived from these decisions.
 | [0031](ADR-0031-request-gate-internal-routes-and-throttling.md) | The request gate: bearer-authenticated internal routes outside the session gate; in-process throttling; login limiting keyed on the user | Accepted (amends 0017) |
 | [0032](ADR-0032-deployment-topology-and-backups.md) | Deployment topology (single-user desktop or one server stack) and host-run backups with an operator upload hook | Accepted (supersedes PLAN §5) |
 | [0033](ADR-0033-least-privilege-app-login.md) | The server edition's app connects as an EXECUTE-only login (`pm_web`, role `app_executor`); the operator's scripts use their own admin credentials | Accepted (amends 0032) |
+| [0034](ADR-0034-desktop-update-signing.md) | Desktop releases signed with a self-issued publisher certificate; installed apps verify every update against it, trusted once by provisioning | Accepted (0033 is the server app login, other session) |

@@ -59,6 +59,15 @@ export function setupAutoUpdater(log: Logger, hooks: UpdaterHooks): Updater | nu
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.disableWebInstaller = true; // we ship the full NSIS installer
+  // ADR-0034: with a publisherName in the feed, electron-updater checks the downloaded
+  // installer's Authenticode signature (valid chain + this subject) before installing.
+  const feed = fs.readFileSync(path.join(process.resourcesPath, "app-update.yml"), "utf8");
+  const publisher = /^publisherName:\s*(.*)$/m.exec(feed)?.[1]?.trim();
+  log.info(
+    publisher
+      ? `[updater] installer signatures are verified against ${publisher}`
+      : "[updater] releases are unsigned: installer signatures are not verified",
+  );
 
   let ready: UpdateInfo | null = null;
   let requiredTimer: NodeJS.Timeout | null = null;

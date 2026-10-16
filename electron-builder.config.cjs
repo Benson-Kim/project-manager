@@ -14,12 +14,18 @@
 //                       (default: this repo; CI publishes there, see docs/DESKTOP.md).
 //   PM_UPDATE_URL     — alternative feed: a static HTTPS folder with latest.yml + installer.
 //   PM_UPDATE_FEED=off — build without a feed (auto-update disabled).
-//   CSC_LINK / CSC_KEY_PASSWORD — code-signing certificate (removes the SmartScreen warning).
+//   CSC_LINK / CSC_KEY_PASSWORD — code-signing certificate; with PM_PUBLISHER (its subject)
+//                       installed apps verify every update against it (ADR-0034).
 
+const fs = require("fs");
 const path = require("path");
+const { signingConfig } = require("./scripts/desktop/signing.cjs");
 
 const root = __dirname;
 const r = (...p) => path.join(root, ...p);
+// The office's publisher certificate (public half), trusted on each PC by provision.ps1.
+const PUBLISHER_CER = r("build-resources", "publisher.cer");
+const signing = signingConfig(process.env, fs.existsSync(PUBLISHER_CER));
 const DEFAULT_UPDATE_REPO = "Benson-Kim/project-manager";
 
 function updateFeed(env) {
@@ -56,6 +62,7 @@ module.exports = {
     },
     { from: r("installers", "sql-express"), to: "sql-express", filter: ["SQLEXPR_x64_ENU.exe"] },
     { from: r("build-resources", "icon.ico"), to: "icon.ico" },
+    ...(signing.shipCertificate ? [{ from: PUBLISHER_CER, to: "setup/publisher.cer" }] : []),
   ],
 
   win: {
@@ -65,6 +72,9 @@ module.exports = {
     // Keep Microsoft's signature on the SQL Server media: provision.ps1 refuses
     // to run an installer that isn't Microsoft-signed.
     signExts: ["!SQLEXPR_x64_ENU.exe"],
+    // Written to resources/app-update.yml: electron-updater then refuses an installer whose
+    // Authenticode signature is not valid on this PC or not from this subject (ADR-0034).
+    ...(signing.publisherName ? { publisherName: signing.publisherName } : {}),
   },
 
   nsis: {
