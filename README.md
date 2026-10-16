@@ -8,14 +8,14 @@ alerts, notes and reports) as a **Next.js + SQL Server** web app.
 - 📋 Plan & architecture: [`docs/PLAN.md`](docs/PLAN.md)
 - 🔎 Source-system analysis (full extraction of the original Access DB, Excel
   checklist and mock-up deck): [`docs/source/analysis/`](docs/source/analysis/requirements.md)
-- 🤖 Agent conventions: [`AGENTS.md`](AGENTS.md) · Duo flows: `.gitlab/duo/`
+- 🤖 Agent conventions: [`AGENTS.md`](AGENTS.md)
 
 ## Stack
 
 Next.js (App Router, TypeScript, Server Actions) · Tailwind CSS (mobile-first,
 PWA) · SQL Server 2022 · **stored-procedure-only** data access via the `mssql`
-package · Auth.js RBAC · Vitest + Playwright · GitLab CI/CD with scheduled
-zero-cost backups to the Generic Package Registry · Renovate.
+package · Auth.js RBAC · Vitest + Playwright · GitHub Actions (CodeQL, Dependabot,
+nightly backup rehearsal) · host-run backups ([ADR-0032](docs/adr/ADR-0032-deployment-topology-and-backups.md)).
 
 ## Quickstart
 

@@ -47,6 +47,9 @@ services:
       # >= 32 random bytes (openssl rand -base64 32); no default — real
       # sessions require a real secret even in local dev (module #4).
       AUTH_SECRET: "${AUTH_SECRET:?set AUTH_SECRET in .env — openssl rand -base64 32}"
+      # The public origin users type (ADR-0032): Auth.js builds its callback and
+      # redirect URLs from it instead of the request's Host header.
+      AUTH_URL: "${AUTH_URL:-http://localhost:3000}"
       # Repeated here as a runtime env var for completeness; Next.js does NOT
       # read NEXT_PUBLIC_* at runtime — the build-arg above (build.args) is what
       # actually inlines the value into the client bundle.  Operators can safely

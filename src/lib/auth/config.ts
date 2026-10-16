@@ -154,6 +154,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   pages: {
     signIn: "/login",
   },
+  // Required by Auth.js to serve at all; its URLs come from AUTH_URL (set by
+  // Compose and the desktop host, ADR-0032), not from the Host header.
   trustHost: true,
   providers: [
     Credentials({

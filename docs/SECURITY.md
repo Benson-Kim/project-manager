@@ -39,10 +39,17 @@ foundation module.
   DB value on every request, so password change / role change / deactivation /
   `usp_User_BumpSessionVersion` revoke all outstanding sessions immediately.
   No DB session table (ADR-0017 records the trade-off).
-- Login rate limiting: 5/min/IP fixed-window counters in SQL
-  (`auth.LoginAttempt`, `usp_LoginAttempt_Record`, atomic + self-purging) plus
+- Login rate limiting ([ADR-0031](adr/ADR-0031-request-gate-internal-routes-and-throttling.md)):
   per-user lockout with exponential backoff (30 s·2^n from the 5th consecutive
-  failure, capped at 30 min, `usp_User_RecordLoginAttempt`).
+  failure, capped at 30 min, `usp_User_RecordLoginAttempt`) is the primary
+  control; the SQL fixed window (`auth.LoginAttempt`, `usp_LoginAttempt_Record`,
+  atomic + self-purging) is 5/min per known client IP and a shared 60/min when
+  no client IP is known (`TRUSTED_PROXY_COUNT=0`). An unknown username is
+  verified against a dummy argon2id hash so timing does not reveal it.
+- Throttling (ADR-0031): Server Actions 240/min/user (`action()` returns
+  `RATE_LIMITED`), CSV/PDF exports 20/min/user (HTTP 429 + `Retry-After`),
+  in-process fixed windows in `src/lib/rate-limit.ts`; `RATE_LIMIT_*_PER_MINUTE`
+  tunes them, 0 turns one off.
 - All auth events audit-logged in-proc: Login, LoginFailed (incl. unknown
   usernames, without an EntityId), Logout, SetPassword (never the hash).
 - Seeded admin has `MustChangePassword = 1`; the proxy forces
@@ -128,22 +135,59 @@ foundation module.
 
 ## Secrets management
 
-- Secrets live **only** in GitLab CI/CD variables (masked, protected):
-  `MSSQL_SA_PASSWORD`, `AUTH_SECRET`, `PROJECT_TOKEN`, `RENOVATE_TOKEN`,
-  optional `GITLAB_TOKEN`. The repo contains `.env.example` placeholders only;
-  `.gitignore` excludes `.env*`; **Secret Detection** runs on develop/main.
-- The app DB account should move from `sa` to a least-privilege login with
-  EXECUTE-only on `usp_*` (module 3 creates `DB_APP_USER`/`DB_APP_PASSWORD`),
-  which makes inline SQL impossible at the permission level too.
+- Production secrets live in the host's `.env` (server edition) or
+  `%ProgramData%\Project Manager\machine.json` (desktop; see DESKTOP.md
+  "Security notes" for its trust boundary). CI uses throwaway values on
+  ephemeral containers and, where a real one is needed, GitHub Actions secrets
+  (`MSSQL_SA_PASSWORD` for the backup rehearsal). The repo contains
+  `.env.example` placeholders only; `.gitignore` excludes `.env*`; GitHub secret
+  scanning is on for the repository.
+- The server edition still connects as `sa`; moving it to a least-privilege
+  login with EXECUTE-only on `usp_*` is open (the desktop edition already uses
+  `pm_app`, dbcreator + db_owner, not sysadmin).
 
 ## Vulnerability management (automatic)
 
-- GitLab **Dependency Scanning + SAST + Secret Detection** on develop/main.
-- **Renovate** (scheduled, self-hosted job): security MRs automerged for
-  minor/patch (`vulnerabilityAlerts`, `osvVulnerabilityAlerts`).
-- **npm-audit-fix** schedule: `npm audit fix` → automatic MR to develop.
-- Playbook: security MRs are reviewed/merged first; a red develop pipeline
-  from a security scan blocks releases to main.
+- `.github/workflows/security.yml`: **CodeQL** weekly and on every push to
+  develop/main; `npm audit --audit-level=high` fails the workflow on a high or
+  critical advisory (no `|| true`).
+- `.github/dependabot.yml`: weekly npm and GitHub Actions PRs against develop
+  (minors and patches grouped, majors by hand per ADR-0014); security PRs as
+  advisories land.
+- Supply chain: every third-party action is pinned to a commit SHA; the default
+  `GITHUB_TOKEN` is read-only at workflow level (CodeQL adds
+  `security-events: write`, the desktop release job its own `contents: write`).
+  The desktop installer is **not code-signed** (no certificate yet); the
+  updater's only integrity check is the sha512 in the release's `latest.yml`,
+  so write access to GitHub releases equals code execution on every client PC.
+  Protected branches and the two-maintainer release rule are the control until
+  a certificate exists.
+- Playbook: security PRs are reviewed/merged first; a red develop run from a
+  security workflow blocks releases to main.
+
+## Operator runbook: reset a password or unlock an account (until module 22)
+
+There is no admin UI yet. On the host (server edition) or the PC (desktop):
+
+1. Hash the new password without putting it on a command line:
+   `NEW_PW='<password>' node scripts/hash-password.mjs NEW_PW` (any machine
+   with Node and the `argon2` package).
+2. Apply it with the proc, which also clears the lockout, forces a change at
+   next login and revokes every session (`SessionVersion + 1`):
+
+   ```sql
+   DECLARE @UserId INT = (SELECT UserId FROM auth.[User] WHERE Username = N'<username>');
+   EXEC dbo.usp_User_SetPassword @UserId = @UserId, @PasswordHash = N'<hash>',
+        @MustChangePassword = 1, @ActorUserId = <acting admin's UserId>;
+   ```
+
+   To unlock without changing the password:
+   `UPDATE auth.[User] SET FailedLoginCount = 0, LockedUntilUtc = NULL WHERE UserId = @UserId;`
+   To sign someone out everywhere:
+   `EXEC dbo.usp_User_BumpSessionVersion @UserId = @UserId, @ActorUserId = <acting admin's UserId>;`
+   (the actor id is what the audit row records).
+3. Tell the person the temporary password out of band; the proxy forces
+   `/change-password` on their next login.
 
 ## Admin module (security management UI — module 22)
 
