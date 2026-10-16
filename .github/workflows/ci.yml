@@ -156,11 +156,26 @@ jobs:
           DB_PASSWORD: "Ci-Ephemeral!Passw0rd1"
           DB_NAME: ProjectManager
           SEED_ADMIN_PASSWORD: "Throwaway-Admin-Seed-2026"
+          # The proc behaviour checks below need the e2e users and their project rows.
+          E2E_SEED: "1"
+          E2E_USER_PASSWORD: "E2e-Throwaway-User-2026"
         run: |
           sh scripts/db-apply.sh
           echo "== Second Run (Idempotence Check) =="
           sh scripts/db-apply.sh
-          sqlcmd -S tcp:localhost,1433 -U sa -P "Ci-Ephemeral!Passw0rd1" -C -b -I -v E2E_SEED=0 -i db/verify/seed_counts.sql
+          sqlcmd -S tcp:localhost,1433 -U sa -P "Ci-Ephemeral!Passw0rd1" -C -b -I -v E2E_SEED=1 -i db/verify/seed_counts.sql
+
+      # Behaviour checks that run the procs against the seeded database (db/tests/README.md):
+      # access across projects and owners, quotas, money rules, parallel writes.
+      - name: Proc Behaviour Checks
+        env:
+          DB_SERVER: localhost
+          DB_PORT: "1433"
+          DB_USER: sa
+          DB_PASSWORD: "Ci-Ephemeral!Passw0rd1"
+          DB_NAME: ProjectManager
+          TRUST_SERVER_CERT: "true"
+        run: node db/tests/financials-procs.cjs
 
   e2e-tests:
     name: Playwright E2E Smoke Tests
