@@ -31,8 +31,11 @@ IF (SELECT COUNT(*) FROM app.[FinancialDocumentType]) <> 9 SET @Errors += N'Fina
 IF (SELECT COUNT(*) FROM app.[FinancialDocument]) <> 9 SET @Errors += N'FinancialDocument<>9 (got ' + CAST((SELECT COUNT(*) FROM app.[FinancialDocument]) AS NVARCHAR(12)) + N'); ';
 IF (SELECT COUNT(*) FROM app.[ParkingLotItem]) <> 12 SET @Errors += N'ParkingLotItem<>12 (got ' + CAST((SELECT COUNT(*) FROM app.[ParkingLotItem]) AS NVARCHAR(12)) + N'); ';
 IF (SELECT COUNT(*) FROM app.[DailyActivity]) <> 13 SET @Errors += N'DailyActivity<>13 (got ' + CAST((SELECT COUNT(*) FROM app.[DailyActivity]) AS NVARCHAR(12)) + N'); ';
-IF (SELECT COUNT(*) FROM app.[TodoItem]) <> 16 SET @Errors += N'TodoItem<>16 (got ' + CAST((SELECT COUNT(*) FROM app.[TodoItem]) AS NVARCHAR(12)) + N'); ';
-IF (SELECT COUNT(*) FROM app.[TodoAlert]) <> 4 SET @Errors += N'TodoAlert<>4 (got ' + CAST((SELECT COUNT(*) FROM app.[TodoAlert]) AS NVARCHAR(12)) + N'); ';
+-- TodoItem/TodoAlert: 16/4 from the source; E2E_SEED=1 adds one overdue item + its alert for e2e-pm (seed 028).
+DECLARE @ExpectedTodo INT = CASE WHEN N'$(E2E_SEED)' = N'1' THEN 17 ELSE 16 END;
+DECLARE @ExpectedAlert INT = CASE WHEN N'$(E2E_SEED)' = N'1' THEN 5 ELSE 4 END;
+IF (SELECT COUNT(*) FROM app.[TodoItem]) <> @ExpectedTodo SET @Errors += N'TodoItem<>' + CAST(@ExpectedTodo AS NVARCHAR(12)) + N' (got ' + CAST((SELECT COUNT(*) FROM app.[TodoItem]) AS NVARCHAR(12)) + N'); ';
+IF (SELECT COUNT(*) FROM app.[TodoAlert]) <> @ExpectedAlert SET @Errors += N'TodoAlert<>' + CAST(@ExpectedAlert AS NVARCHAR(12)) + N' (got ' + CAST((SELECT COUNT(*) FROM app.[TodoAlert]) AS NVARCHAR(12)) + N'); ';
 IF (SELECT COUNT(*) FROM app.[ExistingSystemInterface]) <> 0 SET @Errors += N'ExistingSystemInterface<>0 (got ' + CAST((SELECT COUNT(*) FROM app.[ExistingSystemInterface]) AS NVARCHAR(12)) + N'); ';
 -- Activity statuses (Access tblActivityStatus, 4 rows) live in the managed list 'daily-activity.status'
 -- since migration 018 dropped app.ActivityStatus (ADR-0022).
