@@ -183,9 +183,7 @@ test("templates: Admins edit, others read", async ({ page }) => {
   await page.goto("/settings/financial-templates");
   await page.getByTestId("template-list").getByRole("link").first().click();
   const editor = page.getByTestId("template-editor");
-  await expect(
-    editor.getByLabel(M.taxProfiles).or(editor.getByText(M.taxProfiles)).first(),
-  ).toBeVisible();
+  await expect(editor.getByText(M.taxProfiles, { exact: true })).toBeVisible();
   await axe(page);
   const isAdmin = (await page.getByTestId("save-template").count()) > 0;
   if (!isAdmin) {
