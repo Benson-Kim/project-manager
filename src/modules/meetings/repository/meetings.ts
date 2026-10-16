@@ -198,7 +198,10 @@ export async function getMeetingRoster(
   return { entries: row.RosterJson, stamp: row.ParticipantsStamp };
 }
 
-/** The printed minutes' "Present" lines. */
+/**
+ * Who attended (Access qryMeetingAttendees). The printed minutes take the same
+ * rows from the workspace.
+ */
 export async function listAttendees(
   meetingId: number,
   actorUserId: number,
@@ -210,7 +213,10 @@ export async function listAttendees(
   return rows.map((r) => attendeeRowSchema.parse(r));
 }
 
-/** The printed minutes' "Apologies" lines. */
+/**
+ * Who sent apologies (Access qryMeetingApologies). The printed minutes take
+ * the same rows from the workspace.
+ */
 export async function listApologies(
   meetingId: number,
   actorUserId: number,

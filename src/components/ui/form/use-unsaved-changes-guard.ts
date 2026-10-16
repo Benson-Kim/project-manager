@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef } from "react";
 import { messages } from "@/lib/messages";
-import { guardedHref } from "./unsaved-guard";
+import { guardedHref, leavesPage } from "./unsaved-guard";
 
 /**
  * Attaches a beforeunload guard AND a same-document navigation guard when the
@@ -25,8 +25,9 @@ import { guardedHref } from "./unsaved-guard";
  * - Tab close / hard reload (`beforeunload`)
  * - Client-side navigation in Next.js App Router (`history.pushState` /
  *   `history.replaceState` patches — C11-7 fix). When a same-document
- *   navigation is attempted while the form is dirty, the hook cancels the
- *   navigation and dispatches a `before-navigate` CustomEvent on `window`.
+ *   navigation to another page is attempted while the form is dirty, the hook
+ *   cancels the navigation and dispatches a `before-navigate` CustomEvent on
+ *   `window`. A call that keeps the URL (router.refresh() re-writes it) passes.
  *   Sheets listen for this event and show their discard-confirmation dialog.
  * - Clicks on in-app links (sidebar, section nav, breadcrumbs), caught at the
  *   document capture phase before next/link's handler (ADR-0018 Q1): the App
@@ -101,7 +102,8 @@ export function useUnsavedChangesGuard(isDirty?: boolean) {
       original: typeof window.history.pushState,
       ...args: Parameters<typeof window.history.pushState>
     ) {
-      if (dirtyRef.current) {
+      // A refresh re-writes the current URL: only a call that leaves the page asks.
+      if (dirtyRef.current && leavesPage(args[2], window.location.href)) {
         // Dispatch a cancelable event. The sheet's onConfirm callback will
         // call cleanupAndNavigate() which replays the original navigation.
         const event = new CustomEvent("before-navigate", {

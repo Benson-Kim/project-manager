@@ -2,11 +2,12 @@ import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 
 /**
- * RBAC: a Viewer reads meetings and changes nothing. Buttons and cells are
- * hidden or disabled, and the procs refuse writes anyway (unit-tested in
- * src/modules/meetings/tests). A Contributor's "no delete" is covered by
- * src/modules/meetings/tests/access.test.ts: one more login would break the
- * e2e login budget (LESSONS §12). Runs as e2e-viewer, a Viewer on project 2.
+ * RBAC: a Viewer reads meetings and their minutes, prints them, and changes
+ * nothing. Buttons and cells are hidden or disabled, and the procs refuse
+ * writes anyway (unit-tested in src/modules/meetings/tests). A Contributor's
+ * "no delete" is covered by src/modules/meetings/tests/access.test.ts: one
+ * more login would break the e2e login budget (LESSONS §12). Runs as
+ * e2e-viewer, a Viewer on project 2.
  */
 
 const M = messages.meetings;
@@ -44,4 +45,22 @@ test("viewer sees the participants but cannot change them", async ({ page }) => 
   await expect(gary.getByRole("radio", { name: M.attendance.apology, exact: true })).toBeDisabled();
   await expect(page.getByTestId("participants-save")).toHaveCount(0);
   await expect(panel.getByLabel(M.searchParticipants)).toBeEnabled();
+});
+
+test("viewer reads the minutes and prints them but cannot change them", async ({ page }) => {
+  await page.goto("/projects/2/meetings/1");
+  const minutes = page.getByTestId("minutes");
+  await expect(minutes.getByTestId("open-actions")).toBeVisible();
+  await expect(minutes.getByRole("button", { name: M.addAgendaItem, exact: true })).toHaveCount(0);
+  await expect(minutes.getByRole("button", { name: /^(Edit|Delete|Move) / })).toHaveCount(0);
+
+  await page.getByTestId("minutes-print-link").click();
+  await page.waitForURL(/\/projects\/2\/meetings\/1\/print$/);
+  await expect(
+    page
+      .getByTestId("printed-minutes")
+      .getByRole("heading", { name: "Progress Achieved", level: 1 }),
+  ).toBeVisible();
+  await expect(page.getByTestId("print-present")).toContainText("Gary Cantrall");
+  await expect(page.getByTestId("print-apologies")).toContainText("Test2Firstname");
 });
