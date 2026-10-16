@@ -1,20 +1,16 @@
 #!/bin/sh
-# Restore uploaded files from a backup package version created by scripts/backup.sh.
+# Restore uploaded files from a backup set created by scripts/backup.sh (ADR-0032).
 # Usage: scripts/restore-files.sh <version-stamp> [target-dir]
+# Env: BACKUP_SOURCE_DIR (where the set is, default BACKUP_OUT_DIR or ./backups).
 set -eu
 
 VERSION="${1:?usage: restore-files.sh <version-stamp> [target-dir]}"
 TARGET="${2:-uploads}"
-API="${CI_API_V4_URL:-https://gitlab.com/api/v4}"
-: "${CI_PROJECT_ID:?CI_PROJECT_ID is required}"
-
-AUTH_HEADER="JOB-TOKEN: ${CI_JOB_TOKEN:-}"
-[ -n "${GITLAB_TOKEN:-}" ] && AUTH_HEADER="PRIVATE-TOKEN: $GITLAB_TOKEN"
+SRC="${BACKUP_SOURCE_DIR:-${BACKUP_OUT_DIR:-backups}}"
+ARCHIVE="$SRC/uploads-$VERSION.tar.gz"
+[ -f "$ARCHIVE" ] || { echo "ERROR: $ARCHIVE not found"; exit 1; }
 
 mkdir -p "$TARGET"
-curl --fail -s --header "$AUTH_HEADER" -o "uploads-$VERSION.tar.gz" \
-  "$API/projects/$CI_PROJECT_ID/packages/generic/project-manager-backups/$VERSION/uploads-$VERSION.tar.gz"
-tar xzf "uploads-$VERSION.tar.gz" -C "$TARGET"
-rm -f "uploads-$VERSION.tar.gz"
+tar xzf "$ARCHIVE" -C "$TARGET"
 
 echo "Files restored to $TARGET from version $VERSION."
