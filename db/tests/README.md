@@ -1,7 +1,9 @@
 # db/tests
 
 Behaviour checks that run the stored procedures against a seeded database (the CI `db-apply`
-job, after the seeds, with `E2E_SEED=1`). They complement the static guardrails in `src/tests`:
+job, after the seeds, with `E2E_SEED=1`). CI connects them as the app's EXECUTE-only login
+(`pm_web`, ADR-0033), so they also prove each proc works without any table right; they call
+procs only and need nothing more. They complement the static guardrails in `src/tests`:
 those pin what the proc text says; these prove what the procs do (access across projects and
 owners, quotas, concurrency, money rules). Each script exits non-zero on the first failing group
 and prints `N passed, M failed`.

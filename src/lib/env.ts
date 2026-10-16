@@ -5,7 +5,7 @@ const envSchema = z.object({
   DB_SERVER: z.string().min(1).default("localhost"),
   DB_PORT: z.coerce.number().int().positive().default(1433),
   DB_NAME: z.string().min(1).default("ProjectManager"),
-  DB_USER: z.string().min(1).default("sa"),
+  DB_USER: z.string().min(1).default("pm_web"),
   DB_PASSWORD: z.string().min(8),
   /**
    * How many trusted reverse-proxy hops sit between the internet and this

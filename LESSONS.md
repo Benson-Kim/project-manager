@@ -307,3 +307,11 @@ Append under the matching section (or add a section) in the form:
 - 2026-10-16: the PDF text encoder turned every control character, newline included, into a space before splitting into paragraphs, so multi-line cells printed on one line. Tests had covered delimiters, not the data that really flows (file names joined with newlines). -> Split, then encode; test a text primitive with real joined data.
 - 2026-10-16: `JSON_VALUE` on a non-object array element raises error 13609 instead of returning NULL, so a template whose suggestions held `[1]` escaped validation as a raw error. -> Check `OPENJSON ... [type] = 5` before reading members.
 - 2026-10-16: two sessions in one checkout collided on review fixes. -> The coordination board (`.agent-scratch/COORDINATION.md`): lock files before editing, ask before taking a peer's file, findings by message.
+
+## 32. Server edition app login session (feature/financials-calculator, ADR-0033, 2026-10-16)
+
+- 2026-10-16: an EXECUTE-only login works only while every proc is static SQL in a dbo-owned schema (ownership chaining). `sp_executesql`, `EXEC (@sql)` or `EXECUTE AS` inside a proc would fail with 229 under the app login, in production only. -> Keep procs static; `src/tests/app-login.test.ts` fails on them, and CI runs `db/tests` and Playwright as `pm_web`.
+- 2026-10-16: `QUOTENAME` returns NULL above 128 characters and `EXEC (NULL)` does nothing, so an over-long password would have skipped `CREATE LOGIN` without an error; `LEN` also ignores trailing spaces. -> Check `DATALENGTH(@x) / 2` before quoting a value for dynamic SQL.
+- 2026-10-16: sqlcmd pastes `$(VAR)` from the environment into the file verbatim, comments included. -> Double single quotes in the shell before a secret reaches `N'$(VAR)'`, quote it again with `QUOTENAME` in dynamic SQL, and hand it only to the one sqlcmd call that needs it.
+- 2026-10-16: the local dev login (`pm_app`, db_owner) cannot create logins, so login DDL is proven in CI only. The grants themselves were proven on the shared dev DB inside one rolled-back transaction: `CREATE USER ... WITHOUT LOGIN`, `EXECUTE AS USER`, proc calls and direct reads, `ROLLBACK`. -> Use that pattern to test permissions without leaving anything behind.
+

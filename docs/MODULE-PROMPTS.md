@@ -60,7 +60,7 @@ the PR. Client feedback of 2026-10-12 (on `feature/file-storage`) took **031**
 (`feature/wbs-gantt`, ADR-0027) took migration **032** and seed 031; the next free
 migration is 033 and the next free seed 032. Never edit a migration that is merged.
 P1 took ADR-0025 (develop's ADR-0020 is web push), F1 took 0026 and the WBS rebuild
-took 0027, so the next free ADR number is **0028**. Meetings took 0028 and the financials calculator 0029 (2026-10-16), the financial document checklist 0030 (with migration **033**): 0031 and 0032 went to the request gate / throttling and topology work the same day, so the next free ADR is **0033** and the next free migration **034** (028-030 stay reserved for F2, A2 and RP1).
+took 0027, so the next free ADR number is **0028**. Meetings took 0028 and the financials calculator 0029 (2026-10-16), the financial document checklist 0030 (with migration **033**): 0031 and 0032 went to the request gate / throttling and topology work the same day and 0033 to the server edition's EXECUTE-only app login (no migration); 0034 is reserved for desktop update signing, so the next free ADR is **0035** and the next free migration **034** (028-030 stay reserved for F2, A2 and RP1).
 
 **Desktop edition follow-ups.** D1 is merged, and every green push to develop ships a desktop
 release, so F1 does its desktop wiring itself (`UPLOADS_DIR`, the folder, backups). After **F2**,
@@ -1132,6 +1132,8 @@ Do:
    applies them).
 4. Least-privilege DB login: migration/script creating pm_app_runtime with EXECUTE on dbo.usp_*
    only; compose/.env.example/CI use it for the app; sa only for db-apply.
+   **Done 2026-10-16 (ADR-0033)**: login `pm_web`, role `app_executor` (EXECUTE on schema dbo),
+   `db/security/app-login.sql` via db-apply.sh, admin scripts on DB_ADMIN_USER/DB_ADMIN_PASSWORD.
 5. Delete .gitlab-ci.yml; rewrite GitLab sections of PLAN/STANDARDS/AGENTS/LESSONS/README for
    GitHub (keep history notes short); delete the stale docs/LESSONS.md (root is canonical).
 6. Deploy jobs: keep them as documented stubs unless a target exists — list what's needed.
