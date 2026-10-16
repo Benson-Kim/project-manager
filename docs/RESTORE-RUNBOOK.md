@@ -1,35 +1,63 @@
 # Restore Runbook — Database & Uploaded Files
 
-Zero-cost backup design: [`PLAN.md`](PLAN.md) §5 (incl. RPO/RTO).
-Backups are produced by the scheduled `backup` CI job
-(`SCHEDULE_JOB=backup`): SQL Server native **full + differential + log**
-backups, pulled off-server and uploaded to the **Generic Package Registry**
-(package `project-manager-backups`, version = UTC timestamp
-`YYYYMMDD-HHMMSS`), plus `uploads-<stamp>.tar.gz` for files. Every scheduled
-run also executes `scripts/restore-rehearsal.sh` — an automatic restore test
-with sanity queries; a failed rehearsal fails the pipeline (alert!).
+Design: [ADR-0032](adr/ADR-0032-deployment-topology-and-backups.md) (incl.
+RPO/RTO in [`PLAN.md`](PLAN.md) §5). This runbook is for the **server edition**
+(Docker Compose); the desktop edition's backups are described in
+[`DESKTOP.md`](DESKTOP.md).
 
-## 1. Find the backup version
+A backup set is produced by `scripts/backup.sh`: SQL Server native **full +
+differential + log** backups (`ProjectManager-full-<stamp>.bak.gz`,
+`-diff-`, `-log-<stamp>.trn.gz`) plus `uploads-<stamp>.tar.gz` for attachments,
+where `<stamp>` is the UTC time `YYYYMMDD-HHMMSS`. They land in
+`BACKUP_OUT_DIR` on the host; `BACKUP_UPLOAD_CMD`, when set, copies each file
+off-site.
 
-Project ▸ Deploy ▸ Package Registry ▸ `project-manager-backups` — pick the
-version stamp (latest = most recent). Or via API:
+## 0. Operator duties
+
+1. **Run the backup daily** from the host, e.g. a cron entry (the Compose stack
+   mounts `./backups` into the SQL container, so `BACKUP_DIR` is the server's
+   view of the same folder):
+
+   ```sh
+   # /etc/cron.d/projectmanager-backup
+   15 2 * * * pm cd /opt/projectmanager && \
+     DB_SERVER=localhost DB_PASSWORD="$MSSQL_SA_PASSWORD" \
+     BACKUP_DIR=/var/opt/mssql/backup BACKUP_OUT_DIR=/opt/projectmanager/backups \
+     UPLOADS_DIR=/opt/projectmanager/uploads \
+     BACKUP_UPLOAD_CMD="rclone copy --no-traverse --include-from /dev/null" \
+     sh scripts/backup.sh >> /var/log/projectmanager-backup.log 2>&1
+   ```
+
+   Pick the upload command for your target; it is run once per file with the
+   file path as its last argument (`rclone copy <file> remote:pm-backups`,
+   `az storage blob upload -f <file> …`, `cp <file> /mnt/offsite`). Watch the
+   log: a failing run exits non-zero.
+2. **Test a restore quarterly** with §2 side-by-side into `PM_Verify`.
+3. **Keep the secrets** (`.env`: `MSSQL_SA_PASSWORD`, `AUTH_SECRET`) somewhere
+   that survives the host: a restored database is useless without the auth
+   secret only for open sessions (people sign in again), but the SQL password
+   is needed to restore at all.
+
+## 1. Find the backup set
 
 ```sh
-glab api "projects/<id>/packages?package_name=project-manager-backups" \
-  | jq -r '.[].version' | sort | tail -5
+ls -1 backups/ | grep full | sort | tail -5        # local sets, newest last
 ```
+
+If the host is gone, copy the newest set back from the off-site target into a
+folder and point `BACKUP_SOURCE_DIR` at it.
 
 ## 2. Restore the database
 
 Run **on the SQL Server host** (or `docker compose exec mssql sh` with the
-repo's `backups/` volume mounted; the script downloads the set, copies it to
-`$BACKUP_DIR` and executes the NORECOVERY chain full → diff → log):
+repo's `backups/` volume mounted; the script copies the set into `$BACKUP_DIR`
+and executes the NORECOVERY chain full → diff → log):
 
 ```sh
 export DB_SERVER=localhost DB_USER=sa DB_PASSWORD=... \
-       CI_PROJECT_ID=<id> GITLAB_TOKEN=<token-with-read_api>
-sh scripts/restore.sh <version-stamp>            # restore over ProjectManager
-sh scripts/restore.sh <version-stamp> PM_Verify  # or restore side-by-side first
+       BACKUP_DIR=/var/opt/mssql/backup BACKUP_SOURCE_DIR=./backups
+sh scripts/restore.sh <stamp>            # restore over ProjectManager
+sh scripts/restore.sh <stamp> PM_Verify  # or restore side-by-side first
 ```
 
 Order enforced by the script: `RESTORE DATABASE ... full WITH NORECOVERY` →
@@ -39,7 +67,7 @@ the script degrades gracefully), then `MULTI_USER`.
 ## 3. Restore uploaded files
 
 ```sh
-sh scripts/restore-files.sh <version-stamp> /path/to/uploads
+BACKUP_SOURCE_DIR=./backups sh scripts/restore-files.sh <stamp> /path/to/uploads
 ```
 
 Point the app's `UPLOADS_DIR` (compose volume `uploads`) at the restored
@@ -54,22 +82,25 @@ sqlcmd -S localhost -U sa -P "$DB_PASSWORD" -C -Q "
   SELECT TOP 5 * FROM ProjectManager.audit.AuditLog ORDER BY AuditLogId DESC;"
 ```
 
-- App starts and login works (once auth module is live).
+- App starts and login works.
 - Spot-check one record per module against expectations.
 - Record the restore in the audit log / backup status (module 22).
 
 ## 5. Rehearsal (automated proof)
 
-`scripts/restore-rehearsal.sh` runs after every scheduled backup: restores the
-just-taken set into `ProjectManager_Rehearsal` on the same server, asserts the
-DB comes ONLINE and sanity counts pass, then drops it. Run it manually anytime
-against any server that holds the backup files.
+`.github/workflows/backup.yml` runs `scripts/backup.sh` and then
+`scripts/restore-rehearsal.sh` every night against a seeded throwaway
+container: the just-taken set is restored into `ProjectManager_Rehearsal`,
+asserted ONLINE with sanity counts, then dropped. A red run means the scripts
+or the chain broke, not that a production backup failed: production backups
+are the host cron's log. Run the rehearsal script manually any time against a
+server that holds the backup files.
 
 ## 6. Disaster scenarios
 
 | Scenario | Action |
 |---|---|
 | Bad deploy / data corruption | Restore latest set side-by-side (`PM_Verify`), verify, then swap (restore over `ProjectManager`). |
-| Server/volume lost | New SQL Server container → `scripts/restore.sh <latest>` → `scripts/restore-files.sh <latest>` → point app at it. RTO ≤ 30 min. |
-| Registry unavailable | Latest set is also attached as pipeline artifacts (14-day expiry) on scheduled backup pipelines. |
+| Server/volume lost | New SQL Server container → copy the set back from off-site → `scripts/restore.sh <latest>` → `scripts/restore-files.sh <latest>` → point app at it. RTO ≤ 30 min. |
+| Off-site target unavailable | The local `BACKUP_OUT_DIR` holds the last `BACKUP_RETAIN_DAYS` (30) days of sets. |
 | Need point-in-time | Restore full+diff `WITH NORECOVERY`, then `RESTORE LOG ... WITH STOPAT = '<utc-time>', RECOVERY`. |

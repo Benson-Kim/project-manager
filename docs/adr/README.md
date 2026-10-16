@@ -39,3 +39,4 @@ the full rules and examples derived from these decisions.
 | [0029](ADR-0029-financials-calculator.md) | Financials calculator: master templates and project snapshots | Accepted (0028 is the meetings data model, on its branch) |
 | [0030](ADR-0030-financial-documents-and-outputs.md) | Financial document checklist (template-managed, advisory suggestions), print view, PDF and CSV outputs | Accepted (on top of 0029) |
 | [0031](ADR-0031-request-gate-internal-routes-and-throttling.md) | The request gate: bearer-authenticated internal routes outside the session gate; in-process throttling; login limiting keyed on the user | Accepted (amends 0017) |
+| [0032](ADR-0032-deployment-topology-and-backups.md) | Deployment topology (single-user desktop or one server stack) and host-run backups with an operator upload hook | Accepted (supersedes PLAN §5) |
