@@ -49,6 +49,8 @@ export function nextServerEnv(
     DB_PASSWORD: opts.db.password,
     TRUST_SERVER_CERT: "true",
     AUTH_SECRET: opts.authSecret,
+    // Auth.js derives its URLs from this, never from a Host header (ADR-0032).
+    AUTH_URL: `http://127.0.0.1:${port}`,
     // Never the default (<cwd>/uploads): cwd is the install folder, which every update replaces.
     // Without the machine folder, uploads are off until IT sets it up (ADR-0026 §9).
     UPLOADS_ENABLED: opts.uploadsDir ? "true" : "false",
