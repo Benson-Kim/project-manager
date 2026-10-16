@@ -1,7 +1,8 @@
 -- usp_Financial_Create - new project financials (ADR-0029), blank or copied from a master
 -- template. The copy is a snapshot: settings, cost categories, funding sources, tax profiles
--- (the template's default first) and standard lines, a line's template amount landing in the
--- first fiscal year. Later template edits never reach it.
+-- (the template's default first), standard lines, a line's template amount landing in the
+-- first fiscal year, and the document checklist with its suggestions (ADR-0030). Later
+-- template edits never reach it.
 -- Access: Manager on @ProjectId with 'financials:create' (ADR-0021/0024; FORBIDDEN_ROW 50003).
 -- Title 1-150 characters; @FirstFiscalYear 2000-2100, NULL = the fiscal year of today; a deleted
 -- or unknown template is NOT_FOUND 50001; at most 50 live financials per project (VALIDATION,
@@ -110,12 +111,22 @@ BEGIN
 
         INSERT INTO app.FinancialLineAmount (FinancialLineId, FiscalYear, Amount)
         SELECT FinancialLineId, @FirstFiscalYear, Amount FROM @LineMap WHERE Amount IS NOT NULL;
+
+        INSERT INTO app.FinancialDocument (FinancialId, [Name], IsRequired, ReasonNotCreated,
+                                           Suggestions, SortOrder, CreatedBy)
+        SELECT @FinancialId, LTRIM(RTRIM(v.[Name])), v.IsRequired, NULLIF(LTRIM(RTRIM(v.Reason)), N''),
+               ISNULL(v.Suggestions, N'[]'), CAST(d.[key] AS INT) + 1, @ActorUserId
+        FROM OPENJSON(@Definition, N'$.documents') AS d
+        CROSS APPLY OPENJSON(d.[value]) WITH (
+            [Name] NVARCHAR(200) N'$.name', IsRequired BIT N'$.required',
+            Reason NVARCHAR(2000) N'$.reason', Suggestions NVARCHAR(MAX) N'$.suggestions' AS JSON) AS v;
     END;
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, AfterJson)
     VALUES (@ActorUserId, N'Create', N'app.Financial', CAST(@FinancialId AS NVARCHAR(64)),
             (SELECT f.*, @FinancialTemplateId AS FinancialTemplateId,
-                    (SELECT COUNT(*) FROM app.FinancialLine WHERE FinancialId = @FinancialId) AS LineCount
+                    (SELECT COUNT(*) FROM app.FinancialLine WHERE FinancialId = @FinancialId) AS LineCount,
+                    (SELECT COUNT(*) FROM app.FinancialDocument WHERE FinancialId = @FinancialId) AS DocumentCount
              FROM dbo.ufn_Financial_Row(@FinancialId) AS f
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 

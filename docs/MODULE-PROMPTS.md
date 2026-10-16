@@ -40,9 +40,9 @@ on are merged to `develop`, and branch from the updated `develop`.
 | 3 | **I2** IT resource planning — UI | `feature/it-resources-ui` | I1, P1 | — |
 | 4 | **M3** Meetings — participants (attended / apologies) | `feature/meetings-participants` | M2 | — |
 | 4 | **N1** Notes — database, server layer, notes workspace | `feature/notes` | P1, S1, CF | 026 |
-| 4 | **FI1** Financials — database & server layer — calculator part **done** (ADR-0029, `feature/financials-calculator`, migration 027); the document checklist remains | `feature/financials-data` | F1, S1, CF | 027 (used) |
+| 4 | **FI1** Financials — database & server layer — calculator part **done** (ADR-0029, `feature/financials-calculator`, migration 027); document checklist **done** (ADR-0030, migration 033) | `feature/financials-data` | F1, S1, CF | 027 (used) |
 | 5 | **M4** Meetings — agenda → discussion → action items, printable minutes | `feature/meetings-minutes` | M3 | — |
-| 5 | **FI2** Financials — UI (breakdown, document checklist, tracking export) — breakdown, planner, monitoring and CSV export **done** (ADR-0029); checklist remains | `feature/financials-ui` | FI1 | — |
+| 5 | **FI2** Financials — UI (breakdown, document checklist, tracking export) — breakdown, planner, monitoring and CSV export **done** (ADR-0029); document checklist, print view, PDF and project CSV **done** (ADR-0030) | `feature/financials-ui` | FI1 | — |
 | 5 | **F2** Backup status + GitHub-based restore | `feature/backup-status` | F1 | 028 |
 | 6 | **A1** Admin — users & roles | `feature/admin-users` | S1 | — |
 | 6 | **A2** Admin — audit viewer, backup status panel, settings | `feature/admin-audit` | A1, F2 | 029 |
@@ -60,7 +60,7 @@ the PR. Client feedback of 2026-10-12 (on `feature/file-storage`) took **031**
 (`feature/wbs-gantt`, ADR-0027) took migration **032** and seed 031; the next free
 migration is 033 and the next free seed 032. Never edit a migration that is merged.
 P1 took ADR-0025 (develop's ADR-0020 is web push), F1 took 0026 and the WBS rebuild
-took 0027, so the next free ADR number is **0028**. Meetings took 0028 and the financials calculator 0029 (2026-10-16): the next free ADR is **0030**.
+took 0027, so the next free ADR number is **0028**. Meetings took 0028 and the financials calculator 0029 (2026-10-16), the financial document checklist 0030 (with migration **033**): 0031 and 0032 went to the request gate / throttling and topology work the same day, so the next free ADR is **0033** and the next free migration **034** (028-030 stay reserved for F2, A2 and RP1).
 
 **Desktop edition follow-ups.** D1 is merged, and every green push to develop ships a desktop
 release, so F1 does its desktop wiring itself (`UPLOADS_DIR`, the folder, backups). After **F2**,

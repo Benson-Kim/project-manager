@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { messages } from "@/lib/messages";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
+import { templateDocumentListInput, templateDocumentListSchema } from "./documents";
 import {
   fractionText,
   horizonSchema,
@@ -15,7 +16,8 @@ import {
 
 /**
  * Master financial templates (ADR-0029). A template is one JSON document in
- * app.FinancialTemplate.Definition. Its stored form keeps rates as fractions and
+ * app.FinancialTemplate.Definition; since ADR-0030 it also lists the documents
+ * (checklist) new financials copy. Its stored form keeps rates as fractions and
  * amounts as plain decimals; the editor works in percentages and typed amounts
  * and templateInput converts them. dbo.usp_FinancialTemplate_AssertDefinition
  * checks the same rules in SQL.
@@ -85,6 +87,7 @@ export const templateDefinitionSchema = z
         }),
       )
       .max(TEMPLATE_LIMITS.lines),
+    documents: templateDocumentListSchema,
   })
   .superRefine((doc, ctx) => {
     uniqueProfiles(doc.taxProfiles, ctx);
@@ -128,6 +131,7 @@ export const templateDefinitionInput = z
         }),
       )
       .max(TEMPLATE_LIMITS.lines),
+    documents: templateDocumentListInput,
   })
   .superRefine((doc, ctx) => {
     uniqueProfiles(doc.taxProfiles, ctx);

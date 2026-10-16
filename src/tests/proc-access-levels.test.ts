@@ -25,6 +25,7 @@ const MODULES: Record<string, string> = {
   "todo-alert": "todo-alerts",
   financial: "financials",
   "financial-line": "financials",
+  "financial-document": "financials",
   "financial-transaction": "financial-tax-invoices",
   "financial-tax-profile": "financial-tax-invoices",
   project: "projects",
@@ -39,8 +40,9 @@ const VERBS: Record<string, string> = {
   GanttData: "read",
   // Financials calculator (ADR-0029).
   GetSheet: "read",
-  GetDocumentChecklist: "read",
   Create: "create",
+  // Copying a template's documents into a financial adds rows (ADR-0030).
+  CreateFromTemplate: "create",
   BuildFromDailyActivity: "create",
   Update: "update",
   Reorder: "update",
@@ -73,6 +75,7 @@ const EXEMPT: Record<string, string> = {
   usp_KeyDeliverable_AssertPlacement:
     "checks a parent inside the write procs' transaction, after their own access check",
   usp_Financial_AssertLabelList: "checks a JSON list of labels; no data access",
+  usp_FinancialDocument_AssertSuggestions: "checks a JSON list of suggestion rules; no data access",
   usp_FinancialLine_SetAmounts:
     "replaces a line's amounts inside the line write procs' transaction, after their own access check",
   usp_KeyDeliverable_RollUp:

@@ -18,12 +18,20 @@ import {
   type Template,
   type TemplateDefinitionInput,
 } from "../schemas/template";
+import { fromChoice, RequiredSelect, toChoice, type RequiredChoice } from "./document-dialog";
 import { MONTHS } from "./months";
+import {
+  fromDrafts,
+  SuggestionsEditor,
+  toDrafts,
+  type SuggestionDraft,
+} from "./suggestions-editor";
 import { useFinancialAction } from "./use-financial-action";
 
 /**
  * The master template editor (ADR-0029): settings, tax profiles, cost
- * categories, funding sources and standard lines. Admins edit; everyone else
+ * categories, funding sources, standard lines and the document checklist new
+ * financials copy (ADR-0030). Admins edit; everyone else
  * reads (the whole form is a disabled fieldset). Rates are typed as
  * percentages; the action stores fractions. Validated with the action's own
  * schema before sending; the proc checks again.
@@ -31,6 +39,7 @@ import { useFinancialAction } from "./use-financial-action";
 
 const M = messages.financials;
 const T = M.templates;
+const DOC = M.documents;
 
 interface LineState {
   uid: number;
@@ -41,6 +50,14 @@ interface LineState {
   taxProfileKey: string;
   isRecurrent: boolean;
   amount: string;
+}
+
+interface DocumentState {
+  uid: number;
+  name: string;
+  required: RequiredChoice;
+  reason: string;
+  suggestions: SuggestionDraft[];
 }
 
 interface ProfileState {
@@ -79,6 +96,13 @@ function initialState(template: Template | null) {
       isRecurrent: l.isRecurrent,
       amount: l.amount ?? "",
     })),
+    documents: (d?.documents ?? []).map<DocumentState>((doc) => ({
+      uid: nextUid++,
+      name: doc.name,
+      required: toChoice(doc.required),
+      reason: doc.reason ?? "",
+      suggestions: toDrafts(doc.suggestions),
+    })),
   };
 }
 
@@ -115,6 +139,15 @@ export function TemplateEditor({
         i === index ? { ...p, ...patch } : patch.isDefault ? { ...p, isDefault: false } : p,
       ),
     });
+  const changeDocument = (uid: number, patch: Partial<DocumentState>) =>
+    change({ documents: state.documents.map((d) => (d.uid === uid ? { ...d, ...patch } : d)) });
+  const moveDocument = (index: number, delta: -1 | 1) => {
+    const documents = [...state.documents];
+    const target = index + delta;
+    if (target < 0 || target >= documents.length) return;
+    [documents[index], documents[target]] = [documents[target]!, documents[index]!];
+    change({ documents });
+  };
   const moveLine = (index: number, delta: -1 | 1) => {
     const lines = [...state.lines];
     const target = index + delta;
@@ -139,6 +172,12 @@ export function TemplateEditor({
       taxProfileKey: l.taxProfileKey,
       isRecurrent: l.isRecurrent,
       amount: l.amount,
+    })),
+    documents: state.documents.map((d) => ({
+      name: d.name,
+      required: fromChoice(d.required),
+      reason: d.reason,
+      suggestions: fromDrafts(d.suggestions),
     })),
   };
 
@@ -181,6 +220,13 @@ export function TemplateEditor({
   };
 
   const err = (path: string) => action.fieldErrors[path];
+  /** The errors under one path, keyed relative to it ("suggestions.0.amount"). */
+  const errorsUnder = (prefix: string) =>
+    Object.fromEntries(
+      Object.entries(action.fieldErrors)
+        .filter(([key]) => key.startsWith(`${prefix}.`))
+        .map(([key, value]) => [key.slice(prefix.length + 1), value]),
+    );
   const categories = labelsFromText(state.categories);
   const sources = labelsFromText(state.sources);
 
@@ -537,6 +583,105 @@ export function TemplateEditor({
               }
             >
               {M.addLine(M.sections.operating)}
+            </Button>
+          </div>
+        </section>
+
+        <section aria-labelledby="tpl-documents" className="flex flex-col gap-3">
+          <SectionHeading id="tpl-documents">{DOC.heading}</SectionHeading>
+          {err("definition.documents") ? (
+            <p className="text-sm text-danger" role="alert">
+              {err("definition.documents")!.join(" ")}
+            </p>
+          ) : null}
+          {state.documents.length === 0 ? (
+            <p className="text-sm text-ink-muted">{DOC.empty}</p>
+          ) : null}
+          <ol className="flex flex-col gap-3">
+            {state.documents.map((doc, i) => {
+              const path = `definition.documents.${i}`;
+              const label = doc.name || `${DOC.name} ${i + 1}`;
+              return (
+                <li
+                  key={doc.uid}
+                  className="flex flex-col gap-3 rounded-md border border-line p-3"
+                  data-testid={`template-document-${i}`}
+                >
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label={DOC.name} name={`${path}.name`} errors={err(`${path}.name`)}>
+                      <Input
+                        value={doc.name}
+                        maxLength={200}
+                        onChange={(e) => changeDocument(doc.uid, { name: e.target.value })}
+                      />
+                    </Field>
+                    <Field label={DOC.required} name={`${path}.required`}>
+                      <RequiredSelect
+                        value={doc.required}
+                        onChange={(required) => changeDocument(doc.uid, { required })}
+                      />
+                    </Field>
+                  </div>
+                  <Field label={DOC.reason} name={`${path}.reason`} errors={err(`${path}.reason`)}>
+                    <Textarea
+                      rows={2}
+                      maxLength={2000}
+                      value={doc.reason}
+                      onChange={(e) => changeDocument(doc.uid, { reason: e.target.value })}
+                    />
+                  </Field>
+                  <SuggestionsEditor
+                    value={doc.suggestions}
+                    onChange={(suggestions) => changeDocument(doc.uid, { suggestions })}
+                    errors={errorsUnder(path)}
+                    idPrefix={`tpl-doc-${doc.uid}`}
+                  />
+                  <div className="flex flex-wrap justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      aria-label={DOC.moveUp(label)}
+                      disabled={i === 0}
+                      onClick={() => moveDocument(i, -1)}
+                    >
+                      ↑
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      aria-label={DOC.moveDown(label)}
+                      disabled={i === state.documents.length - 1}
+                      onClick={() => moveDocument(i, 1)}
+                    >
+                      ↓
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      aria-label={DOC.remove(label)}
+                      onClick={() =>
+                        change({ documents: state.documents.filter((d) => d.uid !== doc.uid) })
+                      }
+                    >
+                      {DOC.removeLabel}
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+          <div>
+            <Button
+              variant="secondary"
+              disabled={state.documents.length >= 50}
+              data-testid="template-add-document"
+              onClick={() =>
+                change({
+                  documents: [
+                    ...state.documents,
+                    { uid: nextUid++, name: "", required: "", reason: "", suggestions: [] },
+                  ],
+                })
+              }
+            >
+              {DOC.add}
             </Button>
           </div>
         </section>

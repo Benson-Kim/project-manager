@@ -14,7 +14,7 @@ import { rowVerSchema } from "@/modules/projects/schemas/project";
  * its own folder (db/procs/<owner>/usp_<Owner>_{CanAddFile,AddFile,ListFiles,
  * GetFile,RenameFile,RemoveFile}) and an entry in repository/owners.ts.
  */
-export const ATTACHMENT_OWNERS = ["daily-activity"] as const;
+export const ATTACHMENT_OWNERS = ["daily-activity", "financial-document"] as const;
 
 export const attachmentOwnerSchema = z.enum(ATTACHMENT_OWNERS);
 

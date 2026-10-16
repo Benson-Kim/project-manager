@@ -4,7 +4,10 @@
 -- Row-level access: a supplied @ProjectId needs Viewer (dbo.usp_Project_AssertAccess ->
 -- FORBIDDEN_ROW 50003); cross-project reads list only rows the actor has a level on.
 -- ActorAccess / ActorGrants / ActorRevokes (ADR-0023/0024) for the 'financials' section.
--- LineCount: live budget lines. FinancialId is the final tiebreaker for stable paging.
+-- LineCount: live budget lines. Document counts (ADR-0030): DocumentCount live checklist rows,
+-- DocumentsRequired / DocumentsNotRequired / DocumentsUndecided by their required flag, and
+-- DocumentsRequiredWithFile the required ones holding at least one live attachment.
+-- FinancialId is the final tiebreaker for stable paging.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Financial_List
@@ -47,6 +50,11 @@ BEGIN
            f.FiscalYearStartMonth,
            (SELECT COUNT(*) FROM app.FinancialLine AS l
             WHERE l.FinancialId = f.FinancialId AND l.IsDeleted = 0) AS LineCount,
+           ISNULL(doc.DocumentCount, 0) AS DocumentCount,
+           ISNULL(doc.DocumentsRequired, 0) AS DocumentsRequired,
+           ISNULL(doc.DocumentsNotRequired, 0) AS DocumentsNotRequired,
+           ISNULL(doc.DocumentsUndecided, 0) AS DocumentsUndecided,
+           ISNULL(doc.DocumentsRequiredWithFile, 0) AS DocumentsRequiredWithFile,
            f.CreatedAtUtc,
            f.UpdatedAtUtc,
            CAST(f.RowVer AS BIGINT) AS RowVer,
@@ -57,6 +65,19 @@ BEGIN
     FROM app.Financial AS f
     CROSS APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, f.ProjectId, 0) acc
     OUTER APPLY dbo.ufn_Permission_Overrides(@ActorRole, @ActorUserId, f.ProjectId, N'financials') ov
+    OUTER APPLY (
+        SELECT COUNT(*) AS DocumentCount,
+               SUM(CASE WHEN d.IsRequired = 1 THEN 1 ELSE 0 END) AS DocumentsRequired,
+               SUM(CASE WHEN d.IsRequired = 0 THEN 1 ELSE 0 END) AS DocumentsNotRequired,
+               SUM(CASE WHEN d.IsRequired IS NULL THEN 1 ELSE 0 END) AS DocumentsUndecided,
+               SUM(CASE WHEN d.IsRequired = 1 AND hf.HasFile = 1 THEN 1 ELSE 0 END) AS DocumentsRequiredWithFile
+        FROM app.FinancialDocument AS d
+        OUTER APPLY (SELECT TOP (1) 1 AS HasFile
+                     FROM app.FinancialDocumentFile AS l
+                     JOIN app.FileAttachment AS a ON a.FileAttachmentId = l.FileAttachmentId
+                     WHERE l.FinancialDocumentId = d.FinancialDocumentId AND a.IsDeleted = 0) hf
+        WHERE d.FinancialId = f.FinancialId AND d.IsDeleted = 0
+    ) doc
     WHERE f.IsDeleted = 0
       AND (@ProjectId IS NULL OR f.ProjectId = @ProjectId)
       AND (@ProjectId IS NOT NULL OR acc.AccessLevel IS NOT NULL)

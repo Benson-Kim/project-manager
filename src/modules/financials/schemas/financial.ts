@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { messages } from "@/lib/messages";
+import type { AttachmentRow } from "@/modules/file-storage/schemas/attachment";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 import { centsFromDb, centsToDecimal, microsFromDb, microsToFraction } from "../calc/money";
+import { toDocumentDto, toDocumentFiles, type DocumentDto } from "./documents";
 import {
   budgetAmountText,
   fiscalYearSchema,
@@ -126,6 +128,11 @@ export const financialListRowSchema = z.object({
   HorizonYears: z.number().int(),
   FiscalYearStartMonth: z.number().int(),
   LineCount: z.number().int(),
+  DocumentCount: z.number().int(),
+  DocumentsRequired: z.number().int(),
+  DocumentsNotRequired: z.number().int(),
+  DocumentsUndecided: z.number().int(),
+  DocumentsRequiredWithFile: z.number().int(),
   CreatedAtUtc: z.date(),
   UpdatedAtUtc: z.date().nullable(),
   RowVer: rowVerSchema,
@@ -226,6 +233,10 @@ export interface SheetDto {
   profiles: TaxProfileDto[];
   lines: LineDto[];
   transactions: TransactionDto[];
+  /** The document checklist in its order (ADR-0030). */
+  documents: DocumentDto[];
+  /** Attachments of those documents, by document id. */
+  documentFiles: Record<number, AttachmentRow[]>;
 }
 
 export function toSheetDto(sets: unknown[][]): SheetDto {
@@ -235,6 +246,8 @@ export function toSheetDto(sets: unknown[][]): SheetDto {
     lineRows = [],
     amountRows = [],
     transactionRows = [],
+    documentRows = [],
+    documentFileRows = [],
   ] = sets;
   const amounts = new Map<number, Record<number, string>>();
   for (const raw of amountRows) {
@@ -287,6 +300,8 @@ export function toSheetDto(sets: unknown[][]): SheetDto {
         rowVer: t.RowVer,
       };
     }),
+    documents: documentRows.map(toDocumentDto),
+    documentFiles: toDocumentFiles(documentFileRows),
   };
 }
 

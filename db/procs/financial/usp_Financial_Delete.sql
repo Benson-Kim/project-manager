@@ -1,5 +1,6 @@
 -- usp_Financial_Delete - soft-delete one financial and everything it owns (ADR-0029): budget
--- lines, their transactions, tax profiles and document checklist rows, in one transaction.
+-- lines, their transactions, tax profiles, document checklist rows and their attachments
+-- (ADR-0030; the bytes stay until the orphan sweep), in one transaction.
 -- Typed amounts stay with their (deleted) lines. RowVer concurrency (CONFLICT 50002,
 -- NOT_FOUND 50001). Access: Manager with 'financials:delete'. Audited in-transaction.
 USE ProjectManager;
@@ -42,6 +43,12 @@ BEGIN
 
     UPDATE app.FinancialTaxProfile SET IsDeleted = 1, DeletedAtUtc = @Now, DeletedBy = @ActorUserId
     WHERE FinancialId = @FinancialId AND IsDeleted = 0;
+
+    UPDATE f SET IsDeleted = 1, DeletedAtUtc = @Now, DeletedBy = @ActorUserId
+    FROM app.FileAttachment AS f
+    JOIN app.FinancialDocumentFile AS l ON l.FileAttachmentId = f.FileAttachmentId
+    JOIN app.FinancialDocument AS d ON d.FinancialDocumentId = l.FinancialDocumentId
+    WHERE d.FinancialId = @FinancialId AND d.IsDeleted = 0 AND f.IsDeleted = 0;
 
     UPDATE app.FinancialDocument SET IsDeleted = 1, DeletedAtUtc = @Now, DeletedBy = @ActorUserId
     WHERE FinancialId = @FinancialId AND IsDeleted = 0;
