@@ -299,6 +299,9 @@ test("WBS diagram: add, rename, drag onto a box, round trip with the Gantt, dele
   await renamed.fill(`E2E stage ${stamp}`);
   await renamed.press("Enter");
   await expect(phaseBox).toContainText(`E2E stage ${stamp}`);
+  // The rename (and the outdent before it) save in the background; a save landing between
+  // ArrowDown and the focus check re-renders the boxes and drops the focus.
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
 
   // The keyboard walks the tree: ↓ goes to the next box, and Delete asks first.
   await phaseBox.focus();
