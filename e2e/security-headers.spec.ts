@@ -24,3 +24,15 @@ test("CSP nonce differs per request", async ({ request }) => {
   expect(second).toBeTruthy();
   expect(first).not.toBe(second);
 });
+
+/**
+ * ADR-0031: the push dispatch route is outside the login gate because its
+ * caller is a scheduler with a bearer token and no cookie. It answers for
+ * itself: 503 while push is not configured (CI), 401 for a wrong token, never
+ * a redirect to /login.
+ */
+test("the internal dispatch route is not redirected to login", async ({ request }) => {
+  const res = await request.post("/api/internal/todo-alerts/dispatch", { maxRedirects: 0 });
+  expect([401, 503]).toContain(res.status());
+  expect(res.headers()["location"]).toBeUndefined();
+});
