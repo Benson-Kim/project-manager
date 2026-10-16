@@ -142,9 +142,15 @@ foundation module.
   (`MSSQL_SA_PASSWORD` for the backup rehearsal). The repo contains
   `.env.example` placeholders only; `.gitignore` excludes `.env*`; GitHub secret
   scanning is on for the repository.
-- The server edition still connects as `sa`; moving it to a least-privilege
-  login with EXECUTE-only on `usp_*` is open (the desktop edition already uses
-  `pm_app`, dbcreator + db_owner, not sysadmin).
+- The server edition's app connects as `pm_web` (ADR-0033): a SQL login whose
+  only right is EXECUTE on schema `dbo` through the role `app_executor`, so it
+  can run the procs and cannot read, change or define a table itself.
+  `scripts/db-apply.sh` creates it from `DB_APP_USER` / `DB_APP_PASSWORD` and
+  fails when it holds anything more; CI runs the proc checks and Playwright as
+  that login. `sa` (`MSSQL_SA_PASSWORD`, or `DB_ADMIN_USER` /
+  `DB_ADMIN_PASSWORD`) is used only by the operator's scripts. The desktop
+  edition uses `pm_app` (dbcreator + db_owner on its own database, not
+  sysadmin), because it creates and migrates its database itself.
 
 ## Vulnerability management (automatic)
 

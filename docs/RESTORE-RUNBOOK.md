@@ -21,7 +21,7 @@ off-site.
    ```sh
    # /etc/cron.d/projectmanager-backup
    15 2 * * * pm cd /opt/projectmanager && \
-     DB_SERVER=localhost DB_PASSWORD="$MSSQL_SA_PASSWORD" \
+     DB_SERVER=localhost DB_ADMIN_PASSWORD="$MSSQL_SA_PASSWORD" \
      BACKUP_DIR=/var/opt/mssql/backup BACKUP_OUT_DIR=/opt/projectmanager/backups \
      UPLOADS_DIR=/opt/projectmanager/uploads \
      BACKUP_UPLOAD_CMD="rclone copy --no-traverse --include-from /dev/null" \
@@ -33,10 +33,11 @@ off-site.
    `az storage blob upload -f <file> …`, `cp <file> /mnt/offsite`). Watch the
    log: a failing run exits non-zero.
 2. **Test a restore quarterly** with §2 side-by-side into `PM_Verify`.
-3. **Keep the secrets** (`.env`: `MSSQL_SA_PASSWORD`, `AUTH_SECRET`) somewhere
-   that survives the host: a restored database is useless without the auth
-   secret only for open sessions (people sign in again), but the SQL password
-   is needed to restore at all.
+3. **Keep the secrets** (`.env`: `MSSQL_SA_PASSWORD`, `DB_APP_PASSWORD`,
+   `AUTH_SECRET`) somewhere that survives the host: a restored database is
+   useless without the auth secret only for open sessions (people sign in
+   again), but the sa password is needed to restore at all, and the app
+   login's password to let the app back in (§2).
 
 ## 1. Find the backup set
 
@@ -54,7 +55,7 @@ repo's `backups/` volume mounted; the script copies the set into `$BACKUP_DIR`
 and executes the NORECOVERY chain full → diff → log):
 
 ```sh
-export DB_SERVER=localhost DB_USER=sa DB_PASSWORD=... \
+export DB_SERVER=localhost DB_ADMIN_USER=sa DB_ADMIN_PASSWORD=... \
        BACKUP_DIR=/var/opt/mssql/backup BACKUP_SOURCE_DIR=./backups
 sh scripts/restore.sh <stamp>            # restore over ProjectManager
 sh scripts/restore.sh <stamp> PM_Verify  # or restore side-by-side first
@@ -63,6 +64,18 @@ sh scripts/restore.sh <stamp> PM_Verify  # or restore side-by-side first
 Order enforced by the script: `RESTORE DATABASE ... full WITH NORECOVERY` →
 `diff WITH NORECOVERY` → `RESTORE LOG ... WITH RECOVERY` (diff/log optional —
 the script degrades gracefully), then `MULTI_USER`.
+
+**Onto a new SQL Server** (the old one is gone), the database's `pm_web` user
+has no matching login there and the app cannot sign in. Recreate the login and
+re-map the user (ADR-0033), then restart the app container:
+
+```sh
+DB_APP_USER=pm_web DB_APP_PASSWORD="$DB_APP_PASSWORD" sh scripts/db-apply.sh --login-only
+```
+
+A **desktop** database restored onto the server also brings its `pm_app` user
+(db_owner, no login here); drop it once:
+`sqlcmd -S localhost -U sa -P "$DB_ADMIN_PASSWORD" -C -d ProjectManager -Q "DROP USER IF EXISTS pm_app;"`
 
 ## 3. Restore uploaded files
 
@@ -76,7 +89,7 @@ directory and restart the app container.
 ## 4. Verify after restore
 
 ```sh
-sqlcmd -S localhost -U sa -P "$DB_PASSWORD" -C -Q "
+sqlcmd -S localhost -U sa -P "$DB_ADMIN_PASSWORD" -C -Q "
   SELECT COUNT(*) FROM ProjectManager.app.SchemaMigrations;
   SELECT COUNT(*) FROM ProjectManager.app.ActivityStatus;
   SELECT TOP 5 * FROM ProjectManager.audit.AuditLog ORDER BY AuditLogId DESC;"
@@ -101,6 +114,6 @@ server that holds the backup files.
 | Scenario | Action |
 |---|---|
 | Bad deploy / data corruption | Restore latest set side-by-side (`PM_Verify`), verify, then swap (restore over `ProjectManager`). |
-| Server/volume lost | New SQL Server container → copy the set back from off-site → `scripts/restore.sh <latest>` → `scripts/restore-files.sh <latest>` → point app at it. RTO ≤ 30 min. |
+| Server/volume lost | New SQL Server container → copy the set back from off-site → `scripts/restore.sh <latest>` → `scripts/restore-files.sh <latest>` → `scripts/db-apply.sh --login-only` (§2) → point app at it. RTO ≤ 30 min. |
 | Off-site target unavailable | The local `BACKUP_OUT_DIR` holds the last `BACKUP_RETAIN_DAYS` (30) days of sets. |
 | Need point-in-time | Restore full+diff `WITH NORECOVERY`, then `RESTORE LOG ... WITH STOPAT = '<utc-time>', RECOVERY`. |

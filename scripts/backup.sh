@@ -11,7 +11,8 @@
 # OPENROWSET(BULK ..., SINGLE_BLOB) as hex and decoded locally — binary-safe and
 # needs nothing but sqlcmd + xxd.
 #
-# Env: DB_SERVER, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME,
+# Env: DB_SERVER, DB_PORT, DB_ADMIN_USER (default sa), DB_ADMIN_PASSWORD (default
+#      MSSQL_SA_PASSWORD; never DB_USER/DB_PASSWORD, the app's own login), DB_NAME,
 #      BACKUP_DIR (server-side folder SQL Server writes to, default /var/opt/mssql/data),
 #      BACKUP_OUT_DIR (local folder for the gzipped set, default ./backups),
 #      BACKUP_UPLOAD_CMD (optional: a command run once per file with the file path as
@@ -23,19 +24,20 @@ set -eu
 
 DB_SERVER="${DB_SERVER:-mssql}"
 DB_PORT="${DB_PORT:-1433}"
-DB_USER="${DB_USER:-sa}"
+DB_ADMIN_USER="${DB_ADMIN_USER:-sa}"
 DB_NAME="${DB_NAME:-ProjectManager}"
-: "${DB_PASSWORD:?DB_PASSWORD is required}"
+DB_ADMIN_PASSWORD="${DB_ADMIN_PASSWORD:-${MSSQL_SA_PASSWORD:-}}"
+: "${DB_ADMIN_PASSWORD:?DB_ADMIN_PASSWORD (or MSSQL_SA_PASSWORD) is required}"
 STAMP="$(date -u +%Y%m%d-%H%M%S)"
 OUT="${BACKUP_OUT_DIR:-backups}"
 BK_DIR="${BACKUP_DIR:-/var/opt/mssql/data}"
 mkdir -p "$OUT"
 
-sqlrun() { sqlcmd -S "tcp:${DB_SERVER},${DB_PORT}" -U "$DB_USER" -P "$DB_PASSWORD" -C -b -Q "$1"; }
+sqlrun() { sqlcmd -S "tcp:${DB_SERVER},${DB_PORT}" -U "$DB_ADMIN_USER" -P "$DB_ADMIN_PASSWORD" -C -b -Q "$1"; }
 
 # Pull a server-side file back over the SQL connection (binary-safe hex dump).
 pull() { # $1 = server path, $2 = local path
-  sqlcmd -S "tcp:${DB_SERVER},${DB_PORT}" -U "$DB_USER" -P "$DB_PASSWORD" -C -b -h -1 -y 0 \
+  sqlcmd -S "tcp:${DB_SERVER},${DB_PORT}" -U "$DB_ADMIN_USER" -P "$DB_ADMIN_PASSWORD" -C -b -h -1 -y 0 \
     -Q "SET NOCOUNT ON; SELECT sys.fn_varbintohexstr(BulkColumn) FROM OPENROWSET(BULK N'$1', SINGLE_BLOB) AS f;" \
     | tr -d '[:space:]' | sed 's/^0x//' | xxd -r -p > "$2"
   [ -s "$2" ] || { echo "ERROR: pulled empty file from $1" >&2; exit 1; }

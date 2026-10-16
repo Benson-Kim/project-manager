@@ -1,5 +1,6 @@
 # Local development: SQL Server 2022 + the Next.js app.
-# Copy .env.example to .env first. Apply the schema with scripts/db-apply.sh.
+# Copy .env.example to .env first. Apply the schema and the app's login with
+# scripts/db-apply.sh (as sa) before the app container can connect.
 services:
   mssql:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -38,8 +39,11 @@ services:
       DB_SERVER: mssql
       DB_PORT: "1433"
       DB_NAME: ProjectManager
-      DB_USER: sa
-      DB_PASSWORD: "${MSSQL_SA_PASSWORD}"
+      # The app's own login (ADR-0033): EXECUTE on the stored procedures and nothing else.
+      # scripts/db-apply.sh creates it from the same two values; sa stays with the
+      # operator's scripts.
+      DB_USER: "${DB_APP_USER:-pm_web}"
+      DB_PASSWORD: "${DB_APP_PASSWORD:?set DB_APP_PASSWORD in .env}"
       # Stock SQL Server image uses a self-signed TLS certificate; set this to
       # "true" so the app trusts it in the bundled Compose environment.
       # Never set in real production — mount a CA-signed certificate instead.

@@ -3,15 +3,20 @@
 - `migrations/` — numbered, idempotent DDL (`NNN_description.sql`). Tables, FKs, indexes, constraints. Applied exactly once, tracked in `app.SchemaMigrations` — a merged migration is immutable (fix forward).
 - `procs/` — one folder per entity, one file per stored procedure (`usp_<Entity>_<Action>.sql`, `CREATE OR ALTER`). **All application data access goes through these procs** — no inline SQL anywhere in the app.
 - `seed/` — data migrated from the original Access database, idempotent, original IDs preserved via `IDENTITY_INSERT`. Source of truth: `docs/source/analysis/access-database.md` §4 (full row dump) — and nothing else. The seeds ARE the import mechanism (checklist row 61).
-- `verify/` — CI-only assertions (`seed_counts.sql` fails the `db:apply` job when any table's row count deviates from the §4 inventory).
+- `security/` — `app-login.sql` (ADR-0033): role `app_executor` (EXECUTE on schema `dbo`, nothing else) and the app's login `DB_APP_USER` (default `pm_web`) in that role only. Run by `db-apply.sh` on every apply, after the seeds; it fails when the role or the login holds anything more. Server edition only: the desktop build does not package it.
+- `verify/` — CI-only assertions (`seed_counts.sql` fails the `db:apply` job when any table's row count deviates from the §4 inventory; `app_login.sql` impersonates the app login and fails on any right beyond EXECUTE on `dbo`).
 
 Apply everything to a running SQL Server with:
 
 ```sh
-./scripts/db-apply.sh            # uses DB_SERVER/DB_USER/DB_PASSWORD env vars; sqlcmd -I is required (filtered indexes)
+./scripts/db-apply.sh               # as DB_ADMIN_USER (default sa) / DB_ADMIN_PASSWORD (default MSSQL_SA_PASSWORD); sqlcmd -I is required (filtered indexes)
+DB_APP_PASSWORD=... ./scripts/db-apply.sh               # also creates or re-passwords the app login (DB_APP_USER, default pm_web)
+DB_APP_PASSWORD=... ./scripts/db-apply.sh --login-only  # only the login, e.g. after a restore onto another server
 ```
 
-CI proof: the `db:apply` job (opt-in `[db]` commit flag; automatic on develop/main when `db/**` changes) applies migrations + procs + seeds to a clean SQL Server 2022 service container **twice** (idempotence is asserted, not assumed) and then runs `verify/seed_counts.sql`.
+`DB_USER` / `DB_PASSWORD` are the app's own login (and `db/tests`'); the scripts never read them.
+
+CI proof: the `db:apply` job (opt-in `[db]` commit flag; automatic on develop/main when `db/**` changes) applies migrations + procs + seeds to a clean SQL Server 2022 service container **twice** (idempotence is asserted, not assumed; the second run also rotates the app login's password) and then runs `verify/seed_counts.sql` and `verify/app_login.sql`, and the `db/tests` checks as the app login.
 
 ## Migrations
 

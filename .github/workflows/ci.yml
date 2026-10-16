@@ -152,27 +152,32 @@ jobs:
       - name: Apply DB Schema & Seed Data
         env:
           DB_SERVER: localhost
-          DB_USER: sa
-          DB_PASSWORD: "Ci-Ephemeral!Passw0rd1"
+          DB_ADMIN_USER: sa
+          DB_ADMIN_PASSWORD: "Ci-Ephemeral!Passw0rd1"
           DB_NAME: ProjectManager
           SEED_ADMIN_PASSWORD: "Throwaway-Admin-Seed-2026"
           # The proc behaviour checks below need the e2e users and their project rows.
           E2E_SEED: "1"
           E2E_USER_PASSWORD: "E2e-Throwaway-User-2026"
+          # The app's EXECUTE-only login (ADR-0033); the second run rotates its password.
+          DB_APP_USER: pm_web
+          DB_APP_PASSWORD: "Ci-App-Login!Passw0rd1"
         run: |
           sh scripts/db-apply.sh
-          echo "== Second Run (Idempotence Check) =="
-          sh scripts/db-apply.sh
+          echo "== Second Run (Idempotence Check + app login password rotation) =="
+          DB_APP_PASSWORD="Ci-App-Login!Passw0rd2" sh scripts/db-apply.sh
           sqlcmd -S tcp:localhost,1433 -U sa -P "Ci-Ephemeral!Passw0rd1" -C -b -I -v E2E_SEED=1 -i db/verify/seed_counts.sql
+          sqlcmd -S tcp:localhost,1433 -U sa -P "Ci-Ephemeral!Passw0rd1" -C -b -I -v DB_APP_USER=pm_web -i db/verify/app_login.sql
 
       # Behaviour checks that run the procs against the seeded database (db/tests/README.md):
-      # access across projects and owners, quotas, money rules, parallel writes.
+      # access across projects and owners, quotas, money rules, parallel writes. They connect
+      # as the app's login, so every proc they call is proven to work with EXECUTE alone.
       - name: Proc Behaviour Checks
         env:
           DB_SERVER: localhost
           DB_PORT: "1433"
-          DB_USER: sa
-          DB_PASSWORD: "Ci-Ephemeral!Passw0rd1"
+          DB_USER: pm_web
+          DB_PASSWORD: "Ci-App-Login!Passw0rd2"
           DB_NAME: ProjectManager
           TRUST_SERVER_CERT: "true"
         run: |
@@ -226,8 +231,10 @@ jobs:
       - name: Seed Database for E2E
         env:
           DB_SERVER: localhost
-          DB_USER: sa
-          DB_PASSWORD: "E2e-Throwaway-Sa-2026!"
+          DB_ADMIN_USER: sa
+          DB_ADMIN_PASSWORD: "E2e-Throwaway-Sa-2026!"
+          DB_APP_USER: pm_web
+          DB_APP_PASSWORD: "E2e-App-Login!Passw0rd1"
           DB_NAME: ProjectManager
           SEED_ADMIN_PASSWORD: "Throwaway-Admin-Seed-2026"
           E2E_SEED: "1"
@@ -245,8 +252,9 @@ jobs:
       - name: Run E2E Tests
         env:
           DB_SERVER: localhost
-          DB_USER: sa
-          DB_PASSWORD: "E2e-Throwaway-Sa-2026!"
+          # The app runs as its EXECUTE-only login (ADR-0033), as in production.
+          DB_USER: pm_web
+          DB_PASSWORD: "E2e-App-Login!Passw0rd1"
           DB_NAME: ProjectManager
           AUTH_SECRET: "e2e-throwaway-auth-secret-0123456789abcdefghijklmnopqrstuvwxyz"
           TRUST_SERVER_CERT: "true"
