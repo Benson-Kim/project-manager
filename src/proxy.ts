@@ -84,16 +84,21 @@ export async function proxy(request: NextRequest) {
 }
 
 /**
- * /api/files is left out (ADR-0026 §3): the proxy buffers every request body up
- * to 10 MB, and attachment uploads stream up to 25 MB. Those handlers check the
- * session, same-origin and access themselves and set their own headers.
+ * Two path families are left out (ADR-0026 §3, ADR-0031):
+ *  - /api/files: the proxy buffers every request body up to 10 MB, and
+ *    attachment uploads stream up to 25 MB. Those handlers check the session,
+ *    same-origin and access themselves and set their own headers.
+ *  - /api/internal: machine-to-machine routes a scheduler calls with a bearer
+ *    token and no session cookie (the push dispatch). Behind this gate they
+ *    were redirected to /login and never ran. Each of them authenticates its
+ *    bearer token itself, with a timing-safe compare.
  * src/tests/proxy-matcher.test.ts compiles this with Next's own matcher code.
  */
 export const config = {
   matcher: [
     {
       source:
-        "/((?!_next/static|_next/image|favicon.ico|icons/|sw.js|robots.txt|api/files(?:/|$)).*)",
+        "/((?!_next/static|_next/image|favicon.ico|icons/|sw.js|robots.txt|api/files(?:/|$)|api/internal(?:/|$)).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },
