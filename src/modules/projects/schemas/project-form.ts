@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
-import { datesInOrder } from "@/lib/date-range";
+import { datesInOrder, datesWere, storedDates } from "@/lib/date-range";
 import { toDateInput } from "@/lib/format";
 import { listChoice, type LookupListKey } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
@@ -112,6 +112,7 @@ export const updateProjectFormSchema = projectFields
   .extend({
     projectId: z.coerce.number().int().positive(),
     rowVer: z.coerce.number().int().nonnegative(),
+    ...datesWere("startDate", "endDate", "estimatedCompletionDate"),
   })
   .superRefine(projectDates);
 
@@ -153,6 +154,11 @@ export function projectFormValues(row: ProjectRow): FormValues {
     similarProject: flagValue(row.SimilarProject),
     projectPriority: formText(row.ProjectPriority),
     estimatedCompletionDate: toDateInput(row.EstimatedCompletionDate),
+    ...storedDates({
+      startDate: row.StartDate,
+      endDate: row.EndDate,
+      estimatedCompletionDate: row.EstimatedCompletionDate,
+    }),
     projectStatus: formText(row.ProjectStatus),
     projectPhase: formText(row.ProjectPhase),
     riskLevel: formText(row.RiskLevel),

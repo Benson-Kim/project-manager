@@ -160,6 +160,23 @@ describe("deliverable dates in order", () => {
   const base = { projectId: "2", keyRequirement: "R", startDate: "2026-09-01" };
   const update = { ...base, keyDeliverableId: "1", rowVer: "1" };
 
+  it("lets an item saved with inverted dates be edited while they stay as stored", () => {
+    const legacy = {
+      ...update,
+      requestedDate: "2026-10-01",
+      deadline: "2026-08-31",
+      requestedDateWas: "2026-10-01",
+      startDateWas: "2026-09-01",
+      deadlineWas: "2026-08-31",
+    };
+    const kept = updateKeyDeliverableFormSchema.safeParse({ ...legacy, keyRequirement: "Renamed" });
+    expect(kept.success).toBe(true);
+    expect(kept.data).toMatchObject({ keyDeliverableId: 1, keyRequirement: "Renamed" });
+    expect(kept.data).not.toHaveProperty("deadlineWas");
+    const moved = updateKeyDeliverableFormSchema.safeParse({ ...legacy, deadline: "2026-08-30" });
+    expect(moved.error?.issues.map((i) => i.path)).toEqual([["deadline"], ["deadline"]]);
+  });
+
   it.each([
     ["create", keyDeliverableFormSchema, base],
     ["update", updateKeyDeliverableFormSchema, update],

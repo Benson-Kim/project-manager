@@ -34,6 +34,10 @@ BEGIN
 
     BEGIN TRAN;
 
+    -- Like every write to the breakdown: GanttData's stamp relies on RowVer following commit order.
+    DECLARE @Locked INT;
+    SELECT @Locked = ProjectId FROM app.Project WITH (UPDLOCK, HOLDLOCK) WHERE ProjectId = @RowProjectId;
+
     DECLARE @Before NVARCHAR(MAX) =
         (SELECT [KeyRequirement] FROM app.KeyDeliverable WHERE KeyDeliverableId = @KeyDeliverableId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);

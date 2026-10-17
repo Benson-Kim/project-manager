@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isForced,
+  isNoReleaseError,
   minimumFromYml,
   nextMinimum,
   nextVersion,
@@ -53,6 +54,18 @@ describe("isForced", () => {
   it("is false without the marker", () => {
     expect(isForced("feat: new report [e2e]")).toBe(false);
     expect(isForced(undefined)).toBe(false);
+  });
+});
+
+describe("isNoReleaseError", () => {
+  it("is gh's answer for a repository without releases", () => {
+    expect(isNoReleaseError("gh release view --json tagName failed: release not found")).toBe(true);
+  });
+
+  it("is false for a failed lookup, so a required update is never dropped by a GitHub hiccup", () => {
+    expect(isNoReleaseError("gh release view failed: HTTP 502: Bad Gateway")).toBe(false);
+    expect(isNoReleaseError("error connecting to api.github.com")).toBe(false);
+    expect(isNoReleaseError(undefined)).toBe(false);
   });
 });
 

@@ -25,6 +25,9 @@ export interface EditorSurfaceProps {
   errorId?: string;
   invalid: boolean;
   onChange?: (html: string) => void;
+  label?: string;
+  autoFocus?: boolean;
+  tall?: boolean;
 }
 
 /** Sets the value past React's value tracker, so React reports the input event. */
@@ -52,6 +55,9 @@ export function EditorSurface({
   errorId,
   invalid,
   onChange,
+  label,
+  autoFocus = false,
+  tall = false,
 }: EditorSurfaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [bridgeDisabled, setBridgeDisabled] = useState(() => bridge.matches(":disabled"));
@@ -71,11 +77,12 @@ export function EditorSurface({
         role: "textbox",
         "aria-multiline": "true",
         ...(labelId ? { "aria-labelledby": labelId } : {}),
+        ...(label ? { "aria-label": label } : {}),
         ...(errorId ? { "aria-describedby": errorId } : {}),
         ...(invalid ? { "aria-invalid": "true" } : {}),
         ...(editable ? {} : { "aria-readonly": "true" }),
         spellcheck: "true",
-        class: "rich-text min-h-48 px-3 py-2",
+        class: `rich-text ${tall ? "min-h-[min(24rem,50dvh)]" : "min-h-48"} px-3 py-2`,
       },
       handleKeyDown: (_view: unknown, event: KeyboardEvent) => {
         if (!isLinkShortcut(event)) return false;
@@ -83,13 +90,14 @@ export function EditorSurface({
         return true;
       },
     }),
-    [inputId, labelId, errorId, invalid, editable, setLinkOpen],
+    [inputId, labelId, label, errorId, invalid, editable, tall, setLinkOpen],
   );
 
   const editor = useEditor({
     extensions: richTextExtensions,
     content: initialHtml,
     editable,
+    autofocus: autoFocus ? "end" : false,
     // Mounted on the client only (next/dynamic ssr:false); never render on the server.
     immediatelyRender: false,
     editorProps,

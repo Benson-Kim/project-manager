@@ -1,4 +1,4 @@
-import { getUploadsEnv, uploadsEnabled } from "@/lib/env";
+import { getUploadsEnv, uploadsEnabled, uploadsQuotaBytes } from "@/lib/env";
 import { scanFile } from "@/lib/files/scan";
 import { sniffFile } from "@/lib/files/sniff";
 import { freeBytes, storedFilesRoot, uploadsRoot } from "@/lib/files/store";
@@ -10,7 +10,7 @@ import type { UploadDeps } from "./upload";
 export const uploadDeps: UploadDeps = {
   uploadsEnabled,
   uploadsRoot,
-  quotaBytes: () => getUploadsEnv().UPLOADS_QUOTA_MB_PER_PROJECT * 1024 * 1024,
+  quotaBytes: uploadsQuotaBytes,
   minFreeBytes: () => getUploadsEnv().UPLOADS_MIN_FREE_MB * 1024 * 1024,
   freeBytes,
   checkCanAdd: checkCanAddAttachment,

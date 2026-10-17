@@ -1,5 +1,6 @@
 import { execProc } from "@/lib/db";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
+import { sanitizeRichText } from "@/lib/rich-text/sanitize";
 import {
   attendeeRowSchema,
   meetingListRowSchema,
@@ -29,8 +30,22 @@ import type {
 /**
  * Meetings repository (ADR-0028): stored procedures only, every row zod-parsed
  * at the boundary (STANDARDS §2.5). The procs check project access and write
- * the audit rows; nothing here decides who may do what.
+ * the audit rows; nothing here decides who may do what. Rich text leaves
+ * sanitised (ADR-0025), so legacy Access markup reaches the editor converted.
  */
+
+const cleanHtml = (html: string | null) => (html ? sanitizeRichText(html) || null : html);
+
+type RichFields = Pick<MeetingRow, "Objective" | "Description" | "Conclusion">;
+
+function cleanMeeting<T extends RichFields>(row: T): T {
+  return {
+    ...row,
+    Objective: cleanHtml(row.Objective),
+    Description: cleanHtml(row.Description),
+    Conclusion: cleanHtml(row.Conclusion),
+  };
+}
 
 export interface MeetingFilters {
   dateFrom?: Date | null;
@@ -64,7 +79,7 @@ export async function createMeetingDraft(
     ProjectId: projectId,
     ActorUserId: actorUserId,
   });
-  return meetingRowSchema.parse(rows[0]);
+  return cleanMeeting(meetingRowSchema.parse(rows[0]));
 }
 
 export async function createMeeting(
@@ -76,7 +91,7 @@ export async function createMeeting(
     ...headerParams(input),
     ActorUserId: actorUserId,
   });
-  return meetingRowSchema.parse(rows[0]);
+  return cleanMeeting(meetingRowSchema.parse(rows[0]));
 }
 
 export async function getMeetingById(meetingId: number, actorUserId: number): Promise<MeetingRow> {
@@ -84,7 +99,7 @@ export async function getMeetingById(meetingId: number, actorUserId: number): Pr
     MeetingId: meetingId,
     ActorUserId: actorUserId,
   });
-  return meetingRowSchema.parse(rows[0]);
+  return cleanMeeting(meetingRowSchema.parse(rows[0]));
 }
 
 export async function listMeetings(
@@ -101,7 +116,7 @@ export async function listMeetings(
     DateFrom: filters.dateFrom ?? null,
     DateTo: filters.dateTo ?? null,
   });
-  return rows.map((r) => meetingListRowSchema.parse(r));
+  return rows.map((r) => cleanMeeting(meetingListRowSchema.parse(r)));
 }
 
 /** The project stays as it is: usp_Meeting_Update is never sent one. */
@@ -115,7 +130,7 @@ export async function updateMeeting(
     RowVer: input.rowVer,
     ActorUserId: actorUserId,
   });
-  return meetingRowSchema.parse(rows[0]);
+  return cleanMeeting(meetingRowSchema.parse(rows[0]));
 }
 
 /** Soft-deletes the meeting with its minutes and participants (one transaction, in-proc). */
@@ -151,9 +166,12 @@ export async function getMeetingWorkspace(
     ...meeting
   } = row;
   return {
-    meeting,
+    meeting: cleanMeeting(meeting),
     agendaItems: AgendaItemsJson,
-    discussionPoints: DiscussionPointsJson,
+    discussionPoints: DiscussionPointsJson.map((point) => ({
+      ...point,
+      DiscussionPoint: cleanHtml(point.DiscussionPoint),
+    })),
     actionItems: ActionItemsJson,
     participants: ParticipantsJson,
     participantsStamp: ParticipantsStamp,

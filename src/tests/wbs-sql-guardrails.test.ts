@@ -24,7 +24,7 @@ describe("work breakdown SQL guardrails", () => {
   });
 
   it("locks the project before changing its breakdown, so two changes cannot make a loop", () => {
-    for (const proc of ["Create", "Update", "Delete", "Move", "Reschedule"]) {
+    for (const proc of ["Create", "Update", "Delete", "Move", "Reschedule", "Rename"]) {
       expect(sql(`${PROCS}/usp_KeyDeliverable_${proc}.sql`), proc).toMatch(
         /FROM app\.Project WITH \(UPDLOCK, HOLDLOCK\)/,
       );
@@ -78,6 +78,17 @@ describe("work breakdown SQL guardrails", () => {
     expect(gantt).toMatch(/@WithProjectRow\s+BIT\s+= 0/);
     expect(gantt).toContain("kd.KeyDeliverableId IS NOT NULL OR @WithProjectRow = 1");
     expect(sql(`${PROCS}/usp_KeyDeliverable_Update.sql`)).toMatch(/@ColorSet\s+BIT\s+= 0/);
+  });
+
+  it("stamps a read with the project's newest RowVer, which every write moves forward", () => {
+    const gantt = sql(`${PROCS}/usp_KeyDeliverable_GanttData.sql`);
+    expect(gantt).not.toContain("MIN_ACTIVE_ROWVERSION");
+    expect(gantt).toMatch(
+      /DECLARE @Stamp BIGINT =\s+ISNULL\(\(SELECT MAX\(CAST\(RowVer AS BIGINT\)\) FROM app\.KeyDeliverable WHERE ProjectId = @ProjectId\), 0\);/,
+    );
+    expect(gantt.indexOf("@Stamp BIGINT")).toBeLessThan(
+      gantt.indexOf("SELECT kd.KeyDeliverableId"),
+    );
   });
 
   it("returns the project the item belongs to, for the editor to read back", () => {

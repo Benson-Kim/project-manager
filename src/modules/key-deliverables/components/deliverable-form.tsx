@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field, useFieldContext } from "@/components/ui/form/field";
+import { StoredDates } from "@/components/ui/form/stored-dates";
 import { DatePicker, Select, Textarea } from "@/components/ui/form/inputs";
 import { useSheetFormActions } from "@/components/ui/form/use-sheet-form-actions";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
@@ -284,6 +285,13 @@ export function DeliverableForm({
         <>
           <input type="hidden" name="keyDeliverableId" value={deliverable.KeyDeliverableId} />
           <input type="hidden" name="rowVer" value={deliverable.RowVer} />
+          <StoredDates
+            dates={{
+              requestedDate: deliverable.RequestedDate,
+              startDate: deliverable.StartDate,
+              deadline: deliverable.Deadline,
+            }}
+          />
         </>
       ) : null}
 

@@ -201,3 +201,17 @@ the latest Node 22 and already meet it.
   - Repositories pass stored rich-text columns through `sanitizeRichText` before a sheet
     receives them. The editor's own parser keeps text but drops unknown markup such as
     `<font face>`, so legacy formatting survives only when it arrives converted.
+
+## Amendment 2026-10-14: rich text in lists (meetings, ADR-0028)
+
+- **Repositories sanitise on the way out.** The meetings repository passes Objective,
+  Description, Conclusion and DiscussionPoint through `sanitizeRichText` for every read:
+  list, get by id, workspace, and the rows the writes answer with. Legacy Access markup
+  therefore reaches the editor and the datasheet converted, and a cell edit stores the
+  converted HTML.
+- **Lists render on the server.** A client list cannot sanitise, so the page renders
+  `RichTextView` for each row and hands the node to the client with the row
+  (ADR-0023, amendment 2026-10-14). HTML is still injected only by `RichTextView`
+  (`src/tests/rich-text-boundaries.test.ts`).
+- **Editor props.** `RichTextEditor` takes `label` (an accessible name where no `Field`
+  labels it), `autoFocus` and `tall` (the datasheet's larger editor).
