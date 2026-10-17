@@ -45,6 +45,7 @@ export const projectSections: ProjectSection[] = [
   },
   { segment: "financials", label: messages.projects.financialsSection, match: "prefix" },
   { segment: "meetings", label: messages.projects.meetingsSection, match: "prefix" },
+  { segment: "notes", label: messages.projects.notesSection, match: "prefix" },
 ];
 
 /** Sections grouped for the disclosure nav (ADR-0018). */
@@ -77,7 +78,7 @@ export const projectSectionGroups: ProjectSectionGroup[] = [
     key: "activity",
     label: messages.activity.title,
     sections: projectSections.filter((s) =>
-      ["daily-activities", "todos", "keywords", "meetings"].includes(s.segment),
+      ["daily-activities", "todos", "keywords", "meetings", "notes"].includes(s.segment),
     ),
   },
 ];

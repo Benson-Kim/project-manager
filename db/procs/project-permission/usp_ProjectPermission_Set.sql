@@ -55,7 +55,7 @@ BEGIN
                   OR Verb IS NULL OR Verb NOT IN (N'create', N'update', N'delete')
                   OR [Module] IS NULL
                   OR [Module] NOT IN (N'assumptions-constraints', N'daily-activities', N'financial-tax-invoices', N'financials',
-                                      N'key-deliverables', N'keywords', N'meetings', N'objectives', N'parking-lot',
+                                      N'key-deliverables', N'keywords', N'meetings', N'notes', N'objectives', N'parking-lot',
                                       N'questions-answers', N'stakeholders', N'suppliers', N'todo-alerts', N'todo-items'))
         THROW 50004, N'VALIDATION:Each override needs a section, an action and allow or deny', 1;
     IF EXISTS (SELECT 1 FROM @In GROUP BY [Module], Verb HAVING COUNT(*) > 1)
