@@ -265,6 +265,40 @@ test("participants: mark attended and apology, save, reload keeps them, the list
   ).toBeVisible();
 });
 
+test("participants: a guest who is not a stakeholder is added, saved, marked and removed", async ({
+  page,
+}) => {
+  await newMeeting(page);
+  const panel = page.getByTestId("participants-panel");
+  const guestForm = panel.getByRole("form", { name: M.addGuest });
+  await guestForm.getByLabel(M.guestName).fill("Ada Lovelace");
+  await guestForm.getByLabel(M.guestOrganization).fill("Analytical Engines");
+  await guestForm.getByRole("button", { name: M.addGuestAction }).click();
+  const ada = "Ada Lovelace - Analytical Engines";
+  await expect(attendance(page, ada, "attended")).toBeChecked();
+  await expect(participant(page, ada)).toContainText(M.guest);
+  await expect(panel.getByTestId("participant-counts")).toHaveText(counts(1, 0));
+  // The same name again, in another case, is refused.
+  await guestForm.getByLabel(M.guestName).fill("ada lovelace");
+  await guestForm.getByRole("button", { name: M.addGuestAction }).click();
+  await expect(guestForm.getByRole("alert")).toHaveText(M.guestProblem.listed);
+
+  await page.getByTestId("participants-save").click();
+  await expectToast(page, messages.feedback.saved);
+  await page.reload();
+  await expect(attendance(page, ada, "attended")).toBeChecked();
+  await expect(participant(page, ada)).toContainText(M.guest);
+  await expect(panel.getByTestId("participant-counts")).toHaveText(counts(1, 0));
+
+  // Not invited removes a guest: there is no roster to keep them on.
+  await attendance(page, ada, "none").check();
+  await page.getByTestId("participants-save").click();
+  await expectToast(page, messages.feedback.saved);
+  await page.reload();
+  await expect(panel.getByTestId("participant-counts")).toHaveText(counts(0, 0));
+  await expect(participant(page, "Ada Lovelace")).toHaveCount(0);
+});
+
 test("participants: with both forms unsaved, leaving asks once", async ({ page }) => {
   const form = await newMeeting(page);
   const url = page.url();

@@ -7,8 +7,13 @@ import {
   choicesAfterSave,
   choose,
   filterRoster,
+  guestEntry,
+  guestLabel,
+  guestProblem,
   hasChanges,
+  isGuest,
   participantsPayload,
+  personKey,
   rosterAfterSave,
   savedAttendance,
   type Choices,
@@ -21,6 +26,8 @@ function person(id: number, overrides: Partial<RosterEntry> = {}): RosterEntry {
     MeetingParticipantId: null,
     IsApology: null,
     IsHistorical: false,
+    GuestName: null,
+    GuestOrganization: null,
     ...overrides,
   };
 }
@@ -40,6 +47,34 @@ const gone = person(4, {
 });
 const roster = [gary, lucy, tome, gone];
 const none: Choices = new Map();
+const key = personKey;
+
+const participant = (stakeholderId: number, isApology: boolean): WorkspaceParticipant => ({
+  MeetingParticipantId: 100 + stakeholderId,
+  StakeholderId: stakeholderId,
+  Label: `Person ${stakeholderId}`,
+  IsApology: isApology,
+  StakeholderIsDeleted: false,
+  GuestName: null,
+  GuestOrganization: null,
+  RowVer: 3000,
+});
+
+const guest = (
+  id: number,
+  name: string,
+  organization: string | null,
+  isApology: boolean,
+): WorkspaceParticipant => ({
+  MeetingParticipantId: 100 + id,
+  StakeholderId: null,
+  Label: guestLabel(name, organization),
+  IsApology: isApology,
+  StakeholderIsDeleted: false,
+  GuestName: name,
+  GuestOrganization: organization,
+  RowVer: 3000,
+});
 
 describe("participant roster: state", () => {
   it("reads each person's saved state", () => {
@@ -50,6 +85,14 @@ describe("participant roster: state", () => {
       "apology",
       "attended",
     ]);
+  });
+
+  it("keys a stakeholder by id and a guest by name, ignoring case and outer spaces", () => {
+    expect(key(gary)).toBe("stakeholder:1");
+    expect(key(guestEntry(" Ada Lovelace ", ""))).toBe(key(guestEntry("ada lovelace", "Other")));
+    expect(key(guestEntry("Ada", ""))).not.toBe(key(guestEntry("Adá", "")));
+    expect(isGuest(gary)).toBe(false);
+    expect(isGuest(guestEntry("Ada", ""))).toBe(true);
   });
 
   it("a choice overrides the saved state; choosing it back leaves nothing to save", () => {
@@ -64,14 +107,56 @@ describe("participant roster: state", () => {
   it("never changes a row kept for history", () => {
     const choices = choose(none, gone, "none");
     expect(choices.size).toBe(0);
-    expect(attendanceOf(gone, new Map([[4, "none"]]))).toBe("attended");
-    expect(hasChanges(roster, new Map([[4, "none"]]))).toBe(false);
+    expect(attendanceOf(gone, new Map([[key(gone), "none"]]))).toBe("attended");
+    expect(hasChanges(roster, new Map([[key(gone), "none"]]))).toBe(false);
   });
 
   it("does not mutate the choices it was given", () => {
-    const before = new Map([[2, "attended" as const]]);
+    const before = new Map([[key(lucy), "attended" as const]]);
     choose(before, gary, "apology");
-    expect([...before]).toEqual([[2, "attended"]]);
+    expect([...before]).toEqual([[key(lucy), "attended"]]);
+  });
+});
+
+describe("participant roster: guests", () => {
+  it("builds an unsaved guest entry, trimmed and labelled like the procs", () => {
+    expect(guestEntry("  Ada Lovelace ", " Analytical Engines ")).toEqual({
+      StakeholderId: null,
+      GuestName: "Ada Lovelace",
+      GuestOrganization: "Analytical Engines",
+      Label: "Ada Lovelace - Analytical Engines",
+      MeetingParticipantId: null,
+      IsApology: null,
+      IsHistorical: false,
+    });
+    expect(guestEntry("Ada", "  ").Label).toBe("Ada");
+  });
+
+  it("refuses an empty, overlong or already listed name, ignoring case", () => {
+    expect(guestProblem(roster, "  ", "")).toBe("empty");
+    expect(guestProblem(roster, "x".repeat(256), "")).toBe("long");
+    expect(guestProblem(roster, "Ada", "y".repeat(256))).toBe("long");
+    const listed = [...roster, guestEntry("Ada Lovelace", "")];
+    expect(guestProblem(listed, " ada lovelace", "Other")).toBe("listed");
+    expect(guestProblem(listed, "Gary Cantrall", "")).toBeNull();
+    expect(guestProblem(roster, "Ada Lovelace", "")).toBeNull();
+  });
+
+  it("is sent by name and organization among the stakeholders, and counted", () => {
+    const ada = guestEntry("Ada Lovelace", "Analytical Engines");
+    const all = [...roster, ada];
+    const choices = choose(none, ada, "attended");
+    expect(hasChanges(all, choices)).toBe(true);
+    const payload = participantsPayload(all, choices);
+    expect(payload).toEqual([
+      { stakeholderId: 1, isApology: false },
+      { stakeholderId: 3, isApology: true },
+      { guestName: "Ada Lovelace", guestOrganization: "Analytical Engines", isApology: false },
+    ]);
+    expect(attendanceCounts(all, choices)).toEqual({ attended: 3, apologies: 1 });
+    expect(
+      setParticipantsSchema.safeParse({ meetingId: 2, stamp: 2004, participants: payload }).success,
+    ).toBe(true);
   });
 });
 
@@ -129,15 +214,6 @@ describe("participant roster: search", () => {
 });
 
 describe("participant roster: after a save", () => {
-  const participant = (stakeholderId: number, isApology: boolean): WorkspaceParticipant => ({
-    MeetingParticipantId: 100 + stakeholderId,
-    StakeholderId: stakeholderId,
-    Label: `Person ${stakeholderId}`,
-    IsApology: isApology,
-    StakeholderIsDeleted: false,
-    RowVer: 3000,
-  });
-
   it("takes each live person's state from the re-read participants", () => {
     const after = rosterAfterSave(roster, [participant(2, true), participant(3, false)]);
     expect(after.map((e) => [e.StakeholderId, e.MeetingParticipantId, e.IsApology])).toEqual([
@@ -145,6 +221,36 @@ describe("participant roster: after a save", () => {
       [2, 102, true],
       [3, 103, false],
       [4, 12, false],
+    ]);
+    expect(hasChanges(after, none)).toBe(false);
+  });
+
+  it("keeps a stored guest with the row's label, drops one without a row, adds one the panel missed", () => {
+    const ada = guestEntry("Ada Lovelace", "Analytical Engines");
+    const bob = guestEntry("Bob", "");
+    const after = rosterAfterSave(
+      [...roster, ada, bob],
+      [
+        participant(1, false),
+        guest(7, "Ada Lovelace", "Analytical Engines Ltd", false),
+        guest(9, "Zed", null, true),
+      ],
+    );
+    expect(
+      after.map((e) => [
+        e.StakeholderId,
+        e.GuestName,
+        e.MeetingParticipantId,
+        e.IsApology,
+        e.Label,
+      ]),
+    ).toEqual([
+      [1, null, 101, false, gary.Label],
+      [2, null, null, null, lucy.Label],
+      [3, null, null, null, tome.Label],
+      [4, null, 12, false, gone.Label],
+      [null, "Ada Lovelace", 107, false, "Ada Lovelace - Analytical Engines Ltd"],
+      [null, "Zed", 109, true, "Zed"],
     ]);
     expect(hasChanges(after, none)).toBe(false);
   });
@@ -160,8 +266,8 @@ describe("participant roster: after a save", () => {
     const current = choose(choose(sent, tome, "attended"), gary, "none");
     const kept = choicesAfterSave(roster, after, sent, current);
     expect([...kept]).toEqual([
-      [1, "none"],
-      [3, "attended"],
+      [key(gary), "none"],
+      [key(tome), "attended"],
     ]);
     expect(hasChanges(after, kept)).toBe(true);
     // Lucy and Tome as picked, Gary uninvited, the historical row still counted.
@@ -176,7 +282,7 @@ describe("participant roster: after a save", () => {
       participant(3, true),
     ]);
     const current = choose(sent, lucy, "none");
-    expect([...choicesAfterSave(roster, after, sent, current)]).toEqual([[2, "none"]]);
+    expect([...choicesAfterSave(roster, after, sent, current)]).toEqual([[key(lucy), "none"]]);
   });
 
   it("has nothing left when nothing changed during the save, or the change matches what was stored", () => {
@@ -187,14 +293,20 @@ describe("participant roster: after a save", () => {
       participant(3, true),
     ]);
     expect(choicesAfterSave(roster, after, sent, sent).size).toBe(0);
-    // Someone else's concurrent save is not the case here; a pick equal to the stored state is.
     const current = choose(sent, gary, "attended");
     expect(choicesAfterSave(roster, after, sent, current).size).toBe(0);
   });
 
   it("never carries a choice over a row kept for history", () => {
-    const sent: Choices = new Map();
-    const current: Choices = new Map([[4, "none"]]);
-    expect(choicesAfterSave(roster, roster, sent, current).size).toBe(0);
+    const current: Choices = new Map([[key(gone), "none"]]);
+    expect(choicesAfterSave(roster, roster, none, current).size).toBe(0);
+  });
+
+  it("keeps a guest typed in while the save ran", () => {
+    const sent = choose(none, lucy, "attended");
+    const after = rosterAfterSave(roster, [participant(2, false)]);
+    const ada = guestEntry("Ada", "");
+    const current = choose(sent, ada, "apology");
+    expect([...choicesAfterSave(roster, after, sent, current)]).toEqual([[key(ada), "apology"]]);
   });
 });

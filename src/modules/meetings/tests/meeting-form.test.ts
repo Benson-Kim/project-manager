@@ -327,6 +327,49 @@ describe("setParticipantsSchema", () => {
     ]);
   });
 
+  it("accepts a guest by name, trimmed, with the organization or null", () => {
+    const parsed = setParticipantsSchema.parse({
+      meetingId: 2,
+      stamp: 1,
+      participants: [
+        {
+          guestName: "  Ada Lovelace ",
+          guestOrganization: " Analytical Engines ",
+          isApology: false,
+        },
+        { guestName: "Bob", guestOrganization: "", isApology: true },
+        { guestName: "Cy", isApology: false },
+      ],
+    });
+    expect(parsed.participants).toEqual([
+      { guestName: "Ada Lovelace", guestOrganization: "Analytical Engines", isApology: false },
+      { guestName: "Bob", guestOrganization: null, isApology: true },
+      { guestName: "Cy", guestOrganization: null, isApology: false },
+    ]);
+  });
+
+  it("refuses a nameless guest, an overlong name or organization, and one guest twice regardless of case", () => {
+    const refused = (participants: unknown[]) =>
+      !setParticipantsSchema.safeParse({ meetingId: 2, stamp: 1, participants }).success;
+    expect(refused([{ guestName: "  ", isApology: false }])).toBe(true);
+    expect(refused([{ guestName: "x".repeat(256), isApology: false }])).toBe(true);
+    expect(
+      refused([{ guestName: "Ada", guestOrganization: "y".repeat(256), isApology: false }]),
+    ).toBe(true);
+    expect(
+      refused([
+        { guestName: "Ada", isApology: false },
+        { guestName: "ada ", isApology: true },
+      ]),
+    ).toBe(true);
+    expect(
+      refused([
+        { guestName: "Ada", isApology: false },
+        { stakeholderId: 1, isApology: false },
+      ]),
+    ).toBe(false);
+  });
+
   it("refuses a repeated stakeholder, a non-boolean flag and an oversized list", () => {
     const base = { meetingId: 2, stamp: 1 };
     expect(

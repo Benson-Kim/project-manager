@@ -283,6 +283,8 @@ describe("meetings repository: participant roster", () => {
         MeetingParticipantId: null,
         IsApology: null,
         IsHistorical: false,
+        GuestName: null,
+        GuestOrganization: null,
         EmailAddress: "a@example.com",
       },
     ]);

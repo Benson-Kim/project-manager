@@ -1,4 +1,6 @@
 -- usp_MeetingParticipant_Create — add one stakeholder to a meeting as attended (IsApology = 0) or
+-- Guests (migration 033) are saved through usp_MeetingParticipant_Set; this proc takes a stakeholder,
+--   but labels and returns the row like every participant read.
 -- apology (1) (module #10, ADR-0028); audits in-transaction; returns the new row with ProjectId.
 -- The stakeholder must be a live stakeholder of the meeting's project (VALIDATION 50004) and not
 -- listed already (DUPLICATE 50005; UX_MeetingParticipant_Meeting_Stakeholder backs it). The meeting
@@ -53,7 +55,7 @@ BEGIN
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, AfterJson)
     VALUES (@ActorUserId, N'Create', N'app.MeetingParticipant', CAST(@Id AS NVARCHAR(64)),
-            (SELECT MeetingParticipantId, [MeetingId], [StakeholderId], [IsApology]
+            (SELECT MeetingParticipantId, [MeetingId], [StakeholderId], GuestName, GuestOrganization, [IsApology]
              FROM app.MeetingParticipant WHERE MeetingParticipantId = @Id
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
@@ -62,15 +64,17 @@ BEGIN
     SELECT mp.MeetingParticipantId,
            mp.MeetingId,
            mp.StakeholderId,
-           CONCAT(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N' - ' + NULLIF(TRIM(s.OrgTitle), N''), N', ' + NULLIF(TRIM(s.DepartmentOrganization), N'')) AS Label,
+           mp.GuestName,
+           mp.GuestOrganization,
+           CASE WHEN mp.StakeholderId IS NULL THEN CONCAT(mp.GuestName, N' - ' + NULLIF(TRIM(mp.GuestOrganization), N'')) ELSE CONCAT(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N' - ' + NULLIF(TRIM(s.OrgTitle), N''), N', ' + NULLIF(TRIM(s.DepartmentOrganization), N'')) END AS Label,
            mp.[IsApology],
-           s.IsDeleted AS StakeholderIsDeleted,
+           ISNULL(s.IsDeleted, 0) AS StakeholderIsDeleted,
            mp.CreatedAtUtc,
            mp.UpdatedAtUtc,
            CAST(mp.RowVer AS BIGINT) AS RowVer,
            @RowProjectId AS ProjectId
     FROM app.MeetingParticipant AS mp
-    JOIN app.Stakeholder AS s ON s.StakeholderId = mp.StakeholderId
+    LEFT JOIN app.Stakeholder AS s ON s.StakeholderId = mp.StakeholderId
     WHERE mp.MeetingParticipantId = @Id;
 END;
 GO
