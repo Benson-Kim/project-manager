@@ -16,13 +16,13 @@ export default async function Page() {
       <Link
         href="/settings/financial-templates"
         data-testid="financial-templates-link"
-        className="mt-3 inline-flex min-h-10 items-center text-sm font-medium text-accent underline"
+        className="mt-3 inline-flex min-h-10 items-center text-sm font-medium text-accent"
       >
         {messages.financials.templates.title}
       </Link>
       <Link
         href="/projects"
-        className="mt-3 ml-4 inline-flex min-h-10 items-center text-sm font-medium text-accent underline"
+        className="mt-3 ml-4 inline-flex min-h-10 items-center text-sm font-medium text-accent"
       >
         {messages.app.goToProjects}
       </Link>

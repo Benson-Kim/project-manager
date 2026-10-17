@@ -67,6 +67,13 @@ export function formatMoney(cents: bigint): string {
   return cents < 0n ? `(${text})` : text;
 }
 
+/** An amount as an input shows it ("-1,234.50", which parseMoney reads back); other text as it is. */
+export function formatMoneyField(text: string): string {
+  const cents = parseMoney(text);
+  if (cents === null) return text;
+  return cents < 0n ? `-${formatMoney(-cents)}` : formatMoney(cents);
+}
+
 const PERCENT_TEXT = /^(\d{1,3})(?:\.(\d{1,4}))?$/;
 
 /** A typed percentage ("5.6879") to micros of the fraction (56879n); null when invalid or over 100. */

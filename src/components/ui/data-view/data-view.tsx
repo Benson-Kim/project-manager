@@ -18,7 +18,13 @@ import { EmptyState } from "../states";
 import { useToast } from "../toast";
 import { TONES } from "../tones";
 import { TableLayoutDialog } from "./table-layout-dialog";
-import { CELL_WIDTH, DEFAULT_ROW_HEIGHT, failureMessage, isEditableTarget } from "./datasheet";
+import {
+  CELL_WIDTH,
+  cellWidthKind,
+  DEFAULT_ROW_HEIGHT,
+  failureMessage,
+  isEditableTarget,
+} from "./datasheet";
 import {
   DatasheetAddRow,
   DatasheetCell,
@@ -528,7 +534,7 @@ export function DataView<Row>({
                             <td
                               key={col.key}
                               style={style}
-                              className={`relative ${editableCellClass} ${style ? "" : CELL_WIDTH[col.edit.kind]} ${priorityClass[col.priority]}`}
+                              className={`relative ${editableCellClass} ${style ? "" : CELL_WIDTH[cellWidthKind(col.edit)]} ${priorityClass[col.priority]}`}
                             >
                               <DatasheetCell
                                 row={row}

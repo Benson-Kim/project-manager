@@ -43,7 +43,7 @@ export function NewFinancialDialog({
         success: messages.feedback.created,
         onSuccess: (data) => {
           setOpen(false);
-          router.push(`/projects/${projectId}/financials/${data.financialId}`);
+          router.push(`/projects/${projectId}/financials/budget?f=${data.financialId}`);
         },
       },
     );

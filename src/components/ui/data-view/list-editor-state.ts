@@ -30,6 +30,16 @@ export function editorOptions(list: LookupList | undefined): EditorOption[] {
   }));
 }
 
+/** A plain list of labels (no ids, colours or locks) as editor rows. */
+export function labelOptions(labels: readonly string[]): EditorOption[] {
+  return labels.map((label, i) => ({ key: `l${i}`, id: null, label, locked: false, color: null }));
+}
+
+/** The rows back as labels: trimmed, blanks dropped, in order. */
+export function optionLabels(options: EditorOption[]): string[] {
+  return options.map((option) => option.label.trim()).filter(Boolean);
+}
+
 export function renameOption(
   options: EditorOption[],
   index: number,

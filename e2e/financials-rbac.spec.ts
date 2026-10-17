@@ -15,16 +15,19 @@ const M = messages.financials;
 
 test("viewer reads financials without write controls", async ({ page }) => {
   await page.goto("/projects/2/financials");
-  await expect(page.getByRole("heading", { name: M.title })).toBeVisible();
+  await page.waitForURL(/\/projects\/2\/financials\/budget/);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expect(page.getByTestId("new-financial")).toHaveCount(0);
 
   await page.goto("/projects/2/financials/1");
   await expect(page.getByTestId("budget-planner")).toBeVisible();
-  await expect(page.getByTestId("add-line-operating")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: messages.actions.edit })).toHaveCount(0);
+  await expect(page.getByTestId("datasheet-add-row")).toHaveCount(0);
+  await expect(
+    page.getByTestId("budget-planner").getByTestId("budget-line").locator("textarea, select"),
+  ).toHaveCount(0);
 
   await page.goto("/projects/2/financials/1?tab=monitoring");
-  await expect(page.getByTestId("add-transaction")).toHaveCount(0);
+  await expect(page.getByTestId("datasheet-add-row")).toHaveCount(0);
   await expect(page.getByTestId("export-csv")).toBeVisible();
 
   await page.goto("/projects/2/financials/1?tab=settings");

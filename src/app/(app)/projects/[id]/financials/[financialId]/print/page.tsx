@@ -60,17 +60,11 @@ export default async function FinancialPrintPage({
   return (
     <article className="flex flex-col gap-6 py-4" data-testid="financial-print">
       <div className="flex flex-wrap items-center gap-3 print:hidden">
-        <Link
-          href={base}
-          className="inline-flex min-h-10 items-center text-sm text-accent underline"
-        >
+        <Link href={base} className="inline-flex min-h-10 items-center text-sm text-accent">
           {report.title}
         </Link>
         <PrintButton />
-        <a
-          href={`${base}/pdf`}
-          className="inline-flex min-h-10 items-center text-sm text-accent underline"
-        >
+        <a href={`${base}/pdf`} className="inline-flex min-h-10 items-center text-sm text-accent">
           {M.downloadPdf}
         </a>
       </div>

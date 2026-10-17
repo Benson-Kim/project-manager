@@ -43,6 +43,11 @@ export interface CellEditor<Row> {
   placeholder: string;
   /** Managed list behind a select: its options, and the header caret that edits it. */
   list?: LookupListKey;
+  /**
+   * A list of the module's own behind a select (`choices`), when the viewer may
+   * edit it: "Edit list…" at the end of the select and the header caret call this.
+   */
+  editList?: () => void;
   /** Label of the row's current value, for id-bound lists whose option was retired. */
   currentLabel?: (row: Row) => string | null;
   /** Fixed choices for a select that isn't a managed list (e.g. a project picker). */
@@ -59,6 +64,10 @@ export interface CellEditor<Row> {
    * new line. Other text cells stay on one line: a pasted line break becomes a space.
    */
   multiline?: boolean;
+  /** An amount typed as text: the decimal keypad, right-aligned like Access's numbers. */
+  numeric?: boolean;
+  /** Ghost text of a row's empty cell: a value the app works out when none is typed. */
+  ghost?: (row: Row) => string | undefined;
   min?: number;
   max?: number;
   /** Whether this row's cell can be edited (e.g. not a parent's rolled-up date); every row by default. */
@@ -236,6 +245,11 @@ export const CELL_WIDTH: Record<CellKind, string> = {
   select: "min-w-44",
   rich: "min-w-72",
 };
+
+/** The width class a cell takes: an amount typed as text is as narrow as a number. */
+export function cellWidthKind(editor: Pick<CellEditor<unknown>, "kind" | "numeric">): CellKind {
+  return editor.numeric ? "number" : editor.kind;
+}
 
 /** CELL_WIDTH in px: what a column's resize handle reports before the browser measures it. */
 export const CELL_WIDTH_PX: Record<CellKind, number> = {

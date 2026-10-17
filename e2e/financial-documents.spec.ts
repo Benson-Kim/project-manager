@@ -20,6 +20,9 @@ const D = M.documents;
 test.describe.configure({ mode: "serial" });
 
 let financialUrl = "";
+/** A view of the financial under test (the project's Financials menu). */
+const view = (tab: "budget" | "monitoring" | "documents" | "settings") =>
+  `/projects/2/financials/${tab}?f=${financialUrl.split("/").pop()}`;
 
 async function toast(page: Page, title: string) {
   await expect(page.getByTestId("toast-success").filter({ hasText: title }).first()).toBeVisible();
@@ -45,20 +48,22 @@ test("a financial from the default template lists its documents", async ({ page 
   await dialog.getByLabel(M.titleLabel).fill(`E2E documents ${Date.now()}`);
   await dialog.getByLabel(M.firstFiscalYear).fill("2023");
   await dialog.getByTestId("create-financial").click();
-  await page.waitForURL(/\/projects\/2\/financials\/\d+$/);
-  financialUrl = new URL(page.url()).pathname;
+  await page.waitForURL(/\/projects\/2\/financials\/budget\?f=\d+$/);
+  financialUrl = `/projects/2/financials/${new URL(page.url()).searchParams.get("f")}`;
 
   // An operating amount and no capital amount: the cost reads as non-capitalizable.
-  await page
-    .getByTestId("budget-line")
-    .filter({ has: page.getByRole("rowheader", { name: /Project management/ }) })
-    .getByRole("button", { name: M.editLine("Project management") })
-    .click();
-  await page.getByTestId("line-form").getByLabel("2023-2024").fill("1000");
-  await page.getByTestId("line-form").getByTestId("save-line").click();
-  await toast(page, messages.feedback.saved);
+  const amount = page.getByLabel(messages.datasheet.cellLabel("2023-2024", "Project management"), {
+    exact: true,
+  });
+  await amount.fill("1000");
+  await amount.press("Enter");
+  await expect(page.getByText(messages.datasheet.saved("2023-2024"))).toBeAttached();
 
-  await page.getByTestId("tab-documents").click();
+  await page
+    .getByRole("button", { name: messages.projects.financialsSection, exact: true })
+    .click();
+  await page.getByRole("link", { name: M.documentsTab, exact: true }).click();
+  await page.waitForURL(/\/projects\/2\/financials\/documents/);
   await expect(page.getByTestId("documents-panel")).toBeVisible();
   await expect(page.getByTestId(/^document-\d+$/)).toHaveCount(9);
   await expect(page.getByTestId("documents-summary")).toHaveText(D.summary(0, 0, 9));
@@ -66,7 +71,7 @@ test("a financial from the default template lists its documents", async ({ page 
 });
 
 test("suggested reasons are offered, and one click uses one", async ({ page }) => {
-  await page.goto(`${financialUrl}?tab=documents`);
+  await page.goto(view("documents"));
   const da = card(page, "DA (Dossier d'affaires)");
   await expect(da.getByTestId("document-suggestion")).toContainText(D.matchNoCapital);
   const dO = card(page, "DO (Dossier d'opportunité)");
@@ -82,7 +87,7 @@ test("suggested reasons are offered, and one click uses one", async ({ page }) =
 });
 
 test("add a required document, refuse a duplicate, attach a location", async ({ page }) => {
-  await page.goto(`${financialUrl}?tab=documents`);
+  await page.goto(view("documents"));
   await page.getByTestId("add-document").click();
   const form = page.getByTestId("document-form");
   await form.getByLabel(D.name, { exact: true }).fill("a1");
@@ -114,7 +119,7 @@ test("add a required document, refuse a duplicate, attach a location", async ({ 
 });
 
 test("remove asks first; copying the template skips listed names", async ({ page }) => {
-  await page.goto(`${financialUrl}?tab=documents`);
+  await page.goto(view("documents"));
   await card(page, "A1")
     .getByRole("button", { name: D.remove("A1") })
     .click();
@@ -162,7 +167,7 @@ test("print view, PDF and project CSV carry the checklist", async ({ page }) => 
 
 test("the checklist fits a 360 px screen", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
-  await page.goto(`${financialUrl}?tab=documents`);
+  await page.goto(view("documents"));
   await expect(page.getByTestId("documents-panel")).toBeVisible();
   const width = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(width).toBeLessThanOrEqual(360);
