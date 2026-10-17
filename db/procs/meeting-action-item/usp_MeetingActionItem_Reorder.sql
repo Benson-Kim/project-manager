@@ -3,8 +3,8 @@
 -- Siblings: the actions of @DiscussionPointId, or the actions directly under @AgendaItemId (no
 --   discussion point). Exactly one parent (VALIDATION 50004 otherwise).
 -- The rules are usp_MeetingAgendaItem_Reorder's: every live sibling exactly once at the RowVer the
--- client read, checked inside the transaction with the meeting row locked (CONFLICT 50002 otherwise;
--- ids of other parents are never touched).
+-- client read, checked inside the transaction with the meeting row and the live siblings locked
+-- (UPDLOCK, HOLDLOCK; CONFLICT 50002 otherwise; ids of other parents are never touched).
 -- VALIDATION 50004: not a JSON array, an entry without a numeric id and rowVer, a repeated id, or
 --   more than 500 entries.
 -- Access: Contributor on the meeting's project, or a per-person grant (meetings:update, ADR-0024).
@@ -81,7 +81,7 @@ BEGIN
     DECLARE @Siblings TABLE (Id INT PRIMARY KEY, SortOrder INT NOT NULL, RowVer BIGINT NOT NULL);
     INSERT INTO @Siblings (Id, SortOrder, RowVer)
     SELECT MeetingActionItemId, SortOrder, CAST(RowVer AS BIGINT)
-    FROM app.MeetingActionItem
+    FROM app.MeetingActionItem WITH (UPDLOCK, HOLDLOCK)
     WHERE IsDeleted = 0
       AND ((@DiscussionPointId IS NOT NULL AND DiscussionPointId = @DiscussionPointId)
            OR (@DiscussionPointId IS NULL AND AgendaItemId = @AgendaItemId AND DiscussionPointId IS NULL));

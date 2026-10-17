@@ -1,6 +1,6 @@
 -- usp_MeetingActionItem_List — the live action items of one meeting with their person responsible's
--- name, grouped by agenda item and discussion point in position order (module #10, ADR-0028). A
--- child collection: no paging or search.
+-- name (NULL when nobody is responsible), grouped by agenda item and discussion point in position
+-- order (module #10, ADR-0028). A child collection: no paging or search.
 -- Access: Viewer on the meeting's project (FORBIDDEN_ROW 50003); NOT_FOUND 50001 for a missing meeting.
 USE ProjectManager;
 GO
@@ -26,7 +26,7 @@ BEGIN
            ai.[DiscussionPointId],
            ai.[Action],
            ai.[AssignedToStakeholderId],
-           TRIM(CONCAT(s.FirstName, N' ', s.LastName)) AS AssigneeName,
+           NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N'') AS AssigneeName,
            ai.[DueDate],
            ai.SortOrder,
            ai.CreatedAtUtc,

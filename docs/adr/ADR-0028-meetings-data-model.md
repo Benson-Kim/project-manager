@@ -134,6 +134,12 @@ only among the project's live stakeholders:
 panel read it (`ParticipantsStamp` from `usp_Meeting_GetWorkspace`). A save made from an older
 stamp is CONFLICT.
 
+The listed stakeholders are checked inside the transaction, with their rows read under `UPDLOCK,
+HOLDLOCK`. `usp_Stakeholder_Delete` takes no meeting lock, so a check made before the transaction
+could pass for a stakeholder deleted a moment later; under the lock the delete either lands first
+and the save is VALIDATION, or it waits for the save. `usp_MeetingParticipant_Create` and the
+action's person responsible (`usp_MeetingActionItem_Create` / `_Update`) check the same way.
+
 Removing someone through Set is an edit of the meeting's attendance, so it needs `meetings:update`
 (Contributor). Deleting a single participant row with `usp_MeetingParticipant_Delete` stays a
 Manager delete.
@@ -170,6 +176,12 @@ each other.
 **Under the lock**, the list must be exactly the parent's live children, each at the RowVer the
 client read. Anything else is CONFLICT: a missing sibling, an extra one, one from elsewhere, or a
 stale RowVer. Positions become 1…n, and one audit row records the new order.
+
+The live children are read once, under `UPDLOCK, HOLDLOCK`, into the snapshot the check, the
+audit's before-image and the UPDATE all use. The meeting lock alone serialises adds, deletes and
+reorders, but not an edit: `_Update` checks its own RowVer and takes no meeting lock, so an edit
+between the check and the UPDATE would let both succeed. With the rows locked, the edit either
+commits first (a stale RowVer, CONFLICT) or waits for the reorder.
 
 ### 8. One workspace read
 
