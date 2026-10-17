@@ -2,8 +2,11 @@
 -- ADR-0028): [{"id": <MeetingAgendaItemId>, "rowVer": <RowVer>}, ...], first = position 1.
 -- The list must name every live agenda item of the meeting exactly once, each at the RowVer the
 -- client read. The meeting row is locked (UPDLOCK, HOLDLOCK) and the check runs inside the
--- transaction, so a concurrent add, delete, edit or reorder makes this one fail (CONFLICT 50002)
--- instead of interleaving. An id of another meeting fails the same way and is never touched.
+-- transaction, so a concurrent add, delete or reorder makes this one fail (CONFLICT 50002)
+-- instead of interleaving. The live siblings are read under UPDLOCK, HOLDLOCK too: an edit
+-- (usp_MeetingAgendaItem_Update takes no meeting lock) either lands before the check and is seen as
+-- a stale RowVer, or waits for this transaction. An id of another meeting fails the same way and
+-- is never touched.
 -- VALIDATION 50004: not a JSON array, an entry without a numeric id and rowVer, a repeated id, or
 --   more than 500 entries.
 -- Access: Contributor on the meeting's project, or a per-person grant (meetings:update, ADR-0024).
@@ -51,19 +54,19 @@ BEGIN
     IF @Locked IS NULL
         THROW 50001, N'NOT_FOUND:Meeting not found', 1;
 
-    IF (SELECT COUNT(*) FROM app.MeetingAgendaItem WHERE MeetingId = @MeetingId AND IsDeleted = 0)
-           <> (SELECT COUNT(*) FROM @Order)
+    DECLARE @Siblings TABLE (Id INT PRIMARY KEY, SortOrder INT NOT NULL, RowVer BIGINT NOT NULL);
+    INSERT INTO @Siblings (Id, SortOrder, RowVer)
+    SELECT MeetingAgendaItemId, SortOrder, CAST(RowVer AS BIGINT)
+    FROM app.MeetingAgendaItem WITH (UPDLOCK, HOLDLOCK)
+    WHERE MeetingId = @MeetingId AND IsDeleted = 0;
+
+    IF (SELECT COUNT(*) FROM @Siblings) <> (SELECT COUNT(*) FROM @Order)
        OR EXISTS (SELECT 1 FROM @Order AS o
-                  WHERE NOT EXISTS (SELECT 1 FROM app.MeetingAgendaItem AS a
-                                    WHERE a.MeetingAgendaItemId = o.Id AND a.MeetingId = @MeetingId
-                                      AND a.IsDeleted = 0 AND CAST(a.RowVer AS BIGINT) = o.RowVer))
+                  WHERE NOT EXISTS (SELECT 1 FROM @Siblings AS s WHERE s.Id = o.Id AND s.RowVer = o.RowVer))
         THROW 50002, N'CONFLICT:The agenda was changed by someone else', 1;
 
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT MeetingAgendaItemId AS id, SortOrder
-         FROM app.MeetingAgendaItem WHERE MeetingId = @MeetingId AND IsDeleted = 0
-         ORDER BY SortOrder, MeetingAgendaItemId
-         FOR JSON PATH);
+        (SELECT Id AS id, SortOrder FROM @Siblings ORDER BY SortOrder, Id FOR JSON PATH);
 
     UPDATE a SET
         SortOrder    = o.Position,
@@ -71,14 +74,12 @@ BEGIN
         UpdatedBy    = @ActorUserId
     FROM app.MeetingAgendaItem AS a
     JOIN @Order AS o ON o.Id = a.MeetingAgendaItemId
-    WHERE a.MeetingId = @MeetingId AND a.IsDeleted = 0 AND a.SortOrder <> o.Position;
+    JOIN @Siblings AS s ON s.Id = a.MeetingAgendaItemId
+    WHERE a.SortOrder <> o.Position;
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'ReorderAgenda', N'app.Meeting', CAST(@MeetingId AS NVARCHAR(64)), @Before,
-            (SELECT MeetingAgendaItemId AS id, SortOrder
-             FROM app.MeetingAgendaItem WHERE MeetingId = @MeetingId AND IsDeleted = 0
-             ORDER BY SortOrder, MeetingAgendaItemId
-             FOR JSON PATH));
+            (SELECT o.Id AS id, o.Position AS SortOrder FROM @Order AS o ORDER BY o.Position FOR JSON PATH));
 
     COMMIT;
 

@@ -94,4 +94,11 @@ describe("leavesPage", () => {
     expect(leavesPage(undefined, CURRENT)).toBe(false);
     expect(leavesPage(null, CURRENT)).toBe(false);
   });
+
+  it("is a navigation for another origin and for a Back / Forward destination", () => {
+    expect(leavesPage("https://other.example/projects/2", CURRENT)).toBe(true);
+    // The absolute destination URL the Navigation API reports for a traversal.
+    expect(leavesPage("https://app.example/projects/2/meetings", CURRENT)).toBe(true);
+    expect(leavesPage("https://app.example/projects/2#charter", CURRENT)).toBe(false);
+  });
 });

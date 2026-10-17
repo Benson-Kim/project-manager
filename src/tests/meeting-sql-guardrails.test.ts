@@ -117,16 +117,59 @@ describe("meeting SQL guardrails", () => {
     expect(text.slice(stamp)).toMatch(/^> @Stamp\s+THROW 50002, N'CONFLICT:/);
   });
 
-  it("checks the order against the live siblings after taking the lock", () => {
-    for (const name of [
-      "usp_MeetingAgendaItem_Reorder",
-      "usp_MeetingDiscussionPoint_Reorder",
-      "usp_MeetingActionItem_Reorder",
+  it("checks the order against the live siblings, read under a lock, after taking the meeting lock", () => {
+    for (const [name, table] of [
+      ["usp_MeetingAgendaItem_Reorder", "app.MeetingAgendaItem"],
+      ["usp_MeetingDiscussionPoint_Reorder", "app.MeetingDiscussionPoint"],
+      ["usp_MeetingActionItem_Reorder", "app.MeetingActionItem"],
     ]) {
       const text = sql(name);
       const lock = text.indexOf(LOCK);
+      const siblings = text.indexOf(`FROM ${table} WITH (UPDLOCK, HOLDLOCK)`);
+      const conflict = text.indexOf("THROW 50002, N'CONFLICT:");
       expect(lock, name).toBeGreaterThan(text.indexOf("BEGIN TRAN"));
-      expect(text.indexOf("THROW 50002, N'CONFLICT:", lock), name).toBeGreaterThan(lock);
+      expect(siblings, name).toBeGreaterThan(lock);
+      expect(conflict, name).toBeGreaterThan(siblings);
+      // The check, the audit's before-image and the UPDATE all use that one locked snapshot.
+      expect(text.slice(siblings).match(/FROM app\.\w+\b(?! WITH)/g), name).toEqual([
+        `FROM ${table}`,
+      ]);
+    }
+  });
+
+  it("validates a stakeholder under a lock inside the transaction, so a delete cannot slip in between", () => {
+    const check = /\b(FROM|JOIN) app\.Stakeholder AS s WITH \(UPDLOCK, HOLDLOCK\)/;
+    for (const name of [
+      "usp_MeetingParticipant_Set",
+      "usp_MeetingParticipant_Create",
+      "usp_MeetingActionItem_Create",
+      "usp_MeetingActionItem_Update",
+    ]) {
+      const text = sql(name);
+      const tran = text.indexOf("BEGIN TRAN");
+      const locked = text.search(check);
+      expect(locked, name).toBeGreaterThan(tran);
+      expect(text.indexOf("THROW 50004, N'VALIDATION:", locked), name).toBeGreaterThan(locked);
+      // No stakeholder read before the transaction decides anything.
+      expect(text.slice(0, tran), name).not.toMatch(/\b(FROM|JOIN) app\.Stakeholder\b/);
+    }
+  });
+
+  it("answers null, not an empty name, for an action nobody is responsible for", () => {
+    const named = [...PROCS].filter(([, text]) => /AS AssigneeName\b/.test(text)).map(([n]) => n);
+    expect(named.sort()).toEqual(
+      [
+        "usp_Meeting_GetWorkspace",
+        "usp_MeetingActionItem_Create",
+        "usp_MeetingActionItem_GetById",
+        "usp_MeetingActionItem_List",
+        "usp_MeetingActionItem_Update",
+      ].sort(),
+    );
+    for (const name of named) {
+      expect(sql(name), name).toContain(
+        "NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N'') AS AssigneeName",
+      );
     }
   });
 
@@ -185,14 +228,16 @@ describe("meeting SQL guardrails", () => {
     );
   });
 
-  it("builds the roster from the meeting's own project, stamp first, within Set's limit", () => {
+  it("builds the roster from the meeting's own project, stamp first, every participant, the rest within Set's limit", () => {
     const roster = sql("usp_Meeting_GetRoster");
     expect(roster).toContain("WHERE s.ProjectId = @RowProjectId AND s.IsDeleted = 0");
     expect(roster).toContain("AND live.ProjectId = @RowProjectId AND live.IsDeleted = 0");
     const stamp = roster.indexOf("DECLARE @ParticipantsStamp");
     expect(stamp).toBeGreaterThan(roster.indexOf("usp_Project_AssertAccess"));
     expect(stamp).toBeLessThan(roster.indexOf("FROM app.Stakeholder"));
-    expect(roster).toContain(`WHERE r.Pick <= ${MEETING_PARTICIPANTS_MAX}`);
+    expect(roster).toContain(
+      `WHERE r.MeetingParticipantId IS NOT NULL OR r.Pick <= ${MEETING_PARTICIPANTS_MAX}`,
+    );
   });
 
   it("calls no other meeting proc or function, since the two runners order the folders differently", () => {

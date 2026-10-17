@@ -4,7 +4,8 @@
 --   AgendaItemsJson      [{MeetingAgendaItemId, AgendaItem, SortOrder, RowVer}]
 --   DiscussionPointsJson [{MeetingDiscussionPointId, AgendaItemId, DiscussionPoint, SortOrder, RowVer}]
 --   ActionItemsJson      [{MeetingActionItemId, AgendaItemId, DiscussionPointId, Action,
---                          AssignedToStakeholderId, AssigneeName, DueDate, SortOrder, RowVer}]
+--                          AssignedToStakeholderId, AssigneeName (null when nobody is responsible),
+--                          DueDate, SortOrder, RowVer}]
 --   ParticipantsJson     [{MeetingParticipantId, StakeholderId, Label, IsApology,
 --                          StakeholderIsDeleted, RowVer}] (labels as usp_Meeting_GetParticipants)
 -- ParticipantsStamp: the highest RowVer among the meeting's participant rows, deleted ones included;
@@ -62,7 +63,7 @@ BEGIN
             FOR JSON PATH, INCLUDE_NULL_VALUES) AS DiscussionPointsJson,
            (SELECT ai.MeetingActionItemId, ai.AgendaItemId, ai.DiscussionPointId, ai.[Action],
                    ai.AssignedToStakeholderId,
-                   TRIM(CONCAT(s.FirstName, N' ', s.LastName)) AS AssigneeName,
+                   NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N'') AS AssigneeName,
                    CAST(ai.DueDate AS DATE) AS DueDate,
                    ai.SortOrder, CAST(ai.RowVer AS BIGINT) AS RowVer
             FROM app.MeetingActionItem AS ai
