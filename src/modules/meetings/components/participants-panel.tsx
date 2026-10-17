@@ -187,7 +187,7 @@ export function ParticipantsPanel({
           <p>{M.noStakeholders}</p>
           <Link
             href={`/projects/${projectId}/stakeholders`}
-            className="inline-flex min-h-11 items-center font-medium text-accent underline"
+            className="inline-flex min-h-11 items-center font-medium text-accent"
           >
             {messages.stakeholders.viewStakeholders}
           </Link>

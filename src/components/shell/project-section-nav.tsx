@@ -2,14 +2,16 @@
 
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useReducer, useRef, useState } from "react";
+import { Chevron } from "@/components/ui/chevron";
 import { messages } from "@/lib/messages";
 import {
   isCurrentSection,
   isGroupActive,
   projectSectionGroups,
   sectionHref,
+  sectionLinkHref,
   type ProjectSectionGroup,
 } from "./project-sections";
 
@@ -36,29 +38,6 @@ const linkClass = (current: boolean) =>
       ? "text-ink font-medium bg-accent-soft"
       : "text-ink-muted hover:text-ink hover:bg-surface-raised",
   ].join(" ");
-
-// ---------------------------------------------------------------------------
-// Chevron icon
-// ---------------------------------------------------------------------------
-
-export function Chevron({ open }: { open: boolean }) {
-  return (
-    <svg
-      aria-hidden="true"
-      width="12"
-      height="12"
-      viewBox="0 0 12 12"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={`transition-transform duration-(--duration-fast) ${open ? "rotate-180" : ""}`}
-    >
-      <polyline points="2,4 6,8 10,4" />
-    </svg>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Group trigger button
@@ -145,8 +124,8 @@ function openReducer(state: OpenState, action: OpenAction): OpenState {
 // ---------------------------------------------------------------------------
 
 /**
- * Project section navigation (ADR-0019): four group disclosure buttons
- * (Overview / Planning / People / Activity), each toggling a dropdown panel
+ * Project section navigation (ADR-0019): group disclosure buttons (Overview /
+ * Planning / People & Resources / Financials / Activity), each toggling a dropdown panel
  * of section links. Every panel starts closed (the active group's pill stays
  * highlighted) and a route change closes any open panel.
  *
@@ -160,6 +139,8 @@ function openReducer(state: OpenState, action: OpenAction): OpenState {
  */
 export function ProjectSectionNav({ projectId }: { projectId: number }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const financialId = pathname.includes("/financials/") ? searchParams.get("f") : null;
   const navRef = useRef<HTMLElement>(null);
 
   // One ref per group so we can read the trigger's viewport position.
@@ -282,7 +263,7 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
               return (
                 <Link
                   key={section.segment}
-                  href={sectionHref(projectId, section)}
+                  href={sectionLinkHref(projectId, section, financialId)}
                   aria-current={current ? "page" : undefined}
                   className={linkClass(current)}
                   onClick={() => dispatch({ type: "close" })}

@@ -184,6 +184,49 @@ export function listColumn<Row>(
 }
 
 /**
+ * A select of the module's own choices (not a managed list), e.g. a record's
+ * own categories. `editList`, given when the viewer may edit those choices,
+ * ends the select with "Edit list…" and gives the header its caret, as a
+ * managed list's column does. Rows keep showing a value that left the choices.
+ */
+export function choiceColumn<Row>(
+  spec: ColumnSpec<Row, string | null> & {
+    choices: readonly ListChoice[];
+    /** What the empty choice reads in data rows; "None" by default. */
+    emptyLabel?: string;
+    clearable?: boolean;
+    initial?: string;
+    editList?: () => void;
+  },
+): DataViewColumn<Row> {
+  const label = (row: Row) => {
+    const value = formText(spec.value(row));
+    return value
+      ? (spec.choices.find((choice) => choice.value === value)?.label ?? value)
+      : (spec.emptyLabel ?? messages.datasheet.noValue);
+  };
+  return {
+    key: spec.key,
+    header: spec.header,
+    priority: spec.priority,
+    render: spec.render ?? label,
+    edit: {
+      kind: "select",
+      field: spec.field,
+      value: (row) => formText(spec.value(row)),
+      currentLabel: (row) => label(row),
+      choices: spec.choices,
+      clearable: spec.clearable,
+      emptyLabel: spec.emptyLabel,
+      initial: spec.initial,
+      placeholder: spec.placeholder,
+      editList: spec.editList,
+      editable: spec.editable,
+    },
+  };
+}
+
+/**
  * The Project column of a cross-project list (/daily-activities, /todo): the
  * project's name, and a select of the projects the actor may put the record in
  * (`choices`); the empty choice is the project-less shared space, offered when
