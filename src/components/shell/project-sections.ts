@@ -43,8 +43,16 @@ export const projectSections: ProjectSection[] = [
     label: messages.projects.assumptionsConstraintsSection,
     match: "prefix",
   },
-  { segment: "financials", label: messages.projects.financialsSection, match: "prefix" },
   { segment: "meetings", label: messages.projects.meetingsSection, match: "prefix" },
+  // Financials (ADR-0029): one entry per view of the project's financial.
+  { segment: "financials/budget", label: messages.financials.budgetTab, match: "prefix" },
+  { segment: "financials/monitoring", label: messages.financials.monitoringTab, match: "prefix" },
+  {
+    segment: "financials/documents",
+    label: messages.financials.documentsTab,
+    match: "prefix",
+  },
+  { segment: "financials/settings", label: messages.financials.settings, match: "prefix" },
 ];
 
 /** Sections grouped for the disclosure nav (ADR-0018). */
@@ -64,7 +72,6 @@ export const projectSectionGroups: ProjectSectionGroup[] = [
         "questions-answers",
         "parking-lot",
         "assumptions-constraints",
-        "financials",
       ].includes(s.segment),
     ),
   },
@@ -72,6 +79,11 @@ export const projectSectionGroups: ProjectSectionGroup[] = [
     key: "people",
     label: messages.people.title,
     sections: projectSections.filter((s) => ["stakeholders", "suppliers"].includes(s.segment)),
+  },
+  {
+    key: "financials",
+    label: messages.projects.financialsSection,
+    sections: projectSections.filter((s) => s.segment.startsWith("financials/")),
   },
   {
     key: "activity",
@@ -86,6 +98,18 @@ export function sectionHref(projectId: number, section: ProjectSection): string 
   return section.segment === "."
     ? `/projects/${projectId}`
     : `/projects/${projectId}/${section.segment}`;
+}
+
+/** The nav link: a Financials view keeps the open financial (?f=<id>) when switching views. */
+export function sectionLinkHref(
+  projectId: number,
+  section: ProjectSection,
+  financialId: string | null,
+): string {
+  const href = sectionHref(projectId, section);
+  return financialId && /^\d+$/.test(financialId) && section.segment.startsWith("financials/")
+    ? `${href}?f=${financialId}`
+    : href;
 }
 
 export function isCurrentSection(

@@ -81,7 +81,7 @@ export default async function MeetingPage({
                 <Link
                   href={`${listHref}/${meeting.MeetingId}/print`}
                   data-testid="minutes-print-link"
-                  className="inline-flex min-h-11 items-center text-sm font-medium text-accent underline"
+                  className="inline-flex min-h-11 items-center text-sm font-medium text-accent"
                 >
                   {M.printView}
                 </Link>

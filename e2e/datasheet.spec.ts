@@ -91,7 +91,7 @@ test("the header caret edits a list and every select updates at once (kitchen si
   ).toEqual([]);
 
   await dialog.getByLabel(messages.lookupLists.newOption).fill("Blocked");
-  await dialog.getByRole("button", { name: messages.lookupLists.addNew }).click();
+  await dialog.getByLabel(messages.lookupLists.newOption).press("Enter");
   await dialog.getByRole("button", { name: messages.lookupLists.moveUp("Blocked") }).click();
   await dialog.getByRole("button", { name: messages.actions.save }).click();
   await expect(dialog).toBeHidden();

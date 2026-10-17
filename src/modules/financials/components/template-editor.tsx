@@ -7,18 +7,20 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { Input, Select, Switch, Textarea } from "@/components/ui/form/inputs";
-import { SectionHeading } from "@/components/ui/form/section-heading";
+import { LabelListEditor } from "@/components/ui/form/label-list-editor";
+import { Panel } from "@/components/ui/panel";
 import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { messages } from "@/lib/messages";
 import { deleteTemplateAction, saveTemplateAction } from "../actions";
 import { formatPercent, parseFraction } from "../calc/money";
-import { labelsFromText, SECTION_VALUES } from "../schemas/fields";
+import { SECTION_VALUES } from "../schemas/fields";
 import {
   saveTemplateInput,
   type Template,
   type TemplateDefinitionInput,
 } from "../schemas/template";
 import { fromChoice, RequiredSelect, toChoice, type RequiredChoice } from "./document-dialog";
+import { LabelCombobox } from "./label-combobox";
 import { MONTHS } from "./months";
 import {
   fromDrafts,
@@ -84,8 +86,8 @@ function initialState(template: Template | null) {
       ...p,
       rate: percentOf(p.rate),
     })) as ProfileState[],
-    categories: (d?.costCategories ?? []).join("\n"),
-    sources: (d?.fundingSources ?? []).join("\n"),
+    categories: d?.costCategories ?? [],
+    sources: d?.fundingSources ?? [],
     lines: (d?.lines ?? []).map<LineState>((l) => ({
       uid: nextUid++,
       section: l.section,
@@ -162,8 +164,8 @@ export function TemplateEditor({
     escalationRate: state.escalationRate,
     flagThresholdRate: state.flagThresholdRate,
     taxProfiles: state.profiles,
-    costCategories: labelsFromText(state.categories),
-    fundingSources: labelsFromText(state.sources),
+    costCategories: state.categories,
+    fundingSources: state.sources,
     lines: state.lines.map((l) => ({
       section: l.section,
       description: l.description,
@@ -227,8 +229,6 @@ export function TemplateEditor({
         .filter(([key]) => key.startsWith(`${prefix}.`))
         .map(([key, value]) => [key.slice(prefix.length + 1), value]),
     );
-  const categories = labelsFromText(state.categories);
-  const sources = labelsFromText(state.sources);
 
   return (
     <form
@@ -249,81 +249,81 @@ export function TemplateEditor({
       ) : null}
 
       <fieldset disabled={!canEdit || action.pending} className="flex flex-col gap-6">
-        <section className="grid gap-4 sm:grid-cols-2" aria-labelledby="tpl-settings">
-          <SectionHeading id="tpl-settings">{M.settings}</SectionHeading>
-          <div className="sm:col-span-2">
-            <Field label={T.name} name="name" errors={err("name")}>
+        <Panel id="tpl-settings" title={M.settings}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <Field label={T.name} name="name" errors={err("name")}>
+                <Input
+                  value={state.name}
+                  maxLength={100}
+                  onChange={(e) => change({ name: e.target.value })}
+                />
+              </Field>
+            </div>
+            <Switch
+              label={T.isDefault}
+              checked={state.isDefault}
+              onChange={(e) => change({ isDefault: e.target.checked })}
+              className="sm:col-span-2"
+            />
+            <Field
+              label={M.horizonYears}
+              name="definition.horizonYears"
+              errors={err("definition.horizonYears")}
+            >
+              <Select
+                value={state.horizonYears}
+                onChange={(e) => change({ horizonYears: e.target.value })}
+              >
+                {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field
+              label={M.startMonth}
+              name="definition.fiscalYearStartMonth"
+              errors={err("definition.fiscalYearStartMonth")}
+            >
+              <Select
+                value={state.startMonth}
+                onChange={(e) => change({ startMonth: e.target.value })}
+              >
+                {MONTHS.map((month, i) => (
+                  <option key={month} value={i + 1}>
+                    {month}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field
+              label={M.escalationRate}
+              name="definition.escalationRate"
+              errors={err("definition.escalationRate")}
+            >
               <Input
-                value={state.name}
-                maxLength={100}
-                onChange={(e) => change({ name: e.target.value })}
+                inputMode="decimal"
+                value={state.escalationRate}
+                onChange={(e) => change({ escalationRate: e.target.value })}
+              />
+            </Field>
+            <Field
+              label={M.flagThreshold}
+              name="definition.flagThresholdRate"
+              errors={err("definition.flagThresholdRate")}
+            >
+              <Input
+                inputMode="decimal"
+                value={state.flagThresholdRate}
+                onChange={(e) => change({ flagThresholdRate: e.target.value })}
               />
             </Field>
           </div>
-          <Switch
-            label={T.isDefault}
-            checked={state.isDefault}
-            onChange={(e) => change({ isDefault: e.target.checked })}
-            className="sm:col-span-2"
-          />
-          <Field
-            label={M.horizonYears}
-            name="definition.horizonYears"
-            errors={err("definition.horizonYears")}
-          >
-            <Select
-              value={state.horizonYears}
-              onChange={(e) => change({ horizonYears: e.target.value })}
-            >
-              {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field
-            label={M.startMonth}
-            name="definition.fiscalYearStartMonth"
-            errors={err("definition.fiscalYearStartMonth")}
-          >
-            <Select
-              value={state.startMonth}
-              onChange={(e) => change({ startMonth: e.target.value })}
-            >
-              {MONTHS.map((month, i) => (
-                <option key={month} value={i + 1}>
-                  {month}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field
-            label={M.escalationRate}
-            name="definition.escalationRate"
-            errors={err("definition.escalationRate")}
-          >
-            <Input
-              inputMode="decimal"
-              value={state.escalationRate}
-              onChange={(e) => change({ escalationRate: e.target.value })}
-            />
-          </Field>
-          <Field
-            label={M.flagThreshold}
-            name="definition.flagThresholdRate"
-            errors={err("definition.flagThresholdRate")}
-          >
-            <Input
-              inputMode="decimal"
-              value={state.flagThresholdRate}
-              onChange={(e) => change({ flagThresholdRate: e.target.value })}
-            />
-          </Field>
-        </section>
+        </Panel>
 
-        <section aria-labelledby="tpl-tax" className="flex flex-col gap-3">
-          <SectionHeading id="tpl-tax">{M.taxProfiles}</SectionHeading>
+        <Panel id="tpl-tax" title={M.taxProfiles}>
           {err("definition.taxProfiles") ? (
             <p className="text-sm text-danger">{err("definition.taxProfiles")![0]}</p>
           ) : null}
@@ -331,7 +331,7 @@ export function TemplateEditor({
             {state.profiles.map((profile, i) => (
               <li
                 key={profile.key}
-                className="grid gap-3 rounded-md border border-line p-3 sm:grid-cols-[1fr_8rem_auto_auto] sm:items-end"
+                className="grid gap-3 rounded-md border border-line bg-surface p-3 sm:grid-cols-[1fr_8rem_auto_auto] sm:items-end"
               >
                 <Field
                   label={M.profileName}
@@ -393,51 +393,30 @@ export function TemplateEditor({
               {M.addProfile}
             </Button>
           </div>
-        </section>
+        </Panel>
 
-        <section aria-labelledby="tpl-lists" className="grid gap-4 sm:grid-cols-2">
-          <SectionHeading id="tpl-lists">
-            {M.costCategories} · {M.fundingSources}
-          </SectionHeading>
-          <Field
-            label={M.costCategories}
-            name="definition.costCategories"
-            errors={err("definition.costCategories")}
-          >
-            <Textarea
-              rows={8}
-              spellCheck={false}
-              value={state.categories}
-              onChange={(e) => change({ categories: e.target.value })}
+        <Panel id="tpl-lists" title={`${M.costCategories} · ${M.fundingSources}`}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <LabelListEditor
+              legend={M.costCategories}
+              labels={state.categories}
+              maxLength={150}
+              errors={err("definition.costCategories")}
+              onChange={(categories) => change({ categories })}
+              testId="cost-categories"
             />
-          </Field>
-          <Field
-            label={M.fundingSources}
-            name="definition.fundingSources"
-            errors={err("definition.fundingSources")}
-          >
-            <Textarea
-              rows={8}
-              spellCheck={false}
-              value={state.sources}
-              onChange={(e) => change({ sources: e.target.value })}
+            <LabelListEditor
+              legend={M.fundingSources}
+              labels={state.sources}
+              maxLength={150}
+              errors={err("definition.fundingSources")}
+              onChange={(sources) => change({ sources })}
+              testId="funding-sources"
             />
-          </Field>
-          <p className="text-sm text-ink-muted sm:col-span-2">{M.oneLabelPerLine}</p>
-        </section>
+          </div>
+        </Panel>
 
-        <section aria-labelledby="tpl-lines" className="flex flex-col gap-3">
-          <SectionHeading id="tpl-lines">{T.standardLines}</SectionHeading>
-          <datalist id="tpl-categories">
-            {categories.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
-          <datalist id="tpl-sources">
-            {sources.map((s) => (
-              <option key={s} value={s} />
-            ))}
-          </datalist>
+        <Panel id="tpl-lines" title={T.standardLines}>
           <ol className="flex flex-col gap-3">
             {state.lines.map((line, i) => {
               const path = `definition.lines.${i}`;
@@ -445,7 +424,7 @@ export function TemplateEditor({
               return (
                 <li
                   key={line.uid}
-                  className="grid gap-3 rounded-md border border-line p-3 sm:grid-cols-2 lg:grid-cols-4"
+                  className="grid gap-3 rounded-md border border-line bg-surface p-3 sm:grid-cols-2 lg:grid-cols-4"
                   data-testid="template-line"
                 >
                   <Field label={M.section} name={`${path}.section`}>
@@ -480,11 +459,11 @@ export function TemplateEditor({
                     name={`${path}.costCategory`}
                     errors={err(`${path}.costCategory`)}
                   >
-                    <Input
-                      list="tpl-categories"
+                    <LabelCombobox
+                      name={`${path}.costCategory`}
+                      labels={state.categories}
                       value={line.costCategory}
-                      maxLength={150}
-                      onChange={(e) => changeLine(line.uid, { costCategory: e.target.value })}
+                      onChange={(costCategory) => changeLine(line.uid, { costCategory })}
                     />
                   </Field>
                   <Field
@@ -492,11 +471,11 @@ export function TemplateEditor({
                     name={`${path}.fundingSource`}
                     errors={err(`${path}.fundingSource`)}
                   >
-                    <Input
-                      list="tpl-sources"
+                    <LabelCombobox
+                      name={`${path}.fundingSource`}
+                      labels={state.sources}
                       value={line.fundingSource}
-                      maxLength={150}
-                      onChange={(e) => changeLine(line.uid, { fundingSource: e.target.value })}
+                      onChange={(fundingSource) => changeLine(line.uid, { fundingSource })}
                     />
                   </Field>
                   <Field
@@ -585,10 +564,9 @@ export function TemplateEditor({
               {M.addLine(M.sections.operating)}
             </Button>
           </div>
-        </section>
+        </Panel>
 
-        <section aria-labelledby="tpl-documents" className="flex flex-col gap-3">
-          <SectionHeading id="tpl-documents">{DOC.heading}</SectionHeading>
+        <Panel id="tpl-documents" title={DOC.heading}>
           {err("definition.documents") ? (
             <p className="text-sm text-danger" role="alert">
               {err("definition.documents")!.join(" ")}
@@ -684,7 +662,7 @@ export function TemplateEditor({
               {DOC.add}
             </Button>
           </div>
-        </section>
+        </Panel>
       </fieldset>
 
       {canEdit ? (

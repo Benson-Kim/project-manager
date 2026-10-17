@@ -144,7 +144,7 @@ export default async function GlobalTodoPage({
                       : messages.todoItems.approachingDeadline}
                   </span>
                   <span>{formatDate(alert.DueDate)}</span>
-                  <Link href={`/todo?id=${alert.TodoItemId}`} className="text-accent underline">
+                  <Link href={`/todo?id=${alert.TodoItemId}`} className="text-accent">
                     {messages.actions.edit}
                   </Link>
                 </div>
