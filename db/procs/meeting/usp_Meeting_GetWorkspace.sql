@@ -6,8 +6,9 @@
 --   ActionItemsJson      [{MeetingActionItemId, AgendaItemId, DiscussionPointId, Action,
 --                          AssignedToStakeholderId, AssigneeName (null when nobody is responsible),
 --                          DueDate, SortOrder, RowVer}]
---   ParticipantsJson     [{MeetingParticipantId, StakeholderId, Label, IsApology,
---                          StakeholderIsDeleted, RowVer}] (labels as usp_Meeting_GetParticipants)
+--   ParticipantsJson     [{MeetingParticipantId, StakeholderId, GuestName, GuestOrganization, Label,
+--                          IsApology, StakeholderIsDeleted, RowVer}] (labels as
+--                          usp_Meeting_GetParticipants; a guest has StakeholderId null, migration 033)
 -- ParticipantsStamp: the highest RowVer among the meeting's participant rows, deleted ones included;
 --   usp_MeetingParticipant_Set refuses a save made from an older stamp (CONFLICT 50002).
 -- Stamp: MIN_ACTIVE_ROWVERSION() before the rows are read, so a client can keep the newest read.
@@ -71,13 +72,13 @@ BEGIN
             WHERE ai.MeetingId = m.MeetingId AND ai.IsDeleted = 0
             ORDER BY ai.AgendaItemId, ai.DiscussionPointId, ai.SortOrder, ai.MeetingActionItemId
             FOR JSON PATH, INCLUDE_NULL_VALUES) AS ActionItemsJson,
-           (SELECT mp.MeetingParticipantId, mp.StakeholderId,
-                   CONCAT(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N' - ' + NULLIF(TRIM(s.OrgTitle), N''), N', ' + NULLIF(TRIM(s.DepartmentOrganization), N'')) AS Label,
-                   mp.IsApology, s.IsDeleted AS StakeholderIsDeleted, CAST(mp.RowVer AS BIGINT) AS RowVer
+           (SELECT mp.MeetingParticipantId, mp.StakeholderId, mp.GuestName, mp.GuestOrganization,
+                   CASE WHEN mp.StakeholderId IS NULL THEN CONCAT(mp.GuestName, N' - ' + NULLIF(TRIM(mp.GuestOrganization), N'')) ELSE CONCAT(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N' - ' + NULLIF(TRIM(s.OrgTitle), N''), N', ' + NULLIF(TRIM(s.DepartmentOrganization), N'')) END AS Label,
+                   mp.IsApology, ISNULL(s.IsDeleted, 0) AS StakeholderIsDeleted, CAST(mp.RowVer AS BIGINT) AS RowVer
             FROM app.MeetingParticipant AS mp
-            JOIN app.Stakeholder AS s ON s.StakeholderId = mp.StakeholderId
+            LEFT JOIN app.Stakeholder AS s ON s.StakeholderId = mp.StakeholderId
             WHERE mp.MeetingId = m.MeetingId AND mp.IsDeleted = 0
-            ORDER BY s.FirstName, s.LastName, mp.MeetingParticipantId
+            ORDER BY COALESCE(s.FirstName, mp.GuestName), s.LastName, mp.MeetingParticipantId
             FOR JSON PATH, INCLUDE_NULL_VALUES) AS ParticipantsJson,
            ISNULL((SELECT MAX(CAST(p.RowVer AS BIGINT)) FROM app.MeetingParticipant AS p
                    WHERE p.MeetingId = m.MeetingId), 0) AS ParticipantsStamp,

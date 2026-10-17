@@ -191,6 +191,8 @@ describe("personOptions", () => {
       Label: "Gary Cantrall - Developer, Org",
       MeetingParticipantId: 1,
       IsApology: false,
+      GuestName: null,
+      GuestOrganization: null,
       IsHistorical: false,
     },
     {
@@ -198,6 +200,8 @@ describe("personOptions", () => {
       Label: "Lucy Taylor",
       MeetingParticipantId: null,
       IsApology: null,
+      GuestName: null,
+      GuestOrganization: null,
       IsHistorical: false,
     },
     {
@@ -205,11 +209,22 @@ describe("personOptions", () => {
       Label: "Tome Green",
       MeetingParticipantId: 5,
       IsApology: true,
+      GuestName: null,
+      GuestOrganization: null,
       IsHistorical: true,
+    },
+    {
+      StakeholderId: null,
+      Label: "Ada Lovelace - Analytical Engines",
+      MeetingParticipantId: 6,
+      IsApology: false,
+      IsHistorical: false,
+      GuestName: "Ada Lovelace",
+      GuestOrganization: "Analytical Engines",
     },
   ];
 
-  it("offers the project's live stakeholders, labelled as on the roster", () => {
+  it("offers the project's live stakeholders, labelled as on the roster, and no guest", () => {
     expect(personOptions(roster)).toEqual([
       { stakeholderId: 3, name: "Gary Cantrall - Developer, Org" },
       { stakeholderId: 4, name: "Lucy Taylor" },

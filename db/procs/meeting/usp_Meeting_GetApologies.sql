@@ -1,4 +1,6 @@
 -- usp_Meeting_GetApologies — port of Access qryMeetingApologies (module #10, ADR-0028): the meeting's
+-- Guests (migration 033: StakeholderId null, GuestName / GuestOrganization set) are listed too,
+--   labelled "Name - Organization"; StakeholderIsDeleted is 0 for them.
 -- live participants who sent apologies (IsApology = 1), labelled "Name - Position, Organization" as
 -- in usp_Meeting_GetParticipants. Feeds the printed minutes (subrptMeetingApologies).
 -- Access: Viewer on the meeting's project (FORBIDDEN_ROW 50003); NOT_FOUND 50001 for a missing meeting.
@@ -23,12 +25,14 @@ BEGIN
     SELECT mp.MeetingParticipantId,
            mp.MeetingId,
            mp.StakeholderId,
-           CONCAT(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N' - ' + NULLIF(TRIM(s.OrgTitle), N''), N', ' + NULLIF(TRIM(s.DepartmentOrganization), N'')) AS Label
+           mp.GuestName,
+           mp.GuestOrganization,
+           CASE WHEN mp.StakeholderId IS NULL THEN CONCAT(mp.GuestName, N' - ' + NULLIF(TRIM(mp.GuestOrganization), N'')) ELSE CONCAT(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N' - ' + NULLIF(TRIM(s.OrgTitle), N''), N', ' + NULLIF(TRIM(s.DepartmentOrganization), N'')) END AS Label
     FROM app.MeetingParticipant AS mp
-    JOIN app.Stakeholder AS s ON s.StakeholderId = mp.StakeholderId
+    LEFT JOIN app.Stakeholder AS s ON s.StakeholderId = mp.StakeholderId
     WHERE mp.IsDeleted = 0
       AND mp.MeetingId = @MeetingId
       AND mp.[IsApology] = 1
-    ORDER BY s.FirstName, s.LastName, mp.MeetingParticipantId;
+    ORDER BY COALESCE(s.FirstName, mp.GuestName), s.LastName, mp.MeetingParticipantId;
 END;
 GO
