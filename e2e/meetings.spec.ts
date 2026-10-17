@@ -289,6 +289,27 @@ test("participants: with both forms unsaved, leaving asks once", async ({ page }
   await expect(dialog).toHaveCount(0);
 });
 
+test("participants: the browser's Back asks before leaving unsaved choices", async ({ page }) => {
+  await newMeeting(page);
+  const url = page.url();
+  await attendance(page, "Gary Cantrall", "apology").check();
+
+  // The App Router handles popstate itself; the guard puts the entry back and asks.
+  await page.goBack({ waitUntil: "commit" });
+  const dialog = page.getByRole("dialog", { name: messages.feedback.unsavedChangesTitle });
+  await expect(dialog).toHaveCount(1);
+  await dialog.getByRole("button", { name: messages.actions.cancel }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page).toHaveURL(url);
+  await expect(attendance(page, "Gary Cantrall", "apology")).toBeChecked();
+
+  await page.goBack({ waitUntil: "commit" });
+  await expect(dialog).toHaveCount(1);
+  await dialog.getByRole("button", { name: messages.feedback.discard }).click();
+  await page.waitForURL(/\/projects\/2\/meetings$/);
+  await expect(dialog).toHaveCount(0);
+});
+
 test("participants: a save from a stale panel conflicts and reloads", async ({ page }) => {
   await newMeeting(page);
   const other = await page.context().newPage();

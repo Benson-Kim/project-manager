@@ -10,8 +10,10 @@
 --                      invited. IsHistorical = 1 marks a participant whose stakeholder was deleted
 --                      (or is not on the project): Set leaves those rows as they are, so the panel
 --                      shows them read-only, after the live stakeholders. Each part is in name order.
--- At most 1000 people, Set's limit; the meeting's participants are kept first, so a save from a
---   cut list never uninvites a participant the panel did not show.
+-- The meeting's participants are always listed; the other stakeholders fill what is left of 1000
+--   places (Set's limit), so a save from a cut list never uninvites a participant the panel did not
+--   show. A meeting with more than 1000 participants lists them all: the save then exceeds Set's
+--   limit and is VALIDATION, never a silent uninvite.
 -- Label: "Name - Position, Organization" like usp_Meeting_GetParticipants. No contact details.
 -- Access: Viewer on the meeting's project (FORBIDDEN_ROW 50003); NOT_FOUND 50001 for a missing meeting.
 USE ProjectManager;
@@ -66,7 +68,7 @@ BEGIN
            @ParticipantsStamp AS ParticipantsStamp,
            (SELECT r.StakeholderId, r.Label, r.MeetingParticipantId, r.IsApology, r.IsHistorical
             FROM Picked AS r
-            WHERE r.Pick <= 1000
+            WHERE r.MeetingParticipantId IS NOT NULL OR r.Pick <= 1000
             ORDER BY r.IsHistorical, r.FirstName, r.LastName, r.StakeholderId
             FOR JSON PATH, INCLUDE_NULL_VALUES) AS RosterJson;
 END;
