@@ -294,8 +294,10 @@ test("participants: the browser's Back asks before leaving unsaved choices", asy
   const url = page.url();
   await attendance(page, "Gary Cantrall", "apology").check();
 
-  // The App Router handles popstate itself; the guard puts the entry back and asks.
-  await page.goBack({ waitUntil: "commit" });
+  // The guard cancels the traversal (Navigation API), so nothing commits and
+  // Playwright's wait for the navigation times out: that is the pass.
+  const back = () => page.goBack({ waitUntil: "commit", timeout: 3_000 }).catch(() => null);
+  await back();
   const dialog = page.getByRole("dialog", { name: messages.feedback.unsavedChangesTitle });
   await expect(dialog).toHaveCount(1);
   await dialog.getByRole("button", { name: messages.actions.cancel }).click();
@@ -303,7 +305,7 @@ test("participants: the browser's Back asks before leaving unsaved choices", asy
   await expect(page).toHaveURL(url);
   await expect(attendance(page, "Gary Cantrall", "apology")).toBeChecked();
 
-  await page.goBack({ waitUntil: "commit" });
+  await back();
   await expect(dialog).toHaveCount(1);
   await dialog.getByRole("button", { name: messages.feedback.discard }).click();
   await page.waitForURL(/\/projects\/2\/meetings$/);

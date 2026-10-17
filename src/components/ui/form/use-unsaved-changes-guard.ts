@@ -29,11 +29,14 @@ import { guardedHref, leavesPage } from "./unsaved-guard";
  *   cancels the navigation and dispatches a `before-navigate` CustomEvent on
  *   `window`. A call that keeps the URL (router.refresh() re-writes it) passes.
  *   Sheets listen for this event and show their discard-confirmation dialog.
- * - Browser Back / Forward (`popstate`). The App Router restores the entry
- *   itself, without pushState / replaceState, and the browser has already
- *   moved when the event fires: the hook puts the entry it left back (before
- *   the router's own listener, since capture listeners run first) and asks
- *   with the same event; its `resume` travels back again.
+ * - Browser Back / Forward, through the Navigation API's `navigate` event,
+ *   which fires before the URL changes and lets the page cancel a traversal
+ *   (browsers allow that only once the user has interacted with the page,
+ *   which a dirty form implies). The App Router handles `popstate` itself and
+ *   window listeners run in registration order, so a popstate listener added
+ *   by a page could never run before the router's. The same `before-navigate`
+ *   event is dispatched; its `resume` makes the traversal again. Without the
+ *   Navigation API, Back is not guarded.
  * - Clicks on in-app links (sidebar, section nav, breadcrumbs), caught at the
  *   document capture phase before next/link's handler (ADR-0018 Q1): the App
  *   Router renders the new route before it touches history, so the pushState
@@ -98,17 +101,10 @@ export function useUnsavedChangesGuard(isDirty?: boolean) {
 
   // ── Same-document navigation (Next.js App Router client-side nav) ────────
   // Next.js App Router does not expose router.events. We patch pushState /
-  // replaceState for Link navigation and listen to popstate for Back / Forward,
-  // so each fires the same discard check.
+  // replaceState so Link navigation fires the same discard check.
   useEffect(() => {
     const originalPush = window.history.pushState.bind(window.history);
     const originalReplace = window.history.replaceState.bind(window.history);
-    // The entry the page is on, put back when a Back / Forward is refused.
-    const here = { state: window.history.state as unknown, href: window.location.href };
-    const remember = () => {
-      here.state = window.history.state;
-      here.href = window.location.href;
-    };
 
     function intercept(
       original: typeof window.history.pushState,
@@ -120,54 +116,49 @@ export function useUnsavedChangesGuard(isDirty?: boolean) {
         // call cleanupAndNavigate() which replays the original navigation.
         const event = new CustomEvent("before-navigate", {
           cancelable: true,
-          detail: {
-            resume: () => {
-              original(...args);
-              remember();
-            },
-          },
+          detail: { resume: () => original(...args) },
         });
         window.dispatchEvent(event);
         // If no listener called event.preventDefault(), proceed normally.
         if (!event.defaultPrevented) {
           original(...args);
-          remember();
         }
         return;
       }
       original(...args);
-      remember();
-    }
-
-    function onPopState(event: PopStateEvent) {
-      if (!dirtyRef.current || !leavesPage(window.location.href, here.href)) {
-        remember();
-        return;
-      }
-      // Stop the router from rendering the entry the browser moved to, and put
-      // the one we left back (the router's own state object, so it can restore
-      // it later). The entry travelled to is the previous one again, where
-      // `resume` goes once the changes are discarded.
-      event.stopImmediatePropagation();
-      originalPush(here.state, "", here.href);
-      const resume = () => {
-        dirtyRef.current = false;
-        window.history.back();
-      };
-      const before = new CustomEvent("before-navigate", { cancelable: true, detail: { resume } });
-      window.dispatchEvent(before);
-      if (!before.defaultPrevented) resume();
     }
 
     window.history.pushState = (...args) => intercept(originalPush, ...args);
     window.history.replaceState = (...args) => intercept(originalReplace, ...args);
-    window.addEventListener("popstate", onPopState, true);
 
     return () => {
       window.history.pushState = originalPush;
       window.history.replaceState = originalReplace;
-      window.removeEventListener("popstate", onPopState, true);
     };
+  }, []);
+
+  // ── Browser Back / Forward (Navigation API) ──────────────────────────────
+  useEffect(() => {
+    if (!("navigation" in window)) return;
+    const navigation = window.navigation;
+    const onNavigate = (event: NavigateEvent) => {
+      if (event.navigationType !== "traverse" || !event.cancelable || !dirtyRef.current) return;
+      if (!leavesPage(event.destination.url, window.location.href)) return;
+      event.preventDefault();
+      // Replay the same traversal once discarded: by distance in the entries
+      // list, or one step back for an entry the list does not hold.
+      const steps = event.destination.index - (navigation.currentEntry?.index ?? 0);
+      const resume = () => {
+        dirtyRef.current = false;
+        if (event.destination.index >= 0 && steps !== 0) window.history.go(steps);
+        else window.history.back();
+      };
+      const before = new CustomEvent("before-navigate", { cancelable: true, detail: { resume } });
+      window.dispatchEvent(before);
+      if (!before.defaultPrevented) resume();
+    };
+    navigation.addEventListener("navigate", onNavigate);
+    return () => navigation.removeEventListener("navigate", onNavigate);
   }, []);
 
   const markDirty = useCallback(() => {

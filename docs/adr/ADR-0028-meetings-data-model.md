@@ -283,9 +283,12 @@ before a save) is ignored, as the WBS editor ignores an older read.
 The header form and the panel share one unsaved-changes guard (`UnsavedChangesScope`,
 `src/components/ui/form/unsaved-scope.tsx`): each guard intercepts navigation on its own, so two
 would ask twice. The parts report whether they are dirty and the scope asks once. The guard also
-covers the browser's Back / Forward: the App Router handles `popstate` without `pushState` /
-`replaceState`, so the hook puts the entry back and asks; Discard travels back again
-(`use-unsaved-changes-guard.ts`, 2026-10-17, for every form that uses the guard).
+covers the browser's Back / Forward (`use-unsaved-changes-guard.ts`, 2026-10-17, for every form
+that uses the guard): the App Router handles `popstate` itself, without `pushState` /
+`replaceState`, and window listeners run in registration order, so a page's own popstate listener
+can never run first. The hook cancels the traversal in the Navigation API's `navigate` event, which
+fires before the URL changes (browsers allow that once the user has interacted with the page);
+Discard makes the traversal again. Without the Navigation API, Back stays unguarded.
 
 The stakeholder picker moved to the stakeholders module (`stakeholders/repository/
 stakeholder-options.ts`, `stakeholders/components/stakeholder-picker.tsx`), which ADR-0001 allows
