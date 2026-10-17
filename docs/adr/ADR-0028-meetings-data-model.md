@@ -294,6 +294,63 @@ The stakeholder picker moved to the stakeholders module (`stakeholders/repositor
 stakeholder-options.ts`, `stakeholders/components/stakeholder-picker.tsx`), which ADR-0001 allows
 other modules to use. Key deliverables uses it unchanged; the meeting action items (M4) will too.
 
+## Amendment 2026-10-15: the minutes editor and the printed minutes (M4)
+
+No schema or proc change: the minutes use the procs and actions of M1.
+
+**The editor** (`components/minutes-editor.tsx`, in the workspace's main column) shows the agenda
+in order, each item's discussion points (rich text), and the actions under a discussion point or
+directly under the agenda item. The tree is built by `buildMinutes` (`schemas/minutes.ts`), which
+leaves out children whose parent the workspace does not hold.
+
+- **Add, edit inline, delete, move.** Every level has an Add button under its parent, Edit (the
+  item turns into a small form with Save and Cancel), Delete behind a ConfirmDialog that says what
+  goes with it (§11), and Move up / Move down buttons. The buttons name the item they act on
+  ("Move Budget up"). Moves are buttons, not drag and drop (ADR-0007 makes drag optional); each
+  move keeps focus on the moved item's button and announces the new position.
+- **One answer replaces the view.** Every change answers with the whole workspace (§8). The
+  editor shows it unless a newer read (a higher `Stamp`) has already arrived, and takes a page
+  refresh's workspace on the same rule. Moves and deletes wait for each other, so a second move
+  is always sent with the RowVers the first one answered with.
+- **RowVer per item.** An edit saves with the RowVer of the item as it was when the edit began.
+  When the item changed only in position since (a reorder renumbers its siblings, and so bumps
+  their RowVer), the edit moves to the newer RowVer; any other change keeps the old one, so the
+  save is a CONFLICT and Reload drops the draft and reads the meeting again (`editRowVer`).
+- **Rich text stays behind the ADR-0025 boundary.** The page renders each discussion point with
+  `RichTextView` on the server and passes the node with the HTML it came from, as the datasheet's
+  rich cell does. After a save the editor shows plain text until the refresh it asks for brings
+  the new node.
+- **Person responsible** (row 13) is the shared single-choice `StakeholderSelect` (stakeholders
+  module, on the shared `Combobox`). Its options are the roster's live stakeholders, labelled
+  "Name - Position, Organization": the page already reads the roster, which is not capped at 100
+  like `listStakeholderOptions`, and the label tells two people of the same name apart. An
+  action whose person responsible is no longer a live stakeholder keeps them on offer, so saving
+  its text keeps them (§4).
+- **Unsaved changes.** Each open minutes form reports to the page's `UnsavedChangesScope`, under
+  a name unique on the page. The shared guard no longer treats a refresh as leaving the page: the
+  App Router re-writes the current URL with `replaceState` on every commit, `router.refresh()`
+  included, so a save that refreshed the page while another form was dirty asked to discard it
+  (since M3: a participant save with the header unsaved). Only a history call that changes the
+  path or the query asks now (`leavesPage`, `src/components/ui/form/unsaved-guard.ts`).
+- **Open actions.** Every action is open (§4). The editor lists the meeting's actions above the
+  agenda, by due date with undated ones last, and marks those due before today. "Today" is the
+  server's calendar date, passed to the browser, so both render the same marks.
+
+**The printed minutes** are `/projects/[id]/meetings/[meetingId]/print`, in the `(print)` route
+group, so the app shell (header and navigation) never renders. The page follows
+`rptMeetingMinutes`: the title and header fields, who was present and who sent apologies, the
+agenda with its discussion points and an action table under each (action, person responsible,
+due date), then the conclusion, the follow-up action and the next meeting.
+
+- It reads the workspace once and takes the attendees and apologies from its participants, so
+  the page is one consistent snapshot. `usp_Meeting_GetAttendees` and `_GetApologies` return the
+  same rows and stay available.
+- Access is the workspace's: Viewer on the meeting's project, and `guardProjectScope` turns a
+  meeting of another project into not found.
+- "Print minutes" calls `window.print()` over the print stylesheet, which works the same in the
+  desktop app. The minutes print on a named page (`@page minutes`, A4 portrait), so the Gantt
+  keeps its landscape page.
+
 ## Amendment 2026-10-17: guests (M3)
 
 A meeting can list people who attended, or sent apologies, without being stakeholders of the

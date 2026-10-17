@@ -78,20 +78,27 @@ describe("guardedHref", () => {
 });
 
 describe("leavesPage", () => {
-  it("is false for the router's re-write of the current URL (refresh, hash, no url)", () => {
-    expect(leavesPage(CURRENT, CURRENT)).toBe(false);
-    expect(leavesPage("/projects/2", CURRENT)).toBe(false);
-    expect(leavesPage("/projects/2#charter", CURRENT)).toBe(false);
-    expect(leavesPage(new URL(CURRENT), CURRENT)).toBe(false);
-    expect(leavesPage(null, CURRENT)).toBe(false);
-    expect(leavesPage(undefined, CURRENT)).toBe(false);
+  it("is a navigation when the path or the query changes", () => {
+    expect(leavesPage("/projects", CURRENT)).toBe(true);
+    expect(leavesPage("/projects/2?view=list", CURRENT)).toBe(true);
+    expect(leavesPage(new URL("https://app.example/projects/3"), CURRENT)).toBe(true);
   });
 
-  it("is true for another path, query or origin, as Back / Forward and links produce", () => {
-    expect(leavesPage("/projects", CURRENT)).toBe(true);
-    expect(leavesPage("/projects/2?tab=risks", CURRENT)).toBe(true);
+  it("is not a navigation when the router re-writes the same page (a refresh)", () => {
+    expect(leavesPage("/projects/2", CURRENT)).toBe(false);
+    expect(leavesPage("https://app.example/projects/2", CURRENT)).toBe(false);
+    expect(leavesPage("/projects/2#minutes", CURRENT)).toBe(false);
+  });
+
+  it("is not a navigation when no URL is given (state only)", () => {
+    expect(leavesPage(undefined, CURRENT)).toBe(false);
+    expect(leavesPage(null, CURRENT)).toBe(false);
+  });
+
+  it("is a navigation for another origin and for a Back / Forward destination", () => {
     expect(leavesPage("https://other.example/projects/2", CURRENT)).toBe(true);
-    // The URL the browser has already moved to on popstate, against the entry it left.
+    // The absolute destination URL the Navigation API reports for a traversal.
     expect(leavesPage("https://app.example/projects/2/meetings", CURRENT)).toBe(true);
+    expect(leavesPage("https://app.example/projects/2#charter", CURRENT)).toBe(false);
   });
 });

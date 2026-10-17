@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useId, useMemo, useRef, useState } from "react";
+import { Combobox, type ComboboxOption } from "@/components/ui/form/combobox";
 import { useFieldContext } from "@/components/ui/form/field";
 import type { StakeholderOption } from "../repository/stakeholder-options";
 
@@ -190,5 +191,35 @@ export function StakeholderMultiSelect({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The single-choice stakeholder picker (a meeting action's person
+ * responsible): the shared Combobox over the given stakeholders. The picked
+ * id submits under `name`; clearing the text submits "" (nobody).
+ */
+export function StakeholderSelect({
+  name,
+  options,
+  defaultValue,
+  onSelect,
+}: {
+  name: string;
+  options: StakeholderOption[];
+  defaultValue: number | null;
+  onSelect?: (option: ComboboxOption | null) => void;
+}) {
+  const choices = useMemo(
+    () => options.map((o) => ({ value: String(o.stakeholderId), label: o.name })),
+    [options],
+  );
+  return (
+    <Combobox
+      name={name}
+      options={choices}
+      defaultValue={defaultValue == null ? "" : String(defaultValue)}
+      onSelect={onSelect}
+    />
   );
 }
