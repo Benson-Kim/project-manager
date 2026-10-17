@@ -25,6 +25,11 @@ const MODULES: Record<string, string> = {
   "todo-alert": "todo-alerts",
   project: "projects",
   "project-assignee": "projects",
+  meeting: "meetings",
+  "meeting-agenda-item": "meetings",
+  "meeting-discussion-point": "meetings",
+  "meeting-action-item": "meetings",
+  "meeting-participant": "meetings",
 };
 
 /** Proc name suffix -> permission verb. */
@@ -33,6 +38,11 @@ const VERBS: Record<string, string> = {
   List: "read",
   ListOptions: "read",
   GanttData: "read",
+  // Meetings (ADR-0028): the workspace and the printed minutes' attendee lists.
+  GetWorkspace: "read",
+  GetParticipants: "read",
+  GetAttendees: "read",
+  GetApologies: "read",
   Create: "create",
   BuildFromDailyActivity: "create",
   Update: "update",
