@@ -134,6 +134,12 @@ only among the project's live stakeholders:
 panel read it (`ParticipantsStamp` from `usp_Meeting_GetWorkspace`). A save made from an older
 stamp is CONFLICT.
 
+The listed stakeholders are checked inside the transaction, with their rows read under `UPDLOCK,
+HOLDLOCK`. `usp_Stakeholder_Delete` takes no meeting lock, so a check made before the transaction
+could pass for a stakeholder deleted a moment later; under the lock the delete either lands first
+and the save is VALIDATION, or it waits for the save. `usp_MeetingParticipant_Create` and the
+action's person responsible (`usp_MeetingActionItem_Create` / `_Update`) check the same way.
+
 Removing someone through Set is an edit of the meeting's attendance, so it needs `meetings:update`
 (Contributor). Deleting a single participant row with `usp_MeetingParticipant_Delete` stays a
 Manager delete.
@@ -170,6 +176,12 @@ each other.
 **Under the lock**, the list must be exactly the parent's live children, each at the RowVer the
 client read. Anything else is CONFLICT: a missing sibling, an extra one, one from elsewhere, or a
 stale RowVer. Positions become 1…n, and one audit row records the new order.
+
+The live children are read once, under `UPDLOCK, HOLDLOCK`, into the snapshot the check, the
+audit's before-image and the UPDATE all use. The meeting lock alone serialises adds, deletes and
+reorders, but not an edit: `_Update` checks its own RowVer and takes no meeting lock, so an edit
+between the check and the UPDATE would let both succeed. With the rows locked, the edit either
+commits first (a stale RowVer, CONFLICT) or waits for the reorder.
 
 ### 8. One workspace read
 
@@ -252,18 +264,31 @@ The panel lists everyone it can mark, not only the current participants, so it r
     (`IsHistorical = 1`). These are exactly the rows Set leaves alone (§5), so the panel shows them
     read-only and never sends them.
   - Each part is in name order. The label is written out in full, as §5 requires.
-- At most 1000 people (Set's limit, `MEETING_PARTICIPANTS_MAX`). Current participants are picked
-  first, so a save from a cut roster never removes a participant the panel did not show.
+- The meeting's participants are always listed; the other stakeholders fill what is left of 1000
+  places (Set's limit, `MEETING_PARTICIPANTS_MAX`). A save from a cut roster therefore never
+  removes a participant the panel did not show. A meeting with more than 1000 participants lists
+  them all; the save then exceeds Set's limit and is VALIDATION, never a silent uninvite. (Until
+  2026-10-17 the cap counted the participants too, historical ones first, so a live participant
+  past it was left out and uninvited by the next save.)
 
 The panel keeps the choices the user made over what the roster read. Save sends Set the live
 attendees and apologies once, with the roster's stamp; Set answers with the re-read workspace,
-whose participants become the panel's new saved state. A page refresh that brings a newer stamp
-replaces the panel's roster only when it holds no unsaved choices; otherwise the save conflicts
-and Reload takes the newer roster.
+whose participants become the panel's new saved state. The radios stay live while the save runs;
+a pick made meanwhile is kept over what the save stored (`choicesAfterSave`), so the panel stays
+dirty until it is saved too. A page refresh that brings a newer stamp replaces the panel's roster
+only when it holds no unsaved choices; otherwise the save conflicts and Reload takes the newer
+roster. A refresh that brings an older stamp (two refreshes finishing out of order, one started
+before a save) is ignored, as the WBS editor ignores an older read.
 
 The header form and the panel share one unsaved-changes guard (`UnsavedChangesScope`,
 `src/components/ui/form/unsaved-scope.tsx`): each guard intercepts navigation on its own, so two
-would ask twice. The parts report whether they are dirty and the scope asks once.
+would ask twice. The parts report whether they are dirty and the scope asks once. The guard also
+covers the browser's Back / Forward (`use-unsaved-changes-guard.ts`, 2026-10-17, for every form
+that uses the guard): the App Router handles `popstate` itself, without `pushState` /
+`replaceState`, and window listeners run in registration order, so a page's own popstate listener
+can never run first. The hook cancels the traversal in the Navigation API's `navigate` event, which
+fires before the URL changes (browsers allow that once the user has interacted with the page);
+Discard makes the traversal again. Without the Navigation API, Back stays unguarded.
 
 The stakeholder picker moved to the stakeholders module (`stakeholders/repository/
 stakeholder-options.ts`, `stakeholders/components/stakeholder-picker.tsx`), which ADR-0001 allows

@@ -7,7 +7,9 @@
 --   * participants whose stakeholder was deleted since (or is outside the project) are left as they
 --     are, so saving the panel never rewrites who came to an old meeting.
 -- Every listed id must be a live stakeholder of the meeting's project, once (VALIDATION 50004,
---   nothing written): an id from another project never reaches this meeting.
+--   nothing written): an id from another project never reaches this meeting. The check runs inside
+--   the transaction with those stakeholder rows locked (UPDLOCK, HOLDLOCK), so a delete of one of
+--   them (usp_Stakeholder_Delete takes no meeting lock) lands before it and fails it, or waits.
 -- @Stamp: the ParticipantsStamp the client read (usp_Meeting_GetWorkspace). With the meeting row
 --   locked (UPDLOCK, HOLDLOCK), a participant row changed since makes the save fail (CONFLICT 50002).
 -- Access: Contributor on the meeting's project, or a per-person grant (meetings:update, ADR-0024):
@@ -52,11 +54,6 @@ BEGIN
        OR (SELECT COUNT(*) FROM @Wanted) > 1000
        OR (SELECT COUNT(*) FROM @Wanted) <> (SELECT COUNT(DISTINCT StakeholderId) FROM @Wanted)
         THROW 50004, N'VALIDATION:ParticipantsJson must list each stakeholder once as {stakeholderId, isApology}', 1;
-    IF EXISTS (SELECT 1 FROM @Wanted AS w
-               WHERE NOT EXISTS (SELECT 1 FROM app.Stakeholder AS s
-                                 WHERE s.StakeholderId = w.StakeholderId AND s.ProjectId = @RowProjectId
-                                   AND s.IsDeleted = 0))
-        THROW 50004, N'VALIDATION:Every participant must be a stakeholder of the meeting''s project', 1;
 
     BEGIN TRAN;
 
@@ -65,6 +62,12 @@ BEGIN
     WHERE MeetingId = @MeetingId AND IsDeleted = 0;
     IF @Locked IS NULL
         THROW 50001, N'NOT_FOUND:Meeting not found', 1;
+
+    IF (SELECT COUNT(*) FROM @Wanted AS w
+        JOIN app.Stakeholder AS s WITH (UPDLOCK, HOLDLOCK)
+          ON s.StakeholderId = w.StakeholderId AND s.ProjectId = @RowProjectId AND s.IsDeleted = 0)
+       <> (SELECT COUNT(*) FROM @Wanted)
+        THROW 50004, N'VALIDATION:Every participant must be a stakeholder of the meeting''s project', 1;
 
     IF ISNULL((SELECT MAX(CAST(RowVer AS BIGINT)) FROM app.MeetingParticipant WHERE MeetingId = @MeetingId), 0) > @Stamp
         THROW 50002, N'CONFLICT:The participants were changed by someone else', 1;

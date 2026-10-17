@@ -26,9 +26,10 @@ import {
 
 /**
  * Revalidation targets for all deliverable mutations.
- * `/projects/[id]/deliverables` and its Gantt sub-route are dynamic (session cookie)
- * so we use the bracket-segment pattern — Next.js revalidates every cached instance.
- * The Sheet component also calls router.refresh() for the current tab (ADR-0018).
+ * `/projects/[id]/deliverables` and its Gantt sub-route are dynamic (session cookie);
+ * the targets are route patterns, which action() revalidates as pages so every
+ * rendered instance is reached. The Sheet component also calls router.refresh()
+ * for the current tab (ADR-0018).
  */
 const REVALIDATE_TARGETS = ["/projects/[id]/deliverables", "/projects/[id]/deliverables/gantt"];
 

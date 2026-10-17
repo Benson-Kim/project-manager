@@ -97,6 +97,32 @@ export function rosterAfterSave(
   });
 }
 
+/**
+ * The choices still unsaved once a save went through: those made after the
+ * save was sent (a pick during a slow save must not vanish), read against what
+ * the save stored. A pick that now matches the stored state has nothing left
+ * to save.
+ */
+export function choicesAfterSave(
+  before: readonly RosterEntry[],
+  after: readonly RosterEntry[],
+  sent: Choices,
+  current: Choices,
+): Map<number, Attendance> {
+  const stored = new Map(after.map((entry) => [entry.StakeholderId, entry]));
+  const next = new Map<number, Attendance>();
+  for (const entry of before) {
+    if (entry.IsHistorical) continue;
+    const wanted = attendanceOf(entry, current);
+    if (wanted === attendanceOf(entry, sent)) continue;
+    const now = stored.get(entry.StakeholderId);
+    if (now && !now.IsHistorical && wanted !== savedAttendance(now)) {
+      next.set(entry.StakeholderId, wanted);
+    }
+  }
+  return next;
+}
+
 const fold = (text: string) =>
   text
     .normalize("NFD")

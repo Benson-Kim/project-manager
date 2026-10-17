@@ -147,6 +147,22 @@ describe("action() wrapper ", () => {
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 
+  it("revalidates a route pattern as a page, so every rendered instance is invalidated", async () => {
+    const run = action({
+      name: "test.pattern",
+      schema,
+      permission: "suppliers:create",
+      revalidate: ["/projects/[id]/meetings", "/projects/[id]/meetings/[meetingId]", "/projects"],
+      handler: () => Promise.resolve("ok"),
+    });
+    await run({ name: "Acme" });
+    expect(revalidatePath.mock.calls).toEqual([
+      ["/projects/[id]/meetings", "page"],
+      ["/projects/[id]/meetings/[meetingId]", "page"],
+      ["/projects"],
+    ]);
+  });
+
   it("maps AppError codes from the data layer", async () => {
     const run = makeAction(() => Promise.reject(new AppError("CONFLICT", "stale")));
     const result = await run({ name: "Acme" });
