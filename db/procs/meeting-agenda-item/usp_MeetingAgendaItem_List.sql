@@ -1,39 +1,35 @@
--- usp_MeetingAgendaItem_List — paged/filtered list per ADR-0016. Search columns: AgendaItem. Sort whitelist: (default MeetingAgendaItemId only).
--- Entity app.MeetingAgendaItem (source: tblMeetingAgenda). Module: database-schema-and-procs (#3).
-
--- @ProjectId is accepted for contract uniformity but ignored (entity is not project-scoped).
+-- usp_MeetingAgendaItem_List — the live agenda items of one meeting, in agenda order (module #10,
+-- ADR-0028). A child collection, not a DataView list: no paging or search (the workspace reads
+-- usp_Meeting_GetWorkspace).
+-- Access: Viewer on the meeting's project (FORBIDDEN_ROW 50003); NOT_FOUND 50001 for a missing meeting.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_MeetingAgendaItem_List
-    @ActorUserId INT,
-    @ProjectId   INT           = NULL,
-    @Search      NVARCHAR(100) = NULL,
-    @SortBy      NVARCHAR(50)  = NULL,
-    @SortDir     VARCHAR(4)    = 'asc',
-    @Page        INT           = 1,
-    @PageSize    INT           = 25,
-    @MeetingId INT = NULL
+    @MeetingId   INT,
+    @ActorUserId INT
 AS
 BEGIN
     SET NOCOUNT ON;
-    SET @Page     = CASE WHEN @Page IS NULL OR @Page < 1 THEN 1 ELSE @Page END;
-    SET @PageSize = CASE WHEN @PageSize IS NULL OR @PageSize < 1 THEN 1
-                         WHEN @PageSize > 100 THEN 100 ELSE @PageSize END;
-    SET @SortDir  = CASE WHEN LOWER(@SortDir) = 'desc' THEN 'desc' ELSE 'asc' END;
+
+    DECLARE @RowProjectId INT;
+    SELECT @RowProjectId = ProjectId FROM app.Meeting WHERE MeetingId = @MeetingId AND IsDeleted = 0;
+    IF @@ROWCOUNT = 0
+        THROW 50001, N'NOT_FOUND:Meeting not found', 1;
+
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
+         @MinLevel = N'Viewer', @AllowProjectless = 0;
 
     SELECT MeetingAgendaItemId,
            [MeetingId],
            [AgendaItem],
+           SortOrder,
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer,
-           TotalCount = COUNT(*) OVER ()
+           @RowProjectId AS ProjectId
     FROM app.MeetingAgendaItem
-    WHERE IsDeleted = 0
-      AND (@MeetingId IS NULL OR [MeetingId] = @MeetingId)
-      AND (@Search IS NULL OR [AgendaItem] LIKE N'%' + @Search + N'%')
-    ORDER BY
-        MeetingAgendaItemId ASC
-    OFFSET (@Page - 1) * @PageSize ROWS FETCH NEXT @PageSize ROWS ONLY;
+    WHERE MeetingId = @MeetingId AND IsDeleted = 0
+    ORDER BY SortOrder, MeetingAgendaItemId;
 END;
 GO

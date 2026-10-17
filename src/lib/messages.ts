@@ -293,6 +293,7 @@ export const messages = {
     questionsAnswersSection: "Q&A",
     parkingLotSection: "Parking lot",
     assumptionsConstraintsSection: "Assumptions & constraints",
+    meetingsSection: "Meetings",
   },
   dailyActivities: {
     title: "Daily activities",
@@ -735,6 +736,17 @@ export const messages = {
     allTypes: "All types",
     emptyBody: "Add the first assumption or constraint for this project.",
     reload: "Reload",
+  },
+  meetings: {
+    title: "Meetings",
+    entity: "meeting",
+    titleRequired: "Enter a title",
+    endAfterStart: "End time must be after the start time",
+    invalidTime: "Enter a time as hours and minutes",
+    agendaItemRequired: "Enter an agenda item",
+    discussionPointRequired: "Enter a discussion point",
+    actionRequired: "Enter an action",
+    actionParentRequired: "Choose a discussion point or an agenda item",
   },
   richText: {
     toolbar: "Formatting",
