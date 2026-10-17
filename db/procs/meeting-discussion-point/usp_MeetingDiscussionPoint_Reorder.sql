@@ -2,7 +2,8 @@
 -- @OrderJson (module #10, ADR-0028): [{"id": <MeetingDiscussionPointId>, "rowVer": <RowVer>}, ...],
 -- first = position 1. The rules are usp_MeetingAgendaItem_Reorder's: every live point of the agenda
 -- item exactly once at the RowVer the client read, checked inside the transaction with the meeting
--- row locked (CONFLICT 50002 otherwise; ids of other agenda items are never touched).
+-- row and the live points locked (UPDLOCK, HOLDLOCK; CONFLICT 50002 otherwise; ids of other agenda
+-- items are never touched).
 -- VALIDATION 50004: not a JSON array, an entry without a numeric id and rowVer, a repeated id, or
 --   more than 500 entries.
 -- Access: Contributor on the meeting's project, or a per-person grant (meetings:update, ADR-0024).
@@ -57,19 +58,19 @@ BEGIN
             THROW 50001, N'NOT_FOUND:Meeting not found', 1;
     END;
 
-    IF (SELECT COUNT(*) FROM app.MeetingDiscussionPoint WHERE AgendaItemId = @AgendaItemId AND IsDeleted = 0)
-           <> (SELECT COUNT(*) FROM @Order)
+    DECLARE @Siblings TABLE (Id INT PRIMARY KEY, SortOrder INT NOT NULL, RowVer BIGINT NOT NULL);
+    INSERT INTO @Siblings (Id, SortOrder, RowVer)
+    SELECT MeetingDiscussionPointId, SortOrder, CAST(RowVer AS BIGINT)
+    FROM app.MeetingDiscussionPoint WITH (UPDLOCK, HOLDLOCK)
+    WHERE AgendaItemId = @AgendaItemId AND IsDeleted = 0;
+
+    IF (SELECT COUNT(*) FROM @Siblings) <> (SELECT COUNT(*) FROM @Order)
        OR EXISTS (SELECT 1 FROM @Order AS o
-                  WHERE NOT EXISTS (SELECT 1 FROM app.MeetingDiscussionPoint AS dp
-                                    WHERE dp.MeetingDiscussionPointId = o.Id AND dp.AgendaItemId = @AgendaItemId
-                                      AND dp.IsDeleted = 0 AND CAST(dp.RowVer AS BIGINT) = o.RowVer))
+                  WHERE NOT EXISTS (SELECT 1 FROM @Siblings AS s WHERE s.Id = o.Id AND s.RowVer = o.RowVer))
         THROW 50002, N'CONFLICT:The discussion points were changed by someone else', 1;
 
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT MeetingDiscussionPointId AS id, SortOrder
-         FROM app.MeetingDiscussionPoint WHERE AgendaItemId = @AgendaItemId AND IsDeleted = 0
-         ORDER BY SortOrder, MeetingDiscussionPointId
-         FOR JSON PATH);
+        (SELECT Id AS id, SortOrder FROM @Siblings ORDER BY SortOrder, Id FOR JSON PATH);
 
     UPDATE dp SET
         SortOrder    = o.Position,
@@ -77,14 +78,12 @@ BEGIN
         UpdatedBy    = @ActorUserId
     FROM app.MeetingDiscussionPoint AS dp
     JOIN @Order AS o ON o.Id = dp.MeetingDiscussionPointId
-    WHERE dp.AgendaItemId = @AgendaItemId AND dp.IsDeleted = 0 AND dp.SortOrder <> o.Position;
+    JOIN @Siblings AS s ON s.Id = dp.MeetingDiscussionPointId
+    WHERE dp.SortOrder <> o.Position;
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'ReorderDiscussionPoints', N'app.MeetingAgendaItem', CAST(@AgendaItemId AS NVARCHAR(64)), @Before,
-            (SELECT MeetingDiscussionPointId AS id, SortOrder
-             FROM app.MeetingDiscussionPoint WHERE AgendaItemId = @AgendaItemId AND IsDeleted = 0
-             ORDER BY SortOrder, MeetingDiscussionPointId
-             FOR JSON PATH));
+            (SELECT o.Id AS id, o.Position AS SortOrder FROM @Order AS o ORDER BY o.Position FOR JSON PATH));
 
     COMMIT;
 
