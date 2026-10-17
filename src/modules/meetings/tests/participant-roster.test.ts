@@ -4,6 +4,7 @@ import { setParticipantsSchema } from "../schemas/meeting-form";
 import {
   attendanceCounts,
   attendanceOf,
+  choicesAfterSave,
   choose,
   filterRoster,
   hasChanges,
@@ -146,5 +147,54 @@ describe("participant roster: after a save", () => {
       [4, 12, false],
     ]);
     expect(hasChanges(after, none)).toBe(false);
+  });
+
+  it("keeps the picks made while the save was in flight, and drops the ones the save stored", () => {
+    const sent = choose(none, lucy, "attended");
+    const after = rosterAfterSave(roster, [
+      participant(1, false),
+      participant(2, false),
+      participant(3, true),
+    ]);
+    // Meanwhile: Tome switched to attended, Gary uninvited, Lucy's pick left alone.
+    const current = choose(choose(sent, tome, "attended"), gary, "none");
+    const kept = choicesAfterSave(roster, after, sent, current);
+    expect([...kept]).toEqual([
+      [1, "none"],
+      [3, "attended"],
+    ]);
+    expect(hasChanges(after, kept)).toBe(true);
+    // Lucy and Tome as picked, Gary uninvited, the historical row still counted.
+    expect(attendanceCounts(after, kept)).toEqual({ attended: 3, apologies: 0 });
+  });
+
+  it("keeps a pick that went back to the state the save overwrote", () => {
+    const sent = choose(none, lucy, "attended");
+    const after = rosterAfterSave(roster, [
+      participant(1, false),
+      participant(2, false),
+      participant(3, true),
+    ]);
+    const current = choose(sent, lucy, "none");
+    expect([...choicesAfterSave(roster, after, sent, current)]).toEqual([[2, "none"]]);
+  });
+
+  it("has nothing left when nothing changed during the save, or the change matches what was stored", () => {
+    const sent = choose(none, lucy, "attended");
+    const after = rosterAfterSave(roster, [
+      participant(1, false),
+      participant(2, false),
+      participant(3, true),
+    ]);
+    expect(choicesAfterSave(roster, after, sent, sent).size).toBe(0);
+    // Someone else's concurrent save is not the case here; a pick equal to the stored state is.
+    const current = choose(sent, gary, "attended");
+    expect(choicesAfterSave(roster, after, sent, current).size).toBe(0);
+  });
+
+  it("never carries a choice over a row kept for history", () => {
+    const sent: Choices = new Map();
+    const current: Choices = new Map([[4, "none"]]);
+    expect(choicesAfterSave(roster, roster, sent, current).size).toBe(0);
   });
 });

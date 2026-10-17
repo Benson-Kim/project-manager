@@ -15,6 +15,7 @@ import {
   ATTENDANCE,
   attendanceCounts,
   attendanceOf,
+  choicesAfterSave,
   choose,
   filterRoster,
   hasChanges,
@@ -34,7 +35,8 @@ const NO_CHOICES: Choices = new Map();
  * was read with, so a change made by someone else since is a CONFLICT with a
  * reload. A newer roster from a page refresh replaces the panel's own unless
  * it holds unsaved choices; then the save conflicts instead of the choices
- * silently landing on someone else's change.
+ * silently landing on someone else's change. An older roster (two refreshes
+ * finishing out of order) is ignored.
  */
 export function ParticipantsPanel({
   meetingId,
@@ -63,11 +65,14 @@ export function ParticipantsPanel({
   const { markClean } = useUnsavedPart("meeting-participants", dirty);
   const searchId = useId();
 
+  // A roster read with the panel's own stamp is the same state (another refresh
+  // finished); an older one lost a race with a save and is ignored; a newer one
+  // replaces the panel's state only when nothing is unsaved.
   if (seen !== roster) {
     setSeen(roster);
     if (roster.stamp === base.stamp) {
       setBase(roster);
-    } else if (!dirty) {
+    } else if (roster.stamp > base.stamp && !dirty) {
       setBase(roster);
       setChoices(NO_CHOICES);
     }
@@ -94,21 +99,22 @@ export function ParticipantsPanel({
     if (!dirty) return;
     setSummary(null);
     setConflict(false);
+    const sent = choices;
+    const sentEntries = entries;
     startTransition(async () => {
       const result = await setParticipantsAction({
         meetingId,
         stamp: base.stamp,
-        participants: participantsPayload(entries, choices),
+        participants: participantsPayload(sentEntries, sent),
       });
       if (result.ok) {
-        if (result.data) {
-          setBase({
-            entries: rosterAfterSave(entries, result.data.participants),
-            stamp: result.data.participantsStamp,
-          });
-        }
-        setChoices(NO_CHOICES);
-        markClean();
+        // The radios stay live during the save: picks made meanwhile are kept
+        // over what was stored, so the panel stays dirty until they are saved.
+        const stored = result.data
+          ? rosterAfterSave(sentEntries, result.data.participants)
+          : sentEntries;
+        if (result.data) setBase({ entries: stored, stamp: result.data.participantsStamp });
+        setChoices((current) => choicesAfterSave(sentEntries, stored, sent, current));
         toast({ variant: "success", title: messages.feedback.saved });
         announce(messages.feedback.saved);
         router.refresh();

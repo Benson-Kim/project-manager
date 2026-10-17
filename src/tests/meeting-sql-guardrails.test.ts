@@ -228,14 +228,16 @@ describe("meeting SQL guardrails", () => {
     );
   });
 
-  it("builds the roster from the meeting's own project, stamp first, within Set's limit", () => {
+  it("builds the roster from the meeting's own project, stamp first, every participant, the rest within Set's limit", () => {
     const roster = sql("usp_Meeting_GetRoster");
     expect(roster).toContain("WHERE s.ProjectId = @RowProjectId AND s.IsDeleted = 0");
     expect(roster).toContain("AND live.ProjectId = @RowProjectId AND live.IsDeleted = 0");
     const stamp = roster.indexOf("DECLARE @ParticipantsStamp");
     expect(stamp).toBeGreaterThan(roster.indexOf("usp_Project_AssertAccess"));
     expect(stamp).toBeLessThan(roster.indexOf("FROM app.Stakeholder"));
-    expect(roster).toContain(`WHERE r.Pick <= ${MEETING_PARTICIPANTS_MAX}`);
+    expect(roster).toContain(
+      `WHERE r.MeetingParticipantId IS NOT NULL OR r.Pick <= ${MEETING_PARTICIPANTS_MAX}`,
+    );
   });
 
   it("calls no other meeting proc or function, since the two runners order the folders differently", () => {
