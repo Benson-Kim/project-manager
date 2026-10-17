@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Sheet } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
+import { StoredDates } from "@/components/ui/form/stored-dates";
 import { Combobox, type ComboboxOption } from "@/components/ui/form/combobox";
 import { DatePicker, Input, Select, Textarea } from "@/components/ui/form/inputs";
 import { SectionHeading } from "@/components/ui/form/section-heading";
@@ -342,6 +343,12 @@ export function TodoItemSheet({
             <>
               <input type="hidden" name="todoItemId" value={todoItem.TodoItemId} />
               <input type="hidden" name="rowVer" value={todoItem.RowVer} />
+              <StoredDates
+                dates={{
+                  startDate: todoItem.StartDate,
+                  dueDate: todoItem.DueDate,
+                }}
+              />
             </>
           ) : null}
 

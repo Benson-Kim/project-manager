@@ -79,7 +79,8 @@ Constraints found on develop (2026-10-10):
 Contributors may remove an attachment, because that edits the record. Removal
 is a soft delete. Deleting the owner (`usp_DailyActivity_Delete`) soft-deletes
 its attachments in the same transaction. Moving an activity to another project
-(`usp_DailyActivity_Update`) moves its attachments' `ProjectId` too.
+(`usp_DailyActivity_Update`) moves its attachments' `ProjectId` too, within the
+destination's quota (§6).
 
 ### 3. Transport: a raw-body POST, streamed, with no new dependency
 
@@ -162,8 +163,12 @@ The extension must agree with the sniffed type, and anything else is refused
 ### 5. Dedupe, deletion and the orphan sweep
 
 - **Dedupe.** The same hash reuses the stored bytes, with one row per upload.
-  - The stored file is reused only when it is the upload's size; otherwise
-    the upload replaces it.
+  - The stored file is reused only when it is the upload's size and its bytes
+    still hash to its name; otherwise the upload replaces it (amended
+    2026-10-14: a damaged file of the same size used to be reused, so the new
+    row pointed at bytes that fail every download, and uploading the original
+    again could not repair it). If the replacement cannot be written, the
+    upload fails rather than record the damaged file.
   - Reuse sets the file's modification time to now. Without that, a re-upload
     of an orphan older than the grace period could be deleted by a sweep that
     read its retained hashes just before the new row existed (added
@@ -227,6 +232,13 @@ The extension must agree with the sniffed type, and anything else is refused
     row, quota lock, attachment rows) matches `usp_DailyActivity_Update` and
     `_Delete`. Measured on 66,000 attachment rows: 74 logical reads per call,
     the same as before.
+  - **A move is charged to its destination** (amended 2026-10-14).
+    `usp_DailyActivity_Update` takes `@QuotaBytes` (the app sends
+    `uploadsQuotaBytes()`). When an activity with files changes project, it
+    takes the destination's quota lock after the activity row (AddFile's order)
+    and refuses the move with 50006 when the files do not fit. Before, a move
+    carried any amount of bytes into a project past its quota. An app from
+    before this sends no `@QuotaBytes` and moves unchecked, as before.
 - **Pre-check.** The handler checks early with `CanAddFile` and
   `Content-Length`.
 - **Error.** The new code **50006 `QUOTA_EXCEEDED`** (registered in ADR-0012).
@@ -298,6 +310,13 @@ The extension must agree with the sniffed type, and anything else is refused
     an error too. Each copied file is hashed before it is kept, and a source
     whose bytes no longer match its name is not copied and is named in the
     copy error.
+  - **A copy of the wrong size is replaced** (amended 2026-10-14). A file
+    already in `<copy folder>\Uploads` used to be skipped unchecked, so a
+    truncated or half-synced copy stayed damaged until a restore found it.
+    A backup now replaces a copy whose size differs from the source (from the
+    intact source, through the same hash check). It does not hash every copy:
+    each daily run would read the whole folder again, and on OneDrive download
+    it. A restore still hashes every file it relies on.
 - **Restore** (added 2026-10-11). After the database, *Restore from backup…*
   copies back every file the Uploads folder lacks. It looks in `Uploads` next
   to the chosen `.bak`, then in `<copy folder>\Uploads`.

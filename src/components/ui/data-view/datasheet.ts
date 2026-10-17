@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { ActionResult } from "@/lib/action";
 import {
   ID_BOUND_LISTS,
@@ -15,7 +16,17 @@ import {
  * Vitest covers them (ADR-0013); the components only render.
  */
 
-export type CellKind = "text" | "number" | "date" | "select";
+export type CellKind = "text" | "number" | "date" | "select" | "rich";
+
+/**
+ * A rich-text cell's formatted view as the server rendered it (RichTextView,
+ * ADR-0025), with the HTML it was rendered from: after a save, until the
+ * refresh brings a new view, the cell can tell the view is stale.
+ */
+export interface RichCellView {
+  html: string | null;
+  node: ReactNode;
+}
 
 /**
  * How a column edits. A cell edits ONE field of the module's form schema, as a
@@ -52,6 +63,8 @@ export interface CellEditor<Row> {
   max?: number;
   /** Whether this row's cell can be edited (e.g. not a parent's rolled-up date); every row by default. */
   editable?: (row: Row) => boolean;
+  /** What a rich-text cell shows until it is opened: the formatted text. */
+  display?: (row: Row) => ReactNode;
 }
 
 export interface DatasheetConfig<Row> {
@@ -93,8 +106,14 @@ export function formCellSaver<Row, Result>(
   };
 }
 
-/** Key events that belong to a form control, not to the list's row navigation. */
-export function isEditableTarget(target: { tagName?: string } | null | undefined): boolean {
+/**
+ * Key events that belong to a form control, not to the list's row navigation:
+ * inputs, buttons, and text being written in a rich-text editor.
+ */
+export function isEditableTarget(
+  target: { tagName?: string; isContentEditable?: boolean } | null | undefined,
+): boolean {
+  if (target?.isContentEditable) return true;
   const tag = target?.tagName?.toUpperCase();
   return tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || tag === "BUTTON";
 }
@@ -161,6 +180,51 @@ export function failureMessage(error: {
   return first?.[0] ?? error.message;
 }
 
+/**
+ * Rich text as one line of plain text: what a rich cell shows while its
+ * formatted view is stale, and what screen readers hear for it. React escapes
+ * it as text, so leftover markup can never become HTML.
+ */
+export function previewText(html: string | null | undefined): string {
+  return (html ?? "")
+    .replace(/<(?:br|\/p|\/h[2-4]|\/li|\/td|\/th|\/tr|\/blockquote)\b[^>]*>/gi, " ")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Where a rich cell's editor panel sits: under the cell, or over it when there's no room below. */
+export interface PanelPosition {
+  left: number;
+  width: number;
+  top?: number;
+  bottom?: number;
+  maxHeight: number;
+}
+
+const PANEL_MARGIN = 16;
+const PANEL_MIN_WIDTH = 560;
+const PANEL_MIN_BELOW = 320;
+
+export function panelPosition(
+  cell: { left: number; top: number; bottom: number; width: number },
+  viewport: { width: number; height: number },
+): PanelPosition {
+  const width = Math.min(Math.max(cell.width, PANEL_MIN_WIDTH), viewport.width - 2 * PANEL_MARGIN);
+  const left = Math.min(Math.max(cell.left, PANEL_MARGIN), viewport.width - PANEL_MARGIN - width);
+  const below = viewport.height - cell.bottom - PANEL_MARGIN;
+  const above = cell.top - PANEL_MARGIN;
+  return below >= PANEL_MIN_BELOW || below >= above
+    ? { left, width, top: cell.bottom + 4, maxHeight: below - 4 }
+    : { left, width, bottom: viewport.height - cell.top + 4, maxHeight: above - 4 };
+}
+
 /** Row height until the user drags a row edge (client feedback §2: spacious rows). */
 export const DEFAULT_ROW_HEIGHT = 48;
 
@@ -170,6 +234,7 @@ export const CELL_WIDTH: Record<CellKind, string> = {
   number: "min-w-28",
   date: "min-w-40",
   select: "min-w-44",
+  rich: "min-w-72",
 };
 
 /** CELL_WIDTH in px: what a column's resize handle reports before the browser measures it. */
@@ -178,4 +243,5 @@ export const CELL_WIDTH_PX: Record<CellKind, number> = {
   number: 112,
   date: 160,
   select: 176,
+  rich: 288,
 };

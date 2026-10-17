@@ -19,6 +19,12 @@ function powershellPath(): string {
 
 export type ServiceState = "running" | "stopped" | "missing";
 
+/**
+ * "missing" only when Windows says there is no such service. A query that fails
+ * or times out (PowerShell starting slowly right after boot) is "stopped": the
+ * caller then waits for the engine, and only a real failure leads to Repair,
+ * which a standard user cannot run.
+ */
 export async function getServiceState(instanceName: string): Promise<ServiceState> {
   try {
     const { stdout } = await execFileAsync(
@@ -35,7 +41,7 @@ export async function getServiceState(instanceName: string): Promise<ServiceStat
     if (status === "missing") return "missing";
     return status === "running" ? "running" : "stopped";
   } catch {
-    return "missing";
+    return "stopped";
   }
 }
 

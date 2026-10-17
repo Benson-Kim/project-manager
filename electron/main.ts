@@ -22,10 +22,12 @@ import {
 import { waitForSql } from "./db";
 import { applyDatabaseSchema } from "./db-apply";
 import { createDbWatchdog } from "./db-watchdog";
+import { createExclusive } from "./exclusive";
 import { createLogger, describeError } from "./log";
 import { readMachineConfig, SetupRequiredError, type MachineConfig } from "./machine-config";
 import { NextServer } from "./next-server";
 import { paths } from "./paths";
+import { allowPermission } from "./permissions";
 import { getServiceState, isListening, runElevatedRepair, startService } from "./sql-service";
 import {
   destroyTray,
@@ -58,7 +60,8 @@ let server: NextServer | null = null;
 let mainWindow: BrowserWindow | null = null;
 let splash: BrowserWindow | null = null;
 let quitting = false;
-let busy: Promise<unknown> | null = null; // backup/restore in progress
+/** Backups and restores, one at a time; `backups.current()` is non-null while one runs or waits. */
+const backups = createExclusive();
 
 process.on("uncaughtException", (err) => log.error("uncaughtException", err));
 process.on("unhandledRejection", (err) => log.error("unhandledRejection", err));
@@ -385,21 +388,20 @@ async function setUpAttachmentsAction(): Promise<void> {
 
 async function runBackup(kind: BackupKind): Promise<BackupResult> {
   if (!config) throw new Error("Database not ready");
-  const task = backupDatabase(kind, {
-    target: config.sql,
-    backupDir: config.backupDir,
-    copyDir: settings.get().backupCopyDir,
-    uploadsDir: config.uploadsDir,
-    log,
-  });
-  busy = task.finally(() => {
-    busy = null;
-  });
-  return task;
+  const cfg = config;
+  return backups.run(() =>
+    backupDatabase(kind, {
+      target: cfg.sql,
+      backupDir: cfg.backupDir,
+      copyDir: settings.get().backupCopyDir,
+      uploadsDir: cfg.uploadsDir,
+      log,
+    }),
+  );
 }
 
 async function backupIfDue(): Promise<void> {
-  if (!config || busy) return;
+  if (!config || backups.current()) return;
   try {
     const last = await latestBackup(config.backupDir, config.sql.database);
     if (last && Date.now() - last.time.getTime() < BACKUP_INTERVAL_MS) return;
@@ -425,7 +427,6 @@ async function backupIfDue(): Promise<void> {
 
 async function backupNowAction(): Promise<void> {
   try {
-    if (busy) await busy;
     const r = await runBackup("manual");
     await message(
       r.copyError ? "warning" : "info",
@@ -476,8 +477,7 @@ async function restoreAction(): Promise<void> {
   const cfg = config;
   const srv = server;
   let filesNote: string | undefined;
-  const task = (async () => {
-    if (busy) await busy;
+  const task = backups.run(async () => {
     await backupDatabase("pre-restore", {
       target: cfg.sql,
       backupDir: cfg.backupDir,
@@ -501,9 +501,6 @@ async function restoreAction(): Promise<void> {
       const url = await srv.start();
       mainWindow?.loadURL(url).catch(() => undefined);
     }
-  })();
-  busy = task.finally(() => {
-    busy = null;
   });
   try {
     await task;
@@ -575,7 +572,9 @@ async function resetAdminAction(): Promise<void> {
 
 async function bootstrap(): Promise<void> {
   log.info(`=== Project Manager ${app.getVersion()} starting (packaged=${app.isPackaged}) ===`);
-  session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback, details) =>
+    callback(server !== null && allowPermission(permission, details.requestingUrl, server.url)),
+  );
   watchDownloads();
   splash = createSplash();
 
@@ -655,7 +654,7 @@ async function bootstrap(): Promise<void> {
       prepareToQuit: async () => {
         quitting = true;
         // Never cut a backup/restore off half-way for an update.
-        if (busy) await busy.catch(() => undefined);
+        await backups.current();
       },
       onReadyChanged: setTrayUpdateReady,
     });
@@ -692,7 +691,7 @@ async function bootstrap(): Promise<void> {
     });
     // Not during a backup or restore: a restore takes the database offline on purpose.
     setInterval(() => {
-      if (!busy) void watchdog.check();
+      if (!backups.current()) void watchdog.check();
     }, DB_CHECK_MS);
   } catch (err) {
     log.error("[startup] failed", err);
@@ -722,10 +721,11 @@ if (!app.requestSingleInstanceLock()) {
   app.on("before-quit", (e) => {
     quitting = true;
     // Never cut a backup/restore off half-way.
-    if (busy) {
+    const running = backups.current();
+    if (running) {
       e.preventDefault();
       log.info("[quit] waiting for backup/restore to finish");
-      busy.finally(() => app.quit());
+      void running.then(() => app.quit());
     }
   });
   app.on("will-quit", () => {

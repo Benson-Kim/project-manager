@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
-import { datesInOrder } from "@/lib/date-range";
+import { datesInOrder, datesWere, storedDates } from "@/lib/date-range";
 import { toDateInput } from "@/lib/format";
 import { listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
@@ -67,6 +67,7 @@ export const updateSupplierFormSchema = supplierFields
   .extend({
     supplierId: z.coerce.number().int().positive(),
     rowVer: z.coerce.number().int().nonnegative(),
+    ...datesWere("contractStartDate", "contractEndDate"),
   })
   .superRefine(contractDates);
 
@@ -83,6 +84,10 @@ export function supplierFormValues(row: SupplierRow): FormValues {
     emailAddress: formText(row.EmailAddress),
     contractStartDate: toDateInput(row.ContractStartDate),
     contractEndDate: toDateInput(row.ContractEndDate),
+    ...storedDates({
+      contractStartDate: row.ContractStartDate,
+      contractEndDate: row.ContractEndDate,
+    }),
     rating: formText(row.Rating),
     address: formText(row.Address),
     city: formText(row.City),

@@ -74,6 +74,17 @@ export function uploadsEnabled(): boolean {
   return process.env.UPLOADS_ENABLED?.trim().toLowerCase() !== "false";
 }
 
+/**
+ * Bytes each project's attachments may take (ADR-0026 §6). Read on its own, so
+ * moving a record with attachments never depends on the folder settings.
+ */
+export function uploadsQuotaBytes(): number {
+  const mb = uploadsEnvSchema.shape.UPLOADS_QUOTA_MB_PER_PROJECT.parse(
+    process.env.UPLOADS_QUOTA_MB_PER_PROJECT,
+  );
+  return mb * 1024 * 1024;
+}
+
 /** Validated at first use, like getEnv(). */
 export function getUploadsEnv(): UploadsEnv {
   return uploadsEnvSchema.parse({

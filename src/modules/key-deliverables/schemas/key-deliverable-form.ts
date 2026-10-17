@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { FormValues } from "@/components/ui/data-view/datasheet";
-import { datesInOrder } from "@/lib/date-range";
+import { datesInOrder, datesWere, storedDates } from "@/lib/date-range";
 import { toDateInput } from "@/lib/format";
 import { OPTION_COLORS, listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
@@ -51,75 +51,77 @@ const assigneeIdEntry = z
   .refine((v) => !v || /^\d+$/.test(v), messages.errors.VALIDATION)
   .transform((v) => (v ? Number(v) : null));
 
-export const keyDeliverableFormSchema = z
-  .object({
-    projectId: z.coerce.number().int().positive(),
-    keyRequirement: z
-      .string()
-      .trim()
-      .min(1, messages.keyDeliverables.requirementRequired)
-      .max(4000),
-    requestedDate: dateInput,
-    startDate: requiredDateInput,
-    deadline: dateInput,
-    color: colorInput,
-    /** FormData submits repeating fields as string[]. May arrive as a single string too.
-     *  Each entry is validated by assigneeIdEntry here so that a malformed value
-     *  produces a safeParse failure rather than a thrown ZodError from inside a transform. */
-    "assigneeIds[]": z.union([assigneeIdEntry, z.array(assigneeIdEntry)]).optional(),
-    /** Managed lists (ADR-0022): the proc checks the value against the live options. */
-    priority: listChoice,
-    status: listChoice,
-  })
-  .superRefine(
-    datesInOrder(
-      {
-        start: "requestedDate",
-        end: "deadline",
-        message: messages.errors.dateOrder(
-          messages.keyDeliverables.deadline,
-          messages.keyDeliverables.requestedDate,
-        ),
-      },
-      {
-        start: "startDate",
-        end: "deadline",
-        message: messages.errors.dateOrder(
-          messages.keyDeliverables.deadline,
-          messages.keyDeliverables.startDate,
-        ),
-      },
+const keyDeliverableFields = z.object({
+  projectId: z.coerce.number().int().positive(),
+  keyRequirement: z.string().trim().min(1, messages.keyDeliverables.requirementRequired).max(4000),
+  requestedDate: dateInput,
+  startDate: requiredDateInput,
+  deadline: dateInput,
+  color: colorInput,
+  /** FormData submits repeating fields as string[]. May arrive as a single string too.
+   *  Each entry is validated by assigneeIdEntry here so that a malformed value
+   *  produces a safeParse failure rather than a thrown ZodError from inside a transform. */
+  "assigneeIds[]": z.union([assigneeIdEntry, z.array(assigneeIdEntry)]).optional(),
+  /** Managed lists (ADR-0022): the proc checks the value against the live options. */
+  priority: listChoice,
+  status: listChoice,
+});
+
+const deliverableDates = datesInOrder(
+  {
+    start: "requestedDate",
+    end: "deadline",
+    message: messages.errors.dateOrder(
+      messages.keyDeliverables.deadline,
+      messages.keyDeliverables.requestedDate,
     ),
-  )
-  .transform((raw) => {
-    const raw_ = raw["assigneeIds[]"];
-    // After validation each entry is already number | null; flatten single → array.
-    const entries: (number | null)[] =
-      raw_ === undefined ? [] : Array.isArray(raw_) ? raw_ : [raw_];
-    // Deduplicate before reaching the proc — a forged payload with repeated IDs
-    // would otherwise cause a primary-key violation in the junction table.
-    const assigneeIds = [...new Set(entries.filter((v): v is number => v !== null))];
-    return {
-      projectId: raw.projectId,
-      keyRequirement: raw.keyRequirement,
-      requestedDate: raw.requestedDate,
-      startDate: raw.startDate,
-      deadline: raw.deadline,
-      color: raw.color,
-      assigneeIds: assigneeIds.length > 0 ? assigneeIds : null,
-      priority: raw.priority,
-      status: raw.status,
-    };
-  });
+  },
+  {
+    start: "startDate",
+    end: "deadline",
+    message: messages.errors.dateOrder(
+      messages.keyDeliverables.deadline,
+      messages.keyDeliverables.startDate,
+    ),
+  },
+);
+
+function toDeliverableInput(raw: z.output<typeof keyDeliverableFields>) {
+  const raw_ = raw["assigneeIds[]"];
+  // After validation each entry is already number | null; flatten single → array.
+  const entries: (number | null)[] = raw_ === undefined ? [] : Array.isArray(raw_) ? raw_ : [raw_];
+  // Deduplicate before reaching the proc — a forged payload with repeated IDs
+  // would otherwise cause a primary-key violation in the junction table.
+  const assigneeIds = [...new Set(entries.filter((v): v is number => v !== null))];
+  return {
+    projectId: raw.projectId,
+    keyRequirement: raw.keyRequirement,
+    requestedDate: raw.requestedDate,
+    startDate: raw.startDate,
+    deadline: raw.deadline,
+    color: raw.color,
+    assigneeIds: assigneeIds.length > 0 ? assigneeIds : null,
+    priority: raw.priority,
+    status: raw.status,
+  };
+}
+
+export const keyDeliverableFormSchema = keyDeliverableFields
+  .superRefine(deliverableDates)
+  .transform(toDeliverableInput);
 
 export type KeyDeliverableFormValues = z.output<typeof keyDeliverableFormSchema>;
 
-export const updateKeyDeliverableFormSchema = keyDeliverableFormSchema.and(
-  z.object({
-    keyDeliverableId: z.coerce.number().int().positive(),
-    rowVer: z.coerce.number().int().nonnegative(),
-  }),
-);
+export const updateKeyDeliverableFormSchema = keyDeliverableFields
+  .extend(datesWere("requestedDate", "startDate", "deadline"))
+  .superRefine(deliverableDates)
+  .transform(toDeliverableInput)
+  .and(
+    z.object({
+      keyDeliverableId: z.coerce.number().int().positive(),
+      rowVer: z.coerce.number().int().nonnegative(),
+    }),
+  );
 
 export type UpdateKeyDeliverableFormValues = z.output<typeof updateKeyDeliverableFormSchema>;
 
@@ -133,6 +135,11 @@ export function deliverableFormValues(row: KeyDeliverableRow): FormValues {
     requestedDate: toDateInput(row.RequestedDate),
     startDate: toDateInput(row.StartDate),
     deadline: toDateInput(row.Deadline),
+    ...storedDates({
+      requestedDate: row.RequestedDate,
+      startDate: row.StartDate,
+      deadline: row.Deadline,
+    }),
     color: row.Color ?? "",
     "assigneeIds[]": row.Assignees.map((a) => String(a.id)),
     priority: row.Priority ?? "",

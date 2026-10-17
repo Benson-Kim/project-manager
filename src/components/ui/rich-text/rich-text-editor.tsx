@@ -33,6 +33,12 @@ export interface RichTextEditorProps {
   readOnly?: boolean;
   /** Called with the HTML after each edit ("" when the document is empty). */
   onChange?: (html: string) => void;
+  /** Accessible name when no Field label names the editor (a datasheet cell's panel). */
+  label?: string;
+  /** Takes focus, cursor at the end, when it loads. */
+  autoFocus?: boolean;
+  /** A taller writing area (the datasheet's larger editor). */
+  tall?: boolean;
   /** Test hook on the wrapper. */
   testId?: string;
 }
@@ -43,6 +49,9 @@ export function RichTextEditor({
   disabled = false,
   readOnly = false,
   onChange,
+  label,
+  autoFocus = false,
+  tall = false,
   testId,
 }: RichTextEditorProps) {
   const field = useFieldContext();
@@ -71,6 +80,9 @@ export function RichTextEditor({
           errorId={field?.invalid ? field.errorId : undefined}
           invalid={field?.invalid ?? false}
           onChange={onChange}
+          label={field?.labelId ? undefined : label}
+          autoFocus={autoFocus}
+          tall={tall}
         />
       ) : (
         <EditorPlaceholder />
