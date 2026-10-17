@@ -33,3 +33,15 @@ test("viewer workspace is read-only: no save or delete, fields disabled", async 
   await expect(form.getByLabel(M.subject)).toBeDisabled();
   await expect(form.getByLabel(M.subject)).toHaveValue("Progress Achieved");
 });
+
+test("viewer sees the participants but cannot change them", async ({ page }) => {
+  await page.goto("/projects/2/meetings/1");
+  const panel = page.getByTestId("participants-panel");
+  const gary = panel.getByRole("group", { name: /^Gary Cantrall/ });
+  const attended = gary.getByRole("radio", { name: M.attendance.attended, exact: true });
+  await expect(attended).toBeChecked();
+  await expect(attended).toBeDisabled();
+  await expect(gary.getByRole("radio", { name: M.attendance.apology, exact: true })).toBeDisabled();
+  await expect(page.getByTestId("participants-save")).toHaveCount(0);
+  await expect(panel.getByLabel(M.searchParticipants)).toBeEnabled();
+});

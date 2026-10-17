@@ -2,6 +2,7 @@ import { z } from "zod";
 import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
 import { toDateInput } from "@/lib/format";
 import { messages } from "@/lib/messages";
+import { guestKey } from "./participant-roster";
 import { richTextSchema } from "@/lib/rich-text/schema";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 import type { MeetingRow } from "./meeting";
@@ -201,17 +202,39 @@ export const reorderActionItemsSchema = z
 
 // ── Participants ─────────────────────────────────────────────────────────────
 
-/** The participant panel: who attended and who sent apologies; everyone else is not invited. */
+const guestText = z.string().trim().max(255, messages.errors.VALIDATION);
+
+/** One person in the panel's save: a stakeholder of the project, or a guest named in full. */
+const participantItemSchema = z.union([
+  z.object({ stakeholderId: id, isApology: z.boolean() }),
+  z.object({
+    guestName: guestText.min(1, messages.meetings.guestProblem.empty),
+    guestOrganization: guestText.nullish().transform((value) => value || null),
+    isApology: z.boolean(),
+  }),
+]);
+
+/**
+ * The participant panel: who attended and who sent apologies; everyone else is
+ * not invited. A stakeholder is listed once by id, a guest once by name.
+ */
 export const setParticipantsSchema = z.object({
   meetingId: id,
   stamp: rowVerSchema,
   participants: z
-    .array(z.object({ stakeholderId: id, isApology: z.boolean() }))
+    .array(participantItemSchema)
     .max(MEETING_PARTICIPANTS_MAX)
-    .refine(
-      (items) => new Set(items.map((i) => i.stakeholderId)).size === items.length,
-      messages.errors.VALIDATION,
-    ),
+    .refine((items) => {
+      const stakeholders = items.flatMap((item) =>
+        "stakeholderId" in item ? [item.stakeholderId] : [],
+      );
+      const guests = items.flatMap((item) =>
+        "guestName" in item ? [guestKey(item.guestName)] : [],
+      );
+      return (
+        new Set(stakeholders).size === stakeholders.length && new Set(guests).size === guests.length
+      );
+    }, messages.errors.VALIDATION),
 });
 
 export type CreateAgendaItemValues = z.output<typeof createAgendaItemSchema>;

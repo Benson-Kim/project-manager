@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { guardedHref, type GuardAnchorLike, type GuardClickLike } from "../form/unsaved-guard";
+import {
+  guardedHref,
+  leavesPage,
+  type GuardAnchorLike,
+  type GuardClickLike,
+} from "../form/unsaved-guard";
 
 const CURRENT = "https://app.example/projects/2";
 
@@ -69,5 +74,24 @@ describe("guardedHref", () => {
     expect(
       guardedHref(click(), anchor("https://app.example/projects/2#charter"), CURRENT),
     ).toBeNull();
+  });
+});
+
+describe("leavesPage", () => {
+  it("is false for the router's re-write of the current URL (refresh, hash, no url)", () => {
+    expect(leavesPage(CURRENT, CURRENT)).toBe(false);
+    expect(leavesPage("/projects/2", CURRENT)).toBe(false);
+    expect(leavesPage("/projects/2#charter", CURRENT)).toBe(false);
+    expect(leavesPage(new URL(CURRENT), CURRENT)).toBe(false);
+    expect(leavesPage(null, CURRENT)).toBe(false);
+    expect(leavesPage(undefined, CURRENT)).toBe(false);
+  });
+
+  it("is true for another path, query or origin, as Back / Forward and links produce", () => {
+    expect(leavesPage("/projects", CURRENT)).toBe(true);
+    expect(leavesPage("/projects/2?tab=risks", CURRENT)).toBe(true);
+    expect(leavesPage("https://other.example/projects/2", CURRENT)).toBe(true);
+    // The URL the browser has already moved to on popstate, against the entry it left.
+    expect(leavesPage("https://app.example/projects/2/meetings", CURRENT)).toBe(true);
   });
 });

@@ -38,9 +38,10 @@ const VERBS: Record<string, string> = {
   List: "read",
   ListOptions: "read",
   GanttData: "read",
-  // Meetings (ADR-0028): the workspace and the printed minutes' attendee lists.
+  // Meetings (ADR-0028): the workspace, the participant panel and the printed minutes' lists.
   GetWorkspace: "read",
   GetParticipants: "read",
+  GetRoster: "read",
   GetAttendees: "read",
   GetApologies: "read",
   Create: "create",

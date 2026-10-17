@@ -16,7 +16,7 @@ import {
   getKeyDeliverableById,
   listKeyDeliverables,
 } from "@/modules/key-deliverables/repository/key-deliverables";
-import { listStakeholderOptions } from "@/modules/key-deliverables/repository/stakeholder-options";
+import { listStakeholderOptions } from "@/modules/stakeholders/repository/stakeholder-options";
 import {
   KEY_DELIVERABLE_LISTS,
   keyDeliverableFiltersSchema,

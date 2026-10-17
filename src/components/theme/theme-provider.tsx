@@ -57,6 +57,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
+    if (!document.documentElement.hasAttribute("data-theme")) apply(readStoredPreference());
+  }, []);
+
+  useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => {
       if (preference === "system") apply("system");

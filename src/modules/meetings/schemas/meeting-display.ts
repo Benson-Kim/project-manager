@@ -19,3 +19,13 @@ export function meetingDateFilter(raw: string | undefined): Date | null {
   const date = new Date(`${raw}T00:00:00Z`);
   return Number.isNaN(date.getTime()) ? null : date;
 }
+
+/** "2 attended · 1 apology" for the list and its cards; a count of 0 is left out. */
+export function attendanceSummary(attended: number, apologies: number): string {
+  return [
+    attended > 0 ? M.attendedCount(attended) : null,
+    apologies > 0 ? M.apologyCount(apologies) : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}

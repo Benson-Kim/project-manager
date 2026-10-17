@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef } from "react";
 import { messages } from "@/lib/messages";
-import { guardedHref } from "./unsaved-guard";
+import { guardedHref, leavesPage } from "./unsaved-guard";
 
 /**
  * Attaches a beforeunload guard AND a same-document navigation guard when the
@@ -25,9 +25,18 @@ import { guardedHref } from "./unsaved-guard";
  * - Tab close / hard reload (`beforeunload`)
  * - Client-side navigation in Next.js App Router (`history.pushState` /
  *   `history.replaceState` patches — C11-7 fix). When a same-document
- *   navigation is attempted while the form is dirty, the hook cancels the
- *   navigation and dispatches a `before-navigate` CustomEvent on `window`.
+ *   navigation to another page is attempted while the form is dirty, the hook
+ *   cancels the navigation and dispatches a `before-navigate` CustomEvent on
+ *   `window`. A call that keeps the URL (router.refresh() re-writes it) passes.
  *   Sheets listen for this event and show their discard-confirmation dialog.
+ * - Browser Back / Forward, through the Navigation API's `navigate` event,
+ *   which fires before the URL changes and lets the page cancel a traversal
+ *   (browsers allow that only once the user has interacted with the page,
+ *   which a dirty form implies). The App Router handles `popstate` itself and
+ *   window listeners run in registration order, so a popstate listener added
+ *   by a page could never run before the router's. The same `before-navigate`
+ *   event is dispatched; its `resume` makes the traversal again. Without the
+ *   Navigation API, Back is not guarded.
  * - Clicks on in-app links (sidebar, section nav, breadcrumbs), caught at the
  *   document capture phase before next/link's handler (ADR-0018 Q1): the App
  *   Router renders the new route before it touches history, so the pushState
@@ -92,7 +101,7 @@ export function useUnsavedChangesGuard(isDirty?: boolean) {
 
   // ── Same-document navigation (Next.js App Router client-side nav) ────────
   // Next.js App Router does not expose router.events. We patch pushState /
-  // replaceState so Back / Link navigation fires the same discard check.
+  // replaceState so Link navigation fires the same discard check.
   useEffect(() => {
     const originalPush = window.history.pushState.bind(window.history);
     const originalReplace = window.history.replaceState.bind(window.history);
@@ -101,7 +110,8 @@ export function useUnsavedChangesGuard(isDirty?: boolean) {
       original: typeof window.history.pushState,
       ...args: Parameters<typeof window.history.pushState>
     ) {
-      if (dirtyRef.current) {
+      // A refresh re-writes the current URL: only a call that leaves the page asks.
+      if (dirtyRef.current && leavesPage(args[2], window.location.href)) {
         // Dispatch a cancelable event. The sheet's onConfirm callback will
         // call cleanupAndNavigate() which replays the original navigation.
         const event = new CustomEvent("before-navigate", {
@@ -125,6 +135,30 @@ export function useUnsavedChangesGuard(isDirty?: boolean) {
       window.history.pushState = originalPush;
       window.history.replaceState = originalReplace;
     };
+  }, []);
+
+  // ── Browser Back / Forward (Navigation API) ──────────────────────────────
+  useEffect(() => {
+    if (!("navigation" in window)) return;
+    const navigation = window.navigation;
+    const onNavigate = (event: NavigateEvent) => {
+      if (event.navigationType !== "traverse" || !event.cancelable || !dirtyRef.current) return;
+      if (!leavesPage(event.destination.url, window.location.href)) return;
+      event.preventDefault();
+      // Replay the same traversal once discarded: by distance in the entries
+      // list, or one step back for an entry the list does not hold.
+      const steps = event.destination.index - (navigation.currentEntry?.index ?? 0);
+      const resume = () => {
+        dirtyRef.current = false;
+        if (event.destination.index >= 0 && steps !== 0) window.history.go(steps);
+        else window.history.back();
+      };
+      const before = new CustomEvent("before-navigate", { cancelable: true, detail: { resume } });
+      window.dispatchEvent(before);
+      if (!before.defaultPrevented) resume();
+    };
+    navigation.addEventListener("navigate", onNavigate);
+    return () => navigation.removeEventListener("navigate", onNavigate);
   }, []);
 
   const markDirty = useCallback(() => {

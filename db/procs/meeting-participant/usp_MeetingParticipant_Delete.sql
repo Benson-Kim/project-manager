@@ -36,7 +36,7 @@ BEGIN
     END;
 
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT MeetingParticipantId, [MeetingId], [StakeholderId], [IsApology]
+        (SELECT MeetingParticipantId, [MeetingId], [StakeholderId], GuestName, GuestOrganization, [IsApology]
          FROM app.MeetingParticipant WHERE MeetingParticipantId = @MeetingParticipantId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 

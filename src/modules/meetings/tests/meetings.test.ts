@@ -18,6 +18,7 @@ import {
   deleteDiscussionPoint,
   deleteMeeting,
   getMeetingById,
+  getMeetingRoster,
   getMeetingWorkspace,
   listApologies,
   listAttendees,
@@ -31,14 +32,24 @@ import {
   updateDiscussionPoint,
   updateMeeting,
 } from "../repository/meetings";
-import { meetingWorkspaceRowSchema, timeOfDaySchema } from "../schemas/meeting";
+import {
+  meetingRosterRowSchema,
+  meetingWorkspaceRowSchema,
+  timeOfDaySchema,
+} from "../schemas/meeting";
 import {
   meetingFormSchema,
   updateActionItemSchema,
   updateAgendaItemSchema,
   updateMeetingFormSchema,
 } from "../schemas/meeting-form";
-import { meetingDbRow, meetingListDbRow, scopeDbRow, workspaceDbRow } from "./fixtures";
+import {
+  meetingDbRow,
+  meetingListDbRow,
+  rosterDbRow,
+  scopeDbRow,
+  workspaceDbRow,
+} from "./fixtures";
 
 const ACTOR = 7;
 
@@ -208,6 +219,8 @@ describe("meetings repository: meetings", () => {
     await listMeetings(24, listParamsSchema.parse({}), ACTOR);
     answerWith(scopeDbRow());
     await createAgendaItem({ meetingId: 2, agendaItem: "A" }, ACTOR);
+    execProc.mockResolvedValue([rosterDbRow()]);
+    await getMeetingRoster(2, ACTOR);
     for (const [, params] of execProc.mock.calls as [string, Record<string, unknown>][]) {
       expect(params).not.toHaveProperty("ActorRole");
     }
@@ -237,6 +250,51 @@ describe("meetings repository: workspace", () => {
     expect(ws.participants[0]).toMatchObject({ StakeholderId: 3, IsApology: false });
     expect(ws.participantsStamp).toBe(2004);
     expect(ws.stamp).toBe(3000);
+  });
+});
+
+describe("meetings repository: participant roster", () => {
+  it("returns the people and the stamp they were read with", async () => {
+    execProc.mockResolvedValue([rosterDbRow()]);
+    const roster = await getMeetingRoster(2, ACTOR);
+    expect(call()).toEqual(["usp_Meeting_GetRoster", { MeetingId: 2, ActorUserId: ACTOR }]);
+    expect(roster.stamp).toBe(2004);
+    expect(roster.entries.map((e) => [e.StakeholderId, e.IsApology, e.IsHistorical])).toEqual([
+      [3, false, false],
+      [4, null, false],
+      [9, true, true],
+    ]);
+  });
+
+  it("reads a project with no stakeholders (FOR JSON gives NULL) as an empty roster", async () => {
+    execProc.mockResolvedValue([rosterDbRow({ RosterJson: null, ParticipantsStamp: "0" })]);
+    expect(await getMeetingRoster(2, ACTOR)).toEqual({ entries: [], stamp: 0 });
+  });
+
+  it("refuses a person with a missing key and drops columns it does not know", () => {
+    const missing = JSON.stringify([{ StakeholderId: 3, Label: "A", IsHistorical: false }]);
+    expect(meetingRosterRowSchema.safeParse(rosterDbRow({ RosterJson: missing })).success).toBe(
+      false,
+    );
+    const extra = JSON.stringify([
+      {
+        StakeholderId: 3,
+        Label: "A",
+        MeetingParticipantId: null,
+        IsApology: null,
+        IsHistorical: false,
+        GuestName: null,
+        GuestOrganization: null,
+        EmailAddress: "a@example.com",
+      },
+    ]);
+    const parsed = meetingRosterRowSchema.parse(rosterDbRow({ RosterJson: extra }));
+    expect(parsed.RosterJson[0]).not.toHaveProperty("EmailAddress");
+  });
+
+  it("throws when the proc answers no row", async () => {
+    execProc.mockResolvedValue([]);
+    await expect(getMeetingRoster(2, ACTOR)).rejects.toThrow();
   });
 });
 
