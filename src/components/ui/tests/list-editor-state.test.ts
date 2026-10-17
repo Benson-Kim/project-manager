@@ -4,8 +4,10 @@ import {
   addOption,
   editorOptions,
   isChanged,
+  labelOptions,
   moveOption,
   optionErrors,
+  optionLabels,
   removeOption,
   recolorOption,
   renameOption,
@@ -22,6 +24,18 @@ const list: LookupList = {
     { id: 3, label: "On Hold", locked: true, color: null },
   ],
 };
+
+describe("plain label lists (financial cost categories, funding sources)", () => {
+  it("edits labels as rows and returns them trimmed, without blanks, in order", () => {
+    let rows = labelOptions(["Hardware", "Licences"]);
+    expect(rows.every((r) => r.id === null && !r.locked && r.color === null)).toBe(true);
+    rows = addOption(rows, "  Services ", "n0");
+    rows = moveOption(rows, 2, -1);
+    rows = renameOption(rows, 0, "   ");
+    expect(optionLabels(rows)).toEqual(["Services", "Licences"]);
+    expect(optionLabels(removeOption(rows, 2))).toEqual(["Services"]);
+  });
+});
 
 describe("dropdown list editor state (ADR-0022)", () => {
   const options = editorOptions(list);

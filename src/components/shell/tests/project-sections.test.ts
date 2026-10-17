@@ -5,6 +5,7 @@ import {
   projectSectionGroups,
   projectSections,
   sectionHref,
+  sectionLinkHref,
   type ProjectSection,
   type ProjectSectionGroup,
 } from "../project-sections";
@@ -40,11 +41,12 @@ describe("isCurrentSection", () => {
 });
 
 describe("projectSectionGroups", () => {
-  it("has four groups in order: overview, planning, people, activity", () => {
+  it("has five groups in order: overview, planning, people, financials, activity", () => {
     expect(projectSectionGroups.map((g) => g.key)).toEqual([
       "overview",
       "planning",
       "people",
+      "financials",
       "activity",
     ]);
   });
@@ -64,9 +66,32 @@ describe("projectSectionGroups", () => {
     expect(people.sections.map((s) => s.segment)).toContain("suppliers");
   });
 
-  it("planning group contains financials (ADR-0029)", () => {
+  it("financials group lists the four views of a financial (ADR-0029)", () => {
+    const financials = projectSectionGroups.find((g) => g.key === "financials")!;
+    expect(financials.sections.map((s) => s.segment)).toEqual([
+      "financials/budget",
+      "financials/monitoring",
+      "financials/documents",
+      "financials/settings",
+    ]);
     const planning = projectSectionGroups.find((g) => g.key === "planning")!;
-    expect(planning.sections.map((s) => s.segment)).toContain("financials");
+    expect(planning.sections.some((s) => s.segment.startsWith("financials"))).toBe(false);
+  });
+
+  it("only the open financials view is current", () => {
+    const [budget, monitoring] = projectSectionGroups.find((g) => g.key === "financials")!.sections;
+    expect(sectionHref(2, budget!)).toBe("/projects/2/financials/budget");
+    expect(isCurrentSection("/projects/2/financials/budget", 2, budget!)).toBe(true);
+    expect(isCurrentSection("/projects/2/financials/budget", 2, monitoring!)).toBe(false);
+    expect(isCurrentSection("/projects/2/financials/monitoring", 2, monitoring!)).toBe(true);
+  });
+
+  it("keeps the open financial when switching financials views, and only there", () => {
+    const [budget] = projectSectionGroups.find((g) => g.key === "financials")!.sections;
+    expect(sectionLinkHref(2, budget!, "7")).toBe("/projects/2/financials/budget?f=7");
+    expect(sectionLinkHref(2, budget!, null)).toBe("/projects/2/financials/budget");
+    expect(sectionLinkHref(2, budget!, "7&x=1")).toBe("/projects/2/financials/budget");
+    expect(sectionLinkHref(2, meetings, "7")).toBe("/projects/2/meetings");
   });
 
   it("activity group contains keywords", () => {

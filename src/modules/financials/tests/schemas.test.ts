@@ -3,7 +3,6 @@ import { calculateSheet } from "../calc/sheet";
 import {
   budgetAmountText,
   labelListSchema,
-  labelsFromText,
   optionalBudgetAmountText,
   percentText,
   transactionAmountText,
@@ -45,7 +44,6 @@ describe("field schemas", () => {
   });
 
   it("checks label lists", () => {
-    expect(labelsFromText(" a \n\nb\r\n")).toEqual(["a", "b"]);
     expect(labelListSchema.safeParse(["a", "a"]).success).toBe(false);
     expect(labelListSchema.safeParse(["x".repeat(151)]).success).toBe(false);
     expect(labelListSchema.safeParse(Array.from({ length: 201 }, (_, i) => `l${i}`)).success).toBe(

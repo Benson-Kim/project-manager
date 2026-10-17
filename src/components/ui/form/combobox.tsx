@@ -1,13 +1,16 @@
 "use client";
 
 import { useCallback, useId, useMemo, useRef, useState } from "react";
+import { Chevron } from "../chevron";
 import { useFieldAria } from "./field";
 
 /**
  * Minimal ARIA 1.2 combobox : text input + filtered listbox popup.
  * Keyboard complete (↑ ↓ Enter Esc), aria-activedescendant pattern, verified
  * by axe on /kitchen-sink. The selected value is submitted through a hidden
- * input so it participates in FormData like every native control.
+ * input so it participates in FormData like every native control. The arrow
+ * is always shown, like a select's, and reopening after a choice lists every
+ * option again.
  */
 export interface ComboboxOption {
   value: string;
@@ -46,9 +49,9 @@ export function Combobox({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return options;
+    if (!q || query === selected?.label) return options;
     return options.filter((o) => o.label.toLowerCase().includes(q));
-  }, [options, query]);
+  }, [options, query, selected]);
 
   const select = useCallback(
     (option: ComboboxOption | null) => {
@@ -96,7 +99,7 @@ export function Combobox({
         autoComplete="off"
         aria-label={ariaLabel}
         placeholder={placeholder}
-        className={`min-h-10 w-full text-sm text-ink placeholder:text-ink-muted aria-invalid:border-danger ${inCell ? "border-0 bg-transparent px-2" : "rounded-md border border-line bg-surface px-3"}`}
+        className={`min-h-10 w-full pr-8 text-sm text-ink placeholder:text-ink-muted aria-invalid:border-danger ${inCell ? "border-0 bg-transparent pl-2" : "rounded-md border border-line bg-surface pl-3"}`}
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -108,13 +111,21 @@ export function Combobox({
           }
         }}
         onFocus={() => setOpen(true)}
+        onClick={() => setOpen(true)}
         onBlur={() => {
-          // Allow option mousedown to win over blur-close.
-          setTimeout(() => setOpen(false), 100);
+          // Allow option mousedown to win over blur-close; text that picked
+          // nothing goes back to the current choice.
+          setTimeout(() => {
+            setOpen(false);
+            setQuery(selected?.label ?? "");
+          }, 100);
         }}
         onKeyDown={onKeyDown}
         {...aria}
       />
+      <span className="pointer-events-none absolute right-3 top-0 flex h-10 items-center text-ink-muted">
+        <Chevron open={open && filtered.length > 0} />
+      </span>
       <ul
         id={listboxId}
         role="listbox"

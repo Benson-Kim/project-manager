@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { LookupLists } from "@/lib/lookup-lists";
 import {
   cellChoices,
+  cellWidthKind,
   emptyDraft,
   failureMessage,
   formCellSaver,
@@ -13,7 +14,7 @@ import {
   singleLine,
   type CellEditor,
 } from "../data-view/datasheet";
-import { textColumn } from "../data-view/columns";
+import { choiceColumn, textColumn } from "../data-view/columns";
 
 interface Row {
   Id: number;
@@ -178,5 +179,46 @@ describe("text cells (client feedback 2026-10-12: wrap)", () => {
     expect(column(4000).edit?.multiline).toBe(true);
     expect(column(undefined).edit?.multiline).toBe(true);
     expect(column(255).edit?.multiline).toBe(false);
+  });
+});
+
+describe("a module's own choices (ADR-0029 amendment)", () => {
+  const editList = vi.fn();
+  const column = choiceColumn<{ Category: string | null }>({
+    key: "Category",
+    header: "Cost category",
+    priority: 1,
+    field: "costCategory",
+    value: (r) => r.Category,
+    choices: [
+      { value: "Hardware", label: "Hardware" },
+      { value: "Licences", label: "Licences" },
+    ],
+    placeholder: "[Select cost category…]",
+    editList,
+  });
+
+  it("offers its choices, keeping a value that left them visible", () => {
+    const current = { value: "Travel", label: column.edit!.currentLabel!({ Category: "Travel" }) };
+    expect(cellChoices(column.edit!, lists, current).map((c) => c.value)).toEqual([
+      "Hardware",
+      "Licences",
+      "Travel",
+    ]);
+  });
+
+  it("reads the empty choice as None and carries the list editor", () => {
+    expect(column.render({ Category: null })).toBe("None");
+    expect(column.render({ Category: "Hardware" })).toBe("Hardware");
+    column.edit!.editList!();
+    expect(editList).toHaveBeenCalledOnce();
+  });
+});
+
+describe("cellWidthKind", () => {
+  it("gives an amount typed as text a number's width", () => {
+    expect(cellWidthKind({ kind: "text", numeric: true })).toBe("number");
+    expect(cellWidthKind({ kind: "text" })).toBe("text");
+    expect(cellWidthKind({ kind: "select" })).toBe("select");
   });
 });

@@ -17,6 +17,7 @@ import {
   centsToDecimal,
   divRound,
   formatMoney,
+  formatMoneyField,
   formatPercent,
   microsFromDb,
   microsToFraction,
@@ -104,6 +105,14 @@ describe("money", () => {
     expect(formatMoney(123456789n)).toBe("1,234,567.89");
     expect(formatMoney(-150n)).toBe("(1.50)");
     expect(formatMoney(0n)).toBe("0.00");
+  });
+
+  it("shows an amount in its field with separators that parse back", () => {
+    expect(formatMoneyField("1000.00")).toBe("1,000.00");
+    expect(formatMoneyField("-1234.5")).toBe("-1,234.50");
+    expect(parseMoney(formatMoneyField("-1234.5"))).toBe(-123450n);
+    expect(formatMoneyField("")).toBe("");
+    expect(formatMoneyField("abc")).toBe("abc");
   });
 
   it("parses and formats percentages as micros", () => {

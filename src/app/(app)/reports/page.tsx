@@ -13,7 +13,7 @@ export default async function Page() {
       <p className="text-sm text-ink-muted">{messages.app.moduleNotAvailable}</p>
       <Link
         href="/projects"
-        className="mt-3 inline-flex min-h-10 items-center text-sm font-medium text-accent underline"
+        className="mt-3 inline-flex min-h-10 items-center text-sm font-medium text-accent"
       >
         {messages.app.goToProjects}
       </Link>
