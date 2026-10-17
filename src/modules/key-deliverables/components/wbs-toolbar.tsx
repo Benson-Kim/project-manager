@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { messages } from "@/lib/messages";
 import { GANTT_SCALES, type GanttScale } from "./gantt-scale";
-import { WBS_VIEWS, type WbsView } from "./wbs-diagram-layout";
+import { WBS_VIEWS, type BranchLayout, type WbsView } from "./wbs-diagram-layout";
 import type { WbsTab } from "./wbs-row";
 
 const W = messages.keyDeliverables.wbs;
@@ -23,11 +23,17 @@ export interface WbsToolbarProps {
   outdent: ToolbarCommand;
   moveUp: ToolbarCommand;
   moveDown: ToolbarCommand;
+  moveTo: ToolbarCommand;
   rename: ToolbarCommand;
   details: ToolbarCommand;
   remove: ToolbarCommand;
   expandAll: ToolbarCommand;
   collapseAll: ToolbarCommand;
+  /** How the selected parent's sub-items are laid out in the WBS diagram; null when none is. */
+  subItems: {
+    value: BranchLayout | "auto";
+    onChange: (layout: BranchLayout | "auto") => void;
+  } | null;
   view: WbsView;
   onView: (view: WbsView) => void;
   scale: GanttScale;
@@ -106,6 +112,10 @@ function Segmented<T extends string>({
 
 const VIEW_OPTIONS = WBS_VIEWS.map((value) => ({ value, label: W.views[value] }));
 const SCALE_OPTIONS = GANTT_SCALES.map((value) => ({ value, label: W.scales[value] }));
+const LAYOUT_OPTIONS = (["auto", "row", "list"] as const).map((value) => ({
+  value,
+  label: W.layouts[value],
+}));
 const TAB_OPTIONS = [
   { value: "outline" as const, label: W.outlineTab },
   { value: "chart" as const, label: W.chartTab },
@@ -114,7 +124,8 @@ const TAB_OPTIONS = [
 /**
  * The WBS editor's commands (ADR-0027): add, indent, move and rename act on
  * the selected item in either view; the view switches between the WBS
- * diagram and the Gantt. In the Gantt, the scale switches the timeline
+ * diagram and the Gantt. In the diagram, Sub-items sets how the selected
+ * parent's branch is laid out. In the Gantt, the scale switches the timeline
  * between days, weeks and months, and on a phone the outline and the chart
  * are two tabs.
  */
@@ -133,6 +144,7 @@ export function WbsToolbar(props: WbsToolbarProps) {
         <Command label={W.outdent} command={props.outdent} testId="wbs-outdent" />
         <Command label={W.moveUp} command={props.moveUp} testId="wbs-move-up" />
         <Command label={W.moveDown} command={props.moveDown} testId="wbs-move-down" />
+        <Command label={W.moveTo} command={props.moveTo} testId="wbs-move-to" />
         <Command label={W.rename} command={props.rename} testId="wbs-rename" />
         <Command label={W.details} command={props.details} testId="wbs-details" />
         <Command label={W.delete} command={props.remove} testId="wbs-delete" variant="danger" />
@@ -163,6 +175,19 @@ export function WbsToolbar(props: WbsToolbarProps) {
               testId="wbs-tab"
             />
           </>
+        ) : props.subItems ? (
+          <div className="flex items-center gap-2">
+            <span aria-hidden="true" className="text-sm text-ink-muted">
+              {W.subItems}
+            </span>
+            <Segmented
+              label={W.subItems}
+              value={props.subItems.value}
+              options={LAYOUT_OPTIONS}
+              onChange={props.subItems.onChange}
+              testId="wbs-sub-items"
+            />
+          </div>
         ) : null}
         <Command
           label={W.expandAll}
@@ -184,7 +209,7 @@ export function WbsToolbar(props: WbsToolbarProps) {
           {messages.feedback.savingState}
         </span>
       </div>
-      {gantt ? <p className="text-xs text-ink-muted">{W.hints.join(" ")}</p> : null}
+      <p className="text-xs text-ink-muted">{(gantt ? W.hints : W.diagramHints).join(" ")}</p>
     </div>
   );
 }
