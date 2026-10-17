@@ -57,8 +57,9 @@ I1 020→025, N1 021→026, FI1 022→027, F2 023→028, A2 024→029, RP1 025�
 number is already taken when you open the PR, take the next free number and say so in
 the PR. Client feedback of 2026-10-12 (on `feature/file-storage`) took **031**
 (parking lot status) and seed 030. The WBS and Gantt rebuild of 2026-10-13
-(`feature/wbs-gantt`, ADR-0027) took migration **032** and seed 031; the next free
-migration is 033 and the next free seed 032. Never edit a migration that is merged.
+(`feature/wbs-gantt`, ADR-0027) took migration **032** and seed 031; meeting guests
+(`feature/meetings-participants`, ADR-0028 amendment of 2026-10-17) took migration **033**; the next
+free migration is 034 and the next free seed 033. Never edit a migration that is merged.
 P1 took ADR-0025 (develop's ADR-0020 is web push), F1 took 0026 and the WBS rebuild
 took 0027, so the next free ADR number is **0028**.
 

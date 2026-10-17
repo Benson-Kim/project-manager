@@ -13,9 +13,9 @@ export interface StakeholderOption {
 }
 
 /**
- * Combobox source for the Assigned-to field (issue #9): the project's
- * stakeholders via usp_Stakeholder_List (project-scoped, proc reuse only —
- * no dependency on the stakeholders module branch).
+ * The stakeholder picker's source (ADR-0001: other modules may use it): the
+ * project's stakeholders by name via usp_Stakeholder_List, which checks the
+ * actor's access to the project. Key deliverables' Assigned-to uses it.
  */
 export async function listStakeholderOptions(
   projectId: number,

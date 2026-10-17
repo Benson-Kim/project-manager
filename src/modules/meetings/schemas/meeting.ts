@@ -98,11 +98,15 @@ export type WorkspaceActionItem = z.infer<typeof workspaceActionItemSchema>;
 
 export const workspaceParticipantSchema = z.object({
   MeetingParticipantId: z.number().int(),
-  StakeholderId: z.number().int(),
-  /** "Name - Position, Organization" (Access qryMeetingAttendees). */
+  /** Null for a guest (migration 033). */
+  StakeholderId: z.number().int().nullable(),
+  /** "Name - Position, Organization" (Access qryMeetingAttendees); "Name - Organization" for a guest. */
   Label: z.string(),
   IsApology: z.boolean(),
   StakeholderIsDeleted: z.boolean(),
+  /** A guest: someone who attended without being a stakeholder. Both null for a stakeholder. */
+  GuestName: z.string().nullable(),
+  GuestOrganization: z.string().nullable(),
   RowVer: rowVerSchema,
 });
 export type WorkspaceParticipant = z.infer<typeof workspaceParticipantSchema>;
@@ -125,6 +129,37 @@ export interface MeetingWorkspace {
   actionItems: WorkspaceActionItem[];
   participants: WorkspaceParticipant[];
   participantsStamp: number;
+  stamp: number;
+}
+
+// ── Participant roster (usp_Meeting_GetRoster) ───────────────────────────────
+
+export const rosterEntrySchema = z.object({
+  /** Null for a guest (migration 033). */
+  StakeholderId: z.number().int().nullable(),
+  /** "Name - Position, Organization" (Access qryMeetingAttendees); "Name - Organization" for a guest. */
+  Label: z.string(),
+  /** Both null for a stakeholder who is not invited. */
+  MeetingParticipantId: z.number().int().nullable(),
+  IsApology: z.boolean().nullable(),
+  /** A participant who is no longer a live stakeholder of the project: kept, read-only. */
+  IsHistorical: z.boolean(),
+  /** A guest's name and organization; both null for a stakeholder. */
+  GuestName: z.string().nullable(),
+  GuestOrganization: z.string().nullable(),
+});
+export type RosterEntry = z.infer<typeof rosterEntrySchema>;
+
+export const meetingRosterRowSchema = z.object({
+  ProjectId: z.number().int().nullable(),
+  MeetingId: z.number().int(),
+  ParticipantsStamp: rowVerSchema,
+  RosterJson: jsonArray(rosterEntrySchema),
+});
+
+/** The participant panel's people, with the stamp read before them. */
+export interface MeetingRoster {
+  entries: RosterEntry[];
   stamp: number;
 }
 
@@ -190,7 +225,8 @@ export type ParticipantRow = z.infer<typeof participantRowSchema>;
 export const attendeeRowSchema = z.object({
   MeetingParticipantId: z.number().int(),
   MeetingId: z.number().int(),
-  StakeholderId: z.number().int(),
+  /** Null for a guest. */
+  StakeholderId: z.number().int().nullable(),
   Label: z.string(),
 });
 export type AttendeeRow = z.infer<typeof attendeeRowSchema>;

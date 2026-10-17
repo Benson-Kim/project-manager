@@ -113,7 +113,7 @@ describe("rich-text boundaries (ADR-0025)", () => {
     const injectors = files.filter((f) => /dangerouslySetInnerHTML/.test(source.get(f) ?? ""));
     expect(injectors.sort()).toEqual(
       [
-        normalize("src/app/layout.tsx"),
+        normalize("src/components/theme/theme-script.tsx"),
         normalize("src/components/ui/rich-text/rich-text-view.tsx"),
       ].sort(),
     );
