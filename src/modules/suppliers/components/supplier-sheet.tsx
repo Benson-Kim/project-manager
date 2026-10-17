@@ -7,6 +7,7 @@ import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { DatePicker, Input, Select } from "@/components/ui/form/inputs";
 import { SectionHeading } from "@/components/ui/form/section-heading";
+import { StoredDates } from "@/components/ui/form/stored-dates";
 import { useSheetFormActions } from "@/components/ui/form/use-sheet-form-actions";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
@@ -83,6 +84,12 @@ export function SupplierSheet({
           <>
             <input type="hidden" name="supplierId" value={supplier.SupplierId} />
             <input type="hidden" name="rowVer" value={supplier.RowVer} />
+            <StoredDates
+              dates={{
+                contractStartDate: supplier.ContractStartDate,
+                contractEndDate: supplier.ContractEndDate,
+              }}
+            />
           </>
         ) : null}
 

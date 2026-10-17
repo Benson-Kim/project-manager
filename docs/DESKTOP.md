@@ -150,7 +150,8 @@ What installed apps do (`electron/updater.ts`):
 
 The rule lives in `latest.yml` as `minimumVersion` and is carried into every
 later release, so a PC that skipped a required version is still made to
-update. Logic: `scripts/desktop/release.mjs` and `electron/update-policy.ts`
+update. When the previous release or its `latest.yml` cannot be read, the
+release job fails instead of publishing without the rule; re-run it. Logic: `scripts/desktop/release.mjs` and `electron/update-policy.ts`
 (both unit-tested).
 
 ### Notes

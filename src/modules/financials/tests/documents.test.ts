@@ -53,7 +53,7 @@ import {
 const saved = { ...documentRow(31, "DA", null, 1), FinancialId: 4 };
 
 describe("document schemas (ADR-0030)", () => {
-  it("reads the documents migration 033 adds to the default template", () => {
+  it("reads the documents migration 034 adds to the default template", () => {
     const docs = templateDocumentListSchema.parse(migrationTemplateDocuments());
     expect(docs).toHaveLength(9);
     expect(docs.map((d) => d.name)).toContain("DO (Dossier d'opportunité)");

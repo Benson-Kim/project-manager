@@ -1,8 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 import { closeAlarmToast } from "./support/alarms";
-import { expectListed } from "./support/datasheet";
+import { escapeRegExp, expectListed } from "./support/datasheet";
 
 /**
  * Key deliverables module (#9) — create happy path, validation failure, the
@@ -16,6 +16,26 @@ import { expectListed } from "./support/datasheet";
  */
 
 const W = messages.keyDeliverables.wbs;
+
+/**
+ * A WBS row by its item's id. Outline codes are positions, and other tests add items to
+ * project 2 at the same time (each page inserts after the rows it knows), so a code read
+ * earlier can name another item by the time it is used.
+ */
+function wbsRow(page: Page, id: string | null): Locator {
+  return page.locator(`li[data-wbs-row="${id}"]`);
+}
+
+/** A row's field by its label, whatever the row's code is now ("Start of item 3.1"). */
+function wbsField(row: Locator, label: (code: string) => string): Locator {
+  return row.getByLabel(new RegExp(`^${escapeRegExp(label(""))}`));
+}
+
+/** A row's outline code now. */
+async function wbsCode(row: Locator): Promise<string> {
+  const label = await wbsField(row, W.nameOf).getAttribute("aria-label");
+  return (label ?? "").slice(W.nameOf("").length);
+}
 
 /** yyyy-mm-dd, the given number of days after another. */
 function plusDays(iso: string, days: number): string {
@@ -94,24 +114,26 @@ test("WBS: add, indent with Tab, rename, drag, stretch, change scale, delete", a
   await expect(parentName).toHaveValue(W.newItemName, { timeout: 15_000 });
   await parentName.fill(`E2E phase ${stamp}`);
   await parentName.press("Enter");
-  const parentRow = page.locator("li[data-wbs-row]", { has: page.locator("input:focus") });
-  const parentId = await parentRow.getAttribute("data-wbs-row");
-  const parentLabel = await parentName.getAttribute("aria-label");
-  const parentCode = parentLabel!.replace(W.nameOf(""), "");
+  const parentId = await page
+    .locator("li[data-wbs-row]", { has: page.locator("input:focus") })
+    .getAttribute("data-wbs-row");
+  const parentRow = wbsRow(page, parentId);
 
   // Add the next item and indent it under the first with Tab while typing its name.
   await page.getByTestId("wbs-add").click();
   const childName = page.locator("input:focus");
   await expect(childName).toHaveValue(W.newItemName, { timeout: 15_000 });
+  const childId = await page
+    .locator("li[data-wbs-row]", { has: page.locator("input:focus") })
+    .getAttribute("data-wbs-row");
+  const childRow = wbsRow(page, childId);
   await childName.fill(`E2E task ${stamp}`);
   await childName.press("Tab");
-  await expect(page.getByLabel(W.nameOf(`${parentCode}.1`), { exact: true })).toHaveValue(
-    `E2E task ${stamp}`,
-  );
-  const childRow = page.locator("li[data-wbs-row]", {
-    has: page.getByLabel(W.nameOf(`${parentCode}.1`), { exact: true }),
-  });
-  const childId = await childRow.getAttribute("data-wbs-row");
+  await expect(wbsField(childRow, W.nameOf)).toHaveValue(`E2E task ${stamp}`);
+  // Indented: the child is its parent's first sub-item, whatever their codes are now.
+  await expect
+    .poll(async () => (await wbsCode(childRow)) === `${await wbsCode(parentRow)}.1`)
+    .toBe(true);
 
   // The first item is now a summary over its sub-item, and the Gantt shows both at once.
   await expect(page.getByTestId(`gantt-bar-${parentId}`)).toHaveAttribute(
@@ -122,8 +144,8 @@ test("WBS: add, indent with Tab, rename, drag, stretch, change scale, delete", a
   await expect(childBar).toBeVisible();
 
   // Drag the bar three days later: both dates move.
-  const startField = page.getByLabel(W.startOf(`${parentCode}.1`), { exact: true });
-  const endField = page.getByLabel(W.endOf(`${parentCode}.1`), { exact: true });
+  const startField = wbsField(childRow, W.startOf);
+  const endField = wbsField(childRow, W.endOf);
   const start0 = await startField.inputValue();
   const end0 = await endField.inputValue();
   await childBar.scrollIntoViewIfNeeded();
@@ -146,9 +168,7 @@ test("WBS: add, indent with Tab, rename, drag, stretch, change scale, delete", a
   await page.mouse.up();
   await expect(startField).toHaveValue(plusDays(start0, 3));
   await expect(endField).toHaveValue(plusDays(end0, 5));
-  await expect(page.getByLabel(W.endOf(parentCode), { exact: true })).toHaveValue(
-    plusDays(end0, 5),
-  );
+  await expect(wbsField(parentRow, W.endOf)).toHaveValue(plusDays(end0, 5));
 
   // Type a date in the outline: the bar follows.
   await startField.fill(plusDays(start0, 10));
@@ -159,12 +179,11 @@ test("WBS: add, indent with Tab, rename, drag, stretch, change scale, delete", a
   // the queue first (a reload while "Saving" shows asks before dropping the rest).
   await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
   await page.reload();
-  await expect(page.getByLabel(W.nameOf(`${parentCode}.1`), { exact: true })).toHaveValue(
-    `E2E task ${stamp}`,
-  );
-  await expect(page.getByLabel(W.endOf(`${parentCode}.1`), { exact: true })).toHaveValue(
-    plusDays(end0, 12),
-  );
+  await expect(wbsField(childRow, W.nameOf)).toHaveValue(`E2E task ${stamp}`);
+  await expect
+    .poll(async () => (await wbsCode(childRow)) === `${await wbsCode(parentRow)}.1`)
+    .toBe(true);
+  await expect(endField).toHaveValue(plusDays(end0, 12));
 
   // Weeks and months keep the bars, with the dates in the header.
   await page.getByTestId("wbs-scale-week").click();
@@ -195,7 +214,7 @@ test("WBS: add, indent with Tab, rename, drag, stretch, change scale, delete", a
 
   // Delete the first item: its sub-item goes with it.
   await page.goto("/projects/2/deliverables/gantt?view=gantt&scale=month");
-  await page.getByLabel(W.nameOf(parentCode), { exact: true }).focus();
+  await wbsField(parentRow, W.nameOf).focus();
   await page.getByTestId("wbs-delete").click();
   await expect(
     page.getByRole("heading", { name: W.deleteTitle(`E2E phase ${stamp}`, 1) }),

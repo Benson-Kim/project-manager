@@ -19,8 +19,8 @@ restated as an acceptance criterion in its module issue.
 | 9 | 2-Keyword(s) | keywords (keywords) | #8 | feature/keywords |
 | 10 | 3-Key Requirements Deliverables | key-deliverables | #9 | feature/key-deliverables |
 | 11 | 4-Objectives | objectives | #10 | feature/objectives |
-| 12 | 5-Meeting Minutes | meetings | #11 | feature/meetings |
-| 13 | 5.1 "Person Responsible" fed by project stakeholders | meetings | #11 | feature/meetings |
+| 12 | 5-Meeting Minutes | meetings (ADR-0028: meeting → agenda → discussion points → actions, participants; migration 024, seed 032; server layer in M1) | #11 | feature/meetings-workspace (M2: section, datasheet list, workspace header); feature/meetings-participants (M3: participants); feature/meetings-minutes (M4: the agenda → discussion points → actions editor with add, inline edit, delete and keyboard reorder, open and overdue actions, and the printed minutes at `/print`, ADR-0028 amendment of 2026-10-15) |
+| 13 | 5.1 "Person Responsible" fed by project stakeholders | meetings (the action item's `AssignedToStakeholderId`; the procs accept only a live stakeholder of the meeting's project, ADR-0028 §4) | #11 | feature/meetings-data (M1; UI in M2–M4); feature/meetings-participants (M3: the shared stakeholder picker in the stakeholders module); feature/meetings-minutes (M4: each action's "Person responsible" is the shared `StakeholderSelect` over the project's live stakeholders, "Name - Position, Organization"; printed in the minutes' action tables) |
 | 14 | 6-Q&A | questions-answers | #12 | feature/questions-answers |
 | 15 | 7-Supplier | suppliers | #7 | feature/suppliers |
 | 16 | 8-Assumptions/Constraints | assumptions-constraints | #13 | feature/assumptions-constraints |
@@ -60,8 +60,8 @@ restated as an acceptance criterion in its module issue.
 | 50 | Check resizing | mobile-first responsive design — every module (DoD) | all | all |
 | 51 | Multiple screens (framework + daily list side by side) | foundation (deep-linkable routes) + daily-activities | #2, #19 | feature/foundation |
 | 52 | Multiple project instances open at once | foundation (stateless routes, per-tab state) | #2 | feature/foundation |
-| 53 | Multiple meeting minutes per project | meetings | #11 | feature/meetings |
-| 54 | Meeting minutes extra fields (date received, participant list, title, objective) | meetings | #11 | feature/meetings |
+| 53 | Multiple meeting minutes per project | meetings (`usp_Meeting_List` per project; "New meeting" creates a draft, ADR-0028 §10) | #11 | feature/meetings-workspace (M2: the Meetings datasheet per project, "New meeting" opens a draft) |
+| 54 | Meeting minutes extra fields (date received, participant list, title, objective) | meetings (`DateReceived`, `Objective`; title = `Subject`; participants from the project's stakeholders via `usp_MeetingParticipant_Set`, ADR-0028 §1, §5) | #11 | feature/meetings-workspace (M2: title, objective, date received on the header); feature/meetings-participants (M3: the right-hand panel lists every project stakeholder, "Name - Position, Organization", as Not invited / Attended / Apology with search and counts, `usp_Meeting_GetRoster`, ADR-0028 amendment; counts on the list) |
 | 55 | Supplier address fields | suppliers | #7 | feature/suppliers |
 | 56 | Word-like functions everywhere | shared RichTextEditor + RichTextView + server sanitiser (P1, ADR-0025); modules adopt it | #15 | feature/rich-text |
 | 57 | To-do pop-up alerts w/ date+time, frequency, snooze | todo-alerts | #20 | feature/todo-alerts |
@@ -79,7 +79,7 @@ restated as an acceptance criterion in its module issue.
 | 69 | Project screen add-ons (priority, est. completion, phase, risk level, status) | projects | #5 | feature/projects |
 | 70 | Stakeholder screen add-ons (email, comm pref, engagement, role description) | stakeholders | #6 | feature/stakeholders |
 | 71 | Key deliverable add-ons (deadline, assigned-to, priority, status) | key-deliverables (delivered — Sheet form with date picker, stakeholder Combobox, status/priority) | #9 | feature/key-deliverables |
-| 72 | Meeting minutes add-ons (location, agenda, start/end time, follow-up) | meetings | #11 | feature/meetings |
+| 72 | Meeting minutes add-ons (location, agenda, start/end time, follow-up) | meetings (existing `Location`, `StartTime`/`EndTime` with end after start, `FollowupAction`; ordered agenda items with `_Reorder`, ADR-0028 §7, §10) | #11 | feature/meetings-workspace (M2: location, start/end time, follow-up on the header); feature/meetings-minutes (M4: the ordered agenda with Move up / Move down, its discussion points and actions, all printed in the minutes) |
 | 73 | Q&A add-ons (category, priority, assigned-to) | questions-answers | #12 | feature/questions-answers |
 | 74 | Supplier add-ons (contact, email, contract dates, rating, address) | suppliers | #7 | feature/suppliers |
 | 75 | Assumptions/constraints add-ons (type, impact, mitigation) | assumptions-constraints | #13 | feature/assumptions-constraints |

@@ -415,6 +415,28 @@ button:focus-visible {
   }
 }
 
+/* ── Printed meeting minutes ────────────────────────────────────────────────
+   Portrait A4: a named page, so the Gantt keeps its landscape @page.
+   ──────────────────────────────────────────────────────────────────────────── */
+@page minutes {
+  size: A4 portrait;
+  margin: 15mm 12mm;
+}
+
+@media print {
+  [data-print-page="minutes"] {
+    page: minutes;
+  }
+
+  [data-print-page="minutes"] tr {
+    break-inside: avoid;
+  }
+
+  [data-print-page="minutes"] :is(h2, h3) {
+    break-after: avoid;
+  }
+}
+
 /* Screen-reader-only utility (announcer, labels). */
 .sr-only {
   position: absolute;

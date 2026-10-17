@@ -74,6 +74,17 @@ describe("projectSectionGroups", () => {
     expect(activity.sections.map((s) => s.segment)).toContain("keywords");
   });
 
+  it("activity group ends with meetings, matched as a prefix for the workspace route", () => {
+    const activity = projectSectionGroups.find((g) => g.key === "activity")!;
+    expect(activity.sections.map((s) => s.segment)).toEqual([
+      "daily-activities",
+      "todos",
+      "keywords",
+      "meetings",
+    ]);
+    expect(activity.sections.at(-1)?.match).toBe("prefix");
+  });
+
   it("flatMap projectSections contains built segments in ADR-0018 order", () => {
     const segments = projectSections.map((s) => s.segment);
     expect(segments).toContain(".");

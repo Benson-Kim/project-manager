@@ -40,7 +40,12 @@ export interface ActionOptions<TSchema extends z.ZodType, TOutput> {
    * (ADR-0026): `(input) => permissionsOf(input.owner).update`.
    */
   permission: Permission | ((input: z.output<TSchema>) => Permission);
-  /** Paths (starting with "/") and tags to revalidate on success. */
+  /**
+   * Paths (starting with "/") and tags to revalidate on success. A path with a
+   * dynamic segment ("/projects/[id]/meetings") is a route pattern: Next needs
+   * the "page" type to match every rendered instance; without it the literal
+   * string matches nothing.
+   */
   revalidate?: string[];
   handler: (input: z.output<TSchema>, ctx: ActionContext) => Promise<TOutput>;
 }
@@ -119,8 +124,9 @@ export function action<TSchema extends z.ZodType, TOutput>(
       // mutation, Next 16 updateTag): revalidateTag(tag, profile) is the
       // stale-while-revalidate variant, not what a mutation wants.
       for (const target of options.revalidate ?? []) {
-        if (target.startsWith("/")) revalidatePath(target);
-        else updateTag(target);
+        if (!target.startsWith("/")) updateTag(target);
+        else if (target.includes("[")) revalidatePath(target, "page");
+        else revalidatePath(target);
       }
 
       return { ok: true, data };

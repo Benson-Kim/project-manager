@@ -163,6 +163,18 @@ describe("daily-activities repository", () => {
     expect(params.DailyActivityId).toBe(10);
   });
 
+  it("update sends the attachment quota, so a move cannot overfill the new project", async () => {
+    vi.stubEnv("UPLOADS_QUOTA_MB_PER_PROJECT", "3");
+    try {
+      execProc.mockResolvedValue([dbRow()]);
+      await updateDailyActivity({ dailyActivityId: 10, rowVer: 88, projectId: 4 }, 7);
+      const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+      expect(params.QuotaBytes).toBe(3 * 1024 * 1024);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("delete forwards DailyActivityId and RowVer", async () => {
     execProc.mockResolvedValue([]);
     await deleteDailyActivity(10, 88, 7);

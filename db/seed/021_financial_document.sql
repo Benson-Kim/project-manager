@@ -1,7 +1,7 @@
 ﻿-- Seed app.FinancialDocument — ALL rows from docs/source/analysis/access-database.md §4 (tblProjectFinancialDocuments).
 -- Idempotent: inserts only missing ids; original IDs preserved via IDENTITY_INSERT.
 -- CreatedBy = 0 (system/migration actor; auth.User arrives with module #4).
--- Name / SortOrder (migration 033, ADR-0030): the display name of the legacy type and its order.
+-- Name / SortOrder (migration 034, ADR-0030): the display name of the legacy type and its order.
 USE ProjectManager;
 GO
 SET IDENTITY_INSERT app.FinancialDocument ON;

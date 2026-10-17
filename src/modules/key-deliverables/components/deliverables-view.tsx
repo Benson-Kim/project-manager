@@ -16,7 +16,7 @@ import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
 
 import { createKeyDeliverableAction, updateKeyDeliverableAction } from "../actions";
-import type { StakeholderOption } from "../repository/stakeholder-options";
+import type { StakeholderOption } from "@/modules/stakeholders/repository/stakeholder-options";
 import {
   isOverdue,
   type KeyDeliverableListRow,

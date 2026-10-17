@@ -7,8 +7,12 @@
 -- @WithProjectRow = 1: a project without items still returns one row (KeyDeliverableId NULL) for
 --   the project window. Off by default, so an app from before 032 (another user's desktop install
 --   on the same database) never gets a row it cannot read.
--- Stamp (MIN_ACTIVE_ROWVERSION, read before the rows) orders two reads: the editor keeps the
---   breakdown it has when a page refresh brings an older one than its last save returned.
+-- Stamp orders two reads: the editor keeps the breakdown it has when a page refresh brings an
+--   older one than its last save returned. It is the newest RowVer among the project's items,
+--   deleted ones included (a delete is an UPDATE, so it moves the stamp too), read before the rows.
+--   Every write to an item locks app.Project first, so RowVer order is commit order. Equal stamps
+--   mean the same items; a later read with an equal stamp may still bring newer names or project
+--   dates, so the editor takes it.
 -- Row-level access: the project must be accessible (dbo.usp_Project_AssertAccess,
 --   FORBIDDEN_ROW 50003; Admin bypass).
 USE ProjectManager;
@@ -27,7 +31,8 @@ BEGIN
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @ProjectId, @ActorUserId = @ActorUserId, @MinLevel = N'Viewer';
 
-    DECLARE @Stamp BIGINT = CAST(MIN_ACTIVE_ROWVERSION() AS BIGINT);
+    DECLARE @Stamp BIGINT =
+        ISNULL((SELECT MAX(CAST(RowVer AS BIGINT)) FROM app.KeyDeliverable WHERE ProjectId = @ProjectId), 0);
 
     SELECT kd.KeyDeliverableId,
            kd.ProjectId,

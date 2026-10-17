@@ -68,6 +68,10 @@ export async function backupDatabase(kind: BackupKind, opts: BackupOptions): Pro
       .request()
       .input("file", sql.NVarChar, file)
       .batch("RESTORE VERIFYONLY FROM DISK = @file WITH CHECKSUM");
+  } catch (err) {
+    // A partial or unverified file would pass for today's backup (latestBackup) and stop retries.
+    await fs.unlink(file).catch(() => undefined);
+    throw err;
   } finally {
     await pool.close();
   }

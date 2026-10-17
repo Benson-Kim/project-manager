@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
-import { datesInOrder } from "@/lib/date-range";
+import { datesInOrder, datesWere, storedDates } from "@/lib/date-range";
 import { toDateInput } from "@/lib/format";
 import { listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
@@ -72,6 +72,7 @@ export const updateTodoItemFormSchema = todoItemFields
   .extend({
     todoItemId: z.coerce.number().int().positive(),
     rowVer: rowVerSchema,
+    ...datesWere("startDate", "dueDate"),
   })
   .superRefine(todoDates);
 
@@ -88,6 +89,7 @@ export function todoItemFormValues(row: TodoItemRow): FormValues {
     todoItem: formText(row.TodoItem),
     startDate: toDateInput(row.StartDate),
     dueDate: toDateInput(row.DueDate),
+    ...storedDates({ startDate: row.StartDate, dueDate: row.DueDate }),
     priority: formText(row.Priority),
     status: formText(row.Status),
     notes: formText(row.Notes),

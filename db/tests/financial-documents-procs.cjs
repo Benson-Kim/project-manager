@@ -262,7 +262,7 @@ const spath = (n) => { const h = sha(n); return `${h.slice(0, 2)}/${h.slice(2, 4
   const [[live]] = await exec("usp_FinancialDocument_CanAddFile", { FinancialDocumentId: undecided.FinancialDocumentId, ActorUserId: PM }).catch(() => [[null]]);
   ok(live === null, "can-add on a deleted financial's document fails");
 
-  // Legacy procs are gone (dropped by migration 033): calling one is error 2812.
+  // Legacy procs are gone (dropped by migration 034): calling one is error 2812.
   for (const proc of ["usp_FinancialDocument_GetById", "usp_FinancialDocument_List", "usp_Financial_GetDocumentChecklist"]) {
     await expectCode(2812, `${proc} dropped`, () => exec(proc, { ActorUserId: PM }));
   }

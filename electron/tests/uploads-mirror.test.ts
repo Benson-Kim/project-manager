@@ -78,6 +78,23 @@ describe("mirrorUploads (ADR-0026 §9)", () => {
     expect(all.some((p) => p.endsWith(".partial"))).toBe(false);
   });
 
+  it("replaces a truncated or half-synced copy in the copy folder from the intact source", async () => {
+    const rel = store(src, "alpha bytes");
+    await mirrorUploads(src, dest);
+    damage(dest, rel, "alpha");
+    expect(await mirrorUploads(src, dest)).toEqual({ copied: 1, damaged: [] });
+    expect(fs.readFileSync(path.join(dest, rel), "utf8")).toBe("alpha bytes");
+  });
+
+  it("keeps the copy folder's file when the source of another size is damaged too", async () => {
+    const rel = store(src, "alpha bytes");
+    await mirrorUploads(src, dest);
+    damage(src, rel, "changed in the uploads folder");
+    const result = await mirrorUploads(src, dest);
+    expect(result).toEqual({ copied: 0, damaged: [rel.split(path.sep).join("/")] });
+    expect(fs.readFileSync(path.join(dest, rel), "utf8")).toBe("alpha bytes");
+  });
+
   it("never copies a source file whose bytes no longer match its name", async () => {
     const good = store(src, "alpha");
     const bad = store(src, "beta");
