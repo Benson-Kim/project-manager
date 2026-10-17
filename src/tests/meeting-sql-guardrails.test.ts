@@ -45,9 +45,13 @@ function afterBeginTran(name: string, needle: string | RegExp): boolean {
   return typeof needle === "string" ? rest.includes(needle) : needle.test(rest);
 }
 
-/** Access qryMeetingAttendees' "Name - Position, Organization", written once per proc. */
+/** Access qryMeetingAttendees' "Name - Position, Organization" for a stakeholder, written once per proc. */
 const LABEL =
-  "CONCAT(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N' - ' + NULLIF(TRIM(s.OrgTitle), N''), N', ' + NULLIF(TRIM(s.DepartmentOrganization), N'')) AS Label";
+  "CONCAT(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N' - ' + NULLIF(TRIM(s.OrgTitle), N''), N', ' + NULLIF(TRIM(s.DepartmentOrganization), N''))";
+/** "Name - Organization" for a guest (migration 033). */
+const GUEST_LABEL = "CONCAT(mp.GuestName, N' - ' + NULLIF(TRIM(mp.GuestOrganization), N''))";
+/** A participant row's label: the guest's, or the stakeholder's. */
+const PERSON_LABEL = `CASE WHEN mp.StakeholderId IS NULL THEN ${GUEST_LABEL} ELSE ${LABEL} END AS Label`;
 
 const LOCK = "FROM app.Meeting WITH (UPDLOCK, HOLDLOCK)";
 
@@ -57,7 +61,7 @@ describe("meeting SQL guardrails", () => {
     expect(PROCS.size).toBe(34);
   });
 
-  it("labels participants the same way everywhere", () => {
+  it("labels participants the same way everywhere, guests included", () => {
     const labelled = [...PROCS].filter(([, text]) => /AS Label\b/.test(text)).map(([name]) => name);
     expect(labelled.sort()).toEqual(
       [
@@ -72,7 +76,22 @@ describe("meeting SQL guardrails", () => {
         "usp_MeetingParticipant_Update",
       ].sort(),
     );
-    for (const name of labelled) expect(sql(name), name).toContain(LABEL);
+    for (const name of labelled) {
+      const text = sql(name);
+      expect(text, name).toContain(GUEST_LABEL);
+      if (name === "usp_Meeting_GetRoster") {
+        expect(text).toContain(`${LABEL} AS Label`);
+        expect(text).toContain(`${GUEST_LABEL} AS Label`);
+      } else {
+        expect(text, name).toContain(PERSON_LABEL);
+        expect(text, name).toContain(
+          "LEFT JOIN app.Stakeholder AS s ON s.StakeholderId = mp.StakeholderId",
+        );
+        expect(text, name).not.toContain(
+          "ORDER BY s.FirstName, s.LastName, mp.MeetingParticipantId",
+        );
+      }
+    }
   });
 
   it("returns no stakeholder contact details", () => {
@@ -115,6 +134,52 @@ describe("meeting SQL guardrails", () => {
     expect(lock).toBeGreaterThan(text.indexOf("BEGIN TRAN"));
     expect(stamp).toBeGreaterThan(lock);
     expect(text.slice(stamp)).toMatch(/^> @Stamp\s+THROW 50002, N'CONFLICT:/);
+  });
+
+  it("saves guests by name: one identity per item, listed once, never as a stakeholder row", () => {
+    const text = sql("usp_MeetingParticipant_Set");
+    const flat = text.replace(/\s+/g, " ");
+    expect(text).toContain(
+      "(StakeholderId IS NOT NULL AND GuestName IS NULL AND GuestOrganization IS NULL)",
+    );
+    expect(text).toContain("OR (StakeholderId IS NULL AND GuestName IS NOT NULL))");
+    expect(text).toContain("LEN(GuestName) > 255 OR LEN(GuestOrganization) > 255");
+    expect(text).toContain("<> (SELECT COUNT(*) FROM @Wanted WHERE StakeholderId IS NOT NULL)");
+    expect(flat).toContain(
+      "INSERT INTO app.MeetingParticipant ([MeetingId], [StakeholderId], [IsApology], CreatedBy) SELECT @MeetingId, w.StakeholderId, w.IsApology, @ActorUserId FROM @Wanted AS w WHERE w.StakeholderId IS NOT NULL",
+    );
+    expect(flat).toContain(
+      "INSERT INTO app.MeetingParticipant ([MeetingId], [StakeholderId], GuestName, GuestOrganization, [IsApology], CreatedBy) SELECT @MeetingId, NULL, w.GuestName, w.GuestOrganization, w.IsApology, @ActorUserId FROM @Wanted AS w WHERE w.GuestName IS NOT NULL",
+    );
+    expect(flat).toContain(
+      "AND mp.StakeholderId IS NULL AND NOT EXISTS (SELECT 1 FROM @Wanted AS w WHERE w.GuestName = mp.GuestName)",
+    );
+  });
+
+  it("lists the meeting's guests in the roster, with the live stakeholders", () => {
+    const roster = sql("usp_Meeting_GetRoster");
+    expect(roster).toContain(
+      "WHERE mp.MeetingId = @MeetingId AND mp.IsDeleted = 0 AND mp.StakeholderId IS NULL",
+    );
+    expect(roster).toContain("r.GuestName, r.GuestOrganization");
+  });
+
+  it("keeps one identity per participant row and one live row per guest name (migration 033)", () => {
+    const migration = readFileSync("db/migrations/033_meeting_guest_participants.sql", "utf8");
+    const flat = migration.replace(/\s+/g, " ");
+    expect(flat).toContain(
+      "ALTER TABLE app.MeetingParticipant ALTER COLUMN StakeholderId INT NULL",
+    );
+    expect(flat).toContain(
+      "WHERE IsDeleted = 0 AND MeetingId IS NOT NULL AND StakeholderId IS NOT NULL",
+    );
+    expect(flat).toContain("ON app.MeetingParticipant (MeetingId, GuestName)");
+    expect(flat).toContain(
+      "WHERE IsDeleted = 0 AND MeetingId IS NOT NULL AND GuestName IS NOT NULL",
+    );
+    expect(flat).toContain(
+      "CK_MeetingParticipant_Person CHECK ( (StakeholderId IS NOT NULL AND GuestName IS NULL AND GuestOrganization IS NULL) OR (StakeholderId IS NULL AND GuestName IS NOT NULL AND LEN(GuestName) > 0))",
+    );
   });
 
   it("checks the order against the live siblings, read under a lock, after taking the meeting lock", () => {

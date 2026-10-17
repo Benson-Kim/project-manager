@@ -293,3 +293,32 @@ Discard makes the traversal again. Without the Navigation API, Back stays unguar
 The stakeholder picker moved to the stakeholders module (`stakeholders/repository/
 stakeholder-options.ts`, `stakeholders/components/stakeholder-picker.tsx`), which ADR-0001 allows
 other modules to use. Key deliverables uses it unchanged; the meeting action items (M4) will too.
+
+## Amendment 2026-10-17: guests (M3)
+
+A meeting can list people who attended, or sent apologies, without being stakeholders of the
+project: a supplier's representative, a guest speaker, a note-taker. Making them stakeholders would
+pad the register with people who hold no stake, so they are **guests**: participant rows without a
+stakeholder.
+
+- Migration 033: `MeetingParticipant.StakeholderId` is nullable; `GuestName` (required for a
+  guest) and `GuestOrganization` name the guest. `CK_MeetingParticipant_Person` keeps exactly one
+  identity per row. The unique index per stakeholder covers stakeholder rows only;
+  `UX_MeetingParticipant_Meeting_Guest` lists a guest name once per live meeting.
+- A guest's identity within a meeting is their trimmed name, case-insensitively (the database
+  collation; accents count). `usp_MeetingParticipant_Set` takes
+  `{guestName, guestOrganization, isApology}` items next to `{stakeholderId, isApology}` ones and
+  applies the same diff: a listed guest is added or switched (state, organization, spelling), an
+  unlisted guest is removed. An item with both identities, or a guest listed twice, is VALIDATION.
+- Labels read "Name - Organization" (no position). Every proc that returns participant rows
+  (`GetParticipants`, `GetAttendees`, `GetApologies`, `GetWorkspace`, the roster, the
+  `MeetingParticipant` CRUD) left-joins the stakeholder and returns `GuestName` /
+  `GuestOrganization`; the guardrails keep the label expressions identical.
+- The roster lists guests with the live stakeholders, marked "Guest, not a stakeholder". The panel
+  adds a guest by name and organization in its own small form (so Enter adds the guest and never
+  saves the panel); the new person joins the list as attended, unsaved, and Save stores them. Not
+  invited drops an unsaved guest and removes a saved one, so a guest is never "not invited". The
+  panel keys guests by name and stakeholders by id (`personKey`).
+- Action items still name a stakeholder as the person responsible (§4); a guest cannot be
+  assigned one. Lift that only if the client asks.
+- The meetings list counts guests among attendees and apologies, as it counts everyone.
