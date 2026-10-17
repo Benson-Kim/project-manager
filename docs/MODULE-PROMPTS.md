@@ -40,9 +40,9 @@ on are merged to `develop`, and branch from the updated `develop`.
 | 3 | **I2** IT resource planning — UI | `feature/it-resources-ui` | I1, P1 | — |
 | 4 | **M3** Meetings — participants (attended / apologies) | `feature/meetings-participants` | M2 | — |
 | 4 | **N1** Notes — database, server layer, notes workspace | `feature/notes` | P1, S1, CF | 026 |
-| 4 | **FI1** Financials — database & server layer | `feature/financials-data` | F1, S1, CF | 027 |
+| 4 | **FI1** Financials — database & server layer — calculator part **done** (ADR-0029, `feature/financials-calculator`, migration 027); document checklist **done** (ADR-0030, migration 034) | `feature/financials-data` | F1, S1, CF | 027 (used) |
 | 5 | **M4** Meetings — agenda → discussion → action items, printable minutes | `feature/meetings-minutes` | M3 | — |
-| 5 | **FI2** Financials — UI (breakdown, document checklist, tracking export) | `feature/financials-ui` | FI1 | — |
+| 5 | **FI2** Financials — UI (breakdown, document checklist, tracking export) — breakdown, planner, monitoring and CSV export **done** (ADR-0029); document checklist, print view, PDF and project CSV **done** (ADR-0030) | `feature/financials-ui` | FI1 | — |
 | 5 | **F2** Backup status + GitHub-based restore | `feature/backup-status` | F1 | 028 |
 | 6 | **A1** Admin — users & roles | `feature/admin-users` | S1 | — |
 | 6 | **A2** Admin — audit viewer, backup status panel, settings | `feature/admin-audit` | A1, F2 | 029 |
@@ -58,10 +58,10 @@ number is already taken when you open the PR, take the next free number and say 
 the PR. Client feedback of 2026-10-12 (on `feature/file-storage`) took **031**
 (parking lot status) and seed 030. The WBS and Gantt rebuild of 2026-10-13
 (`feature/wbs-gantt`, ADR-0027) took migration **032** and seed 031; meeting guests
-(`feature/meetings-participants`, ADR-0028 amendment of 2026-10-17) took migration **033**; the next
-free migration is 034 and the next free seed 033. Never edit a migration that is merged.
+(`feature/meetings-participants`, ADR-0028 amendment of 2026-10-17) took migration **033** and the financial
+document checklist (ADR-0030) migration **034**; the next free migration is 035 and the next free seed 033. Never edit a migration that is merged.
 P1 took ADR-0025 (develop's ADR-0020 is web push), F1 took 0026 and the WBS rebuild
-took 0027, so the next free ADR number is **0028**.
+took 0027, so the next free ADR number is **0028**. Meetings took 0028 and the financials calculator 0029 (2026-10-16), the financial document checklist 0030 (with migration **034**): 0031 and 0032 went to the request gate / throttling and topology work the same day and 0033 to the server edition's EXECUTE-only app login (no migration); 0034 is reserved for desktop update signing, so the next free ADR is **0035** and the next free migration **034** (028-030 stay reserved for F2, A2 and RP1).
 
 **Desktop edition follow-ups.** D1 is merged, and every green push to develop ships a desktop
 release, so F1 does its desktop wiring itself (`UPLOADS_DIR`, the folder, backups). After **F2**,
@@ -1133,6 +1133,8 @@ Do:
    applies them).
 4. Least-privilege DB login: migration/script creating pm_app_runtime with EXECUTE on dbo.usp_*
    only; compose/.env.example/CI use it for the app; sa only for db-apply.
+   **Done 2026-10-16 (ADR-0033)**: login `pm_web`, role `app_executor` (EXECUTE on schema dbo),
+   `db/security/app-login.sql` via db-apply.sh, admin scripts on DB_ADMIN_USER/DB_ADMIN_PASSWORD.
 5. Delete .gitlab-ci.yml; rewrite GitLab sections of PLAN/STANDARDS/AGENTS/LESSONS/README for
    GitHub (keep history notes short); delete the stale docs/LESSONS.md (root is canonical).
 6. Deploy jobs: keep them as documented stubs unless a target exists — list what's needed.

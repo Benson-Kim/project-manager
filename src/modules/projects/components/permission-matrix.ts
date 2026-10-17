@@ -21,6 +21,8 @@ const P = messages.projects;
 export const SECTION_LABELS: Record<OverridableModule, string> = {
   "assumptions-constraints": P.assumptionsConstraintsSection,
   "daily-activities": P.dailyActivitiesSection,
+  "financial-tax-invoices": P.financialTaxInvoicesSection,
+  financials: P.financialsSection,
   "key-deliverables": P.deliverablesSection,
   keywords: P.keywordsSection,
   meetings: P.meetingsSection,

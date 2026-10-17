@@ -66,6 +66,10 @@ async function exec(sqlText: string, database = target.database) {
   }
 }
 
+// Not derived from the database name: the block is re-targeted by replacing that name.
+const testLogin = `pm_app_desktoptest_${crypto.randomBytes(3).toString("hex")}`;
+const ownDb = `${target.database}_Own`;
+
 async function main() {
   console.log(`Desktop DB integration test → ${target.host}:${target.port} / ${target.database}`);
   const work = await fs.mkdtemp(path.join(os.tmpdir(), "pm-desktop-test-"));
@@ -126,7 +130,10 @@ async function main() {
 
     await test("second launch: nothing re-applied, deleted seed rows stay deleted", async () => {
       await exec("UPDATE app.Project SET IsDeleted = 1 WHERE ProjectId = 1");
-      await exec("UPDATE app.ActivityStatus SET Name = N'To do' WHERE Name = N'Not Started'");
+      // Activity statuses are a managed list since migration 018 (ADR-0022).
+      await exec(
+        "UPDATE app.LookupOption SET Label = N'To do' WHERE ListKey = N'daily-activity.status' AND Label = N'Not Started'",
+      );
       const r = await applyDatabaseSchema({ target, dbDir, log });
       assert.deepEqual(r.migrationsApplied, []);
       assert.equal(r.procsApplied, false);
@@ -136,7 +143,9 @@ async function main() {
         true,
       );
       assert.equal(
-        await scalar<number>("SELECT COUNT(*) FROM app.ActivityStatus WHERE Name = N'Not Started'"),
+        await scalar<number>(
+          "SELECT COUNT(*) FROM app.LookupOption WHERE ListKey = N'daily-activity.status' AND Label = N'Not Started'",
+        ),
         0,
       );
     });
@@ -244,8 +253,84 @@ async function main() {
       assert.deepEqual(r.migrationsApplied, []);
     });
 
+    await test("provisioning: the app login block demotes, grants and stays idempotent", async () => {
+      // The exact T-SQL provision.ps1 runs (least-privilege lines; the sa lines are left
+      // alone), on a throwaway login against this test database (ADR-0031 review, 2483133).
+      const script = await fs.readFile(
+        path.join(repoRoot, "electron", "setup", "provision.ps1"),
+        "utf8",
+      );
+      const heredoc = /\$loginSql = @"\r?\n([\s\S]*?)\r?\n"@/.exec(script);
+      assert.ok(heredoc, "login block found in provision.ps1");
+      const lines = heredoc[1].split(/\r?\n/);
+      const start = lines.findIndex((l) => l.startsWith("-- Least privilege"));
+      const end = lines.findIndex((l) => l.startsWith("ALTER LOGIN [sa]"));
+      assert.ok(start > 0 && end > start, "least-privilege lines found");
+      const block = lines
+        .slice(start, end)
+        .join("\n")
+        .replaceAll("pm_app", testLogin)
+        .replaceAll("ProjectManager", target.database);
+      assert.ok(block.includes("DROP MEMBER") && block.includes("db_owner"));
+
+      await exec(
+        `IF SUSER_ID(N'${testLogin}') IS NOT NULL DROP LOGIN ${quoteName(testLogin)};
+         CREATE LOGIN ${quoteName(testLogin)} WITH PASSWORD = N'Desktop-Test-Login-0123456789', CHECK_POLICY = OFF;
+         ALTER SERVER ROLE [sysadmin] ADD MEMBER ${quoteName(testLogin)};`,
+        "master",
+      );
+      await exec(block, "master");
+      await exec(block, "master"); // a Repair on an already-demoted PC changes nothing
+      assert.equal(
+        await scalar<number>(`SELECT IS_SRVROLEMEMBER(N'sysadmin', N'${testLogin}')`),
+        0,
+      );
+      assert.equal(
+        await scalar<number>(`SELECT IS_SRVROLEMEMBER(N'dbcreator', N'${testLogin}')`),
+        1,
+      );
+      assert.equal(
+        await scalar<number>(
+          `SELECT IS_ROLEMEMBER(N'db_owner', (SELECT name FROM sys.database_principals WHERE sid = SUSER_SID(N'${testLogin}')))`,
+        ),
+        1,
+        "db_owner of the app database",
+      );
+      assert.equal(
+        await scalar<number>(
+          "SELECT CAST(value_in_use AS INT) FROM sys.configurations WHERE name = N'xp_cmdshell'",
+        ),
+        0,
+      );
+      // What the demoted login can and cannot do (impersonated: server-level permissions).
+      const asLogin = (sql: string) =>
+        exec(`EXECUTE AS LOGIN = N'${testLogin}'; ${sql}; REVERT;`, "master");
+      await asLogin(`CREATE DATABASE ${quoteName(ownDb)}`);
+      await exec(`CREATE TABLE dbo.ProvisionTest (Id INT)`, ownDb);
+      await exec(`DROP TABLE dbo.ProvisionTest`, ownDb);
+      for (const forbidden of [
+        `ALTER SERVER ROLE [sysadmin] ADD MEMBER ${quoteName(testLogin)}`,
+        `EXEC sp_configure N'xp_cmdshell', 1`,
+      ]) {
+        await assert.rejects(asLogin(forbidden), /permission|not have|does not exist/i, forbidden);
+      }
+      // A database the login created maps it to dbo: the block must skip the grant quietly.
+      await exec(block.replaceAll(target.database, ownDb), "master");
+      assert.equal(
+        await scalar<string>(
+          `SELECT name FROM ${quoteName(ownDb)}.sys.database_principals WHERE sid = SUSER_SID(N'${testLogin}')`,
+        ),
+        "dbo",
+      );
+    });
+
     console.log(`\nAll ${passed} checks passed.`);
   } finally {
+    await exec(
+      `IF DB_ID(N'${ownDb}') IS NOT NULL BEGIN ALTER DATABASE ${quoteName(ownDb)} SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE ${quoteName(ownDb)}; END;
+       IF SUSER_ID(N'${testLogin}') IS NOT NULL DROP LOGIN ${quoteName(testLogin)};`,
+      "master",
+    ).catch((e) => console.error("login cleanup failed:", e));
     await exec(
       `IF DB_ID(N'${target.database}') IS NOT NULL BEGIN ALTER DATABASE ${quoteName(target.database)} SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE ${quoteName(target.database)}; END`,
       "master",

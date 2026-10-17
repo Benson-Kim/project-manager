@@ -1,19 +1,68 @@
 #!/bin/sh
-# Apply migrations, stored procedures and seeds to SQL Server.
+# Apply migrations, stored procedures and seeds to SQL Server, then the app's
+# runtime login (db/security/app-login.sql, ADR-0033).
+# Usage: db-apply.sh [--login-only]   (--login-only: just the login, e.g. after
+# restoring the database onto another server, where its user is orphaned)
 # Migrations are tracked in app.SchemaMigrations and applied exactly once;
 # procs (CREATE OR ALTER) and seeds (MERGE/idempotent) are always re-applied.
-# Requires sqlcmd and env: DB_SERVER (default localhost), DB_USER (sa), DB_PASSWORD.
+# Requires sqlcmd and env: DB_SERVER (default localhost), DB_ADMIN_USER (default sa),
+# DB_ADMIN_PASSWORD (default MSSQL_SA_PASSWORD), and for the runtime login
+# DB_APP_USER (default pm_web) + DB_APP_PASSWORD. DB_USER / DB_PASSWORD are the
+# app's own login and are never read here, so sourcing .env cannot swap them.
 set -eu
+
+case "${1:-}" in
+  "") LOGIN_ONLY=0 ;;
+  --login-only) LOGIN_ONLY=1 ;;
+  *) echo "usage: db-apply.sh [--login-only]" >&2; exit 2 ;;
+esac
 
 DB_SERVER="${DB_SERVER:-localhost}"
 DB_PORT="${DB_PORT:-1433}"
-DB_USER="${DB_USER:-sa}"
+DB_ADMIN_USER="${DB_ADMIN_USER:-sa}"
+DB_ADMIN_PASSWORD="${DB_ADMIN_PASSWORD:-${MSSQL_SA_PASSWORD:-}}"
 DB_NAME="${DB_NAME:-ProjectManager}"
-: "${DB_PASSWORD:?DB_PASSWORD is required}"
+: "${DB_ADMIN_PASSWORD:?DB_ADMIN_PASSWORD (or MSSQL_SA_PASSWORD) is required}"
 
 # -I: SET QUOTED_IDENTIFIER ON — required for filtered indexes (both creating
 # them and any DML on tables that carry them). sqlcmd defaults it OFF.
-SQLCMD="sqlcmd -S tcp:${DB_SERVER},${DB_PORT} -U ${DB_USER} -P ${DB_PASSWORD} -C -b -I"
+SQLCMD="sqlcmd -S tcp:${DB_SERVER},${DB_PORT} -U ${DB_ADMIN_USER} -P ${DB_ADMIN_PASSWORD} -C -b -I"
+
+# --- runtime login (ADR-0033) ------------------------------------------------
+# Checked before anything is applied so a bad value fails fast.
+DB_APP_USER="${DB_APP_USER:-pm_web}"
+APP_LOGIN="__SKIP__"
+APP_PASSWORD_SQL="__SKIP__"
+if [ -n "${DB_APP_PASSWORD:-}" ]; then
+  case "$DB_APP_USER" in
+    "" | *[!A-Za-z0-9_]*) echo "ERROR: DB_APP_USER must be letters, digits or _" >&2; exit 1 ;;
+  esac
+  if [ "$DB_APP_USER" = "sa" ] || [ "$DB_APP_USER" = "$DB_ADMIN_USER" ]; then
+    echo "ERROR: DB_APP_USER must not be the admin login" >&2; exit 1
+  fi
+  NL='
+'
+  case "$DB_APP_PASSWORD" in
+    *"$NL"*) echo "ERROR: DB_APP_PASSWORD must be one line" >&2; exit 1 ;;
+  esac
+  APP_LOGIN="$DB_APP_USER"
+  # sqlcmd pastes the value into N'…': double its single quotes.
+  APP_PASSWORD_SQL="$(printf '%s' "$DB_APP_PASSWORD" | sed "s/'/''/g")"
+elif [ "$LOGIN_ONLY" = 1 ]; then
+  echo "ERROR: --login-only needs DB_APP_PASSWORD" >&2; exit 1
+fi
+
+app_login() {
+  # The password travels only to this one sqlcmd, as an environment variable.
+  echo ">> db/security/app-login.sql"
+  DB_APP_USER="$APP_LOGIN" DB_APP_PASSWORD_SQL="$APP_PASSWORD_SQL" $SQLCMD -i db/security/app-login.sql
+}
+
+if [ "$LOGIN_ONLY" = 1 ]; then
+  app_login
+  echo "App login apply complete."
+  exit 0
+fi
 
 # --- auth seed hashes (module #4) --------------------------------------------
 # The admin/e2e seeds need argon2id hashes computed at seed time — no plaintext
@@ -71,5 +120,7 @@ done
 
 find db/procs -name '*.sql' | sort | while read -r f; do run "$f"; done
 for f in db/seed/*.sql; do run "$f"; done
+
+app_login
 
 echo "Database apply complete."

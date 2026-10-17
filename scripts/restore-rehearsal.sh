@@ -5,19 +5,21 @@
 # the same server (the backup files are still on the server's disk), then
 # runs sanity queries. Backups are only real if restores are tested.
 #
-# Env: DB_SERVER, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, BACKUP_DIR.
+# Env: DB_SERVER, DB_PORT, DB_ADMIN_USER (default sa), DB_ADMIN_PASSWORD (default
+#      MSSQL_SA_PASSWORD; never DB_USER/DB_PASSWORD, the app's own login), DB_NAME, BACKUP_DIR.
 set -eu
 
 DB_SERVER="${DB_SERVER:-mssql}"
 DB_PORT="${DB_PORT:-1433}"
-DB_USER="${DB_USER:-sa}"
+DB_ADMIN_USER="${DB_ADMIN_USER:-sa}"
 DB_NAME="${DB_NAME:-ProjectManager}"
 REHEARSAL_DB="${REHEARSAL_DB:-${DB_NAME}_Rehearsal}"
 BK_DIR="${BACKUP_DIR:-/var/opt/mssql/data}"
-: "${DB_PASSWORD:?DB_PASSWORD is required}"
+DB_ADMIN_PASSWORD="${DB_ADMIN_PASSWORD:-${MSSQL_SA_PASSWORD:-}}"
+: "${DB_ADMIN_PASSWORD:?DB_ADMIN_PASSWORD (or MSSQL_SA_PASSWORD) is required}"
 
-sqlrun() { sqlcmd -S "tcp:${DB_SERVER},${DB_PORT}" -U "$DB_USER" -P "$DB_PASSWORD" -C -b -Q "$1"; }
-sqlval() { sqlcmd -S "tcp:${DB_SERVER},${DB_PORT}" -U "$DB_USER" -P "$DB_PASSWORD" -C -b -h -1 -W -Q "SET NOCOUNT ON; $1" | tr -d '[:space:]'; }
+sqlrun() { sqlcmd -S "tcp:${DB_SERVER},${DB_PORT}" -U "$DB_ADMIN_USER" -P "$DB_ADMIN_PASSWORD" -C -b -Q "$1"; }
+sqlval() { sqlcmd -S "tcp:${DB_SERVER},${DB_PORT}" -U "$DB_ADMIN_USER" -P "$DB_ADMIN_PASSWORD" -C -b -h -1 -W -Q "SET NOCOUNT ON; $1" | tr -d '[:space:]'; }
 
 # Latest backup set on the server for this DB.
 STAMP="$(sqlval "SELECT TOP 1 REPLACE(REPLACE(b.name,'$DB_NAME-full-',''),'.bak','') FROM (SELECT physical_device_name AS name FROM msdb.dbo.backupmediafamily) b WHERE b.name LIKE '%$DB_NAME-full-%' ORDER BY b.name DESC;")"

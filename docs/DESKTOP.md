@@ -15,7 +15,7 @@ Installer (per user, no admin rights needed)
     runs resources\setup\provision.ps1  (admin prompt, once; idempotent; also the app's "Repair")
       ├─ installs SQL Server 2022 Express, instance PROJECTMGR   (first install only)
       ├─ TCP 127.0.0.1:14330 only + firewall block rule           (not reachable from the network)
-      ├─ login pm_app (random password), sa disabled
+      ├─ login pm_app (random password): dbcreator + db_owner of its database, not sysadmin; sa disabled
       ├─ service restarts itself after a failure; signed-in users may start it (not stop or configure)
       ├─ %ProgramData%\Project Manager\Backups  (writable by the SQL service)
       ├─ %ProgramData%\Project Manager\Uploads  (attachments; writable by every local user, ADR-0026)
@@ -77,11 +77,35 @@ Before a big release, test the installer on a clean Windows PC/VM (install →
 sign in with the shown admin password → add a record → *Back up now* → install
 the next version over it → data still there).
 
-### Code signing (optional)
-Set `CSC_LINK` / `CSC_KEY_PASSWORD` (or Azure Trusted Signing). An unsigned
-installer shows Windows SmartScreen's "Windows protected your PC" on first
-install — the user must click *More info → Run anyway*. Updates installed by
-the app itself do not show it.
+### Code signing ([ADR-0034](adr/ADR-0034-desktop-update-signing.md))
+
+Releases are signed with the office's own publisher certificate, and every
+installed app verifies an update's signature (valid chain on that PC + the
+publisher's subject) before installing it. One-time setup:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/desktop/make-publisher-cert.ps1 `
+  -Subject "CN=Burton Project Manager, O=Burton" -OutDir C:\secure\pm-signing
+```
+
+It prints the three GitHub settings: secrets `WIN_CSC_LINK` (base64 of the
+PFX) and `WIN_CSC_KEY_PASSWORD`, repository variable `PM_PUBLISHER` (the
+subject). Commit the public half as `build-resources/publisher.cer`: the
+installer ships it and provisioning trusts it on each PC, once, while
+elevated (first install or Repair). Keep the PFX with the office's other
+secrets; it is git-ignored.
+
+- Without the secrets the release job builds unsigned (with a warning) and
+  apps do not verify signatures, as before 2026-10-16.
+- A certificate from a public CA works the same way: set the three values
+  from its PFX and drop the `.cer`. Only such a certificate (with reputation)
+  removes SmartScreen's "Windows protected your PC" on the **first** install;
+  the self-issued one does not, so the user clicks *More info → Run anyway*
+  once and checks the `.sha256`. Updates installed by the app never show it.
+- Rotation: run the script again, replace secret, variable and `.cer`,
+  release. PCs trust the new publisher at their next Repair.
+- Local builds: set `CSC_LINK` (path or base64 of the PFX), `CSC_KEY_PASSWORD`
+  and `PM_PUBLISHER` together; the build refuses one without the other.
 
 ## Updates
 
@@ -283,3 +307,26 @@ scripts/desktop/     build.mjs (refuses a standalone with build-machine files or
                      release.mjs (CI release steps + force command; tests/)
 .github/workflows/desktop-release.yml   called by ci.yml after a green push to develop
 ```
+
+## Security notes (whole-codebase review, 2026-10-16)
+
+- **One PC, one database, one circle of trust.** `machine.json` (the `pm_app` password, the auth
+  secret, the folders) is readable by every local Windows account, because the app runs as the
+  signed-in user and must open the database. Anyone with a local account on the PC can therefore
+  read and change everything in it. The desktop edition is meant for a PC whose Windows accounts
+  all belong to people who may see the project data; an office that needs separate people kept
+  apart runs the server edition (ADR-0032).
+- **Least privilege on the instance.** Provisioning makes `pm_app` `dbcreator` (it creates and
+  then owns the database) and `db_owner` of `ProjectManager`; it is not `sysadmin`, `sa` stays
+  disabled and `xp_cmdshell` off. A PC provisioned before 2026-10-16 keeps the old grant until
+  **Repair** runs once (the app offers it; it needs an administrator). The login block is
+  executed for real by `npm run electron:test-db` (throwaway login and databases).
+- **Updates are verified** ([ADR-0034](adr/ADR-0034-desktop-update-signing.md)): a
+  downloaded installer must carry a valid Authenticode signature from the office's
+  publisher, which provisioning trusted on the PC (`LocalMachine\\Root` +
+  `TrustedPublisher`, code-signing use only). Writing a GitHub release is not enough
+  to put code on a client PC; the signing key is. The first installer a PC ever runs
+  is the one trust-on-first-install step: check its `.sha256`.
+- **Backups leave the PC in clear.** The daily `.bak` copied to the backup folder (OneDrive by
+  default) is not encrypted by SQL Server; it relies on the account's OneDrive protection and
+  BitLocker on the disk. Point the copy at a folder you consider safe for project financials.
