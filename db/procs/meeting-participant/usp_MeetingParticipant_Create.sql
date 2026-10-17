@@ -2,7 +2,9 @@
 -- apology (1) (module #10, ADR-0028); audits in-transaction; returns the new row with ProjectId.
 -- The stakeholder must be a live stakeholder of the meeting's project (VALIDATION 50004) and not
 -- listed already (DUPLICATE 50005; UX_MeetingParticipant_Meeting_Stakeholder backs it). The meeting
--- row is locked so the duplicate check and the insert cannot interleave with another add.
+-- row is locked so the duplicate check and the insert cannot interleave with another add; the
+-- stakeholder row is checked under UPDLOCK, HOLDLOCK inside the transaction, so a concurrent
+-- usp_Stakeholder_Delete either fails the check or waits for the insert.
 -- Access: Contributor on the meeting's project, or a per-person grant (meetings:create, ADR-0024).
 USE ProjectManager;
 GO
@@ -28,10 +30,6 @@ BEGIN
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
          @MinLevel = N'Contributor', @Permission = N'meetings:create', @AllowProjectless = 0;
 
-    IF NOT EXISTS (SELECT 1 FROM app.Stakeholder
-                   WHERE StakeholderId = @StakeholderId AND ProjectId = @RowProjectId AND IsDeleted = 0)
-        THROW 50004, N'VALIDATION:The participant must be a stakeholder of the meeting''s project', 1;
-
     BEGIN TRAN;
 
     DECLARE @Locked INT;
@@ -39,6 +37,10 @@ BEGIN
     WHERE MeetingId = @MeetingId AND IsDeleted = 0;
     IF @Locked IS NULL
         THROW 50001, N'NOT_FOUND:Meeting not found', 1;
+
+    IF NOT EXISTS (SELECT 1 FROM app.Stakeholder AS s WITH (UPDLOCK, HOLDLOCK)
+                   WHERE s.StakeholderId = @StakeholderId AND s.ProjectId = @RowProjectId AND s.IsDeleted = 0)
+        THROW 50004, N'VALIDATION:The participant must be a stakeholder of the meeting''s project', 1;
 
     IF EXISTS (SELECT 1 FROM app.MeetingParticipant
                WHERE MeetingId = @MeetingId AND StakeholderId = @StakeholderId AND IsDeleted = 0)

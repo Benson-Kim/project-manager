@@ -1,5 +1,5 @@
--- usp_MeetingActionItem_GetById — one live action item with its person responsible's name (module
--- #10, ADR-0028). The project is found through the action's meeting; an action of a deleted meeting
+-- usp_MeetingActionItem_GetById — one live action item with its person responsible's name (NULL when
+-- nobody is responsible; module #10, ADR-0028). The project is found through the action's meeting; an action of a deleted meeting
 -- is NOT_FOUND (50001), one without a meeting (Access orphan) is Admin-only.
 -- Access: Viewer (FORBIDDEN_ROW 50003).
 USE ProjectManager;
@@ -30,7 +30,7 @@ BEGIN
            ai.[DiscussionPointId],
            ai.[Action],
            ai.[AssignedToStakeholderId],
-           TRIM(CONCAT(s.FirstName, N' ', s.LastName)) AS AssigneeName,
+           NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N'') AS AssigneeName,
            ai.[DueDate],
            ai.SortOrder,
            ai.CreatedAtUtc,
