@@ -1,0 +1,25 @@
+# Dependency updates (ADR-0014 policy, STANDARDS section 4): one weekly batch for npm,
+# one for the pinned GitHub Actions. Security advisories open their own pull requests
+# as soon as they are published. Target develop, like every feature branch.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    target-branch: "develop"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      # Majors are decided by hand (ADR-0014 pins eslint/typescript lines).
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    target-branch: "develop"

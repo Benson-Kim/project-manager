@@ -269,6 +269,9 @@ test("WBS diagram: add, rename, drag onto a box, round trip with the Gantt, dele
   await boxStart.press("Enter");
   await boxEnd.fill("2027-06-10");
   await boxEnd.press("Enter");
+  // Escape reverts a draft that the saved value has not caught up with yet (DraftInput), so
+  // it only leaves the field once the save is back: wait for the box to show the new dates.
+  await expect(taskBox).toHaveAttribute("aria-label", /Jun 10, 2027/, { timeout: 15_000 });
   await boxEnd.press("Escape");
   await expect(taskBox).toBeFocused();
 
@@ -315,6 +318,9 @@ test("WBS diagram: add, rename, drag onto a box, round trip with the Gantt, dele
   await renamed.fill(`E2E stage ${stamp}`);
   await renamed.press("Enter");
   await expect(phaseBox).toContainText(`E2E stage ${stamp}`);
+  // The rename (and the outdent before it) save in the background; a save landing between
+  // ArrowDown and the focus check re-renders the boxes and drops the focus.
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
 
   // The keyboard walks the tree: ↓ goes to the next box, and Delete asks first.
   await phaseBox.focus();

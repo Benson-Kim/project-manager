@@ -22,19 +22,19 @@ web app. Source-of-truth requirements: [`docs/source/analysis/`](source/analysis
 │  schemas: app (tables) · usp procs (CRUD + business logic) · audit (AuditLog)   │
 │  migrations db/migrations · procs db/procs · seeds db/seed (from Access data)   │
 └───────────────▲─────────────────────────────────────────────────────────────────┘
-                │ scheduled CI: BACKUP DATABASE full/diff/log → gzip →
-                │ GitLab Generic Package Registry (zero-cost) + restore scripts
+                │ host cron: scripts/backup.sh → full/diff/log + uploads → gzip →
+                │ BACKUP_OUT_DIR (+ operator upload hook); CI rehearses nightly
 ```
 
 - **Framework**: Next.js latest stable (App Router, TypeScript, Server Actions,
   Route Handlers). *The workspace proxy blocks the npm registry, so exact "latest"
   is resolved at install time in CI — package.json pins current major with caret
-  ranges and Renovate keeps everything on latest.*
+  ranges and Dependabot keeps everything on latest.*
 - **Styling**: Tailwind CSS latest, mobile-first breakpoints, PWA manifest.
 - **Data access**: stored procedures only, via `mssql` npm package and a thin
   repository layer. No inline SQL, no ORM.
-- **Files/uploads**: stored on a Docker volume locally; backed up + versioned via
-  the same scheduled backup job to the Generic Package Registry (free tier only).
+- **Files/uploads**: stored on a Docker volume locally; tarred into the same
+  backup set by `scripts/backup.sh` ([ADR-0032](adr/ADR-0032-deployment-topology-and-backups.md)).
 
 ## 2. Data model — Access → SQL Server mapping
 
@@ -104,7 +104,7 @@ via `IDENTITY_INSERT` (delivered by module #3; proc catalogue in `db/README.md`)
 | 20 | todo-alerts (dynamic to-do, pop-up alerts, snooze, calendar) | `feature/todo-alerts` | 19 |
 | 21 | reports (printable/downloadable, dynamic builder) | `feature/reports` | 4–20 |
 | 22 | admin-management (users/roles/permissions/audit viewer/backup status/settings) | `feature/admin-management` | 3, 16 |
-| 23 | ci-cd-and-security-automation (Renovate schedule live, scans, audit-fix schedule, hardening) | `feature/ci-cd-and-security-automation` | 1 |
+| 23 | ci-cd-and-security-automation (Dependabot, scans, release hardening, code signing) | `feature/ci-cd-and-security-automation` | 1 |
 
 > Ordering fix (review): **file-storage-and-backup now precedes financials**,
 > which needs document uploads. Module numbers = build order; issue IIDs are
@@ -151,38 +151,30 @@ Naming: `usp_<Entity>_<Action>`; one file per proc in `db/procs/<entity>/`;
     → `usp_Meeting_GetParticipants`, `qryProject3rdPartySupplier` →
     `usp_Supplier_List`, `qryDailyItemsAndStatusType` → `usp_DailyActivity_List`.
 
-## 5. Backup & restore (zero-cost)
+## 5. Backup & restore
 
-- **Scheduled pipeline** (GitLab schedule, e.g. daily): job `backup` runs
-  `scripts/backup.sh` against the SQL Server service/host: native
-  `BACKUP DATABASE` **full** (daily) + **differential** (each run) +
-  **transaction log**, `gzip`, then upload with the CI job token to the
-  **GitLab Generic Package Registry** (`project-manager-backups` package,
-  version = timestamp) — free, versioned, retained by cleanup policy.
-  Job artifacts hold the latest backup as a secondary copy.
-- **Uploaded files**: `scripts/backup.sh` tars the uploads volume and ships it in
-- Runbook: [`docs/RESTORE-RUNBOOK.md`](RESTORE-RUNBOOK.md) (exists now; extended by the file-storage module).
+Decided in [ADR-0032](adr/ADR-0032-deployment-topology-and-backups.md); the
+runbook is [`docs/RESTORE-RUNBOOK.md`](RESTORE-RUNBOOK.md).
 
-**RPO / RTO.**
-- RPO: ≤ 24 h against a total loss (daily full+diff+log set shipped off-server
-  to the package registry); ≤ scheduled interval when running the schedule more
-  often (the job is idempotent — run hourly for an RPO of 1 h at zero cost).
-  On-server transaction-log backups make point-in-time recovery possible
-  between shipped sets.
-- RTO: ≤ 30 min — download set + `RESTORE` chain on a fresh SQL Server
-  container (rehearsed automatically: `scripts/restore-rehearsal.sh` runs after
-  every scheduled backup and fails the pipeline if the chain doesn't restore
-  or sanity counts are off).
-- Zero-cost justification: GitLab Generic Package Registry + scheduled CI +
-  job artifacts are all included in the free tier; SQL Server Developer/Express
-  images are free; no external storage or backup service is used. Retention
-  pruning (`BACKUP_RETAIN_DAYS`, default 30) keeps registry usage bounded.d versioning.
-- **Restore**: `scripts/restore.sh <version>` downloads the package, restores
-  full+diff+log with `RESTORE DATABASE … WITH NORECOVERY/RECOVERY`;
-  `scripts/restore-files.sh <version>` restores the uploads volume. A **restore
-  rehearsal job** (manual, plus on schedule) restores into a scratch container and
-  runs row-count assertions — backups are only real if restores are tested.
-- Runbook: `docs/RESTORE-RUNBOOK.md` (created in module 21).
+- **Server edition**: a host cron runs `scripts/backup.sh` daily: native
+  `BACKUP DATABASE` **full** + **differential** + **transaction log**, pulled
+  over the SQL connection, gzipped into `BACKUP_OUT_DIR` with
+  `uploads-<stamp>.tar.gz` for attachments. An optional `BACKUP_UPLOAD_CMD`
+  (rclone, az, aws, a network copy) makes the off-site copy; local retention is
+  `BACKUP_RETAIN_DAYS` (30).
+- **Desktop edition**: a daily verified `.bak` copied to the user's chosen folder
+  (OneDrive by default), see DESKTOP.md.
+- **Rehearsal**: `.github/workflows/backup.yml` backs up and restores a seeded
+  database on a throwaway container every night and fails on a broken chain or
+  wrong sanity counts. It proves the scripts, not a production backup.
+- **Restore**: `scripts/restore.sh <stamp>` (full → diff → log, NORECOVERY until
+  the last) and `scripts/restore-files.sh <stamp>` read the set from
+  `BACKUP_SOURCE_DIR`.
+
+**RPO / RTO.** RPO ≤ 24 h with the daily cron (run it hourly for 1 h; the script
+is idempotent); on-server log backups allow point-in-time restore between sets.
+RTO ≤ 30 min: copy the set back, restore chain on a fresh SQL Server, point the
+app at it.
 
 ## 6. Security design
 
@@ -197,11 +189,10 @@ Naming: `usp_<Entity>_<Action>`; one file per proc in `db/procs/<entity>/`;
   Referrer-Policy, Permissions-Policy.
 - Audit: `audit.AuditLog` (actor, action, entity, entity id, before/after JSON,
   timestamp, IP) written by every mutating proc; admin viewer UI.
-- Secrets only in GitLab CI/CD variables (`MSSQL_SA_PASSWORD`, `DB_APP_PASSWORD`,
-  `AUTH_SECRET`); repo carries `.env.example` only; Secret-Detection CI blocks leaks.
-- GitLab CI templates: SAST, Dependency Scanning, Secret Detection; Renovate with
-  automerge for minor/patch + security updates; scheduled `npm audit fix` flow
-  opening MRs (see `.gitlab/duo/flows/dependency-update.yaml`).
+- Secrets only in the host's `.env` / the desktop's `machine.json` and GitHub
+  Actions secrets; repo carries `.env.example` only; GitHub secret scanning on.
+- GitHub Actions: CodeQL, `npm audit` failing on high, Dependabot for npm and
+  actions, SHA-pinned actions, read-only default token (SECURITY.md).
 
 ## 7. Mobile-first UI plan
 
@@ -220,21 +211,22 @@ Naming: `usp_<Entity>_<Action>`; one file per proc in `db/procs/<entity>/`;
 
 ## 8. CI/CD & automation
 
-Stages: `lint` → `typecheck` → `test` → `build` → `security` → `backup`
-(scheduled only) → `deploy-staging` (develop) → `deploy-prod` (main, manual).
-Feature branches run lint/typecheck/test/build (+ manual e2e); develop/main add
-automatic e2e + SAST + Secret Detection + Dependency Scanning (lockfile-based).
-Manual utility jobs: `verify:sources` (re-verify the extraction),
-`lockfile:generate`.
+GitHub Actions (`.github/workflows`): `ci.yml` runs lint → typecheck → unit →
+build → db-apply (migrations, procs, seeds and the proc behaviour checks in
+`db/tests` against a SQL Server 2022 service) on every push and PR; e2e runs on
+develop/main and on feature commits flagged `[e2e]`; the desktop release job
+runs on tags. `security.yml`: CodeQL and `npm audit --audit-level=high` (fails
+on high). `backup.yml`: nightly backup + restore rehearsal. Deploys are manual
+(ADR-0032: one Compose stack on a host the office owns).
 
-**Dependency & vulnerability automation (all zero-cost):**
+**Dependency & vulnerability automation:**
 
 | Mechanism | Trigger | What it does |
 |---|---|---|
-| Renovate (self-hosted) | pipeline schedule `SCHEDULE_JOB=renovate` (weekly) | `renovate/renovate` image runs against this project (config `renovate.json`, base branch `develop`): MRs for updates, automerge minor/patch, `vulnerabilityAlerts` + `osvVulnerabilityAlerts` open security MRs, lock-file maintenance. Requires `RENOVATE_TOKEN` (project access token: `api`, `write_repository`). |
-| `npm-audit-fix` | pipeline schedule `SCHEDULE_JOB=audit` (daily) | runs `npm audit fix`; when something changed, pushes `duo/update/audit-fix-<date>` and opens an MR to develop. Requires `PROJECT_TOKEN`. |
-| Dependency Scanning / SAST / Secret Detection | every develop/main pipeline | GitLab templates; findings appear in the security report. |
-| `dependency-update` Duo flow | manual/scheduled flow trigger | agent session that also handles majors with release-note reading (`.gitlab/duo/flows/dependency-update.yaml`). |
+| Dependabot (`.github/dependabot.yml`) | weekly, Monday | npm PRs (minors and patches grouped, majors by hand per ADR-0014) and GitHub Actions PRs against develop; security PRs as advisories land. |
+| CodeQL | weekly + every push to develop/main | static analysis; findings in the Security tab. |
+| `npm audit` | every security workflow run | fails on a high or critical advisory. |
+| SHA-pinned actions + read-only token | every workflow | a tag move or a compromised action cannot change what runs or write to the repo. |
 
 ## 9. Roles & permissions matrix
 
@@ -283,7 +275,7 @@ Full security design: [`docs/SECURITY.md`](SECURITY.md).
 ## 10. Execution plan — one agent session per module
 
 Every module is implemented by launching the **implement-module flow**
-(`.gitlab/duo/flows/implement-module.yaml`) — or an interactive agent session —
+— an interactive agent session —
 with the goal text below. Inputs each session MUST read before coding, in
 order: `LESSONS.md` (root — mandatory operating rules: commit + push every
 ~2-3 minutes, push before long jobs, resume protocol with STATUS notes on the
@@ -354,7 +346,7 @@ to develop, verify staging deploy job, close issue.
 | 20 | todo-alerts (#20) | dynamic to-do from daily activities, ordering, filters, pop-up alerts w/ date+time, repeat unit/interval, snooze options, calendar reminders (rows 31–33, 57, 59, 66) |
 | 21 | reports (#21) | printable + downloadable reports over every module, detailed project report, dynamic report builder (rows 36–37, 49) |
 | 22 | admin-management (#23) | users/roles UI, audit viewer, backup status (usp_Backup_GetStatus), settings |
-| 23 | ci-cd-and-security-automation (#24) | schedules live (backup/audit/renovate), protected branches confirmed, security-scan triage, deploy targets |
+| 23 | ci-cd-and-security-automation (#24) | host backup cron live, protected branches confirmed, security-scan triage, deploy targets, installer code signing |
 
 ## 11. Release, schedules & branch protection
 
@@ -364,21 +356,18 @@ to develop, verify staging deploy job, close issue.
 `deploy-prod` is a manual job on the main pipeline; tag `vX.Y.Z`.
 Rollback = revert MR on main + redeploy; DB rollback per RESTORE-RUNBOOK.
 
-**Pipeline schedules to create** (CI/CD ▸ Schedules):
+**Scheduled workflows** (already in `.github/workflows`):
 
-| Schedule | Cron (example) | Variable | Also requires (CI/CD variables) |
-|---|---|---|---|
-| Nightly backup + restore rehearsal | `0 3 * * *` | `SCHEDULE_JOB=backup` | `MSSQL_SA_PASSWORD` (masked); later `DB_SERVER`/`DB_*` of the real host; optional `GITLAB_TOKEN` for pruning, `BACKUP_RETAIN_DAYS` |
-| Daily npm audit fix | `0 5 * * *` | `SCHEDULE_JOB=audit` | `PROJECT_TOKEN` (project access token: api + write_repository) |
-| Weekly Renovate | `0 6 * * 1` | `SCHEDULE_JOB=renovate` | `RENOVATE_TOKEN` (api + write_repository), optional `GITHUB_COM_TOKEN` |
+| Workflow | Cron | Secrets |
+|---|---|---|
+| `backup.yml` nightly backup + restore rehearsal | `0 2 * * *` | optional `MSSQL_SA_PASSWORD` (a throwaway value otherwise) |
+| `security.yml` CodeQL + npm audit | weekly + pushes | none |
 
-Other CI/CD variables: `AUTH_SECRET` (masked, from module 3 onward).
-**Never commit secrets** — Secret Detection blocks leaks on develop/main.
+The production backup is a host cron, not a workflow (ADR-0032).
+**Never commit secrets** — GitHub secret scanning and the review gate block leaks.
 
-**Protected branches (Settings ▸ Repository ▸ Protected branches):**
-- `main`: allowed to push **No one**, allowed to merge Maintainers,
-  "Allowed to force push" off; require green pipeline to merge.
-- `develop`: allowed to push **No one** (MRs only), allowed to merge
-  Developers+Maintainers; require green pipeline.
-- Optional: pipeline "skipped pipelines are not considered successful",
-  and resolve-all-threads required for merge.
+**Protected branches (Settings ▸ Branches ▸ Branch protection rules):**
+- `main`: no direct pushes, no force pushes; PRs only, with a green `ci.yml`
+  run and one approving review (a maintainer) required to merge.
+- `develop`: no direct pushes; PRs only, with a green `ci.yml` run.
+- Optional: require conversation resolution before merging.

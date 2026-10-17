@@ -31,6 +31,23 @@ export interface AppToken {
   mustChangePassword: boolean;
 }
 
+/** Attempts per minute from one client address (STANDARDS §4). */
+export const KNOWN_IP_LOGIN_LIMIT = 5;
+/**
+ * When no client address is known (no trusted proxy: direct, Compose, the
+ * desktop) every client shares one window. 5 would let one wrong password lock
+ * the whole office out for a minute; 60 still stops scripted guessing while the
+ * per-user lockout stays the primary control (ADR-0031).
+ */
+export const SHARED_LOGIN_LIMIT = 60;
+/**
+ * An argon2id hash of a random string, verified when the username is unknown so
+ * the response takes as long as for a known one: timing no longer tells valid
+ * usernames apart (ADR-0031). Not a secret; nothing ever matches it.
+ */
+export const UNKNOWN_USER_HASH =
+  "$argon2id$v=19$m=19456,t=2,p=1$PCJEALieHd5bIPI5XWhTZg$c2HxtJMVUF1O4LbIOzDHRUFrclONLViFwsiFyJv3ivQ";
+
 function requireAuthSecret(): void {
   const secret = process.env.AUTH_SECRET;
   // STANDARDS §4: >= 32 random bytes, provided via CI/CD variables / host env
@@ -88,12 +105,17 @@ export async function authorizeCredentials(
   const ip = getTrustedIp(request.headers, TRUSTED_PROXY_COUNT);
 
   // 1. Fixed-window IP rate limit — deny before any credential work.
-  const rate = await recordIpLoginAttempt(ip);
+  const rate = await recordIpLoginAttempt(
+    ip,
+    ip === "unknown" ? SHARED_LOGIN_LIMIT : KNOWN_IP_LOGIN_LIMIT,
+  );
   if (!rate.Allowed) return null;
 
-  // 2. Lookup. Unknown username still audits a LoginFailed row.
+  // 2. Lookup. Unknown username still audits a LoginFailed row, after a
+  // verification that costs the same as a real one.
   const user = await getUserByUsername(username);
   if (!user) {
+    await verifyPassword(UNKNOWN_USER_HASH, password);
     await auditUnknownUsernameLoginFailure(ip);
     return null;
   }
@@ -132,6 +154,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   pages: {
     signIn: "/login",
   },
+  // Required by Auth.js to serve at all; its URLs come from AUTH_URL (set by
+  // Compose and the desktop host, ADR-0032), not from the Host header.
   trustHost: true,
   providers: [
     Credentials({

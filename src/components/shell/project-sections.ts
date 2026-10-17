@@ -43,6 +43,7 @@ export const projectSections: ProjectSection[] = [
     label: messages.projects.assumptionsConstraintsSection,
     match: "prefix",
   },
+  { segment: "financials", label: messages.projects.financialsSection, match: "prefix" },
   { segment: "meetings", label: messages.projects.meetingsSection, match: "prefix" },
 ];
 
@@ -63,6 +64,7 @@ export const projectSectionGroups: ProjectSectionGroup[] = [
         "questions-answers",
         "parking-lot",
         "assumptions-constraints",
+        "financials",
       ].includes(s.segment),
     ),
   },

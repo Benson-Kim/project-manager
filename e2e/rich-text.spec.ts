@@ -41,6 +41,10 @@ test.describe("rich-text editor (ADR-0025)", () => {
     const toolbar = page.getByRole("toolbar", { name: "Formatting" });
     await toolbar.getByRole("button", { name: "Table" }).click();
     await page.getByRole("menuitem", { name: "Insert table" }).click();
+    // Tiptap's focus command moves the real focus on the next animation frame, so keys sent
+    // at once land on the page: wait for the table and for the editor to hold focus.
+    await expect(editor.locator("table")).toBeVisible();
+    await expect(editor).toBeFocused();
     await page.keyboard.type("Cell one");
 
     await form.getByRole("button", { name: "Preview" }).click();

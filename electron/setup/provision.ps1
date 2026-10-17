@@ -276,6 +276,35 @@ function Set-AccessControl {
   if ($LASTEXITCODE -ne 0) { throw [ProvisionError]::new(50, "icacls failed on $UploadsDir") }
 }
 
+function Import-PublisherCertificate {
+  # Updates are verified against the publisher (ADR-0034): an installed app refuses an
+  # installer whose Authenticode signature does not chain to a root this PC trusts with
+  # that subject. The installer ships the office's self-issued certificate; trust it
+  # here, once, while elevated. Never fatal: the app runs without it, updates wait for
+  # the next Repair.
+  $cer = Join-Path $PSScriptRoot 'publisher.cer'
+  if (-not (Test-Path -LiteralPath $cer)) {
+    Write-Log 'No publisher.cer shipped: update signatures are not verified on this PC.'
+    return
+  }
+  try {
+    $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 $cer
+    foreach ($storeName in @('Root', 'TrustedPublisher')) {
+      $store = New-Object System.Security.Cryptography.X509Certificates.X509Store($storeName, 'LocalMachine')
+      $store.Open('ReadWrite')
+      try {
+        $present = @($store.Certificates | Where-Object { $_.Thumbprint -eq $cert.Thumbprint }).Count -gt 0
+        if (-not $present) {
+          $store.Add($cert)
+          Write-Log "Publisher certificate $($cert.Thumbprint) ($($cert.Subject)) added to LocalMachine\$storeName."
+        }
+      } finally { $store.Close() }
+    }
+  } catch {
+    Write-Log "WARNING: could not trust the publisher certificate: $($_.Exception.Message). Updates will not install until Repair succeeds."
+  }
+}
+
 function Grant-ServiceBackupAccess {
   & icacls.exe $BackupDir /grant "${ServiceSid}:(OI)(CI)M" | Out-Null
   if ($LASTEXITCODE -ne 0) { throw [ProvisionError]::new(50, "Could not grant $ServiceSid access to $BackupDir") }
@@ -315,6 +344,7 @@ try {
   }
 
   Set-AccessControl
+  Import-PublisherCertificate
 
   if (-not (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) {
     Install-SqlExpress
@@ -356,7 +386,21 @@ IF SUSER_ID(N'pm_app') IS NULL
 ELSE
     ALTER LOGIN [pm_app] WITH PASSWORD = N'$appPassword', CHECK_POLICY = OFF, CHECK_EXPIRATION = OFF;
 ALTER LOGIN [pm_app] ENABLE;
-IF IS_SRVROLEMEMBER(N'sysadmin', N'pm_app') = 0 ALTER SERVER ROLE [sysadmin] ADD MEMBER [pm_app];
+-- Least privilege (ADR-0031 review): the app creates and owns its database (dbcreator), and is
+-- db_owner there; it is not sysadmin. A PC provisioned before this change is demoted by Repair.
+IF IS_SRVROLEMEMBER(N'sysadmin', N'pm_app') = 1 ALTER SERVER ROLE [sysadmin] DROP MEMBER [pm_app];
+IF IS_SRVROLEMEMBER(N'dbcreator', N'pm_app') = 0 ALTER SERVER ROLE [dbcreator] ADD MEMBER [pm_app];
+IF DB_ID(N'ProjectManager') IS NOT NULL
+    EXEC(N'USE [ProjectManager];
+DECLARE @principal SYSNAME = (SELECT name FROM sys.database_principals WHERE sid = SUSER_SID(N''pm_app''));
+IF @principal IS NULL BEGIN CREATE USER [pm_app] FOR LOGIN [pm_app]; SET @principal = N''pm_app''; END;
+IF @principal <> N''dbo'' AND ISNULL(IS_ROLEMEMBER(N''db_owner'', @principal), 0) = 0
+BEGIN
+    DECLARE @grant NVARCHAR(400) = N''ALTER ROLE [db_owner] ADD MEMBER '' + QUOTENAME(@principal) + N'';'';
+    EXEC(@grant);
+END;');
+EXEC sp_configure N'show advanced options', 1; RECONFIGURE;
+EXEC sp_configure N'xp_cmdshell', 0; RECONFIGURE;
 ALTER LOGIN [sa] WITH PASSWORD = N'$saPassword';
 ALTER LOGIN [sa] DISABLE;
 SELECT 1;
@@ -366,7 +410,7 @@ SELECT 1;
   } catch {
     throw [ProvisionError]::new(50, "Configuring SQL logins failed: $($_.Exception.Message)")
   }
-  Write-Log "Login 'pm_app' configured; 'sa' disabled."
+  Write-Log "Login 'pm_app' configured (dbcreator + db_owner, not sysadmin); 'sa' disabled."
 
   $config = [ordered]@{
     schemaVersion    = 1

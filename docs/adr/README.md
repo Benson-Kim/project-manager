@@ -37,3 +37,9 @@ the full rules and examples derived from these decisions.
 | [0026](ADR-0026-file-storage.md) | File storage: owner-scoped attachments, streamed uploads, quota, desktop uploads folder | Accepted (amends 0003, 0012) |
 | [0027](ADR-0027-wbs-gantt.md) | Key deliverables as a work breakdown that draws an editable Gantt | Accepted |
 | [0028](ADR-0028-meetings-data-model.md) | Meetings data model: minutes tree, participants, meeting-row lock, reorder and set contracts | Accepted |
+| [0029](ADR-0029-financials-calculator.md) | Financials calculator: master templates and project snapshots | Accepted |
+| [0030](ADR-0030-financial-documents-and-outputs.md) | Financial document checklist (template-managed, advisory suggestions), print view, PDF and CSV outputs | Accepted (on top of 0029) |
+| [0031](ADR-0031-request-gate-internal-routes-and-throttling.md) | The request gate: bearer-authenticated internal routes outside the session gate; in-process throttling; login limiting keyed on the user | Accepted (amends 0017) |
+| [0032](ADR-0032-deployment-topology-and-backups.md) | Deployment topology (single-user desktop or one server stack) and host-run backups with an operator upload hook | Accepted (supersedes PLAN §5) |
+| [0033](ADR-0033-least-privilege-app-login.md) | The server edition's app connects as an EXECUTE-only login (`pm_web`, role `app_executor`); the operator's scripts use their own admin credentials | Accepted (amends 0032) |
+| [0034](ADR-0034-desktop-update-signing.md) | Desktop releases signed with a self-issued publisher certificate; installed apps verify every update against it, trusted once by provisioning | Accepted (0033 is the server app login, other session) |

@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "dist-installer/**",
     "installers/**",
+    // Session scratch (git-excluded): never part of lint, locally or in CI.
+    ".agent-scratch/**",
   ]),
   ...nextCoreWebVitals,
   ...nextTypescript,

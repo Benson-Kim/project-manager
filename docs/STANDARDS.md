@@ -64,7 +64,7 @@ independent sessions stay navigable and uniform.
 | Helper text, tooltips, onboarding hints, placeholder-as-label | UX §5 + review gate |
 | Ad-hoc toasts/dialogs/lists (bypassing shared primitives) | review gate |
 | `confirm()`/`alert()`/`prompt()` | ESLint `no-alert` (foundation config) |
-| New runtime dependency without an ADR | review gate + Renovate PR review |
+| New runtime dependency without an ADR | review gate + Dependabot PR review |
 | Weakening/removing a guardrail test or assertion to make CI pass | review gate; reverts the MR |
 
 ---
@@ -190,9 +190,12 @@ export const createSupplier = action({
   `AUTH_SECRET` ≥ 32 random bytes), 8 h idle expiry, session version stamp for
   server-side revocation (module #4). Passwords: **argon2id** (m=19456 KiB, t=2, p=1
   — OWASP baseline), min length 12, no composition rules, deny top-10k list.
-- **Rate limiting** (module #4): login 5/min/IP + username lockout with backoff;
-  mutations 60/min/session — fixed-window counters in SQL (single-instance app; no
-  Redis needed).
+- **Rate limiting** ([ADR-0031](adr/ADR-0031-request-gate-internal-routes-and-throttling.md)):
+  login = per-user lockout with backoff (primary) + 5/min per known client IP, a
+  shared 60/min window when no IP is known (`TRUSTED_PROXY_COUNT=0`); unknown
+  usernames cost a dummy argon2id verify. Server Actions 240/min/user and exports
+  20/min/user, in-process fixed windows (`src/lib/rate-limit.ts`; single-instance
+  app, no Redis), tuned by `RATE_LIMIT_*_PER_MINUTE`, 0 = off.
 - **CSRF**: Server Actions are protected by Next.js origin checks (POST +
   Origin/Host validation); custom Route Handlers that mutate MUST verify
   `Origin`/`Sec-Fetch-Site` themselves. `form-action 'self'` in CSP backs this up.
@@ -215,13 +218,16 @@ export const createSupplier = action({
   handles bytes itself. `/api/files` is the only route outside the proxy. Every
   method a route file there exports is `fileRoute(handler)`, which checks
   same-origin and the session (guardrail test); the handler checks access.
-- **Secrets**: GitLab CI/CD variables only; `.env.example` documents shape. No secret
-  ever in code, logs or client bundles.
+- **Secrets**: GitHub Actions secrets and the host's `.env` only; `.env.example`
+  documents shape. No secret ever in code, logs or client bundles.
 - **Logging**: structured server logs without PII/credentials/tokens; log error codes
   and entity ids, not payloads.
-- **Scanning**: SAST, Secret Detection, Dependency Scanning on develop/main;
-  Renovate + scheduled `npm audit fix` MRs; container scanning added with the deploy
-  target (module #24).
+- **Scanning** (`.github/workflows/security.yml`, `.github/dependabot.yml`): CodeQL
+  weekly and on every push to develop/main; `npm audit --audit-level=high` fails the
+  workflow; Dependabot opens weekly npm and Actions PRs (minors and patches grouped,
+  majors by hand) and security PRs as advisories land; GitHub secret scanning on the
+  repo. Every third-party action is pinned to a commit SHA; the default token is
+  read-only.
 
 ---
 
@@ -407,7 +413,7 @@ datasheet holds values in inputs: use `expectListed` / `openListed` / `expectNot
   jobs on feature branches.
 - **Branches**: `feature/<module-key>` from `develop`; maintenance `duo/<type>/<desc>`;
   MR → `develop`; release MR `develop` → `main`.
-- **MRs**: use `.gitlab/merge_request_templates/Module.md`; title
+- **PRs**: title
   `Draft: feat(<module>): <summary>`; `Closes #<iid>`; green pipeline required
   (lint, typecheck, test, build, e2e for module MRs — commit with `[e2e]`).
 - **Docs**: every structural decision is an ADR in `docs/adr/` before implementation.

@@ -5,6 +5,9 @@ on:
     - cron: "0 2 * * *" # Daily at 02:00 UTC
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   db-backup-rehearsal:
     name: Database Backup & Restore Rehearsal
@@ -20,10 +23,10 @@ jobs:
           MSSQL_SA_PASSWORD: "${{ secrets.MSSQL_SA_PASSWORD || 'Backup-Rehearsal-Sa-2026!' }}"
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
           cache: "npm"
@@ -39,10 +42,10 @@ jobs:
 
       - name: Wait for SQL Server
         env:
-          DB_PASSWORD: "${{ secrets.MSSQL_SA_PASSWORD || 'Backup-Rehearsal-Sa-2026!' }}"
+          DB_ADMIN_PASSWORD: "${{ secrets.MSSQL_SA_PASSWORD || 'Backup-Rehearsal-Sa-2026!' }}"
         run: |
           for i in $(seq 1 30); do
-            sqlcmd -S tcp:localhost,1433 -U sa -P "$DB_PASSWORD" -C -Q "SELECT 1" >/dev/null 2>&1 && break
+            sqlcmd -S tcp:localhost,1433 -U sa -P "$DB_ADMIN_PASSWORD" -C -Q "SELECT 1" >/dev/null 2>&1 && break
             echo "Waiting for SQL Server ($i)..."
             sleep 2
           done
@@ -50,8 +53,8 @@ jobs:
       - name: Install dependencies & seed database
         env:
           DB_SERVER: localhost
-          DB_USER: sa
-          DB_PASSWORD: "${{ secrets.MSSQL_SA_PASSWORD || 'Backup-Rehearsal-Sa-2026!' }}"
+          DB_ADMIN_USER: sa
+          DB_ADMIN_PASSWORD: "${{ secrets.MSSQL_SA_PASSWORD || 'Backup-Rehearsal-Sa-2026!' }}"
           SEED_ADMIN_PASSWORD: "Backup-Rehearsal-Admin-2026"
         run: |
           npm ci --prefer-offline
@@ -61,19 +64,19 @@ jobs:
       - name: Run Backup Script
         env:
           DB_SERVER: localhost
-          DB_USER: sa
-          DB_PASSWORD: "${{ secrets.MSSQL_SA_PASSWORD || 'Backup-Rehearsal-Sa-2026!' }}"
+          DB_ADMIN_USER: sa
+          DB_ADMIN_PASSWORD: "${{ secrets.MSSQL_SA_PASSWORD || 'Backup-Rehearsal-Sa-2026!' }}"
         run: sh scripts/backup.sh
 
       - name: Run Restore Rehearsal
         env:
           DB_SERVER: localhost
-          DB_USER: sa
-          DB_PASSWORD: "${{ secrets.MSSQL_SA_PASSWORD || 'Backup-Rehearsal-Sa-2026!' }}"
+          DB_ADMIN_USER: sa
+          DB_ADMIN_PASSWORD: "${{ secrets.MSSQL_SA_PASSWORD || 'Backup-Rehearsal-Sa-2026!' }}"
         run: sh scripts/restore-rehearsal.sh
 
       - name: Upload Backup Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: database-backups
           path: backups/

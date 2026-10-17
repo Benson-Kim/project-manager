@@ -40,6 +40,20 @@ export const ATTACHMENT_OWNER_CONFIG: Record<AttachmentOwner, AttachmentOwnerCon
     },
     permissions: { read: "daily-activities:read", update: "daily-activities:update" },
   },
+  // A financial's checklist document (ADR-0030): signed contracts, requisitions, the DA itself.
+  "financial-document": {
+    folder: "financial-document",
+    idParam: "FinancialDocumentId",
+    procs: {
+      canAdd: "usp_FinancialDocument_CanAddFile",
+      add: "usp_FinancialDocument_AddFile",
+      list: "usp_FinancialDocument_ListFiles",
+      get: "usp_FinancialDocument_GetFile",
+      rename: "usp_FinancialDocument_RenameFile",
+      remove: "usp_FinancialDocument_RemoveFile",
+    },
+    permissions: { read: "financials:read", update: "financials:update" },
+  },
 };
 
 export function ownerConfig(owner: AttachmentOwner): AttachmentOwnerConfig {

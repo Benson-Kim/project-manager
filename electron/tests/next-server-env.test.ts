@@ -30,6 +30,7 @@ describe("nextServerEnv: the attachments folder (ADR-0026 §9)", () => {
       DB_SERVER: "127.0.0.1",
       DB_PORT: "14330",
       DB_USER: "pm_app",
+      AUTH_URL: "http://127.0.0.1:3001",
     });
   });
 });

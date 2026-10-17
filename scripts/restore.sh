@@ -1,9 +1,11 @@
 #!/bin/sh
-# Restore the database from a backup package version created by scripts/backup.sh.
+# Restore the database from a backup set created by scripts/backup.sh (ADR-0032).
 # Usage: scripts/restore.sh <version-stamp> [target-db-name]
-# Env: DB_SERVER, DB_PORT, DB_USER, DB_PASSWORD, SOURCE_DB (name used in the
-#      backup filenames, default ProjectManager), BACKUP_DIR,
-#      CI_API_V4_URL, CI_PROJECT_ID, and GITLAB_TOKEN or CI_JOB_TOKEN.
+# Env: DB_SERVER, DB_PORT, DB_ADMIN_USER (default sa), DB_ADMIN_PASSWORD (default
+#      MSSQL_SA_PASSWORD; never DB_USER/DB_PASSWORD, the app's own login), SOURCE_DB (name used in the
+#      backup filenames, default ProjectManager), BACKUP_DIR (the server's folder),
+#      BACKUP_SOURCE_DIR (where the gzipped set is, default BACKUP_OUT_DIR or
+#      ./backups; copy it back from off-site first if needed).
 #
 # IMPORTANT: RESTORE reads files from the SQL Server host's own disk, so this
 # script must run WHERE $BACKUP_DIR is the server's directory — on the DB host
@@ -17,30 +19,26 @@ TARGET_DB="${2:-ProjectManager}"
 SOURCE_DB="${SOURCE_DB:-ProjectManager}"
 DB_SERVER="${DB_SERVER:-mssql}"
 DB_PORT="${DB_PORT:-1433}"
-DB_USER="${DB_USER:-sa}"
-: "${DB_PASSWORD:?DB_PASSWORD is required}"
-API="${CI_API_V4_URL:-https://gitlab.com/api/v4}"
-: "${CI_PROJECT_ID:?CI_PROJECT_ID is required}"
-
-AUTH_HEADER="JOB-TOKEN: ${CI_JOB_TOKEN:-}"
-[ -n "${GITLAB_TOKEN:-}" ] && AUTH_HEADER="PRIVATE-TOKEN: $GITLAB_TOKEN"
+DB_ADMIN_USER="${DB_ADMIN_USER:-sa}"
+DB_ADMIN_PASSWORD="${DB_ADMIN_PASSWORD:-${MSSQL_SA_PASSWORD:-}}"
+: "${DB_ADMIN_PASSWORD:?DB_ADMIN_PASSWORD (or MSSQL_SA_PASSWORD) is required}"
+SRC="${BACKUP_SOURCE_DIR:-${BACKUP_OUT_DIR:-backups}}"
 
 WORK="restore-$VERSION"
 mkdir -p "$WORK"
 
-# Download every file of the backup set (full is mandatory, diff/log optional).
+# Copy every file of the backup set (full is mandatory, diff/log optional).
 for name in "$SOURCE_DB-full-$VERSION.bak.gz" "$SOURCE_DB-diff-$VERSION.bak.gz" "$SOURCE_DB-log-$VERSION.trn.gz"; do
-  curl --fail -s --header "$AUTH_HEADER" -o "$WORK/$name" \
-    "$API/projects/$CI_PROJECT_ID/packages/generic/project-manager-backups/$VERSION/$name" || rm -f "$WORK/$name"
+  [ -f "$SRC/$name" ] && cp "$SRC/$name" "$WORK/$name"
 done
-[ -f "$WORK/$SOURCE_DB-full-$VERSION.bak.gz" ] || { echo "ERROR: full backup for $VERSION not found in package registry"; exit 1; }
+[ -f "$WORK/$SOURCE_DB-full-$VERSION.bak.gz" ] || { echo "ERROR: full backup for $VERSION not found in $SRC"; exit 1; }
 gunzip -f "$WORK"/*.gz
 
 BK_DIR="${BACKUP_DIR:-/var/opt/mssql/data}"
 cp "$WORK"/*.bak "$BK_DIR/" || { echo "ERROR: cannot copy backups into $BK_DIR — run this on the DB host (see header)"; exit 1; }
 cp "$WORK"/*.trn "$BK_DIR/" 2>/dev/null || true
 
-sqlrun() { sqlcmd -S "tcp:${DB_SERVER},${DB_PORT}" -U "$DB_USER" -P "$DB_PASSWORD" -C -b -Q "$1"; }
+sqlrun() { sqlcmd -S "tcp:${DB_SERVER},${DB_PORT}" -U "$DB_ADMIN_USER" -P "$DB_ADMIN_PASSWORD" -C -b -Q "$1"; }
 
 sqlrun "IF DB_ID(N'$TARGET_DB') IS NOT NULL ALTER DATABASE [$TARGET_DB] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;"
 if [ -f "$WORK/$SOURCE_DB-diff-$VERSION.bak" ]; then
@@ -57,3 +55,4 @@ fi
 sqlrun "ALTER DATABASE [$TARGET_DB] SET MULTI_USER;"
 
 echo "Restore of $TARGET_DB from version $VERSION complete."
+echo "On a new SQL Server, let the app back in: sh scripts/db-apply.sh --login-only (RESTORE-RUNBOOK section 2)."
