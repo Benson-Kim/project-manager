@@ -10,6 +10,8 @@
 --   neither @StartDate nor @ColorSet: a NULL @StartDate keeps the start date, and @ColorSet = 0
 --   keeps the colour (with @ColorSet = 1, a NULL @Color means the parent's colour).
 -- Entity app.KeyDeliverable (source: tblKeyRequirementsDeliverable). Module: key-deliverables (#9).
+-- Dates in order (VALIDATION 50004) only when one of the pair changes: an item saved with them
+--   inverted before the rule existed can still be edited without rewriting its history.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_KeyDeliverable_Update
@@ -33,10 +35,12 @@ BEGIN
 
     DECLARE @CurrentVer BIGINT, @RowProjectId INT,
             @CurrentPriority NVARCHAR(255), @CurrentStatus NVARCHAR(255),
-            @CurrentStart DATETIME2, @CurrentEnd DATETIME2, @CurrentColor VARCHAR(10);
+            @CurrentStart DATETIME2, @CurrentEnd DATETIME2, @CurrentColor VARCHAR(10),
+            @CurrentRequested DATETIME2;
     SELECT @CurrentVer = CAST(RowVer AS BIGINT), @RowProjectId = ProjectId,
            @CurrentPriority = [Priority], @CurrentStatus = [Status],
-           @CurrentStart = StartDate, @CurrentEnd = [Deadline], @CurrentColor = Color
+           @CurrentStart = StartDate, @CurrentEnd = [Deadline], @CurrentColor = Color,
+           @CurrentRequested = [RequestedDate]
     FROM app.KeyDeliverable WHERE KeyDeliverableId = @KeyDeliverableId AND IsDeleted = 0;
     IF @CurrentVer IS NULL
         THROW 50001, N'NOT_FOUND:KeyDeliverable not found', 1;
@@ -57,6 +61,9 @@ BEGIN
          @CurrentLabel = @CurrentStatus;
 
     IF @Deadline < @RequestedDate
+       AND (@CurrentRequested IS NULL OR @CurrentEnd IS NULL
+            OR CAST(@RequestedDate AS DATE) <> CAST(@CurrentRequested AS DATE)
+            OR CAST(@Deadline AS DATE) <> CAST(@CurrentEnd AS DATE))
         THROW 50004, N'VALIDATION:Deadline cannot be before RequestedDate', 1;
 
     IF @ColorSet = 0
@@ -83,6 +90,9 @@ BEGIN
     BEGIN
         SET @StartDate = ISNULL(@StartDate, @CurrentStart);
         IF @Deadline < @StartDate
+           AND (@CurrentStart IS NULL OR @CurrentEnd IS NULL
+                OR CAST(@StartDate AS DATE) <> CAST(@CurrentStart AS DATE)
+                OR CAST(@Deadline AS DATE) <> CAST(@CurrentEnd AS DATE))
             THROW 50004, N'VALIDATION:Deadline cannot be before StartDate', 1;
     END;
 

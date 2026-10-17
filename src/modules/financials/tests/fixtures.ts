@@ -158,12 +158,12 @@ export function documentRow(
   };
 }
 
-/** The documents migration 033 adds to the default template (quotes un-doubled). */
+/** The documents migration 034 adds to the default template (quotes un-doubled). */
 export function migrationTemplateDocuments(): unknown {
-  const sql = readFileSync(join("db", "migrations", "033_financial_documents.sql"), "utf8");
+  const sql = readFileSync(join("db", "migrations", "034_financial_documents.sql"), "utf8");
   const from = sql.indexOf("N'[", sql.indexOf("@Documents"));
   const to = sql.indexOf("]';", from);
-  if (from < 0 || to < 0) throw new Error("template documents not found in migration 033");
+  if (from < 0 || to < 0) throw new Error("template documents not found in migration 034");
   return JSON.parse(sql.slice(from + 2, to + 1).replace(/''/g, "'"));
 }
 

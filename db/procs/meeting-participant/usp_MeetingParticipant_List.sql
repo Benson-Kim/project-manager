@@ -1,39 +1,43 @@
--- usp_MeetingParticipant_List — paged/filtered list per ADR-0016. Search columns: (none). Sort whitelist: (default MeetingParticipantId only).
--- Entity app.MeetingParticipant (source: tblMeetingParticipants). Module: database-schema-and-procs (#3).
-
--- @ProjectId is accepted for contract uniformity but ignored (entity is not project-scoped).
+-- usp_MeetingParticipant_List — the live participants of one meeting with their labels (module #10,
+-- Guests (migration 033: StakeholderId null, GuestName / GuestOrganization set) are listed too,
+--   labelled "Name - Organization"; StakeholderIsDeleted is 0 for them.
+-- ADR-0028); the same rows as usp_Meeting_GetParticipants plus timestamps. A child collection: no
+-- paging or search. Labels: "Name - Position, Organization"; no contact details.
+-- Access: Viewer on the meeting's project (FORBIDDEN_ROW 50003); NOT_FOUND 50001 for a missing meeting.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_MeetingParticipant_List
-    @ActorUserId INT,
-    @ProjectId   INT           = NULL,
-    @Search      NVARCHAR(100) = NULL,
-    @SortBy      NVARCHAR(50)  = NULL,
-    @SortDir     VARCHAR(4)    = 'asc',
-    @Page        INT           = 1,
-    @PageSize    INT           = 25,
-    @MeetingId INT = NULL
+    @MeetingId   INT,
+    @ActorUserId INT
 AS
 BEGIN
     SET NOCOUNT ON;
-    SET @Page     = CASE WHEN @Page IS NULL OR @Page < 1 THEN 1 ELSE @Page END;
-    SET @PageSize = CASE WHEN @PageSize IS NULL OR @PageSize < 1 THEN 1
-                         WHEN @PageSize > 100 THEN 100 ELSE @PageSize END;
-    SET @SortDir  = CASE WHEN LOWER(@SortDir) = 'desc' THEN 'desc' ELSE 'asc' END;
 
-    SELECT MeetingParticipantId,
-           [MeetingId],
-           [StakeholderId],
-           [IsApology],
-           CreatedAtUtc,
-           UpdatedAtUtc,
-           CAST(RowVer AS BIGINT) AS RowVer,
-           TotalCount = COUNT(*) OVER ()
-    FROM app.MeetingParticipant
-    WHERE IsDeleted = 0
-      AND (@MeetingId IS NULL OR [MeetingId] = @MeetingId)
-    ORDER BY
-        MeetingParticipantId ASC
-    OFFSET (@Page - 1) * @PageSize ROWS FETCH NEXT @PageSize ROWS ONLY;
+    DECLARE @RowProjectId INT;
+    SELECT @RowProjectId = ProjectId FROM app.Meeting WHERE MeetingId = @MeetingId AND IsDeleted = 0;
+    IF @@ROWCOUNT = 0
+        THROW 50001, N'NOT_FOUND:Meeting not found', 1;
+
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
+         @MinLevel = N'Viewer', @AllowProjectless = 0;
+
+    SELECT mp.MeetingParticipantId,
+           mp.MeetingId,
+           mp.StakeholderId,
+           mp.GuestName,
+           mp.GuestOrganization,
+           CASE WHEN mp.StakeholderId IS NULL THEN CONCAT(mp.GuestName, N' - ' + NULLIF(TRIM(mp.GuestOrganization), N'')) ELSE CONCAT(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N' - ' + NULLIF(TRIM(s.OrgTitle), N''), N', ' + NULLIF(TRIM(s.DepartmentOrganization), N'')) END AS Label,
+           mp.[IsApology],
+           ISNULL(s.IsDeleted, 0) AS StakeholderIsDeleted,
+           mp.CreatedAtUtc,
+           mp.UpdatedAtUtc,
+           CAST(mp.RowVer AS BIGINT) AS RowVer,
+           @RowProjectId AS ProjectId
+    FROM app.MeetingParticipant AS mp
+    LEFT JOIN app.Stakeholder AS s ON s.StakeholderId = mp.StakeholderId
+    WHERE mp.IsDeleted = 0
+      AND mp.MeetingId = @MeetingId
+    ORDER BY COALESCE(s.FirstName, mp.GuestName), s.LastName, mp.MeetingParticipantId;
 END;
 GO

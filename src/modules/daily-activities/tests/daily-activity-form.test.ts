@@ -121,6 +121,22 @@ describe("updateDailyActivityFormSchema", () => {
 describe("activity dates in order", () => {
   const update = { ...minimal, dailyActivityId: "1", rowVer: "1" };
 
+  it("lets an activity saved with inverted dates be edited while they stay as stored", () => {
+    const legacy = {
+      ...update,
+      requestDate: "2026-03-10",
+      completeDate: "2026-03-01",
+      requestDateWas: "2026-03-10",
+      completeDateWas: "2026-03-01",
+    };
+    expect(updateDailyActivityFormSchema.safeParse({ ...legacy, task: "Call back" }).success).toBe(
+      true,
+    );
+    expect(
+      updateDailyActivityFormSchema.safeParse({ ...legacy, completeDate: "2026-03-02" }).success,
+    ).toBe(false);
+  });
+
   it.each([
     ["create", dailyActivityFormSchema, minimal],
     ["update", updateDailyActivityFormSchema, update],

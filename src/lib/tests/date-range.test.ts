@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { datesInOrder } from "../date-range";
+import { datesInOrder, datesWere, storedDates } from "../date-range";
 
 const schema = z
   .object({ from: z.date().nullable(), to: z.date().nullable(), label: z.string().optional() })
@@ -30,5 +30,38 @@ describe("datesInOrder", () => {
       addIssue: (issue: unknown) => issues.push(issue),
     } as unknown as z.RefinementCtx);
     expect(issues).toEqual([]);
+  });
+});
+
+describe("datesInOrder on an update form (datesWere)", () => {
+  const day = (iso: string) => new Date(`${iso}T00:00:00Z`);
+  const update = z
+    .object({ from: z.date().nullable(), to: z.date().nullable(), ...datesWere("from", "to") })
+    .superRefine(datesInOrder({ start: "from", end: "to", message: "To before from" }));
+  // Supplier 13 as migrated from Access: its contract ends before it starts.
+  const legacy = { from: day("2024-12-26"), to: day("2024-12-17") };
+  const stored = storedDates(legacy);
+
+  it("carries the stored dates as YYYY-MM-DD form values", () => {
+    expect(stored).toEqual({ fromWas: "2024-12-26", toWas: "2024-12-17" });
+    expect(storedDates({ from: null, to: undefined })).toEqual({ fromWas: "", toWas: "" });
+  });
+
+  it("lets a record saved with inverted dates be edited while they stay as stored", () => {
+    expect(update.safeParse({ ...legacy, ...stored }).success).toBe(true);
+  });
+
+  it("refuses the inverted pair once either date is changed", () => {
+    expect(update.safeParse({ from: legacy.from, to: day("2024-12-20"), ...stored }).success).toBe(
+      false,
+    );
+    expect(update.safeParse({ from: day("2024-12-27"), to: legacy.to, ...stored }).success).toBe(
+      false,
+    );
+  });
+
+  it("refuses an inverted pair on a record that had no dates, or without stored values", () => {
+    expect(update.safeParse({ ...legacy, fromWas: "", toWas: "" }).success).toBe(false);
+    expect(update.safeParse(legacy).success).toBe(false);
   });
 });

@@ -71,6 +71,24 @@ describe("project dates in order", () => {
   const base = { projectName: "X" };
   const update = { ...base, projectId: "1", rowVer: "1" };
 
+  it("lets a project saved with inverted dates be edited while they stay as stored", () => {
+    const legacy = {
+      ...update,
+      startDate: "2026-06-01",
+      endDate: "2026-05-01",
+      estimatedCompletionDate: "2026-04-01",
+      startDateWas: "2026-06-01",
+      endDateWas: "2026-05-01",
+      estimatedCompletionDateWas: "2026-04-01",
+    };
+    expect(updateProjectFormSchema.safeParse({ ...legacy, projectName: "Y" }).success).toBe(true);
+    const moved = updateProjectFormSchema.safeParse({ ...legacy, startDate: "2026-06-02" });
+    expect(moved.error?.issues.map((i) => i.path)).toEqual([
+      ["endDate"],
+      ["estimatedCompletionDate"],
+    ]);
+  });
+
   it.each([
     ["create", projectFormSchema, base],
     ["update", updateProjectFormSchema, update],

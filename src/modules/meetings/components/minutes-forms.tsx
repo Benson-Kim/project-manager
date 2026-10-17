@@ -1,0 +1,376 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useTransition } from "react";
+import type { z } from "zod";
+import { useAnnouncer } from "@/components/ui/announcer";
+import { Button } from "@/components/ui/button";
+import { ErrorSummary } from "@/components/ui/form/error-summary";
+import { Field } from "@/components/ui/form/field";
+import { DatePicker, Input } from "@/components/ui/form/inputs";
+import { useUnsavedPart } from "@/components/ui/form/unsaved-scope";
+import { useZodForm } from "@/components/ui/form/use-zod-form";
+import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
+import { messages } from "@/lib/messages";
+import { StakeholderSelect } from "@/modules/stakeholders/components/stakeholder-picker";
+import {
+  createActionItemAction,
+  createAgendaItemAction,
+  createDiscussionPointAction,
+  updateActionItemAction,
+  updateAgendaItemAction,
+  updateDiscussionPointAction,
+} from "../actions";
+import type {
+  MeetingWorkspace,
+  WorkspaceActionItem,
+  WorkspaceAgendaItem,
+  WorkspaceDiscussionPoint,
+} from "../schemas/meeting";
+import {
+  MEETING_TEXT_MAX,
+  createActionItemSchema,
+  createAgendaItemSchema,
+  createDiscussionPointSchema,
+  updateActionItemSchema,
+  updateAgendaItemSchema,
+  updateDiscussionPointSchema,
+} from "../schemas/meeting-form";
+import { editRowVer, sameAction, sameAgendaItem, samePoint } from "../schemas/minutes";
+import { useMinutes, type MinutesAnswer } from "./minutes-context";
+
+const M = messages.meetings;
+
+/**
+ * One inline minutes form: validates against the action's own schema (on
+ * blur once something was typed, and on submit), reports unsaved changes to
+ * the page's one guard, and hands the saved workspace back. A CONFLICT or a
+ * vanished row offers Reload, which drops the draft and reads the meeting
+ * again.
+ */
+function MinutesForm<S extends z.ZodType>({
+  part,
+  schema,
+  label,
+  testId,
+  submit,
+  onSaved,
+  onClose,
+  children,
+}: {
+  /** The form's name in the unsaved-changes scope; unique on the page. */
+  part: string;
+  schema: S;
+  label: string;
+  testId: string;
+  submit: (data: FormData) => Promise<MinutesAnswer>;
+  onSaved: (workspace: MeetingWorkspace | null) => void;
+  onClose: () => void;
+  children: (errors: Record<string, string[]>, changed: () => void) => React.ReactNode;
+}) {
+  const router = useRouter();
+  const { announce } = useAnnouncer();
+  const form = useZodForm(schema);
+  const ref = useRef<HTMLFormElement>(null);
+  const [dirty, setDirty] = useState(false);
+  const { markClean } = useUnsavedPart(part, dirty);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [stale, setStale] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const changed = () => setDirty(true);
+
+  useEffect(() => {
+    ref.current?.querySelector<HTMLElement>("input:not([type=hidden]):not([hidden])")?.focus();
+  }, []);
+
+  const close = () => {
+    markClean();
+    onClose();
+  };
+
+  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const element = event.currentTarget;
+    if (!form.validate(element)) {
+      setSummary(messages.errors.VALIDATION);
+      return;
+    }
+    setSummary(null);
+    setStale(false);
+    const data = new FormData(element);
+    startTransition(async () => {
+      const result = await submit(data);
+      if (result.ok) {
+        markClean();
+        announce(messages.feedback.saved);
+        onSaved(result.data);
+      } else if (result.error.code === "UNAUTHENTICATED") {
+        router.push("/login?reason=expired");
+      } else {
+        form.applyResult(result);
+        setSummary(result.error.message);
+        setStale(result.error.code === "CONFLICT" || result.error.code === "NOT_FOUND");
+      }
+    });
+  };
+
+  return (
+    <form
+      ref={ref}
+      noValidate
+      aria-label={label}
+      data-testid={testId}
+      onSubmit={onSubmit}
+      onChange={changed}
+      onBlur={(event) => {
+        if (dirty) form.onBlur(event);
+      }}
+      className="flex min-w-0 flex-1 flex-col gap-3 rounded-md border border-line bg-surface p-3"
+    >
+      <ErrorSummary message={summary} />
+      {stale ? (
+        <div>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              close();
+              router.refresh();
+            }}
+          >
+            {M.reload}
+          </Button>
+        </div>
+      ) : null}
+      {children(form.errors, changed)}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="submit" pending={pending} className="min-h-11" data-testid="minutes-save">
+          {messages.actions.save}
+        </Button>
+        <Button type="button" variant="secondary" className="min-h-11" onClick={close}>
+          {messages.actions.cancel}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** Adds an agenda item at the end of the agenda, or edits one's text. */
+export function AgendaItemForm({
+  item,
+  onDone,
+}: {
+  item?: WorkspaceAgendaItem;
+  /** Closes the form; `saved` when it saved. */
+  onDone: (saved: boolean) => void;
+}) {
+  const { meetingId, answer } = useMinutes();
+  const [started] = useState(item);
+  const common = {
+    label: item ? M.editItem(M.agendaEntity) : M.addAgendaItem,
+    testId: "agenda-item-form",
+    onSaved: (workspace: MeetingWorkspace | null) => {
+      answer(workspace);
+      onDone(true);
+    },
+    onClose: () => onDone(false),
+  };
+  const fields = (errors: Record<string, string[]>) => (
+    <Field label={M.agendaItem} name="agendaItem" errors={errors.agendaItem}>
+      <Input name="agendaItem" maxLength={MEETING_TEXT_MAX} defaultValue={item?.AgendaItem ?? ""} />
+    </Field>
+  );
+
+  if (item && started) {
+    return (
+      <MinutesForm
+        {...common}
+        part={`agenda-${item.MeetingAgendaItemId}`}
+        schema={updateAgendaItemSchema}
+        submit={updateAgendaItemAction}
+      >
+        {(errors) => (
+          <>
+            <input type="hidden" name="meetingAgendaItemId" value={item.MeetingAgendaItemId} />
+            <input type="hidden" name="rowVer" value={editRowVer(started, item, sameAgendaItem)} />
+            {fields(errors)}
+          </>
+        )}
+      </MinutesForm>
+    );
+  }
+  return (
+    <MinutesForm
+      {...common}
+      part="agenda-new"
+      schema={createAgendaItemSchema}
+      submit={createAgendaItemAction}
+    >
+      {(errors) => (
+        <>
+          <input type="hidden" name="meetingId" value={meetingId} />
+          {fields(errors)}
+        </>
+      )}
+    </MinutesForm>
+  );
+}
+
+/** Adds a discussion point at the end of an agenda item's, or edits one (rich text). */
+export function DiscussionPointForm({
+  agendaItemId,
+  point,
+  onDone,
+}: {
+  agendaItemId: number;
+  point?: WorkspaceDiscussionPoint;
+  onDone: (saved: boolean) => void;
+}) {
+  const { answer } = useMinutes();
+  const [started] = useState(point);
+  const common = {
+    label: point ? M.editItem(M.pointEntity) : M.addDiscussionPoint,
+    testId: "discussion-point-form",
+    // The formatted view is rendered on the server: refresh to bring the new one.
+    onSaved: (workspace: MeetingWorkspace | null) => {
+      answer(workspace, true);
+      onDone(true);
+    },
+    onClose: () => onDone(false),
+  };
+  const fields = (errors: Record<string, string[]>) => (
+    <Field label={M.discussionPoint} name="discussionPoint" errors={errors.discussionPoint}>
+      <RichTextEditor name="discussionPoint" defaultValue={point?.DiscussionPoint} autoFocus />
+    </Field>
+  );
+
+  if (point && started) {
+    return (
+      <MinutesForm
+        {...common}
+        part={`point-${point.MeetingDiscussionPointId}`}
+        schema={updateDiscussionPointSchema}
+        submit={updateDiscussionPointAction}
+      >
+        {(errors) => (
+          <>
+            <input
+              type="hidden"
+              name="meetingDiscussionPointId"
+              value={point.MeetingDiscussionPointId}
+            />
+            <input type="hidden" name="rowVer" value={editRowVer(started, point, samePoint)} />
+            {fields(errors)}
+          </>
+        )}
+      </MinutesForm>
+    );
+  }
+  return (
+    <MinutesForm
+      {...common}
+      part={`point-new-${agendaItemId}`}
+      schema={createDiscussionPointSchema}
+      submit={createDiscussionPointAction}
+    >
+      {(errors) => (
+        <>
+          <input type="hidden" name="agendaItemId" value={agendaItemId} />
+          {fields(errors)}
+        </>
+      )}
+    </MinutesForm>
+  );
+}
+
+/**
+ * Adds an action under a discussion point (or directly under an agenda
+ * item), or edits one: the action, the person responsible (a stakeholder of
+ * the project, checklist row 13) and the due date.
+ */
+export function ActionItemForm({
+  parent,
+  action,
+  onDone,
+}: {
+  /** Where a new action goes: under the discussion point, else directly under the agenda item. */
+  parent?: { agendaItemId: number; discussionPointId: number | null };
+  action?: WorkspaceActionItem;
+  onDone: (saved: boolean) => void;
+}) {
+  const { answer, people } = useMinutes();
+  const [started] = useState(action);
+  const common = {
+    label: action ? M.editItem(M.actionEntity) : M.addAction,
+    testId: "action-item-form",
+    onSaved: (workspace: MeetingWorkspace | null) => {
+      answer(workspace);
+      onDone(true);
+    },
+    onClose: () => onDone(false),
+  };
+  const fields = (errors: Record<string, string[]>, changed: () => void) => (
+    <>
+      <Field label={M.action} name="action" errors={errors.action}>
+        <Input name="action" maxLength={MEETING_TEXT_MAX} defaultValue={action?.Action ?? ""} />
+      </Field>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field
+          label={M.personResponsible}
+          name="assignedToStakeholderId"
+          errors={errors.assignedToStakeholderId}
+        >
+          <StakeholderSelect
+            name="assignedToStakeholderId"
+            options={people(action)}
+            defaultValue={action?.AssignedToStakeholderId ?? null}
+            onSelect={changed}
+          />
+        </Field>
+        <Field label={M.dueDate} name="dueDate" errors={errors.dueDate}>
+          <DatePicker name="dueDate" defaultValue={action?.DueDate ?? ""} />
+        </Field>
+      </div>
+    </>
+  );
+
+  if (action && started) {
+    return (
+      <MinutesForm
+        {...common}
+        part={`action-${action.MeetingActionItemId}`}
+        schema={updateActionItemSchema}
+        submit={updateActionItemAction}
+      >
+        {(errors, changed) => (
+          <>
+            <input type="hidden" name="meetingActionItemId" value={action.MeetingActionItemId} />
+            <input type="hidden" name="rowVer" value={editRowVer(started, action, sameAction)} />
+            {fields(errors, changed)}
+          </>
+        )}
+      </MinutesForm>
+    );
+  }
+  if (!parent) return null;
+  const { agendaItemId, discussionPointId } = parent;
+  return (
+    <MinutesForm
+      {...common}
+      part={`action-new-${discussionPointId == null ? `a${agendaItemId}` : `p${discussionPointId}`}`}
+      schema={createActionItemSchema}
+      submit={createActionItemAction}
+    >
+      {(errors, changed) => (
+        <>
+          {discussionPointId == null ? (
+            <input type="hidden" name="agendaItemId" value={agendaItemId} />
+          ) : (
+            <input type="hidden" name="discussionPointId" value={discussionPointId} />
+          )}
+          {fields(errors, changed)}
+        </>
+      )}
+    </MinutesForm>
+  );
+}

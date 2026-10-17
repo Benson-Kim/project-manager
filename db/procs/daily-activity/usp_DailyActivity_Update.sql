@@ -7,8 +7,13 @@
 -- Dropdown values must be live options of their lists, or unchanged (ADR-0022, VALIDATION 50004):
 --   ActivityStatusId ('daily-activity.status', by id), ContactMethod and TaskType (by label).
 -- A move also moves the activity's attachments to the new project's quota bucket (ADR-0026 §2).
+--   With @QuotaBytes set, their bytes must fit there (QUOTA_EXCEEDED 50006), checked under the
+--   destination's quota lock after the row's, the order usp_DailyActivity_AddFile takes them in.
+--   NULL (an app from before this check) moves them unchecked.
 -- Returns ActivityStatus, the status option's label (live or retired), with the row.
 -- Entity app.DailyActivity (source: tblDailyActivityList). Module: database-schema-and-procs (#3).
+-- Dates in order (VALIDATION 50004) only when one of the pair changes: a record saved with them
+--   inverted before the rule existed can still be edited without rewriting its history.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_DailyActivity_Update
@@ -28,6 +33,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_DailyActivity_Update
     @AssignedTo NVARCHAR(255) = NULL,
     @TaskType NVARCHAR(255) = NULL,
     @Progress INT = NULL,
+    @QuotaBytes BIGINT = NULL,
     @RowVer BIGINT,
     @ActorUserId INT
 AS
@@ -36,10 +42,12 @@ BEGIN
     SET XACT_ABORT ON;
 
     DECLARE @CurrentVer BIGINT, @RowProjectId INT, @CurrentStatusId INT,
-            @CurrentContactMethod NVARCHAR(255), @CurrentTaskType NVARCHAR(255);
+            @CurrentContactMethod NVARCHAR(255), @CurrentTaskType NVARCHAR(255),
+            @CurrentRequestDate DATETIME2, @CurrentCompleteDate DATETIME2;
     SELECT @CurrentVer = CAST(RowVer AS BIGINT), @RowProjectId = ProjectId,
            @CurrentStatusId = ActivityStatusId, @CurrentContactMethod = ContactMethod,
-           @CurrentTaskType = TaskType
+           @CurrentTaskType = TaskType,
+           @CurrentRequestDate = RequestDate, @CurrentCompleteDate = CompleteDate
     FROM app.DailyActivity WHERE DailyActivityId = @DailyActivityId AND IsDeleted = 0;
     IF @CurrentVer IS NULL
         THROW 50001, N'NOT_FOUND:DailyActivity not found', 1;
@@ -69,6 +77,9 @@ BEGIN
          @CurrentLabel = @CurrentTaskType;
 
     IF @CompleteDate < @RequestDate
+       AND (@CurrentRequestDate IS NULL OR @CurrentCompleteDate IS NULL
+            OR CAST(@RequestDate AS DATE) <> CAST(@CurrentRequestDate AS DATE)
+            OR CAST(@CompleteDate AS DATE) <> CAST(@CurrentCompleteDate AS DATE))
         THROW 50004, N'VALIDATION:CompleteDate cannot be before RequestDate', 1;
 
     BEGIN TRAN;
@@ -108,6 +119,31 @@ BEGIN
     END
 
     -- Its attachments move with it: their ProjectId is the quota bucket (ADR-0026 §2).
+    DECLARE @MovingBytes BIGINT =
+        (SELECT SUM(f.SizeBytes)
+         FROM app.FileAttachment f
+         JOIN app.DailyActivityFile l ON l.FileAttachmentId = f.FileAttachmentId
+         WHERE l.DailyActivityId = @DailyActivityId AND f.IsDeleted = 0
+           AND (f.ProjectId <> @ProjectId
+                OR (f.ProjectId IS NULL AND @ProjectId IS NOT NULL)
+                OR (f.ProjectId IS NOT NULL AND @ProjectId IS NULL)));
+    IF @MovingBytes > 0 AND @QuotaBytes IS NOT NULL
+    BEGIN
+        DECLARE @Bucket NVARCHAR(64) = N'file-quota:' + ISNULL(CAST(@ProjectId AS NVARCHAR(12)), N'none');
+        DECLARE @Lock INT;
+        EXEC @Lock = sp_getapplock @Resource = @Bucket, @LockMode = 'Exclusive',
+                                   @LockOwner = 'Transaction', @LockTimeout = 15000;
+        IF @Lock < 0
+            THROW 50999, N'INTERNAL:The attachment quota is busy', 1;
+
+        DECLARE @Used BIGINT =
+            ISNULL((SELECT SUM(SizeBytes) FROM app.FileAttachment
+                    WHERE IsDeleted = 0
+                      AND (ProjectId = @ProjectId OR (@ProjectId IS NULL AND ProjectId IS NULL))), 0);
+        IF @Used + @MovingBytes > @QuotaBytes
+            THROW 50006, N'QUOTA_EXCEEDED:The project has no room for this activity''s attachments', 1;
+    END;
+
     UPDATE f SET ProjectId = @ProjectId
     FROM app.FileAttachment f
     JOIN app.DailyActivityFile l ON l.FileAttachmentId = f.FileAttachmentId

@@ -153,9 +153,9 @@ test.describe("rich-text editor (ADR-0025)", () => {
     await editor.click();
     // Into the heading: in a list item, Shift+Tab outdents instead of leaving.
     await page.keyboard.press("Control+Home");
-    // The editor reads the caret move a moment later; a Shift+Tab sent before then still sees
-    // the list item and outdents. The text-style select follows the editor's own state.
-    await expect(toolbar.getByLabel("Text style")).toHaveValue(/^[234]$/);
+    // The editor takes a caret move from the browser's selectionchange, a task later. Under
+    // load, Shift+Tab arrived first and outdented the clicked list item; wait for the heading.
+    await expect(toolbar.getByRole("combobox", { name: "Text style" })).toHaveValue("2");
     await page.keyboard.press("Shift+Tab");
     await expect(toolbar.getByRole("button", { name: "Undo" })).toBeFocused();
     await page.keyboard.press("ArrowRight");

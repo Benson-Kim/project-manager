@@ -1,4 +1,4 @@
-﻿-- 033_financial_documents.sql - the MSSS document checklist of a financial (ADR-0030, on top of
+﻿-- 034_financial_documents.sql - the MSSS document checklist of a financial (ADR-0030, on top of
 -- ADR-0029; PPTX slide 2 "Financial Documents Required?").
 --   app.FinancialDocument becomes the financial's own list: a Name and a SortOrder per row, the
 --     legacy type id optional (kept for the rows that came from Access), IsRequired tri-state

@@ -108,6 +108,74 @@ export function Dialog({
   );
 }
 
+/**
+ * A non-modal panel at a fixed spot on the page, e.g. under a datasheet cell
+ * (ADR-0023): no overlay, the page stays usable. Esc calls onEscape; a click
+ * or focus outside calls onOutside with what was touched (Access commits a
+ * cell when you leave it). Focus returns to the opener unless it left the
+ * panel for something else on the page.
+ */
+export function AnchoredPanel({
+  open,
+  title,
+  style,
+  onEscape,
+  onOutside,
+  testId,
+  children,
+}: {
+  open: boolean;
+  /** Accessible name (visually hidden). */
+  title: string;
+  /** Fixed position and size in viewport px. */
+  style: React.CSSProperties;
+  onEscape: () => void;
+  onOutside: (target: Node | null) => void;
+  testId?: string;
+  children: React.ReactNode;
+}) {
+  const openerRef = useRef<HTMLElement | null>(null);
+  const leftRef = useRef(false);
+  return (
+    <RadixDialog.Root open={open} modal={false}>
+      <RadixDialog.Portal>
+        <RadixDialog.Content
+          aria-describedby={undefined}
+          data-testid={testId}
+          style={style}
+          onOpenAutoFocus={() => {
+            openerRef.current =
+              document.activeElement instanceof HTMLElement ? document.activeElement : null;
+            leftRef.current = false;
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            if (!leftRef.current) openerRef.current?.focus();
+            openerRef.current = null;
+          }}
+          onFocus={() => {
+            leftRef.current = false;
+          }}
+          onEscapeKeyDown={(event) => {
+            event.preventDefault();
+            onEscape();
+          }}
+          onInteractOutside={(event) => {
+            event.preventDefault();
+            if (isToastInteraction(event)) return;
+            leftRef.current = true;
+            onOutside(event.detail.originalEvent.target as Node | null);
+          }}
+          className="fixed z-(--z-dialog) flex flex-col gap-3 overflow-y-auto rounded-lg border border-line bg-surface p-3 shadow-xl"
+        >
+          <RadixDialog.Title className="sr-only">{title}</RadixDialog.Title>
+          {children}
+        </RadixDialog.Content>
+      </RadixDialog.Portal>
+    </RadixDialog.Root>
+  );
+}
+
 export function Sheet({ open, onOpenChange, title, description, children }: OverlayProps) {
   const focusReturn = useReturnFocusToOpener();
   return (
