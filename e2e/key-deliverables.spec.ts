@@ -9,8 +9,9 @@ import { escapeRegExp, expectListed } from "./support/datasheet";
  * WBS and Gantt editor (ADR-0027: add, indent, rename, drag, stretch, scale,
  * a parent's read-only dates in the datasheet, the sub-item delete warning,
  * delete; desktop + 360 px), the WBS diagram (add, rename, drag and drop,
- * the round trip with the Gantt, keyboard, delete) and axe scans on the list,
- * the diagram and the Gantt.
+ * the round trip with the Gantt, keyboard, delete; Alt+arrow moves, Move to…,
+ * a branch listed or side by side, zoom) and axe scans on the list, the
+ * diagram and the Gantt.
  * Runs as e2e-pm (storage state from auth.setup.ts). Project 2 is seeded with
  * deliverables and stakeholders.
  */
@@ -343,6 +344,76 @@ test("WBS diagram: add, rename, drag onto a box, round trip with the Gantt, dele
   await page.getByTestId("wbs-delete").click();
   await page.getByRole("button", { name: W.delete, exact: true }).last().click();
   await expect(phaseBox).toHaveCount(0);
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+});
+
+test("WBS diagram: Alt+arrows, Move to…, a branch listed or side by side, zoom", async ({
+  page,
+}) => {
+  const stamp = Date.now();
+  await page.goto("/projects/2/deliverables/gantt?view=wbs");
+  const diagram = page.getByTestId("wbs-diagram");
+  await expect(diagram).toBeVisible();
+  await closeAlarmToast(page);
+
+  async function addTopLevel(name: string): Promise<Locator> {
+    await page.getByTestId("wbs-add").click();
+    const field = page.locator("input:focus");
+    await expect(field).toHaveValue(W.newItemName, { timeout: 15_000 });
+    await field.fill(name);
+    await field.press("Enter");
+    const added = diagram.getByRole("treeitem", { name: new RegExp(escapeRegExp(name)) });
+    await expect(added).toBeFocused();
+    return page.getByTestId(`wbs-box-${await added.getAttribute("data-wbs-box")}`);
+  }
+  const phase = await addTopLevel(`E2E phase ${stamp}`);
+  const task = await addTopLevel(`E2E task ${stamp}`);
+
+  // Alt+→ makes the focused box a sub-item of the one before it, Alt+← takes it back out,
+  // and it keeps the focus wherever it lands.
+  await page.keyboard.press("Alt+ArrowRight");
+  await expect(task).toHaveAttribute("aria-level", "2");
+  await expect(task).toBeFocused();
+  await page.keyboard.press("Alt+ArrowLeft");
+  await expect(task).toHaveAttribute("aria-level", "1");
+  await expect(task).toBeFocused();
+
+  // Move to… sends the selected item under any other, without dragging across the chart.
+  await page.getByTestId("wbs-move-to").click();
+  const dialog = page.getByRole("dialog", { name: new RegExp(`E2E task ${stamp}`) });
+  await dialog.getByLabel(W.moveUnder).fill(`E2E phase ${stamp}`);
+  await dialog
+    .getByRole("listbox")
+    .getByRole("option", { name: new RegExp(`E2E phase ${stamp}`) })
+    .click();
+  await dialog.getByTestId("wbs-move-submit").click();
+  await expect(dialog).toBeHidden();
+  await expect(task).toHaveAttribute("aria-level", "2");
+
+  // A single sub-item sits under its parent; Listed puts it on a rail, where the top and
+  // bottom edges are the drop zones, and Automatic gives the choice back to the width.
+  await expect(task).toHaveAttribute("data-wbs-axis", "row");
+  await phase.click();
+  await page.getByTestId("wbs-sub-items-list").click();
+  await expect(task).toHaveAttribute("data-wbs-axis", "column");
+  await page.reload();
+  await expect(task).toHaveAttribute("data-wbs-axis", "column");
+  await phase.click();
+  await page.getByTestId("wbs-sub-items-auto").click();
+  await expect(task).toHaveAttribute("data-wbs-axis", "row");
+
+  const zoom = page.getByTestId("wbs-zoom-reset");
+  await page.getByTestId("wbs-zoom-out").click();
+  await expect(zoom).toHaveText("90%");
+  await zoom.click();
+  await expect(zoom).toHaveText("100%");
+
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+  await phase.click();
+  await page.getByTestId("wbs-delete").click();
+  await page.getByRole("button", { name: W.delete, exact: true }).last().click();
+  await expect(phase).toHaveCount(0);
+  await expect(task).toHaveCount(0);
   await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
 });
 

@@ -53,7 +53,15 @@ import {
 } from "./gantt-scale";
 import type { Span } from "./wbs-bar";
 import { WbsDiagram, type DiagramHandlers } from "./wbs-diagram";
-import type { WbsView } from "./wbs-diagram-layout";
+import {
+  DEFAULT_CHART,
+  chooseBranch,
+  parseChartSettings,
+  serializeChartSettings,
+  type ChartSettings,
+  type WbsView,
+} from "./wbs-diagram-layout";
+import { WbsMoveDialog } from "./wbs-move-dialog";
 import { tabClass, WbsRow, type RowHandlers, type WbsTab } from "./wbs-row";
 import { WbsToolbar } from "./wbs-toolbar";
 
@@ -90,6 +98,15 @@ function parseDay(value: string): Date | null {
 
 function firstError(error: { message: string; fieldErrors?: Record<string, string[]> }): string {
   return (error.fieldErrors && Object.values(error.fieldErrors).flat()[0]) || error.message;
+}
+
+function readChart(key: string): ChartSettings | null {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? parseChartSettings(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
 }
 
 function readCollapsed(key: string): Set<number> | null {
@@ -235,6 +252,17 @@ export function WbsGantt({
   }, [storageKey]);
   const visible = useMemo(() => visibleIds(shown, collapsed), [shown, collapsed]);
 
+  // The diagram's zoom, width and per-branch layout: this viewer's, per project, like `collapsed`.
+  const chartKey = `wbs-chart:${projectId}`;
+  const [chart, setChart] = useState<ChartSettings>(DEFAULT_CHART);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const saved = readChart(chartKey);
+      if (saved) setChart(saved);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [chartKey]);
+
   const [selectedId, setSelectedId] = useState<number | null>(null);
   // An item hidden in a collapsed branch is not what the toolbar acts on.
   const selected =
@@ -251,6 +279,7 @@ export function WbsGantt({
   }, [view]);
   const [tab, setTab] = useState<WbsTab>("outline");
   const [confirmId, setConfirmId] = useState<number | null>(null);
+  const [moveId, setMoveId] = useState<number | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const nameHeadRef = useRef<HTMLDivElement>(null);
@@ -341,6 +370,20 @@ export function WbsGantt({
         window.localStorage.setItem(storageKey, JSON.stringify([...next]));
       } catch {
         // Private windows and blocked storage: the outline just forgets.
+      }
+      return next;
+    });
+  }
+
+  function changeChart(change: (current: ChartSettings) => ChartSettings, save = true) {
+    setChart((current) => {
+      const next = change(current);
+      if (save) {
+        try {
+          window.localStorage.setItem(chartKey, serializeChartSettings(next));
+        } catch {
+          // Private windows and blocked storage: the chart just forgets.
+        }
       }
       return next;
     });
@@ -666,6 +709,23 @@ export function WbsGantt({
         hidden: !canEdit,
         disabled: selId === null || !moveDownTarget(wbs, selId),
       }}
+      moveTo={{
+        run: () => setMoveId(selId),
+        hidden: !canEdit,
+        disabled: selId === null,
+      }}
+      subItems={
+        view === "wbs" && selected && selected.childIds.length > 0
+          ? {
+              value: chart.branches.get(selected.item.id) ?? "auto",
+              onChange: (layout) =>
+                changeChart((current) => ({
+                  ...current,
+                  branches: chooseBranch(wbs, current.branches, selected.item.id, layout),
+                })),
+            }
+          : null
+      }
       rename={{
         run: () => selId !== null && startRename(selId),
         hidden: !canEdit,
@@ -724,6 +784,8 @@ export function WbsGantt({
           renamingId={renamingId}
           canEdit={canEdit}
           canDelete={canDelete}
+          chart={chart}
+          onChart={changeChart}
           on={diagramHandlers}
         />
       ) : (
@@ -812,6 +874,17 @@ export function WbsGantt({
           </ul>
         </div>
       )}
+
+      {moveId !== null && wbs.nodes.has(moveId) ? (
+        <WbsMoveDialog
+          key={moveId}
+          wbs={wbs}
+          id={moveId}
+          projectName={projectName}
+          onClose={() => setMoveId(null)}
+          onMove={(placement) => move(moveId, placement)}
+        />
+      ) : null}
 
       <ConfirmDialog
         open={confirmNode !== undefined}
