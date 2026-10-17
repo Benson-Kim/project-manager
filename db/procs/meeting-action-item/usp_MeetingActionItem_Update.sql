@@ -3,8 +3,10 @@
 -- row (module #10, ADR-0028). Its meeting, agenda item, discussion point and position are immutable
 -- here (moves go through _Reorder).
 -- Person responsible (checklist row 13): a changed @AssignedToStakeholderId must be a live
---   stakeholder of the meeting's project (VALIDATION 50004); an unchanged one stays valid even if
---   that stakeholder was deleted since, so old minutes keep their names.
+--   stakeholder of the meeting's project (VALIDATION 50004, checked inside the transaction with that
+--   row locked under UPDLOCK, HOLDLOCK so a concurrent usp_Stakeholder_Delete fails the check or
+--   waits); an unchanged one stays valid even if that stakeholder was deleted since, so old minutes
+--   keep their names. AssigneeName is NULL when nobody is responsible.
 -- Access: Contributor on the meeting's project, or a per-person grant (meetings:update, ADR-0024).
 -- VALIDATION 50004: empty Action.
 USE ProjectManager;
@@ -36,14 +38,15 @@ BEGIN
 
     IF NULLIF(TRIM(@Action), N'') IS NULL
         THROW 50004, N'VALIDATION:Action is required', 1;
-    IF @AssignedToStakeholderId IS NOT NULL
-       AND (@CurrentAssignee IS NULL OR @AssignedToStakeholderId <> @CurrentAssignee)
-       AND NOT EXISTS (SELECT 1 FROM app.Stakeholder
-                       WHERE StakeholderId = @AssignedToStakeholderId AND ProjectId = @RowProjectId
-                         AND IsDeleted = 0)
-        THROW 50004, N'VALIDATION:The person responsible must be a stakeholder of the meeting''s project', 1;
 
     BEGIN TRAN;
+
+    IF @AssignedToStakeholderId IS NOT NULL
+       AND (@CurrentAssignee IS NULL OR @AssignedToStakeholderId <> @CurrentAssignee)
+       AND NOT EXISTS (SELECT 1 FROM app.Stakeholder AS s WITH (UPDLOCK, HOLDLOCK)
+                       WHERE s.StakeholderId = @AssignedToStakeholderId AND s.ProjectId = @RowProjectId
+                         AND s.IsDeleted = 0)
+        THROW 50004, N'VALIDATION:The person responsible must be a stakeholder of the meeting''s project', 1;
 
     DECLARE @Before NVARCHAR(MAX) =
         (SELECT MeetingActionItemId, [MeetingId], [AgendaItemId], [DiscussionPointId], [Action],
@@ -82,7 +85,7 @@ BEGIN
            ai.[DiscussionPointId],
            ai.[Action],
            ai.[AssignedToStakeholderId],
-           TRIM(CONCAT(s.FirstName, N' ', s.LastName)) AS AssigneeName,
+           NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N'') AS AssigneeName,
            ai.[DueDate],
            ai.SortOrder,
            ai.CreatedAtUtc,

@@ -44,8 +44,8 @@ import {
  * Meeting actions (ADR-0028). The global role is checked here; the project
  * level (Contributor to write, Manager to delete) and per-person overrides
  * are checked in-proc (ADR-0021, ADR-0024), which also write the audit rows.
- * The routes are dynamic (session cookie), so the bracket-segment pattern
- * revalidates every cached instance.
+ * The targets are route patterns; action() revalidates them as pages, which
+ * reaches every rendered instance (the routes are dynamic, session cookie).
  */
 const REVALIDATE_TARGETS = ["/projects/[id]/meetings", "/projects/[id]/meetings/[meetingId]"];
 
