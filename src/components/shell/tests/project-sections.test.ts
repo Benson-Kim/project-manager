@@ -74,13 +74,14 @@ describe("projectSectionGroups", () => {
     expect(activity.sections.map((s) => s.segment)).toContain("keywords");
   });
 
-  it("activity group ends with meetings, matched as a prefix for the workspace route", () => {
+  it("activity group ends with meetings then notes, matched as a prefix for the notes workspace route", () => {
     const activity = projectSectionGroups.find((g) => g.key === "activity")!;
     expect(activity.sections.map((s) => s.segment)).toEqual([
       "daily-activities",
       "todos",
       "keywords",
       "meetings",
+      "notes",
     ]);
     expect(activity.sections.at(-1)?.match).toBe("prefix");
   });
