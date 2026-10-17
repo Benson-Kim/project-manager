@@ -1,4 +1,6 @@
 -- usp_MeetingParticipant_Update — switch a participant between attended (IsApology = 0) and apology
+-- Guests (migration 033: StakeholderId null, GuestName / GuestOrganization set) are listed too,
+--   labelled "Name - Organization"; StakeholderIsDeleted is 0 for them.
 -- (1) with rowversion concurrency (50002 CONFLICT, checked in the transaction) and an in-transaction
 -- audit row (module #10, ADR-0028). The meeting and the stakeholder are immutable. The meeting row is
 -- locked (UPDLOCK, HOLDLOCK) like usp_MeetingParticipant_Set, so a switch cannot land between a set's
@@ -41,7 +43,7 @@ BEGIN
     END;
 
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT MeetingParticipantId, [MeetingId], [StakeholderId], [IsApology]
+        (SELECT MeetingParticipantId, [MeetingId], [StakeholderId], GuestName, GuestOrganization, [IsApology]
          FROM app.MeetingParticipant WHERE MeetingParticipantId = @MeetingParticipantId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 
@@ -61,7 +63,7 @@ BEGIN
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.MeetingParticipant', CAST(@MeetingParticipantId AS NVARCHAR(64)), @Before,
-            (SELECT MeetingParticipantId, [MeetingId], [StakeholderId], [IsApology]
+            (SELECT MeetingParticipantId, [MeetingId], [StakeholderId], GuestName, GuestOrganization, [IsApology]
              FROM app.MeetingParticipant WHERE MeetingParticipantId = @MeetingParticipantId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
@@ -70,15 +72,17 @@ BEGIN
     SELECT mp.MeetingParticipantId,
            mp.MeetingId,
            mp.StakeholderId,
-           CONCAT(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N' - ' + NULLIF(TRIM(s.OrgTitle), N''), N', ' + NULLIF(TRIM(s.DepartmentOrganization), N'')) AS Label,
+           mp.GuestName,
+           mp.GuestOrganization,
+           CASE WHEN mp.StakeholderId IS NULL THEN CONCAT(mp.GuestName, N' - ' + NULLIF(TRIM(mp.GuestOrganization), N'')) ELSE CONCAT(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N' - ' + NULLIF(TRIM(s.OrgTitle), N''), N', ' + NULLIF(TRIM(s.DepartmentOrganization), N'')) END AS Label,
            mp.[IsApology],
-           s.IsDeleted AS StakeholderIsDeleted,
+           ISNULL(s.IsDeleted, 0) AS StakeholderIsDeleted,
            mp.CreatedAtUtc,
            mp.UpdatedAtUtc,
            CAST(mp.RowVer AS BIGINT) AS RowVer,
            @RowProjectId AS ProjectId
     FROM app.MeetingParticipant AS mp
-    JOIN app.Stakeholder AS s ON s.StakeholderId = mp.StakeholderId
+    LEFT JOIN app.Stakeholder AS s ON s.StakeholderId = mp.StakeholderId
     WHERE mp.MeetingParticipantId = @MeetingParticipantId;
 END;
 GO

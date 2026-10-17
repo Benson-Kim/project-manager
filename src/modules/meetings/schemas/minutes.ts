@@ -121,7 +121,8 @@ export function openActions(actions: WorkspaceActionItem[], today: string): Open
 
 /**
  * Who can be made responsible for an action (checklist row 13): the live
- * stakeholders of the meeting's project, from the participant roster. A
+ * stakeholders of the meeting's project, from the participant roster. Guests
+ * are not offered, since an action's person responsible is a stakeholder. A
  * current person responsible who is no longer one stays on offer, so saving
  * the action's text keeps them (the proc checks the person only on a change).
  */
@@ -129,9 +130,11 @@ export function personOptions(
   roster: RosterEntry[],
   current?: { id: number | null; name: string | null },
 ): StakeholderOption[] {
-  const options = roster
-    .filter((entry) => !entry.IsHistorical)
-    .map((entry) => ({ stakeholderId: entry.StakeholderId, name: entry.Label }));
+  const options: StakeholderOption[] = roster.flatMap((entry) =>
+    entry.StakeholderId === null || entry.IsHistorical
+      ? []
+      : [{ stakeholderId: entry.StakeholderId, name: entry.Label }],
+  );
   if (current?.id != null && !options.some((o) => o.stakeholderId === current.id)) {
     options.push({ stakeholderId: current.id, name: current.name || String(current.id) });
   }

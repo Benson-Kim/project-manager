@@ -1,4 +1,6 @@
 -- usp_Meeting_GetParticipants — port of Access qryMeetingParticipants (module #10, ADR-0028): every
+-- Guests (migration 033: StakeholderId null, GuestName / GuestOrganization set) are listed too,
+--   labelled "Name - Organization"; StakeholderIsDeleted is 0 for them.
 -- live participant of a meeting with its label and attended/apology state. Participants whose
 -- stakeholder was deleted later stay listed (StakeholderIsDeleted = 1): the minutes keep history.
 -- Label: "Name - Position, Organization" like qryMeetingAttendees (Position = OrgTitle,
@@ -25,14 +27,16 @@ BEGIN
     SELECT mp.MeetingParticipantId,
            mp.MeetingId,
            mp.StakeholderId,
-           CONCAT(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N' - ' + NULLIF(TRIM(s.OrgTitle), N''), N', ' + NULLIF(TRIM(s.DepartmentOrganization), N'')) AS Label,
+           mp.GuestName,
+           mp.GuestOrganization,
+           CASE WHEN mp.StakeholderId IS NULL THEN CONCAT(mp.GuestName, N' - ' + NULLIF(TRIM(mp.GuestOrganization), N'')) ELSE CONCAT(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N' - ' + NULLIF(TRIM(s.OrgTitle), N''), N', ' + NULLIF(TRIM(s.DepartmentOrganization), N'')) END AS Label,
            mp.[IsApology],
-           s.IsDeleted AS StakeholderIsDeleted,
+           ISNULL(s.IsDeleted, 0) AS StakeholderIsDeleted,
            CAST(mp.RowVer AS BIGINT) AS RowVer
     FROM app.MeetingParticipant AS mp
-    JOIN app.Stakeholder AS s ON s.StakeholderId = mp.StakeholderId
+    LEFT JOIN app.Stakeholder AS s ON s.StakeholderId = mp.StakeholderId
     WHERE mp.IsDeleted = 0
       AND mp.MeetingId = @MeetingId
-    ORDER BY s.FirstName, s.LastName, mp.MeetingParticipantId;
+    ORDER BY COALESCE(s.FirstName, mp.GuestName), s.LastName, mp.MeetingParticipantId;
 END;
 GO
