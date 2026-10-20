@@ -88,11 +88,12 @@ describe("datasheet form values round-trip through each update form schema", () 
       keyRequirement: "Sign-off",
       startDate: day("2026-10-05"),
       deadline: day("2026-11-30"),
-      color: "green",
       assigneeIds: [3, 4],
       priority: "Critical",
       status: "Legacy status",
     });
+    // The colour follows the status now (ADR-0036): a cell edit sends none, so the proc keeps it.
+    expect(parsed).not.toHaveProperty("color");
   });
 
   it("daily activities keep the status id, numbers and project-less scope", () => {
