@@ -2,26 +2,36 @@
 
 import { action } from "@/lib/action";
 import {
+  addRequirement,
   createKeyDeliverable,
   updateKeyDeliverable,
   deleteKeyDeliverable,
+  deleteRequirement,
   deleteWbsItem,
   getWbs,
   moveKeyDeliverable,
+  moveRequirement,
   renameKeyDeliverable,
   rescheduleKeyDeliverable,
+  setWbsItemStatus,
+  updateRequirement,
 } from "../repository/key-deliverables";
 import {
   keyDeliverableFormSchema,
   updateKeyDeliverableFormSchema,
 } from "../schemas/key-deliverable-form";
 import {
+  addRequirementInput,
   addWbsItemInput,
   deleteKeyDeliverableInput,
+  deleteRequirementInput,
   deleteWbsItemInput,
+  moveRequirementInput,
   moveWbsItemInput,
   renameWbsItemInput,
   rescheduleWbsItemInput,
+  setWbsStatusInput,
+  updateRequirementInput,
 } from "../schemas/key-deliverable";
 
 /**
@@ -120,4 +130,45 @@ export const deleteWbsItemAction = action({
   schema: deleteWbsItemInput,
   permission: "key-deliverables:delete",
   handler: (input, ctx) => deleteWbsItem(input, ctx.session.userId),
+});
+
+/** A status picked from the WBS or Gantt menu; the item's colour follows it (ADR-0034). */
+export const setWbsStatusAction = action({
+  name: "key-deliverables.wbs-status",
+  schema: setWbsStatusInput,
+  permission: "key-deliverables:update",
+  handler: (input, ctx) => setWbsItemStatus(input, ctx.session.userId),
+});
+
+/*
+ * An item's requirements (migration 035, ADR-0034): adding one is creating in
+ * the module, ticking or rewording it and moving it are updates.
+ */
+
+export const addRequirementAction = action({
+  name: "key-deliverables.requirement-add",
+  schema: addRequirementInput,
+  permission: "key-deliverables:create",
+  handler: (input, ctx) => addRequirement(input, ctx.session.userId),
+});
+
+export const updateRequirementAction = action({
+  name: "key-deliverables.requirement-update",
+  schema: updateRequirementInput,
+  permission: "key-deliverables:update",
+  handler: (input, ctx) => updateRequirement(input, ctx.session.userId),
+});
+
+export const moveRequirementAction = action({
+  name: "key-deliverables.requirement-move",
+  schema: moveRequirementInput,
+  permission: "key-deliverables:update",
+  handler: (input, ctx) => moveRequirement(input, ctx.session.userId),
+});
+
+export const deleteRequirementAction = action({
+  name: "key-deliverables.requirement-delete",
+  schema: deleteRequirementInput,
+  permission: "key-deliverables:delete",
+  handler: (input, ctx) => deleteRequirement(input, ctx.session.userId),
 });
