@@ -132,7 +132,7 @@ export const deleteWbsItemAction = action({
   handler: (input, ctx) => deleteWbsItem(input, ctx.session.userId),
 });
 
-/** A status picked from the WBS or Gantt menu; the item's colour follows it (ADR-0034). */
+/** A status picked from the WBS or Gantt menu; the item's colour follows it (ADR-0036). */
 export const setWbsStatusAction = action({
   name: "key-deliverables.wbs-status",
   schema: setWbsStatusInput,
@@ -141,7 +141,7 @@ export const setWbsStatusAction = action({
 });
 
 /*
- * An item's requirements (migration 035, ADR-0034): adding one is creating in
+ * An item's requirements (migration 035, ADR-0036): adding one is creating in
  * the module, ticking or rewording it and moving it are updates.
  */
 

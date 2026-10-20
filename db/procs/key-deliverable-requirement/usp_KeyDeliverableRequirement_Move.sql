@@ -1,5 +1,5 @@
 -- usp_KeyDeliverableRequirement_Move — put a requirement at @Position (from 1) among its item's
--- requirements and renumber the rest (migration 035, ADR-0034): Move up and Move down.
+-- requirements and renumber the rest (migration 035, ADR-0036): Move up and Move down.
 -- A position past the end puts it last.
 -- Access: Manager on the item's project, or a per-person grant (key-deliverables:update, ADR-0024).
 -- Rowversion concurrency on the moved requirement (CONFLICT 50002). Locks the project row first,

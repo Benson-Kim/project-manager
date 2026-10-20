@@ -1,5 +1,5 @@
 -- usp_KeyDeliverable_SetStatus — change only an item's status, picked from the WBS or Gantt menu
--- (client feedback 2026-10-20, ADR-0034). The item's colour follows its status, so this is also how
+-- (client feedback 2026-10-20, ADR-0036). The item's colour follows its status, so this is also how
 -- a box or bar changes colour. The full-row usp_KeyDeliverable_Update would need every other field.
 -- The status must be a live option of 'key-deliverable.status', or unchanged (ADR-0022, VALIDATION
 --   50004); NULL clears it.

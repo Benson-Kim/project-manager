@@ -7,7 +7,7 @@ import { DraftInput } from "./draft-input";
 
 const W = messages.keyDeliverables.wbs;
 
-/** What a requirements list asks the editor to do (ADR-0034). */
+/** What a requirements list asks the editor to do (ADR-0036). */
 export interface RequirementHandlers {
   add: (itemId: number, text: string) => void;
   edit: (id: number, text: string) => void;

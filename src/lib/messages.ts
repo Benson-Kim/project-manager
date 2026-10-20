@@ -581,14 +581,14 @@ export const messages = {
       windowWidthLabel: "Lay the chart out in the window's width again",
       chartWidth: "Chart width",
       chartWidthHint: "Drag to widen or narrow the chart; double-click for the window's width.",
-      // Context menu (right-click, or click the name) and status (ADR-0034).
+      // Context menu (right-click, or click the name) and status (ADR-0036).
       actionsFor: (name: string) => `Actions for ${name}`,
       status: "Status",
       noStatus: "No status",
       statusOf: (code: string, status: string) => `Status of item ${code}: ${status}`,
       statusChanged: (status: string) => `Status now ${status}`,
       statusCleared: "Status cleared",
-      // Requirements (migration 035, ADR-0034).
+      // Requirements (migration 035, ADR-0036).
       requirements: "Requirements",
       requirementsOf: (name: string) => `Requirements of ${name}`,
       addRequirement: "Add requirement",

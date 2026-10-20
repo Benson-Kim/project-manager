@@ -2,7 +2,7 @@
 -- Row-level access: the row's project must be accessible (dbo.usp_Project_AssertAccess,
 --   FORBIDDEN_ROW 50003; Admin bypass).
 -- Work breakdown (ADR-0027): deleting an item deletes its whole branch (every sub-item, each
---   audited) and their requirements (migration 035, ADR-0034; each audited), then its parents'
+--   audited) and their requirements (migration 035, ADR-0036; each audited), then its parents'
 --   dates are rolled up. The project row is locked first so a
 --   concurrent move cannot slip an item into the branch while it is being deleted.
 --   Returns the item's ProjectId.

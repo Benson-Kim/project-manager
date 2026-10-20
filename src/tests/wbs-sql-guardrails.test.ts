@@ -98,7 +98,7 @@ describe("work breakdown SQL guardrails", () => {
     expect(gantt.indexOf("@Stamp BIGINT")).toBeLessThan(
       gantt.indexOf("SELECT kd.KeyDeliverableId"),
     );
-    // Requirement writes move it too (ADR-0034).
+    // Requirement writes move it too (ADR-0036).
     expect(gantt).toContain("IF @RequirementStamp > @Stamp SET @Stamp = @RequirementStamp;");
     expect(gantt.indexOf("@RequirementStamp BIGINT")).toBeLessThan(
       gantt.indexOf("SELECT kd.KeyDeliverableId"),

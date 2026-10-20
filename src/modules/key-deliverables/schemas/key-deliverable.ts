@@ -57,7 +57,7 @@ export function parseAssigneesJson(raw: unknown): AssigneeEntry[] {
   return arr.map((a) => assigneeEntrySchema.parse(a)); // throws on schema mismatch
 }
 
-/** One entry of usp_KeyDeliverable_GanttData's RequirementsJson (migration 035, ADR-0034). */
+/** One entry of usp_KeyDeliverable_GanttData's RequirementsJson (migration 035, ADR-0036). */
 const requirementEntrySchema = z
   .object({
     id: z.number().int().positive(),
@@ -304,7 +304,7 @@ export const deleteWbsItemInput = z.object({ id: itemId, rowVer: rowVerSchema })
 
 export type DeleteWbsItemInput = z.input<typeof deleteWbsItemInput>;
 
-/** A status picked from the WBS or Gantt menu (ADR-0034); null clears it. The proc checks the list. */
+/** A status picked from the WBS or Gantt menu (ADR-0036); null clears it. The proc checks the list. */
 export const setWbsStatusInput = z.object({
   id: itemId,
   status: z.string().trim().max(255).nullable(),
@@ -319,7 +319,7 @@ const requirementText = z
   .min(1, messages.keyDeliverables.requirementRequired)
   .max(4000);
 
-/** Requirements of a work breakdown item (migration 035, ADR-0034). */
+/** Requirements of a work breakdown item (migration 035, ADR-0036). */
 export const addRequirementInput = z.object({ itemId, text: requirementText });
 
 export type AddRequirementInput = z.input<typeof addRequirementInput>;
