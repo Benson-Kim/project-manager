@@ -65,8 +65,8 @@ function rowContextMenu(
   }
   event.preventDefault();
   on.select(id);
-  const row = event.currentTarget;
-  on.menu(id, { x: event.clientX, y: event.clientY, status: false, returnFocus: row });
+  const name = event.currentTarget.querySelector<HTMLElement>(`[data-wbs-name="${id}"]`);
+  on.menu(id, { x: event.clientX, y: event.clientY, status: false, returnFocus: name });
 }
 
 /**
