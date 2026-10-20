@@ -13,6 +13,10 @@
 --   Every write to an item locks app.Project first, so RowVer order is commit order. Equal stamps
 --   mean the same items; a later read with an equal stamp may still bring newer names or project
 --   dates, so the editor takes it.
+-- RequirementsJson (migration 035, ADR-0034): the item's live requirements in order, as a JSON array
+--   of {id, requirement, isMet, sortOrder, rowVer}; NULL when it has none. The stamp covers them
+--   too: a requirement's RowVer comes from the same database counter, and its writes lock the
+--   project row like the items'.
 -- Row-level access: the project must be accessible (dbo.usp_Project_AssertAccess,
 --   FORBIDDEN_ROW 50003; Admin bypass).
 USE ProjectManager;
@@ -33,6 +37,12 @@ BEGIN
 
     DECLARE @Stamp BIGINT =
         ISNULL((SELECT MAX(CAST(RowVer AS BIGINT)) FROM app.KeyDeliverable WHERE ProjectId = @ProjectId), 0);
+    DECLARE @RequirementStamp BIGINT =
+        ISNULL((SELECT MAX(CAST(r.RowVer AS BIGINT))
+                FROM app.KeyDeliverableRequirement AS r
+                JOIN app.KeyDeliverable AS kd ON kd.KeyDeliverableId = r.KeyDeliverableId
+                WHERE kd.ProjectId = @ProjectId), 0);
+    IF @RequirementStamp > @Stamp SET @Stamp = @RequirementStamp;
 
     SELECT kd.KeyDeliverableId,
            kd.ProjectId,
@@ -68,7 +78,18 @@ BEGIN
                    ON s.StakeholderId = a.StakeholderId AND s.IsDeleted = 0
                WHERE a.KeyDeliverableId = kd.KeyDeliverableId
                FOR JSON PATH
-           ) AS AssigneesJson
+           ) AS AssigneesJson,
+           (
+               SELECT r.KeyDeliverableRequirementId AS id,
+                      r.Requirement                 AS requirement,
+                      r.IsMet                       AS isMet,
+                      r.SortOrder                   AS sortOrder,
+                      CAST(r.RowVer AS BIGINT)      AS rowVer
+               FROM app.KeyDeliverableRequirement AS r
+               WHERE r.KeyDeliverableId = kd.KeyDeliverableId AND r.IsDeleted = 0
+               ORDER BY r.SortOrder, r.KeyDeliverableRequirementId
+               FOR JSON PATH, INCLUDE_NULL_VALUES
+           ) AS RequirementsJson
     FROM app.Project AS p
     LEFT JOIN app.KeyDeliverable AS kd
         ON kd.ProjectId = p.ProjectId AND kd.IsDeleted = 0

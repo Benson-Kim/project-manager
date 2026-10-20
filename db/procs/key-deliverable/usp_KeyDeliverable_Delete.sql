@@ -2,7 +2,8 @@
 -- Row-level access: the row's project must be accessible (dbo.usp_Project_AssertAccess,
 --   FORBIDDEN_ROW 50003; Admin bypass).
 -- Work breakdown (ADR-0027): deleting an item deletes its whole branch (every sub-item, each
---   audited), then its parents' dates are rolled up. The project row is locked first so a
+--   audited) and their requirements (migration 035, ADR-0034; each audited), then its parents'
+--   dates are rolled up. The project row is locked first so a
 --   concurrent move cannot slip an item into the branch while it is being deleted.
 --   Returns the item's ProjectId.
 -- Entity app.KeyDeliverable (source: tblKeyRequirementsDeliverable). Module: database-schema-and-procs (#3).
@@ -68,6 +69,29 @@ BEGIN
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson)
     SELECT @ActorUserId, N'Delete', N'app.KeyDeliverable', CAST(b.KeyDeliverableId AS NVARCHAR(64)), b.BeforeJson
     FROM @Branch AS b;
+
+    DECLARE @Requirements TABLE (KeyDeliverableRequirementId INT PRIMARY KEY, BeforeJson NVARCHAR(MAX));
+    INSERT INTO @Requirements (KeyDeliverableRequirementId, BeforeJson)
+    SELECT r.KeyDeliverableRequirementId,
+           (SELECT r2.KeyDeliverableRequirementId, r2.KeyDeliverableId, r2.Requirement, r2.IsMet, r2.SortOrder
+            FROM app.KeyDeliverableRequirement AS r2
+            WHERE r2.KeyDeliverableRequirementId = r.KeyDeliverableRequirementId
+            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+    FROM app.KeyDeliverableRequirement AS r
+    JOIN @Branch AS b ON b.KeyDeliverableId = r.KeyDeliverableId
+    WHERE r.IsDeleted = 0;
+
+    UPDATE r SET
+        IsDeleted    = 1,
+        DeletedAtUtc = SYSUTCDATETIME(),
+        DeletedBy    = @ActorUserId
+    FROM app.KeyDeliverableRequirement AS r
+    JOIN @Requirements AS q ON q.KeyDeliverableRequirementId = r.KeyDeliverableRequirementId;
+
+    INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson)
+    SELECT @ActorUserId, N'Delete', N'app.KeyDeliverableRequirement',
+           CAST(q.KeyDeliverableRequirementId AS NVARCHAR(64)), q.BeforeJson
+    FROM @Requirements AS q;
 
     EXEC dbo.usp_KeyDeliverable_RollUp
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId, @FromKeyDeliverableId = @KeyDeliverableId;
