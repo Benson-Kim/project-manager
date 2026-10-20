@@ -8,7 +8,7 @@ import { durationDays, type WbsNode, type WbsRequirement } from "../schemas/wbs"
 import { barBox, shortDate, type Timeline } from "./gantt-scale";
 import { DraftInput } from "./draft-input";
 import { useDrawBar, WbsBar, type BarHandlers } from "./wbs-bar";
-import { isMenuKey, menuBelow, type MenuRequest } from "./wbs-diagram";
+import { isMenuKey, menuBelow, type MenuRequest } from "./wbs-context-menu";
 import {
   AddRequirementButton,
   AddRequirementField,

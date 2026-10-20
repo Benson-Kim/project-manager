@@ -21,6 +21,7 @@ import {
 } from "../schemas/wbs";
 import { shortDate } from "./gantt-scale";
 import { DraftInput } from "./draft-input";
+import { isMenuKey, menuBelow, type MenuRequest } from "./wbs-context-menu";
 import { BoxRequirements, type RequirementAccess, type RequirementHandlers } from "./wbs-requirements";
 import {
   ZOOM_STEPS,
@@ -67,25 +68,6 @@ const DRAG_SLOP = 4;
 
 /** How long a click on a name waits for a second click (a double-click renames) before opening the menu. */
 const NAME_CLICK_MS = 250;
-
-/** Where the context menu opens, and whether straight on the status list. */
-export interface MenuRequest {
-  x: number;
-  y: number;
-  status: boolean;
-  returnFocus: HTMLElement | null;
-}
-
-/** Below the element's bottom-left corner: where a menu opened from the keyboard or a click goes. */
-export function menuBelow(el: HTMLElement, status = false): MenuRequest {
-  const box = el.getBoundingClientRect();
-  return { x: box.left, y: box.bottom + 4, status, returnFocus: el };
-}
-
-/** Shift+F10 or the menu key: the keyboard's right-click. */
-export function isMenuKey(event: React.KeyboardEvent): boolean {
-  return event.key === "ContextMenu" || (event.shiftKey && event.key === "F10");
-}
 
 /** What the diagram asks the editor to do. */
 export interface DiagramHandlers {

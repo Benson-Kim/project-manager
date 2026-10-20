@@ -21,16 +21,30 @@ export interface MenuCommand {
   danger?: boolean;
 }
 
-/** Where the menu is open, and for which item; null when closed. */
-export interface WbsMenuState {
-  id: number;
-  /** Viewport coordinates of the pointer, or of the element it opened from. */
+/** Where the menu opens: viewport coordinates, and whether straight on the status list. */
+export interface MenuRequest {
   x: number;
   y: number;
   /** Open straight on the status list (the status chip). */
   status: boolean;
   /** Where the focus goes back to when the menu closes without acting. */
   returnFocus: HTMLElement | null;
+}
+
+/** The open menu and the item it is for; null when closed. */
+export interface WbsMenuState extends MenuRequest {
+  id: number;
+}
+
+/** Below the element's bottom-left corner: where a menu opened from the keyboard or a click goes. */
+export function menuBelow(el: HTMLElement, status = false): MenuRequest {
+  const box = el.getBoundingClientRect();
+  return { x: box.left, y: box.bottom + 4, status, returnFocus: el };
+}
+
+/** Shift+F10 or the menu key: the keyboard's right-click. */
+export function isMenuKey(event: React.KeyboardEvent): boolean {
+  return event.key === "ContextMenu" || (event.shiftKey && event.key === "F10");
 }
 
 export interface StatusChoice {
