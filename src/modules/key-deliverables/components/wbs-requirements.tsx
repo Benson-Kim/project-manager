@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { messages } from "@/lib/messages";
 import type { WbsNode, WbsRequirement } from "../schemas/wbs";
 import { DraftInput } from "./draft-input";
@@ -152,11 +152,13 @@ export function AddRequirementField({
   className: string;
 }) {
   const [text, setText] = useState("");
+  // Escape drops the text; the blur that follows as the field closes must not add it.
+  const cancelled = useRef(false);
   const id = node.item.id;
 
   function add(): boolean {
     const value = text.trim();
-    if (!value) return false;
+    if (!value || cancelled.current) return false;
     on.add(id, value);
     setText("");
     return true;
@@ -176,6 +178,7 @@ export function AddRequirementField({
           if (!add()) on.openAdd(null);
         } else if (event.key === "Escape") {
           event.preventDefault();
+          cancelled.current = true;
           setText("");
           on.openAdd(null);
         }
@@ -261,6 +264,8 @@ function RequirementText({
   on: RequirementHandlers;
 }) {
   const [editing, setEditing] = useState(false);
+  // The field reports the same text twice when Enter closes it (Enter, then the blur as it goes).
+  const sent = useRef<string | null>(null);
   const textClass = `min-w-0 flex-1 text-xs leading-5 wrap-anywhere ${
     requirement.isMet ? "text-ink-muted line-through" : "text-ink"
   }`;
@@ -272,7 +277,10 @@ function RequirementText({
         value={requirement.text}
         maxLength={4000}
         onCommit={(next) => {
-          if (next.trim()) on.edit(requirement.id, next.trim());
+          const value = next.trim();
+          if (!value || sent.current === value) return;
+          sent.current = value;
+          on.edit(requirement.id, value);
         }}
         onSettle={() => setEditing(false)}
         onBlur={() => setEditing(false)}
@@ -287,7 +295,10 @@ function RequirementText({
     <button
       type="button"
       aria-label={W.editRequirement(requirement.text)}
-      onClick={() => setEditing(true)}
+      onClick={() => {
+        sent.current = null;
+        setEditing(true);
+      }}
       className={`${textClass} -mx-1 cursor-text rounded-sm px-1 text-left hover:bg-surface-raised`}
     >
       {requirement.text}
