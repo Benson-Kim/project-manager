@@ -111,15 +111,10 @@ describe("keyDeliverableFormSchema", () => {
     expect(parsed.startDate).toEqual(new Date("2026-09-09"));
   });
 
-  it("takes a palette colour, or empty for the parent's, and nothing else", () => {
+  it("sends no colour, so an update keeps the stored one (the colour follows the status)", () => {
     const base = { projectId: "2", keyRequirement: "R", startDate: "2026-09-01" };
-    expect(keyDeliverableFormSchema.parse({ ...base, color: "green" }).color).toBe("green");
-    expect(keyDeliverableFormSchema.parse({ ...base, color: "" }).color).toBeNull();
-    expect(keyDeliverableFormSchema.parse(base).color).toBeNull();
-    expect(keyDeliverableFormSchema.safeParse({ ...base, color: "#ff0000" }).success).toBe(false);
-    expect(
-      keyDeliverableFormSchema.safeParse({ ...base, color: "red;background:url(x)" }).success,
-    ).toBe(false);
+    expect(keyDeliverableFormSchema.parse(base)).not.toHaveProperty("color");
+    expect(keyDeliverableFormSchema.parse({ ...base, color: "green" })).not.toHaveProperty("color");
   });
 
   it("update variant requires id and rowVer", () => {

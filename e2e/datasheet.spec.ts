@@ -19,7 +19,7 @@ async function addDeliverable(page: import("@playwright/test").Page, requirement
   const addRow = page.getByTestId("datasheet-add-row");
   await expect(addRow).toBeVisible();
   const field = addRow.getByRole("textbox", { name: newEntry(KD.requirement) });
-  await expect(field).toHaveAttribute("placeholder", KD.placeholders.requirement);
+  await expect(field).toHaveAttribute("placeholder", KD.placeholders.deliverable);
   await field.fill(requirement);
   await addRow.getByRole("combobox", { name: newEntry(KD.status) }).selectOption("Pending");
   await field.press("Enter");

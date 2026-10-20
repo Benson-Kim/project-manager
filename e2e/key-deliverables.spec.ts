@@ -53,7 +53,7 @@ test("create deliverable happy path — appears in the list", async ({ page }) =
   ).toBeVisible();
   // Scoped to the sheet: the list behind it is a datasheet whose cells carry the same labels.
   const form = page.getByTestId("deliverable-form");
-  await form.getByLabel(messages.keyDeliverables.requirement).fill(requirement);
+  await form.getByLabel(messages.keyDeliverables.deliverable).fill(requirement);
   await form.getByLabel(messages.keyDeliverables.deadline).fill("2027-03-31");
   await page.getByTestId("deliverable-save").click();
   await expect(
@@ -67,7 +67,7 @@ test("create deliverable happy path — appears in the list", async ({ page }) =
 test("validation failure — empty requirement shows the inline error", async ({ page }) => {
   await page.goto("/projects/2/deliverables?d=new");
   await page.getByTestId("deliverable-save").click();
-  await expect(page.getByText(messages.keyDeliverables.requirementRequired).first()).toBeVisible();
+  await expect(page.getByText(messages.keyDeliverables.deliverableRequired).first()).toBeVisible();
   await expect(
     page.getByRole("alert").filter({ hasText: messages.errors.summaryTitle }),
   ).toBeVisible();
