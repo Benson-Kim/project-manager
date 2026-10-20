@@ -2,7 +2,7 @@ import { z } from "zod";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { OPTION_COLORS, type LookupListKey } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
-import { utcDay, type WbsItem } from "./wbs";
+import { utcDay, type WbsItem, type WbsRequirement } from "./wbs";
 
 /**
  * KeyDeliverable (app.KeyDeliverable ← tblKeyRequirementsDeliverable) — zod
@@ -55,6 +55,42 @@ export function parseAssigneesJson(raw: unknown): AssigneeEntry[] {
   if (!Array.isArray(arr))
     throw new Error(`AssigneesJson must be a JSON array, got ${JSON.stringify(arr)}`);
   return arr.map((a) => assigneeEntrySchema.parse(a)); // throws on schema mismatch
+}
+
+/** One entry of usp_KeyDeliverable_GanttData's RequirementsJson (migration 035, ADR-0034). */
+const requirementEntrySchema = z
+  .object({
+    id: z.number().int().positive(),
+    requirement: z.string(),
+    isMet: z.union([z.boolean(), z.literal(0), z.literal(1)]).transform(Boolean),
+    sortOrder: z.number().int(),
+    rowVer: rowVerSchema,
+  })
+  .transform(
+    (r): WbsRequirement => ({
+      id: r.id,
+      text: r.requirement,
+      isMet: r.isMet,
+      sortOrder: r.sortOrder,
+      rowVer: r.rowVer,
+    }),
+  );
+
+/**
+ * Parse the RequirementsJson column: NULL (no requirements, or a database
+ * before migration 035) is []; anything malformed throws at the boundary, as
+ * parseAssigneesJson does.
+ */
+export function parseRequirementsJson(raw: unknown): WbsRequirement[] {
+  if (raw === null || raw === undefined || raw === "") return [];
+  if (typeof raw !== "string") {
+    throw new Error(`RequirementsJson must be a string, got ${typeof raw}`);
+  }
+  const arr: unknown = JSON.parse(raw);
+  if (!Array.isArray(arr)) throw new Error("RequirementsJson must be a JSON array");
+  return arr
+    .map((r) => requirementEntrySchema.parse(r))
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
 }
 
 /** A bar colour: a palette key (CK_KeyDeliverable_Color); NULL takes the parent's. */
@@ -115,6 +151,7 @@ export const wbsRowSchema = z
     Color: wbsColorSchema,
     AssigneeNames: z.string().nullable().optional(),
     AssigneesJson: z.unknown().optional(),
+    RequirementsJson: z.unknown().optional(),
     CreatedAtUtc: z.date(),
     RowVer: rowVerSchema,
   })
@@ -131,6 +168,7 @@ export const wbsRowSchema = z
     color: r.Color,
     assigneeNames: r.AssigneeNames?.trim() || null,
     assignees: parseAssigneesJson(r.AssigneesJson),
+    requirements: parseRequirementsJson(r.RequirementsJson),
     rowVer: r.RowVer,
   }));
 
@@ -265,6 +303,47 @@ export type RenameWbsItemInput = z.input<typeof renameWbsItemInput>;
 export const deleteWbsItemInput = z.object({ id: itemId, rowVer: rowVerSchema });
 
 export type DeleteWbsItemInput = z.input<typeof deleteWbsItemInput>;
+
+/** A status picked from the WBS or Gantt menu (ADR-0034); null clears it. The proc checks the list. */
+export const setWbsStatusInput = z.object({
+  id: itemId,
+  status: z.string().trim().max(255).nullable(),
+  rowVer: rowVerSchema,
+});
+
+export type SetWbsStatusInput = z.input<typeof setWbsStatusInput>;
+
+const requirementText = z
+  .string({ error: messages.keyDeliverables.requirementRequired })
+  .trim()
+  .min(1, messages.keyDeliverables.requirementRequired)
+  .max(4000);
+
+/** Requirements of a work breakdown item (migration 035, ADR-0034). */
+export const addRequirementInput = z.object({ itemId, text: requirementText });
+
+export type AddRequirementInput = z.input<typeof addRequirementInput>;
+
+export const updateRequirementInput = z.object({
+  id: itemId,
+  text: requirementText,
+  isMet: z.boolean(),
+  rowVer: rowVerSchema,
+});
+
+export type UpdateRequirementInput = z.input<typeof updateRequirementInput>;
+
+export const moveRequirementInput = z.object({
+  id: itemId,
+  position: z.number().int().min(1).max(100_000),
+  rowVer: rowVerSchema,
+});
+
+export type MoveRequirementInput = z.input<typeof moveRequirementInput>;
+
+export const deleteRequirementInput = z.object({ id: itemId, rowVer: rowVerSchema });
+
+export type DeleteRequirementInput = z.input<typeof deleteRequirementInput>;
 
 /** Module filter params (URL ⇄ usp_KeyDeliverable_List @Status/@Priority). */
 export const keyDeliverableFiltersSchema = z.object({
