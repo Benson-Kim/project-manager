@@ -1,23 +1,30 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAnnouncer } from "@/components/ui/announcer";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { Sheet } from "@/components/ui/dialog";
+import { useLookupLists } from "@/components/ui/lookup-lists";
 import { EmptyState } from "@/components/ui/states";
 import { useToast } from "@/components/ui/toast";
 import type { ActionResult } from "@/lib/action";
 import { formatDate, toDateInput } from "@/lib/format";
+import type { OptionColor } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
 import {
+  addRequirementAction,
   addWbsItemAction,
+  deleteRequirementAction,
   deleteWbsItemAction,
+  moveRequirementAction,
   moveWbsItemAction,
   renameWbsItemAction,
   rescheduleWbsItemAction,
+  setWbsStatusAction,
+  updateRequirementAction,
 } from "../actions";
 import type { StakeholderOption } from "@/modules/stakeholders/repository/stakeholder-options";
 import type { KeyDeliverableRow, WbsData } from "../schemas/key-deliverable";
@@ -26,7 +33,11 @@ import {
   NEW_ITEM_DAYS,
   addDays,
   applyMove,
+  applyRequirementDelete,
+  applyRequirementEdit,
+  applyRequirementMove,
   applyReschedule,
+  applyStatus,
   buildWbs,
   dayDiff,
   descendantIds,
@@ -36,6 +47,7 @@ import {
   newItemDates,
   outdentTarget,
   requestedDateClash,
+  requirementOwner,
   visibleIds,
   wbsBounds,
   type Placement,
@@ -52,6 +64,13 @@ import {
   type Timeline,
 } from "./gantt-scale";
 import type { Span } from "./wbs-bar";
+import {
+  WbsContextMenu,
+  type MenuCommand,
+  type MenuRequest,
+  type StatusChoice,
+  type WbsMenuState,
+} from "./wbs-context-menu";
 import { WbsDiagram, type DiagramHandlers } from "./wbs-diagram";
 import {
   DEFAULT_CHART,
@@ -62,7 +81,15 @@ import {
   type WbsView,
 } from "./wbs-diagram-layout";
 import { WbsMoveDialog } from "./wbs-move-dialog";
-import { tabClass, WbsRow, type RowHandlers, type WbsTab } from "./wbs-row";
+import type { RequirementAccess, RequirementHandlers } from "./wbs-requirements";
+import {
+  AddRequirementRow,
+  RequirementRow,
+  tabClass,
+  WbsRow,
+  type RowHandlers,
+  type WbsTab,
+} from "./wbs-row";
 import { WbsToolbar } from "./wbs-toolbar";
 
 const W = messages.keyDeliverables.wbs;
@@ -109,7 +136,8 @@ function readChart(key: string): ChartSettings | null {
   }
 }
 
-function readCollapsed(key: string): Set<number> | null {
+/** A set of item ids kept in this browser (collapsed branches, folded requirements). */
+function readIdSet(key: string): Set<number> | null {
   try {
     const raw = window.localStorage.getItem(key);
     const parsed: unknown = raw ? JSON.parse(raw) : null;
@@ -212,15 +240,32 @@ export function WbsGantt({
     () => ops.reduce((current, op) => op.apply(current), confirmed.items),
     [ops, confirmed],
   );
-  const wbs = useMemo(() => buildWbs(items), [items]);
+
+  // An item's colour follows its status, in the colours of the managed status list (ADR-0034).
+  const statusList = useLookupLists().lists["key-deliverable.status"];
+  const statuses = useMemo<StatusChoice[]>(
+    () => (statusList?.options ?? []).map((o) => ({ label: o.label, color: o.color })),
+    [statusList],
+  );
+  const statusColors = useMemo(
+    () =>
+      new Map(
+        statuses.flatMap((s): [string, OptionColor][] => (s.color ? [[s.label, s.color]] : [])),
+      ),
+    [statuses],
+  );
+  const wbs = useMemo(() => buildWbs(items, statusColors), [items, statusColors]);
 
   const [preview, setPreview] = useState<{ id: number; span: Span } | null>(null);
   const shown = useMemo(
     () =>
       preview
-        ? buildWbs(applyReschedule(items, wbs, preview.id, preview.span.start, preview.span.end))
+        ? buildWbs(
+            applyReschedule(items, wbs, preview.id, preview.span.start, preview.span.end),
+            statusColors,
+          )
         : wbs,
-    [preview, items, wbs],
+    [preview, items, wbs, statusColors],
   );
 
   const [scale, setScale] = useState<GanttScale>(() => {
@@ -245,12 +290,28 @@ export function WbsGantt({
   const [collapsed, setCollapsed] = useState<ReadonlySet<number>>(() => new Set());
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      const saved = readCollapsed(storageKey);
+      const saved = readIdSet(storageKey);
       if (saved) setCollapsed(saved);
     });
     return () => cancelAnimationFrame(frame);
   }, [storageKey]);
   const visible = useMemo(() => visibleIds(shown, collapsed), [shown, collapsed]);
+
+  // Items whose requirements are folded away: this viewer's, per project, like `collapsed`.
+  const requirementsKey = `wbs-req-hidden:${projectId}`;
+  const [requirementsHidden, setRequirementsHidden] = useState<ReadonlySet<number>>(
+    () => new Set(),
+  );
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const saved = readIdSet(requirementsKey);
+      if (saved) setRequirementsHidden(saved);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [requirementsKey]);
+  const [addingRequirement, setAddingRequirement] = useState<number | null>(null);
+  const [confirmRequirementId, setConfirmRequirementId] = useState<number | null>(null);
+  const [menu, setMenu] = useState<WbsMenuState | null>(null);
 
   // The diagram's zoom, width and per-branch layout: this viewer's, per project, like `collapsed`.
   const chartKey = `wbs-chart:${projectId}`;
@@ -375,6 +436,27 @@ export function WbsGantt({
     });
   }
 
+  function changeRequirementsHidden(change: (current: ReadonlySet<number>) => ReadonlySet<number>) {
+    setRequirementsHidden((current) => {
+      const next = change(current);
+      try {
+        window.localStorage.setItem(requirementsKey, JSON.stringify([...next]));
+      } catch {
+        // Private windows and blocked storage: the lists just forget.
+      }
+      return next;
+    });
+  }
+
+  function showRequirements(id: number) {
+    changeRequirementsHidden((current) => {
+      if (!current.has(id)) return current;
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+  }
+
   function changeChart(change: (current: ChartSettings) => ChartSettings, save = true) {
     setChart((current) => {
       const next = change(current);
@@ -472,11 +554,13 @@ export function WbsGantt({
     announce(W.rescheduled(formatDate(start), formatDate(end)));
   }
 
-  function addItem(asSubItem: boolean) {
+  /** Add an item after `fromId` (the selected item by default), or as its last sub-item. */
+  function addItem(asSubItem: boolean, fromId: number | null = selected?.item.id ?? null) {
+    const from = fromId !== null ? (wbs.nodes.get(fromId) ?? null) : null;
     if (!canCreate) return;
-    if (asSubItem && (!selected || selected.depth >= MAX_WBS_DEPTH)) return;
-    const parentId = asSubItem ? selected!.item.id : (selected?.parentId ?? null);
-    const afterId = asSubItem ? null : (selected?.item.id ?? null);
+    if (asSubItem && (!from || from.depth >= MAX_WBS_DEPTH)) return;
+    const parentId = asSubItem ? from!.item.id : (from?.parentId ?? null);
+    const afterId = asSubItem ? null : (from?.item.id ?? null);
     const { start, end } = newItemDates(wbs, { parentId, afterId }, today, data.projectStart);
     enqueue({
       kind: "add",
@@ -514,6 +598,141 @@ export function WbsGantt({
     });
   }
 
+  function setStatus(id: number, status: string | null) {
+    const item = wbs.nodes.get(id)?.item;
+    if (!canEdit || !item || item.status === status) return;
+    enqueue({
+      apply: (rows) => applyStatus(rows, id, status),
+      send: (current) =>
+        withRowVer(current, id, (rowVer) => setWbsStatusAction({ id, status, rowVer })),
+    });
+    announce(status ? W.statusChanged(status) : W.statusCleared);
+  }
+
+  // ---- requirements (ADR-0034) -------------------------------------------------
+
+  /** A requirement waiting for its id gets a negative one, so nothing can act on it yet. */
+  const pendingRequirement = useRef(0);
+
+  function requirementOf(current: readonly WbsItem[], id: number) {
+    return requirementOwner(current, id)?.requirements.find((r) => r.id === id);
+  }
+
+  function addRequirement(itemId: number, text: string) {
+    if (!canCreate || !wbs.nodes.has(itemId)) return;
+    const tempId = -++pendingRequirement.current;
+    showRequirements(itemId);
+    enqueue({
+      apply: (rows) =>
+        rows.map((i) =>
+          i.id === itemId
+            ? {
+                ...i,
+                requirements: [
+                  ...i.requirements,
+                  { id: tempId, text, isMet: false, sortOrder: i.requirements.length + 1, rowVer: 0 },
+                ],
+              }
+            : i,
+        ),
+      send: (current) =>
+        current.some((i) => i.id === itemId) ? addRequirementAction({ itemId, text }) : null,
+      done: () => announce(W.requirementAdded),
+    });
+  }
+
+  /** Saves a requirement's wording and tick together, each as the server last had it unless changed. */
+  function saveRequirement(id: number, edit: { text?: string; isMet?: boolean }) {
+    if (!canEdit || id < 0) return;
+    enqueue({
+      apply: (rows) => applyRequirementEdit(rows, id, edit),
+      send: (current) => {
+        const saved = requirementOf(current, id);
+        return saved
+          ? updateRequirementAction({
+              id,
+              text: edit.text ?? saved.text,
+              isMet: edit.isMet ?? saved.isMet,
+              rowVer: saved.rowVer,
+            })
+          : null;
+      },
+    });
+  }
+
+  function moveRequirement(id: number, delta: -1 | 1) {
+    const owner = requirementOwner(items, id);
+    if (!canEdit || !owner || id < 0) return;
+    const position = owner.requirements.findIndex((r) => r.id === id) + 1 + delta;
+    if (position < 1 || position > owner.requirements.length) return;
+    enqueue({
+      apply: (rows) => applyRequirementMove(rows, id, position),
+      send: (current) => {
+        const saved = requirementOf(current, id);
+        return saved ? moveRequirementAction({ id, position, rowVer: saved.rowVer }) : null;
+      },
+    });
+  }
+
+  function removeRequirement() {
+    const id = confirmRequirementId;
+    setConfirmRequirementId(null);
+    if (!canDelete || id === null || id < 0) return;
+    enqueue({
+      apply: (rows) => applyRequirementDelete(rows, id),
+      send: (current) => {
+        const saved = requirementOf(current, id);
+        return saved ? deleteRequirementAction({ id, rowVer: saved.rowVer }) : null;
+      },
+      done: () => announce(W.requirementDeleted),
+    });
+  }
+
+  const requirementAccess: RequirementAccess = { canCreate, canEdit, canDelete };
+
+  const requirementHandlers: RequirementHandlers = {
+    add: addRequirement,
+    edit: (id, text) => {
+      if (requirementOf(items, id)?.text !== text) saveRequirement(id, { text });
+    },
+    setMet: (id, isMet) => saveRequirement(id, { isMet }),
+    move: moveRequirement,
+    remove: (id) => {
+      if (canDelete && id > 0) setConfirmRequirementId(id);
+    },
+    toggle: (itemId) =>
+      changeRequirementsHidden((current) => {
+        const next = new Set(current);
+        if (!next.delete(itemId)) next.add(itemId);
+        return next;
+      }),
+    openAdd: (itemId) => {
+      if (itemId !== null) {
+        if (!canCreate) return;
+        setSelectedId(itemId);
+        showRequirements(itemId);
+      }
+      setAddingRequirement(itemId);
+    },
+  };
+
+  // ---- the context menu (ADR-0034) -----------------------------------------------
+
+  function openMenu(id: number, at: MenuRequest) {
+    if (!wbs.nodes.has(id)) return;
+    setSelectedId(id);
+    setTypingId(null);
+    setMenu({ id, ...at });
+  }
+
+  const closeMenu = useCallback((refocus: boolean) => {
+    setMenu((current) => {
+      const back = refocus ? current?.returnFocus : null;
+      if (back) requestAnimationFrame(() => back.focus());
+      return null;
+    });
+  }, []);
+
   function openDetails(id: number) {
     updateUrl({ d: String(id) });
   }
@@ -537,6 +756,7 @@ export function WbsGantt({
   function changeView(next: WbsView) {
     if (next === view) return;
     setRenamingId(null);
+    setMenu(null);
     setView(next);
     rememberInUrl("view", next);
   }
@@ -655,6 +875,7 @@ export function WbsGantt({
     flush: flushNudge,
     commit: commitBar,
     open: openDetails,
+    menu: openMenu,
   };
 
   const diagramHandlers: DiagramHandlers = {
@@ -668,6 +889,7 @@ export function WbsGantt({
     open: openDetails,
     remove: (id) => setConfirmId(id),
     tooDeep: () => toast({ variant: "info", title: W.maxDepth }),
+    menu: openMenu,
   };
 
   // ---- toolbar -------------------------------------------------------------------
@@ -676,6 +898,72 @@ export function WbsGantt({
   const parents = [...wbs.nodes.values()].filter((n) => n.childIds.length > 0);
   const confirmNode = confirmId !== null ? wbs.nodes.get(confirmId) : undefined;
   const closeDetails = () => updateUrl({ d: null });
+
+  const menuNode = menu ? wbs.nodes.get(menu.id) : undefined;
+  const menuGroups = ((): MenuCommand[][] => {
+    if (!menuNode) return [];
+    const id = menuNode.item.id;
+    return [
+      [
+        { label: W.addItem, testId: "wbs-menu-add", run: () => addItem(false, id), hidden: !canCreate },
+        {
+          label: W.addSubItem,
+          testId: "wbs-menu-add-sub",
+          run: () => addItem(true, id),
+          hidden: !canCreate,
+          disabled: menuNode.depth >= MAX_WBS_DEPTH,
+        },
+        {
+          label: W.addRequirement,
+          testId: "wbs-menu-add-requirement",
+          run: () => requirementHandlers.openAdd(id),
+          hidden: !canCreate,
+        },
+        { label: W.rename, testId: "wbs-menu-rename", run: () => startRename(id), hidden: !canEdit },
+      ],
+      [
+        {
+          label: W.indent,
+          testId: "wbs-menu-indent",
+          run: () => move(id, indentTarget(wbs, id)),
+          hidden: !canEdit,
+          disabled: !indentTarget(wbs, id),
+        },
+        {
+          label: W.outdent,
+          testId: "wbs-menu-outdent",
+          run: () => move(id, outdentTarget(wbs, id)),
+          hidden: !canEdit,
+          disabled: !outdentTarget(wbs, id),
+        },
+        {
+          label: W.moveUp,
+          testId: "wbs-menu-up",
+          run: () => move(id, moveUpTarget(wbs, id)),
+          hidden: !canEdit,
+          disabled: !moveUpTarget(wbs, id),
+        },
+        {
+          label: W.moveDown,
+          testId: "wbs-menu-down",
+          run: () => move(id, moveDownTarget(wbs, id)),
+          hidden: !canEdit,
+          disabled: !moveDownTarget(wbs, id),
+        },
+        { label: W.moveTo, testId: "wbs-menu-move-to", run: () => setMoveId(id), hidden: !canEdit },
+      ],
+      [
+        { label: W.details, testId: "wbs-menu-details", run: () => openDetails(id) },
+        {
+          label: W.delete,
+          testId: "wbs-menu-delete",
+          run: () => setConfirmId(id),
+          hidden: !canDelete,
+          danger: true,
+        },
+      ],
+    ];
+  })();
 
   const toolbar = (
     <WbsToolbar
@@ -787,6 +1075,11 @@ export function WbsGantt({
           chart={chart}
           onChart={changeChart}
           on={diagramHandlers}
+          requirementsHidden={requirementsHidden}
+          addingRequirement={addingRequirement}
+          requirementAccess={requirementAccess}
+          onRequirement={requirementHandlers}
+          statusColors={statusColors}
         />
       ) : (
         <div
@@ -800,6 +1093,9 @@ export function WbsGantt({
               className={`${headCell} sticky left-0 z-10 w-56 bg-surface px-3 md:w-80`}
             >
               {W.itemHeader}
+            </div>
+            <div className={`${headCell} w-32 px-2.5 ${tabClass(tab, "outline")}`}>
+              {W.status}
             </div>
             <div className={`${headCell} w-36 px-2.5 ${tabClass(tab, "outline")}`}>
               {W.startHeader}
@@ -847,10 +1143,13 @@ export function WbsGantt({
           </div>
 
           <ul role="list" className="m-0 list-none p-0">
-            {visible.map((id) => {
+            {visible.flatMap((id) => {
               const node = shown.nodes.get(id)!;
               const before = wbs.nodes.get(id);
-              return (
+              const requirements = node.item.requirements;
+              const adding = addingRequirement === id;
+              const listShown = !requirementsHidden.has(id) || adding;
+              const rows = [
                 <WbsRow
                   key={id}
                   node={node}
@@ -868,8 +1167,43 @@ export function WbsGantt({
                   tab={tab}
                   canEdit={canEdit}
                   on={rowHandlers}
-                />
-              );
+                  statusColor={node.item.status ? (statusColors.get(node.item.status) ?? null) : null}
+                  requirementsHidden={!listShown}
+                  onRequirement={requirementHandlers}
+                />,
+              ];
+              if (listShown) {
+                requirements.forEach((requirement, index) =>
+                  rows.push(
+                    <RequirementRow
+                      key={`r${requirement.id}`}
+                      node={node}
+                      requirement={requirement}
+                      index={index}
+                      timeline={timeline}
+                      trackStyle={trackStyle}
+                      tab={tab}
+                      access={requirementAccess}
+                      on={requirementHandlers}
+                    />,
+                  ),
+                );
+              }
+              // "Add requirement" sits under the selected item only, so the outline stays short.
+              if (canCreate && (adding || (id === selectedId && listShown))) {
+                rows.push(
+                  <AddRequirementRow
+                    key={`add${id}`}
+                    node={node}
+                    adding={adding}
+                    timeline={timeline}
+                    trackStyle={trackStyle}
+                    tab={tab}
+                    on={requirementHandlers}
+                  />,
+                );
+              }
+              return rows;
             })}
           </ul>
         </div>
@@ -885,6 +1219,34 @@ export function WbsGantt({
           onMove={(placement) => move(moveId, placement)}
         />
       ) : null}
+
+      {menu && menuNode ? (
+        <WbsContextMenu
+          key={`${menu.id}:${menu.x}:${menu.y}:${menu.status}`}
+          state={menu}
+          node={menuNode}
+          groups={menuGroups}
+          statuses={statuses}
+          canSetStatus={canEdit}
+          onStatus={(status) => setStatus(menuNode.item.id, status)}
+          onClose={closeMenu}
+        />
+      ) : null}
+
+      <ConfirmDialog
+        open={confirmRequirementId !== null && requirementOf(items, confirmRequirementId) !== undefined}
+        onOpenChange={(open) => {
+          if (!open) setConfirmRequirementId(null);
+        }}
+        title={
+          confirmRequirementId !== null
+            ? W.deleteRequirementTitle(requirementOf(items, confirmRequirementId)?.text ?? "")
+            : ""
+        }
+        body={W.deleteRequirementBody}
+        confirmLabel={W.delete}
+        onConfirm={removeRequirement}
+      />
 
       <ConfirmDialog
         open={confirmNode !== undefined}
