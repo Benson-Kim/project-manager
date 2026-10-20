@@ -274,7 +274,7 @@ describe("key-deliverables repository", () => {
     });
 
     it("refuses malformed requirements rather than drop them", async () => {
-      execProc.mockResolvedValue([wbsDbRow({ RequirementsJson: "{\"id\": 1}" })]);
+      execProc.mockResolvedValue([wbsDbRow({ RequirementsJson: '{"id": 1}' })]);
       await expect(getWbs(24, 7)).rejects.toThrow("RequirementsJson must be a JSON array");
       execProc.mockResolvedValue([wbsDbRow({ RequirementsJson: JSON.stringify([{ id: 1 }]) })]);
       await expect(getWbs(24, 7)).rejects.toThrow();

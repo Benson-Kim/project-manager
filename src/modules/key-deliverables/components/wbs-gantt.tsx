@@ -630,7 +630,13 @@ export function WbsGantt({
                 ...i,
                 requirements: [
                   ...i.requirements,
-                  { id: tempId, text, isMet: false, sortOrder: i.requirements.length + 1, rowVer: 0 },
+                  {
+                    id: tempId,
+                    text,
+                    isMet: false,
+                    sortOrder: i.requirements.length + 1,
+                    rowVer: 0,
+                  },
                 ],
               }
             : i,
@@ -905,7 +911,12 @@ export function WbsGantt({
     const id = menuNode.item.id;
     return [
       [
-        { label: W.addItem, testId: "wbs-menu-add", run: () => addItem(false, id), hidden: !canCreate },
+        {
+          label: W.addItem,
+          testId: "wbs-menu-add",
+          run: () => addItem(false, id),
+          hidden: !canCreate,
+        },
         {
           label: W.addSubItem,
           testId: "wbs-menu-add-sub",
@@ -919,7 +930,12 @@ export function WbsGantt({
           run: () => requirementHandlers.openAdd(id),
           hidden: !canCreate,
         },
-        { label: W.rename, testId: "wbs-menu-rename", run: () => startRename(id), hidden: !canEdit },
+        {
+          label: W.rename,
+          testId: "wbs-menu-rename",
+          run: () => startRename(id),
+          hidden: !canEdit,
+        },
       ],
       [
         {
@@ -1094,9 +1110,7 @@ export function WbsGantt({
             >
               {W.itemHeader}
             </div>
-            <div className={`${headCell} w-32 px-2.5 ${tabClass(tab, "outline")}`}>
-              {W.status}
-            </div>
+            <div className={`${headCell} w-32 px-2.5 ${tabClass(tab, "outline")}`}>{W.status}</div>
             <div className={`${headCell} w-36 px-2.5 ${tabClass(tab, "outline")}`}>
               {W.startHeader}
             </div>
@@ -1167,7 +1181,9 @@ export function WbsGantt({
                   tab={tab}
                   canEdit={canEdit}
                   on={rowHandlers}
-                  statusColor={node.item.status ? (statusColors.get(node.item.status) ?? null) : null}
+                  statusColor={
+                    node.item.status ? (statusColors.get(node.item.status) ?? null) : null
+                  }
                   requirementsHidden={!listShown}
                   onRequirement={requirementHandlers}
                 />,
@@ -1234,7 +1250,9 @@ export function WbsGantt({
       ) : null}
 
       <ConfirmDialog
-        open={confirmRequirementId !== null && requirementOf(items, confirmRequirementId) !== undefined}
+        open={
+          confirmRequirementId !== null && requirementOf(items, confirmRequirementId) !== undefined
+        }
         onOpenChange={(open) => {
           if (!open) setConfirmRequirementId(null);
         }}

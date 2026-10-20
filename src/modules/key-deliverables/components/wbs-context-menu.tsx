@@ -302,7 +302,12 @@ export function WbsContextMenu({
                 className={`${itemClass} justify-between`}
               >
                 <span>{W.status}</span>
-                <svg viewBox="0 0 16 16" aria-hidden="true" className="size-3.5" fill="currentColor">
+                <svg
+                  viewBox="0 0 16 16"
+                  aria-hidden="true"
+                  className="size-3.5"
+                  fill="currentColor"
+                >
                   <path d="M6 3l5 5-5 5z" />
                 </svg>
               </button>
