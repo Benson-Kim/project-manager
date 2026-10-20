@@ -559,16 +559,21 @@ export function WbsDiagram({
   const nameClick = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(nameClick.current), []);
 
-  /** A click on a box's name opens its menu, unless a second click (rename) follows. */
+  /**
+   * A click on a box's name opens its menu, unless a second click (rename)
+   * follows, or the focus has moved on (a toolbar button clicked meanwhile).
+   */
   function onNameClick(event: React.MouseEvent<HTMLElement>, id: number) {
     if (justDragged.current || event.detail > 1) {
       clearTimeout(nameClick.current);
       return;
     }
     const at = { x: event.clientX, y: event.clientY + 8, status: false };
-    const box = boxElement(scrollRef.current, id);
     clearTimeout(nameClick.current);
-    nameClick.current = setTimeout(() => on.menu(id, { ...at, returnFocus: box }), NAME_CLICK_MS);
+    nameClick.current = setTimeout(() => {
+      const box = boxElement(scrollRef.current, id);
+      if (box?.contains(document.activeElement)) on.menu(id, { ...at, returnFocus: box });
+    }, NAME_CLICK_MS);
   }
 
   function onBoxContextMenu(event: React.MouseEvent<HTMLElement>, id: number) {
