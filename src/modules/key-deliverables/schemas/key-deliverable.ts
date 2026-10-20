@@ -267,7 +267,7 @@ const endNotBeforeStart = {
 export const addWbsItemInput = z
   .object({
     projectId: itemId,
-    name: z.string().trim().min(1, messages.keyDeliverables.requirementRequired).max(4000),
+    name: z.string().trim().min(1, messages.keyDeliverables.deliverableRequired).max(4000),
     parentId: itemId.nullable(),
     afterId: itemId.nullable(),
     start: wbsDay,
@@ -294,7 +294,7 @@ export type RescheduleWbsItemInput = z.input<typeof rescheduleWbsItemInput>;
 
 export const renameWbsItemInput = z.object({
   id: itemId,
-  name: z.string().trim().min(1, messages.keyDeliverables.requirementRequired).max(4000),
+  name: z.string().trim().min(1, messages.keyDeliverables.deliverableRequired).max(4000),
   rowVer: rowVerSchema,
 });
 
