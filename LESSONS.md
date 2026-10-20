@@ -344,3 +344,7 @@ Append under the matching section (or add a section) in the form:
 - 2026-10-16: sqlcmd pastes `$(VAR)` from the environment into the file verbatim, comments included. -> Double single quotes in the shell before a secret reaches `N'$(VAR)'`, quote it again with `QUOTENAME` in dynamic SQL, and hand it only to the one sqlcmd call that needs it.
 - 2026-10-16: the local dev login (`pm_app`, db_owner) cannot create logins, so login DDL is proven in CI only. The grants themselves were proven on the shared dev DB inside one rolled-back transaction: `CREATE USER ... WITHOUT LOGIN`, `EXECUTE AS USER`, proc calls and direct reads, `ROLLBACK`. -> Use that pattern to test permissions without leaving anything behind.
 
+## 33. WBS requirements session (feature/wbs-requirements, ADR-0036, 2026-10-20)
+
+- 2026-10-20 feature/wbs-requirements: the ADR number cited in thirty comments (0034) was already taken on develop, and an open branch (feature/notes) held the next one (0035). -> Before citing a new ADR or migration number, `ls docs/adr db/migrations` on develop and `git ls-tree -r --name-only origin/<branch> -- docs/adr db/migrations` for each open feature branch.
+- 2026-10-20 feature/wbs-requirements: a click on a WBS box can land on its name (which now opens the item's menu after 250 ms), its status chip or its "Add requirement" button. -> e2e selects a box by its corner (`selectBox`); the delayed menu opens only while the box still holds the focus, so a toolbar click inside the delay is not interrupted.
