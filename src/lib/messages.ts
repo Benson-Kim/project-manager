@@ -603,6 +603,8 @@ export const messages = {
       requirementCount: (met: number, total: number) => `${met} of ${total} met`,
       showRequirements: (code: string) => `Show the requirements of item ${code}`,
       hideRequirements: (code: string) => `Hide the requirements of item ${code}`,
+      deleteRequirementTitle: (text: string) => `Delete the requirement ${text}?`,
+      deleteRequirementBody: "It will be removed from the WBS and the Gantt. An administrator can restore it.",
       requirementAdded: "Requirement added",
       requirementDeleted: "Requirement deleted",
       diagramHints: [
