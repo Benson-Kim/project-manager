@@ -14,6 +14,7 @@ import { OVERRIDABLE_MODULES, requiredLevel } from "@/lib/auth/rbac";
 const MODULES: Record<string, string> = {
   "daily-activity": "daily-activities",
   "key-deliverable": "key-deliverables",
+  "key-deliverable-requirement": "key-deliverables",
   keyword: "keywords",
   objective: "objectives",
   "question-answer": "questions-answers",
@@ -61,6 +62,8 @@ const VERBS: Record<string, string> = {
   Move: "update",
   Reschedule: "update",
   Rename: "update",
+  // Status picked from the WBS or Gantt menu (ADR-0034).
+  SetStatus: "update",
   Dismiss: "update",
   Snooze: "update",
   Set: "update",
