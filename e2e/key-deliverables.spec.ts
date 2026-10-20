@@ -38,6 +38,14 @@ async function wbsCode(row: Locator): Promise<string> {
   return (label ?? "").slice(W.nameOf("").length);
 }
 
+/**
+ * Selects a WBS box by its corner: a click elsewhere may land on its name (which opens the
+ * item's menu), its status chip or its "Add requirement" button (ADR-0036).
+ */
+async function selectBox(box: Locator): Promise<void> {
+  await box.click({ position: { x: 4, y: 4 } });
+}
+
 /** yyyy-mm-dd, the given number of days after another. */
 function plusDays(iso: string, days: number): string {
   const date = new Date(`${iso}T00:00:00Z`);
@@ -312,7 +320,7 @@ test("WBS diagram: add, rename, drag onto a box, round trip with the Gantt, dele
   await expect(taskBox).toHaveAttribute("aria-level", "1");
 
   // Rename from the toolbar.
-  await phaseBox.click();
+  await selectBox(phaseBox);
   await page.getByTestId("wbs-rename").click();
   const renamed = page.locator("input:focus");
   await expect(renamed).toHaveValue(`E2E phase ${stamp}`);
@@ -340,7 +348,7 @@ test("WBS diagram: add, rename, drag onto a box, round trip with the Gantt, dele
   await expect(phaseBox).toContainText(`E2E stage ${stamp}`);
   await expect(taskBox).toHaveCount(0);
 
-  await phaseBox.click();
+  await selectBox(phaseBox);
   await page.getByTestId("wbs-delete").click();
   await page.getByRole("button", { name: W.delete, exact: true }).last().click();
   await expect(phaseBox).toHaveCount(0);
@@ -393,12 +401,12 @@ test("WBS diagram: Alt+arrows, Move to…, a branch listed or side by side, zoom
   // A single sub-item sits under its parent; Listed puts it on a rail, where the top and
   // bottom edges are the drop zones, and Automatic gives the choice back to the width.
   await expect(task).toHaveAttribute("data-wbs-axis", "row");
-  await phase.click();
+  await selectBox(phase);
   await page.getByTestId("wbs-sub-items-list").click();
   await expect(task).toHaveAttribute("data-wbs-axis", "column");
   await page.reload();
   await expect(task).toHaveAttribute("data-wbs-axis", "column");
-  await phase.click();
+  await selectBox(phase);
   await page.getByTestId("wbs-sub-items-auto").click();
   await expect(task).toHaveAttribute("data-wbs-axis", "row");
 
@@ -409,7 +417,7 @@ test("WBS diagram: Alt+arrows, Move to…, a branch listed or side by side, zoom
   await expect(zoom).toHaveText("100%");
 
   await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
-  await phase.click();
+  await selectBox(phase);
   await page.getByTestId("wbs-delete").click();
   await page.getByRole("button", { name: W.delete, exact: true }).last().click();
   await expect(phase).toHaveCount(0);
