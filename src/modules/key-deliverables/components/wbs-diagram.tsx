@@ -84,7 +84,7 @@ export interface DiagramHandlers {
   remove: (id: number) => void;
   /** A drop the 10-level limit refuses. */
   tooDeep: () => void;
-  /** Open the item's context menu (ADR-0034). */
+  /** Open the item's context menu (ADR-0036). */
   menu: (id: number, at: MenuRequest) => void;
 }
 

@@ -194,7 +194,7 @@ export function deleteWbsItem(
   );
 }
 
-/** Change only an item's status, which also sets its colour (ADR-0034). */
+/** Change only an item's status, which also sets its colour (ADR-0036). */
 export function setWbsItemStatus(
   input: { id: number; status: string | null; rowVer: number },
   actorUserId: number,
@@ -207,7 +207,7 @@ export function setWbsItemStatus(
 }
 
 /*
- * An item's requirements (migration 035, ADR-0034). Like the breakdown edits,
+ * An item's requirements (migration 035, ADR-0036). Like the breakdown edits,
  * each answers with the project's whole breakdown, which carries them.
  */
 

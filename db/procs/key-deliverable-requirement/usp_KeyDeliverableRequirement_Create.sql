@@ -1,5 +1,5 @@
 -- usp_KeyDeliverableRequirement_Create — add a requirement at the end of a deliverable's
--- requirements (migration 035, ADR-0034). Audited in-transaction.
+-- requirements (migration 035, ADR-0036). Audited in-transaction.
 -- Access: Manager on the item's project, or a per-person grant (key-deliverables:create, ADR-0024).
 -- The item must be live (NOT_FOUND 50001); a blank requirement is VALIDATION (50004).
 -- Like every write to the breakdown, it locks the project row first, so usp_KeyDeliverable_GanttData's

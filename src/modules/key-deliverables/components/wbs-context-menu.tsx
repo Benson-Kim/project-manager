@@ -106,7 +106,7 @@ function rove(event: React.KeyboardEvent, menu: HTMLElement | null): boolean {
 
 /**
  * The menu a work breakdown item opens on a right-click, on a click on its
- * name, or with Shift+F10 / the menu key (ADR-0034). Its header shows the
+ * name, or with Shift+F10 / the menu key (ADR-0036). Its header shows the
  * item's whole name, which the box and the outline may cut short; below it are
  * the toolbar's commands for that item and a Status list, whose colour the box
  * and the bar take. Arrow keys move through it, → opens the status list, ← and

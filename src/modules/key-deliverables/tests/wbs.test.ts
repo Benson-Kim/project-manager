@@ -416,7 +416,7 @@ describe("dates", () => {
   });
 });
 
-describe("requirements and status on screen (ADR-0034)", () => {
+describe("requirements and status on screen (ADR-0036)", () => {
   const req = (id: number, sortOrder: number, text = `R${id}`) => ({
     id,
     text,

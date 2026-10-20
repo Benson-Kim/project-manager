@@ -7,7 +7,7 @@ import type { AssigneeEntry } from "./key-deliverable";
  * returns, so the editor can show a change before the server confirms it. They
  * mirror the procs: numbering by place among siblings, parent dates rolled up
  * from the items at the bottom of the branch, and the 10-level limit.
- * Each item also carries its requirements (migration 035, ADR-0034), and its
+ * Each item also carries its requirements (migration 035, ADR-0036), and its
  * colour follows its status (the status list's colours, ADR-0022).
  */
 

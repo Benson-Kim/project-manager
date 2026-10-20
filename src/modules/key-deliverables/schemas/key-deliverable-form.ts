@@ -21,7 +21,7 @@ import type { KeyDeliverableRow } from "./key-deliverable";
  * Work breakdown (migration 032, ADR-0027): startDate is required (checklist
  * row 67) and the deadline may not come before it. Where the item sits in the
  * breakdown is the WBS editor's business, not this form's. The form sends no
- * colour: an item's colour follows its status (ADR-0034), and an update without
+ * colour: an item's colour follows its status (ADR-0036), and an update without
  * one keeps the stored column as it is.
  */
 const dateInput = z

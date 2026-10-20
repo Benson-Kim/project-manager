@@ -241,7 +241,7 @@ export function WbsGantt({
     [ops, confirmed],
   );
 
-  // An item's colour follows its status, in the colours of the managed status list (ADR-0034).
+  // An item's colour follows its status, in the colours of the managed status list (ADR-0036).
   const statusList = useLookupLists().lists["key-deliverable.status"];
   const statuses = useMemo<StatusChoice[]>(
     () => (statusList?.options ?? []).map((o) => ({ label: o.label, color: o.color })),
@@ -609,7 +609,7 @@ export function WbsGantt({
     announce(status ? W.statusChanged(status) : W.statusCleared);
   }
 
-  // ---- requirements (ADR-0034) -------------------------------------------------
+  // ---- requirements (ADR-0036) -------------------------------------------------
 
   /** A requirement waiting for its id gets a negative one, so nothing can act on it yet. */
   const pendingRequirement = useRef(0);
@@ -716,7 +716,7 @@ export function WbsGantt({
     },
   };
 
-  // ---- the context menu (ADR-0034) -----------------------------------------------
+  // ---- the context menu (ADR-0036) -----------------------------------------------
 
   function openMenu(id: number, at: MenuRequest) {
     if (!wbs.nodes.has(id)) return;

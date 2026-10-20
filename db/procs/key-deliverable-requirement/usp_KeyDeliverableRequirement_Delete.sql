@@ -1,5 +1,5 @@
 -- usp_KeyDeliverableRequirement_Delete — soft-delete one requirement and renumber the rest of its
--- item's requirements (migration 035, ADR-0034).
+-- item's requirements (migration 035, ADR-0036).
 -- Access: Manager on the item's project, or a per-person grant (key-deliverables:delete, ADR-0024).
 -- Rowversion concurrency (CONFLICT 50002). Locks the project row first, like every write to the
 --   breakdown (ADR-0027 §5). Audited in-transaction.

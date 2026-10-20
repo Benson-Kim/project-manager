@@ -1,5 +1,5 @@
 -- 035_key_deliverable_requirement.sql — a deliverable's requirements (client feedback 2026-10-20,
--- ADR-0034): each item of the work breakdown has none or many requirements, listed under it in the
+-- ADR-0036): each item of the work breakdown has none or many requirements, listed under it in the
 -- WBS diagram and the Gantt's outline, as the minutes list discussion points under an agenda item.
 --   KeyDeliverableId: the item the requirement belongs to; it never changes after creation.
 --   Requirement: the wording, required (the procs refuse a blank one).

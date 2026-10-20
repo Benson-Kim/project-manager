@@ -36,7 +36,7 @@ export interface RowHandlers extends BarHandlers {
   setStart: (id: number, value: string) => void;
   setEnd: (id: number, value: string) => void;
   setDays: (id: number, value: string) => void;
-  /** Open the item's context menu (ADR-0034). */
+  /** Open the item's context menu (ADR-0036). */
   menu: (id: number, at: MenuRequest) => void;
 }
 
@@ -339,7 +339,7 @@ function EmptyCells({
 }
 
 /**
- * One requirement under its item in the Gantt's outline (ADR-0034), the way
+ * One requirement under its item in the Gantt's outline (ADR-0036), the way
  * the minutes cascade discussion points under an agenda item: its tick box and
  * wording in the name column, Move up, Move down and Delete in the Status
  * column, and an empty track (requirements have no bar).

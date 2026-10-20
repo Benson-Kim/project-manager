@@ -62,7 +62,7 @@ const VERBS: Record<string, string> = {
   Move: "update",
   Reschedule: "update",
   Rename: "update",
-  // Status picked from the WBS or Gantt menu (ADR-0034).
+  // Status picked from the WBS or Gantt menu (ADR-0036).
   SetStatus: "update",
   Dismiss: "update",
   Snooze: "update",
