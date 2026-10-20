@@ -193,3 +193,75 @@ export function deleteWbsItem(
     actorUserId,
   );
 }
+
+/** Change only an item's status, which also sets its colour (ADR-0034). */
+export function setWbsItemStatus(
+  input: { id: number; status: string | null; rowVer: number },
+  actorUserId: number,
+): Promise<WbsData> {
+  return wbsAfter(
+    "usp_KeyDeliverable_SetStatus",
+    { KeyDeliverableId: input.id, Status: input.status, RowVer: input.rowVer },
+    actorUserId,
+  );
+}
+
+/*
+ * An item's requirements (migration 035, ADR-0034). Like the breakdown edits,
+ * each answers with the project's whole breakdown, which carries them.
+ */
+
+/** Add a requirement last under an item; answers with its id too. */
+export async function addRequirement(
+  input: { itemId: number; text: string },
+  actorUserId: number,
+): Promise<WbsData & { id: number }> {
+  const rows = await execProc<{ KeyDeliverableRequirementId: number; ProjectId: number }>(
+    "usp_KeyDeliverableRequirement_Create",
+    { KeyDeliverableId: input.itemId, Requirement: input.text, ActorUserId: actorUserId },
+  );
+  const row = rows[0];
+  if (typeof row?.ProjectId !== "number" || typeof row.KeyDeliverableRequirementId !== "number") {
+    throw new Error("usp_KeyDeliverableRequirement_Create returned no row");
+  }
+  const wbs = await getWbs(row.ProjectId, actorUserId);
+  return { id: row.KeyDeliverableRequirementId, ...wbs };
+}
+
+export function updateRequirement(
+  input: { id: number; text: string; isMet: boolean; rowVer: number },
+  actorUserId: number,
+): Promise<WbsData> {
+  return wbsAfter(
+    "usp_KeyDeliverableRequirement_Update",
+    {
+      KeyDeliverableRequirementId: input.id,
+      Requirement: input.text,
+      IsMet: input.isMet,
+      RowVer: input.rowVer,
+    },
+    actorUserId,
+  );
+}
+
+export function moveRequirement(
+  input: { id: number; position: number; rowVer: number },
+  actorUserId: number,
+): Promise<WbsData> {
+  return wbsAfter(
+    "usp_KeyDeliverableRequirement_Move",
+    { KeyDeliverableRequirementId: input.id, Position: input.position, RowVer: input.rowVer },
+    actorUserId,
+  );
+}
+
+export function deleteRequirement(
+  input: { id: number; rowVer: number },
+  actorUserId: number,
+): Promise<WbsData> {
+  return wbsAfter(
+    "usp_KeyDeliverableRequirement_Delete",
+    { KeyDeliverableRequirementId: input.id, RowVer: input.rowVer },
+    actorUserId,
+  );
+}
