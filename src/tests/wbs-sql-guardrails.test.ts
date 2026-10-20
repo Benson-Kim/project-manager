@@ -25,7 +25,15 @@ describe("work breakdown SQL guardrails", () => {
   });
 
   it("locks the project before changing its breakdown, so two changes cannot make a loop", () => {
-    for (const proc of ["Create", "Update", "Delete", "Move", "Reschedule", "Rename", "SetStatus"]) {
+    for (const proc of [
+      "Create",
+      "Update",
+      "Delete",
+      "Move",
+      "Reschedule",
+      "Rename",
+      "SetStatus",
+    ]) {
       expect(sql(`${PROCS}/usp_KeyDeliverable_${proc}.sql`), proc).toMatch(
         /FROM app\.Project WITH \(UPDLOCK, HOLDLOCK\)/,
       );

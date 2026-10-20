@@ -66,15 +66,13 @@ const requirementEntrySchema = z
     sortOrder: z.number().int(),
     rowVer: rowVerSchema,
   })
-  .transform(
-    (r): WbsRequirement => ({
-      id: r.id,
-      text: r.requirement,
-      isMet: r.isMet,
-      sortOrder: r.sortOrder,
-      rowVer: r.rowVer,
-    }),
-  );
+  .transform((r): WbsRequirement => ({
+    id: r.id,
+    text: r.requirement,
+    isMet: r.isMet,
+    sortOrder: r.sortOrder,
+    rowVer: r.rowVer,
+  }));
 
 /**
  * Parse the RequirementsJson column: NULL (no requirements, or a database

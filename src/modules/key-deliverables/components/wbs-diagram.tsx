@@ -22,7 +22,11 @@ import {
 import { shortDate } from "./gantt-scale";
 import { DraftInput } from "./draft-input";
 import { isMenuKey, menuBelow, type MenuRequest } from "./wbs-context-menu";
-import { BoxRequirements, type RequirementAccess, type RequirementHandlers } from "./wbs-requirements";
+import {
+  BoxRequirements,
+  type RequirementAccess,
+  type RequirementHandlers,
+} from "./wbs-requirements";
 import {
   ZOOM_STEPS,
   branchRows,
