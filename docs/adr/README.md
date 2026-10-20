@@ -43,3 +43,4 @@ the full rules and examples derived from these decisions.
 | [0032](ADR-0032-deployment-topology-and-backups.md) | Deployment topology (single-user desktop or one server stack) and host-run backups with an operator upload hook | Accepted (supersedes PLAN §5) |
 | [0033](ADR-0033-least-privilege-app-login.md) | The server edition's app connects as an EXECUTE-only login (`pm_web`, role `app_executor`); the operator's scripts use their own admin credentials | Accepted (amends 0032) |
 | [0034](ADR-0034-desktop-update-signing.md) | Desktop releases signed with a self-issued publisher certificate; installed apps verify every update against it, trusted once by provisioning | Accepted (0033 is the server app login, other session) |
+| [0036](ADR-0036-wbs-requirements-status-menu.md) | Requirements under each WBS item, item colour from its status, and a context menu that shows the whole name | Accepted (amends 0027) |
