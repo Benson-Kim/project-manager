@@ -1,11 +1,5 @@
--- usp_KeyDeliverableRequirement_Move — put a requirement at @Position (from 1) among its item's
--- requirements and renumber the rest (migration 035, ADR-0036): Move up and Move down.
--- A position past the end puts it last.
--- Access: Manager on the item's project, or a per-person grant (key-deliverables:update, ADR-0024).
--- Rowversion concurrency on the moved requirement (CONFLICT 50002). Locks the project row first,
---   like every write to the breakdown (ADR-0027 §5). Audited in-transaction.
+-- usp_KeyDeliverableRequirement_Move — move a requirement to @Position and renumber (ADR-0036).
 -- Returns the item's ProjectId.
--- Entity app.KeyDeliverableRequirement. Module: key-deliverables (#9).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_KeyDeliverableRequirement_Move
@@ -47,7 +41,6 @@ BEGIN
                      AND CAST(RowVer AS BIGINT) = @RowVer)
         THROW 50002, N'CONFLICT:KeyDeliverableRequirement was modified by someone else', 1;
 
-    -- The others in their current order, numbered around the moved one's new place.
     DECLARE @Order TABLE (Id INT PRIMARY KEY, Position INT NOT NULL);
     INSERT INTO @Order (Id, Position)
     SELECT KeyDeliverableRequirementId, ROW_NUMBER() OVER (ORDER BY SortOrder, KeyDeliverableRequirementId)

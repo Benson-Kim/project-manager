@@ -49,7 +49,7 @@ export function tabClass(tab: WbsTab, column: WbsTab): string {
   return tab === column ? "" : "max-md:hidden";
 }
 
-/** A right-click on a row opens the item's menu, except over text the user has selected in a field. */
+/** Opens the item's menu, except over selected text. */
 function rowContextMenu(
   event: React.MouseEvent<HTMLElement>,
   id: number,
@@ -102,7 +102,6 @@ export function WbsRow({
   tab: WbsTab;
   canEdit: boolean;
   on: RowHandlers;
-  /** The status's own colour, for the status cell; null when it has none. */
   statusColor: OptionColor | null;
   requirementsHidden: boolean;
   onRequirement: RequirementHandlers;
@@ -289,7 +288,7 @@ function barRight(timeline: Timeline, start: Date, end: Date): number {
   return box.left + box.width;
 }
 
-/** The outline cells under an item's own: indented one level deeper than it. */
+/** A name cell one level deeper than the item. */
 function SubRowName({
   node,
   rowBg,
@@ -309,7 +308,7 @@ function SubRowName({
   );
 }
 
-/** The empty outline columns and track of a row that has no dates of its own. */
+/** Empty outline columns and track. */
 function EmptyCells({
   tab,
   timeline,
@@ -319,7 +318,6 @@ function EmptyCells({
   tab: WbsTab;
   timeline: Timeline;
   trackStyle: React.CSSProperties;
-  /** Shown in the Status column, which a requirement has none of. */
   controls?: React.ReactNode;
 }) {
   const cell = `flex shrink-0 items-center border-r border-line px-1 ${tabClass(tab, "outline")}`;
@@ -338,12 +336,7 @@ function EmptyCells({
   );
 }
 
-/**
- * One requirement under its item in the Gantt's outline (ADR-0036), the way
- * the minutes cascade discussion points under an agenda item: its tick box and
- * wording in the name column, Move up, Move down and Delete in the Status
- * column, and an empty track (requirements have no bar).
- */
+/** A requirement under its item in the outline; no bar (ADR-0036). */
 export function RequirementRow({
   node,
   requirement,
@@ -402,7 +395,7 @@ export function RequirementRow({
   );
 }
 
-/** "Add requirement" (or its field) under the selected item in the Gantt's outline. */
+/** "Add requirement" under the selected item. */
 export function AddRequirementRow({
   node,
   adding,

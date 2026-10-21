@@ -28,7 +28,7 @@ export interface RequirementAccess {
   canDelete: boolean;
 }
 
-/** A requirement shown before the server gave it an id: nothing can be done to it yet. */
+/** Not saved yet. */
 export function isPending(requirement: WbsRequirement): boolean {
   return requirement.id < 0;
 }
@@ -115,7 +115,6 @@ export function RequirementControls({
   );
 }
 
-/** The met tick box. */
 export function MetBox({
   requirement,
   canEdit,
@@ -138,10 +137,7 @@ export function MetBox({
   );
 }
 
-/**
- * The field that adds requirements under an item: Enter adds one and keeps the
- * field open for the next, Escape or leaving an empty field closes it.
- */
+/** Enter adds and keeps the field open; Escape or an empty Enter closes it. */
 export function AddRequirementField({
   node,
   on,
@@ -152,7 +148,7 @@ export function AddRequirementField({
   className: string;
 }) {
   const [text, setText] = useState("");
-  // Escape drops the text; the blur that follows as the field closes must not add it.
+  // Stops the closing blur from adding what Escape dropped.
   const cancelled = useRef(false);
   const id = node.item.id;
 
@@ -253,7 +249,7 @@ export function RequirementsToggle({
   );
 }
 
-/** One requirement's wording: a field while editing, else text the editor can click to edit. */
+/** A requirement's wording; click to edit. */
 function RequirementText({
   requirement,
   canEdit,
@@ -264,7 +260,7 @@ function RequirementText({
   on: RequirementHandlers;
 }) {
   const [editing, setEditing] = useState(false);
-  // The field reports the same text twice when Enter closes it (Enter, then the blur as it goes).
+  // Enter and the closing blur both report the text.
   const sent = useRef<string | null>(null);
   const textClass = `min-w-0 flex-1 text-xs leading-5 wrap-anywhere ${
     requirement.isMet ? "text-ink-muted line-through" : "text-ink"
@@ -306,11 +302,7 @@ function RequirementText({
   );
 }
 
-/**
- * A box's requirements in the WBS diagram, cascading under its name and dates
- * the way the minutes list discussion points under an agenda item: a count that
- * shows or hides them, each with its tick box, and "Add requirement" last.
- */
+/** A box's requirements, cascading like the minutes' discussion points. */
 export function BoxRequirements({
   node,
   hidden,

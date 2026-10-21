@@ -13,10 +13,7 @@
 --   Every write to an item locks app.Project first, so RowVer order is commit order. Equal stamps
 --   mean the same items; a later read with an equal stamp may still bring newer names or project
 --   dates, so the editor takes it.
--- RequirementsJson (migration 035, ADR-0036): the item's live requirements in order, as a JSON array
---   of {id, requirement, isMet, sortOrder, rowVer}; NULL when it has none. The stamp covers them
---   too: a requirement's RowVer comes from the same database counter, and its writes lock the
---   project row like the items'.
+-- RequirementsJson: the item's requirements in order (ADR-0036); the stamp covers them too.
 -- Row-level access: the project must be accessible (dbo.usp_Project_AssertAccess,
 --   FORBIDDEN_ROW 50003; Admin bypass).
 USE ProjectManager;

@@ -1,10 +1,5 @@
--- usp_KeyDeliverableRequirement_Delete — soft-delete one requirement and renumber the rest of its
--- item's requirements (migration 035, ADR-0036).
--- Access: Manager on the item's project, or a per-person grant (key-deliverables:delete, ADR-0024).
--- Rowversion concurrency (CONFLICT 50002). Locks the project row first, like every write to the
---   breakdown (ADR-0027 §5). Audited in-transaction.
+-- usp_KeyDeliverableRequirement_Delete — soft-delete a requirement and renumber (ADR-0036).
 -- Returns the item's ProjectId.
--- Entity app.KeyDeliverableRequirement. Module: key-deliverables (#9).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_KeyDeliverableRequirement_Delete

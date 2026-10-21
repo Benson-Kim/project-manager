@@ -70,7 +70,7 @@ const MOVE_SHORTCUTS = Object.keys(MOVE_KEYS)
 /** The pixels a pointer must travel before a press on a box becomes a drag. */
 const DRAG_SLOP = 4;
 
-/** How long a click on a name waits for a second click (a double-click renames) before opening the menu. */
+/** A name click waits this long for a double-click (rename) before opening the menu. */
 const NAME_CLICK_MS = 250;
 
 /** What the diagram asks the editor to do. */
@@ -214,7 +214,6 @@ export function WbsDiagram({
   addingRequirement: number | null;
   requirementAccess: RequirementAccess;
   onRequirement: RequirementHandlers;
-  /** Whether a status has a colour of its own (else the chip is plain). */
   statusColors: ReadonlyMap<string, OptionColor>;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -563,10 +562,7 @@ export function WbsDiagram({
   const nameClick = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(nameClick.current), []);
 
-  /**
-   * A click on a box's name opens its menu, unless a second click (rename)
-   * follows, or the focus has moved on (a toolbar button clicked meanwhile).
-   */
+  /** Opens the menu unless a double-click follows or the focus moved on. */
   function onNameClick(event: React.MouseEvent<HTMLElement>, id: number) {
     if (justDragged.current || event.detail > 1) {
       clearTimeout(nameClick.current);
@@ -965,13 +961,9 @@ function ItemBox({
   onStart: (value: string) => void;
   onEnd: (value: string) => void;
   onContextMenu: (event: React.MouseEvent<HTMLElement>) => void;
-  /** A click on the name: opens the menu that shows the whole name. */
   onNameClick: (event: React.MouseEvent<HTMLElement>) => void;
-  /** The status chip: opens the menu on the status list. */
   onStatusClick: (chip: HTMLElement) => void;
-  /** The status's own colour, for the chip; null when it has none. */
   statusColor: OptionColor | null;
-  /** The requirements cascade under the name and dates. */
   requirements: React.ReactNode;
 }) {
   const id = node.item.id;

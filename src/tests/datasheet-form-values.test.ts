@@ -92,7 +92,7 @@ describe("datasheet form values round-trip through each update form schema", () 
       priority: "Critical",
       status: "Legacy status",
     });
-    // The colour follows the status now (ADR-0036): a cell edit sends none, so the proc keeps it.
+    // Colour follows status (ADR-0036).
     expect(parsed).not.toHaveProperty("color");
   });
 

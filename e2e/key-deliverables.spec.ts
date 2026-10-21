@@ -10,8 +10,8 @@ import { escapeRegExp, expectListed } from "./support/datasheet";
  * a parent's read-only dates in the datasheet, the sub-item delete warning,
  * delete; desktop + 360 px), the WBS diagram (add, rename, drag and drop,
  * the round trip with the Gantt, keyboard, delete; Alt+arrow moves, Move to…,
- * a branch listed or side by side, zoom), the item menu, status colour and
- * requirements (ADR-0036), and axe scans on the list, the diagram and the Gantt.
+ * a branch listed or side by side, zoom), the item menu and requirements (ADR-0036),
+ * and axe scans on the list, the diagram and the Gantt.
  * Runs as e2e-pm (storage state from auth.setup.ts). Project 2 is seeded with
  * deliverables and stakeholders.
  */
@@ -38,10 +38,7 @@ async function wbsCode(row: Locator): Promise<string> {
   return (label ?? "").slice(W.nameOf("").length);
 }
 
-/**
- * Selects a WBS box by its corner: a click elsewhere may land on its name (which opens the
- * item's menu), its status chip or its "Add requirement" button (ADR-0036).
- */
+/** Selects a box by its corner, clear of its name, status chip and buttons. */
 async function selectBox(box: Locator): Promise<void> {
   await box.click({ position: { x: 4, y: 4 } });
 }
