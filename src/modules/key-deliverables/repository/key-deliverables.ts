@@ -194,7 +194,7 @@ export function deleteWbsItem(
   );
 }
 
-/** Change only an item's status, which also sets its colour (ADR-0036). */
+/** Change only an item's status (ADR-0036). */
 export function setWbsItemStatus(
   input: { id: number; status: string | null; rowVer: number },
   actorUserId: number,
@@ -206,12 +206,9 @@ export function setWbsItemStatus(
   );
 }
 
-/*
- * An item's requirements (migration 035, ADR-0036). Like the breakdown edits,
- * each answers with the project's whole breakdown, which carries them.
- */
+/* An item's requirements (ADR-0036); each answers with the whole breakdown. */
 
-/** Add a requirement last under an item; answers with its id too. */
+/** Answers with the new requirement's id too. */
 export async function addRequirement(
   input: { itemId: number; text: string },
   actorUserId: number,

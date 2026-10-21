@@ -57,7 +57,7 @@ export function parseAssigneesJson(raw: unknown): AssigneeEntry[] {
   return arr.map((a) => assigneeEntrySchema.parse(a)); // throws on schema mismatch
 }
 
-/** One entry of usp_KeyDeliverable_GanttData's RequirementsJson (migration 035, ADR-0036). */
+/** One entry of GanttData's RequirementsJson (ADR-0036). */
 const requirementEntrySchema = z
   .object({
     id: z.number().int().positive(),
@@ -74,11 +74,7 @@ const requirementEntrySchema = z
     rowVer: r.rowVer,
   }));
 
-/**
- * Parse the RequirementsJson column: NULL (no requirements, or a database
- * before migration 035) is []; anything malformed throws at the boundary, as
- * parseAssigneesJson does.
- */
+/** NULL is []; malformed JSON throws, as in parseAssigneesJson. */
 export function parseRequirementsJson(raw: unknown): WbsRequirement[] {
   if (raw === null || raw === undefined || raw === "") return [];
   if (typeof raw !== "string") {
@@ -302,7 +298,7 @@ export const deleteWbsItemInput = z.object({ id: itemId, rowVer: rowVerSchema })
 
 export type DeleteWbsItemInput = z.input<typeof deleteWbsItemInput>;
 
-/** A status picked from the WBS or Gantt menu (ADR-0036); null clears it. The proc checks the list. */
+/** Null clears the status; the proc checks the list. */
 export const setWbsStatusInput = z.object({
   id: itemId,
   status: z.string().trim().max(255).nullable(),
@@ -317,7 +313,7 @@ const requirementText = z
   .min(1, messages.keyDeliverables.requirementRequired)
   .max(4000);
 
-/** Requirements of a work breakdown item (migration 035, ADR-0036). */
+/** Requirement edits (ADR-0036). */
 export const addRequirementInput = z.object({ itemId, text: requirementText });
 
 export type AddRequirementInput = z.input<typeof addRequirementInput>;

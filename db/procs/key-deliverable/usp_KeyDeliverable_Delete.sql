@@ -2,8 +2,7 @@
 -- Row-level access: the row's project must be accessible (dbo.usp_Project_AssertAccess,
 --   FORBIDDEN_ROW 50003; Admin bypass).
 -- Work breakdown (ADR-0027): deleting an item deletes its whole branch (every sub-item, each
---   audited) and their requirements (migration 035, ADR-0036; each audited), then its parents'
---   dates are rolled up. The project row is locked first so a
+--   audited) and their requirements (ADR-0036), then its parents' dates are rolled up. The project row is locked first so a
 --   concurrent move cannot slip an item into the branch while it is being deleted.
 --   Returns the item's ProjectId.
 -- Entity app.KeyDeliverable (source: tblKeyRequirementsDeliverable). Module: database-schema-and-procs (#3).

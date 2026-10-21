@@ -1,13 +1,5 @@
--- usp_KeyDeliverable_SetStatus — change only an item's status, picked from the WBS or Gantt menu
--- (client feedback 2026-10-20, ADR-0036). The item's colour follows its status, so this is also how
--- a box or bar changes colour. The full-row usp_KeyDeliverable_Update would need every other field.
--- The status must be a live option of 'key-deliverable.status', or unchanged (ADR-0022, VALIDATION
---   50004); NULL clears it.
--- Row-level access: the row's project must be accessible (dbo.usp_Project_AssertAccess,
---   FORBIDDEN_ROW 50003; Admin bypass); rowversion concurrency (50002 CONFLICT). Locks the project
---   row first, like every write to the breakdown (ADR-0027 §5). Audited in-transaction.
+-- usp_KeyDeliverable_SetStatus — change only an item's status; its colour follows (ADR-0036).
 -- Returns the item's ProjectId.
--- Entity app.KeyDeliverable. Module: key-deliverables (#9).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_KeyDeliverable_SetStatus

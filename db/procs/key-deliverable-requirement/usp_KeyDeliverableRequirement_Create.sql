@@ -1,11 +1,5 @@
--- usp_KeyDeliverableRequirement_Create — add a requirement at the end of a deliverable's
--- requirements (migration 035, ADR-0036). Audited in-transaction.
--- Access: Manager on the item's project, or a per-person grant (key-deliverables:create, ADR-0024).
--- The item must be live (NOT_FOUND 50001); a blank requirement is VALIDATION (50004).
--- Like every write to the breakdown, it locks the project row first, so usp_KeyDeliverable_GanttData's
---   stamp follows commit order (ADR-0027 §5).
--- Returns the new KeyDeliverableRequirementId and the item's ProjectId.
--- Entity app.KeyDeliverableRequirement. Module: key-deliverables (#9).
+-- usp_KeyDeliverableRequirement_Create — add a requirement last under an item (ADR-0036).
+-- Returns the new id and the item's ProjectId.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_KeyDeliverableRequirement_Create

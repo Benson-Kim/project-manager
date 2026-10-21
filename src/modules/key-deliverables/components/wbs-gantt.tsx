@@ -241,7 +241,7 @@ export function WbsGantt({
     [ops, confirmed],
   );
 
-  // An item's colour follows its status, in the colours of the managed status list (ADR-0036).
+  // Colour follows status (ADR-0036).
   const statusList = useLookupLists().lists["key-deliverable.status"];
   const statuses = useMemo<StatusChoice[]>(
     () => (statusList?.options ?? []).map((o) => ({ label: o.label, color: o.color })),
@@ -297,7 +297,7 @@ export function WbsGantt({
   }, [storageKey]);
   const visible = useMemo(() => visibleIds(shown, collapsed), [shown, collapsed]);
 
-  // Items whose requirements are folded away: this viewer's, per project, like `collapsed`.
+  // Folded requirement lists, kept like `collapsed`.
   const requirementsKey = `wbs-req-hidden:${projectId}`;
   const [requirementsHidden, setRequirementsHidden] = useState<ReadonlySet<number>>(
     () => new Set(),
@@ -611,7 +611,7 @@ export function WbsGantt({
 
   // ---- requirements (ADR-0036) -------------------------------------------------
 
-  /** A requirement waiting for its id gets a negative one, so nothing can act on it yet. */
+  /** Negative ids for requirements the server has not answered for yet. */
   const pendingRequirement = useRef(0);
 
   function requirementOf(current: readonly WbsItem[], id: number) {
@@ -647,7 +647,7 @@ export function WbsGantt({
     });
   }
 
-  /** Saves a requirement's wording and tick together, each as the server last had it unless changed. */
+  /** Sends both fields; the unchanged one comes from the server's last answer. */
   function saveRequirement(id: number, edit: { text?: string; isMet?: boolean }) {
     if (!canEdit || id < 0) return;
     enqueue({
@@ -1205,7 +1205,7 @@ export function WbsGantt({
                   ),
                 );
               }
-              // "Add requirement" sits under the selected item only, so the outline stays short.
+              // Only under the selected item, to keep the outline short.
               if (canCreate && (adding || (id === selectedId && listShown))) {
                 rows.push(
                   <AddRequirementRow

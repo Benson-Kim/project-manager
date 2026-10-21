@@ -10,7 +10,7 @@ import type { WbsNode } from "../schemas/wbs";
 
 const W = messages.keyDeliverables.wbs;
 
-/** One entry of the menu: the toolbar's commands, as ToolbarCommand plus a label. */
+/** One menu entry. */
 export interface MenuCommand {
   label: string;
   run: () => void;
@@ -21,7 +21,7 @@ export interface MenuCommand {
   danger?: boolean;
 }
 
-/** Where the menu opens: viewport coordinates, and whether straight on the status list. */
+/** Where the menu opens, in viewport coordinates. */
 export interface MenuRequest {
   x: number;
   y: number;
@@ -36,7 +36,7 @@ export interface WbsMenuState extends MenuRequest {
   id: number;
 }
 
-/** Below the element's bottom-left corner: where a menu opened from the keyboard or a click goes. */
+/** Just below the element. */
 export function menuBelow(el: HTMLElement, status = false): MenuRequest {
   const box = el.getBoundingClientRect();
   return { x: box.left, y: box.bottom + 4, status, returnFocus: el };
@@ -52,7 +52,6 @@ export interface StatusChoice {
   color: OptionColor | null;
 }
 
-/** A gap kept between the menu and the edge of the window. */
 const EDGE = 8;
 
 const itemClass =
@@ -67,7 +66,7 @@ function enabledItems(root: HTMLElement | null): HTMLElement[] {
   );
 }
 
-/** Keeps a box of the given size inside the window, preferring below-right of (x, y). */
+/** Keeps the menu inside the window. */
 function placeWithin(x: number, y: number, width: number, height: number) {
   const maxX = window.innerWidth - width - EDGE;
   const maxY = window.innerHeight - height - EDGE;
@@ -77,7 +76,7 @@ function placeWithin(x: number, y: number, width: number, height: number) {
   };
 }
 
-/** Moves the focus among a menu's enabled items with the arrow keys, Home and End. */
+/** Arrow keys, Home and End move the focus. */
 function rove(event: React.KeyboardEvent, menu: HTMLElement | null): boolean {
   const list = enabledItems(menu);
   if (list.length === 0) return false;
@@ -104,14 +103,7 @@ function rove(event: React.KeyboardEvent, menu: HTMLElement | null): boolean {
   return true;
 }
 
-/**
- * The menu a work breakdown item opens on a right-click, on a click on its
- * name, or with Shift+F10 / the menu key (ADR-0036). Its header shows the
- * item's whole name, which the box and the outline may cut short; below it are
- * the toolbar's commands for that item and a Status list, whose colour the box
- * and the bar take. Arrow keys move through it, → opens the status list, ← and
- * Escape step back out, and the focus returns where it came from.
- */
+/** An item's context menu: its whole name, the toolbar's commands and a status list (ADR-0036). */
 export function WbsContextMenu({
   state,
   node,
@@ -123,7 +115,6 @@ export function WbsContextMenu({
 }: {
   state: WbsMenuState;
   node: WbsNode;
-  /** Commands in groups, drawn with a line between groups. */
   groups: MenuCommand[][];
   statuses: StatusChoice[];
   canSetStatus: boolean;
@@ -161,7 +152,6 @@ export function WbsContextMenu({
     setSubPlace(placeWithin(left, from.top - 4, box.width, box.height));
   }, [subOpen, place]);
 
-  // The first item, or the current status when the menu opened on the status list.
   useEffect(() => {
     if (!place) return;
     if (subOpen && subPlace) {
@@ -174,7 +164,6 @@ export function WbsContextMenu({
     }
   }, [place, subOpen, subPlace]);
 
-  // Any press outside, a scroll of the page or a resize closes it.
   useEffect(() => {
     const inside = (target: EventTarget | null) =>
       target instanceof Node &&

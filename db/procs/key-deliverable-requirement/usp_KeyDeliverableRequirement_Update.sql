@@ -1,10 +1,5 @@
--- usp_KeyDeliverableRequirement_Update — change a requirement's wording and whether it is met
--- (migration 035, ADR-0036). The item it belongs to never changes.
--- Access: Manager on the item's project, or a per-person grant (key-deliverables:update, ADR-0024).
--- Rowversion concurrency (CONFLICT 50002); a blank requirement is VALIDATION (50004). Locks the
---   project row first, like every write to the breakdown (ADR-0027 §5). Audited in-transaction.
+-- usp_KeyDeliverableRequirement_Update — change a requirement's wording and met flag (ADR-0036).
 -- Returns the item's ProjectId.
--- Entity app.KeyDeliverableRequirement. Module: key-deliverables (#9).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_KeyDeliverableRequirement_Update

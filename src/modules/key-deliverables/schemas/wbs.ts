@@ -7,8 +7,7 @@ import type { AssigneeEntry } from "./key-deliverable";
  * returns, so the editor can show a change before the server confirms it. They
  * mirror the procs: numbering by place among siblings, parent dates rolled up
  * from the items at the bottom of the branch, and the 10-level limit.
- * Each item also carries its requirements (migration 035, ADR-0036), and its
- * colour follows its status (the status list's colours, ADR-0022).
+ * Items carry their requirements, and their colour follows their status (ADR-0036).
  */
 
 /** Must equal @MaxDepth in dbo.usp_KeyDeliverable_AssertPlacement. */
@@ -17,7 +16,7 @@ export const MAX_WBS_DEPTH = 10;
 /** The colour of an item whose status has none (no status, or an uncoloured one). */
 export const NO_STATUS_COLOR: OptionColor = "gray";
 
-/** A status label → its colour in the status list, as `optionColor` reads it. */
+/** Status label → colour. */
 export type StatusColors = ReadonlyMap<string, OptionColor>;
 
 /** Days a new item spans when nothing suggests better. */
@@ -25,7 +24,7 @@ export const NEW_ITEM_DAYS = 7;
 
 const DAY_MS = 86_400_000;
 
-/** One of an item's requirements (app.KeyDeliverableRequirement), in its order. */
+/** An item's requirement. */
 export interface WbsRequirement {
   id: number;
   text: string;
@@ -46,11 +45,10 @@ export interface WbsItem {
   end: Date | null;
   status: string | null;
   priority: string | null;
-  /** The stored bar colour from before colours followed the status; no longer drawn. */
+  /** Legacy stored colour; not drawn. */
   color: OptionColor | null;
   assigneeNames: string | null;
   assignees: AssigneeEntry[];
-  /** Ordered by sortOrder. */
   requirements: WbsRequirement[];
   rowVer: number;
 }
@@ -127,7 +125,6 @@ function bySortOrder(a: WbsItem, b: WbsItem): number {
   return a.sortOrder - b.sortOrder || a.id - b.id;
 }
 
-/** The colour an item is drawn in: its status's, else NO_STATUS_COLOR. */
 export function statusColor(status: string | null, colors: StatusColors): OptionColor {
   return (status !== null ? colors.get(status) : undefined) ?? NO_STATUS_COLOR;
 }
@@ -441,7 +438,6 @@ export function applyStatus(
   return items.map((i) => (i.id === id ? { ...i, status } : i));
 }
 
-/** Changes one item's requirements on screen, as the requirement procs will. */
 function withRequirements(
   items: readonly WbsItem[],
   id: number,

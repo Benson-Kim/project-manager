@@ -1,12 +1,4 @@
--- 035_key_deliverable_requirement.sql — a deliverable's requirements (client feedback 2026-10-20,
--- ADR-0036): each item of the work breakdown has none or many requirements, listed under it in the
--- WBS diagram and the Gantt's outline, as the minutes list discussion points under an agenda item.
---   KeyDeliverableId: the item the requirement belongs to; it never changes after creation.
---   Requirement: the wording, required (the procs refuse a blank one).
---   IsMet: ticked off once the requirement is satisfied.
---   SortOrder: position among the item's requirements, from 1.
--- Soft delete, audit columns and RowVer as on every entity (ADR-0011). Deleting an item deletes its
--- requirements with it (usp_KeyDeliverable_Delete).
+-- 035_key_deliverable_requirement.sql — requirements of a work breakdown item (ADR-0036).
 -- Idempotent: safe to re-run.
 USE ProjectManager;
 GO
