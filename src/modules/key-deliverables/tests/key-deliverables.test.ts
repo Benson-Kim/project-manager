@@ -12,6 +12,7 @@ import {
   removeCascadeRequirement,
   deleteWbsItem,
   getWbs,
+  listDeliverableOptions,
   listKeyDeliverables,
   moveKeyDeliverable,
   moveCascadeRequirement,
@@ -314,6 +315,36 @@ describe("key-deliverables repository", () => {
       await expect(getWbs(24, 7)).rejects.toThrow("RequirementsJson must be a JSON array");
       execProc.mockResolvedValue([wbsDbRow({ RequirementsJson: JSON.stringify([{ id: 1 }]) })]);
       await expect(getWbs(24, 7)).rejects.toThrow();
+    });
+  });
+
+  describe("listDeliverableOptions", () => {
+    it("numbers the options by their place in the breakdown", async () => {
+      execProc.mockResolvedValue([
+        wbsDbRow({ KeyDeliverableId: 7, SortOrder: 1, KeyRequirement: "Discovery" }),
+        wbsDbRow({
+          KeyDeliverableId: 8,
+          ParentKeyDeliverableId: 7,
+          SortOrder: 1,
+          KeyRequirement: "Site survey",
+        }),
+        wbsDbRow({ KeyDeliverableId: 9, SortOrder: 2, KeyRequirement: " Rollout " }),
+      ]);
+      expect(await listDeliverableOptions(24, 7)).toEqual([
+        { id: 7, label: "1 Discovery" },
+        { id: 8, label: "1.1 Site survey" },
+        { id: 9, label: "2 Rollout" },
+      ]);
+    });
+
+    it("falls back to the number alone for an item without a name", async () => {
+      execProc.mockResolvedValue([wbsDbRow({ KeyRequirement: null })]);
+      expect(await listDeliverableOptions(24, 7)).toEqual([{ id: 7, label: "1" }]);
+    });
+
+    it("offers nothing for a project without deliverables", async () => {
+      execProc.mockResolvedValue([projectOnlyRow()]);
+      expect(await listDeliverableOptions(24, 7)).toEqual([]);
     });
   });
 

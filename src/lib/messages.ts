@@ -44,6 +44,30 @@ export const messages = {
     settings: "Settings",
     breadcrumb: "Breadcrumb",
   },
+  home: {
+    /** The rebuild's modules, each with the branch that built it. */
+    modules: {
+      projects: "Projects",
+      stakeholders: "Stakeholders",
+      suppliers: "Suppliers",
+      keywords: "Keywords",
+      "key-deliverables": "Key deliverables",
+      requirements: "Requirements",
+      objectives: "Objectives",
+      meetings: "Meetings",
+      "questions-answers": "Q&A",
+      "assumptions-constraints": "Assumptions & constraints",
+      "risks-issues": "Risks & issues",
+      notes: "Notes",
+      "it-resource-planning": "IT resource planning",
+      financials: "Financials",
+      "parking-lot": "Parking lot",
+      "daily-activities": "Daily activities",
+      "todo-alerts": "To-do & alerts",
+      reports: "Reports",
+    },
+    branch: (key: string) => `feature/${key}`,
+  },
   actions: {
     save: "Save",
     cancel: "Cancel",
@@ -717,6 +741,7 @@ export const messages = {
     placeholders: {
       requirement: "[New requirement…]",
       type: "[Select type…]",
+      isMet: "[Met?]",
     },
     title: "Requirements",
     entity: "requirement",
@@ -730,6 +755,7 @@ export const messages = {
       TR: "Transitional",
     },
     typeWithRef: (type: string, ref: string) => `${type} ${ref}`,
+    typeWithCode: (label: string, code: string) => `${label} (${code})`,
     ref: "Ref",
     type: "Type",
     allTypes: "All types",
@@ -757,6 +783,7 @@ export const messages = {
     deleteLeaves: (count: number) =>
       `It leaves ${count} deliverable${count === 1 ? "" : "s"} in the WBS and the Gantt.`,
     deleteUnlinks: (refs: string) => `Its links to ${refs} go too.`,
+    deleteBody: "It is removed from the register.",
   },
   keywords: {
     placeholders: {

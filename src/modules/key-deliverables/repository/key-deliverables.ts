@@ -23,6 +23,7 @@ import {
   type UpdateKeyDeliverableParsed,
   type WbsData,
 } from "../schemas/key-deliverable";
+import { buildWbs } from "../schemas/wbs";
 
 /**
  * KeyDeliverable repository — stored procedures only, every row
@@ -211,6 +212,29 @@ export function setWbsItemStatus(
     { KeyDeliverableId: input.id, Status: input.status, RowVer: input.rowVer },
     actorUserId,
   );
+}
+
+/** An option of the requirement register's deliverable picker: "1.2 Site survey". */
+export interface DeliverableOption {
+  id: number;
+  label: string;
+}
+
+/**
+ * The project's deliverables for a picker, in breakdown order with their WBS numbering. Reads the
+ * same breakdown as the editor, so the numbers a person sees in the WBS are the ones they pick by.
+ */
+export async function listDeliverableOptions(
+  projectId: number,
+  actorUserId: number,
+): Promise<DeliverableOption[]> {
+  const { items } = await getWbs(projectId, actorUserId);
+  const wbs = buildWbs(items);
+  return wbs.order.map((id) => {
+    const node = wbs.nodes.get(id)!;
+    const name = node.item.name.trim();
+    return { id, label: name ? `${node.code} ${name}` : node.code };
+  });
 }
 
 /*
