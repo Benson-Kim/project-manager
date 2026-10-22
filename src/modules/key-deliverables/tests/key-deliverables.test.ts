@@ -7,19 +7,19 @@ vi.mock("@/lib/db", () => ({
 
 import { listParamsSchema } from "@/lib/list-params";
 import {
-  addRequirement,
+  addCascadeRequirement,
   createKeyDeliverable,
-  deleteRequirement,
+  removeCascadeRequirement,
   deleteWbsItem,
   getWbs,
   listKeyDeliverables,
   moveKeyDeliverable,
-  moveRequirement,
+  moveCascadeRequirement,
   renameKeyDeliverable,
   rescheduleKeyDeliverable,
   setWbsItemStatus,
   updateKeyDeliverable,
-  updateRequirement,
+  updateCascadeRequirement,
 } from "../repository/key-deliverables";
 import { rescheduleWbsItemInput, updateKeyDeliverableInput } from "../schemas/key-deliverable";
 
@@ -253,12 +253,30 @@ describe("key-deliverables repository", () => {
       await expect(getWbs(24, 7)).rejects.toThrow();
     });
 
-    it("reads each item's requirements in order, and none from a database before 035", async () => {
+    it("reads each item's allocated requirements in order, and none when there are none", async () => {
       execProc.mockResolvedValue([
         wbsDbRow({
           RequirementsJson: JSON.stringify([
-            { id: 41, requirement: "Soil report", isMet: false, sortOrder: 2, rowVer: "3002" },
-            { id: 40, requirement: "Permit", isMet: true, sortOrder: 1, rowVer: "3001" },
+            {
+              id: 41,
+              type: "NFR",
+              number: 2,
+              requirement: "Soil report",
+              isMet: false,
+              sortOrder: 2,
+              rowVer: "3002",
+              placeRowVer: "7002",
+            },
+            {
+              id: 40,
+              type: "FR",
+              number: 1,
+              requirement: "Permit",
+              isMet: true,
+              sortOrder: 1,
+              rowVer: "3001",
+              placeRowVer: "7001",
+            },
           ]),
         }),
         wbsDbRow({ KeyDeliverableId: 8, RequirementsJson: null }),
@@ -266,8 +284,26 @@ describe("key-deliverables repository", () => {
       ]);
       const { items } = await getWbs(24, 7);
       expect(items[0].requirements).toEqual([
-        { id: 40, text: "Permit", isMet: true, sortOrder: 1, rowVer: 3001 },
-        { id: 41, text: "Soil report", isMet: false, sortOrder: 2, rowVer: 3002 },
+        {
+          id: 40,
+          type: "FR",
+          number: 1,
+          text: "Permit",
+          isMet: true,
+          sortOrder: 1,
+          rowVer: 3001,
+          placeRowVer: 7001,
+        },
+        {
+          id: 41,
+          type: "NFR",
+          number: 2,
+          text: "Soil report",
+          isMet: false,
+          sortOrder: 2,
+          rowVer: 3002,
+          placeRowVer: 7002,
+        },
       ]);
       expect(items[1].requirements).toEqual([]);
       expect(items[2].requirements).toEqual([]);
@@ -347,15 +383,40 @@ describe("key-deliverables repository", () => {
       ]);
     });
 
-    it("adds a requirement and answers with its id and the project the proc names", async () => {
-      execProc
-        .mockResolvedValueOnce([{ KeyDeliverableRequirementId: 40, ProjectId: 31 }])
-        .mockResolvedValueOnce([wbsDbRow()]);
-      const data = await addRequirement({ itemId: 7, text: "Permit" }, 9);
+    /** A full app.Requirement row, as usp_Requirement_Create/Update answer (ADR-0037). */
+    const reqRow = {
+      RequirementId: 40,
+      ProjectId: 31,
+      RequirementType: "FR",
+      Number: 1,
+      Requirement: "Permit",
+      IsMet: false,
+      CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),
+      UpdatedAtUtc: null,
+      RowVer: "3001",
+      ValidatesJson: null,
+      ValidatedByJson: null,
+      DeliverablesJson: null,
+    };
+
+    it("adds a requirement already allocated to the item, answering with its id and project", async () => {
+      execProc.mockResolvedValueOnce([reqRow]).mockResolvedValueOnce([wbsDbRow()]);
+      const data = await addCascadeRequirement(
+        { projectId: 31, itemId: 7, type: "FR", text: "Permit" },
+        9,
+      );
       expect(data.id).toBe(40);
       expect(execProc.mock.calls[0]).toEqual([
-        "usp_KeyDeliverableRequirement_Create",
-        { KeyDeliverableId: 7, Requirement: "Permit", ActorUserId: 9 },
+        "usp_Requirement_Create",
+        {
+          ProjectId: 31,
+          RequirementType: "FR",
+          Requirement: "Permit",
+          IsMet: false,
+          ValidatesIds: null,
+          KeyDeliverableIds: JSON.stringify([7]),
+          ActorUserId: 9,
+        },
       ]);
       expect(execProc.mock.calls[1]).toEqual([
         "usp_KeyDeliverable_GanttData",
@@ -363,39 +424,48 @@ describe("key-deliverables repository", () => {
       ]);
     });
 
-    it("fails rather than guess when adding a requirement returns no row", async () => {
+    it("fails rather than guess when creating a requirement returns no row", async () => {
       execProc.mockResolvedValueOnce([]);
-      await expect(addRequirement({ itemId: 7, text: "Permit" }, 9)).rejects.toThrow(
-        "returned no row",
-      );
+      await expect(
+        addCascadeRequirement({ projectId: 31, itemId: 7, type: "FR", text: "Permit" }, 9),
+      ).rejects.toThrow();
     });
 
-    it("updates, moves and deletes a requirement through its own procs", async () => {
-      answer(24);
-      await updateRequirement({ id: 40, text: "Permit", isMet: true, rowVer: 3001 }, 9);
-      answer(24);
-      await moveRequirement({ id: 40, position: 2, rowVer: 3001 }, 9);
-      answer(24);
-      await deleteRequirement({ id: 40, rowVer: 3001 }, 9);
+    it("edits, moves and removes an allocation through the requirements procs", async () => {
+      // Edit (wording/tick) answers with the requirement row; move and remove answer with ProjectId.
+      execProc.mockResolvedValueOnce([reqRow]).mockResolvedValueOnce([wbsDbRow()]);
+      await updateCascadeRequirement(
+        { id: 40, type: "FR", text: "Permit", isMet: true, rowVer: 3001 },
+        9,
+      );
+      execProc.mockResolvedValueOnce([{ ProjectId: 24 }]).mockResolvedValueOnce([wbsDbRow()]);
+      await moveCascadeRequirement({ itemId: 7, id: 40, position: 2, rowVer: 5001 }, 9);
+      execProc.mockResolvedValueOnce([{ ProjectId: 24 }]).mockResolvedValueOnce([wbsDbRow()]);
+      await removeCascadeRequirement({ itemId: 7, id: 40, rowVer: 5001 }, 9);
       const writes = execProc.mock.calls.filter((_, i) => i % 2 === 0);
       expect(writes).toEqual([
         [
-          "usp_KeyDeliverableRequirement_Update",
+          "usp_Requirement_Update",
           {
-            KeyDeliverableRequirementId: 40,
+            RequirementId: 40,
+            RequirementType: "FR",
             Requirement: "Permit",
             IsMet: true,
+            ValidatesSet: 0,
+            ValidatesIds: null,
+            DeliverablesSet: 0,
+            KeyDeliverableIds: null,
             RowVer: 3001,
             ActorUserId: 9,
           },
         ],
         [
-          "usp_KeyDeliverableRequirement_Move",
-          { KeyDeliverableRequirementId: 40, Position: 2, RowVer: 3001, ActorUserId: 9 },
+          "usp_Requirement_Move",
+          { RequirementId: 40, KeyDeliverableId: 7, Position: 2, RowVer: 5001, ActorUserId: 9 },
         ],
         [
-          "usp_KeyDeliverableRequirement_Delete",
-          { KeyDeliverableRequirementId: 40, RowVer: 3001, ActorUserId: 9 },
+          "usp_Requirement_Unallocate",
+          { RequirementId: 40, KeyDeliverableId: 7, RowVer: 5001, ActorUserId: 9 },
         ],
       ]);
     });

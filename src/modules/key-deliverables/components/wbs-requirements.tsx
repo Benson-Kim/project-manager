@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { messages } from "@/lib/messages";
+import type { RequirementType } from "@/modules/requirements/schemas/requirement-types";
 import type { WbsNode, WbsRequirement } from "../schemas/wbs";
 import { DraftInput } from "./draft-input";
 
@@ -9,13 +10,14 @@ const W = messages.keyDeliverables.wbs;
 
 /** What a requirements list asks the editor to do (ADR-0036). */
 export interface RequirementHandlers {
-  add: (itemId: number, text: string) => void;
+  /** The type defaults to a functional requirement; the cascade only adds solution types. */
+  add: (itemId: number, text: string, type?: RequirementType) => void;
   edit: (id: number, text: string) => void;
   setMet: (id: number, met: boolean) => void;
-  /** -1 up, 1 down, among the item's requirements. */
-  move: (id: number, delta: -1 | 1) => void;
-  /** Asks first. */
-  remove: (id: number) => void;
+  /** -1 up, 1 down, within one deliverable's list. */
+  move: (itemId: number, id: number, delta: -1 | 1) => void;
+  /** Asks first; takes the requirement off this one deliverable (ADR-0037). */
+  remove: (itemId: number, id: number) => void;
   /** Show or hide an item's requirements. */
   toggle: (itemId: number) => void;
   /** Open (or, with null, close) the add field under an item. */
@@ -59,12 +61,15 @@ function Cross() {
 
 /** Move up, Move down and Delete for one requirement. */
 export function RequirementControls({
+  itemId,
   requirement,
   index,
   count,
   access,
   on,
 }: {
+  /** The deliverable this requirement sits under; move and remove act on it. */
+  itemId: number;
   requirement: WbsRequirement;
   index: number;
   count: number;
@@ -82,7 +87,7 @@ export function RequirementControls({
             aria-label={W.moveRequirementUp(text)}
             data-testid={`wbs-req-up-${requirement.id}`}
             disabled={pending || index === 0}
-            onClick={() => on.move(requirement.id, -1)}
+            onClick={() => on.move(itemId, requirement.id, -1)}
             className={iconButton}
           >
             <Arrow up />
@@ -92,7 +97,7 @@ export function RequirementControls({
             aria-label={W.moveRequirementDown(text)}
             data-testid={`wbs-req-down-${requirement.id}`}
             disabled={pending || index === count - 1}
-            onClick={() => on.move(requirement.id, 1)}
+            onClick={() => on.move(itemId, requirement.id, 1)}
             className={iconButton}
           >
             <Arrow up={false} />
@@ -105,7 +110,7 @@ export function RequirementControls({
           aria-label={W.deleteRequirement(text)}
           data-testid={`wbs-req-delete-${requirement.id}`}
           disabled={pending}
-          onClick={() => on.remove(requirement.id)}
+          onClick={() => on.remove(itemId, requirement.id)}
           className={`${iconButton} hover:text-danger`}
         >
           <Cross />
@@ -352,6 +357,7 @@ export function BoxRequirements({
               <RequirementText requirement={requirement} canEdit={access.canEdit} on={on} />
               <span className="-my-1 flex opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100">
                 <RequirementControls
+                  itemId={node.item.id}
                   requirement={requirement}
                   index={index}
                   count={requirements.length}

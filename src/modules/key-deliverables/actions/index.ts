@@ -2,19 +2,19 @@
 
 import { action } from "@/lib/action";
 import {
-  addRequirement,
+  addCascadeRequirement,
   createKeyDeliverable,
   updateKeyDeliverable,
   deleteKeyDeliverable,
-  deleteRequirement,
+  removeCascadeRequirement,
   deleteWbsItem,
   getWbs,
   moveKeyDeliverable,
-  moveRequirement,
+  moveCascadeRequirement,
   renameKeyDeliverable,
   rescheduleKeyDeliverable,
   setWbsItemStatus,
-  updateRequirement,
+  updateCascadeRequirement,
 } from "../repository/key-deliverables";
 import {
   keyDeliverableFormSchema,
@@ -24,7 +24,7 @@ import {
   addRequirementInput,
   addWbsItemInput,
   deleteKeyDeliverableInput,
-  deleteRequirementInput,
+  removeRequirementInput,
   deleteWbsItemInput,
   moveRequirementInput,
   moveWbsItemInput,
@@ -140,32 +140,37 @@ export const setWbsStatusAction = action({
   handler: (input, ctx) => setWbsItemStatus(input, ctx.session.userId),
 });
 
-/* An item's requirements (ADR-0036). */
+/*
+ * The requirements cascade (ADR-0037): create, edit, move within a deliverable, or take a
+ * requirement off one deliverable, from the WBS or Gantt. Permissions follow requirements:*, so a
+ * Contributor can work on requirements without being able to change deliverables. Each answers
+ * with the whole breakdown; the page is dynamic, so no path is revalidated.
+ */
 
 export const addRequirementAction = action({
   name: "key-deliverables.requirement-add",
   schema: addRequirementInput,
-  permission: "key-deliverables:create",
-  handler: (input, ctx) => addRequirement(input, ctx.session.userId),
+  permission: "requirements:create",
+  handler: (input, ctx) => addCascadeRequirement(input, ctx.session.userId),
 });
 
 export const updateRequirementAction = action({
   name: "key-deliverables.requirement-update",
   schema: updateRequirementInput,
-  permission: "key-deliverables:update",
-  handler: (input, ctx) => updateRequirement(input, ctx.session.userId),
+  permission: "requirements:update",
+  handler: (input, ctx) => updateCascadeRequirement(input, ctx.session.userId),
 });
 
 export const moveRequirementAction = action({
   name: "key-deliverables.requirement-move",
   schema: moveRequirementInput,
-  permission: "key-deliverables:update",
-  handler: (input, ctx) => moveRequirement(input, ctx.session.userId),
+  permission: "requirements:update",
+  handler: (input, ctx) => moveCascadeRequirement(input, ctx.session.userId),
 });
 
-export const deleteRequirementAction = action({
-  name: "key-deliverables.requirement-delete",
-  schema: deleteRequirementInput,
-  permission: "key-deliverables:delete",
-  handler: (input, ctx) => deleteRequirement(input, ctx.session.userId),
+export const removeRequirementAction = action({
+  name: "key-deliverables.requirement-remove",
+  schema: removeRequirementInput,
+  permission: "requirements:update",
+  handler: (input, ctx) => removeCascadeRequirement(input, ctx.session.userId),
 });

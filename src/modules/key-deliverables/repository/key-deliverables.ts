@@ -1,6 +1,13 @@
 import { execProc } from "@/lib/db";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
 import {
+  createRequirement as createRequirementRow,
+  moveRequirement as moveRequirementAllocation,
+  unallocateRequirement,
+  updateRequirement as updateRequirementRow,
+} from "@/modules/requirements/repository/requirements";
+import type { RequirementType } from "@/modules/requirements/schemas/requirement-types";
+import {
   createKeyDeliverableInput,
   keyDeliverableListRowSchema,
   keyDeliverableRowSchema,
@@ -206,59 +213,77 @@ export function setWbsItemStatus(
   );
 }
 
-/* An item's requirements (ADR-0036); each answers with the whole breakdown. */
+/*
+ * The WBS/Gantt requirements cascade (ADR-0037). A requirement is a project-level record owned by
+ * the requirements module; these go through that module's write procs, then answer with the whole
+ * breakdown so the editor replaces its guess. They never touch trace links or other allocations.
+ */
 
-/** Answers with the new requirement's id too. */
-export async function addRequirement(
-  input: { itemId: number; text: string },
+/** Create a requirement already allocated to one deliverable; answers with its id too. */
+export async function addCascadeRequirement(
+  input: { projectId: number; itemId: number; type: RequirementType; text: string },
   actorUserId: number,
 ): Promise<WbsData & { id: number }> {
-  const rows = await execProc<{ KeyDeliverableRequirementId: number; ProjectId: number }>(
-    "usp_KeyDeliverableRequirement_Create",
-    { KeyDeliverableId: input.itemId, Requirement: input.text, ActorUserId: actorUserId },
-  );
-  const row = rows[0];
-  if (typeof row?.ProjectId !== "number" || typeof row.KeyDeliverableRequirementId !== "number") {
-    throw new Error("usp_KeyDeliverableRequirement_Create returned no row");
-  }
-  const wbs = await getWbs(row.ProjectId, actorUserId);
-  return { id: row.KeyDeliverableRequirementId, ...wbs };
-}
-
-export function updateRequirement(
-  input: { id: number; text: string; isMet: boolean; rowVer: number },
-  actorUserId: number,
-): Promise<WbsData> {
-  return wbsAfter(
-    "usp_KeyDeliverableRequirement_Update",
+  const row = await createRequirementRow(
     {
-      KeyDeliverableRequirementId: input.id,
-      Requirement: input.text,
-      IsMet: input.isMet,
-      RowVer: input.rowVer,
+      projectId: input.projectId,
+      type: input.type,
+      text: input.text,
+      isMet: false,
+      validatesIds: null,
+      deliverableIds: [input.itemId],
     },
     actorUserId,
   );
+  const wbs = await getWbs(row.ProjectId, actorUserId);
+  return { id: row.RequirementId, ...wbs };
 }
 
-export function moveRequirement(
-  input: { id: number; position: number; rowVer: number },
+/** Edit wording or the met tick (shared across deliverables); links and allocations left alone. */
+export async function updateCascadeRequirement(
+  input: { id: number; type: RequirementType; text: string; isMet: boolean; rowVer: number },
   actorUserId: number,
 ): Promise<WbsData> {
-  return wbsAfter(
-    "usp_KeyDeliverableRequirement_Move",
-    { KeyDeliverableRequirementId: input.id, Position: input.position, RowVer: input.rowVer },
+  const row = await updateRequirementRow(
+    {
+      requirementId: input.id,
+      type: input.type,
+      text: input.text,
+      isMet: input.isMet,
+      validatesIds: null,
+      deliverableIds: null,
+      rowVer: input.rowVer,
+    },
     actorUserId,
   );
+  return getWbs(row.ProjectId, actorUserId);
 }
 
-export function deleteRequirement(
-  input: { id: number; rowVer: number },
+/** Reorder one requirement within a deliverable's list (@RowVer is the allocation's). */
+export async function moveCascadeRequirement(
+  input: { itemId: number; id: number; position: number; rowVer: number },
   actorUserId: number,
 ): Promise<WbsData> {
-  return wbsAfter(
-    "usp_KeyDeliverableRequirement_Delete",
-    { KeyDeliverableRequirementId: input.id, RowVer: input.rowVer },
+  const projectId = await moveRequirementAllocation(
+    {
+      requirementId: input.id,
+      keyDeliverableId: input.itemId,
+      position: input.position,
+      rowVer: input.rowVer,
+    },
     actorUserId,
   );
+  return getWbs(projectId, actorUserId);
+}
+
+/** Take a requirement off one deliverable (@RowVer is the allocation's); it stays in the register. */
+export async function removeCascadeRequirement(
+  input: { itemId: number; id: number; rowVer: number },
+  actorUserId: number,
+): Promise<WbsData> {
+  const projectId = await unallocateRequirement(
+    { requirementId: input.id, keyDeliverableId: input.itemId, rowVer: input.rowVer },
+    actorUserId,
+  );
+  return getWbs(projectId, actorUserId);
 }

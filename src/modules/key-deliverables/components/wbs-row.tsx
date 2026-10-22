@@ -383,6 +383,7 @@ export function RequirementRow({
         trackStyle={trackStyle}
         controls={
           <RequirementControls
+            itemId={node.item.id}
             requirement={requirement}
             index={index}
             count={count}

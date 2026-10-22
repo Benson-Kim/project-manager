@@ -1,4 +1,5 @@
 import type { OptionColor } from "@/lib/lookup-lists";
+import type { RequirementType } from "@/modules/requirements/schemas/requirement-types";
 import type { AssigneeEntry } from "./key-deliverable";
 
 /**
@@ -24,13 +25,19 @@ export const NEW_ITEM_DAYS = 7;
 
 const DAY_MS = 86_400_000;
 
-/** An item's requirement. */
+/** A requirement allocated to an item (ADR-0037). The met tick and wording are shared across every
+ *  deliverable it sits on; the order and the allocation's RowVer (placeRowVer) are per deliverable. */
 export interface WbsRequirement {
   id: number;
+  type: RequirementType;
+  number: number;
   text: string;
   isMet: boolean;
   sortOrder: number;
+  /** The requirement's RowVer — edits and the met tick save against it. */
   rowVer: number;
+  /** The allocation's RowVer — move and remove save against it. */
+  placeRowVer: number;
 }
 
 export interface WbsItem {
@@ -452,51 +459,69 @@ function numbered(requirements: WbsRequirement[]): WbsRequirement[] {
   );
 }
 
-/** The item a requirement belongs to; undefined when it is gone. */
-export function requirementOwner(
+/** One occurrence of a requirement, for a shared edit or tick; undefined when it is gone. A
+ *  requirement can sit on several deliverables, so any occurrence carries the shared fields. */
+export function findRequirement(
   items: readonly WbsItem[],
   requirementId: number,
-): WbsItem | undefined {
-  return items.find((i) => i.requirements.some((r) => r.id === requirementId));
+): WbsRequirement | undefined {
+  for (const item of items) {
+    const found = item.requirements.find((r) => r.id === requirementId);
+    if (found) return found;
+  }
+  return undefined;
 }
 
-/** What usp_KeyDeliverableRequirement_Update does: new wording, met or not. */
+/** The requirement as it sits on one deliverable, for a move or remove (its own placeRowVer). */
+export function requirementIn(
+  items: readonly WbsItem[],
+  itemId: number,
+  requirementId: number,
+): WbsRequirement | undefined {
+  return items.find((i) => i.id === itemId)?.requirements.find((r) => r.id === requirementId);
+}
+
+/** usp_Requirement_Update: new wording or met tick, shared across every item that lists it. */
 export function applyRequirementEdit(
   items: readonly WbsItem[],
   requirementId: number,
   edit: { text?: string; isMet?: boolean },
 ): WbsItem[] {
-  const owner = requirementOwner(items, requirementId);
-  if (!owner) return [...items];
-  return withRequirements(items, owner.id, (list) =>
-    list.map((r) => (r.id === requirementId ? { ...r, ...edit } : r)),
+  return items.map((item) =>
+    item.requirements.some((r) => r.id === requirementId)
+      ? {
+          ...item,
+          requirements: item.requirements.map((r) =>
+            r.id === requirementId ? { ...r, ...edit } : r,
+          ),
+        }
+      : item,
   );
 }
 
-/** What usp_KeyDeliverableRequirement_Move does: the requirement at position (from 1). */
+/** usp_Requirement_Move: the requirement at position (from 1) under one deliverable. */
 export function applyRequirementMove(
   items: readonly WbsItem[],
+  itemId: number,
   requirementId: number,
   position: number,
 ): WbsItem[] {
-  const owner = requirementOwner(items, requirementId);
-  if (!owner) return [...items];
-  return withRequirements(items, owner.id, (list) => {
-    const moving = list.find((r) => r.id === requirementId)!;
+  return withRequirements(items, itemId, (list) => {
+    const moving = list.find((r) => r.id === requirementId);
+    if (!moving) return list;
     const rest = list.filter((r) => r.id !== requirementId);
     const at = Math.min(Math.max(position, 1), rest.length + 1) - 1;
     return numbered([...rest.slice(0, at), moving, ...rest.slice(at)]);
   });
 }
 
-/** What usp_KeyDeliverableRequirement_Delete does: gone, the rest renumbered. */
-export function applyRequirementDelete(
+/** usp_Requirement_Unallocate: off this one deliverable, the rest renumbered; it stays elsewhere. */
+export function applyRequirementRemove(
   items: readonly WbsItem[],
+  itemId: number,
   requirementId: number,
 ): WbsItem[] {
-  const owner = requirementOwner(items, requirementId);
-  if (!owner) return [...items];
-  return withRequirements(items, owner.id, (list) =>
+  return withRequirements(items, itemId, (list) =>
     numbered(list.filter((r) => r.id !== requirementId)),
   );
 }

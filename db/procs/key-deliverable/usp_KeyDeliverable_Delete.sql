@@ -2,9 +2,10 @@
 -- Row-level access: the row's project must be accessible (dbo.usp_Project_AssertAccess,
 --   FORBIDDEN_ROW 50003; Admin bypass).
 -- Work breakdown (ADR-0027): deleting an item deletes its whole branch (every sub-item, each
---   audited) and their requirements (ADR-0036), then its parents' dates are rolled up. The project row is locked first so a
---   concurrent move cannot slip an item into the branch while it is being deleted.
---   Returns the item's ProjectId.
+--   audited) and removes the branch's allocations of requirements (ADR-0037) — the requirements
+--   themselves stay in the register — then its parents' dates are rolled up. The project row is
+--   locked first so a concurrent move cannot slip an item into the branch while it is being
+--   deleted. Returns the item's ProjectId.
 -- Entity app.KeyDeliverable (source: tblKeyRequirementsDeliverable). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
@@ -69,28 +70,32 @@ BEGIN
     SELECT @ActorUserId, N'Delete', N'app.KeyDeliverable', CAST(b.KeyDeliverableId AS NVARCHAR(64)), b.BeforeJson
     FROM @Branch AS b;
 
-    DECLARE @Requirements TABLE (KeyDeliverableRequirementId INT PRIMARY KEY, BeforeJson NVARCHAR(MAX));
-    INSERT INTO @Requirements (KeyDeliverableRequirementId, BeforeJson)
-    SELECT r.KeyDeliverableRequirementId,
-           (SELECT r2.KeyDeliverableRequirementId, r2.KeyDeliverableId, r2.Requirement, r2.IsMet, r2.SortOrder
-            FROM app.KeyDeliverableRequirement AS r2
-            WHERE r2.KeyDeliverableRequirementId = r.KeyDeliverableRequirementId
-            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
-    FROM app.KeyDeliverableRequirement AS r
-    JOIN @Branch AS b ON b.KeyDeliverableId = r.KeyDeliverableId
-    WHERE r.IsDeleted = 0;
+    -- The branch's allocations go; the requirements stay in the register (ADR-0037). Touch each
+    -- freed requirement so the Gantt freshness stamp moves.
+    DECLARE @Allocations TABLE (RequirementId INT, KeyDeliverableId INT,
+                                PRIMARY KEY (RequirementId, KeyDeliverableId));
+    INSERT INTO @Allocations (RequirementId, KeyDeliverableId)
+    SELECT d.RequirementId, d.KeyDeliverableId
+    FROM app.RequirementDeliverable AS d
+    JOIN @Branch AS b ON b.KeyDeliverableId = d.KeyDeliverableId;
+
+    DELETE d
+    FROM app.RequirementDeliverable AS d
+    JOIN @Allocations AS a
+        ON a.RequirementId = d.RequirementId AND a.KeyDeliverableId = d.KeyDeliverableId;
 
     UPDATE r SET
-        IsDeleted    = 1,
-        DeletedAtUtc = SYSUTCDATETIME(),
-        DeletedBy    = @ActorUserId
-    FROM app.KeyDeliverableRequirement AS r
-    JOIN @Requirements AS q ON q.KeyDeliverableRequirementId = r.KeyDeliverableRequirementId;
+        UpdatedAtUtc = SYSUTCDATETIME(),
+        UpdatedBy    = @ActorUserId
+    FROM app.Requirement AS r
+    WHERE r.RequirementId IN (SELECT RequirementId FROM @Allocations);
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson)
-    SELECT @ActorUserId, N'Delete', N'app.KeyDeliverableRequirement',
-           CAST(q.KeyDeliverableRequirementId AS NVARCHAR(64)), q.BeforeJson
-    FROM @Requirements AS q;
+    SELECT @ActorUserId, N'Unallocate', N'app.RequirementDeliverable',
+           CAST(a.RequirementId AS NVARCHAR(64)),
+           (SELECT a.RequirementId AS requirementId, a.KeyDeliverableId AS keyDeliverableId
+            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+    FROM @Allocations AS a;
 
     EXEC dbo.usp_KeyDeliverable_RollUp
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId, @FromKeyDeliverableId = @KeyDeliverableId;

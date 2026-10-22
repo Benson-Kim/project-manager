@@ -83,6 +83,7 @@ import {
   type WbsTab,
 } from "./wbs-row";
 import type { QueuedChange } from "./wbs-queue";
+import type { RequirementAccess } from "./wbs-requirements";
 import { WbsToolbar } from "./wbs-toolbar";
 import { useWbsRequirements } from "./use-wbs-requirements";
 
@@ -165,6 +166,7 @@ export function WbsGantt({
   canCreate,
   canEdit,
   canDelete,
+  requirementAccess,
   openDeliverable,
   sheetOpen,
   assigneeOptions,
@@ -182,6 +184,9 @@ export function WbsGantt({
   canCreate: boolean;
   canEdit: boolean;
   canDelete: boolean;
+  /** Requirement create/update/delete in this project (requirements:*, ADR-0037); the cascade and
+   *  its add controls follow these, not the deliverable permissions. */
+  requirementAccess: RequirementAccess;
   /** The item opened from ?d=<id> (the details sheet). */
   openDeliverable?: KeyDeliverableRow;
   sheetOpen: boolean;
@@ -553,7 +558,7 @@ export function WbsGantt({
     projectId,
     items,
     hasItem: (id) => wbs.nodes.has(id),
-    access: { canCreate, canEdit, canDelete },
+    access: requirementAccess,
     enqueue,
     announce,
     select: setSelectedId,
@@ -765,7 +770,7 @@ export function WbsGantt({
           label: W.addRequirement,
           testId: "wbs-menu-add-requirement",
           run: () => cascade.handlers.openAdd(id),
-          hidden: !canCreate,
+          hidden: !requirementAccess.canCreate,
         },
         {
           label: W.rename,
@@ -1043,7 +1048,7 @@ export function WbsGantt({
                 );
               }
               // Only under the selected item, to keep the outline short.
-              if (canCreate && (adding || (id === selectedId && listShown))) {
+              if (requirementAccess.canCreate && (adding || (id === selectedId && listShown))) {
                 rows.push(
                   <AddRequirementRow
                     key={`add${id}`}

@@ -20,11 +20,12 @@ import {
   visibleIds,
   wbsBounds,
   NO_STATUS_COLOR,
-  applyRequirementDelete,
   applyRequirementEdit,
   applyRequirementMove,
+  applyRequirementRemove,
   applyStatus,
-  requirementOwner,
+  findRequirement,
+  requirementIn,
   statusColor,
   type WbsItem,
 } from "../schemas/wbs";
@@ -416,52 +417,63 @@ describe("dates", () => {
   });
 });
 
-describe("requirements and status on screen (ADR-0036)", () => {
+describe("requirements and status on screen (ADR-0037)", () => {
   const req = (id: number, sortOrder: number, text = `R${id}`) => ({
     id,
+    type: "FR" as const,
+    number: id,
     text,
     isMet: false,
     sortOrder,
     rowVer: id * 10,
+    placeRowVer: id * 100,
   });
   const rows = () => [
     item(1, null, 1, { requirements: [req(11, 1), req(12, 2), req(13, 3)] }),
     item(2, null, 2),
   ];
+  // The same requirement (11) sits on two deliverables, with its own order under each.
+  const shared = () => [
+    item(1, null, 1, { requirements: [req(11, 1), req(12, 2)] }),
+    item(2, null, 2, { requirements: [req(11, 1), req(21, 2)] }),
+  ];
 
-  it("finds the item a requirement belongs to", () => {
-    expect(requirementOwner(rows(), 12)?.id).toBe(1);
-    expect(requirementOwner(rows(), 99)).toBeUndefined();
+  it("finds a requirement anywhere, and the one on a given deliverable", () => {
+    expect(findRequirement(rows(), 12)?.id).toBe(12);
+    expect(findRequirement(rows(), 99)).toBeUndefined();
+    expect(requirementIn(shared(), 2, 11)?.id).toBe(11);
+    expect(requirementIn(shared(), 2, 12)).toBeUndefined();
   });
 
-  it("rewords or ticks one requirement and leaves the others", () => {
-    const next = applyRequirementEdit(rows(), 12, { isMet: true, text: "Permit" });
-    expect(next[0]!.requirements[1]).toMatchObject({ id: 12, isMet: true, text: "Permit" });
-    expect(next[0]!.requirements[0]).toEqual(req(11, 1));
-    expect(next[1]).toEqual(rows()[1]);
+  it("rewords or ticks a requirement on every deliverable that lists it", () => {
+    const next = applyRequirementEdit(shared(), 11, { isMet: true, text: "Permit" });
+    expect(next[0]!.requirements[0]).toMatchObject({ id: 11, isMet: true, text: "Permit" });
+    expect(next[1]!.requirements[0]).toMatchObject({ id: 11, isMet: true, text: "Permit" });
+    // Untouched requirements and items are left alone.
+    expect(next[0]!.requirements[1]).toEqual(req(12, 2));
+    expect(next[1]!.requirements[1]).toEqual(req(21, 2));
   });
 
-  it("moves a requirement and renumbers, clamping past either end", () => {
+  it("moves a requirement within one deliverable's list, renumbering and clamping", () => {
     const ids = (items: WbsItem[]) => items[0]!.requirements.map((r) => [r.id, r.sortOrder]);
-    expect(ids(applyRequirementMove(rows(), 13, 1))).toEqual([
+    expect(ids(applyRequirementMove(rows(), 1, 13, 1))).toEqual([
       [13, 1],
       [11, 2],
       [12, 3],
     ]);
-    expect(ids(applyRequirementMove(rows(), 11, 99))).toEqual([
+    expect(ids(applyRequirementMove(rows(), 1, 11, 99))).toEqual([
       [12, 1],
       [13, 2],
       [11, 3],
     ]);
   });
 
-  it("deletes a requirement and closes the gap", () => {
-    const next = applyRequirementDelete(rows(), 12);
-    expect(next[0]!.requirements.map((r) => [r.id, r.sortOrder])).toEqual([
-      [11, 1],
-      [13, 2],
-    ]);
-    expect(applyRequirementDelete(rows(), 99)).toEqual(rows());
+  it("removes a requirement from one deliverable only, closing the gap and leaving the others", () => {
+    const next = applyRequirementRemove(shared(), 1, 11);
+    expect(next[0]!.requirements.map((r) => [r.id, r.sortOrder])).toEqual([[12, 1]]);
+    // It stays on the other deliverable.
+    expect(next[1]!.requirements.map((r) => r.id)).toEqual([11, 21]);
+    expect(applyRequirementRemove(rows(), 1, 99)).toEqual(rows());
   });
 
   it("sets one item's status", () => {

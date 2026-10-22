@@ -3,17 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { messages } from "@/lib/messages";
+import type { RequirementType } from "@/modules/requirements/schemas/requirement-types";
 import {
   addRequirementAction,
-  deleteRequirementAction,
   moveRequirementAction,
+  removeRequirementAction,
   updateRequirementAction,
 } from "../actions";
 import {
-  applyRequirementDelete,
   applyRequirementEdit,
   applyRequirementMove,
-  requirementOwner,
+  applyRequirementRemove,
+  findRequirement,
+  requirementIn,
   type WbsItem,
 } from "../schemas/wbs";
 import { readIdSet, writeIdSet } from "./id-set-storage";
@@ -22,14 +24,15 @@ import type { RequirementAccess, RequirementHandlers } from "./wbs-requirements"
 
 const W = messages.keyDeliverables.wbs;
 
-function requirementOf(current: readonly WbsItem[], id: number) {
-  return requirementOwner(current, id)?.requirements.find((r) => r.id === id);
-}
+/** A solution type is what the cascade creates; the register makes the other kinds. */
+const DEFAULT_ADD_TYPE: RequirementType = "FR";
 
 /**
- * The requirements cascade's workflow (ADR-0036), shared by the WBS diagram and the
- * Gantt: which lists are folded or open for adding, and each edit, queued behind the
- * editor's other changes.
+ * The requirements cascade's workflow (ADR-0037), shared by the WBS diagram and the Gantt: which
+ * lists are folded or open for adding, and each edit, queued behind the editor's other changes.
+ * A requirement is a project-level record that can sit on several deliverables, so wording and the
+ * met tick are saved against the requirement's RowVer and shown on every deliverable at once, while
+ * a move or a remove acts on one deliverable's allocation (its placeRowVer).
  */
 export function useWbsRequirements({
   projectId,
@@ -62,7 +65,7 @@ export function useWbsRequirements({
     return () => cancelAnimationFrame(frame);
   }, [storageKey]);
   const [adding, setAdding] = useState<number | null>(null);
-  const [confirmId, setConfirmId] = useState<number | null>(null);
+  const [confirm, setConfirm] = useState<{ itemId: number; id: number } | null>(null);
 
   function changeHidden(change: (current: ReadonlySet<number>) => ReadonlySet<number>) {
     setHidden((current) => {
@@ -84,7 +87,7 @@ export function useWbsRequirements({
   /** Negative ids for requirements the server has not answered for yet. */
   const pendingId = useRef(0);
 
-  function add(itemId: number, text: string) {
+  function add(itemId: number, text: string, type: RequirementType = DEFAULT_ADD_TYPE) {
     if (!canCreate || !hasItem(itemId)) return;
     const tempId = -++pendingId.current;
     show(itemId);
@@ -98,31 +101,38 @@ export function useWbsRequirements({
                   ...i.requirements,
                   {
                     id: tempId,
+                    type,
+                    number: 0,
                     text,
                     isMet: false,
                     sortOrder: i.requirements.length + 1,
                     rowVer: 0,
+                    placeRowVer: 0,
                   },
                 ],
               }
             : i,
         ),
       send: (current) =>
-        current.some((i) => i.id === itemId) ? addRequirementAction({ itemId, text }) : null,
+        current.some((i) => i.id === itemId)
+          ? addRequirementAction({ projectId, itemId, type, text })
+          : null,
       done: () => announce(W.requirementAdded),
     });
   }
 
-  /** Sends both fields; the unchanged one comes from the server's last answer. */
+  /** Wording or the met tick: shared across deliverables, saved against the requirement's RowVer.
+   *  The unchanged fields (type and the other value) come from the server's last answer. */
   function save(id: number, edit: { text?: string; isMet?: boolean }) {
     if (!canEdit || id < 0) return;
     enqueue({
       apply: (rows) => applyRequirementEdit(rows, id, edit),
       send: (current) => {
-        const saved = requirementOf(current, id);
+        const saved = findRequirement(current, id);
         return saved
           ? updateRequirementAction({
               id,
+              type: saved.type,
               text: edit.text ?? saved.text,
               isMet: edit.isMet ?? saved.isMet,
               rowVer: saved.rowVer,
@@ -132,29 +142,37 @@ export function useWbsRequirements({
     });
   }
 
-  function move(id: number, delta: -1 | 1) {
-    const owner = requirementOwner(items, id);
-    if (!canEdit || !owner || id < 0) return;
-    const position = owner.requirements.findIndex((r) => r.id === id) + 1 + delta;
-    if (position < 1 || position > owner.requirements.length) return;
+  function move(itemId: number, id: number, delta: -1 | 1) {
+    const item = items.find((i) => i.id === itemId);
+    if (!canEdit || !item || id < 0) return;
+    const position = item.requirements.findIndex((r) => r.id === id) + 1 + delta;
+    if (position < 1 || position > item.requirements.length) return;
     enqueue({
-      apply: (rows) => applyRequirementMove(rows, id, position),
+      apply: (rows) => applyRequirementMove(rows, itemId, id, position),
       send: (current) => {
-        const saved = requirementOf(current, id);
-        return saved ? moveRequirementAction({ id, position, rowVer: saved.rowVer }) : null;
+        const saved = requirementIn(current, itemId, id);
+        return saved
+          ? moveRequirementAction({ itemId, id, position, rowVer: saved.placeRowVer })
+          : null;
       },
     });
   }
 
   function remove() {
-    const id = confirmId;
-    setConfirmId(null);
-    if (!canDelete || id === null || id < 0) return;
+    const target = confirm;
+    setConfirm(null);
+    if (!canDelete || target === null || target.id < 0) return;
     enqueue({
-      apply: (rows) => applyRequirementDelete(rows, id),
+      apply: (rows) => applyRequirementRemove(rows, target.itemId, target.id),
       send: (current) => {
-        const saved = requirementOf(current, id);
-        return saved ? deleteRequirementAction({ id, rowVer: saved.rowVer }) : null;
+        const saved = requirementIn(current, target.itemId, target.id);
+        return saved
+          ? removeRequirementAction({
+              itemId: target.itemId,
+              id: target.id,
+              rowVer: saved.placeRowVer,
+            })
+          : null;
       },
       done: () => announce(W.requirementDeleted),
     });
@@ -163,12 +181,12 @@ export function useWbsRequirements({
   const handlers: RequirementHandlers = {
     add,
     edit: (id, text) => {
-      if (requirementOf(items, id)?.text !== text) save(id, { text });
+      if (findRequirement(items, id)?.text !== text) save(id, { text });
     },
     setMet: (id, isMet) => save(id, { isMet }),
     move,
-    remove: (id) => {
-      if (canDelete && id > 0) setConfirmId(id);
+    remove: (itemId, id) => {
+      if (canDelete && id > 0) setConfirm({ itemId, id });
     },
     toggle: (itemId) =>
       changeHidden((current) => {
@@ -186,12 +204,13 @@ export function useWbsRequirements({
     },
   };
 
-  const confirming = confirmId !== null ? requirementOf(items, confirmId) : undefined;
+  const confirming =
+    confirm !== null ? requirementIn(items, confirm.itemId, confirm.id) : undefined;
   const dialog = (
     <ConfirmDialog
       open={confirming !== undefined}
       onOpenChange={(open) => {
-        if (!open) setConfirmId(null);
+        if (!open) setConfirm(null);
       }}
       title={confirming ? W.deleteRequirementTitle(confirming.text) : ""}
       body={W.deleteRequirementBody}

@@ -2,6 +2,8 @@ import { z } from "zod";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { OPTION_COLORS, type LookupListKey } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
+import { requirementText } from "@/modules/requirements/schemas/requirement-form";
+import { requirementTypeSchema } from "@/modules/requirements/schemas/requirement-types";
 import { utcDay, type WbsItem, type WbsRequirement } from "./wbs";
 
 /**
@@ -61,17 +63,23 @@ export function parseAssigneesJson(raw: unknown): AssigneeEntry[] {
 const requirementEntrySchema = z
   .object({
     id: z.number().int().positive(),
+    type: requirementTypeSchema,
+    number: z.number().int().positive(),
     requirement: z.string(),
     isMet: z.union([z.boolean(), z.literal(0), z.literal(1)]).transform(Boolean),
     sortOrder: z.number().int(),
     rowVer: rowVerSchema,
+    placeRowVer: rowVerSchema,
   })
   .transform((r): WbsRequirement => ({
     id: r.id,
+    type: r.type,
+    number: r.number,
     text: r.requirement,
     isMet: r.isMet,
     sortOrder: r.sortOrder,
     rowVer: r.rowVer,
+    placeRowVer: r.placeRowVer,
   }));
 
 /** NULL is []; malformed JSON throws, as in parseAssigneesJson. */
@@ -307,19 +315,23 @@ export const setWbsStatusInput = z.object({
 
 export type SetWbsStatusInput = z.input<typeof setWbsStatusInput>;
 
-const requirementText = z
-  .string({ error: messages.keyDeliverables.requirementRequired })
-  .trim()
-  .min(1, messages.keyDeliverables.requirementRequired)
-  .max(4000);
-
-/** Requirement edits (ADR-0036). */
-export const addRequirementInput = z.object({ itemId, text: requirementText });
+/**
+ * Cascade requirement edits (ADR-0037). A requirement is a project-level record (the requirements
+ * module owns it); from the WBS it is created already allocated to one deliverable, edited, moved
+ * within a deliverable's list, or taken off one deliverable. Wording rule reused from that module.
+ */
+export const addRequirementInput = z.object({
+  projectId: z.coerce.number().int().positive(),
+  itemId,
+  type: requirementTypeSchema,
+  text: requirementText,
+});
 
 export type AddRequirementInput = z.input<typeof addRequirementInput>;
 
 export const updateRequirementInput = z.object({
   id: itemId,
+  type: requirementTypeSchema,
   text: requirementText,
   isMet: z.boolean(),
   rowVer: rowVerSchema,
@@ -328,6 +340,7 @@ export const updateRequirementInput = z.object({
 export type UpdateRequirementInput = z.input<typeof updateRequirementInput>;
 
 export const moveRequirementInput = z.object({
+  itemId,
   id: itemId,
   position: z.number().int().min(1).max(100_000),
   rowVer: rowVerSchema,
@@ -335,9 +348,9 @@ export const moveRequirementInput = z.object({
 
 export type MoveRequirementInput = z.input<typeof moveRequirementInput>;
 
-export const deleteRequirementInput = z.object({ id: itemId, rowVer: rowVerSchema });
+export const removeRequirementInput = z.object({ itemId, id: itemId, rowVer: rowVerSchema });
 
-export type DeleteRequirementInput = z.input<typeof deleteRequirementInput>;
+export type RemoveRequirementInput = z.input<typeof removeRequirementInput>;
 
 /** Module filter params (URL ⇄ usp_KeyDeliverable_List @Status/@Priority). */
 export const keyDeliverableFiltersSchema = z.object({

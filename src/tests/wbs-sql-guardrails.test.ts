@@ -8,7 +8,7 @@ function sql(path: string): string {
 }
 
 const PROCS = "db/procs/key-deliverable";
-const REQUIREMENTS = "db/procs/key-deliverable-requirement";
+const REQUIREMENTS = "db/procs/requirement";
 
 /** The work breakdown's rules live in the procs and again in the editor (ADR-0027). */
 describe("work breakdown SQL guardrails", () => {
@@ -41,8 +41,8 @@ describe("work breakdown SQL guardrails", () => {
   });
 
   it("locks the project before changing a requirement, so the stamp follows commit order", () => {
-    for (const proc of ["Create", "Update", "Move", "Delete"]) {
-      expect(sql(`${REQUIREMENTS}/usp_KeyDeliverableRequirement_${proc}.sql`), proc).toMatch(
+    for (const proc of ["Create", "Update", "Move", "Unallocate", "Delete"]) {
+      expect(sql(`${REQUIREMENTS}/usp_Requirement_${proc}.sql`), proc).toMatch(
         /FROM app\.Project WITH \(UPDLOCK, HOLDLOCK\)/,
       );
     }
@@ -106,30 +106,40 @@ describe("work breakdown SQL guardrails", () => {
     expect(gantt.indexOf("@Stamp BIGINT")).toBeLessThan(
       gantt.indexOf("SELECT kd.KeyDeliverableId"),
     );
-    // Requirement writes move it too (ADR-0036).
+    // A register edit or an allocation change moves it too (ADR-0037): a three-part stamp.
     expect(gantt).toContain("IF @RequirementStamp > @Stamp SET @Stamp = @RequirementStamp;");
+    expect(gantt).toContain("IF @AllocationStamp > @Stamp SET @Stamp = @AllocationStamp;");
+    expect(gantt).toMatch(
+      /DECLARE @RequirementStamp BIGINT =\s+ISNULL\(\(SELECT MAX\(CAST\(RowVer AS BIGINT\)\) FROM app\.Requirement WHERE ProjectId = @ProjectId\), 0\);/,
+    );
+    expect(gantt).toMatch(
+      /DECLARE @AllocationStamp BIGINT =\s+ISNULL\(\(SELECT MAX\(CAST\(RowVer AS BIGINT\)\) FROM app\.RequirementDeliverable WHERE ProjectId = @ProjectId\), 0\);/,
+    );
     expect(gantt.indexOf("@RequirementStamp BIGINT")).toBeLessThan(
+      gantt.indexOf("SELECT kd.KeyDeliverableId"),
+    );
+    expect(gantt.indexOf("@AllocationStamp BIGINT")).toBeLessThan(
       gantt.indexOf("SELECT kd.KeyDeliverableId"),
     );
   });
 
-  it("returns each item's requirements with null fields kept, and deletes them with the item", () => {
+  it("keeps allocations' null fields, and a deliverable delete unallocates but keeps requirements", () => {
     expect(sql(`${PROCS}/usp_KeyDeliverable_GanttData.sql`)).toMatch(
       /FOR JSON PATH, INCLUDE_NULL_VALUES\s+\) AS RequirementsJson/,
     );
-    expect(sql(`${PROCS}/usp_KeyDeliverable_Delete.sql`)).toContain(
-      "N'Delete', N'app.KeyDeliverableRequirement'",
-    );
+    const del = sql(`${PROCS}/usp_KeyDeliverable_Delete.sql`);
+    expect(del).toContain("N'Unallocate', N'app.RequirementDeliverable'");
+    expect(del).not.toContain("app.KeyDeliverableRequirement");
+    expect(del).not.toContain("N'Delete', N'app.Requirement'");
   });
 
   it("returns the project the item belongs to, for the editor to read back", () => {
     for (const proc of ["Delete", "Move", "Reschedule", "Rename", "SetStatus"]) {
       expect(sql(`${PROCS}/usp_KeyDeliverable_${proc}.sql`), proc).toMatch(/AS ProjectId;/);
     }
-    for (const proc of ["Create", "Update", "Move", "Delete"]) {
-      expect(sql(`${REQUIREMENTS}/usp_KeyDeliverableRequirement_${proc}.sql`), proc).toMatch(
-        /AS ProjectId;/,
-      );
+    // Create and Update answer through GetById; Move, Unallocate and Delete return the project id.
+    for (const proc of ["Move", "Unallocate", "Delete"]) {
+      expect(sql(`${REQUIREMENTS}/usp_Requirement_${proc}.sql`), proc).toMatch(/AS ProjectId;/);
     }
   });
 });
