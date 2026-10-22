@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { revalidatePath, updateTag } from "next/cache";
 import { z } from "zod";
 import { auth } from "./auth/provider";
@@ -15,6 +16,8 @@ import "./rich-text/sanitize";
  * → throttle → execute → map errors → revalidate. Handlers pass ctx.session.userId to the
  * repository; mutation procs write the audit row in-transaction ).
  * Never throws to the client (redirect() excepted — Next rethrows it).
+ * A failure logs one line with a random reference; an application failure puts
+ * that reference in the message, so the user can quote what the log holds.
  */
 export type ActionErrorCode = AppErrorCode;
 
@@ -62,6 +65,35 @@ function isRedirectLike(err: unknown): boolean {
   );
 }
 
+/** A short random reference: the user quotes it, an operator greps the logs for it. */
+function newReference(): string {
+  return randomBytes(4).toString("hex");
+}
+
+/** What a log line may say about the cause. Never input, form data or a secret. */
+interface FailureDetail {
+  /** An AppError's own text — a proc's reason — or an unexpected error's message. */
+  reason?: string;
+  /** Unexpected errors only: a bug's stack, which the old console.error printed. */
+  stack?: string;
+}
+
+function detailOf(err: unknown): FailureDetail {
+  if (err instanceof AppError) return { reason: err.message };
+  if (err instanceof Error) return { reason: err.message, stack: err.stack };
+  return {};
+}
+
+/**
+ * A mapped code keeps its own copy, so a proc's VALIDATION text never reaches
+ * the client (LESSONS §30). An application failure carries the reference
+ * instead: it is the only failure the user has to report.
+ */
+function failureMessage(code: ActionErrorCode, reference: string): string {
+  const copy: string | undefined = code === "INTERNAL" ? undefined : messages.errors[code];
+  return copy ?? messages.errors.internalWithReference(reference);
+}
+
 export function action<TSchema extends z.ZodType, TOutput>(
   options: ActionOptions<TSchema, TOutput>,
 ): (rawInput: unknown) => Promise<ActionResult<TOutput>> {
@@ -92,9 +124,26 @@ export function action<TSchema extends z.ZodType, TOutput>(
       };
     }
 
+    // Failures from here on are logged. The schema failure above is not: it is
+    // pre-session, so it belongs to no user, and the form already shows it per
+    // field.
+    let userId: number | undefined;
+    const fail = (code: ActionErrorCode, detail: FailureDetail = {}): ActionResult<TOutput> => {
+      const reference = newReference();
+      console.error("[action] failed:", {
+        action: options.name,
+        code,
+        reference,
+        userId,
+        ...detail,
+      });
+      return { ok: false, error: { code, message: failureMessage(code, reference) } };
+    };
+
     try {
       // 2. Authenticate.
       const session = await auth.requireSession();
+      userId = session.userId;
 
       // 3. Authorise the global role (ADR-0021). What the actor may do inside a
       // project is the procs' call: they throw FORBIDDEN_ROW, mapped below.
@@ -102,20 +151,11 @@ export function action<TSchema extends z.ZodType, TOutput>(
         typeof options.permission === "function"
           ? options.permission(parsed.data)
           : options.permission;
-      if (!can(session.role, permission)) {
-        return {
-          ok: false,
-          error: { code: "FORBIDDEN", message: messages.errors.FORBIDDEN },
-        };
-      }
+      // The permission is the reason, and it is a name from a closed set.
+      if (!can(session.role, permission)) return fail("FORBIDDEN", { reason: permission });
 
       // 3b. Throttle (ADR-0031): a fixed window of actions per user and minute.
-      if (!takeUserSlot("actions", session.userId).allowed) {
-        return {
-          ok: false,
-          error: { code: "RATE_LIMITED", message: messages.errors.RATE_LIMITED },
-        };
-      }
+      if (!takeUserSlot("actions", session.userId).allowed) return fail("RATE_LIMITED");
 
       // 4. Execute (procs enforce row-level access and write audit rows).
       const data = await options.handler(parsed.data, { session });
@@ -132,17 +172,7 @@ export function action<TSchema extends z.ZodType, TOutput>(
       return { ok: true, data };
     } catch (err) {
       if (isRedirectLike(err)) throw err;
-      if (err instanceof AppError) {
-        return {
-          ok: false,
-          error: { code: err.code, message: messages.errors[err.code] ?? err.message },
-        };
-      }
-      console.error(`[action:${options.name}]`, err);
-      return {
-        ok: false,
-        error: { code: "INTERNAL", message: messages.errors.INTERNAL },
-      };
+      return fail(err instanceof AppError ? err.code : "INTERNAL", detailOf(err));
     }
   };
 }

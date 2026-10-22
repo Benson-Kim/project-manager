@@ -92,6 +92,10 @@ export const messages = {
     DUPLICATE: "A record with this name already exists.",
     QUOTA_EXCEEDED: "This project has no room left for this file.",
     INTERNAL: "Something went wrong. Try again.",
+    // An application failure, the only kind the user has to report: the same
+    // reference is on the server's log line for it.
+    internalWithReference: (reference: string) =>
+      `Something went wrong. Try again. Reference: ${reference}`,
     summaryTitle: "The form could not be saved",
     dateOrder: (later: string, earlier: string) =>
       `${later} can't be before ${String(earlier).toLowerCase()}.`,
