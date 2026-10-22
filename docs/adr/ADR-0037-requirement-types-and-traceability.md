@@ -181,27 +181,32 @@ the row → `usp_Project_AssertAccess` → cheap input checks → `RowVer` pre-c
   that state unreachable; the choice is deliberate fail-closed behaviour, not an oversight.
 - Coverage and the met tick are reporting inputs the reports module (#21) can use without new storage.
 
-## Two project-wide findings this work did not change
+## Two project-wide findings
 
 Both were found by reading our own code against the secure-coding checklists in
-`~/.claude/CLAUDE.md`, and both belong to the whole code base rather than to this feature, so they are
-recorded here for the user to decide rather than changed in one new proc:
+`~/.claude/CLAUDE.md`, and both belong to the whole code base rather than to this feature.
 
-1. **A list search escapes `\`, `%` and `_`, but not `[`.** All seventeen list procs that search with
-   `LIKE N'%' + @Search + N'%' ESCAPE N'\'` first run
-   `REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'), N'_', N'\_')`, so a search for "50%"
-   is literal and nothing is injected (the search is a parameter, never concatenated into a
-   statement). `[` is not escaped, so a term containing it is still read as a character class and a
-   search for literal "a[1]" finds nothing. The fix belongs to all seventeen at once — one more
-   `REPLACE` in each, or one escape in the repository layer — not to `usp_Requirement_List` alone.
-   `src/tests/requirement-sql-guardrails.test.ts` now pins the escape chain and the `ESCAPE` clause
-   for the new proc, as `meeting-sql-guardrails` already does for its own.
-2. **`NOT_FOUND` is thrown before `usp_Project_AssertAccess` in the row writes.**
+1. **A list search did not neutralise every LIKE metacharacter — fixed project-wide.** Seventeen
+   procs escaped `\`, `%` and `_` before `LIKE … ESCAPE N'\'` but left `[`, so a search for a
+   literal `a[1]` was read as a character class and found nothing. Counting the procs by the
+   *predicate* rather than by the fix then turned up seven more — `usp_Note_List`,
+   `usp_NoteTab_List`, `usp_User_List`, `usp_RiskIssue_List`, `usp_ItResourceCategory_List`,
+   `usp_ItResourceItem_List`, `usp_ExistingSystemInterface_List` — that searched with no escaping
+   and no `ESCAPE` clause at all, so a search for `50%` matched every row. Neither case was
+   injection: the search has always been a parameter, never concatenated into a statement. All
+   twenty-four now run
+   `REPLACE(REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'), N'_', N'\_'), N'[', N'\[')`
+   and end each predicate with `ESCAPE N'\'`; `src/tests/list-search-escape.test.ts` fails the build
+   if a proc ever searches without both, and the requirement and meeting guardrails pin the chain
+   for their own procs.
+2. **`NOT_FOUND` is thrown before `usp_Project_AssertAccess` in the row writes — open.**
    `usp_Supplier_Update` documents the reason — do not enter the transaction for a row that is not
    there — so it is a decision, not an oversight; but it does let any signed-in user tell an id that
    exists from one that does not in a project they cannot read. The per-user action rate limit
-   (ADR-0031) blunts it. Reversing the order is project-wide and moves the `proc-access-levels`
-   expectations, so it stays the user's call.
+   (ADR-0031) blunts it. Closing it means answering alike for a missing row and a forbidden one,
+   which collapses two codes of the ADR-0012 contract, touches every module's write procs and moves
+   the `proc-access-levels` expectations — a decision for its own ADR, not a change to make inside
+   one feature. Left open deliberately.
 
 ## The whole-work defensive review
 

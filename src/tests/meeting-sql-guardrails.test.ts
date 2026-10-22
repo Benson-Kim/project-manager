@@ -257,7 +257,7 @@ describe("meeting SQL guardrails", () => {
   it("escapes LIKE wildcards in the list search", () => {
     const list = sql("usp_Meeting_List");
     expect(list).toContain(
-      "REPLACE(REPLACE(REPLACE(@Search, N'\\', N'\\\\'), N'%', N'\\%'), N'_', N'\\_')",
+      "REPLACE(REPLACE(REPLACE(REPLACE(@Search, N'\\', N'\\\\'), N'%', N'\\%'), N'_', N'\\_'), N'[', N'\\[')",
     );
     const likes = list.match(/LIKE N'%'[^\n]*/g) ?? [];
     expect(likes).toHaveLength(3);

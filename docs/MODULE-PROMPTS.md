@@ -165,7 +165,7 @@ DATABASE STANDARD (apply to every proc you create or touch)
   callers' folders (that is why access-level/ comes first).
 - Parent/project keys are immutable on Update (accepted but ignored) unless the prompt says otherwise.
 - RowVer check INSIDE the transaction; audit row (before/after FOR JSON PATH) in the same transaction.
-- List procs exactly per ADR-0016 (+ nullable module filters), LIKE wildcards escaped (ESCAPE N'\'),
+- List procs exactly per ADR-0016 (+ nullable module filters), LIKE wildcards `\ % _ [` escaped (ESCAPE N'\'),
   stable final tiebreaker on the PK; when @ProjectId is supplied, assert @MinLevel = N'Viewer';
   without it, filter to the actor's projects (EXISTS on app.ProjectAssignee with a table-qualified
   ProjectId; Admins see all) — parking-lot behaviour.

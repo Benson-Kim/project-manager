@@ -31,7 +31,7 @@ BEGIN
          @MinLevel = N'Viewer', @AllowProjectless = 0;
 
     IF @Search IS NOT NULL
-        SET @Search = REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'), N'_', N'\_');
+        SET @Search = REPLACE(REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'), N'_', N'\_'), N'[', N'\[');
 
     WITH page AS (
         SELECT RequirementId,

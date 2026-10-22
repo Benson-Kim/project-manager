@@ -64,13 +64,14 @@ describe("requirement writes lock the project before their checks (ADR-0037)", (
   );
 });
 
-/** The register's search is a parameter, and the wildcards the house pattern escapes stay literal. */
+/** The register's search is a parameter, and every wildcard in it stays literal.
+ *  `src/tests/list-search-escape.test.ts` holds the same rule for every searching proc. */
 describe("the register's search carries no pattern syntax (ADR-0037)", () => {
   const list = sql(join(DIR, "usp_Requirement_List.sql"));
 
   it("escapes the LIKE wildcards before the search reaches the predicate", () => {
     expect(list).toContain(
-      "REPLACE(REPLACE(REPLACE(@Search, N'\\', N'\\\\'), N'%', N'\\%'), N'_', N'\\_')",
+      "REPLACE(REPLACE(REPLACE(REPLACE(@Search, N'\\', N'\\\\'), N'%', N'\\%'), N'_', N'\\_'), N'[', N'\\[')",
     );
     const likes = list.match(/LIKE N'%'[^\n]*/g) ?? [];
     expect(likes).toHaveLength(1);
