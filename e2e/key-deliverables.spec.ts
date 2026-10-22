@@ -523,10 +523,12 @@ test("WBS item menu: whole name, status colour; requirements cascade in both vie
   await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
 
   // Deleting the item counts the requirement it unallocates and says it stays in the register.
-  // Right-click the row's left edge, not the name field: Chromium selects the word under the
-  // pointer inside a text input, and the row leaves the native menu alone once there is a
-  // selection (rowContextMenu in wbs-row.tsx).
-  await wbsRow(page, id).click({ button: "right", position: { x: 4, y: 4 } });
+  // Shift+F10 is the row's own menu key (isMenuKey, wbs-context-menu.tsx), as the diagram half of
+  // this test already uses. A right-click on the row opened no menu in CI — its pointerdown ran,
+  // since the row came back selected, but no menu was ever in the DOM — so the keyboard path is
+  // used here instead; it does not depend on where the pointer lands or on what Chromium selects.
+  await wbsField(wbsRow(page, id), W.nameOf).click();
+  await page.keyboard.press("Shift+F10");
   await expect(menu).toBeVisible();
   await page.getByTestId("wbs-menu-delete").click();
   await expect(page.getByRole("dialog")).toContainText(W.deleteUnallocates(1));

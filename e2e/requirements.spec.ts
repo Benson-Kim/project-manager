@@ -101,10 +101,18 @@ test("register: two needs merge into a functional requirement that two deliverab
   await expect(rowOf(page, br)).toContainText(M.coverageNone);
   await expect(page.getByRole("combobox", { name: cellName(M.met, br) })).toHaveCount(0);
 
-  // Selecting the two needs offers the merge; it opens the sheet as a new solution.
-  await page.getByRole("checkbox", { name: messages.list.selectRow(br) }).check();
-  await page.getByRole("checkbox", { name: messages.list.selectRow(sr) }).check();
-  await page.getByTestId("requirements-merge").click();
+  // Selecting the two needs offers the merge; it opens the sheet as a new solution. The list's
+  // selection is DataView state, so a background refresh that remounts the rows drops the ticks:
+  // insist on both until the merge is offered.
+  const selectBr = page.getByRole("checkbox", { name: messages.list.selectRow(br) });
+  const selectSr = page.getByRole("checkbox", { name: messages.list.selectRow(sr) });
+  const merge = page.getByTestId("requirements-merge");
+  await expect(async () => {
+    await selectBr.check();
+    await selectSr.check();
+    await expect(merge).toBeVisible();
+  }).toPass({ timeout: 20_000 });
+  await merge.click();
   await expect(page).toHaveURL(/id=new/);
 
   const form = page.getByTestId("requirement-form");
@@ -118,10 +126,14 @@ test("register: two needs merge into a functional requirement that two deliverab
   await pickFirst(deliverables);
   await pickFirst(deliverables);
   await axe(page);
-  // Options are still left to pick, so the picker's panel is open over Save; Escape closes the
-  // panel and is swallowed there, leaving the sheet open.
-  await page.keyboard.press("Escape");
-  await page.getByTestId("requirement-save").click();
+  // The picker's panel still has options left and covers Save, and its options pick on mousedown,
+  // so a click aimed at Save would toggle one instead. Moving the focus to Save needs no hit test
+  // and blurs the picker, which closes the panel. Escape is no use: it only closes the panel while
+  // the picker still holds it open, and otherwise reaches the sheet and shuts it.
+  const save = page.getByTestId("requirement-save");
+  await save.focus();
+  await expect(deliverables.getByRole("listbox")).toBeHidden();
+  await save.click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
   ).toBeVisible();
