@@ -118,6 +118,9 @@ test("register: two needs merge into a functional requirement that two deliverab
   await pickFirst(deliverables);
   await pickFirst(deliverables);
   await axe(page);
+  // Options are still left to pick, so the picker's panel is open over Save; Escape closes the
+  // panel and is swallowed there, leaving the sheet open.
+  await page.keyboard.press("Escape");
   await page.getByTestId("requirement-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),

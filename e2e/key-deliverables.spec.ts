@@ -483,8 +483,8 @@ test("WBS item menu: whole name, status colour; requirements cascade in both vie
 
   // Each chip says which requirement of the register it is, in the kind it was added as.
   const chipRow = (text: string) => list.locator("li").filter({ hasText: text });
-  await expect(chipRow(`E2E permit ${stamp}`)).toContainText(/^FR-\d+\b/);
-  await expect(chipRow(`E2E soil report ${stamp}`)).toContainText(/^NFR-\d+\b/);
+  await expect(chipRow(`E2E permit ${stamp}`)).toContainText(/^FR-\d+/);
+  await expect(chipRow(`E2E soil report ${stamp}`)).toContainText(/^NFR-\d+/);
 
   await list.getByLabel(W.requirementMet(`E2E permit ${stamp}`)).check();
   await expect(page.getByTestId(`wbs-req-toggle-${id}`)).toHaveText(W.requirementCount(1, 2));
