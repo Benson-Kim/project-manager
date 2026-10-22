@@ -15,16 +15,12 @@ import { formatDate, toDateInput } from "@/lib/format";
 import type { OptionColor } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
 import {
-  addRequirementAction,
   addWbsItemAction,
-  deleteRequirementAction,
   deleteWbsItemAction,
-  moveRequirementAction,
   moveWbsItemAction,
   renameWbsItemAction,
   rescheduleWbsItemAction,
   setWbsStatusAction,
-  updateRequirementAction,
 } from "../actions";
 import type { StakeholderOption } from "@/modules/stakeholders/repository/stakeholder-options";
 import type { KeyDeliverableRow, WbsData } from "../schemas/key-deliverable";
@@ -33,9 +29,6 @@ import {
   NEW_ITEM_DAYS,
   addDays,
   applyMove,
-  applyRequirementDelete,
-  applyRequirementEdit,
-  applyRequirementMove,
   applyReschedule,
   applyStatus,
   buildWbs,
@@ -47,13 +40,13 @@ import {
   newItemDates,
   outdentTarget,
   requestedDateClash,
-  requirementOwner,
   visibleIds,
   wbsBounds,
   type Placement,
   type WbsItem,
 } from "../schemas/wbs";
 import { DeliverableForm } from "./deliverable-form";
+import { readIdSet, writeIdSet } from "./id-set-storage";
 import {
   dayAt,
   defaultScale,
@@ -81,7 +74,6 @@ import {
   type WbsView,
 } from "./wbs-diagram-layout";
 import { WbsMoveDialog } from "./wbs-move-dialog";
-import type { RequirementAccess, RequirementHandlers } from "./wbs-requirements";
 import {
   AddRequirementRow,
   RequirementRow,
@@ -90,7 +82,9 @@ import {
   type RowHandlers,
   type WbsTab,
 } from "./wbs-row";
+import type { QueuedChange } from "./wbs-queue";
 import { WbsToolbar } from "./wbs-toolbar";
+import { useWbsRequirements } from "./use-wbs-requirements";
 
 const W = messages.keyDeliverables.wbs;
 
@@ -131,17 +125,6 @@ function readChart(key: string): ChartSettings | null {
   try {
     const raw = window.localStorage.getItem(key);
     return raw ? parseChartSettings(JSON.parse(raw)) : null;
-  } catch {
-    return null;
-  }
-}
-
-/** A set of item ids kept in this browser (collapsed branches, folded requirements). */
-function readIdSet(key: string): Set<number> | null {
-  try {
-    const raw = window.localStorage.getItem(key);
-    const parsed: unknown = raw ? JSON.parse(raw) : null;
-    return Array.isArray(parsed) ? new Set(parsed.filter((v) => Number.isInteger(v))) : null;
   } catch {
     return null;
   }
@@ -297,20 +280,6 @@ export function WbsGantt({
   }, [storageKey]);
   const visible = useMemo(() => visibleIds(shown, collapsed), [shown, collapsed]);
 
-  // Folded requirement lists, kept like `collapsed`.
-  const requirementsKey = `wbs-req-hidden:${projectId}`;
-  const [requirementsHidden, setRequirementsHidden] = useState<ReadonlySet<number>>(
-    () => new Set(),
-  );
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      const saved = readIdSet(requirementsKey);
-      if (saved) setRequirementsHidden(saved);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [requirementsKey]);
-  const [addingRequirement, setAddingRequirement] = useState<number | null>(null);
-  const [confirmRequirementId, setConfirmRequirementId] = useState<number | null>(null);
   const [menu, setMenu] = useState<WbsMenuState | null>(null);
 
   // The diagram's zoom, width and per-branch layout: this viewer's, per project, like `collapsed`.
@@ -372,13 +341,7 @@ export function WbsGantt({
   const queue = useRef<Promise<void>>(Promise.resolve());
   const opKey = useRef(0);
 
-  function enqueue<T extends WbsData>(op: {
-    kind?: PendingOp["kind"];
-    apply?: (items: WbsItem[]) => WbsItem[];
-    /** Null when the change no longer applies (its item is gone). */
-    send: (current: WbsItem[]) => Promise<ActionResult<T>> | null;
-    done?: (data: T, items: WbsItem[]) => void;
-  }) {
+  function enqueue<T extends WbsData>(op: QueuedChange<T>) {
     const key = ++opKey.current;
     setOps((current) => [
       ...current,
@@ -427,32 +390,7 @@ export function WbsGantt({
   function changeCollapsed(change: (current: ReadonlySet<number>) => ReadonlySet<number>) {
     setCollapsed((current) => {
       const next = change(current);
-      try {
-        window.localStorage.setItem(storageKey, JSON.stringify([...next]));
-      } catch {
-        // Private windows and blocked storage: the outline just forgets.
-      }
-      return next;
-    });
-  }
-
-  function changeRequirementsHidden(change: (current: ReadonlySet<number>) => ReadonlySet<number>) {
-    setRequirementsHidden((current) => {
-      const next = change(current);
-      try {
-        window.localStorage.setItem(requirementsKey, JSON.stringify([...next]));
-      } catch {
-        // Private windows and blocked storage: the lists just forget.
-      }
-      return next;
-    });
-  }
-
-  function showRequirements(id: number) {
-    changeRequirementsHidden((current) => {
-      if (!current.has(id)) return current;
-      const next = new Set(current);
-      next.delete(id);
+      writeIdSet(storageKey, next);
       return next;
     });
   }
@@ -611,116 +549,15 @@ export function WbsGantt({
 
   // ---- requirements (ADR-0036) -------------------------------------------------
 
-  /** Negative ids for requirements the server has not answered for yet. */
-  const pendingRequirement = useRef(0);
-
-  function requirementOf(current: readonly WbsItem[], id: number) {
-    return requirementOwner(current, id)?.requirements.find((r) => r.id === id);
-  }
-
-  function addRequirement(itemId: number, text: string) {
-    if (!canCreate || !wbs.nodes.has(itemId)) return;
-    const tempId = -++pendingRequirement.current;
-    showRequirements(itemId);
-    enqueue({
-      apply: (rows) =>
-        rows.map((i) =>
-          i.id === itemId
-            ? {
-                ...i,
-                requirements: [
-                  ...i.requirements,
-                  {
-                    id: tempId,
-                    text,
-                    isMet: false,
-                    sortOrder: i.requirements.length + 1,
-                    rowVer: 0,
-                  },
-                ],
-              }
-            : i,
-        ),
-      send: (current) =>
-        current.some((i) => i.id === itemId) ? addRequirementAction({ itemId, text }) : null,
-      done: () => announce(W.requirementAdded),
-    });
-  }
-
-  /** Sends both fields; the unchanged one comes from the server's last answer. */
-  function saveRequirement(id: number, edit: { text?: string; isMet?: boolean }) {
-    if (!canEdit || id < 0) return;
-    enqueue({
-      apply: (rows) => applyRequirementEdit(rows, id, edit),
-      send: (current) => {
-        const saved = requirementOf(current, id);
-        return saved
-          ? updateRequirementAction({
-              id,
-              text: edit.text ?? saved.text,
-              isMet: edit.isMet ?? saved.isMet,
-              rowVer: saved.rowVer,
-            })
-          : null;
-      },
-    });
-  }
-
-  function moveRequirement(id: number, delta: -1 | 1) {
-    const owner = requirementOwner(items, id);
-    if (!canEdit || !owner || id < 0) return;
-    const position = owner.requirements.findIndex((r) => r.id === id) + 1 + delta;
-    if (position < 1 || position > owner.requirements.length) return;
-    enqueue({
-      apply: (rows) => applyRequirementMove(rows, id, position),
-      send: (current) => {
-        const saved = requirementOf(current, id);
-        return saved ? moveRequirementAction({ id, position, rowVer: saved.rowVer }) : null;
-      },
-    });
-  }
-
-  function removeRequirement() {
-    const id = confirmRequirementId;
-    setConfirmRequirementId(null);
-    if (!canDelete || id === null || id < 0) return;
-    enqueue({
-      apply: (rows) => applyRequirementDelete(rows, id),
-      send: (current) => {
-        const saved = requirementOf(current, id);
-        return saved ? deleteRequirementAction({ id, rowVer: saved.rowVer }) : null;
-      },
-      done: () => announce(W.requirementDeleted),
-    });
-  }
-
-  const requirementAccess: RequirementAccess = { canCreate, canEdit, canDelete };
-
-  const requirementHandlers: RequirementHandlers = {
-    add: addRequirement,
-    edit: (id, text) => {
-      if (requirementOf(items, id)?.text !== text) saveRequirement(id, { text });
-    },
-    setMet: (id, isMet) => saveRequirement(id, { isMet }),
-    move: moveRequirement,
-    remove: (id) => {
-      if (canDelete && id > 0) setConfirmRequirementId(id);
-    },
-    toggle: (itemId) =>
-      changeRequirementsHidden((current) => {
-        const next = new Set(current);
-        if (!next.delete(itemId)) next.add(itemId);
-        return next;
-      }),
-    openAdd: (itemId) => {
-      if (itemId !== null) {
-        if (!canCreate) return;
-        setSelectedId(itemId);
-        showRequirements(itemId);
-      }
-      setAddingRequirement(itemId);
-    },
-  };
+  const cascade = useWbsRequirements({
+    projectId,
+    items,
+    hasItem: (id) => wbs.nodes.has(id),
+    access: { canCreate, canEdit, canDelete },
+    enqueue,
+    announce,
+    select: setSelectedId,
+  });
 
   // ---- the context menu (ADR-0036) -----------------------------------------------
 
@@ -927,7 +764,7 @@ export function WbsGantt({
         {
           label: W.addRequirement,
           testId: "wbs-menu-add-requirement",
-          run: () => requirementHandlers.openAdd(id),
+          run: () => cascade.handlers.openAdd(id),
           hidden: !canCreate,
         },
         {
@@ -1091,10 +928,10 @@ export function WbsGantt({
           chart={chart}
           onChart={changeChart}
           on={diagramHandlers}
-          requirementsHidden={requirementsHidden}
-          addingRequirement={addingRequirement}
-          requirementAccess={requirementAccess}
-          onRequirement={requirementHandlers}
+          requirementsHidden={cascade.hidden}
+          addingRequirement={cascade.adding}
+          requirementAccess={cascade.access}
+          onRequirement={cascade.handlers}
           statusColors={statusColors}
         />
       ) : (
@@ -1161,8 +998,8 @@ export function WbsGantt({
               const node = shown.nodes.get(id)!;
               const before = wbs.nodes.get(id);
               const requirements = node.item.requirements;
-              const adding = addingRequirement === id;
-              const listShown = !requirementsHidden.has(id) || adding;
+              const adding = cascade.adding === id;
+              const listShown = !cascade.hidden.has(id) || adding;
               const rows = [
                 <WbsRow
                   key={id}
@@ -1185,7 +1022,7 @@ export function WbsGantt({
                     node.item.status ? (statusColors.get(node.item.status) ?? null) : null
                   }
                   requirementsHidden={!listShown}
-                  onRequirement={requirementHandlers}
+                  onRequirement={cascade.handlers}
                 />,
               ];
               if (listShown) {
@@ -1199,8 +1036,8 @@ export function WbsGantt({
                       timeline={timeline}
                       trackStyle={trackStyle}
                       tab={tab}
-                      access={requirementAccess}
-                      on={requirementHandlers}
+                      access={cascade.access}
+                      on={cascade.handlers}
                     />,
                   ),
                 );
@@ -1215,7 +1052,7 @@ export function WbsGantt({
                     timeline={timeline}
                     trackStyle={trackStyle}
                     tab={tab}
-                    on={requirementHandlers}
+                    on={cascade.handlers}
                   />,
                 );
               }
@@ -1249,22 +1086,7 @@ export function WbsGantt({
         />
       ) : null}
 
-      <ConfirmDialog
-        open={
-          confirmRequirementId !== null && requirementOf(items, confirmRequirementId) !== undefined
-        }
-        onOpenChange={(open) => {
-          if (!open) setConfirmRequirementId(null);
-        }}
-        title={
-          confirmRequirementId !== null
-            ? W.deleteRequirementTitle(requirementOf(items, confirmRequirementId)?.text ?? "")
-            : ""
-        }
-        body={W.deleteRequirementBody}
-        confirmLabel={W.delete}
-        onConfirm={removeRequirement}
-      />
+      {cascade.dialog}
 
       <ConfirmDialog
         open={confirmNode !== undefined}
