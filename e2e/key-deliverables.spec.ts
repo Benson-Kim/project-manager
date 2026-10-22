@@ -218,10 +218,16 @@ test("WBS: add, indent with Tab, rename, drag, stretch, change scale, delete", a
   await expect(page.getByText(W.deleteBody)).toBeVisible();
   await page.getByRole("button", { name: messages.actions.cancel }).click();
 
-  // Delete the first item: its sub-item goes with it.
+  // Delete the first item: its sub-item goes with it. Focusing a row is what selects it and the
+  // toolbar's Delete stays disabled until something is selected, so after a navigation the focus
+  // can land before the row's handler is attached: focus again until Delete comes alive.
   await page.goto("/projects/2/deliverables/gantt?view=gantt&scale=month");
-  await wbsField(parentRow, W.nameOf).focus();
-  await page.getByTestId("wbs-delete").click();
+  const toolbarDelete = page.getByTestId("wbs-delete");
+  await expect(async () => {
+    await wbsField(parentRow, W.nameOf).focus();
+    await expect(toolbarDelete).toBeEnabled({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await toolbarDelete.click();
   await expect(
     page.getByRole("heading", { name: W.deleteTitle(`E2E phase ${stamp}`, 1) }),
   ).toBeVisible();
@@ -527,9 +533,13 @@ test("WBS item menu: whole name, status colour; requirements cascade in both vie
   // this test already uses. A right-click on the row opened no menu in CI — its pointerdown ran,
   // since the row came back selected, but no menu was ever in the DOM — so the keyboard path is
   // used here instead; it does not depend on where the pointer lands or on what Chromium selects.
-  await wbsField(wbsRow(page, id), W.nameOf).click();
-  await page.keyboard.press("Shift+F10");
-  await expect(menu).toBeVisible();
+  // A background refresh remounts the rows and takes the focus with it, so press again until the
+  // menu is up — the first press is lost whenever one lands in between.
+  await expect(async () => {
+    await wbsField(wbsRow(page, id), W.nameOf).click();
+    await page.keyboard.press("Shift+F10");
+    await expect(menu).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   await page.getByTestId("wbs-menu-delete").click();
   await expect(page.getByRole("dialog")).toContainText(W.deleteUnallocates(1));
   await page.getByRole("button", { name: W.delete, exact: true }).last().click();
