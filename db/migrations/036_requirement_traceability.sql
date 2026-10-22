@@ -29,8 +29,7 @@ BEGIN
             CONSTRAINT CK_Requirement_Number CHECK (Number > 0),
         Requirement     NVARCHAR(4000) NOT NULL,
         IsMet           BIT NOT NULL
-            CONSTRAINT DF_Requirement_IsMet DEFAULT 0
-            CONSTRAINT CK_Requirement_Met CHECK (IsMet = 0 OR RequirementType IN ('FR', 'NFR', 'TR')),
+            CONSTRAINT DF_Requirement_IsMet DEFAULT 0,
         IsDeleted       BIT NOT NULL CONSTRAINT DF_Requirement_IsDeleted DEFAULT 0,
         DeletedAtUtc    DATETIME2 NULL,
         DeletedBy       INT NULL,
@@ -39,7 +38,9 @@ BEGIN
         UpdatedAtUtc    DATETIME2 NULL,
         UpdatedBy       INT NULL,
         RowVer          ROWVERSION,
-        CONSTRAINT UQ_Requirement_Project UNIQUE (RequirementId, ProjectId)
+        CONSTRAINT UQ_Requirement_Project UNIQUE (RequirementId, ProjectId),
+        -- Table-level: a column CHECK may not name a second column (error 8141).
+        CONSTRAINT CK_Requirement_Met CHECK (IsMet = 0 OR RequirementType IN ('FR', 'NFR', 'TR'))
     );
 END;
 GO
