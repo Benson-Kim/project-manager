@@ -64,6 +64,24 @@ describe("requirement writes lock the project before their checks (ADR-0037)", (
   );
 });
 
+/** The register's search is a parameter, and the wildcards the house pattern escapes stay literal. */
+describe("the register's search carries no pattern syntax (ADR-0037)", () => {
+  const list = sql(join(DIR, "usp_Requirement_List.sql"));
+
+  it("escapes the LIKE wildcards before the search reaches the predicate", () => {
+    expect(list).toContain(
+      "REPLACE(REPLACE(REPLACE(@Search, N'\\', N'\\\\'), N'%', N'\\%'), N'_', N'\\_')",
+    );
+    const likes = list.match(/LIKE N'%'[^\n]*/g) ?? [];
+    expect(likes).toHaveLength(1);
+    for (const like of likes) expect(like).toContain("ESCAPE N'\\'");
+  });
+
+  it("searches on the parameter, never on a built string", () => {
+    expect(list).toContain("Requirement LIKE N'%' + @Search + N'%' ESCAPE N'\\'");
+  });
+});
+
 /** The links the app parses keep their null properties (LESSONS §26). */
 describe("requirement JSON the app parses keeps nulls (ADR-0037)", () => {
   it("every FOR JSON column in ufn_Requirement_Links includes nulls", () => {
