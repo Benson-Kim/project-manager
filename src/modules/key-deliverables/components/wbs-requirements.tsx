@@ -2,9 +2,11 @@
 
 import { useRef, useState } from "react";
 import { messages } from "@/lib/messages";
+import { MAX_REQUIREMENT_LENGTH } from "@/modules/requirements/schemas/requirement";
 import {
+  isSolution,
   SOLUTION_TYPES,
-  type RequirementType,
+  type SolutionType,
 } from "@/modules/requirements/schemas/requirement-types";
 import { requirementChip, type WbsNode, type WbsRequirement } from "../schemas/wbs";
 import { DraftInput } from "./draft-input";
@@ -14,7 +16,7 @@ const W = messages.keyDeliverables.wbs;
 /** What a requirements list asks the editor to do (ADR-0036). */
 export interface RequirementHandlers {
   /** The cascade only adds solution types: a need is never allocated to a deliverable. */
-  add: (itemId: number, text: string, type: RequirementType) => void;
+  add: (itemId: number, text: string, type: SolutionType) => void;
   edit: (id: number, text: string) => void;
   setMet: (id: number, met: boolean) => void;
   /** -1 up, 1 down, within one deliverable's list. */
@@ -26,7 +28,7 @@ export interface RequirementHandlers {
   /** Open (or, with null, close) the add field under an item. */
   openAdd: (itemId: number | null) => void;
   /** Remembers the kind the next requirement is added as. */
-  setAddType: (type: RequirementType) => void;
+  setAddType: (type: SolutionType) => void;
 }
 
 export interface RequirementAccess {
@@ -166,7 +168,7 @@ export function AddRequirementField({
   className,
 }: {
   node: WbsNode;
-  type: RequirementType;
+  type: SolutionType;
   on: RequirementHandlers;
   className: string;
 }) {
@@ -196,7 +198,10 @@ export function AddRequirementField({
       <select
         aria-label={W.requirementTypeFor(node.code)}
         value={type}
-        onChange={(event) => on.setAddType(event.target.value as RequirementType)}
+        // The guard, not a cast: only a kind the catalog knows reaches the add.
+        onChange={(event) => {
+          if (isSolution(event.target.value)) on.setAddType(event.target.value);
+        }}
         className="h-7 shrink-0 cursor-pointer rounded-sm border border-focus bg-surface px-0.5 text-xs text-ink focus:outline-none"
       >
         {SOLUTION_TYPES.map((option) => (
@@ -210,7 +215,7 @@ export function AddRequirementField({
         data-wbs-req-add={id}
         aria-label={W.newRequirementFor(node.code)}
         value={text}
-        maxLength={4000}
+        maxLength={MAX_REQUIREMENT_LENGTH}
         onChange={(event) => setText(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Enter") {
@@ -312,7 +317,7 @@ function RequirementText({
         autoFocus
         aria-label={W.editRequirement(requirement.text)}
         value={requirement.text}
-        maxLength={4000}
+        maxLength={MAX_REQUIREMENT_LENGTH}
         onCommit={(next) => {
           const value = next.trim();
           if (!value || sent.current === value) return;
@@ -356,7 +361,7 @@ export function BoxRequirements({
   hidden: boolean;
   adding: boolean;
   /** The kind the add field is set to. */
-  addType: RequirementType;
+  addType: SolutionType;
   access: RequirementAccess;
   on: RequirementHandlers;
 }) {

@@ -22,7 +22,12 @@ import {
   updateKeyDeliverable,
   updateCascadeRequirement,
 } from "../repository/key-deliverables";
-import { rescheduleWbsItemInput, updateKeyDeliverableInput } from "../schemas/key-deliverable";
+import {
+  addRequirementInput,
+  rescheduleWbsItemInput,
+  updateKeyDeliverableInput,
+  updateRequirementInput,
+} from "../schemas/key-deliverable";
 
 function dbRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -251,6 +256,26 @@ describe("key-deliverables repository", () => {
 
     it("refuses a colour from the database outside the palette", async () => {
       execProc.mockResolvedValue([wbsDbRow({ Color: "#ff0000" })]);
+      await expect(getWbs(24, 7)).rejects.toThrow();
+    });
+
+    it("refuses a need among an item's requirements, which the procs cannot allocate", async () => {
+      execProc.mockResolvedValue([
+        wbsDbRow({
+          RequirementsJson: JSON.stringify([
+            {
+              id: 42,
+              type: "BR",
+              number: 1,
+              requirement: "Fewer delays",
+              isMet: false,
+              sortOrder: 1,
+              rowVer: "3003",
+              placeRowVer: "7003",
+            },
+          ]),
+        }),
+      ]);
       await expect(getWbs(24, 7)).rejects.toThrow();
     });
 
@@ -534,5 +559,16 @@ describe("key-deliverable inputs", () => {
       HasChildren: false,
     });
     expect(reschedule).not.toHaveProperty("HasChildren");
+  });
+
+  it("refuse a need on the cascade's writes: only a solution goes to a deliverable (ADR-0037)", () => {
+    const add = { projectId: 2, itemId: 22, text: "Permit" };
+    expect(addRequirementInput.safeParse({ ...add, type: "FR" }).success).toBe(true);
+    for (const type of ["BR", "SR", "XX"]) {
+      expect(addRequirementInput.safeParse({ ...add, type }).success).toBe(false);
+    }
+    const update = { id: 40, text: "Permit", isMet: true, rowVer: 1 };
+    expect(updateRequirementInput.safeParse({ ...update, type: "TR" }).success).toBe(true);
+    expect(updateRequirementInput.safeParse({ ...update, type: "BR" }).success).toBe(false);
   });
 });

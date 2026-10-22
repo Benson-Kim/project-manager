@@ -6,7 +6,7 @@ import {
   unallocateRequirement,
   updateRequirement as updateRequirementRow,
 } from "@/modules/requirements/repository/requirements";
-import type { RequirementType } from "@/modules/requirements/schemas/requirement-types";
+import type { SolutionType } from "@/modules/requirements/schemas/requirement-types";
 import {
   createKeyDeliverableInput,
   keyDeliverableListRowSchema,
@@ -245,7 +245,7 @@ export async function listDeliverableOptions(
 
 /** Create a requirement already allocated to one deliverable; answers with its id too. */
 export async function addCascadeRequirement(
-  input: { projectId: number; itemId: number; type: RequirementType; text: string },
+  input: { projectId: number; itemId: number; type: SolutionType; text: string },
   actorUserId: number,
 ): Promise<WbsData & { id: number }> {
   const row = await createRequirementRow(
@@ -265,7 +265,7 @@ export async function addCascadeRequirement(
 
 /** Edit wording or the met tick (shared across deliverables); links and allocations left alone. */
 export async function updateCascadeRequirement(
-  input: { id: number; type: RequirementType; text: string; isMet: boolean; rowVer: number },
+  input: { id: number; type: SolutionType; text: string; isMet: boolean; rowVer: number },
   actorUserId: number,
 ): Promise<WbsData> {
   const row = await updateRequirementRow(

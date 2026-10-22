@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { messages } from "@/lib/messages";
-import type { RequirementType } from "@/modules/requirements/schemas/requirement-types";
+import type { SolutionType } from "@/modules/requirements/schemas/requirement-types";
 import {
   addRequirementAction,
   moveRequirementAction,
@@ -24,7 +24,7 @@ import type { RequirementAccess, RequirementHandlers } from "./wbs-requirements"
 const W = messages.keyDeliverables.wbs;
 
 /** A solution type is what the cascade creates; the register makes the other kinds. */
-const DEFAULT_ADD_TYPE: RequirementType = "FR";
+const DEFAULT_ADD_TYPE: SolutionType = "FR";
 
 /**
  * The requirements cascade's workflow (ADR-0037), shared by the WBS diagram and the Gantt: which
@@ -66,7 +66,7 @@ export function useWbsRequirements({
   }, [storageKey]);
   const [adding, setAdding] = useState<number | null>(null);
   // The last kind chosen, so adding several of one kind takes one choice.
-  const [addType, setAddType] = useState<RequirementType>(DEFAULT_ADD_TYPE);
+  const [addType, setAddType] = useState<SolutionType>(DEFAULT_ADD_TYPE);
 
   function changeHidden(change: (current: ReadonlySet<number>) => ReadonlySet<number>) {
     setHidden((current) => {
@@ -88,7 +88,7 @@ export function useWbsRequirements({
   /** Negative ids for requirements the server has not answered for yet. */
   const pendingId = useRef(0);
 
-  function add(itemId: number, text: string, type: RequirementType) {
+  function add(itemId: number, text: string, type: SolutionType) {
     if (!canCreate || !hasItem(itemId)) return;
     const tempId = -++pendingId.current;
     show(itemId);

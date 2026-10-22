@@ -1,6 +1,6 @@
 import type { OptionColor } from "@/lib/lookup-lists";
 import { requirementRef } from "@/modules/requirements/schemas/requirement-rules";
-import type { RequirementType } from "@/modules/requirements/schemas/requirement-types";
+import type { SolutionType } from "@/modules/requirements/schemas/requirement-types";
 import type { AssigneeEntry } from "./key-deliverable";
 
 /**
@@ -30,7 +30,8 @@ const DAY_MS = 86_400_000;
  *  deliverable it sits on; the order and the allocation's RowVer (placeRowVer) are per deliverable. */
 export interface WbsRequirement {
   id: number;
-  type: RequirementType;
+  /** Only a solution is ever allocated to a deliverable (ADR-0037). */
+  type: SolutionType;
   number: number;
   text: string;
   isMet: boolean;

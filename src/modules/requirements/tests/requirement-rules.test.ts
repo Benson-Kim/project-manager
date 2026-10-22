@@ -13,6 +13,7 @@ import {
   NEED_TYPES,
   REQUIREMENT_TYPES,
   SOLUTION_TYPES,
+  solutionTypeSchema,
   typeLabel,
   type RequirementType,
 } from "../schemas/requirement-types";
@@ -26,6 +27,18 @@ describe("requirement types", () => {
 
   it.each(REQUIREMENT_TYPES)("%s has a label", (type) => {
     expect(typeLabel(type)).toMatch(/^[A-Z][a-z-]+$/);
+  });
+
+  it("takes only a solution where a deliverable is concerned, and knows no other code", () => {
+    for (const type of SOLUTION_TYPES) {
+      expect(solutionTypeSchema.safeParse(type).success).toBe(true);
+    }
+    for (const type of NEED_TYPES) {
+      expect(solutionTypeSchema.safeParse(type).success).toBe(false);
+    }
+    // An unknown code belongs to neither side, so a cast cannot smuggle one in.
+    expect(isNeed("XX")).toBe(false);
+    expect(isSolution("XX")).toBe(false);
   });
 });
 

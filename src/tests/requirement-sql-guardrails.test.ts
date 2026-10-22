@@ -5,6 +5,7 @@ import {
   NEED_TYPES,
   REQUIREMENT_TYPES,
   SOLUTION_TYPES,
+  type RequirementType,
 } from "@/modules/requirements/schemas/requirement-types";
 
 /**
@@ -27,9 +28,8 @@ const procFiles = readdirSync(DIR)
 
 /** Each requirement-type IN / NOT IN list must be exactly the full, need or solution set. */
 describe("requirement type lists match the TypeScript catalog (ADR-0037)", () => {
-  const canonical = new Set(
-    [REQUIREMENT_TYPES, NEED_TYPES, SOLUTION_TYPES].map((set) => [...set].sort().join(",")),
-  );
+  const sets: (readonly RequirementType[])[] = [REQUIREMENT_TYPES, NEED_TYPES, SOLUTION_TYPES];
+  const canonical = new Set(sets.map((set) => [...set].sort().join(",")));
   const LIST = /@?RequirementType\s+(?:NOT\s+)?IN\s*\(([^)]*)\)/g;
 
   it.each([MIGRATION, ...procFiles])("%s uses only whole type sets", (path) => {

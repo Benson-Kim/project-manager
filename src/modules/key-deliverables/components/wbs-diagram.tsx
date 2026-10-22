@@ -6,7 +6,7 @@ import { TONES } from "@/components/ui/tones";
 import type { OptionColor } from "@/lib/lookup-lists";
 import { formatDate, toDateInput } from "@/lib/format";
 import { messages } from "@/lib/messages";
-import type { RequirementType } from "@/modules/requirements/schemas/requirement-types";
+import type { SolutionType } from "@/modules/requirements/schemas/requirement-types";
 import {
   descendantIds,
   dropPlacement,
@@ -215,7 +215,7 @@ export function WbsDiagram({
   /** The item whose add-requirement field is open. */
   addingRequirement: number | null;
   /** The kind that field is set to. */
-  addRequirementType: RequirementType;
+  addRequirementType: SolutionType;
   requirementAccess: RequirementAccess;
   onRequirement: RequirementHandlers;
   statusColors: ReadonlyMap<string, OptionColor>;

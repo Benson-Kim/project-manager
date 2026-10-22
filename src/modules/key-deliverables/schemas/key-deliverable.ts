@@ -3,7 +3,7 @@ import { actorAccessFields } from "@/lib/auth/actor-access";
 import { OPTION_COLORS, type LookupListKey } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
 import { requirementText } from "@/modules/requirements/schemas/requirement-form";
-import { requirementTypeSchema } from "@/modules/requirements/schemas/requirement-types";
+import { solutionTypeSchema } from "@/modules/requirements/schemas/requirement-types";
 import { utcDay, type WbsItem, type WbsRequirement } from "./wbs";
 
 /**
@@ -63,7 +63,7 @@ export function parseAssigneesJson(raw: unknown): AssigneeEntry[] {
 const requirementEntrySchema = z
   .object({
     id: z.number().int().positive(),
-    type: requirementTypeSchema,
+    type: solutionTypeSchema,
     number: z.number().int().positive(),
     requirement: z.string(),
     isMet: z.union([z.boolean(), z.literal(0), z.literal(1)]).transform(Boolean),
@@ -323,7 +323,7 @@ export type SetWbsStatusInput = z.input<typeof setWbsStatusInput>;
 export const addRequirementInput = z.object({
   projectId: z.coerce.number().int().positive(),
   itemId,
-  type: requirementTypeSchema,
+  type: solutionTypeSchema,
   text: requirementText,
 });
 
@@ -331,7 +331,7 @@ export type AddRequirementInput = z.input<typeof addRequirementInput>;
 
 export const updateRequirementInput = z.object({
   id: itemId,
-  type: requirementTypeSchema,
+  type: solutionTypeSchema,
   text: requirementText,
   isMet: z.boolean(),
   rowVer: rowVerSchema,
