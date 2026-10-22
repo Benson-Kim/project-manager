@@ -10,6 +10,7 @@ import { Dialog, Sheet } from "@/components/ui/dialog";
 import { Combobox } from "@/components/ui/form/combobox";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
+import { MultiSelect, type MultiSelectOption } from "@/components/ui/form/multi-select";
 import { DatePicker, Input, Select, Switch, Textarea } from "@/components/ui/form/inputs";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { Menu, MenuButton, MenuLink } from "@/components/ui/menu";
@@ -100,6 +101,7 @@ export function KitchenSink({ richText }: { richText?: React.ReactNode }) {
   const [summary, setSummary] = useState<string | null>(null);
   const [rows, setRows] = useState(demoRows);
   const [lists, setLists] = useState(demoLists);
+  const [reviewers, setReviewers] = useState<MultiSelectOption[]>([]);
 
   const saveDemoList = async (input: SaveLookupListInput) => {
     const list: LookupList = {
@@ -206,6 +208,22 @@ export function KitchenSink({ richText }: { richText?: React.ReactNode }) {
                   { value: "2", label: "Rachid" },
                   { value: "3", label: "Mei" },
                 ]}
+              />
+            </Field>
+            <Field label="Reviewers" name="reviewerIds[]">
+              <MultiSelect
+                options={[
+                  { id: 1, label: "Dana" },
+                  { id: 2, label: "Rachid" },
+                  { id: 3, label: "Mei" },
+                ]}
+                selected={reviewers}
+                disabled={false}
+                inputName="reviewerIds[]"
+                removeLabel={(label) => `Remove ${label}`}
+                emptyPlaceholder=""
+                onAdd={(option) => setReviewers((current) => [...current, option])}
+                onRemove={(id) => setReviewers((current) => current.filter((r) => r.id !== id))}
               />
             </Field>
             <Switch name="active" label="Active" defaultChecked />
