@@ -461,20 +461,31 @@ test("WBS item menu: whole name, status colour; requirements cascade in both vie
   await expect(page.getByTestId(`wbs-status-chip-${id}`)).toHaveText("Completed");
   await expect(box).toHaveClass(/bg-tone-green-soft/);
 
-  // Requirements: add two under the box (the field stays open for the next), tick one.
+  // Requirements: add two under the box (the field stays open for the next), the second a
+  // non-functional one, then tick one.
   await page.getByTestId(`wbs-req-add-${id}`).click();
-  const add = page
-    .getByLabel(W.newRequirementFor(""), { exact: false })
-    .and(page.locator(":focus"));
+  const add = page.getByLabel(W.newRequirementFor(""), { exact: false });
+  const addType = page.getByLabel(W.requirementTypeFor(""), { exact: false });
+  await expect(add).toBeFocused({ timeout: 15_000 });
+  await expect(addType).toHaveValue("FR");
   await add.fill(`E2E permit ${stamp}`);
   await add.press("Enter");
+  await addType.selectOption("NFR");
   await add.fill(`E2E soil report ${stamp}`);
   await add.press("Enter");
+  // The kind chosen stays chosen for the next one.
+  await expect(addType).toHaveValue("NFR");
   await add.press("Escape");
   const list = page.getByTestId(`wbs-reqs-${id}`);
   await expect(list).toContainText(`E2E permit ${stamp}`, { timeout: 15_000 });
   await expect(list).toContainText(`E2E soil report ${stamp}`, { timeout: 15_000 });
   await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+
+  // Each chip says which requirement of the register it is, in the kind it was added as.
+  const chipRow = (text: string) => list.locator("li").filter({ hasText: text });
+  await expect(chipRow(`E2E permit ${stamp}`)).toContainText(/^FR-\d+\b/);
+  await expect(chipRow(`E2E soil report ${stamp}`)).toContainText(/^NFR-\d+\b/);
+
   await list.getByLabel(W.requirementMet(`E2E permit ${stamp}`)).check();
   await expect(page.getByTestId(`wbs-req-toggle-${id}`)).toHaveText(W.requirementCount(1, 2));
 
@@ -485,6 +496,9 @@ test("WBS item menu: whole name, status colour; requirements cascade in both vie
   await expect(
     page.getByLabel(W.requirementMet(`E2E permit ${stamp}`), { exact: true }),
   ).toBeChecked();
+  await expect(page.locator("li[data-wbs-req-row]").filter({ has: soil })).toContainText(
+    /^NFR-\d+$/,
+  );
   await page
     .getByRole("button", { name: W.moveRequirementUp(`E2E soil report ${stamp}`), exact: true })
     .click();
@@ -500,21 +514,26 @@ test("WBS item menu: whole name, status colour; requirements cascade in both vie
   await expect(texts.last()).toHaveValue(`E2E permit ${stamp}`);
   await expect(page.getByTestId(`wbs-row-status-${id}`)).toHaveText("Completed");
 
-  // Delete a requirement (it asks first), then the item from its menu.
+  // The × takes a requirement off this deliverable without asking (ADR-0037).
   await page
-    .getByRole("button", { name: W.deleteRequirement(`E2E permit ${stamp}`), exact: true })
+    .getByRole("button", { name: W.removeRequirement(`E2E permit ${stamp}`), exact: true })
     .click();
-  await expect(
-    page.getByRole("heading", { name: W.deleteRequirementTitle(`E2E permit ${stamp}`) }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: W.delete, exact: true }).last().click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(texts).toHaveCount(1);
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
 
+  // Deleting the item counts the requirement it unallocates and says it stays in the register.
   await wbsField(wbsRow(page, id), W.nameOf).click({ button: "right" });
   await page.getByTestId("wbs-menu-delete").click();
+  await expect(page.getByRole("dialog")).toContainText(W.deleteUnallocates(1));
   await page.getByRole("button", { name: W.delete, exact: true }).last().click();
   await expect(wbsRow(page, id)).toHaveCount(0);
   await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+
+  // Neither act deleted anything: the register still holds both requirements.
+  await page.goto(`/projects/2/requirements?view=list&q=${stamp}`);
+  await expectListed(page, `E2E permit ${stamp}`);
+  await expectListed(page, `E2E soil report ${stamp}`);
 });
 
 test("axe scan on the deliverables list has no serious or critical violations", async ({

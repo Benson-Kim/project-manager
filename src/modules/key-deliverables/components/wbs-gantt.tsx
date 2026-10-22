@@ -31,6 +31,7 @@ import {
   applyMove,
   applyReschedule,
   applyStatus,
+  branchRequirementCount,
   buildWbs,
   dayDiff,
   descendantIds,
@@ -745,6 +746,8 @@ export function WbsGantt({
   const selId = selected?.item.id ?? null;
   const parents = [...wbs.nodes.values()].filter((n) => n.childIds.length > 0);
   const confirmNode = confirmId !== null ? wbs.nodes.get(confirmId) : undefined;
+  // Deleting an item only unallocates its requirements, so the dialog counts them (ADR-0037).
+  const unallocates = confirmNode ? branchRequirementCount(wbs, confirmNode.item.id) : 0;
   const closeDetails = () => updateUrl({ d: null });
 
   const menuNode = menu ? wbs.nodes.get(menu.id) : undefined;
@@ -935,6 +938,7 @@ export function WbsGantt({
           on={diagramHandlers}
           requirementsHidden={cascade.hidden}
           addingRequirement={cascade.adding}
+          addRequirementType={cascade.addType}
           requirementAccess={cascade.access}
           onRequirement={cascade.handlers}
           statusColors={statusColors}
@@ -1054,6 +1058,7 @@ export function WbsGantt({
                     key={`add${id}`}
                     node={node}
                     adding={adding}
+                    addType={cascade.addType}
                     timeline={timeline}
                     trackStyle={trackStyle}
                     tab={tab}
@@ -1091,8 +1096,6 @@ export function WbsGantt({
         />
       ) : null}
 
-      {cascade.dialog}
-
       <ConfirmDialog
         open={confirmNode !== undefined}
         onOpenChange={(open) => {
@@ -1107,7 +1110,9 @@ export function WbsGantt({
               )
             : ""
         }
-        body={W.deleteBody}
+        body={
+          unallocates > 0 ? `${W.deleteBody} ${W.deleteUnallocates(unallocates)}` : W.deleteBody
+        }
         confirmLabel={W.delete}
         onConfirm={remove}
       />

@@ -6,6 +6,7 @@ import { TONES } from "@/components/ui/tones";
 import type { OptionColor } from "@/lib/lookup-lists";
 import { formatDate, toDateInput } from "@/lib/format";
 import { messages } from "@/lib/messages";
+import type { RequirementType } from "@/modules/requirements/schemas/requirement-types";
 import {
   descendantIds,
   dropPlacement,
@@ -191,6 +192,7 @@ export function WbsDiagram({
   on,
   requirementsHidden,
   addingRequirement,
+  addRequirementType,
   requirementAccess,
   onRequirement,
   statusColors,
@@ -212,6 +214,8 @@ export function WbsDiagram({
   requirementsHidden: ReadonlySet<number>;
   /** The item whose add-requirement field is open. */
   addingRequirement: number | null;
+  /** The kind that field is set to. */
+  addRequirementType: RequirementType;
   requirementAccess: RequirementAccess;
   onRequirement: RequirementHandlers;
   statusColors: ReadonlyMap<string, OptionColor>;
@@ -628,6 +632,7 @@ export function WbsDiagram({
             node={node}
             hidden={requirementsHidden.has(id)}
             adding={addingRequirement === id}
+            addType={addRequirementType}
             access={requirementAccess}
             on={onRequirement}
           />

@@ -24,7 +24,9 @@ import {
   applyRequirementMove,
   applyRequirementRemove,
   applyStatus,
+  branchRequirementCount,
   findRequirement,
+  requirementChip,
   requirementIn,
   statusColor,
   type WbsItem,
@@ -437,6 +439,25 @@ describe("requirements and status on screen (ADR-0037)", () => {
     item(1, null, 1, { requirements: [req(11, 1), req(12, 2)] }),
     item(2, null, 2, { requirements: [req(11, 1), req(21, 2)] }),
   ];
+
+  it("chips a requirement as its reference, and as its type alone until it has a number", () => {
+    expect(requirementChip({ ...req(11, 1), type: "NFR", number: 7 })).toBe("NFR-7");
+    // A queued one carries no number yet, so the chip shows no number rather than a wrong one.
+    expect(requirementChip({ ...req(-1, 1), number: 0 })).toBe("FR");
+  });
+
+  it("counts the distinct requirements a branch would unallocate, each one once", () => {
+    // 11 sits on both items of the branch; 12 and 21 on one each.
+    const wbs = buildWbs([
+      item(1, null, 1, { requirements: [req(11, 1), req(12, 2)] }),
+      item(2, 1, 1, { requirements: [req(11, 1), req(21, 2)] }),
+      item(3, null, 2),
+    ]);
+    expect(branchRequirementCount(wbs, 1)).toBe(3);
+    expect(branchRequirementCount(wbs, 2)).toBe(2);
+    expect(branchRequirementCount(wbs, 3)).toBe(0);
+    expect(branchRequirementCount(wbs, 99)).toBe(0);
+  });
 
   it("finds a requirement anywhere, and the one on a given deliverable", () => {
     expect(findRequirement(rows(), 12)?.id).toBe(12);

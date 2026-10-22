@@ -4,6 +4,7 @@ import { TONES } from "@/components/ui/tones";
 import { toDateInput } from "@/lib/format";
 import type { OptionColor } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
+import type { RequirementType } from "@/modules/requirements/schemas/requirement-types";
 import { durationDays, type WbsNode, type WbsRequirement } from "../schemas/wbs";
 import { barBox, shortDate, type Timeline } from "./gantt-scale";
 import { DraftInput } from "./draft-input";
@@ -13,6 +14,7 @@ import {
   AddRequirementButton,
   AddRequirementField,
   MetBox,
+  RefChip,
   RequirementControls,
   RequirementsToggle,
   isPending,
@@ -364,6 +366,7 @@ export function RequirementRow({
     >
       <SubRowName node={node} rowBg="bg-surface">
         <MetBox requirement={requirement} canEdit={access.canEdit} on={on} />
+        <RefChip requirement={requirement} />
         <DraftInput
           aria-label={W.editRequirement(requirement.text)}
           value={requirement.text}
@@ -400,6 +403,7 @@ export function RequirementRow({
 export function AddRequirementRow({
   node,
   adding,
+  addType,
   timeline,
   trackStyle,
   tab,
@@ -407,6 +411,8 @@ export function AddRequirementRow({
 }: {
   node: WbsNode;
   adding: boolean;
+  /** The kind the add field is set to. */
+  addType: RequirementType;
   timeline: Timeline;
   trackStyle: React.CSSProperties;
   tab: WbsTab;
@@ -418,8 +424,9 @@ export function AddRequirementRow({
         {adding ? (
           <AddRequirementField
             node={node}
+            type={addType}
             on={on}
-            className="h-8 w-full min-w-0 rounded-sm border border-focus bg-surface px-1.5 text-xs text-ink focus:outline-none"
+            className="h-8 min-w-0 flex-1 rounded-sm border border-focus bg-surface px-1.5 text-xs text-ink focus:outline-none"
           />
         ) : (
           <AddRequirementButton

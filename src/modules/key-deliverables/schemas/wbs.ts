@@ -1,4 +1,5 @@
 import type { OptionColor } from "@/lib/lookup-lists";
+import { requirementRef } from "@/modules/requirements/schemas/requirement-rules";
 import type { RequirementType } from "@/modules/requirements/schemas/requirement-types";
 import type { AssigneeEntry } from "./key-deliverable";
 
@@ -457,6 +458,25 @@ function numbered(requirements: WbsRequirement[]): WbsRequirement[] {
   return requirements.map((r, index) =>
     r.sortOrder === index + 1 ? r : { ...r, sortOrder: index + 1 },
   );
+}
+
+/** The chip in front of a requirement's wording: "FR-3", or its type alone until the server has
+ *  given a queued one its number, so the chip never shows a number that turns out wrong. */
+export function requirementChip(requirement: WbsRequirement): string {
+  return requirement.number > 0
+    ? requirementRef(requirement.type, requirement.number)
+    : requirement.type;
+}
+
+/** Distinct requirements allocated anywhere in a branch: what deleting the item unallocates. */
+export function branchRequirementCount(wbs: Wbs, id: number): number {
+  const ids = new Set<number>();
+  for (const itemId of [id, ...descendantIds(wbs, id)]) {
+    for (const requirement of wbs.nodes.get(itemId)?.item.requirements ?? []) {
+      ids.add(requirement.id);
+    }
+  }
+  return ids.size;
 }
 
 /** One occurrence of a requirement, for a shared edit or tick; undefined when it is gone. A

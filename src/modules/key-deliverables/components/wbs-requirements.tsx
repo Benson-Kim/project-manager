@@ -2,32 +2,36 @@
 
 import { useRef, useState } from "react";
 import { messages } from "@/lib/messages";
-import type { RequirementType } from "@/modules/requirements/schemas/requirement-types";
-import type { WbsNode, WbsRequirement } from "../schemas/wbs";
+import {
+  SOLUTION_TYPES,
+  type RequirementType,
+} from "@/modules/requirements/schemas/requirement-types";
+import { requirementChip, type WbsNode, type WbsRequirement } from "../schemas/wbs";
 import { DraftInput } from "./draft-input";
 
 const W = messages.keyDeliverables.wbs;
 
 /** What a requirements list asks the editor to do (ADR-0036). */
 export interface RequirementHandlers {
-  /** The type defaults to a functional requirement; the cascade only adds solution types. */
-  add: (itemId: number, text: string, type?: RequirementType) => void;
+  /** The cascade only adds solution types: a need is never allocated to a deliverable. */
+  add: (itemId: number, text: string, type: RequirementType) => void;
   edit: (id: number, text: string) => void;
   setMet: (id: number, met: boolean) => void;
   /** -1 up, 1 down, within one deliverable's list. */
   move: (itemId: number, id: number, delta: -1 | 1) => void;
-  /** Asks first; takes the requirement off this one deliverable (ADR-0037). */
+  /** Takes the requirement off this one deliverable; it stays in the register (ADR-0037). */
   remove: (itemId: number, id: number) => void;
   /** Show or hide an item's requirements. */
   toggle: (itemId: number) => void;
   /** Open (or, with null, close) the add field under an item. */
   openAdd: (itemId: number | null) => void;
+  /** Remembers the kind the next requirement is added as. */
+  setAddType: (type: RequirementType) => void;
 }
 
 export interface RequirementAccess {
   canCreate: boolean;
   canEdit: boolean;
-  canDelete: boolean;
 }
 
 /** Not saved yet. */
@@ -59,7 +63,16 @@ function Cross() {
   );
 }
 
-/** Move up, Move down and Delete for one requirement. */
+/** "FR-3" in front of the wording, so a row says which requirement of the register it is. */
+export function RefChip({ requirement }: { requirement: WbsRequirement }) {
+  return (
+    <span className="shrink-0 text-xs leading-5 font-medium text-ink-muted tabular-nums">
+      {requirementChip(requirement)}
+    </span>
+  );
+}
+
+/** Move up, Move down and Remove for one requirement. */
 export function RequirementControls({
   itemId,
   requirement,
@@ -104,14 +117,14 @@ export function RequirementControls({
           </button>
         </>
       ) : null}
-      {access.canDelete ? (
+      {access.canEdit ? (
         <button
           type="button"
-          aria-label={W.deleteRequirement(text)}
-          data-testid={`wbs-req-delete-${requirement.id}`}
+          aria-label={W.removeRequirement(text)}
+          data-testid={`wbs-req-remove-${requirement.id}`}
           disabled={pending}
           onClick={() => on.remove(itemId, requirement.id)}
-          className={`${iconButton} hover:text-danger`}
+          className={iconButton}
         >
           <Cross />
         </button>
@@ -142,13 +155,18 @@ export function MetBox({
   );
 }
 
-/** Enter adds and keeps the field open; Escape or an empty Enter closes it. */
+/**
+ * The kind and the wording of a new requirement. Enter adds and keeps the field open for the
+ * next one; Escape or an empty Enter closes it. The type select offers solution types only.
+ */
 export function AddRequirementField({
   node,
+  type,
   on,
   className,
 }: {
   node: WbsNode;
+  type: RequirementType;
   on: RequirementHandlers;
   className: string;
 }) {
@@ -160,36 +178,54 @@ export function AddRequirementField({
   function add(): boolean {
     const value = text.trim();
     if (!value || cancelled.current) return false;
-    on.add(id, value);
+    on.add(id, value, type);
     setText("");
     return true;
   }
 
   return (
-    <input
-      autoFocus
-      data-wbs-req-add={id}
-      aria-label={W.newRequirementFor(node.code)}
-      value={text}
-      maxLength={4000}
-      onChange={(event) => setText(event.target.value)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          if (!add()) on.openAdd(null);
-        } else if (event.key === "Escape") {
-          event.preventDefault();
-          cancelled.current = true;
-          setText("");
-          on.openAdd(null);
-        }
-      }}
-      onBlur={() => {
+    <span
+      className="flex w-full min-w-0 items-center gap-1"
+      // Picking a type keeps the field open; only leaving the pair closes it.
+      onBlur={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget)) return;
         add();
         on.openAdd(null);
       }}
-      className={className}
-    />
+    >
+      <select
+        aria-label={W.requirementTypeFor(node.code)}
+        value={type}
+        onChange={(event) => on.setAddType(event.target.value as RequirementType)}
+        className="h-7 shrink-0 cursor-pointer rounded-sm border border-focus bg-surface px-0.5 text-xs text-ink focus:outline-none"
+      >
+        {SOLUTION_TYPES.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+      <input
+        autoFocus
+        data-wbs-req-add={id}
+        aria-label={W.newRequirementFor(node.code)}
+        value={text}
+        maxLength={4000}
+        onChange={(event) => setText(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            if (!add()) on.openAdd(null);
+          } else if (event.key === "Escape") {
+            event.preventDefault();
+            cancelled.current = true;
+            setText("");
+            on.openAdd(null);
+          }
+        }}
+        className={className}
+      />
+    </span>
   );
 }
 
@@ -312,12 +348,15 @@ export function BoxRequirements({
   node,
   hidden,
   adding,
+  addType,
   access,
   on,
 }: {
   node: WbsNode;
   hidden: boolean;
   adding: boolean;
+  /** The kind the add field is set to. */
+  addType: RequirementType;
   access: RequirementAccess;
   on: RequirementHandlers;
 }) {
@@ -354,6 +393,7 @@ export function BoxRequirements({
               <span className="flex h-5 items-center">
                 <MetBox requirement={requirement} canEdit={access.canEdit} on={on} />
               </span>
+              <RefChip requirement={requirement} />
               <RequirementText requirement={requirement} canEdit={access.canEdit} on={on} />
               <span className="-my-1 flex opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100">
                 <RequirementControls
@@ -373,8 +413,9 @@ export function BoxRequirements({
         adding ? (
           <AddRequirementField
             node={node}
+            type={addType}
             on={on}
-            className="h-7 w-full min-w-0 rounded-sm border border-focus bg-surface px-1.5 text-xs text-ink select-text focus:outline-none"
+            className="h-7 min-w-0 flex-1 rounded-sm border border-focus bg-surface px-1.5 text-xs text-ink select-text focus:outline-none"
           />
         ) : (
           <AddRequirementButton

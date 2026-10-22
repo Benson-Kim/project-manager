@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { messages } from "@/lib/messages";
 import type { RequirementType } from "@/modules/requirements/schemas/requirement-types";
 import {
@@ -29,10 +28,11 @@ const DEFAULT_ADD_TYPE: RequirementType = "FR";
 
 /**
  * The requirements cascade's workflow (ADR-0037), shared by the WBS diagram and the Gantt: which
- * lists are folded or open for adding, and each edit, queued behind the editor's other changes.
- * A requirement is a project-level record that can sit on several deliverables, so wording and the
- * met tick are saved against the requirement's RowVer and shown on every deliverable at once, while
- * a move or a remove acts on one deliverable's allocation (its placeRowVer).
+ * lists are folded or open for adding, the kind a new one is added as, and each edit, queued behind
+ * the editor's other changes. A requirement is a project-level record that can sit on several
+ * deliverables, so wording and the met tick are saved against the requirement's RowVer and shown on
+ * every deliverable at once, while a move or a remove acts on one deliverable's allocation (its
+ * placeRowVer). Removing only unallocates, so it asks nothing; the register owns deletion.
  */
 export function useWbsRequirements({
   projectId,
@@ -52,7 +52,7 @@ export function useWbsRequirements({
   announce: (message: string) => void;
   select: (itemId: number) => void;
 }) {
-  const { canCreate, canEdit, canDelete } = access;
+  const { canCreate, canEdit } = access;
 
   // Folded lists, kept per project in this browser like the collapsed branches.
   const storageKey = `wbs-req-hidden:${projectId}`;
@@ -65,7 +65,8 @@ export function useWbsRequirements({
     return () => cancelAnimationFrame(frame);
   }, [storageKey]);
   const [adding, setAdding] = useState<number | null>(null);
-  const [confirm, setConfirm] = useState<{ itemId: number; id: number } | null>(null);
+  // The last kind chosen, so adding several of one kind takes one choice.
+  const [addType, setAddType] = useState<RequirementType>(DEFAULT_ADD_TYPE);
 
   function changeHidden(change: (current: ReadonlySet<number>) => ReadonlySet<number>) {
     setHidden((current) => {
@@ -87,7 +88,7 @@ export function useWbsRequirements({
   /** Negative ids for requirements the server has not answered for yet. */
   const pendingId = useRef(0);
 
-  function add(itemId: number, text: string, type: RequirementType = DEFAULT_ADD_TYPE) {
+  function add(itemId: number, text: string, type: RequirementType) {
     if (!canCreate || !hasItem(itemId)) return;
     const tempId = -++pendingId.current;
     show(itemId);
@@ -158,23 +159,16 @@ export function useWbsRequirements({
     });
   }
 
-  function remove() {
-    const target = confirm;
-    setConfirm(null);
-    if (!canDelete || target === null || target.id < 0) return;
+  /** Off this deliverable only: the requirement, its wording and its links stay in the register. */
+  function remove(itemId: number, id: number) {
+    if (!canEdit || id < 0 || !requirementIn(items, itemId, id)) return;
     enqueue({
-      apply: (rows) => applyRequirementRemove(rows, target.itemId, target.id),
+      apply: (rows) => applyRequirementRemove(rows, itemId, id),
       send: (current) => {
-        const saved = requirementIn(current, target.itemId, target.id);
-        return saved
-          ? removeRequirementAction({
-              itemId: target.itemId,
-              id: target.id,
-              rowVer: saved.placeRowVer,
-            })
-          : null;
+        const saved = requirementIn(current, itemId, id);
+        return saved ? removeRequirementAction({ itemId, id, rowVer: saved.placeRowVer }) : null;
       },
-      done: () => announce(W.requirementDeleted),
+      done: () => announce(W.requirementRemoved),
     });
   }
 
@@ -185,9 +179,7 @@ export function useWbsRequirements({
     },
     setMet: (id, isMet) => save(id, { isMet }),
     move,
-    remove: (itemId, id) => {
-      if (canDelete && id > 0) setConfirm({ itemId, id });
-    },
+    remove,
     toggle: (itemId) =>
       changeHidden((current) => {
         const next = new Set(current);
@@ -202,22 +194,8 @@ export function useWbsRequirements({
       }
       setAdding(itemId);
     },
+    setAddType,
   };
 
-  const confirming =
-    confirm !== null ? requirementIn(items, confirm.itemId, confirm.id) : undefined;
-  const dialog = (
-    <ConfirmDialog
-      open={confirming !== undefined}
-      onOpenChange={(open) => {
-        if (!open) setConfirm(null);
-      }}
-      title={confirming ? W.deleteRequirementTitle(confirming.text) : ""}
-      body={W.deleteRequirementBody}
-      confirmLabel={W.delete}
-      onConfirm={remove}
-    />
-  );
-
-  return { hidden, adding, access, handlers, dialog };
+  return { hidden, adding, addType, access, handlers };
 }

@@ -577,6 +577,10 @@ export const messages = {
           : `Delete ${name} and its ${subItems} sub-item${subItems === 1 ? "" : "s"}?`,
       deleteBody:
         "They will be removed from the WBS and the Gantt. An administrator can restore them.",
+      deleteUnallocates: (requirements: number) =>
+        requirements === 1
+          ? "The requirement stays in the register."
+          : `The ${requirements} requirements stay in the register.`,
       moved: (code: string) => `Moved to ${code}`,
       rescheduled: (start: string, end: string) => `Now ${start} to ${end}`,
       subItemBeforeRequested: "A sub-item would end before its requested date.",
@@ -613,26 +617,24 @@ export const messages = {
       statusOf: (code: string, status: string) => `Status of item ${code}: ${status}`,
       statusChanged: (status: string) => `Status now ${status}`,
       statusCleared: "Status cleared",
-      // Requirements (migration 035, ADR-0036).
+      // Requirements (ADR-0037): allocated to this deliverable, owned by the register.
       requirements: "Requirements",
       requirementsOf: (name: string) => `Requirements of ${name}`,
       addRequirement: "Add requirement",
       addRequirementTo: (name: string) => `Add a requirement to ${name}`,
       requirementField: "Requirement",
       newRequirementFor: (code: string) => `New requirement for item ${code}`,
+      requirementTypeFor: (code: string) => `Requirement type for item ${code}`,
       editRequirement: (text: string) => `Edit requirement: ${text}`,
       requirementMet: (text: string) => `Met: ${text}`,
       moveRequirementUp: (text: string) => `Move up: ${text}`,
       moveRequirementDown: (text: string) => `Move down: ${text}`,
-      deleteRequirement: (text: string) => `Delete requirement: ${text}`,
+      removeRequirement: (text: string) => `Remove from this deliverable: ${text}`,
       requirementCount: (met: number, total: number) => `${met} of ${total} met`,
       showRequirements: (code: string) => `Show the requirements of item ${code}`,
       hideRequirements: (code: string) => `Hide the requirements of item ${code}`,
-      deleteRequirementTitle: (text: string) => `Delete the requirement ${text}?`,
-      deleteRequirementBody:
-        "It will be removed from the WBS and the Gantt. An administrator can restore it.",
       requirementAdded: "Requirement added",
-      requirementDeleted: "Requirement deleted",
+      requirementRemoved: "Removed from this deliverable; it stays in the register",
       diagramHints: [
         "Drag a box onto another to make it a sub-item, or onto an edge to put it before or after.",
         "Alt+↑ and Alt+↓ move the selected item; Alt+→ indents it and Alt+← outdents it.",

@@ -93,7 +93,6 @@ export default async function DeliverablesGanttPage({
             requirementAccess={{
               canCreate: allows("requirements:create"),
               canEdit: allows("requirements:update"),
-              canDelete: allows("requirements:delete"),
             }}
             openDeliverable={openDeliverable}
             sheetOpen={Boolean(openDeliverable)}
