@@ -68,6 +68,7 @@ export const messages = {
     CONFLICT: "Someone else changed this record. Reload to see the latest version.",
     DUPLICATE: "A record with this name already exists.",
     QUOTA_EXCEEDED: "This project has no room left for this file.",
+    LIMIT_REACHED: "This is full. Make room and try again.",
     INTERNAL: "Something went wrong. Try again.",
     summaryTitle: "The form could not be saved",
     dateOrder: (later: string, earlier: string) =>

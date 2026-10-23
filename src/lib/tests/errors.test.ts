@@ -20,6 +20,7 @@ describe("appErrorFromProc ", () => {
     expect(appErrorFromProc(50004, "VALIDATION:x").code).toBe("VALIDATION");
     expect(appErrorFromProc(50005, "DUPLICATE:x").code).toBe("DUPLICATE");
     expect(appErrorFromProc(50006, "QUOTA_EXCEEDED:x").code).toBe("QUOTA_EXCEEDED");
+    expect(appErrorFromProc(50007, "LIMIT_REACHED:x").code).toBe("LIMIT_REACHED");
   });
 
   it("keeps the raw message when no code prefix is present", () => {

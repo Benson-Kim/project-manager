@@ -96,7 +96,7 @@ async function bindAndExecute<T>(
   try {
     return await request.execute<T>(procName);
   } catch (err) {
-    // ADR-0012: THROW 50001–50005 from procs → typed AppError; anything else
+    // ADR-0012: THROW 50001–50007 from procs → typed AppError; anything else
     // is logged server-side and surfaced as an opaque INTERNAL error.
     if (err instanceof sql.RequestError && typeof err.number === "number") {
       if (err.number >= 50001 && err.number <= 50999) {

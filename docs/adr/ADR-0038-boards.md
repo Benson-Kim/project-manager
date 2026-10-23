@@ -112,6 +112,10 @@ returns nothing for it, and the ADR-0024 overrides — which are rows in a proje
   `project-sections.ts` takes no placeholder sections, and a create button pointing at `?id=new`
   needs the board sheet. Both land with the board views.
 - No live updates: boards refresh on focus and after each save.
+- This ADR registers THROW code **50007 `LIMIT_REACHED`** (422) in the ADR-0012 contract, for a
+  bounded slot that is full: a column's WIP limit, or a board's one active sprint. The code and its
+  mapping landed with slice B2; the procs that throw it (the WIP check and `usp_BoardSprint_Start`)
+  arrive with the card and sprint slices, so nothing throws it yet.
 
 ## Alternatives considered
 
