@@ -304,6 +304,212 @@ async function main() {
   });
   ok(sharedCol.BoardColumnId > 0, "any user adds a column to a standalone board");
 
+  // --- cards: the board is the access scope, and the WIP limit is the board's own rule ---------
+  const cb = await board({ ProjectId: R, Name: "Cards board", ActorUserId: PM });
+  const [, cbCols] = await exec("usp_Board_GetBoard", { BoardId: cb.BoardId, ActorUserId: PM });
+  const todoCol = cbCols.find((c) => c.Category === "todo");
+  const doneCol = cbCols.find((c) => c.Category === "done");
+  const doingCol = cbCols.find((c) => c.Category === "doing");
+  ok(cbCols.length === 3 && todoCol.WipCount === 0 && todoCol.CardCount === 0,
+    "a new board reads back three empty columns");
+
+  const newCard = (params) => exec("usp_BoardCard_Create", {
+    BoardId: cb.BoardId, BoardColumnId: todoCol.BoardColumnId, BoardSprintId: null,
+    Notes: null, AssigneeUserId: null, DueDate: null, StoryPoints: null, Color: null,
+    ActorUserId: PM, ...params,
+  });
+
+  await expectCode(50003, "a viewer cannot add a card", () =>
+    newCard({ Title: "Nope", ActorUserId: VIEWER }));
+  await expectCode(50003, "an outsider cannot add a card", () =>
+    newCard({ Title: "Nope", ActorUserId: OUTSIDER }));
+  await expectCode(50004, "a card named with another board's column", () =>
+    newCard({ Title: "Elsewhere", BoardColumnId: newCol.BoardColumnId }));
+  await expectCode(50004, "a card title that is blank", () => newCard({ Title: "   " }));
+  await expectCode(50004, "story points out of range", () =>
+    newCard({ Title: "Big", StoryPoints: 1000 }));
+  await expectCode(50004, "a colour that is not on the palette", () =>
+    newCard({ Title: "Loud", Color: "red;background:url(x)" }));
+  await expectCode(50004, "an assignee with no access to the board's project", () =>
+    newCard({ Title: "Assigned", AssigneeUserId: OUTSIDER }));
+
+  // SortKey is BIGINT, which the driver hands back as a string: compare the numbers, or "2" > "10".
+  const rank = (c) => Number(c.SortKey);
+
+  const [[card1]] = await newCard({ Title: "  First card  ", StoryPoints: 3, Color: "blue" });
+  ok(card1.Title === "First card" && rank(card1) > 0 && card1.RequirementId === null,
+    "a card is created, trimmed, ranked and carries no requirement");
+
+  const [[card2]] = await newCard({ Title: "Second card", AssigneeUserId: CONTRIB });
+  ok(rank(card2) > rank(card1), "the next card ranks after the first");
+
+  // An edit owns its own fields and cannot move the card: the proc takes no column or sprint.
+  await expectCode(50002, "a stale row version cannot edit a card", () =>
+    exec("usp_BoardCard_Update", {
+      BoardCardId: card1.BoardCardId, RowVer: 1, Title: "x", Notes: null, AssigneeUserId: null,
+      DueDate: null, StoryPoints: null, Color: null, ActorUserId: PM,
+    }));
+  const [[edited]] = await exec("usp_BoardCard_Update", {
+    BoardCardId: card1.BoardCardId, RowVer: Number(card1.RowVer), Title: "First, renamed",
+    Notes: null, AssigneeUserId: null, DueDate: null, StoryPoints: 5, Color: null, ActorUserId: PM,
+  });
+  ok(edited.Title === "First, renamed" && edited.StoryPoints === 5
+     && edited.BoardColumnId === card1.BoardColumnId && rank(edited) === rank(card1),
+    "an edit changes the card's own fields and neither its column nor its rank");
+
+  // A move takes the card to another column and keeps the board-wide order unambiguous.
+  const [[movedCard]] = await exec("usp_BoardCard_Move", {
+    BoardCardId: card2.BoardCardId, RowVer: Number(card2.RowVer), ToColumnId: doingCol.BoardColumnId,
+    ToSprintId: null, SprintSet: 0, BeforeCardId: edited.BoardCardId, ActorUserId: PM,
+  });
+  ok(movedCard.BoardColumnId === doingCol.BoardColumnId && rank(movedCard) < rank(edited),
+    "a move changes the column and lands the card before its neighbour");
+  await expectCode(50004, "a move to another board's column", () =>
+    exec("usp_BoardCard_Move", {
+      BoardCardId: card1.BoardCardId, RowVer: Number(edited.RowVer),
+      ToColumnId: newCol.BoardColumnId, ToSprintId: null, SprintSet: 0, BeforeCardId: null,
+      ActorUserId: PM,
+    }));
+  await expectCode(50002, "a move before a card that is not on this board", () =>
+    exec("usp_BoardCard_Move", {
+      BoardCardId: card1.BoardCardId, RowVer: Number(edited.RowVer),
+      ToColumnId: todoCol.BoardColumnId, ToSprintId: null, SprintSet: 0,
+      BeforeCardId: 2147483600, ActorUserId: PM,
+    }));
+  await expectCode(50004, "a card cannot be placed before itself", () =>
+    exec("usp_BoardCard_Move", {
+      BoardCardId: card1.BoardCardId, RowVer: Number(edited.RowVer),
+      ToColumnId: todoCol.BoardColumnId, ToSprintId: null, SprintSet: 0,
+      BeforeCardId: card1.BoardCardId, ActorUserId: PM,
+    }));
+
+  // The WIP limit: 'In progress' was created with a limit of 3 and already holds one card.
+  const fill = [];
+  for (let i = 0; i < 2; i++) {
+    const [[c]] = await newCard({ Title: `Filler ${i}` });
+    fill.push(c);
+  }
+  for (const c of fill) {
+    await exec("usp_BoardCard_Move", {
+      BoardCardId: c.BoardCardId, RowVer: Number(c.RowVer), ToColumnId: doingCol.BoardColumnId,
+      ToSprintId: null, SprintSet: 0, BeforeCardId: null, ActorUserId: PM,
+    });
+  }
+  await expectCode(50007, "a card that would take a column past its limit", () =>
+    exec("usp_BoardCard_Move", {
+      BoardCardId: card1.BoardCardId, RowVer: Number(edited.RowVer),
+      ToColumnId: doingCol.BoardColumnId, ToSprintId: null, SprintSet: 0, BeforeCardId: null,
+      ActorUserId: PM,
+    }));
+  // A reorder WITHIN the full column still works: the card does not count against itself.
+  const [[reordered]] = await exec("usp_BoardCard_Move", {
+    BoardCardId: movedCard.BoardCardId, RowVer: Number(movedCard.RowVer),
+    ToColumnId: doingCol.BoardColumnId, ToSprintId: null, SprintSet: 0, BeforeCardId: null,
+    ActorUserId: PM,
+  });
+  ok(reordered.BoardColumnId === doingCol.BoardColumnId,
+    "a reorder inside a full column is not refused by its own limit");
+
+  // --- the board read -------------------------------------------------------------------------
+  const [header, readCols, phases, sprints, readCards] =
+    await exec("usp_Board_GetBoard", { BoardId: cb.BoardId, ActorUserId: PM });
+  ok(header.length === 1 && header[0].Stamp > 0 && header[0].ActiveSprintId === null,
+    "the board read returns one header with a freshness stamp");
+  ok(header[0].BacklogCount === 4, `every card with no sprint is in the backlog (${header[0].BacklogCount})`);
+  ok(phases.length === 0 && sprints.length === 0, "a board with no plan reads back no phases or sprints");
+  const doingRead = readCols.find((c) => c.BoardColumnId === doingCol.BoardColumnId);
+  ok(doingRead.WipCount === 3 && doingRead.WipLimit === 3,
+    `the column reports its load against its limit (${doingRead.WipCount}/${doingRead.WipLimit})`);
+  ok(readCards.length === 4 && readCards.every((c) => c.RequirementState === "none"),
+    "every card reads back, and none claims a requirement it does not have");
+  ok(readCards.every((c) => c.RequirementText === null),
+    "a card with no requirement carries no requirement text");
+
+  const [searched] = await exec("usp_Board_GetBoard", {
+    BoardId: cb.BoardId, ActorUserId: PM, Search: "First, renamed",
+  });
+  ok(searched.length === 1, "the board header still returns once when a search is given");
+  const [, , , , capped] = await exec("usp_Board_GetBoard", {
+    BoardId: cb.BoardId, ActorUserId: PM, CardsPerList: 1,
+  });
+  ok(capped.length <= readCols.length,
+    `cards are capped per list, not per board (${capped.length} for ${readCols.length} columns)`);
+  await expectCode(50004, "a view that is neither board nor plan", () =>
+    exec("usp_Board_GetBoard", { BoardId: cb.BoardId, ActorUserId: PM, View: "gallery" }));
+  await expectCode(50003, "an outsider reads the board", () =>
+    exec("usp_Board_GetBoard", { BoardId: cb.BoardId, ActorUserId: OUTSIDER }));
+
+  // --- the assignee picker offers exactly who the write accepts --------------------------------
+  const [assignees] = await exec("usp_Board_ListAssignees", { BoardId: cb.BoardId, ActorUserId: PM });
+  ok(assignees.some((u) => u.UserId === CONTRIB), "a project member can be assigned work");
+  ok(!assignees.some((u) => u.UserId === OUTSIDER), "someone with no access is never offered");
+  ok(Object.keys(assignees[0]).sort().join() === "DisplayName,UserId",
+    "the picker returns names and ids only");
+  const [shared] = await exec("usp_Board_ListAssignees", { BoardId: sb.BoardId, ActorUserId: VIEWER });
+  ok(shared.some((u) => u.UserId === OUTSIDER),
+    "on a standalone board, which everyone may work, everyone can be assigned");
+
+  // --- deleting a card and a column ------------------------------------------------------------
+  await expectCode(50003, "a contributor cannot delete a card", () =>
+    exec("usp_BoardCard_Delete", {
+      BoardCardId: card1.BoardCardId, RowVer: Number(edited.RowVer), ActorUserId: CONTRIB,
+    }));
+  await exec("usp_BoardCard_Delete", {
+    BoardCardId: card1.BoardCardId, RowVer: Number(edited.RowVer), ActorUserId: PM,
+  });
+  const [, , , , afterCardDelete] =
+    await exec("usp_Board_GetBoard", { BoardId: cb.BoardId, ActorUserId: PM });
+  ok(!afterCardDelete.some((c) => c.BoardCardId === card1.BoardCardId),
+    "a deleted card leaves the board");
+
+  const [, colsBeforeDelete] = await exec("usp_Board_GetBoard", { BoardId: cb.BoardId, ActorUserId: PM });
+  const doingNow = colsBeforeDelete.find((c) => c.BoardColumnId === doingCol.BoardColumnId);
+  await expectCode(50004, "deleting a column with cards and no target", () =>
+    exec("usp_BoardColumn_Delete", {
+      BoardColumnId: doingCol.BoardColumnId, RowVer: Number(doingNow.RowVer),
+      TargetColumnId: null, ActorUserId: PM,
+    }));
+  await expectCode(50004, "reflowing a column into itself", () =>
+    exec("usp_BoardColumn_Delete", {
+      BoardColumnId: doingCol.BoardColumnId, RowVer: Number(doingNow.RowVer),
+      TargetColumnId: doingCol.BoardColumnId, ActorUserId: PM,
+    }));
+  await expectCode(50003, "a contributor cannot delete a column", () =>
+    exec("usp_BoardColumn_Delete", {
+      BoardColumnId: doingCol.BoardColumnId, RowVer: Number(doingNow.RowVer),
+      TargetColumnId: doneCol.BoardColumnId, ActorUserId: CONTRIB,
+    }));
+  const [[reflow]] = await exec("usp_BoardColumn_Delete", {
+    BoardColumnId: doingCol.BoardColumnId, RowVer: Number(doingNow.RowVer),
+    TargetColumnId: doneCol.BoardColumnId, ActorUserId: PM,
+  });
+  ok(reflow.MovedCards === 3 && reflow.MovedToColumnId === doneCol.BoardColumnId,
+    `deleting a column moves its cards and says how many (${reflow.MovedCards})`);
+  const [, colsAfter, , , cardsAfter] =
+    await exec("usp_Board_GetBoard", { BoardId: cb.BoardId, ActorUserId: PM });
+  ok(!colsAfter.some((c) => c.BoardColumnId === doingCol.BoardColumnId), "the column is gone");
+  ok(cardsAfter.every((c) => c.BoardColumnId !== doingCol.BoardColumnId),
+    "no card is left pointing at the deleted column");
+
+  // A board keeps at least one column, so the last two deletes cannot both succeed.
+  const [, twoLeft] = await exec("usp_Board_GetBoard", { BoardId: cb.BoardId, ActorUserId: PM });
+  for (const col of twoLeft.slice(0, twoLeft.length - 1)) {
+    const [, fresh] = await exec("usp_Board_GetBoard", { BoardId: cb.BoardId, ActorUserId: PM });
+    const row = fresh.find((c) => c.BoardColumnId === col.BoardColumnId);
+    const target = fresh.find((c) => c.BoardColumnId !== col.BoardColumnId);
+    await exec("usp_BoardColumn_Delete", {
+      BoardColumnId: col.BoardColumnId, RowVer: Number(row.RowVer),
+      TargetColumnId: target.BoardColumnId, ActorUserId: PM,
+    });
+  }
+  const [, lastOne] = await exec("usp_Board_GetBoard", { BoardId: cb.BoardId, ActorUserId: PM });
+  ok(lastOne.length === 1, `one column is left (${lastOne.length})`);
+  await expectCode(50004, "a board never loses its last column", () =>
+    exec("usp_BoardColumn_Delete", {
+      BoardColumnId: lastOne[0].BoardColumnId, RowVer: Number(lastOne[0].RowVer),
+      TargetColumnId: null, ActorUserId: PM,
+    }));
+
   console.log(`\n${passes} passed, ${failures} failed`);
   await pool.close();
   process.exit(failures ? 1 : 0);

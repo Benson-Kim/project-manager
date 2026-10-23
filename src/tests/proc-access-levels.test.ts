@@ -14,6 +14,7 @@ import { OVERRIDABLE_MODULES, requiredLevel } from "@/lib/auth/rbac";
 const MODULES: Record<string, string> = {
   board: "boards",
   "board-column": "boards",
+  "board-card": "boards",
   "daily-activity": "daily-activities",
   "key-deliverable": "key-deliverables",
   keyword: "keywords",
@@ -54,6 +55,9 @@ const VERBS: Record<string, string> = {
   GetApologies: "read",
   // Financials calculator (ADR-0029).
   GetSheet: "read",
+  // Boards (ADR-0038): the whole board in five sets, and the card sheet's assignee picker.
+  GetBoard: "read",
+  ListAssignees: "read",
   Create: "create",
   // Copying a template's documents into a financial adds rows (ADR-0030).
   CreateFromTemplate: "create",
@@ -102,6 +106,10 @@ const EXEMPT: Record<string, string> = {
     "replaces links inside the requirement write procs' transaction, after their own access check",
   usp_Requirement_ReplaceAllocations:
     "replaces allocations inside the requirement write procs' transaction, after their own access check",
+  usp_Board_AssertRoom:
+    "checks a column's work-in-progress limit inside the card write procs' transaction, after their own access check; it refuses to run outside one",
+  usp_BoardCard_AssertAssignee:
+    "checks an assignee against the board's project inside the card write procs' transaction, after their own access check; it refuses to run outside one",
 };
 
 /** The access helpers themselves (they take @MinLevel as a parameter). */
