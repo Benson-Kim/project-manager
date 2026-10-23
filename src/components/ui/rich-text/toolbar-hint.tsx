@@ -68,6 +68,8 @@ export function ToolbarHint({
     let suppressed: HTMLElement | null = null;
     // A control focused by a click (a select) gets no focus hint; one reached by keys does.
     let lastInput: "pointer" | "key" = "key";
+    // Where the mouse last was, on the screen: a scroll moves the page under a still mouse.
+    let mouse = { x: Number.NaN, y: Number.NaN };
 
     const update = (next: Shown | null) => {
       shownRef.current = next;
@@ -94,10 +96,7 @@ export function ToolbarHint({
       update(null);
     };
 
-    const onPointerOver = (event: PointerEvent) => {
-      if (event.pointerType !== "mouse") return;
-      const control = controlOf(event.target);
-      if (!control || control === hovered) return;
+    const enter = (control: HTMLElement) => {
       hovered = control;
       window.clearTimeout(timer);
       if (control === suppressed) return;
@@ -112,7 +111,14 @@ export function ToolbarHint({
       window.clearTimeout(timer);
       if (!event.relatedTarget) drop("hover");
     };
+    // Hover starts on a move of the mouse itself, not when a scroll (focus moving into the
+    // toolbar) slides a control under it: that would swap a focus hint for another control's.
     const onPointerMove = (event: PointerEvent) => {
+      if (event.pointerType !== "mouse") return;
+      if (event.screenX === mouse.x && event.screenY === mouse.y) return;
+      mouse = { x: event.screenX, y: event.screenY };
+      const entered = controlOf(event.target);
+      if (entered && entered !== hovered) enter(entered);
       const current = shownRef.current;
       const hint = hintRef.current;
       if (!current?.hover || !hint) return;
@@ -149,7 +155,6 @@ export function ToolbarHint({
       }
     };
 
-    root.addEventListener("pointerover", onPointerOver);
     root.addEventListener("pointerout", onPointerOut);
     root.addEventListener("focusin", onFocusIn);
     root.addEventListener("focusout", onFocusOut);
@@ -159,7 +164,6 @@ export function ToolbarHint({
     window.addEventListener("keydown", onKeyDown, true);
     return () => {
       window.clearTimeout(timer);
-      root.removeEventListener("pointerover", onPointerOver);
       root.removeEventListener("pointerout", onPointerOut);
       root.removeEventListener("focusin", onFocusIn);
       root.removeEventListener("focusout", onFocusOut);

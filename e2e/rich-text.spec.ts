@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { caretAt } from "./support/editor";
 
 /**
  * Shared rich-text editor + sanitiser (ADR-0025) on the kitchen sink. The
@@ -93,8 +94,10 @@ test.describe("rich-text editor (ADR-0025)", () => {
     await page.keyboard.press("Shift+End");
     await pick("Highlight", "Green");
     await page.keyboard.press("ArrowDown");
+    await caretAt(editor, { text: "Indented" });
     await page.keyboard.press("Control+M");
     await page.keyboard.press("ArrowDown");
+    await caretAt(editor, { text: "Heading five" });
     await page.keyboard.press("Control+Alt+5");
     await page.keyboard.press("Control+End");
 
@@ -413,6 +416,32 @@ test.describe("rich-text editor (ADR-0025)", () => {
     await bold.hover();
     await expect(hint).toHaveText("Bold (Ctrl+B)");
     expect(await serious()).toEqual([]);
+  });
+
+  test("a scroll that slides a toolbar control under a still mouse shows no hint", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 500 });
+    await openEditor(page);
+    const bold = page.getByRole("toolbar", { name: "Formatting" }).getByRole("button", {
+      name: "Bold",
+    });
+    const hint = page.getByTestId("rich-text-hint");
+    // Bold 100 px from the top, with room to scroll back up 120 px.
+    const scrolled = await bold.evaluate((el) => {
+      window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 100);
+      return window.scrollY;
+    });
+    expect(scrolled).toBeGreaterThanOrEqual(120);
+    const at = (await bold.boundingBox())!;
+    const [x, y] = [at.x + at.width / 2, at.y + at.height / 2];
+    await page.mouse.move(x, y + 120);
+    // Keyboard focus scrolls the page like this, and its own hint must stay.
+    await page.evaluate(() => window.scrollBy(0, -120));
+    await page.waitForTimeout(900);
+    await expect(hint).toBeHidden();
+    await page.mouse.move(x + 2, y + 120);
+    await expect(hint).toHaveText("Bold (Ctrl+B)");
   });
 
   test("loads and edits without requests to another host (offline desktop)", async ({
