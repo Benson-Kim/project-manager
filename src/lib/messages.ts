@@ -211,6 +211,7 @@ export const messages = {
     suppliersSection: "Suppliers",
     dailyActivitiesSection: "Activities",
     todosSection: "To-do",
+    boardsSection: "Boards",
     keywordsSection: "Keywords",
     name: "Project name",
     nameRequired: "Enter a project name",

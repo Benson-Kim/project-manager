@@ -4,23 +4,38 @@ import {
   allowsWithOverrides,
   OVERRIDABLE_MODULES,
   OVERRIDE_VERBS,
+  type OverridableModule,
   type PermissionOverride,
 } from "@/lib/auth/rbac";
 import { ACCESS_LEVELS, type AccessLevel, type Permission } from "@/lib/auth/types";
 import { execProc } from "@/lib/db";
 
-/** One override as the procs return it (usp_Project_GetAccess JSON, usp_ProjectPermission_*). */
+/**
+ * One override as the procs return it (usp_Project_GetAccess JSON,
+ * usp_ProjectPermission_*). Module is read as a plain string, not an enum, so a
+ * build that predates a section can still parse an override of it.
+ */
 export const overrideRowSchema = z.object({
-  Module: z.enum(OVERRIDABLE_MODULES),
+  Module: z.string(),
   Verb: z.enum(OVERRIDE_VERBS),
   Allowed: z.coerce.boolean(),
 });
 
-export const toOverride = (row: z.infer<typeof overrideRowSchema>): PermissionOverride => ({
-  module: row.Module,
-  verb: row.Verb,
-  allowed: row.Allowed,
-});
+const isOverridable = (module: string): module is OverridableModule =>
+  (OVERRIDABLE_MODULES as readonly string[]).includes(module);
+
+/**
+ * One override this build can act on, or null for a section it does not know.
+ * Ignoring the unknown row matters for the desktop editions, which ship behind
+ * the server: a ZodError here would lock a user out of the whole project.
+ */
+export const toOverride = (row: z.infer<typeof overrideRowSchema>): PermissionOverride | null =>
+  isOverridable(row.Module) ? { module: row.Module, verb: row.Verb, allowed: row.Allowed } : null;
+
+/** The overrides this build can act on; unknown sections are dropped. */
+export const toOverrides = (
+  rows: readonly z.infer<typeof overrideRowSchema>[],
+): PermissionOverride[] => rows.flatMap((row) => toOverride(row) ?? []);
 
 const accessRowSchema = z.object({
   AccessLevel: z.enum(ACCESS_LEVELS).nullable(),
@@ -48,7 +63,7 @@ export const getProjectAccessInfo = cache(
     });
     const row = accessRowSchema.parse(rows[0]);
     const overrides = row.OverridesJson
-      ? z.array(overrideRowSchema).parse(JSON.parse(row.OverridesJson)).map(toOverride)
+      ? toOverrides(z.array(overrideRowSchema).parse(JSON.parse(row.OverridesJson)))
       : [];
     return { level: row.AccessLevel, overrides };
   },
