@@ -380,3 +380,30 @@ describe("htmlToPlainText", () => {
     expect(htmlToPlainText("")).toBe("");
   });
 });
+
+describe("sanitiser cost on hostile input at the size limit", () => {
+  // Every save and every page read runs these on the server. Each case takes well under a
+  // second; the budget only catches a regex that backtracks, which takes minutes.
+  const N = 200_000;
+  const BUDGET_MS = 5_000;
+  const cases: Record<string, string> = {
+    "nested coloured spans": '<span style="color:#ff0000" data-color="red">'.repeat(4000) + "x",
+    "one huge style": `<span style="color:${" ".repeat(N)}">x</span>`,
+    "a style of semicolons": `<span style="${"; ".repeat(N / 2)}color:red">x</span>`,
+    "legacy fonts": '<font color="#00ff00" face="Arial" size="4">a</font>'.repeat(4000),
+    "numbered lists": '<ol type="i" start="7"><li>a</li></ol>'.repeat(5000),
+    "shaded cells": '<table><tr><td data-shade="#123456">a</td></tr></table>'.repeat(3000),
+    "page breaks": "<hr data-page-break>".repeat(10_000),
+    "unclosed tags": "<hr".repeat(N / 3),
+  };
+
+  for (const [name, html] of Object.entries(cases)) {
+    it(`${name} sanitise and flatten within the budget`, () => {
+      const started = performance.now();
+      const out = sanitizeRichText(html);
+      htmlToPlainText(out);
+      expect(performance.now() - started).toBeLessThan(BUDGET_MS);
+      expect(sanitizeRichText(out)).toBe(out);
+    });
+  }
+});
