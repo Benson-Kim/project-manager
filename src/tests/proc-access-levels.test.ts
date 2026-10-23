@@ -12,6 +12,7 @@ import { OVERRIDABLE_MODULES, requiredLevel } from "@/lib/auth/rbac";
 
 /** Proc folder -> permission module (rbac.ts names). */
 const MODULES: Record<string, string> = {
+  board: "boards",
   "daily-activity": "daily-activities",
   "key-deliverable": "key-deliverables",
   keyword: "keywords",
