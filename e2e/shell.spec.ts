@@ -18,6 +18,7 @@ test("sidebar renders the specified items in order with Settings and Logout pinn
     "Projects",
     "Daily activities",
     "To-do lists",
+    "Boards",
     "Reports",
   ]);
   const bottom = page.getByTestId("nav-bottom");

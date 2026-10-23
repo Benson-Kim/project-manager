@@ -79,6 +79,7 @@ export function SidebarIcon({
     | "projects"
     | "dailyActivities"
     | "todo"
+    | "boards"
     | "reports"
     | "settings"
     | "logout"
@@ -107,6 +108,12 @@ export function SidebarIcon({
       <>
         <rect x="4" y="3" width="16" height="18" rx="2" />
         <path d="m8 9 1.5 1.5L12 8M14 10h3M8 15l1.5 1.5L12 14M14 16h3" />
+      </>
+    ),
+    boards: (
+      <>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M9 4v16M15 4v16" />
       </>
     ),
     reports: (

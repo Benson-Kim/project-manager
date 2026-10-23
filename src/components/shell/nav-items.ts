@@ -11,7 +11,7 @@ import { messages } from "@/lib/messages";
 export interface NavItem {
   href: string;
   label: string;
-  icon: "dashboard" | "projects" | "dailyActivities" | "todo" | "reports" | "settings";
+  icon: "dashboard" | "projects" | "dailyActivities" | "todo" | "boards" | "reports" | "settings";
 }
 
 export const navItems: NavItem[] = [
@@ -19,6 +19,7 @@ export const navItems: NavItem[] = [
   { href: "/projects", label: messages.nav.projects, icon: "projects" },
   { href: "/daily-activities", label: messages.nav.dailyActivities, icon: "dailyActivities" },
   { href: "/todo", label: messages.nav.todoLists, icon: "todo" },
+  { href: "/boards", label: messages.nav.boards, icon: "boards" },
   { href: "/reports", label: messages.nav.reports, icon: "reports" },
 ];
 
