@@ -1,65 +1,16 @@
-import { Menu, Tray, nativeImage, type MenuItemConstructorOptions } from "electron";
-
-export interface TrayActions {
-  open(): void;
-  backupNow(): void;
-  openBackupsFolder(): void;
-  chooseBackupCopyFolder(): void;
-  restore(): void;
-  resetAdminPassword(): void;
-  openLogs(): void;
-  quit(): void;
-  /** Present only when the build has an update feed. */
-  checkForUpdates?(): void;
-  installUpdate?(): void;
-  /** Present only while this PC has no attachments folder (ADR-0026 §9). */
-  setUpAttachments?(): void;
-}
+import { Menu, Tray, nativeImage } from "electron";
+import { trayMenuTemplate, type TrayActions } from "./tray-menu";
 
 let tray: Tray | null = null;
 let actions: TrayActions | null = null;
 let appVersion = "";
 let readyVersion: string | null = null;
 
-function buildMenu(a: TrayActions): Menu {
-  const update: MenuItemConstructorOptions[] = [];
-  if (readyVersion && a.installUpdate) {
-    update.push(
-      { label: `Install update ${readyVersion} (restarts the app)`, click: a.installUpdate },
-      { type: "separator" },
-    );
-  }
-  return Menu.buildFromTemplate([
-    ...update,
-    { label: "Open Project Manager", click: a.open },
-    { type: "separator" },
-    { label: "Back up now", click: a.backupNow },
-    { label: "Open backups folder", click: a.openBackupsFolder },
-    { label: "Choose backup copy folder…", click: a.chooseBackupCopyFolder },
-    { label: "Restore from backup…", click: a.restore },
-    { type: "separator" },
-    ...(a.setUpAttachments
-      ? [
-          {
-            label: "Set up attachments (administrator)…",
-            click: a.setUpAttachments,
-          } as MenuItemConstructorOptions,
-        ]
-      : []),
-    { label: "Reset administrator password…", click: a.resetAdminPassword },
-    { label: "Open log files", click: a.openLogs },
-    ...(a.checkForUpdates
-      ? [{ label: "Check for updates", click: a.checkForUpdates } as MenuItemConstructorOptions]
-      : []),
-    { label: `Version ${appVersion}`, enabled: false },
-    { type: "separator" },
-    { label: "Quit Project Manager", click: a.quit },
-  ]);
-}
-
 function refresh(): void {
   if (!tray || !actions) return;
-  tray.setContextMenu(buildMenu(actions));
+  tray.setContextMenu(
+    Menu.buildFromTemplate(trayMenuTemplate(actions, { version: appVersion, readyVersion })),
+  );
   tray.setToolTip(
     readyVersion ? `Project Manager — update ${readyVersion} ready` : "Project Manager",
   );

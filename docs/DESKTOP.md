@@ -126,17 +126,32 @@ What installed apps do (`electron/updater.ts`):
 
 - Check 30 s after start and every 4 hours (tray → *Check for updates* checks now).
 - Download a new version **in the background**. Only the changed blocks are
-  downloaded (`.blockmap`), so an update is far smaller than the installer.
+  downloaded (`.blockmap`): a few MB, about 1% of the ~400 MB installer
+  (measured between 1.0.5 and 1.0.8). The blocks are taken from the installer
+  this PC was installed from (`%LOCALAPPDATA%\project-manager-updater\installer.exe`).
+  electron-updater replaces that installer's blockmap with each version it downloads, so
+  one update downloaded and not installed used to turn every later update into a full
+  download. The app now puts the matching blockmap back before each check
+  (`electron/update-cache.ts`). A PC with no such installer, or more than 10 releases
+  behind, downloads one update in full.
 - **Optional update (default):** a Windows notification and a tray item
-  *Install update X.Y.Z*. Nothing installs until the user clicks *Restart and
-  update*; quitting does not install it. A reminder comes once a day.
+  *Install update X.Y.Z*. Clicking the notification (also later, in the Action
+  Center) brings the app to the front and asks *Restart and update* / *Later*.
+  A newer notice replaces the older one, and quitting the app removes it, so no
+  notice is left that nothing answers. Nothing installs until the user chooses
+  *Restart and update*; quitting does not install it. A reminder comes once a
+  day.
 - **Required update:** a warning ("save your work"), then the app restarts to
   install it after 5 minutes (or at once with *Restart now*).
-- Installing: the app closes, the installer runs silently (2–3 minutes, no
-  window) and the app reopens.
+- Installing: the app closes, the installer runs silently (a few minutes, no
+  window; 6 on a busy test PC) and the app reopens.
   No administrator approval: the app is installed per user and the database
   engine is already set up. On start the database is upgraded, with a backup
   first.
+- After the restart a tray notice says *Update installed*. If the old version is
+  still running, it says *Update not installed* and offers the update again;
+  `main.log` has the reason. If the installer cannot start, the app stays open
+  and says so.
 - Offline or GitHub unreachable: logged only, the user is not bothered.
 
 ### Making an update required (the "force" command)
@@ -164,7 +179,10 @@ release job fails instead of publishing without the rule; re-run it. Logic: `scr
   needed once the PC's database engine is set up). They share the same data.
 - Feed settings at build time: `PM_UPDATE_GITHUB=owner/repo` (default: this
   repo), `PM_UPDATE_URL=<https folder>` for a self-hosted feed, or
-  `PM_UPDATE_FEED=off`.
+  `PM_UPDATE_FEED=off`. A self-hosted folder must answer HTTP range requests and
+  keep the older releases' `.blockmap` files next to their installers. The app
+  fetches each changed part with its own request, as it does from GitHub: a single
+  multi-range request timed out on a slow PC, which then downloaded the whole installer.
 - Releases are public (the repository is public); they contain the app and the
   SQL Server Express media, never `.env` files or secrets.
 
@@ -196,9 +214,13 @@ Uses a throwaway database `PM_DesktopTest_<random>` and drops it afterwards.
    on a link does the same.
 
 Tray menu: *Install update X.Y.Z* (when one is ready), *Back up now*, *Open
-backups folder*, *Choose backup copy folder…*, *Restore from backup…*, *Reset
-administrator password…*, *Open log files*, *Check for updates*, the version,
-*Quit*.
+backups folder*, *Choose backup copy folder…*, *Restore from backup…*, *Open log
+files*, *Check for updates*, the version, *Quit*. It never resets passwords:
+anyone at the PC can open it (see Troubleshooting for a lost admin password).
+
+Window titles show the page only (*Projects*, not the browser tab's *Projects —
+Project Manager · Project Manager*), and the setup wizard names the app once,
+in its title bar (its footer shows *Version X.Y.Z*).
 
 ## Data, backups, restore
 
@@ -269,7 +291,19 @@ that Windows account only; the database and backups stay (client data). To remov
   uploaded (edited, deleted, quarantined by antivirus, or a disk error), so the
   app refuses to hand it out. Restore it from `<backup copy folder>\Uploads`
   (same `ab\cd\<hash>` path); `main.log` names the attachment.
-- Admin locked out / password lost → tray → *Reset administrator password…*.
+- Admin locked out / password lost → IT resets it with the operator runbook in
+  [SECURITY.md](SECURITY.md#operator-runbook-reset-a-password-or-unlock-an-account-until-module-22),
+  connecting as a Windows administrator. The tray has no password reset, on
+  purpose: it needs no sign-in, so anyone at the PC could have become admin.
+- An update notice keeps coming back, or every update downloads ~400 MB →
+  `main.log` shows each download's size (a line "Full: …, To download: …"), and
+  its `[updater]` lines say what happened at *Restart and update*. *Update not
+  installed* after a restart means the silent installer stopped; run the
+  latest installer by hand once (data stays).
+- Notices filed under *Electron* in the Action Center, and clicking one does
+  nothing → a development PC: `npm run electron:dev` leaves a Start-menu
+  `Electron.lnk` with the app's ID, and Windows sends the click to that copy.
+  Delete the shortcut while testing an installed build.
 - *"Sign in is not possible: the database is not responding"*, or a *"The
   database has stopped"* dialog → the SQL Server service stopped (2026-10-12 a
   client's stopped at 04:59, likely an update, and every sign-in failed for
@@ -291,20 +325,26 @@ electron/
   db-apply.ts        migrations / procs / seeds (port of scripts/db-apply.sh)
   backup.ts          BACKUP / VERIFYONLY / copy / retention / RESTORE
   uploads-mirror.ts  copies new attachment files to <backup copy folder>\Uploads (tests/)
-  admin-account.ts   admin bootstrap and password reset (argon2id)
+  admin-account.ts   admin bootstrap when no administrator is active (argon2id)
   next-server.ts     Next.js standalone child process (auto-restart)
-  updater.ts         background download, optional/required update prompts
-  update-policy.ts   required-update rule + release-notes text (tests/)
+  updater.ts         background download, optional/required update prompts, install outcome
+  update-cache.ts    keeps the differential download base in step (tests/)
+  update-policy.ts   required-update rule, install outcome, release-notes text (tests/)
+  tray-menu.ts       the tray menu, with no password actions (tests/)
+  window-title.ts    window titles without the app name (tests/)
   setup/provision.ps1  idempotent engine provisioning (asks for admin approval itself)
   setup/remove-all-users-install.ps1  removes a pre-1.0 all-users copy (keeps data)
-  tests/             update-policy, machine-config, next-server-env, uploads-mirror, log (vitest); db-integration.ts
+  tests/             update-policy, update-cache, tray-menu, window-title, machine-config,
+                     next-server-env, uploads-mirror, log (vitest); db-integration.ts
                      (npm run electron:test-db)
 build-resources/     icon.ico/png, installerHeader.bmp + installerSidebar.bmp (wizard logo,
-                     24-bit, from icon.png), installer.nsh (NSIS hook that runs provision.ps1)
+                     24-bit, from icon.png), installer.nsh (NSIS hooks: runs provision.ps1,
+                     wizard texts and footer)
 electron-builder.config.cjs
 scripts/desktop/     build.mjs (refuses a standalone with build-machine files or missing traced files),
                      fetch-sql-express.mjs, sql-express.pin.json, test-db.mjs,
-                     release.mjs (CI release steps + force command; tests/)
+                     release.mjs (CI release steps + force command; tests/),
+                     update-feed.cjs (the feed written into app-update.yml; tests/)
 .github/workflows/desktop-release.yml   called by ci.yml after a green push to develop
 ```
 
