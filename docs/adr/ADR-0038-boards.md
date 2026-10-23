@@ -136,6 +136,52 @@ returns nothing for it, and the ADR-0024 overrides — which are rows in a proje
     one column" is a proc check, not a constraint: "at least one" cannot be expressed on the row
     being removed.
 
+17. **A sprint's state changes only through its own intention, never as a field on an edit.**
+    `usp_BoardSprint_Update` takes no `@State`, `@StartedAtUtc` or `@CompletedAtUtc`; the lifecycle
+    moves through `usp_BoardSprint_Start` and `usp_BoardSprint_Complete`. Each transition *carries
+    work with it* — starting a sprint changes which cards every column counts, and completing one
+    moves the unfinished cards — so a state field on an edit would make that work a side effect of
+    renaming a sprint. A guardrail fails the build if any of the three parameters appears in the
+    edit, and `sprintActions()` mirrors the same conditions for the interface without becoming a
+    second authority.
+
+18. **Starting or completing a sprint may leave a column over its limit, and is never refused for
+    it.** Both transitions change the work-in-progress scope, so a column can go from "3 / 5" to
+    "6 / 5" without anyone breaking a rule. Neither proc calls `usp_Board_AssertRoom`: refusing to
+    start a sprint the team has planned, or to close one it has finished, because a column would
+    read over is the wrong trade. The column shows as over and takes nothing new until it drains,
+    which is why `wipState` has an `over` state that is not an error.
+
+19. **50007 has two throwers, and the second was added deliberately.** `usp_Board_AssertRoom` means
+    "this column is full"; `usp_BoardSprint_Start` means "another sprint of this board is already
+    running". They share `LIMIT_REACHED` because both are a limit of this board that the user can
+    see and act on, and the client picks the sentence from the intention invoked
+    (`messages.boards.columnFull` against `messages.boards.sprintAlreadyActive`). The guardrail that
+    asserted a single thrower existed to force exactly this argument; it now lists both, and a third
+    would need the same case made. A refusal that is not a visible limit stays 50004.
+
+20. **The one-active-sprint rule is checked under the board lock, with the index as the backstop.**
+    `UQ_BoardSprint_Active` would catch a second active sprint, but as error 2601, which `db.ts`
+    maps to INTERNAL — and the plan's race matrix requires "exactly 1 active; the rest 50007, never
+    2601". So `usp_BoardSprint_Start` reads the committed state under the lock and throws the honest
+    code itself; the index only ever fires if that check is removed.
+
+21. **Completing a sprint keeps the done cards and moves the rest; a card changes sprint, never
+    column.** "Unfinished" is decided by the column's category, so what stays in a completed sprint
+    is exactly what the team finished — that is what makes the sprint a record. The cards that move
+    keep their column, because column and sprint are independent axes of the board and work pulled
+    into the next sprint should resume where it was left. There is **no reopen and no undo of a
+    completion**: a reopen would have to decide what happens to the cards that moved on, and the
+    honest answer is a new sprint. `usp_BoardSprint_Update` and `usp_BoardSprint_Delete` both refuse
+    a completed sprint for the same reason.
+
+22. **A planned sprint is deleted, an active one is completed, a completed one is kept.** Deleting
+    an active sprint would silently discard the decision `Complete` exists to make — where the
+    unfinished work goes; deleting a completed one would destroy the record. A deleted planned
+    sprint sends its cards to the backlog with their columns intact. Deleting a **phase** releases
+    its sprints to "no phase" rather than taking them with it, which the schema allows and which is
+    what stops `FK_BoardSprint_Phase` pointing at a row nobody can see.
+
 ## Consequences
 
 - A board's access answer depends on a row that can change, so it is resolved under a lock on every
@@ -164,9 +210,18 @@ returns nothing for it, and the ADR-0024 overrides — which are rows in a proje
 - No live updates: boards refresh on focus and after each save.
 - This ADR registers THROW code **50007 `LIMIT_REACHED`** (422) in the ADR-0012 contract, for a
   bounded slot that is full: a column's WIP limit, or a board's one active sprint. The code and its
-  mapping landed with slice B2. `usp_Board_AssertRoom` is now its thrower and, for the moment, its
-  **only** one — a guardrail asserts that, so the second thrower (`usp_BoardSprint_Start`) has to
-  be added deliberately rather than by accident.
+  mapping landed with slice B2. `usp_Board_AssertRoom` was its first thrower and, until slice B3,
+  its only one — the guardrail that asserted that is what forced the second,
+  `usp_BoardSprint_Start`, to be argued for rather than added by accident (decision 19). It now
+  lists both, and a third would need the same case made.
+- **A completed sprint is a one-way door.** There is no reopen and no undo, so the interface must
+  name the consequence before it runs (`messages.boards.completeSprintBody`), and the dialog is the
+  only protection a user gets. That is deliberate (decision 21), and it is the one place in this
+  module where an action is irreversible rather than soft-deleted.
+- **Starting or completing a sprint can leave several columns over their limits at once**, because
+  the work-in-progress scope changes for the whole board at that moment. Nothing is refused and
+  nothing is corrected; the columns show as over and take nothing new. A team that wants the counts
+  back under the limits drains them, which is the behaviour the plan asked for.
 - `usp_Board_AssertRoom` and `usp_BoardCard_AssertAssignee` are internal helpers: they assert no
   access of their own, because every caller has already locked the board and called
   `usp_Board_AssertAccess`. Both refuse to run outside a transaction, which is what would happen
