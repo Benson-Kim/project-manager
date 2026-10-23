@@ -24,34 +24,39 @@ row as "it ran". What ran locally: `tsc --noEmit`, `vitest run --coverage`, `esl
 | 1 | Item colour in WBS/Gantt: `Project.WbsColorBy`, `usp_KeyDeliverable_Set{Color,ColorBy}`, colour inheritance, toolbar switch | own PR | **Blocked** | — | Its template proc `usp_KeyDeliverable_SetStatus.sql` is absent on `develop`, and it amends ADR-0036, also absent (develop stops at ADR-0034). Needs `feature/wbs-requirements` merged first. |
 | 2a | RBAC: `boards` in `CONTRIBUTOR_WRITE_MODULES` and `OVERRIDABLE_MODULES`, the proc's section list, the matrix label | B1 | **Landed** | `src/lib/auth/rbac.ts`, `db/procs/project-permission/usp_ProjectPermission_Set.sql`, `src/modules/projects/components/permission-matrix.ts`, `src/lib/messages.ts` | `proc-access-levels.test.ts` pins the proc's list equal to `OVERRIDABLE_MODULES` |
 | 2b | Tolerant override parsing (an unknown section is ignored, not a ZodError) | B1 | **Landed** | `src/modules/projects/repository/{project-access,project-permissions}.ts` | ADR-0038 §11; `project-access.test.ts` |
-| 2c | Access guardrail: `board` folder in MODULES | B1 | **Partial** | `src/tests/proc-access-levels.test.ts` | Suite went 372 → 381 assertions. `EXEMPT` (`usp_Board_AssertRoom`) and `CROSS_SCOPE` (`usp_Board_SetProject`) are still Open — B2 and B4. |
-| 2d | Error code 50007 `LIMIT_REACHED` (HTTP 422) | B2 | **Open** | — | ADR-0012 reserves 50007+; nothing registered yet |
-| 2e | Shared pointer-drag primitives (`components/ui/drag/**`) | B2 | **Open** | — | — |
+| 2c | Access guardrail: `board` + `board-column` folders in MODULES | B1–B2 | **Partial** | `src/tests/proc-access-levels.test.ts` | `board-column` now scanned. `EXEMPT` (`usp_Board_AssertRoom`) and `CROSS_SCOPE` (`usp_Board_SetProject`) are still Open — B2 (cards) and B4. |
+| 2d | Error code 50007 `LIMIT_REACHED` (HTTP 422) | B2 | **Landed** | `src/lib/errors.ts`, `src/lib/db.ts`, `src/lib/messages.ts`, `docs/adr/ADR-0012-proc-error-contract.md`, `docs/STANDARDS.md` | `src/lib/tests/errors.test.ts` maps 50007. No proc throws it yet — its throwers (column WIP, sprint `Start`) land with the card/sprint slices. |
+| 2e | Shared pointer-drag primitives (`components/ui/drag/**`) | B2 | **Partial** | `src/components/ui/drag/pointer-drag.ts` | Pure `DRAG_SLOP`/`exceedsSlop`/`edgeScroll`/`insertionIndex` landed and unit-tested; `edgeScroll` mirrors the WBS copy for the later unification. The client hook `use-pointer-drag.ts` is deferred to land with the board view that consumes it. |
 | 3 | Boards schema | B1 | **Partial** | `db/migrations/037_boards.sql` | `app.Board`, `BoardColumn`, `BoardPhase`, `BoardSprint` landed. **`app.BoardCard` deliberately absent**: its `RequirementId` references `app.Requirement` (migration 036), so the table and that FK land together in migration 038. Not executed here. |
 | 4a | `board/` procs: access rule, guard, List, ListOptions, GetById, Create, Update, Delete | B1 | **Landed** | `db/procs/board/ufn_Board_AccessLevel.sql`, `db/procs/board/usp_Board_{AssertAccess,List,ListOptions,GetById,Create,Update,Delete}.sql` | `board-sql-guardrails.test.ts` (15), `proc-access-levels.test.ts`, `app-login.test.ts`. Not executed here. |
-| 4b | `board-column/`, `board-phase/`, `board-sprint/`, `board-card/` procs; `AssertRoom`; `GetBoard`; `ListAssignees`; `SetProject`; `SortKey` ordering | B2–B4 | **Open** | — | — |
-| 5 | Contracts and pure rules | B1 | **Partial** | `src/modules/boards/schemas/{board,board-rules}.ts` | `boards.test.ts`. `board-form.ts` and the card/sprint/column contracts are Open. |
-| 6 | Server layer: repository and actions | B1 | **Partial** | `src/modules/boards/repository/boards.ts`, `src/modules/boards/actions/index.ts` | `boards.test.ts`, `actions.test.ts` assert the **exact** `execProc` parameter set per call. Create/Update/Delete only; the rest follow their procs. |
+| 4b | `board-column/` Create, Update, Move | B2 | **Partial** | `db/procs/board-column/usp_BoardColumn_{Create,Update,Move}.sql` | `board-sql-guardrails.test.ts` (board-column block), `proc-access-levels.test.ts`, `board-columns.test.ts`; authz cases in `boards-procs.cjs`. **Column `Delete` deferred** — it reflows cards into a target column, and `app.BoardCard` is not on this base. Not executed here. |
+| 4c | `board-phase/`, `board-sprint/`, `board-card/` procs; `AssertRoom`; `GetBoard`; `ListAssignees`; `SetProject`; `SortKey` ordering | B2–B4 | **Open** | — | `AssertRoom`, `GetBoard`, `ListAssignees` and all card/sprint/phase procs need `app.BoardCard` (migration 038, gated on the register) |
+| 5 | Contracts and pure rules | B1–B2 | **Partial** | `src/modules/boards/schemas/{board,board-rules,board-column}.ts` | `boards.test.ts`, `board-columns.test.ts`. Column contracts landed; `board-form.ts` and the card/sprint contracts are Open. |
+| 6 | Server layer: repository and actions | B1–B2 | **Partial** | `src/modules/boards/repository/{boards,board-columns}.ts`, `src/modules/boards/actions/index.ts` | `boards.test.ts`, `board-columns.test.ts`, `actions.test.ts` assert the **exact** `execProc` parameter set per call (the mass-assignment pin). Column **repository** landed; the column **server actions** are deferred to land with the board view that calls them and owns their revalidation routes. |
 | 7a | Top-level nav item and route | B1 | **Landed** | `src/components/shell/{nav-items.ts,shell-icons.tsx}`, `src/app/(app)/boards/page.tsx` | `nav-items.test.ts`, `e2e/shell.spec.ts` (e2e not executed here). The page is an honest placeholder, per the convention stated in `nav-items.ts`. |
 | 7b | Project section, sidebar create button, the four real routes | B2 | **Open** | — | Deliberately deferred: `project-sections.ts` states the section nav takes **no placeholders**, and a create button pointing at `?id=new` needs the board sheet. See "Deferred on purpose". |
 | 8 | Board UI: board view, card, moves, card sheet, planning view, column editor, link dialog | B2–B4 | **Open** | — | The list must be a DataView (`docs/AGENTS.md` quality gate), so no hand-rolled list is acceptable |
 | 9 | Requirements packaging and redaction | B5 | **Blocked** | — | Gated on ADR-0037 being on this base. `src/modules/requirements/` does not exist on `develop`, so `requirementRef` cannot be imported yet. |
-| 10 | Docs | B1 | **Partial** | `docs/adr/ADR-0038-boards.md`, `docs/adr/README.md`, `docs/MODULE-PROMPTS.md`, `db/README.md`, `db/tests/README.md`, `docs/TRACEABILITY.md`, `LESSONS.md` §35, this file | ADR-0039 (colour mode), `STANDARDS.md` §2.4 (50007) and the ADR-0028 §8 `execProcSets` note are Open |
+| 10 | Docs | B1–B2 | **Partial** | `docs/adr/ADR-0038-boards.md`, `docs/adr/ADR-0012-proc-error-contract.md` (50007), `docs/adr/README.md`, `docs/MODULE-PROMPTS.md`, `db/README.md`, `db/tests/README.md`, `docs/STANDARDS.md` (50007), `docs/TRACEABILITY.md`, `LESSONS.md` §35–§36, this file | ADR-0039 (colour mode) and the ADR-0028 §8 `execProcSets` note are Open (both land with their slices) |
 
 ## Tests
 
 | Suite | Scope | Status | Runs where |
 |---|---|---|---|
-| `src/modules/boards/tests/boards.test.ts` | rules, contracts, exact `execProc` parameters per repository call | **Landed** (15) | locally |
+| `src/modules/boards/tests/boards.test.ts` | board rules, contracts, exact `execProc` parameters per repository call | **Landed** (15) | locally |
+| `src/modules/boards/tests/board-columns.test.ts` | column contracts (server-owned fields dropped), exact `execProc` parameters per column call, row-version coercion | **Landed** | locally |
 | `src/modules/boards/tests/actions.test.ts` | each intention, revalidation, server-owned fields, unauthenticated | **Landed** (7) | locally |
-| `src/tests/board-sql-guardrails.test.ts` | CHECK lists vs TS enums, lock-before-assert, RowVer guard, audit in-transaction, project-from-row, deleted-project hiding, escape chain, static SQL, function folder, payload validation | **Landed** (15) | locally |
-| `src/tests/proc-access-levels.test.ts` | `board` folder registered; every proc's `@MinLevel`/`@Permission` vs `requiredLevel()` | **Landed** | locally |
-| `db/tests/boards-procs.cjs` | authorization matrix, standalone shared space, overrides, stale RowVer, payload refusals, LIKE-metacharacter search, deleted project | **Written** (239 lines, `node --check` clean, in `ci.yml`) | **CI only — never executed** |
+| `src/components/ui/tests/pointer-drag.test.ts` | pure drag primitives: slop, edge-scroll cap, insertion index | **Landed** | locally |
+| `src/lib/tests/errors.test.ts` | every registered THROW number → code, including 50007 | **Landed** | locally |
+| `src/tests/board-sql-guardrails.test.ts` | CHECK lists vs TS enums, lock-before-assert, RowVer guard, audit in-transaction, project-from-row, deleted-project hiding, escape chain, static SQL, function folder, payload validation; **board-column block** (assert through the board, lock-first, RowVer, audit, static SQL) | **Landed** | locally |
+| `src/tests/proc-access-levels.test.ts` | `board` + `board-column` folders registered; every proc's `@MinLevel`/`@Permission` vs `requiredLevel()` | **Landed** | locally |
+| `db/tests/boards-procs.cjs` | authorization matrix, standalone shared space, overrides, stale RowVer, payload refusals, LIKE-metacharacter search, deleted project, **column create/update/move access + duplicate name + validation** | **Written** (`node --check` clean, in `ci.yml`) | **CI only — never executed** |
 | `db/tests/boards-race.cjs` | the plan's race matrix (WIP slots, sprint start/complete, renumber, link-while-packaging) | **Open** | CI only |
 | `e2e/boards.spec.ts`, `e2e/boards-rbac.spec.ts` | the board views and the RBAC matrix | **Open** | CI only |
 
-Local battery on the latest tree: `tsc` 0 · **157 files, 7,298 tests, 0 failures** · 92.67 %
-statements, 93.45 % lines (gate 80 %) · `eslint` and `prettier --check` clean on every changed file.
+Local battery on the latest tree (after slice B2 partial): `tsc` 0 · **159 files, 7,344 tests, 0
+failures** · 92.7 % statements, 93.48 % lines (gate 80 %) · `eslint` and `prettier --check` clean on
+every changed file. Nothing in `db/**` ran: no database here — CI with `[db]` `[e2e]` proves it.
 
 ## Invariants and where each is enforced
 
@@ -83,6 +88,17 @@ Mirrors the plan's invariant table; `Database` is the strongest layer and the on
   because the permission matrix needs a label for the new overridable section. Both land with Part 8.
 - **`app.BoardCard` and migration 038** — see Part 3.
 - **Part 1 (colour)** — see Part 1; blocked by the base, not by choice.
+- **Column `Delete`** (B2). It reflows a column's cards into a target column before soft-deleting, so
+  it reads and writes `app.BoardCard`, which is not on this base. It lands with the card slice; a proc
+  referencing a table that does not exist yet could not be DB-tested and would fail at run time.
+- **The column server actions** (B2). The board view that calls `createBoardColumn`/`updateBoardColumn`/
+  `moveBoardColumn` is deferred (Part 8); it owns the routes those actions revalidate, so the thin
+  action wrappers land with it. The mass-assignment property is already pinned at the repository layer,
+  which is where `execProc` is actually called.
+- **`use-pointer-drag.ts`** (B2). The React hook has no consumer until the board view, and an untested
+  client hook would not be exercised by any test here. The pure primitives it would wrap have landed.
+- **`ListAssignees`** (B2 in the plan's order). Its only consumers — card-assignee validation and the
+  card sheet — are in the deferred card slice, so building it now would be unconsumed code.
 
 ## Not owned by this module
 
