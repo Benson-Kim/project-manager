@@ -25,6 +25,13 @@ export const MAX_BOARD_COLUMNS = 12;
 /** app.BoardColumn.Name. */
 export const BOARD_COLUMN_NAME_MAX = 60;
 
+/** app.BoardPhase.Name. */
+export const BOARD_PHASE_NAME_MAX = 100;
+
+/** app.BoardSprint.Name and app.BoardSprint.Goal. */
+export const BOARD_SPRINT_NAME_MAX = 100;
+export const BOARD_SPRINT_GOAL_MAX = 1000;
+
 /** app.BoardCard.Title. */
 export const BOARD_CARD_TITLE_MAX = 300;
 
@@ -78,6 +85,47 @@ export function wipState(count: number, limit: number | null): WipState {
   if (count > limit) return "over";
   if (count >= limit) return "full";
   return "ok";
+}
+
+export interface SprintActionsSource {
+  BoardSprintId: number;
+  State: SprintState;
+}
+
+/** Which lifecycle buttons a sprint offers. The server decides; this decides what to show. */
+export interface SprintActions {
+  canEdit: boolean;
+  canStart: boolean;
+  canComplete: boolean;
+  canDelete: boolean;
+}
+
+/**
+ * A sprint's lifecycle moves planned -> active -> completed and never back, and
+ * each step is its own intention on the server: usp_BoardSprint_Start,
+ * usp_BoardSprint_Complete, usp_BoardSprint_Delete. This mirrors the conditions
+ * those procs enforce under the board lock, so the interface offers only the
+ * steps that would succeed — it does not replace them. The procs remain the
+ * authority: a stale picture of the board can still earn a refusal, which is
+ * why starting a second sprint answers 50007 rather than being merely hidden.
+ *
+ * `canStart` needs the board's active sprint, not just this row: a planned
+ * sprint cannot start while another is running (UQ_BoardSprint_Active).
+ * `canDelete` is planned-only — an active sprint is completed instead, and a
+ * completed one is kept as the record of what the team did.
+ */
+export function sprintActions(
+  sprint: SprintActionsSource,
+  activeSprintId: number | null,
+): SprintActions {
+  const isActive = sprint.State === "active";
+  const isPlanned = sprint.State === "planned";
+  return {
+    canEdit: sprint.State !== "completed",
+    canStart: isPlanned && activeSprintId === null,
+    canComplete: isActive,
+    canDelete: isPlanned,
+  };
 }
 
 export interface CardLabelSource {

@@ -421,6 +421,278 @@ describe("board card SQL guardrails", () => {
   });
 });
 
+const PROCS_PHASE = join("db", "procs", "board-phase");
+const phaseProcs = readdirSync(PROCS_PHASE).filter(
+  (f) => f.startsWith("usp_") && f.endsWith(".sql"),
+);
+
+/**
+ * Phases group sprints and carry no cards, so their procs are the plainest child-folder shape in
+ * the module: reach the board rule through a run-time proc call, lock before asserting, guard the
+ * phase's own RowVer (ADR-0038).
+ */
+describe("board phase SQL guardrails", () => {
+  it("has the Create, Update, Move and Delete phase procs", () => {
+    expect(phaseProcs.sort()).toEqual([
+      "usp_BoardPhase_Create.sql",
+      "usp_BoardPhase_Delete.sql",
+      "usp_BoardPhase_Move.sql",
+      "usp_BoardPhase_Update.sql",
+    ]);
+  });
+
+  it("asserts access through the board, so a phase cannot define its own rule", () => {
+    for (const name of phaseProcs) {
+      expect(sql(join(PROCS_PHASE, name)), name).toContain("EXEC dbo.usp_Board_AssertAccess");
+    }
+  });
+
+  it("locks the board row before asserting access, because a board can change project", () => {
+    for (const name of phaseProcs) {
+      const text = sql(join(PROCS_PHASE, name));
+      const tran = text.indexOf("BEGIN TRAN");
+      const lock = text.indexOf("WITH (UPDLOCK, HOLDLOCK)");
+      const assert = text.indexOf("EXEC dbo.usp_Board_AssertAccess");
+      expect(tran, name).toBeGreaterThan(0);
+      expect(lock, name).toBeGreaterThan(tran);
+      expect(assert, name).toBeGreaterThan(lock);
+    }
+  });
+
+  it("refuses a write made against a row version someone else has moved on from", () => {
+    for (const name of [
+      "usp_BoardPhase_Update.sql",
+      "usp_BoardPhase_Move.sql",
+      "usp_BoardPhase_Delete.sql",
+    ]) {
+      const text = sql(join(PROCS_PHASE, name));
+      expect(text, name).toContain("CAST(RowVer AS BIGINT) = @RowVer");
+      expect(text, name).toContain("THROW 50002");
+    }
+  });
+
+  it("audits every phase write inside its own transaction", () => {
+    for (const name of phaseProcs) {
+      const text = sql(join(PROCS_PHASE, name));
+      const audit = text.indexOf("INSERT INTO audit.AuditLog");
+      expect(audit, name).toBeGreaterThan(text.indexOf("BEGIN TRAN"));
+      expect(audit, name).toBeLessThan(text.indexOf("COMMIT"));
+    }
+  });
+
+  it("keeps every phase proc static SQL, so the EXECUTE-only login can run it (ADR-0033)", () => {
+    for (const name of phaseProcs) {
+      expect(sql(join(PROCS_PHASE, name)), name).not.toMatch(/sp_executesql|EXEC\s*\(|EXECUTE AS/);
+    }
+  });
+
+  it("takes no board from the caller: a phase never moves between boards", () => {
+    for (const name of ["usp_BoardPhase_Update.sql", "usp_BoardPhase_Move.sql"]) {
+      expect(sql(join(PROCS_PHASE, name)), name).not.toContain("@BoardId  ");
+    }
+  });
+
+  /**
+   * A soft delete leaves the row in place, so FK_BoardSprint_Phase (BoardId, BoardPhaseId) would
+   * still resolve and a live sprint would read as grouped under a phase nobody can see. Releasing
+   * the sprints under the same board lock is what makes the plan's race row true: "no live sprint
+   * in a deleted phase".
+   */
+  it("releases a deleted phase's sprints before the phase goes, in the one transaction", () => {
+    const text = sql(join(PROCS_PHASE, "usp_BoardPhase_Delete.sql"));
+    const release = text.indexOf("UPDATE app.BoardSprint");
+    const remove = text.indexOf("UPDATE app.BoardPhase");
+    expect(release).toBeGreaterThan(0);
+    expect(remove).toBeGreaterThan(release);
+    expect(text.indexOf("COMMIT")).toBeGreaterThan(remove);
+    expect(text).toContain("BoardPhaseId = NULL");
+  });
+
+  it("deletes a phase as a Manager verb, like every other delete in the module", () => {
+    expect(sql(join(PROCS_PHASE, "usp_BoardPhase_Delete.sql"))).toContain(
+      "@MinLevel = N'Manager', @Permission = N'boards:delete'",
+    );
+  });
+});
+
+const PROCS_SPRINT = join("db", "procs", "board-sprint");
+const sprintProcs = readdirSync(PROCS_SPRINT).filter(
+  (f) => f.startsWith("usp_") && f.endsWith(".sql"),
+);
+
+/**
+ * A sprint's lifecycle moves planned -> active -> completed and never back, and each step is its
+ * own intention because each carries work with it (ADR-0038). These tests hold that shape: the
+ * state is not a field on an edit, the one-active rule is checked under the board lock with the
+ * filtered unique index behind it, and a completed sprint is read-only.
+ */
+describe("board sprint SQL guardrails", () => {
+  it("has the five sprint procs, the lifecycle steps among them", () => {
+    expect(sprintProcs.sort()).toEqual([
+      "usp_BoardSprint_Complete.sql",
+      "usp_BoardSprint_Create.sql",
+      "usp_BoardSprint_Delete.sql",
+      "usp_BoardSprint_Start.sql",
+      "usp_BoardSprint_Update.sql",
+    ]);
+  });
+
+  it("asserts access through the board, so a sprint cannot define its own rule", () => {
+    for (const name of sprintProcs) {
+      expect(sql(join(PROCS_SPRINT, name)), name).toContain("EXEC dbo.usp_Board_AssertAccess");
+    }
+  });
+
+  it("locks the board row before asserting access, because a board can change project", () => {
+    for (const name of sprintProcs) {
+      const text = sql(join(PROCS_SPRINT, name));
+      const tran = text.indexOf("BEGIN TRAN");
+      const lock = text.indexOf("WITH (UPDLOCK, HOLDLOCK)");
+      const assert = text.indexOf("EXEC dbo.usp_Board_AssertAccess");
+      expect(tran, name).toBeGreaterThan(0);
+      expect(lock, name).toBeGreaterThan(tran);
+      expect(assert, name).toBeGreaterThan(lock);
+    }
+  });
+
+  it("refuses a write made against a row version someone else has moved on from", () => {
+    for (const name of [
+      "usp_BoardSprint_Update.sql",
+      "usp_BoardSprint_Start.sql",
+      "usp_BoardSprint_Complete.sql",
+      "usp_BoardSprint_Delete.sql",
+    ]) {
+      const text = sql(join(PROCS_SPRINT, name));
+      expect(text, name).toContain("CAST(RowVer AS BIGINT) = @RowVer");
+      expect(text, name).toContain("THROW 50002");
+    }
+  });
+
+  it("audits every sprint write inside its own transaction", () => {
+    for (const name of sprintProcs) {
+      const text = sql(join(PROCS_SPRINT, name));
+      const audit = text.indexOf("INSERT INTO audit.AuditLog");
+      expect(audit, name).toBeGreaterThan(text.indexOf("BEGIN TRAN"));
+      expect(audit, name).toBeLessThan(text.indexOf("COMMIT"));
+    }
+  });
+
+  it("keeps every sprint proc static SQL, so the EXECUTE-only login can run it (ADR-0033)", () => {
+    for (const name of sprintProcs) {
+      expect(sql(join(PROCS_SPRINT, name)), name).not.toMatch(/sp_executesql|EXEC\s*\(|EXECUTE AS/);
+    }
+  });
+
+  /**
+   * The point of splitting Start and Complete out of Update: an edit must not be able to start or
+   * finish a sprint as a side effect of renaming it. The state and both stamps are therefore
+   * absent from the edit's parameter list, and this fails if any of them is ever added.
+   */
+  it("takes no state or stamp on an edit: the lifecycle is its own intention", () => {
+    const text = sql(join(PROCS_SPRINT, "usp_BoardSprint_Update.sql"));
+    const params = text.slice(text.indexOf("CREATE OR ALTER PROCEDURE"), text.indexOf("\nAS\n"));
+    for (const forbidden of ["@State", "@StartedAtUtc", "@CompletedAtUtc"]) {
+      expect(params, forbidden).not.toContain(forbidden);
+    }
+  });
+
+  it("creates every sprint planned, so nothing is born already running", () => {
+    const text = sql(join(PROCS_SPRINT, "usp_BoardSprint_Create.sql"));
+    expect(text).toContain("'planned'");
+    const params = text.slice(text.indexOf("CREATE OR ALTER PROCEDURE"), text.indexOf("\nAS\n"));
+    expect(params).not.toContain("@State");
+  });
+
+  /**
+   * The index is the backstop, not the check: under the board lock the proc always sees a
+   * committed active sprint, so the plan's race row holds — "exactly 1 active; the rest 50007,
+   * never 2601". 2601 maps to INTERNAL, which is the outcome this ordering avoids.
+   */
+  it("checks for a running sprint under the lock, before the unique index could fire", () => {
+    const text = sql(join(PROCS_SPRINT, "usp_BoardSprint_Start.sql"));
+    const lock = text.indexOf("WITH (UPDLOCK, HOLDLOCK)");
+    const check = text.indexOf("[State] = 'active'");
+    const write = text.indexOf("UPDATE app.BoardSprint");
+    expect(check).toBeGreaterThan(lock);
+    expect(write).toBeGreaterThan(check);
+    expect(text).toContain("THROW 50007");
+    expect(sql(MIGRATION)).toContain("UQ_BoardSprint_Active");
+  });
+
+  it("starts only a planned sprint, and says so apart from the already-running case", () => {
+    const text = sql(join(PROCS_SPRINT, "usp_BoardSprint_Start.sql"));
+    expect(text).toContain("Only a planned sprint can be started");
+    expect(text).toContain("@State <> 'planned'");
+  });
+
+  /**
+   * Starting or completing a sprint changes which cards every column counts, so a column can end
+   * up over its limit. The plan is explicit that this is allowed and that the column then takes
+   * nothing new — so neither proc may consult the work-in-progress check and refuse the
+   * transition. A board whose sprint cannot be closed is worse than a column reading "6 / 5".
+   */
+  it("never blocks a lifecycle step on a work-in-progress limit", () => {
+    for (const name of ["usp_BoardSprint_Start.sql", "usp_BoardSprint_Complete.sql"]) {
+      // The call, not the name: both headers explain at length why they do not make this check.
+      expect(sql(join(PROCS_SPRINT, name)), name).not.toContain("EXEC dbo.usp_Board_AssertRoom");
+    }
+  });
+
+  it("keeps a completed sprint read-only, and refuses to delete it at all", () => {
+    expect(sql(join(PROCS_SPRINT, "usp_BoardSprint_Update.sql"))).toContain("@State = 'completed'");
+    const del = sql(join(PROCS_SPRINT, "usp_BoardSprint_Delete.sql"));
+    expect(del).toContain("@State = 'active'");
+    expect(del).toContain("@State = 'completed'");
+  });
+
+  /**
+   * What makes the completed sprint an honest record: only cards in a done column stay in it, and
+   * the state change commits in the same transaction as the moves.
+   */
+  it("moves the unfinished cards out before the sprint closes, in one transaction", () => {
+    const text = sql(join(PROCS_SPRINT, "usp_BoardSprint_Complete.sql"));
+    const move = text.indexOf("UPDATE c SET");
+    const close = text.indexOf("UPDATE app.BoardSprint");
+    expect(move).toBeGreaterThan(text.indexOf("BEGIN TRAN"));
+    expect(close).toBeGreaterThan(move);
+    expect(text.indexOf("COMMIT")).toBeGreaterThan(close);
+    // Unfinished is decided by the column's category, and only those cards move.
+    expect(text).toContain("col.Category <> 'done'");
+    expect(text).toContain("col.Category = 'done'");
+    // A card changes sprint, never column: the two axes stay independent. Asserted on the SET
+    // list alone, because the statement joins app.BoardColumn to read the category.
+    const setList = text.slice(move, text.indexOf("FROM app.BoardCard c", move));
+    expect(setList).toContain("BoardSprintId = @UnfinishedToSprintId");
+    expect(setList).not.toContain("BoardColumnId");
+  });
+
+  it("sends a deleted planned sprint's cards to the backlog, keeping their columns", () => {
+    const text = sql(join(PROCS_SPRINT, "usp_BoardSprint_Delete.sql"));
+    const backlog = text.indexOf("BoardSprintId = NULL");
+    const remove = text.indexOf("UPDATE app.BoardSprint SET");
+    expect(backlog).toBeGreaterThan(0);
+    expect(remove).toBeGreaterThan(backlog);
+    expect(text).not.toContain("BoardColumnId =");
+  });
+
+  it("runs the lifecycle as Contributor and deletes as Manager", () => {
+    for (const name of ["usp_BoardSprint_Start.sql", "usp_BoardSprint_Complete.sql"]) {
+      expect(sql(join(PROCS_SPRINT, name)), name).toContain(
+        "@MinLevel = N'Contributor', @Permission = N'boards:update'",
+      );
+    }
+    expect(sql(join(PROCS_SPRINT, "usp_BoardSprint_Delete.sql"))).toContain(
+      "@MinLevel = N'Manager', @Permission = N'boards:delete'",
+    );
+  });
+
+  it("takes unfinished cards only into a planned sprint of the same board", () => {
+    const text = sql(join(PROCS_SPRINT, "usp_BoardSprint_Complete.sql"));
+    expect(text).toContain("That sprint is not on this board");
+    expect(text).toContain("[State] = 'planned'");
+  });
+});
+
 /**
  * The work-in-progress rule is one rule. It decides what a column's count means, what the limit is
  * measured against, and which cards the board draws — so it lives in one function that both the
@@ -434,16 +706,29 @@ describe("the work-in-progress rule has one definition", () => {
     expect(assertRoom).not.toContain("[State] = 'active'");
   });
 
-  it("is the one proc that throws LIMIT_REACHED, and it is registered", () => {
+  /**
+   * 50007 has exactly two throwers, and each has to be argued for. AssertRoom means "this column
+   * is full"; usp_BoardSprint_Start means "another sprint of this board is already running". They
+   * share the code because both are a limit of this board that the user can see and act on, and
+   * the client picks the sentence from the intention invoked (messages.boards.columnFull against
+   * messages.boards.sprintAlreadyActive).
+   *
+   * This list was widened from one entry to two deliberately when slice B3 landed Start — the
+   * single-thrower assertion existed to force exactly that argument. A third thrower needs the
+   * same one; a general refusal is 50004, not this.
+   */
+  it("has exactly the two registered throwers of LIMIT_REACHED", () => {
     expect(assertRoom).toContain("THROW 50007");
-    const throwers = readdirSync(PROCS)
-      .concat(readdirSync(PROCS_CARD))
-      .filter((f) => f.endsWith(".sql"));
-    const files = throwers.filter((f) => {
-      const dir = f.startsWith("usp_BoardCard") ? PROCS_CARD : PROCS;
-      return sql(join(dir, f)).includes("THROW 50007");
-    });
-    expect(files).toEqual(["usp_Board_AssertRoom.sql"]);
+    const files = [PROCS, PROCS_CARD, PROCS_COLUMN, PROCS_PHASE, PROCS_SPRINT]
+      .flatMap((dir) =>
+        readdirSync(dir)
+          .filter((f) => f.endsWith(".sql"))
+          .map((f) => [dir, f] as const),
+      )
+      .filter(([dir, f]) => sql(join(dir, f)).includes("THROW 50007"))
+      .map(([, f]) => f)
+      .sort();
+    expect(files).toEqual(["usp_BoardSprint_Start.sql", "usp_Board_AssertRoom.sql"]);
   });
 
   it("refuses to run outside the caller's transaction, where no board lock is held", () => {

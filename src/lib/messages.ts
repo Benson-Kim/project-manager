@@ -512,6 +512,46 @@ export const messages = {
     columnFull: (name: string) => `“${name}” is at its work-in-progress limit.`,
     /** 50007 from a sprint start: another sprint of this board is already running. */
     sprintAlreadyActive: "Another sprint is already active on this board.",
+    phases: "Phases",
+    newPhase: "New phase",
+    phaseName: "Phase name",
+    phaseNameRequired: "Enter a phase name",
+    deletePhaseTitle: "Delete this phase?",
+    /** A phase's sprints are released, not deleted, so the dialog says what survives. */
+    deletePhaseBody: (count: number) =>
+      count === 1
+        ? "Its 1 sprint keeps its dates and moves out of any phase."
+        : `Its ${count} sprints keep their dates and move out of any phase.`,
+    sprints: "Sprints",
+    newSprint: "New sprint",
+    sprintName: "Sprint name",
+    sprintNameRequired: "Enter a sprint name",
+    sprintGoal: "Sprint goal",
+    sprintPhase: "Phase",
+    noPhase: "No phase",
+    backlog: "Backlog",
+    startSprint: "Start sprint",
+    completeSprint: "Complete sprint",
+    sprintStates: {
+      planned: "Planned",
+      active: "Active",
+      completed: "Completed",
+    },
+    completeSprintTitle: "Complete this sprint?",
+    /** Completing a sprint is a one-way door, so the dialog names what moves first. */
+    completeSprintBody: (unfinished: number, target: string) =>
+      unfinished === 1
+        ? `Its 1 unfinished card moves to ${target}. There is no reopen.`
+        : `Its ${unfinished} unfinished cards move to ${target}. There is no reopen.`,
+    /** What usp_BoardSprint_Complete reported, once it has run. */
+    sprintCompleted: (kept: number, moved: number) => `${kept} done, ${moved} moved on.`,
+    deleteSprintTitle: "Delete this sprint?",
+    deleteSprintBody: (count: number) =>
+      count === 1
+        ? "Its 1 card goes back to the backlog, keeping its column."
+        : `Its ${count} cards go back to the backlog, keeping their columns.`,
+    activeSprintNotDeletable: "Complete the active sprint instead of deleting it.",
+    completedSprintReadOnly: "A completed sprint is kept as a record and cannot be changed.",
     deleteColumnTitle: "Delete this column?",
     deleteColumnBody: (count: number, target: string) =>
       count === 1 ? `Its 1 card moves to “${target}”.` : `Its ${count} cards move to “${target}”.`,

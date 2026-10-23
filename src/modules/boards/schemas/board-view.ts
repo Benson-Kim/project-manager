@@ -3,7 +3,9 @@ import { actorAccessFields } from "@/lib/auth/actor-access";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 import { boardCardListRowSchema } from "./board-card";
 import { boardColumnRowSchema } from "./board-column";
-import { BOARD_VIEWS, CARDS_PER_LIST, CARDS_PER_LIST_MAX, SPRINT_STATES } from "./board-rules";
+import { boardPhaseRowSchema, type BoardPhaseRow } from "./board-phase";
+import { BOARD_VIEWS, CARDS_PER_LIST, CARDS_PER_LIST_MAX } from "./board-rules";
+import { boardSprintRowSchema } from "./board-sprint";
 
 /**
  * The board read model (usp_Board_GetBoard) — five result sets, read together
@@ -48,37 +50,21 @@ export const boardViewColumnRowSchema = boardColumnRowSchema.extend({
 
 export type BoardViewColumnRow = z.infer<typeof boardViewColumnRowSchema>;
 
-/** Set 3: the phases that group the sprints. */
-export const boardPhaseRowSchema = z.object({
-  BoardPhaseId: z.number().int(),
-  BoardId: z.number().int(),
-  Name: z.string(),
-  StartDate: z.date().nullable(),
-  EndDate: z.date().nullable(),
-  SortOrder: z.number().int(),
-  RowVer: rowVerSchema,
-});
+/** Set 3: the phases that group the sprints. The phase entity, unchanged by the read. */
+export { boardPhaseRowSchema, type BoardPhaseRow };
 
-export type BoardPhaseRow = z.infer<typeof boardPhaseRowSchema>;
-
-/** Set 4: the sprints, with the totals the planning view shows. */
-export const boardSprintRowSchema = z.object({
-  BoardSprintId: z.number().int(),
-  BoardId: z.number().int(),
-  BoardPhaseId: z.number().int().nullable(),
-  Name: z.string(),
-  Goal: z.string().nullable(),
-  StartDate: z.date(),
-  EndDate: z.date(),
-  State: z.enum(SPRINT_STATES),
-  StartedAtUtc: z.date().nullable(),
-  CompletedAtUtc: z.date().nullable(),
-  RowVer: rowVerSchema,
+/**
+ * Set 4: the sprints, with the two totals the planning view shows. The ten
+ * columns of a sprint are defined once, in board-sprint.ts; this extends them
+ * with the aggregates, which belong to the read and are not part of the row any
+ * write proc returns.
+ */
+export const boardSprintViewRowSchema = boardSprintRowSchema.extend({
   CardCount: z.number().int(),
   PointTotal: z.number().int(),
 });
 
-export type BoardSprintRow = z.infer<typeof boardSprintRowSchema>;
+export type BoardSprintViewRow = z.infer<typeof boardSprintViewRowSchema>;
 
 /**
  * usp_Board_ListAssignees: the card sheet's picker. UserId and DisplayName
@@ -96,7 +82,7 @@ export interface BoardView {
   header: BoardHeaderRow;
   columns: BoardViewColumnRow[];
   phases: BoardPhaseRow[];
-  sprints: BoardSprintRow[];
+  sprints: BoardSprintViewRow[];
   cards: z.infer<typeof boardCardListRowSchema>[];
 }
 

@@ -21,7 +21,7 @@ import {
   boardAssigneeRowSchema,
   boardHeaderRowSchema,
   boardPhaseRowSchema,
-  boardSprintRowSchema,
+  boardSprintViewRowSchema,
   boardViewColumnRowSchema,
   getBoardInput,
   type BoardAssigneeRow,
@@ -147,7 +147,7 @@ export async function getBoard(input: GetBoardInput, actorUserId: number): Promi
     header: boardHeaderRowSchema.parse(header),
     columns: (sets[1] ?? []).map((r) => boardViewColumnRowSchema.parse(r)),
     phases: (sets[2] ?? []).map((r) => boardPhaseRowSchema.parse(r)),
-    sprints: (sets[3] ?? []).map((r) => boardSprintRowSchema.parse(r)),
+    sprints: (sets[3] ?? []).map((r) => boardSprintViewRowSchema.parse(r)),
     cards: (sets[4] ?? []).map((r) => boardCardListRowSchema.parse(r)),
   };
 }

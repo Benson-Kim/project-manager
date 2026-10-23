@@ -15,6 +15,8 @@ const MODULES: Record<string, string> = {
   board: "boards",
   "board-column": "boards",
   "board-card": "boards",
+  "board-phase": "boards",
+  "board-sprint": "boards",
   "daily-activity": "daily-activities",
   "key-deliverable": "key-deliverables",
   keyword: "keywords",
@@ -70,6 +72,10 @@ const VERBS: Record<string, string> = {
   Rename: "update",
   // Requirements (ADR-0037): taking a requirement off one deliverable is an update of it.
   Unallocate: "update",
+  // Boards (ADR-0038): running a sprint is editing the board's work, not administering it, so
+  // both lifecycle steps are Contributor verbs — the same level as moving a card.
+  Start: "update",
+  Complete: "update",
   // Status picked from the WBS or Gantt menu (ADR-0036).
   SetStatus: "update",
   Dismiss: "update",
