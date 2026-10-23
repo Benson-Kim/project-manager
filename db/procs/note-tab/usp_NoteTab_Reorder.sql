@@ -27,7 +27,7 @@ BEGIN
 
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Contributor', @Permission = N'notes:update', @AllowProjectless = 0;
+         @MinLevel = N'Contributor', @Permission = N'notes:update', @AllowProjectless = 1;
 
     IF ISJSON(@OrderJson) = 0 OR LEFT(TRIM(@OrderJson), 1) <> N'['
         THROW 50004, N'VALIDATION:OrderJson must be a JSON array', 1;

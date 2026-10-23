@@ -19,7 +19,7 @@ import {
   updateNoteAction,
   updateNoteTabAction,
 } from "../actions";
-import { NOTE_TITLE_MAX, type NoteRow, type NoteTabRow } from "../schemas/note";
+import { NOTE_PAGES_MAX, NOTE_TITLE_MAX, type NoteRow, type NoteTabRow } from "../schemas/note";
 
 const M = messages.notes;
 
@@ -55,6 +55,7 @@ export function NotebookWorkspace({
   const [confirm, setConfirm] = useState<"page" | "note" | null>(null);
   useUnsavedChangesGuard(titleDirty || pageDirty);
 
+  const full = tabs.length >= NOTE_PAGES_MAX;
   const active = tabs.find((tab) => tab.NoteTabId === activeId) ?? tabs[0] ?? null;
   const activeIndex = active ? tabs.indexOf(active) : -1;
 
@@ -255,12 +256,16 @@ export function NotebookWorkspace({
             type="button"
             variant="secondary"
             pending={pending}
+            disabled={full}
             className="min-h-11"
             onClick={addPage}
             data-testid="note-add-page"
           >
             {M.addPage}
           </Button>
+        ) : null}
+        {canCreate && full ? (
+          <p className="text-sm text-ink-muted">{M.pageLimit(NOTE_PAGES_MAX)}</p>
         ) : null}
       </div>
 

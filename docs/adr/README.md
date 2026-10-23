@@ -49,3 +49,4 @@ the full rules and examples derived from these decisions.
 | [0040](ADR-0040-row-access-answers-alike.md) | A project the actor cannot see answers NOT_FOUND, not FORBIDDEN_ROW | **Proposed** (amends 0012, 0021; closes ADR-0037 finding 2). 0038 is boards' (`feature/boards`), 0039 is reserved for WBS/Gantt colour mode |
 | [0041](ADR-0041-rich-text-formats.md) | Rich-text colours stored by name (theme-safe), highlights, cell shading, indents, numbering styles, h2-h6 and page breaks | Accepted (amends 0025) |
 | [0042](ADR-0042-toolbar-hover-hints.md) | Hover hints on the rich-text toolbar only: each control's name and shortcut, from its aria-label and aria-keyshortcuts (WCAG 1.4.13) | Accepted (amends STANDARDS §5.1, 0025) |
+| [0045](ADR-0045-read-committed-snapshot.md) | Versioned reads: READ_COMMITTED_SNAPSHOT on, so a read takes no shared locks and can no longer deadlock with a write | Accepted (amends 0035's race checks) |
