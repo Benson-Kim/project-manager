@@ -1,20 +1,24 @@
 import { describe, expect, it } from "vitest";
 import "@/lib/rich-text/sanitize";
 import { messages } from "@/lib/messages";
-import { meetingRowSchema } from "../schemas/meeting";
+import { ACTION_STATUSES, meetingRowSchema } from "../schemas/meeting";
 import {
   MEETING_PARTICIPANTS_MAX,
   MEETING_REORDER_MAX,
+  MEETING_TEXT_MAX,
   createActionItemSchema,
   createAgendaItemSchema,
   createDiscussionPointSchema,
+  createFollowUpSchema,
   createMeetingDraftSchema,
   meetingFormSchema,
   meetingFormValues,
   reorderActionItemsSchema,
   reorderAgendaSchema,
+  setActionItemStatusSchema,
   setParticipantsSchema,
   updateActionItemSchema,
+  updateFollowUpSchema,
   updateMeetingFormSchema,
 } from "../schemas/meeting-form";
 import { meetingDbRow } from "./fixtures";
@@ -275,7 +279,97 @@ describe("minutes schemas", () => {
       "dueDate",
       "meetingActionItemId",
       "rowVer",
+      "status",
     ]);
+  });
+
+  it("an action's status defaults to in-progress and takes only the three (ADR-0041)", () => {
+    const base = { meetingActionItemId: "1", rowVer: "3", action: "Do it" };
+    expect(updateActionItemSchema.parse(base).status).toBe("in-progress");
+    expect(updateActionItemSchema.parse({ ...base, status: "" }).status).toBe("in-progress");
+    for (const status of ACTION_STATUSES) {
+      expect(updateActionItemSchema.parse({ ...base, status }).status).toBe(status);
+    }
+    expect(updateActionItemSchema.safeParse({ ...base, status: "done" }).success).toBe(false);
+    expect(updateActionItemSchema.safeParse({ ...base, status: "Completed" }).success).toBe(false);
+  });
+
+  it("a status change carries the status and nothing else", () => {
+    const parsed = setActionItemStatusSchema.parse({
+      meetingActionItemId: "1",
+      rowVer: "3",
+      status: "completed",
+      action: "Overwrite me",
+      assignedToStakeholderId: "9",
+    });
+    expect(Object.keys(parsed).sort()).toEqual(["meetingActionItemId", "rowVer", "status"]);
+  });
+});
+
+describe("follow-up schemas (ADR-0041)", () => {
+  it("a create takes its action and its own four fields, and nothing else", () => {
+    const parsed = createFollowUpSchema.parse({
+      meetingActionItemId: "1",
+      followUp: "Chased the supplier",
+      assignedToStakeholderId: "3",
+      followUpDate: "2026-10-18",
+      dueDate: "2026-10-20",
+      isDeleted: "1",
+      sortOrder: "9",
+      createdBy: "7",
+    });
+    expect(Object.keys(parsed).sort()).toEqual([
+      "assignedToStakeholderId",
+      "dueDate",
+      "followUp",
+      "followUpDate",
+      "meetingActionItemId",
+    ]);
+    expect(parsed.assignedToStakeholderId).toBe(3);
+    expect(parsed.followUpDate).toEqual(new Date("2026-10-18"));
+  });
+
+  it("an update carries no parent, so a follow-up never moves to another action", () => {
+    const parsed = updateFollowUpSchema.parse({
+      meetingActionFollowUpId: "1",
+      rowVer: "3",
+      followUp: "Chased again",
+      meetingActionItemId: "9",
+    });
+    expect(Object.keys(parsed).sort()).toEqual([
+      "assignedToStakeholderId",
+      "dueDate",
+      "followUp",
+      "followUpDate",
+      "meetingActionFollowUpId",
+      "rowVer",
+    ]);
+  });
+
+  it("needs text, and caps it like an action", () => {
+    const base = { meetingActionItemId: "1" };
+    expect(createFollowUpSchema.safeParse({ ...base, followUp: "  " }).success).toBe(false);
+    expect(createFollowUpSchema.safeParse({ ...base }).success).toBe(false);
+    expect(
+      createFollowUpSchema.safeParse({ ...base, followUp: "a".repeat(MEETING_TEXT_MAX + 1) })
+        .success,
+    ).toBe(false);
+    expect(
+      createFollowUpSchema.safeParse({ ...base, followUp: "a".repeat(MEETING_TEXT_MAX) }).success,
+    ).toBe(true);
+  });
+
+  it("empty dates and an empty person are no date and nobody", () => {
+    const parsed = createFollowUpSchema.parse({
+      meetingActionItemId: "1",
+      followUp: "Chased",
+      assignedToStakeholderId: "",
+      followUpDate: "",
+      dueDate: "",
+    });
+    expect(parsed.assignedToStakeholderId).toBeNull();
+    expect(parsed.followUpDate).toBeNull();
+    expect(parsed.dueDate).toBeNull();
   });
 });
 

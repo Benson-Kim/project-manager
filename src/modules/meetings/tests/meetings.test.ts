@@ -11,11 +11,13 @@ import {
   createActionItem,
   createAgendaItem,
   createDiscussionPoint,
+  createFollowUp,
   createMeeting,
   createMeetingDraft,
   deleteActionItem,
   deleteAgendaItem,
   deleteDiscussionPoint,
+  deleteFollowUp,
   deleteMeeting,
   getMeetingById,
   getMeetingRoster,
@@ -26,10 +28,13 @@ import {
   reorderActionItems,
   reorderAgendaItems,
   reorderDiscussionPoints,
+  reorderFollowUps,
+  setActionItemStatus,
   setParticipants,
   updateActionItem,
   updateAgendaItem,
   updateDiscussionPoint,
+  updateFollowUp,
   updateMeeting,
 } from "../repository/meetings";
 import {
@@ -41,6 +46,7 @@ import {
   meetingFormSchema,
   updateActionItemSchema,
   updateAgendaItemSchema,
+  updateFollowUpSchema,
   updateMeetingFormSchema,
 } from "../schemas/meeting-form";
 import {
@@ -403,6 +409,28 @@ describe("meetings repository: minutes and participants", () => {
         Action: "Do it",
         AssignedToStakeholderId: null,
         DueDate: null,
+        Status: "in-progress",
+        RowVer: 4,
+        ActorUserId: ACTOR,
+      },
+    ]);
+    await updateFollowUp(
+      updateFollowUpSchema.parse({
+        meetingActionFollowUpId: "1",
+        rowVer: "4",
+        followUp: "Chased",
+        meetingActionItemId: "8",
+      }),
+      ACTOR,
+    );
+    expect(call(4)).toEqual([
+      "usp_MeetingActionFollowUp_Update",
+      {
+        MeetingActionFollowUpId: 1,
+        FollowUp: "Chased",
+        AssignedToStakeholderId: null,
+        FollowUpDate: null,
+        DueDate: null,
         RowVer: 4,
         ActorUserId: ACTOR,
       },
@@ -442,6 +470,7 @@ describe("meetings repository: minutes and participants", () => {
             action: "Do it",
             assignedToStakeholderId: 3,
             dueDate: new Date("2024-12-20"),
+            status: "on-hold",
           },
           ACTOR,
         ),
@@ -452,7 +481,48 @@ describe("meetings repository: minutes and participants", () => {
         Action: "Do it",
         AssignedToStakeholderId: 3,
         DueDate: new Date("2024-12-20"),
+        Status: "on-hold",
       },
+    ],
+    [
+      "setActionItemStatus",
+      () => setActionItemStatus({ meetingActionItemId: 1, rowVer: 4, status: "completed" }, ACTOR),
+      "usp_MeetingActionItem_SetStatus",
+      { MeetingActionItemId: 1, Status: "completed", RowVer: 4 },
+    ],
+    [
+      "createFollowUp",
+      () =>
+        createFollowUp(
+          {
+            meetingActionItemId: 1,
+            followUp: "Chased the supplier",
+            assignedToStakeholderId: 3,
+            followUpDate: new Date("2024-12-18"),
+            dueDate: new Date("2024-12-20"),
+          },
+          ACTOR,
+        ),
+      "usp_MeetingActionFollowUp_Create",
+      {
+        MeetingActionItemId: 1,
+        FollowUp: "Chased the supplier",
+        AssignedToStakeholderId: 3,
+        FollowUpDate: new Date("2024-12-18"),
+        DueDate: new Date("2024-12-20"),
+      },
+    ],
+    [
+      "deleteFollowUp",
+      () => deleteFollowUp({ meetingActionFollowUpId: 1, rowVer: 2 }, ACTOR),
+      "usp_MeetingActionFollowUp_Delete",
+      { MeetingActionFollowUpId: 1, RowVer: 2 },
+    ],
+    [
+      "reorderFollowUps",
+      () => reorderFollowUps({ meetingActionItemId: 1, order: [{ id: 3, rowVer: 5 }] }, ACTOR),
+      "usp_MeetingActionFollowUp_Reorder",
+      { MeetingActionItemId: 1, OrderJson: '[{"id":3,"rowVer":5}]' },
     ],
     [
       "deleteActionItem",

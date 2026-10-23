@@ -5,38 +5,48 @@ import {
   createActionItem,
   createAgendaItem,
   createDiscussionPoint,
+  createFollowUp,
   createMeeting,
   createMeetingDraft,
   deleteActionItem,
   deleteAgendaItem,
   deleteDiscussionPoint,
+  deleteFollowUp,
   deleteMeeting,
   reorderActionItems,
   reorderAgendaItems,
   reorderDiscussionPoints,
+  reorderFollowUps,
+  setActionItemStatus,
   setParticipants,
   updateActionItem,
   updateAgendaItem,
   updateDiscussionPoint,
+  updateFollowUp,
   updateMeeting,
 } from "../repository/meetings";
 import {
   createActionItemSchema,
   createAgendaItemSchema,
   createDiscussionPointSchema,
+  createFollowUpSchema,
   createMeetingDraftSchema,
   deleteActionItemSchema,
   deleteAgendaItemSchema,
   deleteDiscussionPointSchema,
+  deleteFollowUpSchema,
   deleteMeetingSchema,
   meetingFormSchema,
   reorderActionItemsSchema,
   reorderAgendaSchema,
   reorderDiscussionPointsSchema,
+  reorderFollowUpsSchema,
+  setActionItemStatusSchema,
   setParticipantsSchema,
   updateActionItemSchema,
   updateAgendaItemSchema,
   updateDiscussionPointSchema,
+  updateFollowUpSchema,
   updateMeetingFormSchema,
 } from "../schemas/meeting-form";
 
@@ -178,6 +188,49 @@ export const reorderActionItemsAction = action({
   schema: reorderActionItemsSchema,
   permission: "meetings:update",
   handler: (input, ctx) => reorderActionItems(input, ctx.session.userId),
+});
+
+/**
+ * Ticking an action off (ADR-0041). It also runs from a later meeting's
+ * carried-over list, whose action belongs to another meeting of the same
+ * project: the proc resolves that meeting and its project from the action row
+ * and checks access there, so this never needs a meeting id from the caller.
+ */
+export const setActionItemStatusAction = action({
+  name: "meetings.action-set-status",
+  schema: setActionItemStatusSchema,
+  permission: "meetings:update",
+  handler: (input, ctx) => setActionItemStatus(input, ctx.session.userId),
+});
+
+/* An action item's follow-ups: the one-to-many under it (ADR-0041). */
+
+export const createFollowUpAction = action({
+  name: "meetings.follow-up-create",
+  schema: createFollowUpSchema,
+  permission: "meetings:create",
+  handler: (input, ctx) => createFollowUp(input, ctx.session.userId),
+});
+
+export const updateFollowUpAction = action({
+  name: "meetings.follow-up-update",
+  schema: updateFollowUpSchema,
+  permission: "meetings:update",
+  handler: (input, ctx) => updateFollowUp(input, ctx.session.userId),
+});
+
+export const deleteFollowUpAction = action({
+  name: "meetings.follow-up-delete",
+  schema: deleteFollowUpSchema,
+  permission: "meetings:delete",
+  handler: (input, ctx) => deleteFollowUp(input, ctx.session.userId),
+});
+
+export const reorderFollowUpsAction = action({
+  name: "meetings.follow-up-reorder",
+  schema: reorderFollowUpsSchema,
+  permission: "meetings:update",
+  handler: (input, ctx) => reorderFollowUps(input, ctx.session.userId),
 });
 
 /** Who attended and who sent apologies (CONFLICT when the panel's stamp is stale). */

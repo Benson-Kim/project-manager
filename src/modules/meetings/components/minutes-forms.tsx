@@ -7,7 +7,7 @@ import { useAnnouncer } from "@/components/ui/announcer";
 import { Button } from "@/components/ui/button";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
-import { DatePicker, Input } from "@/components/ui/form/inputs";
+import { DatePicker, Input, Select } from "@/components/ui/form/inputs";
 import { useUnsavedPart } from "@/components/ui/form/unsaved-scope";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
@@ -17,26 +17,40 @@ import {
   createActionItemAction,
   createAgendaItemAction,
   createDiscussionPointAction,
+  createFollowUpAction,
   updateActionItemAction,
   updateAgendaItemAction,
   updateDiscussionPointAction,
+  updateFollowUpAction,
 } from "../actions";
-import type {
-  MeetingWorkspace,
-  WorkspaceActionItem,
-  WorkspaceAgendaItem,
-  WorkspaceDiscussionPoint,
+import {
+  ACTION_STATUSES,
+  DEFAULT_ACTION_STATUS,
+  type ActionStatus,
+  type MeetingWorkspace,
+  type WorkspaceActionItem,
+  type WorkspaceAgendaItem,
+  type WorkspaceDiscussionPoint,
+  type WorkspaceFollowUp,
 } from "../schemas/meeting";
 import {
   MEETING_TEXT_MAX,
   createActionItemSchema,
   createAgendaItemSchema,
   createDiscussionPointSchema,
+  createFollowUpSchema,
   updateActionItemSchema,
   updateAgendaItemSchema,
   updateDiscussionPointSchema,
+  updateFollowUpSchema,
 } from "../schemas/meeting-form";
-import { editRowVer, sameAction, sameAgendaItem, samePoint } from "../schemas/minutes";
+import {
+  editRowVer,
+  sameAction,
+  sameAgendaItem,
+  sameFollowUp,
+  samePoint,
+} from "../schemas/minutes";
 import { useMinutes, type MinutesAnswer } from "./minutes-context";
 
 const M = messages.meetings;
@@ -283,10 +297,39 @@ export function DiscussionPointForm({
   );
 }
 
+/** The three statuses an action moves between (ADR-0041). */
+export function StatusSelect({
+  defaultValue,
+  name = "status",
+  onPick,
+  ariaLabel,
+}: {
+  defaultValue: ActionStatus;
+  name?: string;
+  onPick?: (status: ActionStatus) => void;
+  ariaLabel?: string;
+}) {
+  return (
+    <Select
+      name={name}
+      aria-label={ariaLabel}
+      defaultValue={defaultValue}
+      data-testid="action-status"
+      onChange={onPick ? (event) => onPick(event.target.value as ActionStatus) : undefined}
+    >
+      {ACTION_STATUSES.map((value) => (
+        <option key={value} value={value}>
+          {M.actionStatus[value]}
+        </option>
+      ))}
+    </Select>
+  );
+}
+
 /**
  * Adds an action under a discussion point (or directly under an agenda
  * item), or edits one: the action, the person responsible (a stakeholder of
- * the project, checklist row 13) and the due date.
+ * the project, checklist row 13), the due date and the status.
  */
 export function ActionItemForm({
   parent,
@@ -322,7 +365,11 @@ export function ActionItemForm({
         >
           <StakeholderSelect
             name="assignedToStakeholderId"
-            options={people(action)}
+            options={people(
+              action
+                ? { id: action.AssignedToStakeholderId, name: action.AssigneeName }
+                : undefined,
+            )}
             defaultValue={action?.AssignedToStakeholderId ?? null}
             onSelect={changed}
           />
@@ -331,6 +378,9 @@ export function ActionItemForm({
           <DatePicker name="dueDate" defaultValue={action?.DueDate ?? ""} />
         </Field>
       </div>
+      <Field label={M.status} name="status" errors={errors.status}>
+        <StatusSelect defaultValue={action?.Status ?? DEFAULT_ACTION_STATUS} />
+      </Field>
     </>
   );
 
@@ -368,6 +418,110 @@ export function ActionItemForm({
           ) : (
             <input type="hidden" name="discussionPointId" value={discussionPointId} />
           )}
+          {fields(errors, changed)}
+        </>
+      )}
+    </MinutesForm>
+  );
+}
+
+/**
+ * Adds a follow-up under an action item, or edits one (ADR-0041): what was
+ * followed up, the person it is assigned to, the date it was made and the date
+ * it is due. The status stays on the action, so a reader looks in one place.
+ */
+export function FollowUpForm({
+  meetingActionItemId,
+  followUp,
+  onDone,
+}: {
+  meetingActionItemId: number;
+  followUp?: WorkspaceFollowUp;
+  onDone: (saved: boolean) => void;
+}) {
+  const { answer, people } = useMinutes();
+  const [started] = useState(followUp);
+  const common = {
+    label: followUp ? M.editItem(M.followUpEntity) : M.addFollowUp,
+    testId: "follow-up-form",
+    onSaved: (workspace: MeetingWorkspace | null) => {
+      answer(workspace);
+      onDone(true);
+    },
+    onClose: () => onDone(false),
+  };
+  const fields = (errors: Record<string, string[]>, changed: () => void) => (
+    <>
+      <Field label={M.followUp} name="followUp" errors={errors.followUp}>
+        <Input
+          name="followUp"
+          maxLength={MEETING_TEXT_MAX}
+          defaultValue={followUp?.FollowUp ?? ""}
+        />
+      </Field>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Field
+          label={M.assignedTo}
+          name="assignedToStakeholderId"
+          errors={errors.assignedToStakeholderId}
+        >
+          <StakeholderSelect
+            name="assignedToStakeholderId"
+            options={people(
+              followUp
+                ? { id: followUp.AssignedToStakeholderId, name: followUp.AssigneeName }
+                : undefined,
+            )}
+            defaultValue={followUp?.AssignedToStakeholderId ?? null}
+            onSelect={changed}
+          />
+        </Field>
+        <Field label={M.followUpDate} name="followUpDate" errors={errors.followUpDate}>
+          <DatePicker name="followUpDate" defaultValue={followUp?.FollowUpDate ?? ""} />
+        </Field>
+        <Field label={M.dueDate} name="dueDate" errors={errors.dueDate}>
+          <DatePicker name="dueDate" defaultValue={followUp?.DueDate ?? ""} />
+        </Field>
+      </div>
+    </>
+  );
+
+  if (followUp && started) {
+    return (
+      <MinutesForm
+        {...common}
+        part={`follow-up-${followUp.MeetingActionFollowUpId}`}
+        schema={updateFollowUpSchema}
+        submit={updateFollowUpAction}
+      >
+        {(errors, changed) => (
+          <>
+            <input
+              type="hidden"
+              name="meetingActionFollowUpId"
+              value={followUp.MeetingActionFollowUpId}
+            />
+            <input
+              type="hidden"
+              name="rowVer"
+              value={editRowVer(started, followUp, sameFollowUp)}
+            />
+            {fields(errors, changed)}
+          </>
+        )}
+      </MinutesForm>
+    );
+  }
+  return (
+    <MinutesForm
+      {...common}
+      part={`follow-up-new-${meetingActionItemId}`}
+      schema={createFollowUpSchema}
+      submit={createFollowUpAction}
+    >
+      {(errors, changed) => (
+        <>
+          <input type="hidden" name="meetingActionItemId" value={meetingActionItemId} />
           {fields(errors, changed)}
         </>
       )}

@@ -62,10 +62,18 @@ BEGIN
     OUTPUT inserted.MeetingActionItemId INTO @Removed (Id)
     WHERE IsDeleted = 0 AND DiscussionPointId = @MeetingDiscussionPointId;
 
+    -- The follow-ups of those actions go with them (ADR-0041).
+    DECLARE @RemovedFollowUps TABLE (Id INT);
+
+    UPDATE app.MeetingActionFollowUp SET IsDeleted = 1, DeletedAtUtc = @Now, DeletedBy = @ActorUserId
+    OUTPUT inserted.MeetingActionFollowUpId INTO @RemovedFollowUps (Id)
+    WHERE IsDeleted = 0 AND MeetingActionItemId IN (SELECT Id FROM @Removed);
+
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Delete', N'app.MeetingDiscussionPoint', CAST(@MeetingDiscussionPointId AS NVARCHAR(64)), @Before,
             (SELECT dp.MeetingDiscussionPointId, dp.IsDeleted, dp.DeletedAtUtc, dp.DeletedBy,
-                    JSON_QUERY((SELECT Id FROM @Removed FOR JSON PATH)) AS ActionItems
+                    JSON_QUERY((SELECT Id FROM @Removed FOR JSON PATH)) AS ActionItems,
+                    JSON_QUERY((SELECT Id FROM @RemovedFollowUps FOR JSON PATH)) AS ActionFollowUps
              FROM app.MeetingDiscussionPoint AS dp WHERE dp.MeetingDiscussionPointId = @MeetingDiscussionPointId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 

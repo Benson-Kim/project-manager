@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useAnnouncer } from "@/components/ui/announcer";
@@ -12,19 +13,24 @@ import {
   deleteActionItemAction,
   deleteAgendaItemAction,
   deleteDiscussionPointAction,
+  deleteFollowUpAction,
   reorderActionItemsAction,
   reorderAgendaItemsAction,
   reorderDiscussionPointsAction,
+  reorderFollowUpsAction,
+  setActionItemStatusAction,
 } from "../actions";
 import type {
+  ActionStatus,
   MeetingWorkspace,
   RosterEntry,
-  WorkspaceActionItem,
   WorkspaceDiscussionPoint,
 } from "../schemas/meeting";
 import {
   agendaSiblings,
   buildMinutes,
+  carriedOverActions,
+  itemName,
   moveOrder,
   openActions,
   personOptions,
@@ -36,9 +42,10 @@ import {
   type MinutesAnswer,
   type MinutesContextValue,
   type MoveRequest,
+  type PickedPerson,
 } from "./minutes-context";
-import { AgendaItemForm } from "./minutes-forms";
-import { AgendaBlock, OverdueBadge } from "./minutes-tree";
+import { AgendaItemForm, StatusSelect } from "./minutes-forms";
+import { AgendaBlock, OverdueBadge, StatusBadge } from "./minutes-tree";
 
 const M = messages.meetings;
 
@@ -50,6 +57,9 @@ function requestReorder(
   if (request.kind === "agenda") return reorderAgendaItemsAction({ meetingId, order });
   if (request.kind === "point") {
     return reorderDiscussionPointsAction({ agendaItemId: request.agendaItemId, order });
+  }
+  if (request.kind === "followUp") {
+    return reorderFollowUpsAction({ meetingActionItemId: request.meetingActionItemId, order });
   }
   return reorderActionItemsAction(
     request.discussionPointId == null
@@ -64,14 +74,23 @@ function requestDelete(target: DeleteTarget): Promise<MinutesAnswer> {
   if (target.kind === "point") {
     return deleteDiscussionPointAction({ meetingDiscussionPointId: id, rowVer });
   }
+  if (target.kind === "followUp") {
+    return deleteFollowUpAction({ meetingActionFollowUpId: id, rowVer });
+  }
   return deleteActionItemAction({ meetingActionItemId: id, rowVer });
 }
 
-const ENTITY = { agenda: M.agendaEntity, point: M.pointEntity, action: M.actionEntity } as const;
+const ENTITY = {
+  agenda: M.agendaEntity,
+  point: M.pointEntity,
+  action: M.actionEntity,
+  followUp: M.followUpEntity,
+} as const;
 const DELETE_BODY = {
   agenda: M.deleteAgendaBody,
   point: M.deletePointBody,
   action: messages.confirmDelete.body,
+  followUp: messages.confirmDelete.body,
 } as const;
 
 /**
@@ -89,6 +108,7 @@ export function MinutesEditor({
   pointViews,
   roster,
   today,
+  meetingsHref,
   canCreate,
   canEdit,
   canDelete,
@@ -98,6 +118,8 @@ export function MinutesEditor({
   pointViews: Record<number, RichCellView>;
   roster: RosterEntry[];
   today: string;
+  /** The project's meetings list route; a carried-over action links to its own meeting under it. */
+  meetingsHref: string;
   canCreate: boolean;
   canEdit: boolean;
   canDelete: boolean;
@@ -131,6 +153,7 @@ export function MinutesEditor({
   const tree = useMemo(() => buildMinutes(shown), [shown]);
   const open = useMemo(() => openActions(shown.actionItems, today), [shown, today]);
   const overdue = open.filter((o) => o.overdue).length;
+  const carried = useMemo(() => carriedOverActions(shown.carriedOver, today), [shown, today]);
 
   const answer = useCallback(
     (next: MeetingWorkspace | null, refresh = false) => {
@@ -196,13 +219,34 @@ export function MinutesEditor({
     });
   };
 
-  const people = useCallback(
-    (action?: WorkspaceActionItem) =>
-      personOptions(
-        roster,
-        action ? { id: action.AssignedToStakeholderId, name: action.AssigneeName } : undefined,
-      ),
-    [roster],
+  const people = useCallback((current?: PickedPerson) => personOptions(roster, current), [roster]);
+
+  /**
+   * Ticking an action off, from its own row or from the carried-over list,
+   * where the action belongs to an earlier meeting. The proc takes the status
+   * alone, so a reader who never saw the action's text cannot overwrite it.
+   */
+  const setStatus = useCallback(
+    (id: number, rowVer: number, status: ActionStatus, name: string) => {
+      if (busy) return;
+      setFailure(null);
+      startTransition(async () => {
+        const result = await setActionItemStatusAction({
+          meetingActionItemId: id,
+          rowVer,
+          status,
+        });
+        if (!result.ok) {
+          fail(result.error);
+          return;
+        }
+        // A carried-over action lives in another meeting, so this workspace's
+        // own rows did not change: refresh to read the carry-over list again.
+        answer(result.data, true);
+        announce(M.statusSet(name, M.actionStatus[status]));
+      });
+    },
+    [busy, answer, fail, announce],
   );
 
   // The server's formatted view while it matches; plain text until a refresh brings the new one.
@@ -230,6 +274,7 @@ export function MinutesEditor({
     focusSoon,
     pointView,
     people,
+    setStatus,
     today,
   };
 
@@ -275,6 +320,70 @@ export function MinutesEditor({
                   {late ? <OverdueBadge /> : null}
                 </li>
               ))}
+            </ul>
+          )}
+        </section>
+
+        <section
+          aria-labelledby="carried-over-heading"
+          data-testid="carried-over"
+          className="flex flex-col gap-2 rounded-md border border-line p-4"
+        >
+          <div className="flex flex-col gap-0.5">
+            <h3 id="carried-over-heading" className="text-sm font-medium text-ink">
+              {M.carriedOver}
+            </h3>
+            <p className="text-xs text-ink-muted">{M.carriedOverHint}</p>
+          </div>
+          {carried.length === 0 ? (
+            <p className="text-sm text-ink-muted">{M.noCarriedOver}</p>
+          ) : (
+            <ul className="flex flex-col divide-y divide-line">
+              {carried.map(({ action, overdue: late }) => {
+                const name = itemName(action.Action, M.action);
+                return (
+                  <li
+                    key={action.MeetingActionItemId}
+                    data-testid="carried-over-action"
+                    className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm"
+                  >
+                    <span className="min-w-0 flex-1 text-ink wrap-anywhere">{action.Action}</span>
+                    {action.AssigneeName ? (
+                      <span className="text-ink-muted">{action.AssigneeName}</span>
+                    ) : null}
+                    {action.DueDate ? (
+                      <span className="text-ink-muted tabular-nums">
+                        {formatDate(action.DueDate)}
+                      </span>
+                    ) : null}
+                    {late ? <OverdueBadge /> : null}
+                    <Link
+                      href={`${meetingsHref}/${action.FromMeetingId}`}
+                      aria-label={M.openCarriedMeeting(action.FromSubject ?? messages.app.untitled)}
+                      className="text-ink-muted underline print:no-underline"
+                    >
+                      {M.carriedFrom(action.FromSubject ?? messages.app.untitled)}
+                    </Link>
+                    {canEdit ? (
+                      <div className="w-40 shrink-0 print:hidden">
+                        <StatusSelect
+                          key={action.Status}
+                          name={`carried-status-${action.MeetingActionItemId}`}
+                          ariaLabel={M.setStatusOf(name)}
+                          defaultValue={action.Status}
+                          onPick={(status) => {
+                            if (status !== action.Status) {
+                              setStatus(action.MeetingActionItemId, action.RowVer, status, name);
+                            }
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <StatusBadge status={action.Status} />
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>

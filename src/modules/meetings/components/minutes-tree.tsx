@@ -4,18 +4,26 @@ import { useState } from "react";
 import { previewText } from "@/components/ui/data-view/datasheet";
 import { formatDate } from "@/lib/format";
 import { messages } from "@/lib/messages";
-import type { WorkspaceActionItem } from "../schemas/meeting";
+import type { ActionStatus, WorkspaceFollowUp } from "../schemas/meeting";
 import {
   actionSiblings,
+  followUpSiblings,
   isOverdue,
   itemName,
   pointSiblings,
+  type ActionNode,
   type AgendaNode,
   type PointNode,
   type Sibling,
 } from "../schemas/minutes";
 import { useMinutes, type DeleteTarget, type MoveRequest } from "./minutes-context";
-import { ActionItemForm, AgendaItemForm, DiscussionPointForm } from "./minutes-forms";
+import {
+  ActionItemForm,
+  AgendaItemForm,
+  DiscussionPointForm,
+  FollowUpForm,
+  StatusSelect,
+} from "./minutes-forms";
 
 const M = messages.meetings;
 
@@ -148,17 +156,182 @@ function AddButton({
   );
 }
 
-function ActionRow({
-  action,
+/** A status pill; the completed one is quiet, since a done action needs no attention. */
+export function StatusBadge({ status }: { status: ActionStatus }) {
+  const tone =
+    status === "completed"
+      ? "border-line bg-surface-raised text-ink-muted"
+      : status === "on-hold"
+        ? "border-warning bg-warning-soft text-ink"
+        : "border-accent bg-accent-soft text-ink";
+  return (
+    <span
+      data-testid="action-status-badge"
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${tone}`}
+    >
+      {M.actionStatus[status]}
+    </span>
+  );
+}
+
+/** One follow-up of an action: its text, who it is assigned to and its two dates. */
+function FollowUpRow({
+  followUp,
   siblings,
   request,
 }: {
-  action: WorkspaceActionItem;
+  followUp: WorkspaceFollowUp;
   siblings: Sibling[];
   request: MoveRequest;
 }) {
   const { focusSoon, today } = useMinutes();
   const [editing, setEditing] = useState(false);
+  const id = followUp.MeetingActionFollowUpId;
+  const key = `follow-up-${id}`;
+  const name = itemName(followUp.FollowUp, M.followUpEntity);
+  const overdue = isOverdue(followUp.DueDate, today);
+
+  return (
+    <li data-testid="follow-up" className="flex flex-col gap-1 border-l border-line pl-3">
+      {editing ? (
+        <FollowUpForm
+          meetingActionItemId={followUp.MeetingActionItemId}
+          followUp={followUp}
+          onDone={() => {
+            setEditing(false);
+            focusSoon(`${key}-edit`);
+          }}
+        />
+      ) : (
+        <>
+          <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
+            <p className="min-w-0 flex-1 py-2.5 text-sm text-ink wrap-anywhere">
+              {followUp.FollowUp}
+            </p>
+            <ItemControls
+              name={name}
+              focusKey={key}
+              id={id}
+              siblings={siblings}
+              request={request}
+              remove={{ kind: "followUp", id, rowVer: followUp.RowVer }}
+              onEdit={() => setEditing(true)}
+            />
+          </div>
+          <PersonAndDates
+            assignee={followUp.AssigneeName}
+            assigneeLabel={M.assignedTo}
+            dueDate={followUp.DueDate}
+            overdue={overdue}
+            followUpDate={followUp.FollowUpDate}
+          />
+        </>
+      )}
+    </li>
+  );
+}
+
+/** The person and date line shared by an action and its follow-ups. */
+function PersonAndDates({
+  assignee,
+  assigneeLabel,
+  dueDate,
+  overdue,
+  followUpDate,
+}: {
+  assignee: string | null;
+  assigneeLabel: string;
+  dueDate: string | null;
+  overdue: boolean;
+  followUpDate?: string | null;
+}) {
+  if (!assignee && !dueDate && !followUpDate) return null;
+  return (
+    <dl className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-muted">
+      {assignee ? (
+        <div className="flex gap-1">
+          <dt>{assigneeLabel}:</dt>
+          <dd className="text-ink">{assignee}</dd>
+        </div>
+      ) : null}
+      {followUpDate ? (
+        <div className="flex gap-1">
+          <dt>{M.followUpDate}:</dt>
+          <dd className="text-ink tabular-nums">{formatDate(followUpDate)}</dd>
+        </div>
+      ) : null}
+      {dueDate ? (
+        <div className="flex items-center gap-1">
+          <dt>{M.dueDate}:</dt>
+          <dd className="flex items-center gap-2 text-ink tabular-nums">
+            {formatDate(dueDate)}
+            {overdue ? <OverdueBadge /> : null}
+          </dd>
+        </div>
+      ) : null}
+    </dl>
+  );
+}
+
+/** An action's follow-ups, with their Add button (ADR-0041). */
+function FollowUpList({ node, actionName }: { node: ActionNode; actionName: string }) {
+  const { canCreate, focusSoon } = useMinutes();
+  const [adding, setAdding] = useState(false);
+  const id = node.action.MeetingActionItemId;
+  const siblings = followUpSiblings(node.followUps);
+  const request: MoveRequest = { kind: "followUp", meetingActionItemId: id };
+  const addKey = `follow-up-add-${id}`;
+
+  if (!canCreate && node.followUps.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-2 pt-1">
+      {node.followUps.length > 0 ? (
+        <ul aria-label={M.followUpsOf(actionName)} className="flex flex-col gap-2">
+          {node.followUps.map((followUp) => (
+            <FollowUpRow
+              key={followUp.MeetingActionFollowUpId}
+              followUp={followUp}
+              siblings={siblings}
+              request={request}
+            />
+          ))}
+        </ul>
+      ) : null}
+      {canCreate ? (
+        adding ? (
+          <FollowUpForm
+            meetingActionItemId={id}
+            onDone={() => {
+              setAdding(false);
+              focusSoon(addKey);
+            }}
+          />
+        ) : (
+          <AddButton
+            label={M.addFollowUp}
+            name={M.addFollowUpTo(actionName)}
+            focusKey={addKey}
+            onClick={() => setAdding(true)}
+          />
+        )
+      ) : null}
+    </div>
+  );
+}
+
+function ActionRow({
+  node,
+  siblings,
+  request,
+}: {
+  node: ActionNode;
+  siblings: Sibling[];
+  request: MoveRequest;
+}) {
+  const { canEdit, busy, focusSoon, setStatus, today } = useMinutes();
+  const [editing, setEditing] = useState(false);
+  const action = node.action;
   const id = action.MeetingActionItemId;
   const key = `action-${id}`;
   const name = itemName(action.Action, M.action);
@@ -181,6 +354,23 @@ function ActionRow({
         <>
           <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
             <p className="min-w-0 flex-1 py-2.5 text-sm text-ink wrap-anywhere">{action.Action}</p>
+            {canEdit ? (
+              <div className="w-40 shrink-0 print:hidden">
+                <StatusSelect
+                  key={action.Status}
+                  name={`status-${id}`}
+                  ariaLabel={M.setStatusOf(name)}
+                  defaultValue={action.Status}
+                  onPick={(status) => {
+                    if (!busy && status !== action.Status) {
+                      setStatus(id, action.RowVer, status, name);
+                    }
+                  }}
+                />
+              </div>
+            ) : (
+              <StatusBadge status={action.Status} />
+            )}
             <ItemControls
               name={name}
               focusKey={key}
@@ -191,27 +381,21 @@ function ActionRow({
               onEdit={() => setEditing(true)}
             />
           </div>
-          {action.AssigneeName || action.DueDate ? (
-            <dl className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-muted">
-              {action.AssigneeName ? (
-                <div className="flex gap-1">
-                  <dt>{M.personResponsible}:</dt>
-                  <dd className="text-ink">{action.AssigneeName}</dd>
-                </div>
-              ) : null}
-              {action.DueDate ? (
-                <div className="flex items-center gap-1">
-                  <dt>{M.dueDate}:</dt>
-                  <dd className="flex items-center gap-2 text-ink tabular-nums">
-                    {formatDate(action.DueDate)}
-                    {overdue ? <OverdueBadge /> : null}
-                  </dd>
-                </div>
-              ) : null}
-            </dl>
+          {/* The badge repeats the picker's value for print, where the picker is hidden. */}
+          {canEdit ? (
+            <div className="hidden print:block">
+              <StatusBadge status={action.Status} />
+            </div>
           ) : null}
+          <PersonAndDates
+            assignee={action.AssigneeName}
+            assigneeLabel={M.personResponsible}
+            dueDate={action.DueDate}
+            overdue={overdue}
+          />
         </>
       )}
+      <FollowUpList node={node} actionName={name} />
     </li>
   );
 }
@@ -223,7 +407,7 @@ function ActionList({
   discussionPointId,
   parentName,
 }: {
-  actions: WorkspaceActionItem[];
+  actions: ActionNode[];
   agendaItemId: number;
   discussionPointId: number | null;
   /** The agenda item or discussion point the actions belong to, for the Add button's name. */
@@ -239,10 +423,10 @@ function ActionList({
     <div className="flex flex-col gap-2">
       {actions.length > 0 ? (
         <ul aria-label={M.actionsOf(parentName)} className="flex flex-col gap-2">
-          {actions.map((action) => (
+          {actions.map((node) => (
             <ActionRow
-              key={action.MeetingActionItemId}
-              action={action}
+              key={node.action.MeetingActionItemId}
+              node={node}
               siblings={siblings}
               request={request}
             />

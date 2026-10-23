@@ -49,7 +49,7 @@ async function addDiscussionPoint(page: Page, agendaItem: string, text: string) 
 async function addAction(
   page: Page,
   parent: string,
-  action: { text: string; person?: RegExp; due?: string },
+  action: { text: string; person?: RegExp; due?: string; status?: string },
 ) {
   await page.getByRole("button", { name: M.addActionTo(parent) }).click();
   const form = page.getByRole("form", { name: M.addAction });
@@ -59,9 +59,32 @@ async function addAction(
     await page.getByRole("option", { name: action.person }).first().click();
   }
   if (action.due) await form.getByLabel(M.dueDate, { exact: true }).fill(action.due);
+  if (action.status) {
+    await form.getByLabel(M.status, { exact: true }).selectOption({ label: action.status });
+  }
   await form.getByRole("button", { name: messages.actions.save }).click();
   await expect(form).toHaveCount(0);
   await expect(page.getByTestId("action-item").filter({ hasText: action.text })).toBeVisible();
+}
+
+/** One follow-up under an action (ADR-0041). */
+async function addFollowUp(
+  page: Page,
+  action: string,
+  followUp: { text: string; person?: RegExp; on?: string; due?: string },
+) {
+  await page.getByRole("button", { name: M.addFollowUpTo(action) }).click();
+  const form = page.getByRole("form", { name: M.addFollowUp });
+  await form.getByLabel(M.followUp, { exact: true }).fill(followUp.text);
+  if (followUp.person) {
+    await form.getByRole("combobox", { name: M.assignedTo }).fill("Gary");
+    await page.getByRole("option", { name: followUp.person }).first().click();
+  }
+  if (followUp.on) await form.getByLabel(M.followUpDate, { exact: true }).fill(followUp.on);
+  if (followUp.due) await form.getByLabel(M.dueDate, { exact: true }).fill(followUp.due);
+  await form.getByRole("button", { name: messages.actions.save }).click();
+  await expect(form).toHaveCount(0);
+  await expect(page.getByTestId("follow-up").filter({ hasText: followUp.text })).toBeVisible();
 }
 
 async function axeClean(page: Page) {
@@ -273,6 +296,7 @@ test("print: the printed minutes show the header, the people and the minutes", a
     "Send the revised budget",
     "Gary Cantrall",
     "Nov 2, 2026",
+    M.actionStatus["in-progress"],
   ]);
 
   // No app chrome: no project navigation, no header bar.
@@ -297,4 +321,141 @@ test("print: a meeting of another project is not found", async ({ page }) => {
   await page.goto("/projects/2/meetings/2/print");
   await expect(page.getByRole("heading", { name: messages.app.notFoundTitle })).toBeVisible();
   await expect(page.getByTestId("printed-minutes")).toHaveCount(0);
+});
+
+test("follow-ups: an action takes many, each with its person and dates (ADR-0041)", async ({
+  page,
+}) => {
+  const minutes = await newMeeting(page);
+  await addAgendaItem(page, "Budget");
+  await addAction(page, "Budget", { text: "Send the revised budget" });
+
+  await addFollowUp(page, "Send the revised budget", {
+    text: "Chased the finance team",
+    person: GARY,
+    on: "2026-10-18",
+    due: "2026-10-20",
+  });
+  await addFollowUp(page, "Send the revised budget", { text: "Still waiting" });
+
+  const action = page.getByTestId("action-item").filter({ hasText: "Send the revised" });
+  const followUps = action.getByTestId("follow-up");
+  await expect(followUps).toHaveCount(2);
+  await expect(followUps.first()).toContainText("Chased the finance team");
+  await expect(followUps.first()).toContainText("Gary Cantrall");
+  await expect(followUps.first()).toContainText("Oct 20, 2026");
+
+  // Newest goes last; moving one up reorders them and keeps focus on the button.
+  await followUps
+    .nth(1)
+    .getByRole("button", { name: M.moveUp("Still waiting") })
+    .click();
+  await expect(followUps.first()).toContainText("Still waiting");
+  await expect(page.getByRole("button", { name: M.moveDown("Still waiting") })).toBeFocused();
+
+  // A follow-up carries no status of its own: the action owns the one status.
+  await expect(followUps.first().getByTestId("action-status")).toHaveCount(0);
+
+  // Deleting the action takes its follow-ups with it.
+  await action.getByRole("button", { name: M.deleteItem("Send the revised budget") }).click();
+  await page.getByRole("button", { name: messages.actions.delete, exact: true }).last().click();
+  await expect(page.getByTestId("action-item")).toHaveCount(0);
+  await expect(minutes.getByTestId("follow-up")).toHaveCount(0);
+});
+
+test("status: completing an action takes it off the open list (ADR-0041)", async ({ page }) => {
+  const minutes = await newMeeting(page);
+  await addAgendaItem(page, "Budget");
+  await addAction(page, "Budget", { text: "Send the revised budget", due: "2099-12-31" });
+  await addAction(page, "Budget", { text: "Book the room", status: M.actionStatus["on-hold"] });
+
+  // On hold still counts as open; only completed drops out.
+  await expect(minutes.getByTestId("open-action")).toHaveCount(2);
+
+  const action = page.getByTestId("action-item").filter({ hasText: "Send the revised" });
+  await action
+    .getByLabel(M.setStatusOf("Send the revised budget"))
+    .selectOption(M.actionStatus.completed);
+  await expect(minutes.getByTestId("open-action")).toHaveCount(1);
+  await expect(minutes.getByTestId("open-action")).toContainText("Book the room");
+
+  // It survives a reload, and the action is still there to re-open.
+  await page.reload();
+  await expect(
+    page
+      .getByTestId("action-item")
+      .filter({ hasText: "Send the revised" })
+      .getByLabel(M.setStatusOf("Send the revised budget")),
+  ).toHaveValue("completed");
+});
+
+test("carry-over: an unfinished action follows into the project's later meetings (ADR-0041)", async ({
+  page,
+}) => {
+  const stamp = Date.now();
+  const earlier = `E2E carry source ${stamp}`;
+
+  await newMeeting(page);
+  const header = page.getByTestId("meeting-header-form");
+  await header.getByLabel(M.subject).fill(earlier);
+  await header.getByLabel(M.startDate).fill("2026-10-01");
+  await page.getByTestId("meeting-save").click();
+  await expect(page.getByRole("heading", { name: earlier, level: 1 })).toBeVisible();
+  await addAgendaItem(page, "Budget");
+  await addAction(page, "Budget", { text: `Sign off the scope ${stamp}`, due: "2020-01-15" });
+  const earlierUrl = page.url();
+
+  // A later meeting of the same project inherits it, marked overdue.
+  const minutes = await newMeeting(page);
+  const laterHeader = page.getByTestId("meeting-header-form");
+  await laterHeader.getByLabel(M.subject).fill(`E2E carry target ${stamp}`);
+  await laterHeader.getByLabel(M.startDate).fill("2026-10-15");
+  await page.getByTestId("meeting-save").click();
+  await page.reload();
+
+  const carried = minutes
+    .getByTestId("carried-over-action")
+    .filter({ hasText: `Sign off the scope ${stamp}` });
+  await expect(carried).toHaveCount(1);
+  await expect(carried).toContainText(M.overdue);
+  await expect(carried).toContainText(M.carriedFrom(earlier));
+
+  // It is not one of this meeting's own actions, and it is not in its open list.
+  await expect(minutes.getByTestId("action-item")).toHaveCount(0);
+  await expect(minutes.getByTestId("open-actions")).toContainText(M.noOpenActions);
+
+  // Completing it here clears it from this meeting and from the one that raised it.
+  await carried
+    .getByLabel(M.setStatusOf(`Sign off the scope ${stamp}`))
+    .selectOption(M.actionStatus.completed);
+  await expect(
+    minutes.getByTestId("carried-over-action").filter({ hasText: `Sign off the scope ${stamp}` }),
+  ).toHaveCount(0);
+
+  await page.goto(earlierUrl);
+  await expect(page.getByTestId("open-actions")).toContainText(M.noOpenActions);
+});
+
+test("layout: present and apologies sit under the Location field, not in a side column", async ({
+  page,
+}) => {
+  await page.goto("/projects/2/meetings/1");
+  const header = page.getByTestId("meeting-header-form");
+  await expect(header.getByLabel(M.location)).toBeVisible();
+  const panel = page.getByTestId("participants-panel");
+  await expect(panel).toBeVisible();
+
+  // Location is the last field of the header form, and the panel follows the form.
+  const order = await page.evaluate(() => {
+    const location = document.querySelector<HTMLElement>('[name="location"]');
+    const participants = document.querySelector<HTMLElement>('[data-testid="participants-panel"]');
+    if (!location || !participants) return null;
+    const relation = location.compareDocumentPosition(participants);
+    return {
+      panelFollowsLocation: Boolean(relation & Node.DOCUMENT_POSITION_FOLLOWING),
+      panelInsideForm: Boolean(location.closest("form")?.contains(participants)),
+    };
+  });
+  expect(order).toEqual({ panelFollowsLocation: true, panelInsideForm: false });
+  expect(await axeClean(page)).toEqual([]);
 });

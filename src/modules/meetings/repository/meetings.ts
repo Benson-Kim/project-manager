@@ -18,14 +18,18 @@ import type {
   CreateActionItemValues,
   CreateAgendaItemValues,
   CreateDiscussionPointValues,
+  CreateFollowUpValues,
   MeetingFormValues,
   ReorderActionItemsValues,
   ReorderAgendaValues,
   ReorderDiscussionPointsValues,
+  ReorderFollowUpsValues,
+  SetActionItemStatusValues,
   SetParticipantsValues,
   UpdateActionItemValues,
   UpdateAgendaItemValues,
   UpdateDiscussionPointValues,
+  UpdateFollowUpValues,
   UpdateMeetingFormValues,
 } from "../schemas/meeting-form";
 
@@ -162,6 +166,8 @@ export async function getMeetingWorkspace(
     AgendaItemsJson,
     DiscussionPointsJson,
     ActionItemsJson,
+    FollowUpsJson,
+    CarriedOverJson,
     ParticipantsJson,
     ParticipantsStamp,
     Stamp,
@@ -175,6 +181,8 @@ export async function getMeetingWorkspace(
       DiscussionPoint: cleanHtml(point.DiscussionPoint),
     })),
     actionItems: ActionItemsJson,
+    followUps: FollowUpsJson,
+    carriedOver: CarriedOverJson,
     participants: ParticipantsJson,
     participantsStamp: ParticipantsStamp,
     stamp: Stamp,
@@ -336,12 +344,13 @@ export function createActionItem(input: CreateActionItemValues, actorUserId: num
       Action: input.action,
       AssignedToStakeholderId: input.assignedToStakeholderId,
       DueDate: input.dueDate,
+      Status: input.status,
     },
     actorUserId,
   );
 }
 
-/** Text, person responsible and due date; the parent never changes. */
+/** Text, person responsible, due date and status; the parent never changes. */
 export function updateActionItem(input: UpdateActionItemValues, actorUserId: number) {
   return workspaceAfter(
     "usp_MeetingActionItem_Update",
@@ -350,6 +359,23 @@ export function updateActionItem(input: UpdateActionItemValues, actorUserId: num
       Action: input.action,
       AssignedToStakeholderId: input.assignedToStakeholderId,
       DueDate: input.dueDate,
+      Status: input.status,
+      RowVer: input.rowVer,
+    },
+    actorUserId,
+  );
+}
+
+/**
+ * The status on its own (ADR-0041), so a later meeting's carried-over list can
+ * tick an action off without holding its text, person responsible or due date.
+ */
+export function setActionItemStatus(input: SetActionItemStatusValues, actorUserId: number) {
+  return workspaceAfter(
+    "usp_MeetingActionItem_SetStatus",
+    {
+      MeetingActionItemId: input.meetingActionItemId,
+      Status: input.status,
       RowVer: input.rowVer,
     },
     actorUserId,
@@ -375,6 +401,58 @@ export function reorderActionItems(input: ReorderActionItemsValues, actorUserId:
       AgendaItemId: input.agendaItemId,
       OrderJson: orderJson(input.order),
     },
+    actorUserId,
+  );
+}
+
+// ── Action follow-ups (the one-to-many under an action item, ADR-0041) ───────
+
+/** The proc derives the meeting and the project from the action item. */
+export function createFollowUp(input: CreateFollowUpValues, actorUserId: number) {
+  return workspaceAfter(
+    "usp_MeetingActionFollowUp_Create",
+    {
+      MeetingActionItemId: input.meetingActionItemId,
+      FollowUp: input.followUp,
+      AssignedToStakeholderId: input.assignedToStakeholderId,
+      FollowUpDate: input.followUpDate,
+      DueDate: input.dueDate,
+    },
+    actorUserId,
+  );
+}
+
+/** Text, person assigned, follow-up date and due date; the action never changes. */
+export function updateFollowUp(input: UpdateFollowUpValues, actorUserId: number) {
+  return workspaceAfter(
+    "usp_MeetingActionFollowUp_Update",
+    {
+      MeetingActionFollowUpId: input.meetingActionFollowUpId,
+      FollowUp: input.followUp,
+      AssignedToStakeholderId: input.assignedToStakeholderId,
+      FollowUpDate: input.followUpDate,
+      DueDate: input.dueDate,
+      RowVer: input.rowVer,
+    },
+    actorUserId,
+  );
+}
+
+export function deleteFollowUp(
+  input: { meetingActionFollowUpId: number; rowVer: number },
+  actorUserId: number,
+) {
+  return workspaceAfter(
+    "usp_MeetingActionFollowUp_Delete",
+    { MeetingActionFollowUpId: input.meetingActionFollowUpId, RowVer: input.rowVer },
+    actorUserId,
+  );
+}
+
+export function reorderFollowUps(input: ReorderFollowUpsValues, actorUserId: number) {
+  return workspaceAfter(
+    "usp_MeetingActionFollowUp_Reorder",
+    { MeetingActionItemId: input.meetingActionItemId, OrderJson: orderJson(input.order) },
     actorUserId,
   );
 }

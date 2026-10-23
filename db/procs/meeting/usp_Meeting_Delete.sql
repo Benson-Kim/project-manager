@@ -55,13 +55,23 @@ BEGIN
     WHERE AgendaItemId IN (SELECT Id FROM @Agenda);
 
     DECLARE @Removed TABLE (Kind VARCHAR(20), Id INT);
+    -- The removed actions, kept apart so the follow-up sweep below reads a table it is not also
+    -- writing through OUTPUT INTO.
+    DECLARE @Actions TABLE (Id INT PRIMARY KEY);
 
     UPDATE app.MeetingActionItem SET IsDeleted = 1, DeletedAtUtc = @Now, DeletedBy = @ActorUserId
-    OUTPUT 'ActionItems', inserted.MeetingActionItemId INTO @Removed (Kind, Id)
+    OUTPUT inserted.MeetingActionItemId INTO @Actions (Id)
     WHERE IsDeleted = 0
       AND (MeetingId = @MeetingId
            OR AgendaItemId IN (SELECT Id FROM @Agenda)
            OR DiscussionPointId IN (SELECT Id FROM @Points));
+
+    INSERT INTO @Removed (Kind, Id) SELECT 'ActionItems', Id FROM @Actions;
+
+    -- The follow-ups of those actions go with them (ADR-0041).
+    UPDATE app.MeetingActionFollowUp SET IsDeleted = 1, DeletedAtUtc = @Now, DeletedBy = @ActorUserId
+    OUTPUT 'ActionFollowUps', inserted.MeetingActionFollowUpId INTO @Removed (Kind, Id)
+    WHERE IsDeleted = 0 AND MeetingActionItemId IN (SELECT Id FROM @Actions);
 
     UPDATE app.MeetingDiscussionPoint SET IsDeleted = 1, DeletedAtUtc = @Now, DeletedBy = @ActorUserId
     OUTPUT 'DiscussionPoints', inserted.MeetingDiscussionPointId INTO @Removed (Kind, Id)
@@ -81,6 +91,7 @@ BEGIN
                     JSON_QUERY((SELECT Id FROM @Removed WHERE Kind = 'AgendaItems' FOR JSON PATH)) AS AgendaItems,
                     JSON_QUERY((SELECT Id FROM @Removed WHERE Kind = 'DiscussionPoints' FOR JSON PATH)) AS DiscussionPoints,
                     JSON_QUERY((SELECT Id FROM @Removed WHERE Kind = 'ActionItems' FOR JSON PATH)) AS ActionItems,
+                    JSON_QUERY((SELECT Id FROM @Removed WHERE Kind = 'ActionFollowUps' FOR JSON PATH)) AS ActionFollowUps,
                     JSON_QUERY((SELECT Id FROM @Removed WHERE Kind = 'Participants' FOR JSON PATH)) AS Participants
              FROM app.Meeting AS m WHERE m.MeetingId = @MeetingId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));

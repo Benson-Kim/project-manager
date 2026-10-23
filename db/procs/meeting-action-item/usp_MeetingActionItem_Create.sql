@@ -8,9 +8,13 @@
 --   meeting's project (VALIDATION 50004), checked inside the transaction with that row locked
 --   (UPDLOCK, HOLDLOCK) so a concurrent usp_Stakeholder_Delete fails the check or waits. AssigneeName
 --   is NULL when nobody is responsible.
+-- Status (ADR-0041): 'on-hold' | 'in-progress' | 'completed'. A new action starts 'in-progress',
+--   which is what every action was before the status existed. 'completed' is what stops it being
+--   carried into the project's later meetings, so the set is closed here and by
+--   CK_MeetingActionItem_Status.
 -- Access: Contributor on the meeting's project, or a per-person grant (meetings:create, ADR-0024).
 --   The meeting row is locked while the position is taken.
--- VALIDATION 50004: empty Action.
+-- VALIDATION 50004: empty Action, a status outside the three.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_MeetingActionItem_Create
@@ -19,6 +23,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_MeetingActionItem_Create
     @Action                  NVARCHAR(MAX) = NULL,
     @AssignedToStakeholderId INT           = NULL,
     @DueDate                 DATETIME2     = NULL,
+    @Status                  VARCHAR(12)   = 'in-progress',
     @ActorUserId             INT
 AS
 BEGIN
@@ -60,6 +65,8 @@ BEGIN
 
     IF NULLIF(TRIM(@Action), N'') IS NULL
         THROW 50004, N'VALIDATION:Action is required', 1;
+    IF @Status IS NULL OR @Status NOT IN ('on-hold', 'in-progress', 'completed')
+        THROW 50004, N'VALIDATION:Status must be on-hold, in-progress or completed', 1;
 
     BEGIN TRAN;
 
@@ -91,16 +98,17 @@ BEGIN
                            AND DiscussionPointId IS NULL))), 0) + 1;
 
     INSERT INTO app.MeetingActionItem ([MeetingId], [AgendaItemId], [DiscussionPointId], [Action],
-                                       [AssignedToStakeholderId], [DueDate], SortOrder, CreatedBy)
+                                       [AssignedToStakeholderId], [DueDate], [Status], SortOrder,
+                                       CreatedBy)
     VALUES (@MeetingId, @AgendaItemId, @DiscussionPointId, @Action,
-            @AssignedToStakeholderId, @DueDate, @Position, @ActorUserId);
+            @AssignedToStakeholderId, @DueDate, @Status, @Position, @ActorUserId);
 
     DECLARE @Id INT = SCOPE_IDENTITY();
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, AfterJson)
     VALUES (@ActorUserId, N'Create', N'app.MeetingActionItem', CAST(@Id AS NVARCHAR(64)),
             (SELECT MeetingActionItemId, [MeetingId], [AgendaItemId], [DiscussionPointId], [Action],
-                    [AssignedToStakeholderId], [DueDate], SortOrder
+                    [AssignedToStakeholderId], [DueDate], [Status], SortOrder
              FROM app.MeetingActionItem WHERE MeetingActionItemId = @Id
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
@@ -114,6 +122,7 @@ BEGIN
            ai.[AssignedToStakeholderId],
            NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N'') AS AssigneeName,
            ai.[DueDate],
+           ai.[Status],
            ai.SortOrder,
            ai.CreatedAtUtc,
            ai.UpdatedAtUtc,

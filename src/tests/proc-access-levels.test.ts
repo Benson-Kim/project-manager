@@ -35,6 +35,7 @@ const MODULES: Record<string, string> = {
   "meeting-agenda-item": "meetings",
   "meeting-discussion-point": "meetings",
   "meeting-action-item": "meetings",
+  "meeting-action-followup": "meetings",
   "meeting-participant": "meetings",
 };
 

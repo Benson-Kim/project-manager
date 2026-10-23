@@ -168,14 +168,6 @@ export function MeetingHeaderForm({
             <DatePicker name="dateReceived" defaultValue={values.dateReceived} />
           </Field>
         </div>
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <Field label={M.location} name="location" errors={errors.location}>
-            <Input name="location" maxLength={255} defaultValue={values.location} />
-          </Field>
-          <Field label={M.nextMeeting} name="nextMeeting" errors={errors.nextMeeting}>
-            <DatePicker name="nextMeeting" defaultValue={values.nextMeeting} />
-          </Field>
-        </div>
         <Field label={M.description} name="description" errors={errors.description}>
           <RichTextEditor name="description" defaultValue={values.description as string} />
         </Field>
@@ -185,6 +177,20 @@ export function MeetingHeaderForm({
         <Field label={M.followupAction} name="followupAction" errors={errors.followupAction}>
           <Input name="followupAction" maxLength={255} defaultValue={values.followupAction} />
         </Field>
+        {/*
+          Location is the form's last field so the participant panel, which the
+          page renders directly below, sits under it (client feedback
+          2026-10-23). The panel keeps its own <form> and its own stamped save,
+          so it cannot be nested inside this one.
+        */}
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <Field label={M.location} name="location" errors={errors.location}>
+            <Input name="location" maxLength={255} defaultValue={values.location} />
+          </Field>
+          <Field label={M.nextMeeting} name="nextMeeting" errors={errors.nextMeeting}>
+            <DatePicker name="nextMeeting" defaultValue={values.nextMeeting} />
+          </Field>
+        </div>
       </fieldset>
 
       <div className="flex flex-wrap items-center gap-2">

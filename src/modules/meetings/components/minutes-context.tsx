@@ -2,11 +2,7 @@
 
 import { createContext, useContext } from "react";
 import type { ActionResult } from "@/lib/action";
-import type {
-  MeetingWorkspace,
-  WorkspaceActionItem,
-  WorkspaceDiscussionPoint,
-} from "../schemas/meeting";
+import type { ActionStatus, MeetingWorkspace, WorkspaceDiscussionPoint } from "../schemas/meeting";
 import type { Sibling } from "../schemas/minutes";
 import type { StakeholderOption } from "@/modules/stakeholders/repository/stakeholder-options";
 
@@ -16,13 +12,20 @@ export type MinutesAnswer = ActionResult<MeetingWorkspace | null>;
 export type MoveRequest =
   | { kind: "agenda" }
   | { kind: "point"; agendaItemId: number }
-  | { kind: "action"; agendaItemId: number; discussionPointId: number | null };
+  | { kind: "action"; agendaItemId: number; discussionPointId: number | null }
+  | { kind: "followUp"; meetingActionItemId: number };
 
 export interface DeleteTarget {
-  kind: "agenda" | "point" | "action";
+  kind: "agenda" | "point" | "action" | "followUp";
   id: number;
   rowVer: number;
   name: string;
+}
+
+/** Who a person picker offers, plus the one already picked so a save keeps them. */
+export interface PickedPerson {
+  id: number | null;
+  name: string | null;
 }
 
 export interface MinutesContextValue {
@@ -39,7 +42,9 @@ export interface MinutesContextValue {
   /** Focuses the element with this data-focus-key once the next render lands. */
   focusSoon: (key: string) => void;
   pointView: (point: WorkspaceDiscussionPoint) => React.ReactNode;
-  people: (action?: WorkspaceActionItem) => StakeholderOption[];
+  people: (current?: PickedPerson) => StakeholderOption[];
+  /** Moves one action to a status (ADR-0041), from its own row or a carried-over one. */
+  setStatus: (id: number, rowVer: number, status: ActionStatus, name: string) => void;
   /** "YYYY-MM-DD" on the server's calendar: actions due before it are overdue. */
   today: string;
 }

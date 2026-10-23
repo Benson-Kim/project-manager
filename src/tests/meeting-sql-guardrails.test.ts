@@ -1,7 +1,9 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { ACTION_STATUSES } from "@/modules/meetings/schemas/meeting";
 import {
+  MEETING_CARRY_OVER_MAX,
   MEETING_PARTICIPANTS_MAX,
   MEETING_REORDER_MAX,
 } from "@/modules/meetings/schemas/meeting-form";
@@ -11,6 +13,7 @@ const FOLDERS = [
   "meeting-agenda-item",
   "meeting-discussion-point",
   "meeting-action-item",
+  "meeting-action-followup",
   "meeting-participant",
 ];
 
@@ -58,7 +61,7 @@ const LOCK = "FROM app.Meeting WITH (UPDLOCK, HOLDLOCK)";
 /** Meetings' rules live in the procs (ADR-0028); these keep them from drifting. */
 describe("meeting SQL guardrails", () => {
   it("finds every meeting proc", () => {
-    expect(PROCS.size).toBe(34);
+    expect(PROCS.size).toBe(39);
   });
 
   it("labels participants the same way everywhere, guests included", () => {
@@ -111,6 +114,9 @@ describe("meeting SQL guardrails", () => {
       "usp_MeetingActionItem_Create",
       "usp_MeetingActionItem_Delete",
       "usp_MeetingActionItem_Reorder",
+      "usp_MeetingActionFollowUp_Create",
+      "usp_MeetingActionFollowUp_Delete",
+      "usp_MeetingActionFollowUp_Reorder",
       "usp_MeetingParticipant_Create",
       "usp_MeetingParticipant_Update",
       "usp_MeetingParticipant_Delete",
@@ -120,8 +126,8 @@ describe("meeting SQL guardrails", () => {
   });
 
   it("checks RowVer inside the transaction on every update and delete", () => {
-    const writes = [...PROCS.keys()].filter((n) => /_(Update|Delete)$/.test(n));
-    expect(writes).toHaveLength(10);
+    const writes = [...PROCS.keys()].filter((n) => /_(Update|Delete|SetStatus)$/.test(n));
+    expect(writes).toHaveLength(13);
     for (const name of writes) {
       expect(afterBeginTran(name, "AND CAST(RowVer AS BIGINT) = @RowVer"), name).toBe(true);
     }
@@ -187,6 +193,7 @@ describe("meeting SQL guardrails", () => {
       ["usp_MeetingAgendaItem_Reorder", "app.MeetingAgendaItem"],
       ["usp_MeetingDiscussionPoint_Reorder", "app.MeetingDiscussionPoint"],
       ["usp_MeetingActionItem_Reorder", "app.MeetingActionItem"],
+      ["usp_MeetingActionFollowUp_Reorder", "app.MeetingActionFollowUp"],
     ]) {
       const text = sql(name);
       const lock = text.indexOf(LOCK);
@@ -209,6 +216,8 @@ describe("meeting SQL guardrails", () => {
       "usp_MeetingParticipant_Create",
       "usp_MeetingActionItem_Create",
       "usp_MeetingActionItem_Update",
+      "usp_MeetingActionFollowUp_Create",
+      "usp_MeetingActionFollowUp_Update",
     ]) {
       const text = sql(name);
       const tran = text.indexOf("BEGIN TRAN");
@@ -243,11 +252,17 @@ describe("meeting SQL guardrails", () => {
       "usp_MeetingAgendaItem_Update",
       "usp_MeetingDiscussionPoint_Update",
       "usp_MeetingActionItem_Update",
+      "usp_MeetingActionItem_SetStatus",
+      "usp_MeetingActionFollowUp_Update",
       "usp_MeetingParticipant_Update",
     ]) {
       expect(paramsOf(name), name).not.toMatch(
         /@(MeetingId|AgendaItemId|DiscussionPointId|StakeholderId|ProjectId)\b/,
       );
+    }
+    // A follow-up's parent is its action item, so that is the id its edits must not take.
+    for (const name of ["usp_MeetingActionFollowUp_Update", "usp_MeetingActionFollowUp_Delete"]) {
+      expect(paramsOf(name), name).not.toMatch(/@MeetingActionItemId\b/);
     }
     const update = sql("usp_Meeting_Update");
     expect(paramsOf("usp_Meeting_Update")).toMatch(/@ProjectId\s+INT\s+= NULL/);
@@ -275,6 +290,7 @@ describe("meeting SQL guardrails", () => {
       "usp_MeetingAgendaItem_Reorder",
       "usp_MeetingDiscussionPoint_Reorder",
       "usp_MeetingActionItem_Reorder",
+      "usp_MeetingActionFollowUp_Reorder",
     ]) {
       expect(sql(name), name).toContain("TRY_CAST(");
       expect(sql(name), name).toContain(`FROM @Order) > ${MEETING_REORDER_MAX}`);
@@ -287,7 +303,7 @@ describe("meeting SQL guardrails", () => {
 
   it("keeps null keys in the workspace's JSON collections", () => {
     const workspace = sql("usp_Meeting_GetWorkspace");
-    expect(workspace.match(/FOR JSON PATH, INCLUDE_NULL_VALUES\) AS \w+Json/g)).toHaveLength(4);
+    expect(workspace.match(/FOR JSON PATH, INCLUDE_NULL_VALUES\) AS \w+Json/g)).toHaveLength(6);
     expect(sql("usp_Meeting_GetRoster")).toContain(
       "FOR JSON PATH, INCLUDE_NULL_VALUES) AS RosterJson",
     );
@@ -303,6 +319,104 @@ describe("meeting SQL guardrails", () => {
     expect(roster).toContain(
       `WHERE r.MeetingParticipantId IS NOT NULL OR r.Pick <= ${MEETING_PARTICIPANTS_MAX}`,
     );
+  });
+
+  // ── An action's status and its follow-ups (ADR-0041) ──────────────────────
+
+  it("holds the same three statuses in SQL as in TypeScript", () => {
+    const list = ACTION_STATUSES.map((v) => `'${v}'`).join(", ");
+    const migration = readFileSync("db/migrations/039_meeting_action_followup.sql", "utf8");
+    expect(migration.replace(/\s+/g, " ")).toContain(
+      `CK_MeetingActionItem_Status CHECK ([Status] IN (${list}))`,
+    );
+    // Every proc that takes a status re-checks the set, so a VALIDATION beats a
+    // constraint violation the app cannot map (ADR-0012).
+    for (const name of [
+      "usp_MeetingActionItem_Create",
+      "usp_MeetingActionItem_Update",
+      "usp_MeetingActionItem_SetStatus",
+    ]) {
+      expect(sql(name), name).toContain(`@Status NOT IN (${list})`);
+      expect(sql(name), name).toContain("THROW 50004, N'VALIDATION:Status must be");
+    }
+  });
+
+  it("writes the status everywhere an action is written, and reads it everywhere one is read", () => {
+    for (const name of ["usp_MeetingActionItem_Create", "usp_MeetingActionItem_Update"]) {
+      expect(paramsOf(name), name).toMatch(/@Status\s+VARCHAR\(12\)\s+= 'in-progress'/);
+    }
+    // Every proc that answers an action row answers its status too.
+    for (const name of [
+      "usp_MeetingActionItem_Create",
+      "usp_MeetingActionItem_Update",
+      "usp_MeetingActionItem_GetById",
+      "usp_MeetingActionItem_List",
+    ]) {
+      expect(sql(name), name).toContain("ai.[Status],");
+    }
+    expect(sql("usp_Meeting_GetWorkspace")).toContain("ai.[Status],");
+  });
+
+  it("carries an action over only within its project, from earlier meetings, within the cap", () => {
+    const workspace = sql("usp_Meeting_GetWorkspace");
+    const carry = workspace.slice(workspace.indexOf("AS CarriedOverJson") - 2000);
+    expect(workspace).toContain(`DECLARE @CarryOverMax INT = ${MEETING_CARRY_OVER_MAX};`);
+    expect(carry).toContain("SELECT TOP (@CarryOverMax)");
+    expect(carry).toContain("src.ProjectId = m.ProjectId");
+    expect(carry).toContain("src.MeetingId <> m.MeetingId");
+    expect(carry).toContain("ai.[Status] <> 'completed'");
+    // Only live rows of live meetings, and only ones strictly earlier.
+    expect(carry).toContain("src.IsDeleted = 0");
+    expect(carry).toContain(
+      "ISNULL(CAST(src.StartDate AS DATE), @Undated) < ISNULL(CAST(m.StartDate AS DATE), @Undated)",
+    );
+    expect(carry).toContain("src.MeetingId < m.MeetingId");
+  });
+
+  it("deletes an action's follow-ups with its action, point, agenda item and meeting", () => {
+    for (const name of [
+      "usp_MeetingActionItem_Delete",
+      "usp_MeetingDiscussionPoint_Delete",
+      "usp_MeetingAgendaItem_Delete",
+      "usp_Meeting_Delete",
+    ]) {
+      const text = sql(name);
+      expect(text, name).toContain("UPDATE app.MeetingActionFollowUp SET");
+      // The sweep is inside the transaction and names the follow-ups it removed.
+      expect(afterBeginTran(name, "UPDATE app.MeetingActionFollowUp SET"), name).toBe(true);
+      expect(text, name).toContain("ActionFollowUps");
+      // It reads the removed actions from a table it is not also writing through
+      // OUTPUT INTO, which is what @Actions is for in the two multi-level deletes.
+      const sweep = text.slice(text.indexOf("UPDATE app.MeetingActionFollowUp SET"));
+      const source = /MeetingActionItemId (IN \(SELECT Id FROM @\w+\)|= @MeetingActionItemId)/.exec(
+        sweep,
+      );
+      expect(source, name).not.toBeNull();
+      if (source?.[1]?.startsWith("IN")) {
+        const table = /@(\w+)\)/.exec(source[1])![1];
+        expect(
+          sweep.slice(0, sweep.indexOf("WHERE")),
+          `${name} writes into the @${table} it reads`,
+        ).not.toMatch(new RegExp(`INTO @${table}\\b`));
+      }
+    }
+  });
+
+  it("gives a follow-up its own RowVer conflict, and never a status of its own", () => {
+    for (const name of ["usp_MeetingActionFollowUp_Update", "usp_MeetingActionFollowUp_Delete"]) {
+      expect(sql(name), name).toContain(
+        "THROW 50002, N'CONFLICT:MeetingActionFollowUp was modified by someone else'",
+      );
+    }
+    // One status per action, on the action: a follow-up carrying one would be a
+    // second place to look for whether the action is done.
+    for (const [name, text] of PROCS) {
+      if (!name.startsWith("usp_MeetingActionFollowUp_")) continue;
+      expect(text, name).not.toMatch(/fu\.\[?Status\]?/);
+    }
+    const migration = readFileSync("db/migrations/039_meeting_action_followup.sql", "utf8");
+    const table = migration.slice(migration.indexOf("CREATE TABLE app.MeetingActionFollowUp"));
+    expect(table.slice(0, table.indexOf(");"))).not.toContain("Status");
   });
 
   it("calls no other meeting proc or function, since the two runners order the folders differently", () => {

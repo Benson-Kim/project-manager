@@ -5,7 +5,7 @@ import { messages } from "@/lib/messages";
 import { guestKey } from "./participant-roster";
 import { richTextSchema } from "@/lib/rich-text/schema";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
-import type { MeetingRow } from "./meeting";
+import { DEFAULT_ACTION_STATUS, actionStatusSchema, type MeetingRow } from "./meeting";
 
 /**
  * Meeting form contracts (ADR-0009, ADR-0028): ONE schema per form, shared by
@@ -22,6 +22,8 @@ export const MEETING_TEXT_MAX = 4000;
 /** Most entries one reorder or participant save may carry (the procs' limits). */
 export const MEETING_REORDER_MAX = 500;
 export const MEETING_PARTICIPANTS_MAX = 1000;
+/** Most carried-over actions one workspace read answers with (ADR-0041). */
+export const MEETING_CARRY_OVER_MAX = 500;
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -164,6 +166,11 @@ const actionFields = {
   /** Person responsible (checklist row 13): a stakeholder of the meeting's project. */
   assignedToStakeholderId: optionalId,
   dueDate: dateInput,
+  /** ADR-0041; an empty field (a form from before the status existed) is the default. */
+  status: z.preprocess(
+    (v) => (v === "" || v == null ? DEFAULT_ACTION_STATUS : v),
+    actionStatusSchema,
+  ),
 };
 
 /** The parent is a discussion point, else an agenda item; the proc derives the rest. */
@@ -181,6 +188,38 @@ export const updateActionItemSchema = z.object({
 });
 export const deleteActionItemSchema = z.object({ meetingActionItemId: id, rowVer: rowVerSchema });
 
+/**
+ * Ticking an action off, from its own form or from a later meeting's
+ * carried-over list (ADR-0041). It carries the status and nothing else, so a
+ * reader who never saw the action's text cannot overwrite it.
+ */
+export const setActionItemStatusSchema = z.object({
+  meetingActionItemId: id,
+  rowVer: rowVerSchema,
+  status: actionStatusSchema,
+});
+
+// ── Action follow-ups (the one-to-many under an action item, ADR-0041) ───────
+
+const followUpFields = {
+  followUp: plainText(M.followUpRequired),
+  /** The person assigned: a stakeholder of the meeting's project, as for an action. */
+  assignedToStakeholderId: optionalId,
+  followUpDate: dateInput,
+  dueDate: dateInput,
+};
+
+export const createFollowUpSchema = z.object({ meetingActionItemId: id, ...followUpFields });
+export const updateFollowUpSchema = z.object({
+  meetingActionFollowUpId: id,
+  rowVer: rowVerSchema,
+  ...followUpFields,
+});
+export const deleteFollowUpSchema = z.object({
+  meetingActionFollowUpId: id,
+  rowVer: rowVerSchema,
+});
+
 /** A new order: every sibling once, at the RowVer the client read. */
 const orderSchema = z
   .array(z.object({ id, rowVer: rowVerSchema }))
@@ -192,6 +231,7 @@ const orderSchema = z
 
 export const reorderAgendaSchema = z.object({ meetingId: id, order: orderSchema });
 export const reorderDiscussionPointsSchema = z.object({ agendaItemId: id, order: orderSchema });
+export const reorderFollowUpsSchema = z.object({ meetingActionItemId: id, order: orderSchema });
 export const reorderActionItemsSchema = z
   .object({ discussionPointId: optionalId, agendaItemId: optionalId, order: orderSchema })
   .superRefine((value, ctx) => {
@@ -243,7 +283,11 @@ export type CreateDiscussionPointValues = z.output<typeof createDiscussionPointS
 export type UpdateDiscussionPointValues = z.output<typeof updateDiscussionPointSchema>;
 export type CreateActionItemValues = z.output<typeof createActionItemSchema>;
 export type UpdateActionItemValues = z.output<typeof updateActionItemSchema>;
+export type SetActionItemStatusValues = z.output<typeof setActionItemStatusSchema>;
+export type CreateFollowUpValues = z.output<typeof createFollowUpSchema>;
+export type UpdateFollowUpValues = z.output<typeof updateFollowUpSchema>;
 export type ReorderAgendaValues = z.output<typeof reorderAgendaSchema>;
 export type ReorderDiscussionPointsValues = z.output<typeof reorderDiscussionPointsSchema>;
 export type ReorderActionItemsValues = z.output<typeof reorderActionItemsSchema>;
+export type ReorderFollowUpsValues = z.output<typeof reorderFollowUpsSchema>;
 export type SetParticipantsValues = z.output<typeof setParticipantsSchema>;

@@ -24,6 +24,20 @@ export const timeOfDaySchema = z
     return `${hh}:${mm}`;
   });
 
+/**
+ * An action item's status (ADR-0041). A closed set, not a managed lookup list:
+ * "completed" is what stops an action carrying into the project's later
+ * meetings, so renaming a value would change a rule. CK_MeetingActionItem_Status
+ * holds the same three; src/tests/meeting-sql-guardrails.test.ts ties them.
+ */
+export const ACTION_STATUSES = ["on-hold", "in-progress", "completed"] as const;
+export type ActionStatus = (typeof ACTION_STATUSES)[number];
+export const actionStatusSchema = z.enum(ACTION_STATUSES);
+/** What a new action starts as, and what every action was before the status existed. */
+export const DEFAULT_ACTION_STATUS: ActionStatus = "in-progress";
+/** An action still counts against the meeting while it is not completed. */
+export const isOpenStatus = (status: ActionStatus): boolean => status !== "completed";
+
 /** A JSON array column (FOR JSON PATH); NULL (no rows) is an empty array. */
 function jsonArray<T extends z.ZodType>(item: T) {
   return z.preprocess(
@@ -91,10 +105,53 @@ export const workspaceActionItemSchema = z.object({
   AssigneeName: z.string().nullable(),
   /** "YYYY-MM-DD" (date only). */
   DueDate: z.string().nullable(),
+  Status: actionStatusSchema,
   SortOrder: z.number().int(),
   RowVer: rowVerSchema,
 });
 export type WorkspaceActionItem = z.infer<typeof workspaceActionItemSchema>;
+
+/**
+ * One follow-up under an action item (ADR-0041): the one-to-many the client
+ * asked for, each with the person it is assigned to, the date it was made and
+ * the date it is due. The status stays on the action item, so there is one
+ * place to look for whether the action is done.
+ */
+export const workspaceFollowUpSchema = z.object({
+  MeetingActionFollowUpId: z.number().int(),
+  MeetingActionItemId: z.number().int(),
+  FollowUp: z.string().nullable(),
+  AssignedToStakeholderId: z.number().int().nullable(),
+  AssigneeName: z.string().nullable(),
+  /** "YYYY-MM-DD" (date only). */
+  FollowUpDate: z.string().nullable(),
+  /** "YYYY-MM-DD" (date only). */
+  DueDate: z.string().nullable(),
+  SortOrder: z.number().int(),
+  RowVer: rowVerSchema,
+});
+export type WorkspaceFollowUp = z.infer<typeof workspaceFollowUpSchema>;
+
+/**
+ * An unfinished action of one of this project's earlier meetings, which carries
+ * into every later one until it is completed (ADR-0041). Read-only here apart
+ * from its status; the rest of it is edited where it was raised.
+ */
+export const carriedOverActionSchema = z.object({
+  MeetingActionItemId: z.number().int(),
+  Action: z.string().nullable(),
+  Status: actionStatusSchema,
+  AssignedToStakeholderId: z.number().int().nullable(),
+  AssigneeName: z.string().nullable(),
+  /** "YYYY-MM-DD" (date only). */
+  DueDate: z.string().nullable(),
+  RowVer: rowVerSchema,
+  FromMeetingId: z.number().int(),
+  FromSubject: z.string().nullable(),
+  /** "YYYY-MM-DD" (date only); null when that meeting has no date yet. */
+  FromStartDate: z.string().nullable(),
+});
+export type CarriedOverAction = z.infer<typeof carriedOverActionSchema>;
 
 export const workspaceParticipantSchema = z.object({
   MeetingParticipantId: z.number().int(),
@@ -116,6 +173,8 @@ export const meetingWorkspaceRowSchema = z.object({
   AgendaItemsJson: jsonArray(workspaceAgendaItemSchema),
   DiscussionPointsJson: jsonArray(workspaceDiscussionPointSchema),
   ActionItemsJson: jsonArray(workspaceActionItemSchema),
+  FollowUpsJson: jsonArray(workspaceFollowUpSchema),
+  CarriedOverJson: jsonArray(carriedOverActionSchema),
   ParticipantsJson: jsonArray(workspaceParticipantSchema),
   ParticipantsStamp: rowVerSchema,
   Stamp: rowVerSchema,
@@ -127,6 +186,9 @@ export interface MeetingWorkspace {
   agendaItems: WorkspaceAgendaItem[];
   discussionPoints: WorkspaceDiscussionPoint[];
   actionItems: WorkspaceActionItem[];
+  followUps: WorkspaceFollowUp[];
+  /** This project's earlier meetings' unfinished actions (ADR-0041). */
+  carriedOver: CarriedOverAction[];
   participants: WorkspaceParticipant[];
   participantsStamp: number;
   stamp: number;
@@ -199,6 +261,7 @@ export const actionItemRowSchema = z.object({
   AssignedToStakeholderId: z.number().int().nullable(),
   AssigneeName: z.string().nullable(),
   DueDate: z.date().nullable(),
+  Status: actionStatusSchema,
   SortOrder: z.number().int(),
   CreatedAtUtc: z.date(),
   UpdatedAtUtc: z.date().nullable(),

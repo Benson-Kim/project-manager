@@ -28,6 +28,7 @@ BEGIN
            ai.[AssignedToStakeholderId],
            NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N'') AS AssigneeName,
            ai.[DueDate],
+           ai.[Status],
            ai.SortOrder,
            ai.CreatedAtUtc,
            ai.UpdatedAtUtc,

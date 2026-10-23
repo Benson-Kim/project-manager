@@ -60,21 +60,32 @@ BEGIN
     SELECT MeetingDiscussionPointId FROM app.MeetingDiscussionPoint WHERE AgendaItemId = @MeetingAgendaItemId;
 
     DECLARE @Removed TABLE (Kind VARCHAR(20), Id INT);
+    -- The removed actions, kept apart so the follow-up sweep below reads a table it is not also
+    -- writing through OUTPUT INTO.
+    DECLARE @Actions TABLE (Id INT PRIMARY KEY);
 
     UPDATE app.MeetingActionItem SET IsDeleted = 1, DeletedAtUtc = @Now, DeletedBy = @ActorUserId
-    OUTPUT 'ActionItems', inserted.MeetingActionItemId INTO @Removed (Kind, Id)
+    OUTPUT inserted.MeetingActionItemId INTO @Actions (Id)
     WHERE IsDeleted = 0
       AND (AgendaItemId = @MeetingAgendaItemId OR DiscussionPointId IN (SELECT Id FROM @Points));
+
+    INSERT INTO @Removed (Kind, Id) SELECT 'ActionItems', Id FROM @Actions;
 
     UPDATE app.MeetingDiscussionPoint SET IsDeleted = 1, DeletedAtUtc = @Now, DeletedBy = @ActorUserId
     OUTPUT 'DiscussionPoints', inserted.MeetingDiscussionPointId INTO @Removed (Kind, Id)
     WHERE IsDeleted = 0 AND MeetingDiscussionPointId IN (SELECT Id FROM @Points);
 
+    -- The follow-ups of those actions go with them (ADR-0041).
+    UPDATE app.MeetingActionFollowUp SET IsDeleted = 1, DeletedAtUtc = @Now, DeletedBy = @ActorUserId
+    OUTPUT 'ActionFollowUps', inserted.MeetingActionFollowUpId INTO @Removed (Kind, Id)
+    WHERE IsDeleted = 0 AND MeetingActionItemId IN (SELECT Id FROM @Actions);
+
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Delete', N'app.MeetingAgendaItem', CAST(@MeetingAgendaItemId AS NVARCHAR(64)), @Before,
             (SELECT a.MeetingAgendaItemId, a.IsDeleted, a.DeletedAtUtc, a.DeletedBy,
                     JSON_QUERY((SELECT Id FROM @Removed WHERE Kind = 'DiscussionPoints' FOR JSON PATH)) AS DiscussionPoints,
-                    JSON_QUERY((SELECT Id FROM @Removed WHERE Kind = 'ActionItems' FOR JSON PATH)) AS ActionItems
+                    JSON_QUERY((SELECT Id FROM @Removed WHERE Kind = 'ActionItems' FOR JSON PATH)) AS ActionItems,
+                    JSON_QUERY((SELECT Id FROM @Removed WHERE Kind = 'ActionFollowUps' FOR JSON PATH)) AS ActionFollowUps
              FROM app.MeetingAgendaItem AS a WHERE a.MeetingAgendaItemId = @MeetingAgendaItemId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
