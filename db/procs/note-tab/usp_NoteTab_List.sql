@@ -21,6 +21,9 @@ BEGIN
                          WHEN @PageSize > 100 THEN 100 ELSE @PageSize END;
     SET @SortDir  = CASE WHEN LOWER(@SortDir) = 'desc' THEN 'desc' ELSE 'asc' END;
 
+    IF @Search IS NOT NULL
+        SET @Search = REPLACE(REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'), N'_', N'\_'), N'[', N'\[');
+
     SELECT NoteTabId,
            [NoteId],
            [Title],
@@ -33,7 +36,7 @@ BEGIN
     FROM app.NoteTab
     WHERE IsDeleted = 0
       AND (@NoteId IS NULL OR [NoteId] = @NoteId)
-      AND (@Search IS NULL OR [Title] LIKE N'%' + @Search + N'%')
+      AND (@Search IS NULL OR [Title] LIKE N'%' + @Search + N'%' ESCAPE N'\')
     ORDER BY
         CASE WHEN @SortBy = N'SortOrder' AND @SortDir = 'asc'  THEN [SortOrder] END ASC,
         CASE WHEN @SortBy = N'SortOrder' AND @SortDir = 'desc' THEN [SortOrder] END DESC,

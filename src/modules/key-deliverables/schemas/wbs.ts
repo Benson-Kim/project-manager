@@ -1,4 +1,6 @@
 import type { OptionColor } from "@/lib/lookup-lists";
+import { requirementRef } from "@/modules/requirements/schemas/requirement-rules";
+import type { SolutionType } from "@/modules/requirements/schemas/requirement-types";
 import type { AssigneeEntry } from "./key-deliverable";
 
 /**
@@ -7,18 +9,38 @@ import type { AssigneeEntry } from "./key-deliverable";
  * returns, so the editor can show a change before the server confirms it. They
  * mirror the procs: numbering by place among siblings, parent dates rolled up
  * from the items at the bottom of the branch, and the 10-level limit.
+ * Items carry their requirements, and their colour follows their status (ADR-0036).
  */
 
 /** Must equal @MaxDepth in dbo.usp_KeyDeliverable_AssertPlacement. */
 export const MAX_WBS_DEPTH = 10;
 
-/** The bar colour of a top-level item that has none of its own. */
-export const DEFAULT_WBS_COLOR: OptionColor = "blue";
+/** The colour of an item whose status has none (no status, or an uncoloured one). */
+export const NO_STATUS_COLOR: OptionColor = "gray";
+
+/** Status label → colour. */
+export type StatusColors = ReadonlyMap<string, OptionColor>;
 
 /** Days a new item spans when nothing suggests better. */
 export const NEW_ITEM_DAYS = 7;
 
 const DAY_MS = 86_400_000;
+
+/** A requirement allocated to an item (ADR-0037). The met tick and wording are shared across every
+ *  deliverable it sits on; the order and the allocation's RowVer (placeRowVer) are per deliverable. */
+export interface WbsRequirement {
+  id: number;
+  /** Only a solution is ever allocated to a deliverable (ADR-0037). */
+  type: SolutionType;
+  number: number;
+  text: string;
+  isMet: boolean;
+  sortOrder: number;
+  /** The requirement's RowVer — edits and the met tick save against it. */
+  rowVer: number;
+  /** The allocation's RowVer — move and remove save against it. */
+  placeRowVer: number;
+}
 
 export interface WbsItem {
   id: number;
@@ -32,10 +54,11 @@ export interface WbsItem {
   end: Date | null;
   status: string | null;
   priority: string | null;
-  /** NULL takes the parent's colour. */
+  /** Legacy stored colour; not drawn. */
   color: OptionColor | null;
   assigneeNames: string | null;
   assignees: AssigneeEntry[];
+  requirements: WbsRequirement[];
   rowVer: number;
 }
 
@@ -53,7 +76,7 @@ export interface WbsNode {
   /** Rolled up from the branch for a parent; the item's own for a leaf. */
   start: Date | null;
   end: Date | null;
-  /** Own colour, else the nearest parent's, else the default. */
+  /** Its status's colour, else NO_STATUS_COLOR. */
   color: OptionColor;
   /** Levels in its branch: 1 for an item without sub-items. */
   height: number;
@@ -111,7 +134,11 @@ function bySortOrder(a: WbsItem, b: WbsItem): number {
   return a.sortOrder - b.sortOrder || a.id - b.id;
 }
 
-export function buildWbs(items: readonly WbsItem[]): Wbs {
+export function statusColor(status: string | null, colors: StatusColors): OptionColor {
+  return (status !== null ? colors.get(status) : undefined) ?? NO_STATUS_COLOR;
+}
+
+export function buildWbs(items: readonly WbsItem[], colors: StatusColors = new Map()): Wbs {
   const ids = new Set(items.map((i) => i.id));
   const childrenOf = new Map<number | null, WbsItem[]>();
   for (const item of items) {
@@ -132,9 +159,7 @@ export function buildWbs(items: readonly WbsItem[]): Wbs {
     parentId: number | null,
     index: number,
     siblingCount: number,
-    inherited: OptionColor,
   ): { leafStart: Date | null; leafEnd: Date | null } {
-    const color = item.color ?? inherited;
     const kids = (childrenOf.get(item.id) ?? []).filter((k) => !nodes.has(k.id));
     const node: WbsNode = {
       item,
@@ -146,7 +171,7 @@ export function buildWbs(items: readonly WbsItem[]): Wbs {
       siblingCount,
       start: item.start,
       end: item.end,
-      color,
+      color: statusColor(item.status, colors),
       height: 1,
     };
     nodes.set(item.id, node);
@@ -156,7 +181,7 @@ export function buildWbs(items: readonly WbsItem[]): Wbs {
     let leafStart: Date | null = null;
     let leafEnd: Date | null = null;
     kids.forEach((kid, i) => {
-      const span = visit(kid, depth + 1, `${code}.${i + 1}`, item.id, i, kids.length, color);
+      const span = visit(kid, depth + 1, `${code}.${i + 1}`, item.id, i, kids.length);
       leafStart = minDate(leafStart, span.leafStart);
       leafEnd = maxDate(leafEnd, span.leafEnd);
       node.height = Math.max(node.height, nodes.get(kid.id)!.height + 1);
@@ -167,9 +192,7 @@ export function buildWbs(items: readonly WbsItem[]): Wbs {
   }
 
   const roots = childrenOf.get(null) ?? [];
-  roots.forEach((root, i) =>
-    visit(root, 1, String(i + 1), null, i, roots.length, DEFAULT_WBS_COLOR),
-  );
+  roots.forEach((root, i) => visit(root, 1, String(i + 1), null, i, roots.length));
   return { nodes, rootIds: roots.map((r) => r.id), order };
 }
 
@@ -413,4 +436,113 @@ export function wbsBounds(wbs: Wbs): { min: Date | null; max: Date | null } {
     max = maxDate(max, node.end ?? node.start);
   }
   return { min, max };
+}
+
+/** What usp_KeyDeliverable_SetStatus does, applied to the rows on screen. */
+export function applyStatus(
+  items: readonly WbsItem[],
+  id: number,
+  status: string | null,
+): WbsItem[] {
+  return items.map((i) => (i.id === id ? { ...i, status } : i));
+}
+
+function withRequirements(
+  items: readonly WbsItem[],
+  id: number,
+  change: (requirements: WbsRequirement[]) => WbsRequirement[],
+): WbsItem[] {
+  return items.map((i) => (i.id === id ? { ...i, requirements: change(i.requirements) } : i));
+}
+
+function numbered(requirements: WbsRequirement[]): WbsRequirement[] {
+  return requirements.map((r, index) =>
+    r.sortOrder === index + 1 ? r : { ...r, sortOrder: index + 1 },
+  );
+}
+
+/** The chip in front of a requirement's wording: "FR-3", or its type alone until the server has
+ *  given a queued one its number, so the chip never shows a number that turns out wrong. */
+export function requirementChip(requirement: WbsRequirement): string {
+  return requirement.number > 0
+    ? requirementRef(requirement.type, requirement.number)
+    : requirement.type;
+}
+
+/** Distinct requirements allocated anywhere in a branch: what deleting the item unallocates. */
+export function branchRequirementCount(wbs: Wbs, id: number): number {
+  const ids = new Set<number>();
+  for (const itemId of [id, ...descendantIds(wbs, id)]) {
+    for (const requirement of wbs.nodes.get(itemId)?.item.requirements ?? []) {
+      ids.add(requirement.id);
+    }
+  }
+  return ids.size;
+}
+
+/** One occurrence of a requirement, for a shared edit or tick; undefined when it is gone. A
+ *  requirement can sit on several deliverables, so any occurrence carries the shared fields. */
+export function findRequirement(
+  items: readonly WbsItem[],
+  requirementId: number,
+): WbsRequirement | undefined {
+  for (const item of items) {
+    const found = item.requirements.find((r) => r.id === requirementId);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+/** The requirement as it sits on one deliverable, for a move or remove (its own placeRowVer). */
+export function requirementIn(
+  items: readonly WbsItem[],
+  itemId: number,
+  requirementId: number,
+): WbsRequirement | undefined {
+  return items.find((i) => i.id === itemId)?.requirements.find((r) => r.id === requirementId);
+}
+
+/** usp_Requirement_Update: new wording or met tick, shared across every item that lists it. */
+export function applyRequirementEdit(
+  items: readonly WbsItem[],
+  requirementId: number,
+  edit: { text?: string; isMet?: boolean },
+): WbsItem[] {
+  return items.map((item) =>
+    item.requirements.some((r) => r.id === requirementId)
+      ? {
+          ...item,
+          requirements: item.requirements.map((r) =>
+            r.id === requirementId ? { ...r, ...edit } : r,
+          ),
+        }
+      : item,
+  );
+}
+
+/** usp_Requirement_Move: the requirement at position (from 1) under one deliverable. */
+export function applyRequirementMove(
+  items: readonly WbsItem[],
+  itemId: number,
+  requirementId: number,
+  position: number,
+): WbsItem[] {
+  return withRequirements(items, itemId, (list) => {
+    const moving = list.find((r) => r.id === requirementId);
+    if (!moving) return list;
+    const rest = list.filter((r) => r.id !== requirementId);
+    const at = Math.min(Math.max(position, 1), rest.length + 1) - 1;
+    return numbered([...rest.slice(0, at), moving, ...rest.slice(at)]);
+  });
+}
+
+/** usp_Requirement_Unallocate: off this one deliverable, the rest renumbered; it stays elsewhere. */
+export function applyRequirementRemove(
+  items: readonly WbsItem[],
+  itemId: number,
+  requirementId: number,
+): WbsItem[] {
+  return withRequirements(items, itemId, (list) =>
+    numbered(list.filter((r) => r.id !== requirementId)),
+  );
 }

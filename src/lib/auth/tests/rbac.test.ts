@@ -72,6 +72,15 @@ describe("canInProject", () => {
     expect(canInProject("Contributor", "todo-items:delete")).toBe(false);
   });
 
+  it("Contributor adds and edits requirements but only a Manager deletes one (ADR-0037)", () => {
+    expect(canInProject("Contributor", "requirements:create")).toBe(true);
+    expect(canInProject("Contributor", "requirements:update")).toBe(true);
+    expect(canInProject("Contributor", "requirements:delete")).toBe(false);
+    expect(canInProject("Manager", "requirements:delete")).toBe(true);
+    expect(canInProject("Viewer", "requirements:read")).toBe(true);
+    expect(canInProject("Viewer", "requirements:create")).toBe(false);
+  });
+
   it("Manager can do everything in the project", () => {
     for (const verb of ["read", "create", "update", "delete"]) {
       expect(canInProject("Manager", `projects:${verb}`)).toBe(true);

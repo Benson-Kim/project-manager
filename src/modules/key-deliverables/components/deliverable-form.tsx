@@ -10,7 +10,6 @@ import { DatePicker, Select, Textarea } from "@/components/ui/form/inputs";
 import { useSheetFormActions } from "@/components/ui/form/use-sheet-form-actions";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { ListOptions } from "@/components/ui/lookup-lists";
-import { OPTION_COLORS } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
 import { toDateInput } from "@/lib/format";
 import {
@@ -127,7 +126,7 @@ export function DeliverableForm({
 
       <fieldset disabled={!canEdit} className="flex flex-col gap-4">
         <Field
-          label={messages.keyDeliverables.requirement}
+          label={messages.keyDeliverables.deliverable}
           name="keyRequirement"
           errors={form.errors.keyRequirement}
         >
@@ -174,16 +173,6 @@ export function DeliverableForm({
               name="requestedDate"
               defaultValue={toDateInput(deliverable?.RequestedDate)}
             />
-          </Field>
-          <Field label={messages.keyDeliverables.color} name="color" errors={form.errors.color}>
-            <Select name="color" defaultValue={deliverable?.Color ?? ""}>
-              <option value="">{messages.keyDeliverables.colorFromParent}</option>
-              {OPTION_COLORS.map((c) => (
-                <option key={c} value={c}>
-                  {messages.lookupLists.colors[c]}
-                </option>
-              ))}
-            </Select>
           </Field>
           <Field label={messages.keyDeliverables.status} name="status" errors={form.errors.status}>
             <Select name="status" defaultValue={deliverable?.Status ?? ""}>

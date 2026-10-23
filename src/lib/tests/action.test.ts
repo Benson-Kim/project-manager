@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type { Session } from "../auth/types";
 
@@ -24,7 +24,8 @@ vi.mock("../auth/provider", () => ({
 }));
 
 import { action } from "../action";
-import { AppError } from "../errors";
+import { AppError, type AppErrorCode } from "../errors";
+import { messages } from "../messages";
 import { resetRateLimits } from "../rate-limit";
 import { richTextSchema } from "../rich-text/schema";
 
@@ -200,6 +201,190 @@ describe("action() wrapper ", () => {
     const fd = new FormData();
     fd.set("body", '<div>Hi<img src=x onerror="alert(1)"><script>alert(1)</script></div>');
     expect(await run(fd)).toEqual({ ok: true, data: "<p>Hi</p>" });
+  });
+});
+
+describe("failure references and logging", () => {
+  let logged: unknown[][] = [];
+  let logSpy: { mockRestore: () => void };
+
+  beforeEach(() => {
+    session = { userId: 7, username: "zephyrine", role: "Admin" };
+    logged = [];
+    logSpy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+      logged.push(args);
+    });
+  });
+
+  afterEach(() => {
+    logSpy.mockRestore();
+  });
+
+  /** The one log line a failure writes, as its prefix and its fields. */
+  function onlyLine(): Record<string, unknown> {
+    expect(logged).toHaveLength(1);
+    const [prefix, fields] = logged[0];
+    expect(prefix).toBe("[action] failed:");
+    return fields as Record<string, unknown>;
+  }
+
+  it("logs one line for an unexpected error and puts its reference in the message", async () => {
+    const run = makeAction(() => Promise.reject(new Error("sql stack trace")));
+    const result = await run({ name: "Acme" });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    const fields = onlyLine();
+    expect(Object.keys(fields).sort()).toEqual([
+      "action",
+      "code",
+      "reason",
+      "reference",
+      "stack",
+      "userId",
+    ]);
+    expect(fields).toMatchObject({
+      action: "test.create",
+      code: "INTERNAL",
+      userId: 7,
+      reason: "sql stack trace",
+    });
+    const reference = fields.reference as string;
+    expect(reference).toMatch(/^[0-9a-f]{8}$/);
+    expect(result.error.message).toBe(messages.errors.internalWithReference(reference));
+    expect(result.error.message).toContain(reference);
+    expect(result.error.message).not.toContain("sql");
+  });
+
+  it("gives every failure its own reference", async () => {
+    const run = makeAction(() => Promise.reject(new Error("boom")));
+    await run({ name: "Acme" });
+    await run({ name: "Acme" });
+
+    const references = logged.map((call) => (call[1] as { reference: string }).reference);
+    expect(references).toHaveLength(2);
+    expect(references[0]).not.toBe(references[1]);
+  });
+
+  it("logs no input, no form data and no session field beyond the user id", async () => {
+    const run = action({
+      name: "test.secrets",
+      schema: z.object({ name: z.string(), pin: z.string() }),
+      permission: "suppliers:create",
+      handler: () => Promise.reject(new Error("handler failed")),
+    });
+    const fd = new FormData();
+    fd.set("name", "Acme Holdings");
+    fd.set("pin", "s3cret-pin-value");
+
+    await run(fd);
+
+    const line = JSON.stringify(logged);
+    expect(line).toContain('"userId":7');
+    for (const value of ["Acme Holdings", "s3cret-pin-value", "zephyrine"]) {
+      expect(line).not.toContain(value);
+    }
+  });
+
+  it("keeps a mapped code's own copy and logs the proc's reason, not the user", async () => {
+    const run = makeAction(() =>
+      Promise.reject(new AppError("CONFLICT", "RowVer mismatch on Supplier 42")),
+    );
+    const result = await run({ name: "Acme" });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.message).toBe(messages.errors.CONFLICT);
+    expect(result.error.message).not.toContain("RowVer");
+    const fields = onlyLine();
+    // An AppError is a business failure, not a bug: no stack.
+    expect(Object.keys(fields).sort()).toEqual(["action", "code", "reason", "reference", "userId"]);
+    expect(fields).toMatchObject({ code: "CONFLICT", reason: "RowVer mismatch on Supplier 42" });
+    expect(fields.reference).toMatch(/^[0-9a-f]{8}$/);
+  });
+
+  it("never lets a proc's validation text reach the client (LESSONS §30)", async () => {
+    const run = makeAction(() =>
+      Promise.reject(new AppError("VALIDATION", "This line has transactions")),
+    );
+    const result = await run({ name: "Acme" });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.message).toBe(messages.errors.VALIDATION);
+    expect(onlyLine().reason).toBe("This line has transactions");
+  });
+
+  it("treats an unmapped code as an application failure, so no proc text leaks", async () => {
+    const run = makeAction(() =>
+      Promise.reject(new AppError("TEAPOT" as unknown as AppErrorCode, "proc said too much")),
+    );
+    const result = await run({ name: "Acme" });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    const reference = onlyLine().reference as string;
+    expect(result.error.message).toBe(messages.errors.internalWithReference(reference));
+    expect(result.error.message).not.toContain("proc said too much");
+  });
+
+  it("logs the refused permission as the reason and tells the user nothing more", async () => {
+    session = { userId: 2, username: "member", role: "User" };
+    const handler = vi.fn();
+    const run = action({
+      name: "test.admin",
+      schema,
+      permission: "admin:update",
+      handler: (input) => handler(input),
+    });
+    const result = await run({ name: "Acme" });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.message).toBe(messages.errors.FORBIDDEN);
+    expect(onlyLine()).toMatchObject({
+      action: "test.admin",
+      code: "FORBIDDEN",
+      userId: 2,
+      reason: "admin:update",
+    });
+  });
+
+  it("logs an unauthenticated call without a user id", async () => {
+    session = null;
+    const run = makeAction(() => Promise.resolve("x"));
+    const result = await run({ name: "Acme" });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.message).toBe(messages.errors.UNAUTHENTICATED);
+    expect(onlyLine()).toMatchObject({ code: "UNAUTHENTICATED", userId: undefined });
+  });
+
+  it("logs a throttled call with a reference and no reason", async () => {
+    const previous = process.env.RATE_LIMIT_ACTIONS_PER_MINUTE;
+    process.env.RATE_LIMIT_ACTIONS_PER_MINUTE = "1";
+    resetRateLimits();
+    session = { userId: 4243, username: "busy", role: "User" };
+    const run = makeAction((input) => Promise.resolve(input.name));
+    try {
+      await run({ name: "first" });
+      await run({ name: "second" });
+      const fields = onlyLine();
+      expect(Object.keys(fields).sort()).toEqual(["action", "code", "reference", "userId"]);
+      expect(fields).toMatchObject({ code: "RATE_LIMITED", userId: 4243 });
+    } finally {
+      process.env.RATE_LIMIT_ACTIONS_PER_MINUTE = previous;
+      resetRateLimits();
+    }
+  });
+
+  it("does not log a schema failure: it is pre-session and the form shows it per field", async () => {
+    const run = makeAction(vi.fn());
+    const result = await run({ name: "" });
+
+    expect(result.ok).toBe(false);
+    expect(logged).toEqual([]);
   });
 });
 

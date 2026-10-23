@@ -19,6 +19,16 @@ import {
   todayUtc,
   visibleIds,
   wbsBounds,
+  NO_STATUS_COLOR,
+  applyRequirementEdit,
+  applyRequirementMove,
+  applyRequirementRemove,
+  applyStatus,
+  branchRequirementCount,
+  findRequirement,
+  requirementChip,
+  requirementIn,
+  statusColor,
   type WbsItem,
 } from "../schemas/wbs";
 
@@ -38,6 +48,7 @@ function item(id: number, parentId: number | null, sortOrder: number, more: Part
     color: null,
     assigneeNames: null,
     assignees: [],
+    requirements: [],
     rowVer: id * 100,
     ...more,
   } satisfies WbsItem;
@@ -103,11 +114,29 @@ describe("buildWbs", () => {
     expect(wbs.nodes.get(10)).toMatchObject({ start: d("2024-04-01"), end: d("2024-04-19") });
   });
 
-  it("gives an item its own colour, else its nearest parent's, else blue", () => {
-    const wbs = buildWbs(building());
-    expect(wbs.nodes.get(12)!.color).toBe("purple");
-    expect(wbs.nodes.get(212)!.color).toBe("orange");
-    expect(wbs.nodes.get(22)!.color).toBe("blue");
+  it("draws an item in its status's colour, else grey, whatever colour was stored", () => {
+    const colors = new Map([
+      ["In Progress", "blue"],
+      ["Completed", "green"],
+    ] as const);
+    const rows = building().map((i) =>
+      i.id === 12
+        ? { ...i, status: "Completed" }
+        : i.id === 21
+          ? { ...i, status: "In Progress" }
+          : i.id === 22
+            ? { ...i, status: "Pending" }
+            : i,
+    );
+    const wbs = buildWbs(rows, colors);
+    expect(wbs.nodes.get(12)!.color).toBe("green");
+    expect(wbs.nodes.get(21)!.color).toBe("blue");
+    // Not inherited from a parent, and a stored bar colour no longer counts.
+    expect(wbs.nodes.get(212)!.color).toBe(NO_STATUS_COLOR);
+    expect(wbs.nodes.get(10)!.color).toBe(NO_STATUS_COLOR);
+    // A status without a colour in the list.
+    expect(wbs.nodes.get(22)!.color).toBe(NO_STATUS_COLOR);
+    expect(buildWbs(rows).nodes.get(12)!.color).toBe(NO_STATUS_COLOR);
   });
 
   it("puts an item whose parent is gone at the top level rather than losing it", () => {
@@ -387,5 +416,96 @@ describe("dates", () => {
   it("spans the chart over every item's dates", () => {
     expect(wbsBounds(buildWbs(building()))).toEqual({ min: d("2024-04-01"), max: d("2024-05-31") });
     expect(wbsBounds(buildWbs([item(1, null, 1)]))).toEqual({ min: null, max: null });
+  });
+});
+
+describe("requirements and status on screen (ADR-0037)", () => {
+  const req = (id: number, sortOrder: number, text = `R${id}`) => ({
+    id,
+    type: "FR" as const,
+    number: id,
+    text,
+    isMet: false,
+    sortOrder,
+    rowVer: id * 10,
+    placeRowVer: id * 100,
+  });
+  const rows = () => [
+    item(1, null, 1, { requirements: [req(11, 1), req(12, 2), req(13, 3)] }),
+    item(2, null, 2),
+  ];
+  // The same requirement (11) sits on two deliverables, with its own order under each.
+  const shared = () => [
+    item(1, null, 1, { requirements: [req(11, 1), req(12, 2)] }),
+    item(2, null, 2, { requirements: [req(11, 1), req(21, 2)] }),
+  ];
+
+  it("chips a requirement as its reference, and as its type alone until it has a number", () => {
+    expect(requirementChip({ ...req(11, 1), type: "NFR", number: 7 })).toBe("NFR-7");
+    // A queued one carries no number yet, so the chip shows no number rather than a wrong one.
+    expect(requirementChip({ ...req(-1, 1), number: 0 })).toBe("FR");
+  });
+
+  it("counts the distinct requirements a branch would unallocate, each one once", () => {
+    // 11 sits on both items of the branch; 12 and 21 on one each.
+    const wbs = buildWbs([
+      item(1, null, 1, { requirements: [req(11, 1), req(12, 2)] }),
+      item(2, 1, 1, { requirements: [req(11, 1), req(21, 2)] }),
+      item(3, null, 2),
+    ]);
+    expect(branchRequirementCount(wbs, 1)).toBe(3);
+    expect(branchRequirementCount(wbs, 2)).toBe(2);
+    expect(branchRequirementCount(wbs, 3)).toBe(0);
+    expect(branchRequirementCount(wbs, 99)).toBe(0);
+  });
+
+  it("finds a requirement anywhere, and the one on a given deliverable", () => {
+    expect(findRequirement(rows(), 12)?.id).toBe(12);
+    expect(findRequirement(rows(), 99)).toBeUndefined();
+    expect(requirementIn(shared(), 2, 11)?.id).toBe(11);
+    expect(requirementIn(shared(), 2, 12)).toBeUndefined();
+  });
+
+  it("rewords or ticks a requirement on every deliverable that lists it", () => {
+    const next = applyRequirementEdit(shared(), 11, { isMet: true, text: "Permit" });
+    expect(next[0]!.requirements[0]).toMatchObject({ id: 11, isMet: true, text: "Permit" });
+    expect(next[1]!.requirements[0]).toMatchObject({ id: 11, isMet: true, text: "Permit" });
+    // Untouched requirements and items are left alone.
+    expect(next[0]!.requirements[1]).toEqual(req(12, 2));
+    expect(next[1]!.requirements[1]).toEqual(req(21, 2));
+  });
+
+  it("moves a requirement within one deliverable's list, renumbering and clamping", () => {
+    const ids = (items: WbsItem[]) => items[0]!.requirements.map((r) => [r.id, r.sortOrder]);
+    expect(ids(applyRequirementMove(rows(), 1, 13, 1))).toEqual([
+      [13, 1],
+      [11, 2],
+      [12, 3],
+    ]);
+    expect(ids(applyRequirementMove(rows(), 1, 11, 99))).toEqual([
+      [12, 1],
+      [13, 2],
+      [11, 3],
+    ]);
+  });
+
+  it("removes a requirement from one deliverable only, closing the gap and leaving the others", () => {
+    const next = applyRequirementRemove(shared(), 1, 11);
+    expect(next[0]!.requirements.map((r) => [r.id, r.sortOrder])).toEqual([[12, 1]]);
+    // It stays on the other deliverable.
+    expect(next[1]!.requirements.map((r) => r.id)).toEqual([11, 21]);
+    expect(applyRequirementRemove(rows(), 1, 99)).toEqual(rows());
+  });
+
+  it("sets one item's status", () => {
+    const next = applyStatus(rows(), 2, "Completed");
+    expect(next.map((i) => i.status)).toEqual([null, "Completed"]);
+  });
+
+  it("reads a status's colour, falling back to grey", () => {
+    const colors = new Map([["Completed", "green"]] as const);
+    expect(statusColor("Completed", colors)).toBe("green");
+    expect(statusColor("Pending", colors)).toBe(NO_STATUS_COLOR);
+    expect(statusColor(null, colors)).toBe(NO_STATUS_COLOR);
   });
 });

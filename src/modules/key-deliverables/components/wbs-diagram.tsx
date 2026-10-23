@@ -2,9 +2,11 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ResizeHandle } from "@/components/ui/data-view/datasheet-cells";
+import { TONES } from "@/components/ui/tones";
 import type { OptionColor } from "@/lib/lookup-lists";
 import { formatDate, toDateInput } from "@/lib/format";
 import { messages } from "@/lib/messages";
+import type { SolutionType } from "@/modules/requirements/schemas/requirement-types";
 import {
   descendantIds,
   dropPlacement,
@@ -20,6 +22,12 @@ import {
 } from "../schemas/wbs";
 import { shortDate } from "./gantt-scale";
 import { DraftInput } from "./draft-input";
+import { isMenuKey, menuBelow, type MenuRequest } from "./wbs-context-menu";
+import {
+  BoxRequirements,
+  type RequirementAccess,
+  type RequirementHandlers,
+} from "./wbs-requirements";
 import {
   ZOOM_STEPS,
   branchRows,
@@ -63,6 +71,9 @@ const MOVE_SHORTCUTS = Object.keys(MOVE_KEYS)
 /** The pixels a pointer must travel before a press on a box becomes a drag. */
 const DRAG_SLOP = 4;
 
+/** A name click waits this long for a double-click (rename) before opening the menu. */
+const NAME_CLICK_MS = 250;
+
 /** What the diagram asks the editor to do. */
 export interface DiagramHandlers {
   select: (id: number) => void;
@@ -78,6 +89,8 @@ export interface DiagramHandlers {
   remove: (id: number) => void;
   /** A drop the 10-level limit refuses. */
   tooDeep: () => void;
+  /** Open the item's context menu (ADR-0036). */
+  menu: (id: number, at: MenuRequest) => void;
 }
 
 /** Top-level boxes: filled with the item's colour, as in the checklist's WBS. */
@@ -177,6 +190,12 @@ export function WbsDiagram({
   chart,
   onChart,
   on,
+  requirementsHidden,
+  addingRequirement,
+  addRequirementType,
+  requirementAccess,
+  onRequirement,
+  statusColors,
 }: {
   projectName: string;
   wbs: Wbs;
@@ -191,6 +210,15 @@ export function WbsDiagram({
   /** Changes the settings; `save: false` while the width is still being dragged. */
   onChart: (change: (current: ChartSettings) => ChartSettings, save?: boolean) => void;
   on: DiagramHandlers;
+  /** Items whose requirements are folded away. */
+  requirementsHidden: ReadonlySet<number>;
+  /** The item whose add-requirement field is open. */
+  addingRequirement: number | null;
+  /** The kind that field is set to. */
+  addRequirementType: SolutionType;
+  requirementAccess: RequirementAccess;
+  onRequirement: RequirementHandlers;
+  statusColors: ReadonlyMap<string, OptionColor>;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -333,6 +361,11 @@ export function WbsDiagram({
   function onBoxKey(event: React.KeyboardEvent<HTMLElement>, node: WbsNode) {
     if (event.target !== event.currentTarget) return;
     const id = node.item.id;
+    if (isMenuKey(event)) {
+      event.preventDefault();
+      on.menu(id, menuBelow(event.currentTarget));
+      return;
+    }
     const shortcut = event.altKey && canEdit ? MOVE_KEYS[event.key] : undefined;
     if (shortcut) {
       event.preventDefault();
@@ -497,6 +530,13 @@ export function WbsDiagram({
     if (!p || p.pointerId !== event.pointerId) return;
     const landed = dropRef.current;
     const started = p.started;
+    // The click that follows a drag's release is not a click on a name.
+    if (started) {
+      justDragged.current = true;
+      setTimeout(() => {
+        justDragged.current = false;
+      }, 0);
+    }
     endDrag();
     if (!started || !landed) return;
     // A save that landed during the drag may have changed the tree since the last hit test.
@@ -520,6 +560,40 @@ export function WbsDiagram({
     endDrag();
   }
 
+  // ---- the context menu ---------------------------------------------------------
+
+  const justDragged = useRef(false);
+  const nameClick = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(nameClick.current), []);
+
+  /** Opens the menu unless a double-click follows or the focus moved on. */
+  function onNameClick(event: React.MouseEvent<HTMLElement>, id: number) {
+    if (justDragged.current || event.detail > 1) {
+      clearTimeout(nameClick.current);
+      return;
+    }
+    const at = { x: event.clientX, y: event.clientY + 8, status: false };
+    clearTimeout(nameClick.current);
+    nameClick.current = setTimeout(() => {
+      const box = boxElement(scrollRef.current, id);
+      if (box?.contains(document.activeElement)) on.menu(id, { ...at, returnFocus: box });
+    }, NAME_CLICK_MS);
+  }
+
+  function onBoxContextMenu(event: React.MouseEvent<HTMLElement>, id: number) {
+    const target = event.target as HTMLElement;
+    if (target.closest("input")) return;
+    event.preventDefault();
+    clearTimeout(nameClick.current);
+    on.select(id);
+    on.menu(id, {
+      x: event.clientX,
+      y: event.clientY,
+      status: false,
+      returnFocus: boxElement(scrollRef.current, id),
+    });
+  }
+
   // ---- drawing ------------------------------------------------------------------
 
   const dragged = dragId !== null ? wbs.nodes.get(dragId) : undefined;
@@ -541,7 +615,28 @@ export function WbsDiagram({
         onPointerDown={(event) => onBoxPointerDown(event, id)}
         onFocus={() => on.select(id)}
         onKeyDown={(event) => onBoxKey(event, node)}
-        onDoubleClick={() => (canEdit ? on.renameStart(id) : on.open(id))}
+        onDoubleClick={() => {
+          clearTimeout(nameClick.current);
+          if (canEdit) on.renameStart(id);
+          else on.open(id);
+        }}
+        onContextMenu={(event) => onBoxContextMenu(event, id)}
+        onNameClick={(event) => onNameClick(event, id)}
+        onStatusClick={(el) => {
+          on.select(id);
+          on.menu(id, menuBelow(el, true));
+        }}
+        statusColor={node.item.status ? (statusColors.get(node.item.status) ?? null) : null}
+        requirements={
+          <BoxRequirements
+            node={node}
+            hidden={requirementsHidden.has(id)}
+            adding={addingRequirement === id}
+            addType={addRequirementType}
+            access={requirementAccess}
+            on={onRequirement}
+          />
+        }
         onToggle={() => on.toggle(id)}
         onRename={(name) => on.rename(id, name)}
         onRenameEnd={(refocus) => endRename(id, refocus)}
@@ -843,6 +938,11 @@ function ItemBox({
   onRenameEnd,
   onStart,
   onEnd,
+  onContextMenu,
+  onNameClick,
+  onStatusClick,
+  statusColor,
+  requirements,
 }: {
   node: WbsNode;
   /** Side by side with its siblings, or listed under its parent. */
@@ -865,6 +965,11 @@ function ItemBox({
   onRenameEnd: (refocus: boolean) => void;
   onStart: (value: string) => void;
   onEnd: (value: string) => void;
+  onContextMenu: (event: React.MouseEvent<HTMLElement>) => void;
+  onNameClick: (event: React.MouseEvent<HTMLElement>) => void;
+  onStatusClick: (chip: HTMLElement) => void;
+  statusColor: OptionColor | null;
+  requirements: React.ReactNode;
 }) {
   const id = node.item.id;
   const parent = node.childIds.length > 0;
@@ -919,6 +1024,7 @@ function ItemBox({
       }}
       onKeyDown={onKeyDown}
       onDoubleClick={onDoubleClick}
+      onContextMenu={onContextMenu}
     >
       {zone === "before" || zone === "after" ? (
         <span
@@ -970,7 +1076,11 @@ function ItemBox({
             className="h-7 min-w-0 flex-1 rounded-sm border border-focus bg-surface px-1.5 text-sm font-normal text-ink select-text focus:outline-none"
           />
         ) : (
-          <span className="line-clamp-2 min-w-0 flex-1 text-sm leading-5 break-words text-ink">
+          <span
+            data-testid={`wbs-name-${id}`}
+            onClick={onNameClick}
+            className="line-clamp-2 min-w-0 flex-1 cursor-pointer text-sm leading-5 break-words text-ink"
+          >
             {name}
           </span>
         )}
@@ -1044,6 +1154,26 @@ function ItemBox({
       ) : (
         <span className="text-xs font-normal text-ink-muted tabular-nums">{shownDates}</span>
       )}
+      {node.item.status || canEdit ? (
+        <button
+          type="button"
+          tabIndex={tabbable ? 0 : -1}
+          data-testid={`wbs-status-chip-${id}`}
+          aria-haspopup="menu"
+          aria-label={W.statusOf(node.code, node.item.status ?? W.noStatus)}
+          onClick={(event) => {
+            event.stopPropagation();
+            onStatusClick(event.currentTarget);
+          }}
+          onDoubleClick={(event) => event.stopPropagation()}
+          className={`inline-flex min-h-6 max-w-full cursor-pointer items-center gap-1.5 self-start rounded-full border px-2 text-xs font-medium ${
+            statusColor ? TONES[statusColor].badge : "border-line bg-surface text-ink-muted"
+          } ${canEdit ? "hover:border-focus" : "cursor-default"} print:border-0 print:px-0`}
+        >
+          <span className="truncate">{node.item.status ?? W.noStatus}</span>
+        </button>
+      ) : null}
+      {requirements}
     </div>
   );
 }

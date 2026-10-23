@@ -5,7 +5,7 @@ import { messages } from "@/lib/messages";
  * workspace. Each deployed module appends its entry so unbuilt sections do
  * not appear (no placeholders in the section nav).
  * Segment order per ADR-0018 point 3: charter (index) · objectives ·
- * deliverables · stakeholders · suppliers · activities · todos ·
+ * deliverables · requirements · stakeholders · suppliers · activities · todos ·
  * keywords.
  */
 export interface ProjectSection {
@@ -27,6 +27,7 @@ export const projectSections: ProjectSection[] = [
   { segment: ".", label: messages.projects.charterSection, match: "exact" },
   { segment: "objectives", label: messages.projects.objectivesSection, match: "prefix" },
   { segment: "deliverables", label: messages.projects.deliverablesSection, match: "prefix" },
+  { segment: "requirements", label: messages.projects.requirementsSection, match: "prefix" },
   { segment: "stakeholders", label: messages.projects.stakeholdersSection, match: "prefix" },
   { segment: "suppliers", label: messages.projects.suppliersSection, match: "prefix" },
   { segment: "daily-activities", label: messages.projects.dailyActivitiesSection, match: "prefix" },
@@ -69,6 +70,7 @@ export const projectSectionGroups: ProjectSectionGroup[] = [
       [
         "objectives",
         "deliverables",
+        "requirements",
         "questions-answers",
         "parking-lot",
         "assumptions-constraints",

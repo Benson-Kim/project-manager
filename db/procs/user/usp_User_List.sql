@@ -21,6 +21,9 @@ BEGIN
                          WHEN @PageSize > 100 THEN 100 ELSE @PageSize END;
     SET @SortDir  = CASE WHEN LOWER(@SortDir) = 'desc' THEN 'desc' ELSE 'asc' END;
 
+    IF @Search IS NOT NULL
+        SET @Search = REPLACE(REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'), N'_', N'\_'), N'[', N'\[');
+
     SELECT u.UserId, u.Username, u.DisplayName, u.Email, u.RoleId, r.Name AS RoleName,
            u.IsActive, u.MustChangePassword, u.FailedLoginCount, u.LockedUntilUtc,
            u.SessionVersion, u.CreatedAtUtc, u.UpdatedAtUtc,
@@ -29,9 +32,9 @@ BEGIN
     FROM auth.[User] u
     JOIN auth.Role r ON r.RoleId = u.RoleId
     WHERE u.IsDeleted = 0
-      AND (@Search IS NULL OR u.Username LIKE N'%' + @Search + N'%'
-           OR u.DisplayName LIKE N'%' + @Search + N'%'
-           OR u.Email LIKE N'%' + @Search + N'%')
+      AND (@Search IS NULL OR u.Username LIKE N'%' + @Search + N'%' ESCAPE N'\'
+           OR u.DisplayName LIKE N'%' + @Search + N'%' ESCAPE N'\'
+           OR u.Email LIKE N'%' + @Search + N'%' ESCAPE N'\')
     ORDER BY
         CASE WHEN @SortBy = N'Username' AND @SortDir = 'asc'  THEN u.Username END ASC,
         CASE WHEN @SortBy = N'Username' AND @SortDir = 'desc' THEN u.Username END DESC,

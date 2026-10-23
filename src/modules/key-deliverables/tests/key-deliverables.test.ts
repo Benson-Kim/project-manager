@@ -7,16 +7,27 @@ vi.mock("@/lib/db", () => ({
 
 import { listParamsSchema } from "@/lib/list-params";
 import {
+  addCascadeRequirement,
   createKeyDeliverable,
+  removeCascadeRequirement,
   deleteWbsItem,
   getWbs,
+  listDeliverableOptions,
   listKeyDeliverables,
   moveKeyDeliverable,
+  moveCascadeRequirement,
   renameKeyDeliverable,
   rescheduleKeyDeliverable,
+  setWbsItemStatus,
   updateKeyDeliverable,
+  updateCascadeRequirement,
 } from "../repository/key-deliverables";
-import { rescheduleWbsItemInput, updateKeyDeliverableInput } from "../schemas/key-deliverable";
+import {
+  addRequirementInput,
+  rescheduleWbsItemInput,
+  updateKeyDeliverableInput,
+  updateRequirementInput,
+} from "../schemas/key-deliverable";
 
 function dbRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -199,6 +210,7 @@ describe("key-deliverables repository", () => {
         color: null,
         assigneeNames: "Maggy Yerlan",
         assignees: [{ id: 3, name: "Maggy Yerlan" }],
+        requirements: [],
         rowVer: 2001,
       });
       expect(data.items[1]).toMatchObject({ id: 8, parentId: 7, color: "red", rowVer: 2002 });
@@ -245,6 +257,119 @@ describe("key-deliverables repository", () => {
     it("refuses a colour from the database outside the palette", async () => {
       execProc.mockResolvedValue([wbsDbRow({ Color: "#ff0000" })]);
       await expect(getWbs(24, 7)).rejects.toThrow();
+    });
+
+    it("refuses a need among an item's requirements, which the procs cannot allocate", async () => {
+      execProc.mockResolvedValue([
+        wbsDbRow({
+          RequirementsJson: JSON.stringify([
+            {
+              id: 42,
+              type: "BR",
+              number: 1,
+              requirement: "Fewer delays",
+              isMet: false,
+              sortOrder: 1,
+              rowVer: "3003",
+              placeRowVer: "7003",
+            },
+          ]),
+        }),
+      ]);
+      await expect(getWbs(24, 7)).rejects.toThrow();
+    });
+
+    it("reads each item's allocated requirements in order, and none when there are none", async () => {
+      execProc.mockResolvedValue([
+        wbsDbRow({
+          RequirementsJson: JSON.stringify([
+            {
+              id: 41,
+              type: "NFR",
+              number: 2,
+              requirement: "Soil report",
+              isMet: false,
+              sortOrder: 2,
+              rowVer: "3002",
+              placeRowVer: "7002",
+            },
+            {
+              id: 40,
+              type: "FR",
+              number: 1,
+              requirement: "Permit",
+              isMet: true,
+              sortOrder: 1,
+              rowVer: "3001",
+              placeRowVer: "7001",
+            },
+          ]),
+        }),
+        wbsDbRow({ KeyDeliverableId: 8, RequirementsJson: null }),
+        wbsDbRow({ KeyDeliverableId: 9 }),
+      ]);
+      const { items } = await getWbs(24, 7);
+      expect(items[0].requirements).toEqual([
+        {
+          id: 40,
+          type: "FR",
+          number: 1,
+          text: "Permit",
+          isMet: true,
+          sortOrder: 1,
+          rowVer: 3001,
+          placeRowVer: 7001,
+        },
+        {
+          id: 41,
+          type: "NFR",
+          number: 2,
+          text: "Soil report",
+          isMet: false,
+          sortOrder: 2,
+          rowVer: 3002,
+          placeRowVer: 7002,
+        },
+      ]);
+      expect(items[1].requirements).toEqual([]);
+      expect(items[2].requirements).toEqual([]);
+    });
+
+    it("refuses malformed requirements rather than drop them", async () => {
+      execProc.mockResolvedValue([wbsDbRow({ RequirementsJson: '{"id": 1}' })]);
+      await expect(getWbs(24, 7)).rejects.toThrow("RequirementsJson must be a JSON array");
+      execProc.mockResolvedValue([wbsDbRow({ RequirementsJson: JSON.stringify([{ id: 1 }]) })]);
+      await expect(getWbs(24, 7)).rejects.toThrow();
+    });
+  });
+
+  describe("listDeliverableOptions", () => {
+    it("numbers the options by their place in the breakdown", async () => {
+      execProc.mockResolvedValue([
+        wbsDbRow({ KeyDeliverableId: 7, SortOrder: 1, KeyRequirement: "Discovery" }),
+        wbsDbRow({
+          KeyDeliverableId: 8,
+          ParentKeyDeliverableId: 7,
+          SortOrder: 1,
+          KeyRequirement: "Site survey",
+        }),
+        wbsDbRow({ KeyDeliverableId: 9, SortOrder: 2, KeyRequirement: " Rollout " }),
+      ]);
+      expect(await listDeliverableOptions(24, 7)).toEqual([
+        { id: 7, label: "1 Discovery" },
+        { id: 8, label: "1.1 Site survey" },
+        { id: 9, label: "2 Rollout" },
+      ]);
+    });
+
+    it("falls back to the number alone for an item without a name", async () => {
+      execProc.mockResolvedValue([wbsDbRow({ KeyRequirement: null })]);
+      expect(await listDeliverableOptions(24, 7)).toEqual([{ id: 7, label: "1" }]);
+    });
+
+    it("offers nothing for a project without deliverables", async () => {
+      execProc.mockResolvedValue([projectOnlyRow()]);
+      expect(await listDeliverableOptions(24, 7)).toEqual([]);
     });
   });
 
@@ -305,6 +430,102 @@ describe("key-deliverables repository", () => {
       ]);
     });
 
+    it("set status sends only the status (null clears it)", async () => {
+      answer(24);
+      await setWbsItemStatus({ id: 7, status: "Completed", rowVer: 2001 }, 9);
+      expect(execProc.mock.calls[0]).toEqual([
+        "usp_KeyDeliverable_SetStatus",
+        { KeyDeliverableId: 7, Status: "Completed", RowVer: 2001, ActorUserId: 9 },
+      ]);
+    });
+
+    /** A full app.Requirement row, as usp_Requirement_Create/Update answer (ADR-0037). */
+    const reqRow = {
+      RequirementId: 40,
+      ProjectId: 31,
+      RequirementType: "FR",
+      Number: 1,
+      Requirement: "Permit",
+      IsMet: false,
+      CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),
+      UpdatedAtUtc: null,
+      RowVer: "3001",
+      ValidatesJson: null,
+      ValidatedByJson: null,
+      DeliverablesJson: null,
+    };
+
+    it("adds a requirement already allocated to the item, answering with its id and project", async () => {
+      execProc.mockResolvedValueOnce([reqRow]).mockResolvedValueOnce([wbsDbRow()]);
+      const data = await addCascadeRequirement(
+        { projectId: 31, itemId: 7, type: "FR", text: "Permit" },
+        9,
+      );
+      expect(data.id).toBe(40);
+      expect(execProc.mock.calls[0]).toEqual([
+        "usp_Requirement_Create",
+        {
+          ProjectId: 31,
+          RequirementType: "FR",
+          Requirement: "Permit",
+          IsMet: false,
+          ValidatesIds: null,
+          KeyDeliverableIds: JSON.stringify([7]),
+          ActorUserId: 9,
+        },
+      ]);
+      expect(execProc.mock.calls[1]).toEqual([
+        "usp_KeyDeliverable_GanttData",
+        { ProjectId: 31, ActorUserId: 9, WithProjectRow: 1 },
+      ]);
+    });
+
+    it("fails rather than guess when creating a requirement returns no row", async () => {
+      execProc.mockResolvedValueOnce([]);
+      await expect(
+        addCascadeRequirement({ projectId: 31, itemId: 7, type: "FR", text: "Permit" }, 9),
+      ).rejects.toThrow();
+    });
+
+    it("edits, moves and removes an allocation through the requirements procs", async () => {
+      // Edit (wording/tick) answers with the requirement row; move and remove answer with ProjectId.
+      execProc.mockResolvedValueOnce([reqRow]).mockResolvedValueOnce([wbsDbRow()]);
+      await updateCascadeRequirement(
+        { id: 40, type: "FR", text: "Permit", isMet: true, rowVer: 3001 },
+        9,
+      );
+      execProc.mockResolvedValueOnce([{ ProjectId: 24 }]).mockResolvedValueOnce([wbsDbRow()]);
+      await moveCascadeRequirement({ itemId: 7, id: 40, position: 2, rowVer: 5001 }, 9);
+      execProc.mockResolvedValueOnce([{ ProjectId: 24 }]).mockResolvedValueOnce([wbsDbRow()]);
+      await removeCascadeRequirement({ itemId: 7, id: 40, rowVer: 5001 }, 9);
+      const writes = execProc.mock.calls.filter((_, i) => i % 2 === 0);
+      expect(writes).toEqual([
+        [
+          "usp_Requirement_Update",
+          {
+            RequirementId: 40,
+            RequirementType: "FR",
+            Requirement: "Permit",
+            IsMet: true,
+            ValidatesSet: 0,
+            ValidatesIds: null,
+            DeliverablesSet: 0,
+            KeyDeliverableIds: null,
+            RowVer: 3001,
+            ActorUserId: 9,
+          },
+        ],
+        [
+          "usp_Requirement_Move",
+          { RequirementId: 40, KeyDeliverableId: 7, Position: 2, RowVer: 5001, ActorUserId: 9 },
+        ],
+        [
+          "usp_Requirement_Unallocate",
+          { RequirementId: 40, KeyDeliverableId: 7, RowVer: 5001, ActorUserId: 9 },
+        ],
+      ]);
+    });
+
     it("fails rather than read some other project when the proc names none", async () => {
       execProc.mockResolvedValueOnce([]);
       await expect(
@@ -338,5 +559,16 @@ describe("key-deliverable inputs", () => {
       HasChildren: false,
     });
     expect(reschedule).not.toHaveProperty("HasChildren");
+  });
+
+  it("refuse a need on the cascade's writes: only a solution goes to a deliverable (ADR-0037)", () => {
+    const add = { projectId: 2, itemId: 22, text: "Permit" };
+    expect(addRequirementInput.safeParse({ ...add, type: "FR" }).success).toBe(true);
+    for (const type of ["BR", "SR", "XX"]) {
+      expect(addRequirementInput.safeParse({ ...add, type }).success).toBe(false);
+    }
+    const update = { id: 40, text: "Permit", isMet: true, rowVer: 1 };
+    expect(updateRequirementInput.safeParse({ ...update, type: "TR" }).success).toBe(true);
+    expect(updateRequirementInput.safeParse({ ...update, type: "BR" }).success).toBe(false);
   });
 });

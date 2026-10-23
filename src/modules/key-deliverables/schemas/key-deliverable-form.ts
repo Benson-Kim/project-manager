@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { FormValues } from "@/components/ui/data-view/datasheet";
 import { datesInOrder, datesWere, storedDates } from "@/lib/date-range";
 import { toDateInput } from "@/lib/format";
-import { OPTION_COLORS, listChoice } from "@/lib/lookup-lists";
+import { listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
 import type { KeyDeliverableRow } from "./key-deliverable";
 
@@ -19,9 +19,9 @@ import type { KeyDeliverableRow } from "./key-deliverable";
  *   multiple stakeholder IDs; coerced to number[].
  *
  * Work breakdown (migration 032, ADR-0027): startDate is required (checklist
- * row 67) and the deadline may not come before it; color is a palette key, or
- * empty for the parent's colour. Where the item sits in the breakdown is the
- * WBS editor's business, not this form's.
+ * row 67) and the deadline may not come before it. Where the item sits in the
+ * breakdown is the WBS editor's business, not this form's. No colour field: it
+ * follows the status (ADR-0036).
  */
 const dateInput = z
   .string()
@@ -38,12 +38,6 @@ const requiredDateInput = z
   .refine((v) => !Number.isNaN(Date.parse(v)), messages.keyDeliverables.invalidDate)
   .transform((v) => new Date(v));
 
-/** "" = the parent's colour (null); otherwise a palette key. */
-const colorInput = z
-  .union([z.literal(""), z.enum(OPTION_COLORS)])
-  .optional()
-  .transform((v) => (v ? v : null));
-
 /** Single "assigneeIds[]" entry — numeric string or empty, validated inside the schema. */
 const assigneeIdEntry = z
   .string()
@@ -53,11 +47,10 @@ const assigneeIdEntry = z
 
 const keyDeliverableFields = z.object({
   projectId: z.coerce.number().int().positive(),
-  keyRequirement: z.string().trim().min(1, messages.keyDeliverables.requirementRequired).max(4000),
+  keyRequirement: z.string().trim().min(1, messages.keyDeliverables.deliverableRequired).max(4000),
   requestedDate: dateInput,
   startDate: requiredDateInput,
   deadline: dateInput,
-  color: colorInput,
   /** FormData submits repeating fields as string[]. May arrive as a single string too.
    *  Each entry is validated by assigneeIdEntry here so that a malformed value
    *  produces a safeParse failure rather than a thrown ZodError from inside a transform. */
@@ -99,7 +92,6 @@ function toDeliverableInput(raw: z.output<typeof keyDeliverableFields>) {
     requestedDate: raw.requestedDate,
     startDate: raw.startDate,
     deadline: raw.deadline,
-    color: raw.color,
     assigneeIds: assigneeIds.length > 0 ? assigneeIds : null,
     priority: raw.priority,
     status: raw.status,
@@ -140,7 +132,6 @@ export function deliverableFormValues(row: KeyDeliverableRow): FormValues {
       startDate: row.StartDate,
       deadline: row.Deadline,
     }),
-    color: row.Color ?? "",
     "assigneeIds[]": row.Assignees.map((a) => String(a.id)),
     priority: row.Priority ?? "",
     status: row.Status ?? "",

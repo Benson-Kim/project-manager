@@ -17,7 +17,7 @@ BEGIN
     -- The actor's role is read from auth.User, never trusted from the caller.
     DECLARE @ActorRole NVARCHAR(50);
     EXEC dbo.usp_User_GetActorRole @UserId = @ActorUserId, @Role = @ActorRole OUTPUT;
-    SET @Prefix = REPLACE(REPLACE(REPLACE(@Prefix, N'\', N'\\'), N'%', N'\%'), N'_', N'\_');
+    SET @Prefix = REPLACE(REPLACE(REPLACE(REPLACE(@Prefix, N'\', N'\\'), N'%', N'\%'), N'_', N'\_'), N'[', N'\[');
 
     SELECT TOP (20)
            ProjectId,

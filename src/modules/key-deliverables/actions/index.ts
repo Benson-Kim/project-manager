@@ -2,26 +2,36 @@
 
 import { action } from "@/lib/action";
 import {
+  addCascadeRequirement,
   createKeyDeliverable,
   updateKeyDeliverable,
   deleteKeyDeliverable,
+  removeCascadeRequirement,
   deleteWbsItem,
   getWbs,
   moveKeyDeliverable,
+  moveCascadeRequirement,
   renameKeyDeliverable,
   rescheduleKeyDeliverable,
+  setWbsItemStatus,
+  updateCascadeRequirement,
 } from "../repository/key-deliverables";
 import {
   keyDeliverableFormSchema,
   updateKeyDeliverableFormSchema,
 } from "../schemas/key-deliverable-form";
 import {
+  addRequirementInput,
   addWbsItemInput,
   deleteKeyDeliverableInput,
+  removeRequirementInput,
   deleteWbsItemInput,
+  moveRequirementInput,
   moveWbsItemInput,
   renameWbsItemInput,
   rescheduleWbsItemInput,
+  setWbsStatusInput,
+  updateRequirementInput,
 } from "../schemas/key-deliverable";
 
 /**
@@ -120,4 +130,47 @@ export const deleteWbsItemAction = action({
   schema: deleteWbsItemInput,
   permission: "key-deliverables:delete",
   handler: (input, ctx) => deleteWbsItem(input, ctx.session.userId),
+});
+
+/** Set an item's status from the menu (ADR-0036). */
+export const setWbsStatusAction = action({
+  name: "key-deliverables.wbs-status",
+  schema: setWbsStatusInput,
+  permission: "key-deliverables:update",
+  handler: (input, ctx) => setWbsItemStatus(input, ctx.session.userId),
+});
+
+/*
+ * The requirements cascade (ADR-0037): create, edit, move within a deliverable, or take a
+ * requirement off one deliverable, from the WBS or Gantt. Permissions follow requirements:*, so a
+ * Contributor can work on requirements without being able to change deliverables. Each answers
+ * with the whole breakdown; the page is dynamic, so no path is revalidated.
+ */
+
+export const addRequirementAction = action({
+  name: "key-deliverables.requirement-add",
+  schema: addRequirementInput,
+  permission: "requirements:create",
+  handler: (input, ctx) => addCascadeRequirement(input, ctx.session.userId),
+});
+
+export const updateRequirementAction = action({
+  name: "key-deliverables.requirement-update",
+  schema: updateRequirementInput,
+  permission: "requirements:update",
+  handler: (input, ctx) => updateCascadeRequirement(input, ctx.session.userId),
+});
+
+export const moveRequirementAction = action({
+  name: "key-deliverables.requirement-move",
+  schema: moveRequirementInput,
+  permission: "requirements:update",
+  handler: (input, ctx) => moveCascadeRequirement(input, ctx.session.userId),
+});
+
+export const removeRequirementAction = action({
+  name: "key-deliverables.requirement-remove",
+  schema: removeRequirementInput,
+  permission: "requirements:update",
+  handler: (input, ctx) => removeCascadeRequirement(input, ctx.session.userId),
 });

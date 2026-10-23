@@ -90,6 +90,10 @@ export default async function DeliverablesGanttPage({
             canCreate={allows("key-deliverables:create")}
             canEdit={allows("key-deliverables:update")}
             canDelete={allows("key-deliverables:delete")}
+            requirementAccess={{
+              canCreate: allows("requirements:create"),
+              canEdit: allows("requirements:update"),
+            }}
             openDeliverable={openDeliverable}
             sheetOpen={Boolean(openDeliverable)}
             assigneeOptions={assigneeOptions}
