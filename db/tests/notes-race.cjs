@@ -76,11 +76,6 @@ const among = (list, ...allowed) => list.every((c) => allowed.includes(c));
   });
   const stamp = `notes-race-${Date.now()}`;
 
-  // 0. Reads take no shared locks (ADR-0045), so none of the races below can deadlock on a read.
-  const { recordset: [db] } = await pool.request().query(
-    "SELECT is_read_committed_snapshot_on AS Rcsi FROM sys.databases WHERE database_id = DB_ID()");
-  ok(db.Rcsi === true, "READ_COMMITTED_SNAPSHOT is on (migration 042)");
-
   // 1. Eight saves of one page at the same RowVer: one winner, seven conflicts, no lost update.
   const n1 = await notebook(`${stamp} saves`);
   const [page] = await pages(n1.NoteId);

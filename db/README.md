@@ -4,7 +4,7 @@
 - `procs/` — one folder per entity, one file per stored procedure (`usp_<Entity>_<Action>.sql`, `CREATE OR ALTER`). **All application data access goes through these procs** — no inline SQL anywhere in the app.
 - `seed/` — data migrated from the original Access database, idempotent, original IDs preserved via `IDENTITY_INSERT`. Source of truth: `docs/source/analysis/access-database.md` §4 (full row dump) — and nothing else. The seeds ARE the import mechanism (checklist row 61).
 - `security/` — `app-login.sql` (ADR-0033): role `app_executor` (EXECUTE on schema `dbo`, nothing else) and the app's login `DB_APP_USER` (default `pm_web`) in that role only. Run by `db-apply.sh` on every apply, after the seeds; it fails when the role or the login holds anything more. Server edition only: the desktop build does not package it.
-- `verify/` — CI-only assertions (`seed_counts.sql` fails the `db:apply` job when any table's row count deviates from the §4 inventory; `app_login.sql` impersonates the app login and fails on any right beyond EXECUTE on `dbo`).
+- `verify/` — CI-only assertions (`seed_counts.sql` fails the `db:apply` job when any table's row count deviates from the §4 inventory; `app_login.sql` impersonates the app login and fails on any right beyond EXECUTE on `dbo`; `read_committed_snapshot.sql` fails when versioned reads are off, ADR-0045).
 
 Apply everything to a running SQL Server with:
 

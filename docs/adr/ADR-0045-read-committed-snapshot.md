@@ -36,7 +36,8 @@ locks.
    so the desktop runner re-runs it without one (error 226). The desktop database is owned by
    `pm_app`, which creates it, so no other right is needed. A server applies it in its deploy
    window.
-4. **Pinned by the race checks.** `notes-race.cjs` asserts the setting is on before it races.
+4. **Pinned in CI.** `db/verify/read_committed_snapshot.sql` fails the database job when the
+   setting is off after the migrations run, before the race checks start.
 
 ## Consequences
 
