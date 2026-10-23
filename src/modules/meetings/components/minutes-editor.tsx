@@ -333,7 +333,9 @@ export function MinutesEditor({
                   data-testid="open-action"
                   className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm"
                 >
-                  <span className="min-w-0 flex-1 text-ink wrap-anywhere">{action.Action}</span>
+                  <span className="min-w-0 grow basis-48 text-ink wrap-anywhere">
+                    {action.Action}
+                  </span>
                   {action.AssigneeName ? (
                     <span className="text-ink-muted">{action.AssigneeName}</span>
                   ) : null}
@@ -372,7 +374,9 @@ export function MinutesEditor({
                     data-testid="carried-over-action"
                     className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm"
                   >
-                    <span className="min-w-0 flex-1 text-ink wrap-anywhere">{action.Action}</span>
+                    <span className="min-w-0 grow basis-48 text-ink wrap-anywhere">
+                      {action.Action}
+                    </span>
                     {action.AssigneeName ? (
                       <span className="text-ink-muted">{action.AssigneeName}</span>
                     ) : null}

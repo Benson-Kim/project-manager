@@ -67,3 +67,21 @@ describe("the hold is one write, carrying its reason", () => {
     expect(forms).toContain("onClick={() => onConfirm(reason.trim() || null)}");
   });
 });
+
+/**
+ * Guardrail: the open and carried-over lists put an action's text and its
+ * details on one wrapping row. With a zero flex-basis the row never wraps, so a
+ * row with a person, a date, Overdue, its meeting, a status and a reason left the
+ * text a few pixels wide and broke it mid-word. The text keeps a basis, and the
+ * details move to the next line instead.
+ */
+describe("an action's text keeps its width in the summary lists", () => {
+  const editor = source(EDITOR);
+
+  it.each(["open-action", "carried-over-action"])("%s", (testId) => {
+    const row = editor.slice(editor.indexOf(`data-testid="${testId}"`));
+    const text = row.slice(row.indexOf("<span"), row.indexOf("{action.Action}"));
+    expect(text).toContain("basis-48");
+    expect(text).not.toContain("flex-1");
+  });
+});
