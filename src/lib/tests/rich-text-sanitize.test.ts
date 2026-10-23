@@ -382,10 +382,11 @@ describe("htmlToPlainText", () => {
 });
 
 describe("sanitiser cost on hostile input at the size limit", () => {
-  // Every save and every page read runs these on the server. Each case takes well under a
-  // second; the budget only catches a regex that backtracks, which takes minutes.
+  // Every save and every page read runs these on the server. Each case runs three passes
+  // (sanitise, flatten, which sanitises again, and the fixed-point check) and takes under a
+  // second locally; the budget catches a quadratic path, which takes ten seconds or more here.
   const N = 200_000;
-  const BUDGET_MS = 5_000;
+  const BUDGET_MS = 2_000;
   const cases: Record<string, string> = {
     "nested coloured spans": '<span style="color:#ff0000" data-color="red">'.repeat(4000) + "x",
     "one huge style": `<span style="color:${" ".repeat(N)}">x</span>`,
@@ -395,6 +396,13 @@ describe("sanitiser cost on hostile input at the size limit", () => {
     "shaded cells": '<table><tr><td data-shade="#123456">a</td></tr></table>'.repeat(3000),
     "page breaks": "<hr data-page-break>".repeat(10_000),
     "unclosed tags": "<hr".repeat(N / 3),
+    "a run of spaces before a letter": `<p>a${" ".repeat(N - 20)}b</p>`,
+    "a run of tabs before a letter": `<p>a${"\t".repeat(N - 20)}b</p>`,
+    "nesting at the schema limit, repeated": (
+      "<blockquote>".repeat(100) +
+      "x" +
+      "</blockquote>".repeat(100)
+    ).repeat(80),
   };
 
   for (const [name, html] of Object.entries(cases)) {

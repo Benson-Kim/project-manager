@@ -1283,6 +1283,7 @@ export const messages = {
     deleteTable: "Delete table",
     clearFormatting: "Clear formatting",
     tooLong: "This text is too long",
+    tooDeep: "This text has too many lists or tables inside each other to save",
   },
   confirmDelete: {
     title: (entity: string, name: string) => `Delete ${entity} ${name}?`,

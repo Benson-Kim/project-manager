@@ -65,9 +65,31 @@ Two constraints shaped the choice:
   - `data-indent` on `p` and `h2`-`h6`, including legacy `div` and `h1`;
   - `start` and `type` on `ol`, plus the `list-style-type` the type implies;
   - `data-page-break` on `hr`.
-- Anything else is dropped, and the output stays a fixed point. A value outside the vocabulary
-  is removed rather than left empty.
+- Anything else is dropped. A value outside the vocabulary is removed rather than left empty.
+  Editor markup stays a fixed point. Legacy blocks nested in blocks (`<div><div>`, which becomes
+  `<p><p>`) settle only on a second pass. That is known, harmless to the allow-list, and
+  left for later.
 - `h5`/`h6` are no longer folded into `h4`.
+
+### Cost bounds (pre-merge review, 2026-10-23)
+
+Every rich-text save runs the sanitiser before the proc, and the notes shared space lets any user
+store what every other user's request parses. A review measured two quadratic paths and both are
+closed:
+
+- The plain-text pass trimmed line ends with `/[ \t]+$/`, which backtracks on a long run of
+  spaces before a letter: 40k spaces took 3.7 s and 200k more than 30 s. A lookbehind,
+  `(?<![ \t])[ \t]+$`, starts a match only at the start of a run; 200k now takes about 25 ms.
+- The HTML parser costs O(depth) per tag, so deep nesting is quadratic (80k open tags, 5.9 s).
+  `max` applied only to the sanitised output, so the raw input was bounded by the 1 MB action
+  body alone. `richTextSchema` now refuses raw input over 2 x `max` (`tooLong`), and markup nested
+  deeper than 100 (`tooDeep`, one linear pass over the tags), before it sanitises. Editor documents
+  stay far below both limits.
+- `action()` authenticates and throttles before it validates, so only a signed-in user within
+  their quota reaches the sanitiser (ADR-0031).
+- Tests: cost cases at the 200k stored size (2 s budget for three passes) and at the 1 MB
+  action body (1 s), including whitespace runs and nesting; the budgets catch a quadratic path,
+  which takes ten seconds or more.
 
 ### Dependency (ADR-0014)
 
