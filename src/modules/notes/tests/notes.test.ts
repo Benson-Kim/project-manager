@@ -117,6 +117,20 @@ describe("notes repository", () => {
     expect(parsed[1]).toMatchObject({ NoteTabId: 10, Content: null, SortOrder: 2 });
   });
 
+  it("workspace sanitises stored page HTML and converts legacy Access markup", async () => {
+    const tabs = [
+      tabRow({
+        Content: '<div><font face="Arial" size="4">Old</font><script>alert(1)</script></div>',
+        CreatedAtUtc: "2026-01-01T00:00:00.000Z",
+      }),
+    ];
+    execProc.mockResolvedValue([noteRow({ TabsJson: JSON.stringify(tabs) })]);
+    const { tabs: parsed } = await getNoteWorkspace(4, 1);
+    expect(parsed[0].Content).toContain("font-family");
+    expect(parsed[0].Content).not.toContain("<font");
+    expect(parsed[0].Content).not.toContain("script");
+  });
+
   it("workspace returns no pages when TabsJson is null", async () => {
     execProc.mockResolvedValue([noteRow({ TabsJson: null })]);
     const { tabs } = await getNoteWorkspace(4, 1);

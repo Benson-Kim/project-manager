@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { useAnnouncer } from "@/components/ui/announcer";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Field } from "@/components/ui/form/field";
@@ -48,12 +47,11 @@ export function NotebookWorkspace({
 }) {
   const router = useRouter();
   const { toast } = useToast();
-  const { announce } = useAnnouncer();
   const [pending, startTransition] = useTransition();
   const [activeId, setActiveId] = useState<number | null>(tabs[0]?.NoteTabId ?? null);
   const [titleDirty, setTitleDirty] = useState(false);
   const [pageDirty, setPageDirty] = useState(false);
-  const [switchTo, setSwitchTo] = useState<number | null>(null);
+  const [switchTo, setSwitchTo] = useState<number | "new" | null>(null);
   const [confirm, setConfirm] = useState<"page" | "note" | null>(null);
   useUnsavedChangesGuard(titleDirty || pageDirty);
 
@@ -69,7 +67,7 @@ export function NotebookWorkspace({
       const result = await call();
       if (result.ok) {
         onOk(result.data);
-        if (okMessage) announce(okMessage);
+        if (okMessage) toast({ variant: "success", title: okMessage });
         router.refresh();
       } else if (result.error.code === "UNAUTHENTICATED") {
         router.push("/login?reason=expired");
@@ -110,7 +108,7 @@ export function NotebookWorkspace({
     run(
       () => updateNoteAction({ noteId: note.NoteId, title, rowVer: note.RowVer }),
       () => setTitleDirty(false),
-      M.saved,
+      messages.feedback.saved,
     );
   };
 
@@ -127,11 +125,11 @@ export function NotebookWorkspace({
           rowVer: active.RowVer,
         }),
       () => setPageDirty(false),
-      M.saved,
+      messages.feedback.saved,
     );
   };
 
-  const addPage = () =>
+  const createPage = () =>
     run(
       () => createNoteTabAction({ noteId: note.NoteId, title: M.newPageTitle(tabs.length + 1) }),
       (tab) => {
@@ -139,6 +137,11 @@ export function NotebookWorkspace({
         setActiveId(tab.NoteTabId);
       },
     );
+
+  const addPage = () => {
+    if (pageDirty) setSwitchTo("new");
+    else createPage();
+  };
 
   const move = (offset: -1 | 1) => {
     const order = tabs.map((tab) => ({ id: tab.NoteTabId, rowVer: tab.RowVer }));
@@ -348,7 +351,7 @@ export function NotebookWorkspace({
         open={confirm === "page"}
         onOpenChange={(open) => !open && setConfirm(null)}
         title={M.deletePage}
-        body={M.deletePageConfirm}
+        body={M.deletePageConfirm(active?.Title ?? M.page)}
         confirmLabel={messages.actions.delete}
         onConfirm={removePage}
         pending={pending}
@@ -370,8 +373,9 @@ export function NotebookWorkspace({
         confirmLabel={messages.feedback.discard}
         onConfirm={() => {
           setPageDirty(false);
-          setActiveId(switchTo);
           setSwitchTo(null);
+          if (switchTo === "new") createPage();
+          else setActiveId(switchTo);
         }}
       />
     </div>

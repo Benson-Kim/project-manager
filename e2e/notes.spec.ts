@@ -62,7 +62,10 @@ test("creates a notebook, renames it, builds pages, reorders and keeps everythin
   await page.keyboard.press("Control+B");
   await page.keyboard.type("strong");
   await page.keyboard.press("Control+B");
-  await page.getByRole("toolbar", { name: "Formatting" }).getByRole("button", { name: "Table" }).click();
+  await page
+    .getByRole("toolbar", { name: "Formatting" })
+    .getByRole("button", { name: "Table" })
+    .click();
   await page.getByRole("menuitem", { name: "Insert table" }).click();
   await page.keyboard.type("Cell one");
   await savePage(page, "Beta");
@@ -110,6 +113,24 @@ test("deleting a page asks first and removes it", async ({ page }) => {
 
   await page.reload();
   await expect(tabs(page)).toHaveCount(1);
+});
+
+test("adding a page with unsaved edits asks before discarding them", async ({ page }) => {
+  await newNotebook(page);
+  await editor(page).click();
+  await page.keyboard.type("Keep me");
+
+  await page.getByTestId("note-add-page").click();
+  const dialog = page.getByRole("dialog").filter({ hasText: messages.notes.discardTitle });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: messages.actions.cancel }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(tabs(page)).toHaveCount(1);
+  await expect(editor(page)).toContainText("Keep me");
+
+  await page.getByTestId("note-add-page").click();
+  await dialog.getByRole("button", { name: messages.feedback.discard }).click();
+  await expect(tabs(page)).toHaveCount(2);
 });
 
 test("axe: the notes list has no serious or critical violations", async ({ page }) => {

@@ -30,10 +30,16 @@ interface WorkspaceRow extends NoteRow {
 /** FOR JSON writes DATETIME2 without a zone; the columns are UTC. */
 const utc = (v: unknown) => (typeof v === "string" && !/(Z|[+-]\d\d:\d\d)$/.test(v) ? `${v}Z` : v);
 
+/** Every page read leaves sanitised, so legacy Access markup reaches the editor converted (ADR-0025). */
+function toTab(raw: unknown): NoteTabRow {
+  const tab = noteTabRowSchema.parse(raw);
+  return { ...tab, Content: tab.Content ? sanitizeRichText(tab.Content) || null : null };
+}
+
 function parseTabs(json: string | null): NoteTabRow[] {
   if (!json) return [];
   return (JSON.parse(json) as Record<string, unknown>[]).map((t) =>
-    noteTabRowSchema.parse({ ...t, CreatedAtUtc: utc(t.CreatedAtUtc), UpdatedAtUtc: utc(t.UpdatedAtUtc) }),
+    toTab({ ...t, CreatedAtUtc: utc(t.CreatedAtUtc), UpdatedAtUtc: utc(t.UpdatedAtUtc) }),
   );
 }
 
@@ -59,7 +65,10 @@ export async function getNoteById(noteId: number, actorUserId: number): Promise<
   return noteRowSchema.parse(rows[0]);
 }
 
-export async function getNoteWorkspace(noteId: number, actorUserId: number): Promise<NoteWorkspace> {
+export async function getNoteWorkspace(
+  noteId: number,
+  actorUserId: number,
+): Promise<NoteWorkspace> {
   const rows = await execProc<WorkspaceRow>("usp_Note_GetWithTabs", {
     NoteId: noteId,
     ActorUserId: actorUserId,
@@ -88,7 +97,11 @@ export async function updateNote(input: UpdateNoteValues, actorUserId: number): 
   return noteRowSchema.parse(rows[0]);
 }
 
-export async function deleteNote(noteId: number, rowVer: number, actorUserId: number): Promise<void> {
+export async function deleteNote(
+  noteId: number,
+  rowVer: number,
+  actorUserId: number,
+): Promise<void> {
   await execProc("usp_Note_Delete", { NoteId: noteId, RowVer: rowVer, ActorUserId: actorUserId });
 }
 
@@ -101,7 +114,7 @@ export async function createNoteTab(
     Title: input.title,
     ActorUserId: actorUserId,
   });
-  return noteTabRowSchema.parse(rows[0]);
+  return toTab(rows[0]);
 }
 
 export async function updateNoteTab(
@@ -117,7 +130,7 @@ export async function updateNoteTab(
     RowVer: input.rowVer,
     ActorUserId: actorUserId,
   });
-  return noteTabRowSchema.parse(rows[0]);
+  return toTab(rows[0]);
 }
 
 export async function deleteNoteTab(
@@ -141,5 +154,5 @@ export async function reorderNoteTabs(
     OrderJson: JSON.stringify(input.order.map((o) => ({ id: o.id, rowVer: o.rowVer }))),
     ActorUserId: actorUserId,
   });
-  return rows.map((r) => noteTabRowSchema.parse(r));
+  return rows.map(toTab);
 }
