@@ -2,6 +2,7 @@ import sanitizeHtml from "sanitize-html";
 import {
   CELL_SHADES,
   HIGHLIGHT_COLORS,
+  PAGE_BREAK_VALUE,
   TEXT_COLORS,
   indentLevel,
   listStart,
@@ -98,11 +99,14 @@ function orderedList(_tagName: string, attribs: sanitizeHtml.Attributes): saniti
   return { tagName: "ol", attribs: kept };
 }
 
-/** <hr>: a line, or a page break when it carries data-page-break. */
+/** <hr>: a page break only for data-page-break="true", otherwise a line. */
 function rule(_tagName: string, attribs: sanitizeHtml.Attributes): sanitizeHtml.Tag {
   return {
     tagName: "hr",
-    attribs: attribs["data-page-break"] === undefined ? {} : { "data-page-break": "true" },
+    attribs:
+      attribs["data-page-break"] === PAGE_BREAK_VALUE
+        ? { "data-page-break": PAGE_BREAK_VALUE }
+        : {},
   };
 }
 

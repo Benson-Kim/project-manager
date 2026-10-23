@@ -7,12 +7,14 @@ import {
   type CommandProps,
 } from "@tiptap/core";
 import Highlight from "@tiptap/extension-highlight";
-import { NodeSelection, TextSelection } from "@tiptap/pm/state";
+import type { Node as ProseMirrorNode, ResolvedPos } from "@tiptap/pm/model";
+import { NodeSelection, TextSelection, type Transaction } from "@tiptap/pm/state";
 import {
   CELL_SHADES,
   DEFAULT_HIGHLIGHT,
   HIGHLIGHT_COLORS,
   INDENT_MAX,
+  PAGE_BREAK_VALUE,
   TEXT_COLORS,
   indentFromCss,
   indentLevel,
@@ -20,6 +22,7 @@ import {
   numberingCss,
   type CellShade,
   type HighlightColor,
+  type NumberingType,
   type TextColor,
 } from "@/lib/rich-text/formats";
 
@@ -43,6 +46,7 @@ declare module "@tiptap/core" {
       indent: () => ReturnType;
       outdent: () => ReturnType;
       setCellShade: (shade: CellShade | null) => ReturnType;
+      setNumbering: (numbering: Numbering) => ReturnType;
     };
   }
 }
@@ -122,11 +126,18 @@ export const PageBreak = Node.create({
   selectable: true,
 
   parseHTML() {
-    return [{ tag: "hr[data-page-break]", priority: 60 }];
+    return [
+      {
+        tag: "hr[data-page-break]",
+        priority: 60,
+        getAttrs: (element) =>
+          element.getAttribute("data-page-break") === PAGE_BREAK_VALUE ? null : false,
+      },
+    ];
   },
 
   renderHTML() {
-    return ["hr", { "data-page-break": "true" }];
+    return ["hr", { "data-page-break": PAGE_BREAK_VALUE }];
   },
 
   addCommands() {
@@ -164,6 +175,27 @@ export const PageBreak = Node.create({
     };
   },
 });
+
+export type Numbering = { type: NumberingType } | { start: number };
+
+const LISTS = ["bulletList", "orderedList"];
+
+/** The list the position sits directly in (the innermost one), with its position. */
+export function innermostList($pos: ResolvedPos): { node: ProseMirrorNode; pos: number } | null {
+  for (let depth = $pos.depth; depth > 0; depth -= 1) {
+    const node = $pos.node(depth);
+    if (LISTS.includes(node.type.name)) return { node, pos: $pos.before(depth) };
+  }
+  return null;
+}
+
+/** Sets the numbering of the innermost ordered list at the selection; outer lists keep theirs. */
+export function setInnermostNumbering(tr: Transaction, numbering: Numbering): boolean {
+  const list = innermostList(tr.selection.$from);
+  if (list?.node.type.name !== "orderedList") return false;
+  tr.setNodeMarkup(list.pos, undefined, { ...list.node.attrs, ...numbering });
+  return true;
+}
 
 const INDENTED = ["paragraph", "heading"];
 
@@ -255,6 +287,14 @@ export const RichTextFormats = Extension.create({
         (shade) =>
         ({ commands }) =>
           commands.setCellAttribute("shade", shade),
+      // A paragraph or a bullet list becomes a numbered list first, as in Word.
+      setNumbering:
+        (numbering) =>
+        ({ tr, commands, dispatch }) => {
+          const numbered = innermostList(tr.selection.$from)?.node.type.name === "orderedList";
+          if (!numbered && !commands.toggleOrderedList()) return false;
+          return dispatch ? setInnermostNumbering(tr, numbering) : true;
+        },
     };
   },
 

@@ -22,6 +22,7 @@ import {
   TableIcon,
   UndoIcon,
 } from "./icons";
+import { innermostList } from "./format-extensions";
 import {
   FONT_FAMILIES,
   FONT_SIZES_PT,
@@ -81,10 +82,11 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
     editor,
     selector: ({ editor: e }) => {
       const style = e.getAttributes("textStyle") as { fontFamily?: string; fontSize?: string };
-      const list = e.getAttributes("orderedList") as {
+      const inner = innermostList(e.state.selection.$from);
+      const list = (inner?.node.type.name === "orderedList" ? inner.node.attrs : null) as {
         type?: NumberingType | null;
         start?: number;
-      };
+      } | null;
       const cell = e.isActive("tableHeader")
         ? e.getAttributes("tableHeader")
         : e.getAttributes("tableCell");
@@ -95,8 +97,8 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
         strike: e.isActive("strike"),
         bulletList: e.isActive("bulletList"),
         orderedList: e.isActive("orderedList"),
-        listType: e.isActive("orderedList") ? (list.type ?? "1") : null,
-        listStart: list.start ?? 1,
+        listType: list ? (list.type ?? "1") : null,
+        listStart: list?.start ?? 1,
         textColor: (e.getAttributes("textColor").color as string | undefined) ?? null,
         highlight: e.isActive("highlight")
           ? ((e.getAttributes("highlight").color as string | undefined) ?? DEFAULT_HIGHLIGHT)

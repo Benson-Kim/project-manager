@@ -45,6 +45,9 @@ export const NUMBERING_STYLES = [
 export type NumberingType = (typeof NUMBERING_STYLES)[number]["type"];
 export const LIST_START_MAX = 9999;
 
+/** A page break is `<hr data-page-break="true">`; an `<hr>` with any other value is a line. */
+export const PAGE_BREAK_VALUE = "true";
+
 /** h1 belongs to the page, so the editor's "Heading 1..5" are h2..h6. */
 export const HEADING_LEVELS = [2, 3, 4, 5, 6] as const;
 export type HeadingLevel = (typeof HEADING_LEVELS)[number];

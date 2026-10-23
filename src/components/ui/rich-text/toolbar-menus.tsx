@@ -163,12 +163,6 @@ export function NumberingMenu({
 }) {
   const [startOpen, setStartOpen] = useState(false);
 
-  const pick = (type: NumberingType) => {
-    const chain = editor.chain().focus();
-    if (!editor.isActive("orderedList")) chain.toggleOrderedList();
-    chain.updateAttributes("orderedList", { type }).run();
-  };
-
   return (
     <>
       <Menu
@@ -182,7 +176,7 @@ export function NumberingMenu({
           <MenuButton
             key={style.type}
             checked={current === style.type}
-            onClick={() => pick(style.type)}
+            onClick={() => editor.chain().focus().setNumbering({ type: style.type }).run()}
           >
             {t.numberingStyles[style.type]}
           </MenuButton>
@@ -195,9 +189,7 @@ export function NumberingMenu({
         onOpenChange={setStartOpen}
         onApply={(value) => {
           setStartOpen(false);
-          const chain = editor.chain().focus();
-          if (!editor.isActive("orderedList")) chain.toggleOrderedList();
-          chain.updateAttributes("orderedList", { start: value }).run();
+          editor.chain().focus().setNumbering({ start: value }).run();
         }}
       />
     </>

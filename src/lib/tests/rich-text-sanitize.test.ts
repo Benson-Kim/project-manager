@@ -258,6 +258,16 @@ describe("sanitizeRichText — ADR-0041 formats", () => {
     );
   });
 
+  it.each([
+    'data-page-break="false"',
+    'data-page-break=""',
+    "data-page-break",
+    'data-page-break="TRUE"',
+    'data-page-break="yes please"',
+  ])("makes <hr %s> a plain line", (attribute) => {
+    expect(sanitizeRichText(`<p>a</p><hr ${attribute} /><p>b</p>`)).toBe("<p>a</p><hr /><p>b</p>");
+  });
+
   it("keeps indents on legacy divs and h1 as they become p and h2", () => {
     expect(sanitizeRichText('<div data-indent="3">x</div><h1 data-indent="1">t</h1>')).toBe(
       '<p data-indent="3">x</p><h2 data-indent="1">t</h2>',
