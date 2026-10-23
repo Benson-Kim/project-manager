@@ -15,6 +15,10 @@ and prints `N passed, M failed`.
   from a template, attachments (quota, cross-owner ids both ways), cascades, dropped legacy procs.
 - `financial-documents-race.cjs` — ADR-0030 under concurrency: the document cap, unique names
   (creates, copies, renames), the file quota, and delete versus attach.
+- `boards-procs.cjs` — ADR-0038: the board as its own access scope, the standalone shared space
+  (everyone a contributor, the creator its manager), per-person overrides on a project board and
+  never on a standalone one, rowversion concurrency, the starting-columns payload validation,
+  LIKE-metacharacter search, and a board whose project was deleted.
 
 Run one locally with the `.env` of a throwaway database: `node db/tests/financials-procs.cjs`.
 Never run them against a database anyone depends on: they create projects and leave
