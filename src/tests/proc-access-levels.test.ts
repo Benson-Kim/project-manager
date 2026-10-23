@@ -21,6 +21,8 @@ const MODULES: Record<string, string> = {
   stakeholder: "stakeholders",
   supplier: "suppliers",
   "parking-lot-item": "parking-lot",
+  note: "notes",
+  "note-tab": "notes",
   "assumption-constraint": "assumptions-constraints",
   "todo-item": "todo-items",
   "todo-alert": "todo-alerts",
@@ -53,6 +55,7 @@ const VERBS: Record<string, string> = {
   GetApologies: "read",
   // Financials calculator (ADR-0029).
   GetSheet: "read",
+  GetWithTabs: "read",
   Create: "create",
   // Copying a template's documents into a financial adds rows (ADR-0030).
   CreateFromTemplate: "create",
