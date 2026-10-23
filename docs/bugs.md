@@ -62,3 +62,33 @@ a commit whose subject is "Gantt chart multi-assignee support and accessibility
 improvements". Nothing references them, so the deletions were left in place —
 but they look incidental rather than intended. Decide whether the PR-011 review
 record should be kept as history.
+
+---
+
+## B. Project-wide gaps found by later reviews
+
+Same severity and status keys as section A. Raised outside the 5-PR merge, by a review that found
+them while working on one module; each belongs to the whole code base, so none was fixed in the
+branch that found it.
+
+### B1 — `OPEN` P2 — no route segment has an `error.tsx`, and only one has a `loading.tsx`
+`src/app/(app)/**`, found by the requirement-traceability review (2026-10-23)
+
+`docs/STANDARDS.md` requires both per route segment in three places — §1.1 ("`src/app/(app)/<module>/`
+holds thin routes only (`page.tsx`, `loading.tsx`, `error.tsx`)"), §7 ("Error boundaries
+(`error.tsx`) per route segment with a retry button") and §9 ("Streaming: `loading.tsx` per route
+segment"). Behind 35 `page.tsx` files the app has one `loading.tsx`
+(`src/app/(app)/projects/[id]/loading.tsx`), no `error.tsx` anywhere, no `global-error.tsx`, and a
+root `src/app/not-found.tsx`. So a server error in any segment renders Next.js's own fallback
+instead of the app's shell, and no list page streams a skeleton.
+
+Not a decision to take — the decision is already recorded, and three sessions' reviews (including
+the one that found this) mis-filed it as an open UX question. What is missing is the sweep.
+
+The pieces already exist: `ErrorState({ title, onRetry })` in `src/components/ui/states.tsx`
+(with `ListSkeleton` beside it) and `messages.actions.retry` ("Try again"). An `error.tsx` is a
+client component taking `{ error, reset }`, so `onRetry={reset}`, and the copy must come from
+`src/lib/messages.ts` or `src/tests/messages-tone.test.ts` fails. Worth settling in one pass: one
+shared pair of boundary components, used by every segment, plus an e2e check that a thrown error in
+a segment shows the app's own page — and then a guardrail that fails when a `page.tsx` has no
+sibling boundaries, so the gap cannot come back.
