@@ -77,3 +77,35 @@ export const ClearFormattingIcon = () => (
     <path d="M3 3.5h7M6.5 3.5v9M10 9l4 4M14 9l-4 4" />
   </Icon>
 );
+
+export const HighlightIcon = () => (
+  <Icon>
+    <path d="m9.5 2.5 4 4-6 6H3.5v-4zM7.5 4.5l4 4M2 14h5" />
+  </Icon>
+);
+
+export const ShadingIcon = () => (
+  <Icon>
+    <rect x="2" y="3" width="12" height="10" rx="1" />
+    <path d="M8 3v10M2 8h12" />
+    <rect x="2.75" y="3.75" width="4.5" height="3.5" fill="currentColor" stroke="none" />
+  </Icon>
+);
+
+export const InsertIcon = () => (
+  <Icon>
+    <path d="M2 4h12M2 12h12M8 6v4M6 8h4" />
+  </Icon>
+);
+
+export const IndentIcon = () => (
+  <Icon>
+    <path d="M2 3h12M7 6.5h7M7 10h7M2 13.5h12M2 6l2.5 2L2 10" />
+  </Icon>
+);
+
+export const OutdentIcon = () => (
+  <Icon>
+    <path d="M2 3h12M7 6.5h7M7 10h7M2 13.5h12M4.5 6 2 8l2.5 2" />
+  </Icon>
+);

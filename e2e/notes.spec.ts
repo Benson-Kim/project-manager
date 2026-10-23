@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { messages } from "../src/lib/messages";
+import { caretAt } from "./support/editor";
 
 /**
  * Notes (notebooks of titled pages). Runs as e2e-pm, a Manager on project 2 and
@@ -74,6 +75,7 @@ test("creates a notebook, renames it, builds pages, reorders and keeps everythin
     .getByRole("button", { name: "Table" })
     .click();
   await page.getByRole("menuitem", { name: "Insert table" }).click();
+  await caretAt(editor(page), { inside: "tableHeader" });
   await page.keyboard.type("Cell one");
   await savePage(page, "Beta");
 
