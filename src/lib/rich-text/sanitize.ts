@@ -56,7 +56,7 @@ function cell(tagName: string, attribs: sanitizeHtml.Attributes): sanitizeHtml.T
 
 /** The `color:` value of a style attribute (legacy and pasted markup). */
 function styleColor(style: string | undefined): string | undefined {
-  return /(?:^|;)\s*color\s*:\s*([^;]+)/i.exec(style ?? "")?.[1];
+  return style?.match(/(?:^|;)\s*color\s*:\s*([^;]+)/i)?.[1];
 }
 
 /** p and h2–h6 keep their style (filtered to text-align below) and a valid indent level. */

@@ -1,5 +1,13 @@
-import { Extension, Mark, Node, type CommandProps } from "@tiptap/core";
+import {
+  Extension,
+  Mark,
+  Node,
+  canInsertNode,
+  isNodeSelection,
+  type CommandProps,
+} from "@tiptap/core";
 import Highlight from "@tiptap/extension-highlight";
+import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import {
   CELL_SHADES,
   DEFAULT_HIGHLIGHT,
@@ -123,10 +131,36 @@ export const PageBreak = Node.create({
 
   addCommands() {
     return {
+      // As Tiptap's setHorizontalRule: insert, then put the cursor in the block after, adding a
+      // paragraph when there is none, so typing or the next insert never replaces the break.
       setPageBreak:
         () =>
-        ({ commands }) =>
-          commands.insertContent({ type: this.name }),
+        ({ chain, state }) => {
+          if (!canInsertNode(state, state.schema.nodes[this.name])) return false;
+          const current = chain();
+          if (isNodeSelection(state.selection)) {
+            current.insertContentAt(state.selection.$to.pos, { type: this.name });
+          } else {
+            current.insertContent({ type: this.name });
+          }
+          return current
+            .command(({ tr, dispatch }) => {
+              if (!dispatch) return true;
+              const { $to } = tr.selection;
+              if ($to.nodeAfter?.isTextblock) {
+                tr.setSelection(TextSelection.create(tr.doc, $to.pos + 1));
+              } else if ($to.nodeAfter?.isBlock) {
+                tr.setSelection(NodeSelection.create(tr.doc, $to.pos));
+              } else if (!$to.nodeAfter) {
+                const paragraph = state.schema.nodes.paragraph.create();
+                tr.insert($to.end(), paragraph);
+                tr.setSelection(TextSelection.create(tr.doc, $to.end() + 1));
+              }
+              tr.scrollIntoView();
+              return true;
+            })
+            .run();
+        },
     };
   },
 });

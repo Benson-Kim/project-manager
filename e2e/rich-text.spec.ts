@@ -59,6 +59,86 @@ test.describe("rich-text editor (ADR-0025)", () => {
     ).toBeVisible();
   });
 
+  test("colours, highlights, indents, numbering, h5, shading and page breaks survive the server (ADR-0041)", async ({
+    page,
+  }) => {
+    const editor = await openEditor(page);
+    const toolbar = page.getByRole("toolbar", { name: "Formatting" });
+    const pick = async (menu: string, item: string) => {
+      await toolbar.getByRole("button", { name: menu, exact: true }).click();
+      await page.getByRole("menuitemradio", { name: item, exact: true }).click();
+      await expect(editor).toBeFocused();
+    };
+    await editor.click();
+    await clear(page);
+    for (const line of ["Red words", "Marked words", "Indented", "Heading five"]) {
+      await page.keyboard.type(line);
+      await page.keyboard.press("Enter");
+    }
+    await page.keyboard.press("Control+Home");
+    await page.keyboard.press("Shift+End");
+    await pick("Text colour", "Red");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Home");
+    await page.keyboard.press("Shift+End");
+    await pick("Highlight", "Green");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Control+M");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Control+Alt+5");
+    await page.keyboard.press("Control+End");
+
+    await pick("Numbering style", "a, b, c");
+    await page.keyboard.type("alpha");
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Enter");
+    await toolbar.getByRole("button", { name: "Insert", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Page break" }).click();
+    await expect(editor.locator("hr[data-page-break]")).toHaveCount(1);
+    await expect(editor).toBeFocused();
+    await toolbar.getByRole("button", { name: "Table", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Insert table" }).click();
+    await expect(editor.locator("table")).toBeVisible();
+    await expect(editor).toBeFocused();
+    await page.keyboard.type("Shaded");
+    await pick("Cell shading", "Blue");
+
+    await page.getByTestId("ks-rich-text-form").getByRole("button", { name: "Preview" }).click();
+    await expect(page).toHaveURL(/richText=/);
+    const view = page.getByTestId("ks-rich-text-view");
+    const red = view.locator('span[data-color="red"]');
+    await expect(red).toHaveText("Red words");
+    await expect(view.locator('mark[data-color="green"]')).toHaveText("Marked words");
+    await expect(view.locator('p[data-indent="1"]')).toHaveText("Indented");
+    await expect(view.locator("h5")).toHaveText("Heading five");
+    await expect(view.locator('ol[type="a"] li')).toHaveText("alpha");
+    await expect(view.locator("hr[data-page-break]")).toHaveCount(1);
+    await expect(view.locator('[data-shade="blue"]')).toHaveText("Shaded");
+
+    const style = (selector: string, property: string) =>
+      view
+        .locator(selector)
+        .first()
+        .evaluate((el, prop) => getComputedStyle(el).getPropertyValue(prop), property);
+    expect(await style('ol[type="a"]', "list-style-type")).toBe("lower-alpha");
+    expect(parseFloat(await style('p[data-indent="1"]', "margin-left"))).toBeGreaterThan(0);
+    expect(await style('mark[data-color="green"]', "background-color")).not.toBe(
+      "rgba(0, 0, 0, 0)",
+    );
+    const lightRed = await style('span[data-color="red"]', "color");
+    expect(lightRed).not.toBe(await style("p", "color"));
+
+    // Dark mode paints the same names with the dark tokens, and they still pass contrast.
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.reload();
+    await expect(red).toHaveText("Red words");
+    expect(await style('span[data-color="red"]', "color")).not.toBe(lightRed);
+    const violations = (
+      await new AxeBuilder({ page }).include('[data-testid="ks-rich-text-view"]').analyze()
+    ).violations.filter((v) => v.impact === "serious" || v.impact === "critical");
+    expect(violations).toEqual([]);
+  });
+
   test("adds a link with Ctrl+K and refuses unsafe addresses", async ({ page }) => {
     const editor = await openEditor(page);
     await editor.click();

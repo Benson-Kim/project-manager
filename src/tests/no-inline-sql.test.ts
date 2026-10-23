@@ -35,7 +35,9 @@ describe("stored-procedure-only guarantee", () => {
 
   it.each(files)("%s contains no inline SQL statements", (file) => {
     const source = readFileSync(file, "utf8");
-    for (const m of source.matchAll(/(["'`])(?:\\.|(?!\1)[\s\S])*\1/g)) {
+    // An escape and a plain character never match the same backslash, so an unclosed quote (an
+    // apostrophe in a comment) before regexes full of backslashes stays linear, not exponential.
+    for (const m of source.matchAll(/(["'`])(?:\\[\s\S]|(?!\1)[^\\])*\1/g)) {
       expect(m[0], `${file} embeds inline SQL — use a stored procedure`).not.toMatch(INLINE_SQL);
     }
   });
