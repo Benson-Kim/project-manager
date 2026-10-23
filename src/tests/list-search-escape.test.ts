@@ -34,9 +34,11 @@ describe("list search escapes the LIKE metacharacters (ADR-0016)", () => {
   );
 
   it("finds the searching procs", () => {
-    // 24 today. A proc that legitimately stops searching lowers this in the same commit, with the
-    // reason; deleting the assertion instead would let a regex that matches nothing pass.
-    expect(searchers.length).toBeGreaterThanOrEqual(24);
+    // 23 today: usp_NoteTab_List stopped searching when notes became notebooks (ADR-0035), since
+    // usp_Note_List searches page titles and text. A proc that legitimately stops searching lowers
+    // this in the same commit, with the reason; deleting the assertion instead would let a regex
+    // that matches nothing pass.
+    expect(searchers.length).toBeGreaterThanOrEqual(23);
   });
 
   it.each(searchers.map((s) => [`${s.path} (@${s.param})`, s] as const))(
