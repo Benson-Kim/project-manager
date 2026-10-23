@@ -82,10 +82,15 @@ browser-shaped runs in this workspace to measure it with.
 
 ## What ran, and what did not
 
-Verified locally on this branch: `tsc --noEmit` clean (app and `electron/`) · **166 files, 8,243
-tests, 0 failures** (8,243 from 8,050 after the meetings work, 7,916 before it) · 90.58 % statements,
-91.45 % lines against an 80 % gate · `eslint` 0 errors (5 pre-existing warnings, none in changed
+Verified locally on this branch, after merging `develop` in: `tsc --noEmit` clean (app and
+`electron/`) · **170 files, 8,453 tests, 0 failures** · 90.58 % statements, 91.45 % lines against an
+80 % gate (measured before the merge) · `eslint` 0 errors (5 pre-existing warnings, none in changed
 files) · `prettier --check` clean on every changed file · `next build` succeeds.
+
+`develop` gained the notes module (ADR-0035) while this branch was open. One conflict, in
+`messages.ts`: this branch renamed the drop-down's "Meetings" to "Minutes" (item 6) where notes added
+its own section entry — both kept. The notes list also arrived without a sort contract, which is what
+the new guardrail is for, so it was given one (`NOTE_SORT`: Title, TabCount, LastEditedAtUtc).
 
 **Not verified, because nothing database- or browser-shaped runs in this workspace:** migrations 039
 and 040 have never been applied, the five new stored procedures and the five changed ones have never

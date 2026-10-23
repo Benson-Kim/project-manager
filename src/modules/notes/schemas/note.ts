@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { messages } from "@/lib/messages";
 import { richTextSchema } from "@/lib/rich-text/schema";
@@ -91,3 +92,12 @@ export type UpdateNoteValues = z.output<typeof updateNoteSchema>;
 export type CreateNoteTabValues = z.output<typeof createNoteTabSchema>;
 export type UpdateNoteTabValues = z.output<typeof updateNoteTabSchema>;
 export type ReorderNoteTabsValues = z.output<typeof reorderNoteTabsSchema>;
+
+/**
+ * The orders usp_Note_List applies (ADR-0016, ADR-0035). Null default: the proc
+ * falls back to NoteId, the order the notebooks were made in.
+ */
+export const NOTE_SORT: ListSort = {
+  columns: ["Title", "TabCount", "LastEditedAtUtc"],
+  default: null,
+};

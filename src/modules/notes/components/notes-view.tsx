@@ -12,6 +12,7 @@ import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import type { NoteListRow } from "../schemas/note";
+import { NOTE_SORT } from "../schemas/note";
 
 const M = messages.notes;
 
@@ -80,6 +81,7 @@ export function NotesView({
         </div>
       )}
       columns={columns}
+      sort={NOTE_SORT}
       renderToolbar={(viewToggle) => (
         <Toolbar>
           <SearchInput testId="notes-search" />

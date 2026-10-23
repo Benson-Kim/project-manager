@@ -98,6 +98,10 @@ Only one module validated `?sort=` before this (Q&A, with a local `Set`); the re
 straight through. That was never an injection, for the reason above, but it is now one rule in one
 place for all twelve.
 
+Thirteen modules declare one. The notes list (ADR-0035) landed on `develop` while this branch was
+open and arrived with no contract; the guardrail's count assertion is what caught it, which is the
+case it exists for.
+
 Two columns ask for a token that is not their key (`ActivityStatus` → `Status`,
 `WbsCode` → `Wbs`), because a column key is part of the layout stored per user (migration 019) and
 renaming one would discard everybody's saved column order. `DataViewColumn.sort` carries the token

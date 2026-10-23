@@ -7,6 +7,7 @@ import { DAILY_ACTIVITY_SORT } from "@/modules/daily-activities/schemas/daily-ac
 import { KEY_DELIVERABLE_SORT } from "@/modules/key-deliverables/schemas/key-deliverable";
 import { KEYWORD_SORT } from "@/modules/keywords/schemas/keyword";
 import { MEETING_SORT } from "@/modules/meetings/schemas/meeting";
+import { NOTE_SORT } from "@/modules/notes/schemas/note";
 import { PARKING_LOT_SORT } from "@/modules/parking-lot/schemas/parking-lot-item";
 import { PROJECT_SORT } from "@/modules/projects/schemas/project";
 import { QUESTION_ANSWER_SORT } from "@/modules/questions-answers/schemas/question-answer";
@@ -39,6 +40,7 @@ const MODULES: Array<[string, ListSort, string]> = [
   ],
   ["keywords", KEYWORD_SORT, "db/procs/keyword/usp_Keyword_List.sql"],
   ["meetings", MEETING_SORT, "db/procs/meeting/usp_Meeting_List.sql"],
+  ["notes", NOTE_SORT, "db/procs/note/usp_Note_List.sql"],
   ["parking-lot", PARKING_LOT_SORT, "db/procs/parking-lot-item/usp_ParkingLotItem_List.sql"],
   ["projects", PROJECT_SORT, "db/procs/project/usp_Project_List.sql"],
   [
@@ -69,9 +71,9 @@ function sortTokens(path: string): string[] {
 
 describe("a module's sortable columns are exactly the ones its list proc applies", () => {
   it("reads every module that offers sorting", () => {
-    // Twelve today. The thirteenth list (objectives) declares no ListSort because
-    // its proc orders by ObjectiveId alone; adding one adds a row here.
-    expect(MODULES.length).toBe(12);
+    // Thirteen today. The fourteenth list (objectives) declares no ListSort
+    // because its proc orders by ObjectiveId alone; adding one adds a row here.
+    expect(MODULES.length).toBe(13);
     for (const [, , path] of MODULES) expect(sortTokens(path).length).toBeGreaterThan(0);
   });
 
