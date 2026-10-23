@@ -1,6 +1,8 @@
 -- usp_Note_Create — create a notebook and, when @FirstTabTitle is given, its first page (ADR-0035).
+-- @ProjectId NULL makes a project-less notebook in the shared space (migration 039).
 -- Access: Contributor on the project, or a per-person grant (notes:create, ADR-0024); FORBIDDEN_ROW 50003.
--- VALIDATION 50004: no project, or a blank title.
+--   Project-less: every user (dbo.ufn_AccessLevel_Resolve, @AllowProjectless = 1).
+-- VALIDATION 50004: a blank title.
 -- Entity app.Note (source: tblNotes). Module: notes (#14).
 USE ProjectManager;
 GO
@@ -14,15 +16,13 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    IF @ProjectId IS NULL
-        THROW 50004, N'VALIDATION:ProjectId is required', 1;
     SET @Title = NULLIF(TRIM(@Title), N'');
     IF @Title IS NULL
         THROW 50004, N'VALIDATION:Title is required', 1;
 
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @ProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Contributor', @Permission = N'notes:create', @AllowProjectless = 0;
+         @MinLevel = N'Contributor', @Permission = N'notes:create', @AllowProjectless = 1;
 
     BEGIN TRAN;
 

@@ -62,21 +62,6 @@ export async function ensureAdminAccount(
   }
 }
 
-/** Tray action "Reset administrator password…". */
-export async function resetAdminPassword(
-  target: DbTarget,
-  argon2: Argon2Like,
-  log: Logger,
-): Promise<string> {
-  const pool = await connect(target, target.database, 1);
-  try {
-    log.info("[admin] resetting administrator password");
-    return await setAdminPassword(pool, argon2);
-  } finally {
-    await pool.close();
-  }
-}
-
 async function setAdminPassword(pool: sql.ConnectionPool, argon2: Argon2Like): Promise<string> {
   const password = generateInitialPassword();
   const hash = await hashPassword(argon2, password);

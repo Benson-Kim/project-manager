@@ -20,7 +20,8 @@ import {
 /**
  * Notes repository — stored procedures only, zod row parsing (STANDARDS §2.5).
  * Page HTML is sanitised again here and its plain text stored as SearchText,
- * which is what the list searches (ADR-0035).
+ * which is what the list searches (ADR-0035). A notebook without a project lives
+ * in the shared space every user may read and edit (migration 039).
  */
 
 interface WorkspaceRow extends NoteRow {
@@ -43,16 +44,24 @@ function parseTabs(json: string | null): NoteTabRow[] {
   );
 }
 
+export interface NoteListFilters {
+  /** Only project-less notebooks (the /notes page's "No project" filter). */
+  withoutProject?: boolean;
+}
+
+/** One project's notebooks, or with `projectId` null every notebook the actor may read. */
 export async function listNotes(
   params: ListParams,
   actorUserId: number,
   projectId: number | null = null,
   pageSize: number = DEFAULT_PAGE_SIZE,
+  filters: NoteListFilters = {},
 ): Promise<NoteListRow[]> {
   const rows = await execProc<NoteListRow>("usp_Note_List", {
     ActorUserId: actorUserId,
     ProjectId: projectId,
     ...toProcListParams(params, pageSize),
+    WithoutProject: filters.withoutProject ?? false,
   });
   return rows.map((r) => noteListRowSchema.parse(r));
 }

@@ -12,7 +12,7 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { ensureAdminAccount, resetAdminPassword, type Argon2Like } from "../admin-account";
+import { ensureAdminAccount, type Argon2Like } from "../admin-account";
 import { backupDatabase, latestBackup, restoreDatabase } from "../backup";
 import { connect, quoteName, type DbTarget } from "../db";
 import { applyDatabaseSchema, retargetDatabase, splitBatches } from "../db-apply";
@@ -150,7 +150,7 @@ async function main() {
       );
     });
 
-    await test("admin account: created once with a verifiable argon2id hash, reset works", async () => {
+    await test("admin account: created once with a verifiable argon2id hash, recreated only when none is active", async () => {
       const pwd = await ensureAdminAccount(target, argon2, log);
       assert.ok(pwd && /^[A-Za-z0-9]{4}(-[A-Za-z0-9]{4}){3}$/.test(pwd));
       const hash = await scalar<string>(
@@ -168,11 +168,17 @@ async function main() {
         null,
         "not recreated when present",
       );
-      const pwd2 = await resetAdminPassword(target, argon2, log);
+      await exec("UPDATE auth.[User] SET IsActive = 0 WHERE Username = N'admin'");
+      const pwd2 = await ensureAdminAccount(target, argon2, log);
+      assert.ok(pwd2, "recreated when no administrator is active");
       const hash2 = await scalar<string>(
         "SELECT PasswordHash FROM auth.[User] WHERE Username = N'admin'",
       );
       assert.ok(await argon2.verify(hash2, pwd2));
+      assert.equal(
+        await scalar<boolean>("SELECT IsActive FROM auth.[User] WHERE Username = N'admin'"),
+        true,
+      );
       assert.equal(
         await scalar<number>("SELECT COUNT(*) FROM auth.[User] WHERE Username = N'admin'"),
         1,

@@ -21,7 +21,7 @@ BEGIN
 
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Contributor', @Permission = N'notes:update', @AllowProjectless = 0;
+         @MinLevel = N'Contributor', @Permission = N'notes:update', @AllowProjectless = 1;
 
     SET @Title = NULLIF(TRIM(@Title), N'');
     IF @Title IS NULL

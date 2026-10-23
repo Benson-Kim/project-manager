@@ -61,7 +61,7 @@ independent sessions stay navigable and uniform.
 | Unhandled promises (`floating` awaits in actions/repositories) | review gate; wrap in the action pattern |
 | `fetch()` to the app's own routes for data | review gate (grep in DoD) |
 | Client-side secrets, `NEXT_PUBLIC_` secrets, secrets in the repo | Secret Detection + review |
-| Helper text, tooltips, onboarding hints, placeholder-as-label | UX §5 + review gate |
+| Helper text, tooltips, onboarding hints, placeholder-as-label (exceptions: §5.1) | UX §5 + review gate |
 | Ad-hoc toasts/dialogs/lists (bypassing shared primitives) | review gate |
 | `confirm()`/`alert()`/`prompt()` | ESLint `no-alert` (foundation config) |
 | New runtime dependency without an ADR | review gate + Dependabot PR review |
@@ -246,9 +246,15 @@ instructions — anywhere. Clarity comes from: visible labels, sensible defaults
 logical grouping, empty states that state the one next action, and immediate
 validation feedback. If a screen needs explanation, redesign the screen.
 
-One documented exception, requested by the client ([ADR-0023](adr/ADR-0023-dataview-datasheet-mode.md)): the datasheet's empty
-new-entry cells show ghost placeholders ("[New project name…]", from
-`messages.<module>.placeholders`). Every cell still has its own accessible name.
+Two documented exceptions, both requested by the client:
+
+- [ADR-0023](adr/ADR-0023-dataview-datasheet-mode.md): the datasheet's empty
+  new-entry cells show ghost placeholders ("[New project name…]", from
+  `messages.<module>.placeholders`). Every cell still has its own accessible name.
+- [ADR-0042](adr/ADR-0042-toolbar-hover-hints.md): the rich-text editor's toolbar
+  shows each control's name and shortcut on hover and keyboard focus ("Bold
+  (Ctrl+B)"), built from its `aria-label` and `aria-keyshortcuts`. Names only,
+  never instructions, and nowhere else.
 
 ### 5.2 Design tokens
 
@@ -449,7 +455,7 @@ Copy-paste checklist — also embedded in each module issue:
       states, view preference persisted; card fields + column priorities per issue
 - [ ] Detail/edit per issue pattern (Sheet or decided full route); ConfirmDialog for
       destructive ops; unsaved-changes guard
-- [ ] Copy added to src/lib/messages.ts only; no hints/tooltips/helper text
+- [ ] Copy added to src/lib/messages.ts only; no hints/tooltips/helper text (except §5.1's two)
 - [ ] A11y: labels, focus management, axe scan clean (serious/critical = 0)
 - [ ] Tests: Vitest (schemas, repository w/ mocked db, action success+failure),
       Playwright (happy path, validation failure, RBAC denial, axe), coverage ≥ 80 %

@@ -2,10 +2,12 @@
 -- TabCount: live pages. LastEditedAtUtc: the latest change to the notebook or any live page.
 -- Search: the notebook title, page titles and page SearchText (plain text; never the HTML).
 --   LIKE wildcards in @Search are escaped.
--- Sort whitelist: Title, TabCount, LastEditedAtUtc. NoteId is the final tiebreaker.
+-- Sort whitelist: Title, ProjectName, TabCount, LastEditedAtUtc. NoteId is the final tiebreaker.
+-- @WithoutProject = 1: only project-less notebooks (the /notes page's "No project" filter).
 -- Row-level access: a supplied @ProjectId must be accessible (dbo.usp_Project_AssertAccess ->
---   FORBIDDEN_ROW 50003); cross-project reads (@ProjectId NULL) return only rows of projects the
---   actor has a level on (Admin sees all).
+--   FORBIDDEN_ROW 50003); cross-project reads (@ProjectId NULL) return only rows the actor has a
+--   level on: assigned projects plus the project-less shared space (Admin sees all).
+-- ProjectName: the cross-project list's Project column (NULL for a project-less notebook).
 -- ActorAccess / ActorGrants / ActorRevokes (ADR-0023, ADR-0024) as in the other list procs.
 -- Entity app.Note (source: tblNotes). Module: notes (#14).
 USE ProjectManager;
@@ -17,7 +19,8 @@ CREATE OR ALTER PROCEDURE dbo.usp_Note_List
     @SortBy      NVARCHAR(50)  = NULL,
     @SortDir     VARCHAR(4)    = 'asc',
     @Page        INT           = 1,
-    @PageSize    INT           = 25
+    @PageSize    INT           = 25,
+    @WithoutProject BIT        = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -38,6 +41,7 @@ BEGIN
 
     SELECT n.NoteId,
            n.[ProjectId],
+           p.ProjectName,
            n.[Title],
            n.CreatedAtUtc,
            n.UpdatedAtUtc,
@@ -49,7 +53,8 @@ BEGIN
            ov.Revokes AS ActorRevokes,
            TotalCount = COUNT(*) OVER ()
     FROM app.Note AS n
-    CROSS APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, n.ProjectId, 0) acc
+    LEFT JOIN app.Project AS p ON p.ProjectId = n.ProjectId
+    CROSS APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, n.ProjectId, 1) acc
     OUTER APPLY dbo.ufn_Permission_Overrides(@ActorRole, @ActorUserId, n.ProjectId, N'notes') ov
     CROSS APPLY (SELECT COUNT(*) AS TabCount,
                         MAX(COALESCE(t.UpdatedAtUtc, t.CreatedAtUtc)) AS TabEditedAtUtc
@@ -61,6 +66,7 @@ BEGIN
     WHERE n.IsDeleted = 0
       AND (@ProjectId IS NULL OR n.ProjectId = @ProjectId)
       AND (@ProjectId IS NOT NULL OR acc.AccessLevel IS NOT NULL)
+      AND (@WithoutProject = 0 OR n.ProjectId IS NULL)
       AND (@Search IS NULL
            OR n.[Title] LIKE N'%' + @Search + N'%' ESCAPE N'\'
            OR EXISTS (SELECT 1 FROM app.NoteTab AS s
@@ -70,6 +76,8 @@ BEGIN
     ORDER BY
         CASE WHEN @SortBy = N'Title'           AND @SortDir = 'asc'  THEN n.[Title] END ASC,
         CASE WHEN @SortBy = N'Title'           AND @SortDir = 'desc' THEN n.[Title] END DESC,
+        CASE WHEN @SortBy = N'ProjectName'     AND @SortDir = 'asc'  THEN p.ProjectName END ASC,
+        CASE WHEN @SortBy = N'ProjectName'     AND @SortDir = 'desc' THEN p.ProjectName END DESC,
         CASE WHEN @SortBy = N'TabCount'        AND @SortDir = 'asc'  THEN tabs.TabCount END ASC,
         CASE WHEN @SortBy = N'TabCount'        AND @SortDir = 'desc' THEN tabs.TabCount END DESC,
         CASE WHEN @SortBy = N'LastEditedAtUtc' AND @SortDir = 'asc'  THEN e.LastEditedAtUtc END ASC,

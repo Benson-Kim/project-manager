@@ -3,7 +3,9 @@ import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table
 import TextAlign from "@tiptap/extension-text-align";
 import { FontFamily, FontSize, TextStyle } from "@tiptap/extension-text-style";
 import StarterKit from "@tiptap/starter-kit";
+import { HEADING_LEVELS } from "@/lib/rich-text/formats";
 import { isAllowedLinkHref } from "@/lib/rich-text/links";
+import { NamedHighlight, PageBreak, RichTextFormats, TextColorMark } from "./format-extensions";
 
 /** Word's Ctrl+Shift+X strikethrough, next to Tiptap's own Ctrl+Shift+S. */
 const WordShortcuts = Extension.create({
@@ -14,17 +16,16 @@ const WordShortcuts = Extension.create({
 });
 
 /**
- * The editor's schema (ADR-0025 table). Everything it can produce is on the
- * sanitiser's allow-list; code, code blocks and horizontal rules are off
- * because neither the toolbar nor the sanitiser carries them. Headings start
- * at h2: the page owns h1.
+ * The editor's schema (ADR-0025 table, ADR-0041 formats). Everything it can
+ * produce is on the sanitiser's allow-list; code and code blocks are off
+ * because neither the toolbar nor the sanitiser carries them. Headings are
+ * h2-h6: the page owns h1.
  */
 export const richTextExtensions = [
   StarterKit.configure({
     code: false,
     codeBlock: false,
-    horizontalRule: false,
-    heading: { levels: [2, 3, 4] },
+    heading: { levels: [...HEADING_LEVELS] },
     link: {
       openOnClick: false,
       autolink: true,
@@ -41,5 +42,9 @@ export const richTextExtensions = [
   TableRow,
   TableHeader,
   TableCell,
+  TextColorMark,
+  NamedHighlight,
+  PageBreak,
+  RichTextFormats,
   WordShortcuts,
 ];

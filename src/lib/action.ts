@@ -98,7 +98,7 @@ export function action<TSchema extends z.ZodType, TOutput>(
   options: ActionOptions<TSchema, TOutput>,
 ): (rawInput: unknown) => Promise<ActionResult<TOutput>> {
   return async function run(rawInput: unknown): Promise<ActionResult<TOutput>> {
-    // 1. Validate (FormData is normalised to a plain object first).
+    // 1. Normalise FormData to a plain object.
     // Object.fromEntries collapses repeated keys — use getAll() to retain arrays.
     const input =
       rawInput instanceof FormData
@@ -111,22 +111,9 @@ export function action<TSchema extends z.ZodType, TOutput>(
             return obj;
           })()
         : rawInput;
-    const parsed = options.schema.safeParse(input);
-    if (!parsed.success) {
-      const fieldErrors: Record<string, string[]> = {};
-      for (const issue of parsed.error.issues) {
-        const key = issue.path.join(".") || "_";
-        (fieldErrors[key] ??= []).push(issue.message);
-      }
-      return {
-        ok: false,
-        error: { code: "VALIDATION", message: messages.errors.VALIDATION, fieldErrors },
-      };
-    }
 
-    // Failures from here on are logged. The schema failure above is not: it is
-    // pre-session, so it belongs to no user, and the form already shows it per
-    // field.
+    // Failures are logged, except a schema failure: the form already shows it
+    // per field.
     let userId: number | undefined;
     const fail = (code: ActionErrorCode, detail: FailureDetail = {}): ActionResult<TOutput> => {
       const reference = newReference();
@@ -141,11 +128,29 @@ export function action<TSchema extends z.ZodType, TOutput>(
     };
 
     try {
-      // 2. Authenticate.
+      // 2. Authenticate, then throttle (ADR-0031: a fixed window of actions per
+      // user and minute), before anything parses the input: validating runs
+      // the rich-text sanitiser, the costliest step, so only a signed-in user
+      // within their quota reaches it.
       const session = await auth.requireSession();
       userId = session.userId;
+      if (!takeUserSlot("actions", session.userId).allowed) return fail("RATE_LIMITED");
 
-      // 3. Authorise the global role (ADR-0021). What the actor may do inside a
+      // 3. Validate.
+      const parsed = options.schema.safeParse(input);
+      if (!parsed.success) {
+        const fieldErrors: Record<string, string[]> = {};
+        for (const issue of parsed.error.issues) {
+          const key = issue.path.join(".") || "_";
+          (fieldErrors[key] ??= []).push(issue.message);
+        }
+        return {
+          ok: false,
+          error: { code: "VALIDATION", message: messages.errors.VALIDATION, fieldErrors },
+        };
+      }
+
+      // 3b. Authorise the global role (ADR-0021). What the actor may do inside a
       // project is the procs' call: they throw FORBIDDEN_ROW, mapped below.
       const permission =
         typeof options.permission === "function"
@@ -153,9 +158,6 @@ export function action<TSchema extends z.ZodType, TOutput>(
           : options.permission;
       // The permission is the reason, and it is a name from a closed set.
       if (!can(session.role, permission)) return fail("FORBIDDEN", { reason: permission });
-
-      // 3b. Throttle (ADR-0031): a fixed window of actions per user and minute.
-      if (!takeUserSlot("actions", session.userId).allowed) return fail("RATE_LIMITED");
 
       // 4. Execute (procs enforce row-level access and write audit rows).
       const data = await options.handler(parsed.data, { session });

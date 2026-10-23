@@ -36,3 +36,49 @@ SortOrder), and seed 016 loads 7 notes with no tabs.
 
 - One editor is mounted at a time, so a long notebook stays light.
 - No autosave: an explicit Save keeps the RowVer conflict handling simple.
+
+## Amendment 2026-10-23: notebooks without a project (migration 039)
+
+The client asked for notes at the application level as well as in projects, "just like
+activities".
+
+- Migration 039 makes `app.Note.ProjectId` nullable, as 014 did for daily activities. A notebook
+  without a project lives in the shared space of ADR-0021: every user reads, creates and edits it
+  and its pages (the space resolves to Contributor), and deleting a notebook or a page needs
+  Manager, which only an Admin holds there. Every note and page proc passes
+  `@AllowProjectless = 1`; a notebook keeps the project it was created in.
+- With `@AllowProjectless = 1`, a NULL project resolves to the shared space, so a project notebook
+  must never be checked with NULL. Every proc but create and the list reads the project from the
+  live note row (through an inner join from a page), stops with NOT_FOUND when the row is gone,
+  and passes that id. No proc writes `Note.ProjectId` after create, and the foreign key has no
+  `ON DELETE` action. The SQL guardrail pins all of this, including the next note-tab procs
+  (images).
+- `usp_Note_List` with no project lists every notebook the actor may read: their projects plus the
+  shared space (Admin: all). `@WithoutProject = 1` narrows it to the shared space, and each row
+  carries `ProjectName`, which is also a sort key.
+- UI: `/notes` in the main navigation, after To-do lists, with a Project column and the project
+  filter of the other cross-project lists (All, No project, one project). With no project
+  filtered, New notebook goes to the shared space. With a project filtered it goes to that
+  project, and it is not offered where the actor may not create.
+  `/notes/[noteId]` opens a shared notebook and redirects a project's notebook to
+  `/projects/[id]/notes/[noteId]`, so its project's levels and navigation apply. Both routes
+  render the same `NotebookPage`. When New notebook would go to the shared space it reads
+  "New shared notebook", so nobody files private notes there by mistake.
+- A notebook holds at most 500 live pages, counted under the notebook lock in
+  `usp_NoteTab_Create` (VALIDATION 50004), and the workspace disables Add page at the cap. A
+  reorder names every page and takes at most 500, so a longer notebook could never be reordered,
+  and in the shared space any user can add pages.
+- Tests: `db/tests/notes-procs.cjs` runs the procs in CI: shared-space writes by a Viewer and by a
+  user on no project, deletes refused to a project Manager and allowed to an Admin, and the list
+  across projects. `db/tests/notes-race.cjs` runs the same procs under concurrency: one winner
+  among parallel saves, distinct places for parallel adds, adds and saves against notebook
+  deletes (the page goes with it), double deletes, renames and reorders against deletes, the cap
+  under parallel adds and under delete-plus-add churn, and a mixed load. Also the SQL guardrails,
+  unit tests for the nullable project, and e2e as e2e-pm and e2e-viewer (no Admin login, to keep
+  the e2e login budget).
+- Known gaps, for later:
+  - In the shared space, overwriting a page is as good as deleting it. The old content survives
+    only in `audit.AuditLog`, with no restore screen, and a notebook cannot move to a project.
+  - Opening a notebook loads and re-sanitises every page, so the read cost grows with the
+    notebook (at the cap, about 80 s for 500 full pages). Loading the active page on demand would
+    bound it.

@@ -57,6 +57,7 @@ describe("notes repository", () => {
   it("list forwards ADR-0016 params with project scope", async () => {
     execProc.mockResolvedValue([
       noteRow({
+        ProjectName: "Apollo",
         TabCount: 3,
         LastEditedAtUtc: new Date("2026-01-02T00:00:00Z"),
         TotalCount: 5,
@@ -74,7 +75,27 @@ describe("notes repository", () => {
       SortDir: "asc",
       Page: 2,
       PageSize: 25,
+      WithoutProject: false,
     });
+  });
+
+  it("list across projects forwards the No project filter and parses project-less rows", async () => {
+    execProc.mockResolvedValue([
+      noteRow({
+        ProjectId: null,
+        ProjectName: null,
+        TabCount: 1,
+        LastEditedAtUtc: new Date("2026-01-02T00:00:00Z"),
+        TotalCount: 1,
+        ActorAccess: "Contributor",
+      }),
+    ]);
+    const rows = await listNotes(listParamsSchema.parse({}), 1, null, undefined, {
+      withoutProject: true,
+    });
+    expect(rows[0]).toMatchObject({ ProjectId: null, ProjectName: null });
+    const [, params] = lastCall();
+    expect(params).toMatchObject({ ProjectId: null, WithoutProject: true });
   });
 
   it("list rejects contract-breaking rows", async () => {
@@ -147,6 +168,14 @@ describe("notes repository", () => {
       FirstTabTitle: messages.notes.firstPageTitle,
       ActorUserId: 7,
     });
+  });
+
+  it("create without a project sends NULL for the shared space", async () => {
+    execProc.mockResolvedValue([noteRow({ ProjectId: null })]);
+    const row = await createNote({ projectId: null, title: "Shared" }, 7);
+    expect(row.ProjectId).toBeNull();
+    const [, params] = lastCall();
+    expect(params.ProjectId).toBeNull();
   });
 
   it("update carries rowVer for optimistic concurrency", async () => {
