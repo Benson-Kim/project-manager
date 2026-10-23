@@ -27,6 +27,10 @@ and prints `N passed, M failed`.
   (every user reads, creates and edits notebooks and pages; only an Admin deletes), project
   notebooks that keep their project's levels, and the cross-project list (the actor's projects
   plus the shared space, the No project filter, each row's project name).
+- `notes-race.cjs` — the shared space under concurrency, where any user may write: parallel saves
+  of one page (one winner, no lost update), parallel page adds (distinct places), an add racing
+  the notebook's delete, a reorder racing an add, a save racing the page's delete, and parallel
+  adds at the 500-page cap.
 
 Run one locally with the `.env` of a throwaway database: `node db/tests/financials-procs.cjs`.
 Never run them against a database anyone depends on: they create projects and leave

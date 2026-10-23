@@ -13,7 +13,9 @@ import { rowVerSchema } from "@/modules/projects/schemas/project";
 
 export const NOTE_TITLE_MAX = 255;
 export const NOTE_RICH_TEXT_MAX = 200_000;
-export const NOTE_REORDER_MAX = 500;
+/** A notebook holds at most this many live pages, so a reorder (which names every page) fits. */
+export const NOTE_PAGES_MAX = 500;
+export const NOTE_REORDER_MAX = NOTE_PAGES_MAX;
 
 const id = z.coerce.number().int().positive();
 

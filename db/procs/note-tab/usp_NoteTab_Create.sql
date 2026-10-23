@@ -1,6 +1,8 @@
 -- usp_NoteTab_Create — add a page at the end of a notebook (ADR-0035); audits in-transaction;
 -- returns the new row. The project is the notebook's; the notebook row is locked (UPDLOCK,
 -- HOLDLOCK) while the next SortOrder is taken, so two adds never share a place.
+-- A notebook holds at most 500 live pages (VALIDATION 50004), counted under that lock: a reorder
+-- names every page and takes at most 500, so a longer notebook could never be reordered.
 -- Access: Contributor on the notebook's project, or a per-person grant (notes:create, ADR-0024).
 -- VALIDATION 50004: a blank title.
 -- Entity app.NoteTab (titled pages per checklist rows 17-20). Module: notes (#14).
@@ -35,6 +37,9 @@ BEGIN
     WHERE NoteId = @NoteId AND IsDeleted = 0;
     IF @Locked IS NULL
         THROW 50001, N'NOT_FOUND:Note not found', 1;
+
+    IF (SELECT COUNT(*) FROM app.NoteTab WHERE NoteId = @NoteId AND IsDeleted = 0) >= 500
+        THROW 50004, N'VALIDATION:A notebook holds at most 500 pages', 1;
 
     DECLARE @SortOrder INT =
         ISNULL((SELECT MAX([SortOrder]) FROM app.NoteTab WHERE NoteId = @NoteId AND IsDeleted = 0), 0) + 1;

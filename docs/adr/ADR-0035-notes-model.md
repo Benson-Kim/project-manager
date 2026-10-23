@@ -55,9 +55,16 @@ activities".
   filtered project when the actor may create there, otherwise to the shared space.
   `/notes/[noteId]` opens a shared notebook and redirects a project's notebook to
   `/projects/[id]/notes/[noteId]`, so its project's levels and navigation apply. Both routes
-  render the same `NotebookPage`.
+  render the same `NotebookPage`. When New notebook would go to the shared space it reads
+  "New shared notebook", so nobody files private notes there by mistake.
+- A notebook holds at most 500 live pages, counted under the notebook lock in
+  `usp_NoteTab_Create` (VALIDATION 50004), and the workspace disables Add page at the cap. A
+  reorder names every page and takes at most 500, so a longer notebook could never be reordered,
+  and in the shared space any user can add pages.
 - Tests: `db/tests/notes-procs.cjs` runs the procs in CI: shared-space writes by a Viewer and by a
   user on no project, deletes refused to a project Manager and allowed to an Admin, and the list
-  across projects. Also the SQL guardrail for `@AllowProjectless = 1`, unit tests for the
+  across projects. `db/tests/notes-race.cjs` runs the same procs under concurrency (one winner
+  among parallel saves, distinct places for parallel adds, adds against deletes and reorders,
+  the cap under parallel adds). Also the SQL guardrail for `@AllowProjectless = 1`, unit tests for the
   nullable project, and e2e as e2e-pm and e2e-viewer (no Admin login, to keep the e2e login
   budget).

@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { NOTE_REORDER_MAX } from "@/modules/notes/schemas/note";
+import { NOTE_PAGES_MAX, NOTE_REORDER_MAX } from "@/modules/notes/schemas/note";
 
 const FOLDERS = ["note", "note-tab"];
 
@@ -164,6 +164,21 @@ describe("note SQL guardrails", () => {
     expect(text).toContain("TRY_CAST(");
     expect(text).toMatch(new RegExp(`> ${NOTE_REORDER_MAX}\\b`));
     expect(text).toMatch(/THROW 50004, N'VALIDATION:/);
+  });
+
+  it("caps a notebook at the pages a reorder can name, counted under the note lock", () => {
+    expect(NOTE_REORDER_MAX).toBe(NOTE_PAGES_MAX);
+    expect(
+      afterBeginTran(
+        "usp_NoteTab_Create",
+        new RegExp(
+          `WITH \\(UPDLOCK, HOLDLOCK\\)[\\s\\S]*COUNT\\(\\*\\) FROM app\\.NoteTab[^\\n]*>= ${NOTE_PAGES_MAX}\\b`,
+        ),
+      ),
+    ).toBe(true);
+    expect(sql("usp_NoteTab_Create")).toContain(
+      "THROW 50004, N'VALIDATION:A notebook holds at most",
+    );
   });
 
   it("locks the note before adding or removing one of its pages", () => {

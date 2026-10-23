@@ -187,6 +187,7 @@ jobs:
           node db/tests/requirements-procs.cjs
           node db/tests/requirements-race.cjs
           node db/tests/notes-procs.cjs
+          node db/tests/notes-race.cjs
 
   e2e-tests:
     name: Playwright E2E Smoke Tests

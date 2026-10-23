@@ -31,7 +31,7 @@ export function NewNoteButton({ projectId }: { projectId: number | null }) {
 
   return (
     <Button pending={pending} onClick={create} data-testid="new-note">
-      {messages.notes.newNote}
+      {projectId === null ? messages.notes.newSharedNote : messages.notes.newNote}
     </Button>
   );
 }
