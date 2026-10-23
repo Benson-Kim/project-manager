@@ -20,21 +20,13 @@
 const fs = require("fs");
 const path = require("path");
 const { signingConfig } = require("./scripts/desktop/signing.cjs");
+const { updateFeed } = require("./scripts/desktop/update-feed.cjs");
 
 const root = __dirname;
 const r = (...p) => path.join(root, ...p);
 // The office's publisher certificate (public half), trusted on each PC by provision.ps1.
 const PUBLISHER_CER = r("build-resources", "publisher.cer");
 const signing = signingConfig(process.env, fs.existsSync(PUBLISHER_CER));
-const DEFAULT_UPDATE_REPO = "Benson-Kim/project-manager";
-
-function updateFeed(env) {
-  if (env.PM_UPDATE_FEED === "off") return null;
-  if (env.PM_UPDATE_URL) return [{ provider: "generic", url: env.PM_UPDATE_URL }];
-  const [owner, repo] = (env.PM_UPDATE_GITHUB || DEFAULT_UPDATE_REPO).split("/");
-  if (!owner || !repo) throw new Error("PM_UPDATE_GITHUB must look like owner/repo");
-  return [{ provider: "github", owner, repo, releaseType: "release" }];
-}
 
 /** @type {import('electron-builder').Configuration} */
 module.exports = {

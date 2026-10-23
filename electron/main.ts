@@ -11,7 +11,7 @@ import {
 } from "electron";
 import { createRequire } from "module";
 import path from "path";
-import { ensureAdminAccount, resetAdminPassword, type Argon2Like } from "./admin-account";
+import { ensureAdminAccount, type Argon2Like } from "./admin-account";
 import {
   backupDatabase,
   latestBackup,
@@ -41,6 +41,7 @@ import { setupAutoUpdater } from "./updater";
 import { restoreSources, restoreUploads } from "./uploads-mirror";
 import { SettingsStore } from "./user-settings";
 import { detachedPlacement, type Placement } from "./window-placement";
+import { windowTitle } from "./window-title";
 
 // A fixed, explicit profile folder (otherwise Electron derives it from the
 // package name). Must be set before anything touches app paths.
@@ -105,6 +106,14 @@ const appWindowOptions = {
   webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
 } satisfies BrowserWindowConstructorOptions;
 
+/** The title bar shows the page's own title, without the app name the sidebar already shows. */
+function keepTitlesShort(win: BrowserWindow): void {
+  win.on("page-title-updated", (e, title) => {
+    e.preventDefault();
+    win.setTitle(windowTitle(title, app.getName()));
+  });
+}
+
 /**
  * Only our own local server is shown in-app; anything else opens in the browser.
  * A page of ours asking for a new window ("Open in new window", Shift/Ctrl-click)
@@ -137,6 +146,7 @@ function guardContents(contents: WebContents, origin: string): void {
   contents.on("did-create-window", (child) => {
     if (placement?.maximized) child.maximize();
     placement = null;
+    keepTitlesShort(child);
     guardContents(child.webContents, origin);
     child.on("close", () => {
       settings.set({
@@ -169,6 +179,7 @@ function createMainWindow(url: string): BrowserWindow {
     height: 800,
     show: false,
   });
+  keepTitlesShort(win);
   guardContents(win.webContents, new URL(url).origin);
 
   win.once("ready-to-show", () => {
@@ -401,7 +412,8 @@ async function runBackup(kind: BackupKind): Promise<BackupResult> {
 }
 
 async function backupIfDue(): Promise<void> {
-  if (!config || backups.current()) return;
+  // Not while quitting: a backup started now would hold up an update's restart.
+  if (!config || quitting || backups.current()) return;
   try {
     const last = await latestBackup(config.backupDir, config.sql.database);
     if (last && Date.now() - last.time.getTime() < BACKUP_INTERVAL_MS) return;
@@ -547,27 +559,6 @@ async function restoreAttachmentFiles(cfg: MachineConfig, bakFile: string): Prom
   }
 }
 
-async function resetAdminAction(): Promise<void> {
-  if (!config) return;
-  const { response } = await dialog.showMessageBox({
-    type: "question",
-    title: "Reset administrator password",
-    message: "Create a new one-time password for the 'admin' account?",
-    detail: "Anyone signed in as admin will be signed out.",
-    buttons: ["Reset", "Cancel"],
-    defaultId: 1,
-    cancelId: 1,
-  });
-  if (response !== 0) return;
-  try {
-    const pwd = await resetAdminPassword(config.sql, loadArgon2(), log);
-    await showAdminCredentials(pwd, "The administrator password was reset.");
-  } catch (err) {
-    log.error("[admin] reset failed", err);
-    await message("error", "Reset failed", "The password could not be reset.", describeError(err));
-  }
-}
-
 // ---------------------------------------------------------------------------
 
 async function bootstrap(): Promise<void> {
@@ -642,21 +633,25 @@ async function bootstrap(): Promise<void> {
         openBackupsFolder: () => void shell.openPath(settings.get().backupCopyDir),
         chooseBackupCopyFolder: () => void chooseBackupCopyFolder(),
         restore: () => void restoreAction(),
-        resetAdminPassword: () => void resetAdminAction(),
         openLogs: () => void shell.openPath(path.dirname(log.file)),
         quit: () => app.quit(),
         ...(cfg.uploadsDir ? {} : { setUpAttachments: () => void setUpAttachmentsAction() }),
       },
       app.getVersion(),
     );
-    const updater = setupAutoUpdater(log, {
+    const updater = setupAutoUpdater(log, settings, {
       getWindow: () => mainWindow,
+      showWindow: showMain,
       prepareToQuit: async () => {
         quitting = true;
         // Never cut a backup/restore off half-way for an update.
         await backups.current();
       },
+      cancelQuit: () => {
+        quitting = false;
+      },
       onReadyChanged: setTrayUpdateReady,
+      notify: showTrayNotice,
     });
     if (updater) {
       setTrayUpdateActions({
