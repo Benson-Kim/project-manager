@@ -385,6 +385,22 @@ test.describe("rich-text editor (ADR-0025)", () => {
     expect(foreign).toEqual([]);
   });
 
+  test("at 360 px every toolbar menu opens inside the window", async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 780 });
+    await openEditor(page);
+    const toolbar = page.getByRole("toolbar", { name: "Formatting" });
+    const width = await page.evaluate(() => document.documentElement.clientWidth);
+    for (const menu of ["Text colour", "Highlight", "Numbering style", "Insert", "Table"]) {
+      await toolbar.getByRole("button", { name: menu, exact: true }).click();
+      const box = await page.getByRole("menu", { name: menu }).boundingBox();
+      expect(box, menu).not.toBeNull();
+      expect(box!.x, `${menu} left edge`).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width, `${menu} right edge`).toBeLessThanOrEqual(width);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth), menu).toBe(width);
+      await page.keyboard.press("Escape");
+    }
+  });
+
   test("axe: no serious or critical violations with the editor loaded (light and dark)", async ({
     page,
   }) => {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 /**
  * Accessible dropdown menu primitive (shell spec, issue #28): trigger button
@@ -10,9 +10,18 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
  * Compose with <MenuLink> and <MenuButton> (role=menuitem, or menuitemradio
  * with aria-checked when given `checked`). Picking an item closes the menu and
  * puts focus back on the trigger. The panel opens under the trigger,
- * its right edge on the trigger's (`align="end"`) or its left edge (`"start"`).
+ * its right edge on the trigger's (`align="end"`) or its left edge (`"start"`),
+ * moved sideways when that would cross the window's edge (360 px screens).
  */
 const ITEM = '[role="menuitem"], [role="menuitemradio"]';
+const EDGE_PX = 8;
+
+/** How far to move a panel sideways so it sits inside the window, EDGE_PX from each side. */
+export function shiftIntoView(left: number, right: number, windowWidth: number): number {
+  if (right > windowWidth - EDGE_PX) return Math.max(windowWidth - EDGE_PX - right, EDGE_PX - left);
+  if (left < EDGE_PX) return EDGE_PX - left;
+  return 0;
+}
 
 export function Menu({
   label,
@@ -33,6 +42,17 @@ export function Menu({
   const panelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Measured before paint, so a panel near the edge never shows cut off or widens the page.
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    if (!open || !panel) return;
+    panel.style.translate = "";
+    const { left, right } = panel.getBoundingClientRect();
+    const shift = shiftIntoView(left, right, document.documentElement.clientWidth);
+    if (shift) panel.style.translate = `${shift}px 0`;
+  }, [open]);
 
   const items = useCallback(
     () => Array.from(rootRef.current?.querySelectorAll<HTMLElement>(ITEM) ?? []),
@@ -89,11 +109,12 @@ export function Menu({
         {trigger}
       </button>
       <div
+        ref={panelRef}
         id={panelId}
         role="menu"
         aria-label={label}
         hidden={!open}
-        className={`absolute ${align === "start" ? "left-0" : "right-0"} z-(--z-dropdown) mt-1 min-w-48 rounded-md border border-line bg-surface-raised py-1 shadow-lg`}
+        className={`absolute ${align === "start" ? "left-0" : "right-0"} z-(--z-dropdown) mt-1 max-w-[calc(100vw-1rem)] min-w-48 rounded-md border border-line bg-surface-raised py-1 shadow-lg`}
         onClickCapture={(event) => {
           const target = event.target as HTMLElement;
           if (!target.closest(ITEM)) return;
