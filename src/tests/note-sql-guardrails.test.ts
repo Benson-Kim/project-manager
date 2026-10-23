@@ -128,7 +128,7 @@ describe("note SQL guardrails", () => {
     expect(list).toContain("SearchText");
     expect(list).not.toMatch(/\[?Content\]?\s+LIKE/i);
     expect(list).toContain(
-      "REPLACE(REPLACE(REPLACE(@Search, N'\\', N'\\\\'), N'%', N'\\%'), N'_', N'\\_')",
+      "REPLACE(REPLACE(REPLACE(REPLACE(@Search, N'\\', N'\\\\'), N'%', N'\\%'), N'_', N'\\_'), N'[', N'\\[')",
     );
     const likes = list.match(/LIKE N'%'[^\n]*/g) ?? [];
     expect(likes.length).toBeGreaterThanOrEqual(2);
