@@ -42,3 +42,5 @@ build/desktop-app/
 build/desktop-test/
 dist-installer/
 installers/
+
+.claude/

@@ -18,6 +18,9 @@ BEGIN
                          WHEN @PageSize > 100 THEN 100 ELSE @PageSize END;
     SET @SortDir  = CASE WHEN LOWER(@SortDir) = 'desc' THEN 'desc' ELSE 'asc' END;
 
+    IF @Search IS NOT NULL
+        SET @Search = REPLACE(REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'), N'_', N'\_'), N'[', N'\[');
+
     SELECT ItResourceCategoryId,
            [ProjectId],
            [Resource],
@@ -28,7 +31,7 @@ BEGIN
     FROM app.ItResourceCategory
     WHERE IsDeleted = 0
       AND (@ProjectId IS NULL OR ProjectId = @ProjectId)
-      AND (@Search IS NULL OR [Resource] LIKE N'%' + @Search + N'%')
+      AND (@Search IS NULL OR [Resource] LIKE N'%' + @Search + N'%' ESCAPE N'\')
     ORDER BY
         CASE WHEN @SortBy = N'Resource' AND @SortDir = 'asc'  THEN [Resource] END ASC,
         CASE WHEN @SortBy = N'Resource' AND @SortDir = 'desc' THEN [Resource] END DESC,

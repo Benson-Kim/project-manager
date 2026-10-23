@@ -26,6 +26,7 @@ export const CONTRIBUTOR_WRITE_MODULES = [
   "notes",
   "parking-lot",
   "questions-answers",
+  "requirements",
   "todo-alerts",
   "todo-items",
 ] as const;
@@ -88,6 +89,7 @@ export const OVERRIDABLE_MODULES = [
   "objectives",
   "parking-lot",
   "questions-answers",
+  "requirements",
   "stakeholders",
   "suppliers",
   "todo-alerts",

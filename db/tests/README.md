@@ -15,6 +15,14 @@ and prints `N passed, M failed`.
   from a template, attachments (quota, cross-owner ids both ways), cascades, dropped legacy procs.
 - `financial-documents-race.cjs` — ADR-0030 under concurrency: the document cap, unique names
   (creates, copies, renames), the file quota, and delete versus attach.
+- `requirements-procs.cjs` — ADR-0037: roles and overrides, object-level access across projects,
+  the trace and allocation rules (need vs solution, same project, no self-link), per-project
+  reference numbers never reused, the shared met tick across deliverables, a deliverable delete
+  that keeps the requirements, a requirement delete that removes its links and allocations, and a
+  create whose links fail after the insert leaving nothing behind.
+- `requirements-race.cjs` — ADR-0037 under concurrency: parallel creates get distinct numbers,
+  a link racing a delete leaves no link to a deleted row, a type change racing a new link stays
+  valid, and parallel moves under one deliverable leave the order 1..n.
 
 Run one locally with the `.env` of a throwaway database: `node db/tests/financials-procs.cjs`.
 Never run them against a database anyone depends on: they create projects and leave

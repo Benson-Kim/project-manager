@@ -61,6 +61,13 @@ describe("projectSectionGroups", () => {
     expect(planning.sections.map((s) => s.segment)).toContain("deliverables");
   });
 
+  it("planning group lists requirements right after deliverables (ADR-0037)", () => {
+    const segments = projectSectionGroups
+      .find((g) => g.key === "planning")!
+      .sections.map((s) => s.segment);
+    expect(segments.indexOf("requirements")).toBe(segments.indexOf("deliverables") + 1);
+  });
+
   it("people group contains suppliers", () => {
     const people = projectSectionGroups.find((g) => g.key === "people")!;
     expect(people.sections.map((s) => s.segment)).toContain("suppliers");

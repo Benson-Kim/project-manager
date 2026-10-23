@@ -16,6 +16,7 @@ const MODULES: Record<string, string> = {
   "key-deliverable": "key-deliverables",
   keyword: "keywords",
   objective: "objectives",
+  requirement: "requirements",
   "question-answer": "questions-answers",
   stakeholder: "stakeholders",
   supplier: "suppliers",
@@ -61,6 +62,10 @@ const VERBS: Record<string, string> = {
   Move: "update",
   Reschedule: "update",
   Rename: "update",
+  // Requirements (ADR-0037): taking a requirement off one deliverable is an update of it.
+  Unallocate: "update",
+  // Status picked from the WBS or Gantt menu (ADR-0036).
+  SetStatus: "update",
   Dismiss: "update",
   Snooze: "update",
   Set: "update",
@@ -91,6 +96,10 @@ const EXEMPT: Record<string, string> = {
     "replaces a line's amounts inside the line write procs' transaction, after their own access check",
   usp_KeyDeliverable_RollUp:
     "recomputes parent dates inside the write procs' transaction, after their own access check",
+  usp_Requirement_ReplaceTraces:
+    "replaces links inside the requirement write procs' transaction, after their own access check",
+  usp_Requirement_ReplaceAllocations:
+    "replaces allocations inside the requirement write procs' transaction, after their own access check",
 };
 
 /** The access helpers themselves (they take @MinLevel as a parameter). */

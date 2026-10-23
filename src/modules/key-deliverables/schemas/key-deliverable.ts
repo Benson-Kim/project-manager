@@ -2,7 +2,9 @@ import { z } from "zod";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { OPTION_COLORS, type LookupListKey } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
-import { utcDay, type WbsItem } from "./wbs";
+import { requirementText } from "@/modules/requirements/schemas/requirement-form";
+import { solutionTypeSchema } from "@/modules/requirements/schemas/requirement-types";
+import { utcDay, type WbsItem, type WbsRequirement } from "./wbs";
 
 /**
  * KeyDeliverable (app.KeyDeliverable ← tblKeyRequirementsDeliverable) — zod
@@ -55,6 +57,42 @@ export function parseAssigneesJson(raw: unknown): AssigneeEntry[] {
   if (!Array.isArray(arr))
     throw new Error(`AssigneesJson must be a JSON array, got ${JSON.stringify(arr)}`);
   return arr.map((a) => assigneeEntrySchema.parse(a)); // throws on schema mismatch
+}
+
+/** One entry of GanttData's RequirementsJson (ADR-0036). */
+const requirementEntrySchema = z
+  .object({
+    id: z.number().int().positive(),
+    type: solutionTypeSchema,
+    number: z.number().int().positive(),
+    requirement: z.string(),
+    isMet: z.union([z.boolean(), z.literal(0), z.literal(1)]).transform(Boolean),
+    sortOrder: z.number().int(),
+    rowVer: rowVerSchema,
+    placeRowVer: rowVerSchema,
+  })
+  .transform((r): WbsRequirement => ({
+    id: r.id,
+    type: r.type,
+    number: r.number,
+    text: r.requirement,
+    isMet: r.isMet,
+    sortOrder: r.sortOrder,
+    rowVer: r.rowVer,
+    placeRowVer: r.placeRowVer,
+  }));
+
+/** NULL is []; malformed JSON throws, as in parseAssigneesJson. */
+export function parseRequirementsJson(raw: unknown): WbsRequirement[] {
+  if (raw === null || raw === undefined || raw === "") return [];
+  if (typeof raw !== "string") {
+    throw new Error(`RequirementsJson must be a string, got ${typeof raw}`);
+  }
+  const arr: unknown = JSON.parse(raw);
+  if (!Array.isArray(arr)) throw new Error("RequirementsJson must be a JSON array");
+  return arr
+    .map((r) => requirementEntrySchema.parse(r))
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
 }
 
 /** A bar colour: a palette key (CK_KeyDeliverable_Color); NULL takes the parent's. */
@@ -115,6 +153,7 @@ export const wbsRowSchema = z
     Color: wbsColorSchema,
     AssigneeNames: z.string().nullable().optional(),
     AssigneesJson: z.unknown().optional(),
+    RequirementsJson: z.unknown().optional(),
     CreatedAtUtc: z.date(),
     RowVer: rowVerSchema,
   })
@@ -131,6 +170,7 @@ export const wbsRowSchema = z
     color: r.Color,
     assigneeNames: r.AssigneeNames?.trim() || null,
     assignees: parseAssigneesJson(r.AssigneesJson),
+    requirements: parseRequirementsJson(r.RequirementsJson),
     rowVer: r.RowVer,
   }));
 
@@ -229,7 +269,7 @@ const endNotBeforeStart = {
 export const addWbsItemInput = z
   .object({
     projectId: itemId,
-    name: z.string().trim().min(1, messages.keyDeliverables.requirementRequired).max(4000),
+    name: z.string().trim().min(1, messages.keyDeliverables.deliverableRequired).max(4000),
     parentId: itemId.nullable(),
     afterId: itemId.nullable(),
     start: wbsDay,
@@ -256,7 +296,7 @@ export type RescheduleWbsItemInput = z.input<typeof rescheduleWbsItemInput>;
 
 export const renameWbsItemInput = z.object({
   id: itemId,
-  name: z.string().trim().min(1, messages.keyDeliverables.requirementRequired).max(4000),
+  name: z.string().trim().min(1, messages.keyDeliverables.deliverableRequired).max(4000),
   rowVer: rowVerSchema,
 });
 
@@ -265,6 +305,52 @@ export type RenameWbsItemInput = z.input<typeof renameWbsItemInput>;
 export const deleteWbsItemInput = z.object({ id: itemId, rowVer: rowVerSchema });
 
 export type DeleteWbsItemInput = z.input<typeof deleteWbsItemInput>;
+
+/** Null clears the status; the proc checks the list. */
+export const setWbsStatusInput = z.object({
+  id: itemId,
+  status: z.string().trim().max(255).nullable(),
+  rowVer: rowVerSchema,
+});
+
+export type SetWbsStatusInput = z.input<typeof setWbsStatusInput>;
+
+/**
+ * Cascade requirement edits (ADR-0037). A requirement is a project-level record (the requirements
+ * module owns it); from the WBS it is created already allocated to one deliverable, edited, moved
+ * within a deliverable's list, or taken off one deliverable. Wording rule reused from that module.
+ */
+export const addRequirementInput = z.object({
+  projectId: z.coerce.number().int().positive(),
+  itemId,
+  type: solutionTypeSchema,
+  text: requirementText,
+});
+
+export type AddRequirementInput = z.input<typeof addRequirementInput>;
+
+export const updateRequirementInput = z.object({
+  id: itemId,
+  type: solutionTypeSchema,
+  text: requirementText,
+  isMet: z.boolean(),
+  rowVer: rowVerSchema,
+});
+
+export type UpdateRequirementInput = z.input<typeof updateRequirementInput>;
+
+export const moveRequirementInput = z.object({
+  itemId,
+  id: itemId,
+  position: z.number().int().min(1).max(100_000),
+  rowVer: rowVerSchema,
+});
+
+export type MoveRequirementInput = z.input<typeof moveRequirementInput>;
+
+export const removeRequirementInput = z.object({ itemId, id: itemId, rowVer: rowVerSchema });
+
+export type RemoveRequirementInput = z.input<typeof removeRequirementInput>;
 
 /** Module filter params (URL ⇄ usp_KeyDeliverable_List @Status/@Priority). */
 export const keyDeliverableFiltersSchema = z.object({

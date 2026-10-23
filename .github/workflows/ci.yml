@@ -184,6 +184,8 @@ jobs:
           node db/tests/financials-procs.cjs
           node db/tests/financial-documents-procs.cjs
           node db/tests/financial-documents-race.cjs
+          node db/tests/requirements-procs.cjs
+          node db/tests/requirements-race.cjs
 
   e2e-tests:
     name: Playwright E2E Smoke Tests

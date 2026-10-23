@@ -56,7 +56,7 @@ BEGIN
                   OR [Module] IS NULL
                   OR [Module] NOT IN (N'assumptions-constraints', N'daily-activities', N'financial-tax-invoices', N'financials',
                                       N'key-deliverables', N'keywords', N'meetings', N'objectives', N'parking-lot',
-                                      N'questions-answers', N'stakeholders', N'suppliers', N'todo-alerts', N'todo-items'))
+                                      N'questions-answers', N'requirements', N'stakeholders', N'suppliers', N'todo-alerts', N'todo-items'))
         THROW 50004, N'VALIDATION:Each override needs a section, an action and allow or deny', 1;
     IF EXISTS (SELECT 1 FROM @In GROUP BY [Module], Verb HAVING COUNT(*) > 1)
         THROW 50004, N'VALIDATION:Each section and action can be set only once', 1;

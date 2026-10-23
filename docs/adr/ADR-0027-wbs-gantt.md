@@ -1,6 +1,8 @@
 # ADR-0027 — Key deliverables as a work breakdown that draws the Gantt
 
 Status: Accepted · Date: 2026-10-13 · Session: wbs-gantt (client feedback, checklist row 67)
+Amended by ADR-0036 (2026-10-20): requirements under each item, colour from status (the Color
+column is no longer drawn), and an item context menu.
 Amends the module #9 Gantt (a read-only bar chart from `usp_KeyDeliverable_GanttData`).
 
 ## Context
