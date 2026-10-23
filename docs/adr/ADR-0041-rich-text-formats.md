@@ -33,6 +33,11 @@ Two constraints shaped the choice:
   `--tone-*-soft` for shading) and new highlighter tokens (`--hl-*`), each with a light and a dark
   value. Print resets them to the light values, so a page printed from dark mode keeps its
   colours.
+- A highlight sets its own ink, the theme's `--ink`, and a text colour inside it inherits that
+  ink: when a run has both, the highlight wins, whichever way the two marks nest. A text colour
+  is chosen for the page surface, not for a highlighter, so yellow ink on a blue highlight would
+  fall below 4.5:1. `src/tests/rich-text-formats-css.test.ts` computes the contrast of `--ink`
+  and of the link colour on every `--hl-*`, in light and dark, and fails under 4.5:1.
 - A CSS colour arriving from Word, a browser paste or Access `<font color>` is mapped to the
   nearest name (`nearestColor`: hue family, then a fallback order). Black, white and near-greys
   map to "automatic", which is the theme's ink.
@@ -49,12 +54,16 @@ Two constraints shaped the choice:
 | Increase / decrease indent, Ctrl+M / Ctrl+Shift+M | `p/h*[data-indent="1..8"]` | Word's shortcuts; in a list they nest or lift the item. A pasted margin maps to a level (36 pt = 1) |
 | Numbering style menu | `ol[type][style=list-style-type]` | 1, a, A, i, I, plus "Start numbering at" (`start`, 1-9999). The inline list-style-type is needed past the stylesheet's `list-style` reset |
 | Text style select | `h2`-`h6` | "Heading 1"-"Heading 5"; the page owns `h1` |
-| Insert menu | `hr`, `hr[data-page-break]` | A page break is a dashed line on screen and a new page in print |
+| Insert menu | `hr`, `hr[data-page-break="true"]` | A page break is a dashed line on screen and a new page in print. Only the value `"true"` is a break; any other value is a plain line |
 
 - Tiptap's colour and background-colour extensions (`@tiptap/extension-text-style`) are not
   used, because they write CSS values.
 - The `Menu` primitive gains `menuitemradio` items with `aria-checked`, so a menu shows the
-  current colour or style, and `align="start"` for menus on the toolbar's left half.
+  current colour or style, and `align="start"` for menus on the toolbar's left half. Picking an
+  item puts focus back on the menu's trigger before the item runs, so a dialog opened from a menu
+  ("Start numbering at") returns focus to a visible control.
+- A numbering style or start applies to the innermost list at the cursor (`setNumbering`); an
+  outer list keeps its own. A paragraph or a bullet list becomes a numbered list first.
 
 ### Sanitiser
 
@@ -64,7 +73,7 @@ Two constraints shaped the choice:
   - `data-shade` on cells;
   - `data-indent` on `p` and `h2`-`h6`, including legacy `div` and `h1`;
   - `start` and `type` on `ol`, plus the `list-style-type` the type implies;
-  - `data-page-break` on `hr`.
+  - `data-page-break` on `hr`, kept only when it is exactly `"true"`.
 - Anything else is dropped. A value outside the vocabulary is removed rather than left empty.
   Editor markup stays a fixed point. Legacy blocks nested in blocks (`<div><div>`, which becomes
   `<p><p>`) settle only on a second pass. That is known, harmless to the allow-list, and

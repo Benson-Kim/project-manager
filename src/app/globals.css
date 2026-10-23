@@ -369,11 +369,17 @@ button:focus-visible {
   color: var(--tone-gray-ink);
 }
 
+/* A highlight sets its own ink, so a text colour never sits on it below 4.5:1:
+   the highlight wins whichever way the two nest (ADR-0041). */
 .rich-text mark {
   background: var(--hl-yellow);
-  color: inherit;
+  color: var(--ink);
   border-radius: 2px;
   padding: 0 0.1em;
+}
+
+.rich-text mark span[data-color] {
+  color: inherit;
 }
 
 .rich-text mark[data-color="green"] {
@@ -467,7 +473,7 @@ button:focus-visible {
 }
 
 /* On screen a page break is a dashed line; on paper it starts a new page. */
-.rich-text hr[data-page-break] {
+.rich-text hr[data-page-break="true"] {
   border-top: 2px dashed var(--ink-faint);
   margin: 1.5rem 0;
 }
@@ -579,7 +585,7 @@ button:focus-visible {
     break-inside: avoid;
   }
 
-  .rich-text hr[data-page-break] {
+  .rich-text hr[data-page-break="true"] {
     break-after: page;
     border: 0;
     margin: 0;

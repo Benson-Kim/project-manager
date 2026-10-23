@@ -29,6 +29,27 @@ const tokenIn = (scope: string, token: string) => {
   return css.slice(start, css.indexOf("}", start)).includes(`${token}:`);
 };
 
+function tokenValue(scope: string, token: string): string {
+  const start = css.indexOf(`${scope} {`);
+  const body = css.slice(start, css.indexOf("}", start));
+  const value = new RegExp(`${token}:\\s*(#[0-9a-f]{6});`, "i").exec(body)?.[1];
+  expect(value, `${token} in ${scope}`).toBeTruthy();
+  return value as string;
+}
+
+/** WCAG 2.2 contrast ratio of two #rrggbb colours. */
+function contrast(a: string, b: string): number {
+  const luminance = (hex: string) => {
+    const [r, g, bl] = [1, 3, 5].map((i) => {
+      const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 describe("rich-text formats have their styles", () => {
   it.each(TEXT_COLORS)("text colour %s", (color) => {
     expect(block(`.rich-text span[data-color="${color}"]`)).toContain(`var(--tone-${color}-ink)`);
@@ -77,6 +98,26 @@ describe("rich-text formats have their styles", () => {
       expect(messages.richText.numberingStyles[style.type]).toBeTruthy();
     }
   });
+
+  it("a highlight sets its own ink, and a text colour inside it takes that ink", () => {
+    expect(block(".rich-text mark")).toContain("color: var(--ink)");
+    expect(block(".rich-text mark span[data-color]")).toContain("color: inherit");
+  });
+
+  it.each([":root", '[data-theme="dark"]'])(
+    "in %s, text and links on every highlight reach 4.5:1",
+    (scope) => {
+      for (const color of HIGHLIGHT_COLORS) {
+        const background = tokenValue(scope, `--hl-${color}`);
+        for (const ink of ["--ink", "--accent-strong"]) {
+          expect(
+            contrast(tokenValue(scope, ink), background),
+            `${ink} on ${color}`,
+          ).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    },
+  );
 
   it("printing resets every tone and highlight to its light value", () => {
     const print = css.slice(css.indexOf("Coloured rich text (ADR-0041) prints"));

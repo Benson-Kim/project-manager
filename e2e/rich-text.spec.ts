@@ -19,6 +19,16 @@ async function clear(page: Page) {
   await page.keyboard.press("Delete");
 }
 
+/** Picks one choice from a toolbar menu; the menu puts focus back in the text. */
+async function pickFrom(page: Page, menu: string, item: string) {
+  await page
+    .getByRole("toolbar", { name: "Formatting" })
+    .getByRole("button", { name: menu, exact: true })
+    .click();
+  await page.getByRole("menuitemradio", { name: item, exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Description", exact: true })).toBeFocused();
+}
+
 test.describe("rich-text editor (ADR-0025)", () => {
   test("formats, inserts a table, submits and renders the server-sanitised result", async ({
     page,
@@ -137,6 +147,110 @@ test.describe("rich-text editor (ADR-0025)", () => {
       await new AxeBuilder({ page }).include('[data-testid="ks-rich-text-view"]').analyze()
     ).violations.filter((v) => v.impact === "serious" || v.impact === "critical");
     expect(violations).toEqual([]);
+  });
+
+  test("a highlight over a text colour keeps readable ink in light and dark (axe)", async ({
+    page,
+  }) => {
+    const editor = await openEditor(page);
+    await editor.click();
+    await clear(page);
+    await page.keyboard.type("Both formats");
+    await page.keyboard.press("Shift+Home");
+    await pickFrom(page, "Text colour", "Yellow");
+    await pickFrom(page, "Highlight", "Blue");
+    await page.getByTestId("ks-rich-text-form").getByRole("button", { name: "Preview" }).click();
+    await expect(page).toHaveURL(/richText=/);
+    const view = page.getByTestId("ks-rich-text-view");
+    await expect(view.locator('mark[data-color="blue"]')).toHaveText("Both formats");
+    await expect(view.locator('span[data-color="yellow"]')).toHaveText("Both formats");
+
+    const inkOnHighlight = () =>
+      view
+        .locator("mark")
+        .evaluate((mark) => getComputedStyle(mark.querySelector("[data-color]") ?? mark).color);
+    const pageInk = () =>
+      view
+        .locator("p")
+        .first()
+        .evaluate((p) => getComputedStyle(p).color);
+    const serious = async () =>
+      (
+        await new AxeBuilder({ page }).include('[data-testid="ks-rich-text-view"]').analyze()
+      ).violations.filter((v) => v.impact === "serious" || v.impact === "critical");
+
+    expect(await inkOnHighlight()).toBe(await pageInk());
+    expect(await serious()).toEqual([]);
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.reload();
+    await expect(view.locator("mark")).toHaveText("Both formats");
+    expect(await inkOnHighlight()).toBe(await pageInk());
+    expect(await serious()).toEqual([]);
+  });
+
+  test("numbering style and start change only the innermost list", async ({ page }) => {
+    const editor = await openEditor(page);
+    const toolbar = page.getByRole("toolbar", { name: "Formatting" });
+    await editor.click();
+    await clear(page);
+    await toolbar.getByRole("button", { name: "Numbered list", exact: true }).click();
+    await expect(editor).toBeFocused();
+    await page.keyboard.type("outer");
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Control+M");
+    await page.keyboard.type("inner");
+    await expect(editor.locator("ol ol li")).toHaveText("inner");
+
+    await pickFrom(page, "Numbering style", "A, B, C");
+    await toolbar.getByRole("button", { name: "Numbering style", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Start numbering at" }).click();
+    const dialog = page.getByRole("dialog", { name: "Start numbering at" });
+    await dialog.getByRole("spinbutton", { name: "First number" }).fill("3");
+    await dialog.getByRole("button", { name: "Apply" }).click();
+    await expect(dialog).toBeHidden();
+
+    const inner = editor.locator("ol ol");
+    const outer = editor.locator("ol").first();
+    await expect(inner).toHaveAttribute("type", "A");
+    await expect(inner).toHaveAttribute("start", "3");
+    await expect(outer).not.toHaveAttribute("type");
+    await expect(outer).not.toHaveAttribute("start");
+  });
+
+  test("Start numbering at returns focus to the numbering menu (keyboard only)", async ({
+    page,
+  }) => {
+    const editor = await openEditor(page);
+    const numbering = page
+      .getByRole("toolbar", { name: "Formatting" })
+      .getByRole("button", { name: "Numbering style", exact: true });
+    const dialog = page.getByRole("dialog", { name: "Start numbering at" });
+    const openStartDialog = async () => {
+      await numbering.focus();
+      await page.keyboard.press("Enter");
+      const startAt = page.getByRole("menuitem", { name: "Start numbering at" });
+      while (!(await startAt.evaluate((el) => el === document.activeElement))) {
+        await page.keyboard.press("ArrowDown");
+      }
+      await page.keyboard.press("Enter");
+      await expect(dialog).toBeVisible();
+    };
+    await editor.click();
+    await clear(page);
+    await page.keyboard.type("item");
+
+    await openStartDialog();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(numbering).toBeFocused();
+
+    await openStartDialog();
+    const first = dialog.getByRole("spinbutton", { name: "First number" });
+    await first.fill("5");
+    await first.press("Enter");
+    await expect(dialog).toBeHidden();
+    await expect(numbering).toBeFocused();
+    await expect(editor.locator("ol")).toHaveAttribute("start", "5");
   });
 
   test("adds a link with Ctrl+K and refuses unsafe addresses", async ({ page }) => {

@@ -8,7 +8,8 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
  * with aria-haspopup/expanded/controls, role=menu panel, arrow-key roving
  * focus, Escape closes and returns focus, outside pointer/focus closes.
  * Compose with <MenuLink> and <MenuButton> (role=menuitem, or menuitemradio
- * with aria-checked when given `checked`). The panel opens under the trigger,
+ * with aria-checked when given `checked`). Picking an item closes the menu and
+ * puts focus back on the trigger. The panel opens under the trigger,
  * its right edge on the trigger's (`align="end"`) or its left edge (`"start"`).
  */
 const ITEM = '[role="menuitem"], [role="menuitemradio"]';
@@ -95,7 +96,11 @@ export function Menu({
         className={`absolute ${align === "start" ? "left-0" : "right-0"} z-(--z-dropdown) mt-1 min-w-48 rounded-md border border-line bg-surface-raised py-1 shadow-lg`}
         onClickCapture={(event) => {
           const target = event.target as HTMLElement;
-          if (target.closest(ITEM)) setOpen(false);
+          if (!target.closest(ITEM)) return;
+          // Before the item's own handler: a dialog it opens returns focus to the trigger,
+          // not to a hidden item, and an item that focuses something else still wins.
+          triggerRef.current?.focus();
+          setOpen(false);
         }}
       >
         {children}
