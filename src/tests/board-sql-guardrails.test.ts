@@ -138,3 +138,65 @@ describe("board SQL guardrails", () => {
     expect(text.lastIndexOf("THROW 50004")).toBeLessThan(text.indexOf("INSERT INTO app.Board"));
   });
 });
+
+const PROCS_COLUMN = join("db", "procs", "board-column");
+const columnProcs = readdirSync(PROCS_COLUMN).filter(
+  (f) => f.startsWith("usp_") && f.endsWith(".sql"),
+);
+
+/**
+ * Column procs live outside db/procs/board/, so they reach the board rule through a run-time proc
+ * call (dbo.usp_Board_AssertAccess), never the board access function directly, and they take the
+ * same lock-then-assert order the board procs do (ADR-0038).
+ */
+describe("board column SQL guardrails", () => {
+  it("has the Create, Update and Move column procs", () => {
+    expect(columnProcs.sort()).toEqual([
+      "usp_BoardColumn_Create.sql",
+      "usp_BoardColumn_Move.sql",
+      "usp_BoardColumn_Update.sql",
+    ]);
+  });
+
+  it("asserts access through the board, so a column cannot define its own rule", () => {
+    for (const name of columnProcs) {
+      const text = sql(join(PROCS_COLUMN, name));
+      expect(text, name).toContain("EXEC dbo.usp_Board_AssertAccess");
+    }
+  });
+
+  it("locks the board row before asserting access, because a board can change project", () => {
+    for (const name of columnProcs) {
+      const text = sql(join(PROCS_COLUMN, name));
+      const tran = text.indexOf("BEGIN TRAN");
+      const lock = text.indexOf("WITH (UPDLOCK, HOLDLOCK)");
+      const assert = text.indexOf("EXEC dbo.usp_Board_AssertAccess");
+      expect(tran, name).toBeGreaterThan(0);
+      expect(lock, name).toBeGreaterThan(tran);
+      expect(assert, name).toBeGreaterThan(lock);
+    }
+  });
+
+  it("refuses a write made against a row version someone else has moved on from", () => {
+    for (const name of ["usp_BoardColumn_Update.sql", "usp_BoardColumn_Move.sql"]) {
+      const text = sql(join(PROCS_COLUMN, name));
+      expect(text, name).toContain("CAST(RowVer AS BIGINT) = @RowVer");
+      expect(text, name).toContain("THROW 50002");
+    }
+  });
+
+  it("audits every column write inside its own transaction", () => {
+    for (const name of columnProcs) {
+      const text = sql(join(PROCS_COLUMN, name));
+      const audit = text.indexOf("INSERT INTO audit.AuditLog");
+      expect(audit, name).toBeGreaterThan(text.indexOf("BEGIN TRAN"));
+      expect(audit, name).toBeLessThan(text.indexOf("COMMIT"));
+    }
+  });
+
+  it("keeps every column proc static SQL, so the EXECUTE-only login can run it (ADR-0033)", () => {
+    for (const name of columnProcs) {
+      expect(sql(join(PROCS_COLUMN, name)), name).not.toMatch(/sp_executesql|EXEC\s*\(|EXECUTE AS/);
+    }
+  });
+});

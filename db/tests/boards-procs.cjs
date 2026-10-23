@@ -227,6 +227,66 @@ async function main() {
   const [options] = await exec("usp_Board_ListOptions", { ActorUserId: VIEWER, WithoutProject: true });
   ok(options.every((r) => r.ProjectId === null), "the options picker honours the standalone filter");
 
+  // --- columns follow the board's access, locking the board row first (ADR-0038, slice B2) -------
+  const R = await project(`Boards columns ${Date.now()}`);
+  await exec("usp_ProjectAssignee_Set", {
+    ProjectId: R,
+    AssigneesJson: JSON.stringify([
+      { role: "Project manager", personName: "pm", userId: PM, accessLevel: "Manager" },
+      { role: "Team member", personName: "c", userId: CONTRIB, accessLevel: "Contributor" },
+      { role: "Team member", personName: "v", userId: VIEWER, accessLevel: "Viewer" },
+    ]),
+    ActorUserId: PM,
+  });
+  const rb = await board({ ProjectId: R, Name: "Columns board", ActorUserId: PM });
+
+  await expectCode(50003, "a viewer cannot add a column to a project board", () =>
+    exec("usp_BoardColumn_Create", { BoardId: rb.BoardId, Name: "Blocked", Category: "doing", WipLimit: null, ActorUserId: VIEWER }));
+  await expectCode(50003, "an outsider cannot add a column", () =>
+    exec("usp_BoardColumn_Create", { BoardId: rb.BoardId, Name: "Blocked", Category: "doing", WipLimit: null, ActorUserId: 2 }));
+  await expectCode(50001, "a column on a board that does not exist", () =>
+    exec("usp_BoardColumn_Create", { BoardId: 2147483600, Name: "Nowhere", Category: "todo", WipLimit: null, ActorUserId: PM }));
+  await expectCode(50005, "a column name already used on the board", () =>
+    exec("usp_BoardColumn_Create", { BoardId: rb.BoardId, Name: "To do", Category: "todo", WipLimit: null, ActorUserId: CONTRIB }));
+  await expectCode(50004, "a column category the CHECK would reject", () =>
+    exec("usp_BoardColumn_Create", { BoardId: rb.BoardId, Name: "Odd", Category: "archive", WipLimit: null, ActorUserId: CONTRIB }));
+  await expectCode(50004, "a wip limit out of range", () =>
+    exec("usp_BoardColumn_Create", { BoardId: rb.BoardId, Name: "Odd", Category: "doing", WipLimit: 0, ActorUserId: CONTRIB }));
+
+  const [[newCol]] = await exec("usp_BoardColumn_Create", {
+    BoardId: rb.BoardId, Name: "In review", Category: "doing", WipLimit: 5, ActorUserId: CONTRIB,
+  });
+  ok(newCol.SortOrder === 4 && newCol.WipLimit === 5, "a contributor adds a column after the three starters");
+
+  await expectCode(50002, "a stale row version cannot rename a column", () =>
+    exec("usp_BoardColumn_Update", { BoardColumnId: newCol.BoardColumnId, RowVer: 1, Name: "x", Category: "doing", WipLimit: 5, ActorUserId: CONTRIB }));
+  const [[renamed]] = await exec("usp_BoardColumn_Update", {
+    BoardColumnId: newCol.BoardColumnId, RowVer: newCol.RowVer, Name: "  Reviewing  ", Category: "doing", WipLimit: null, ActorUserId: CONTRIB,
+  });
+  ok(renamed.Name === "Reviewing" && renamed.WipLimit === null, "an update trims the name and clears the limit");
+  await expectCode(50003, "a viewer cannot rename a column", () =>
+    exec("usp_BoardColumn_Update", { BoardColumnId: newCol.BoardColumnId, RowVer: renamed.RowVer, Name: "Nope", Category: "doing", WipLimit: null, ActorUserId: VIEWER }));
+
+  const [[moved]] = await exec("usp_BoardColumn_Move", {
+    BoardColumnId: newCol.BoardColumnId, Direction: "up", RowVer: renamed.RowVer, ActorUserId: CONTRIB,
+  });
+  ok(moved.SortOrder === 3, "moving a column up lowers its position by one");
+
+  // A revoked 'boards:update' override stops the move, on the project board only.
+  await exec("usp_ProjectPermission_Set", {
+    ProjectId: R, UserId: CONTRIB,
+    OverridesJson: JSON.stringify([{ module: "boards", verb: "update", allowed: false }]),
+    ActorUserId: PM,
+  });
+  await expectCode(50003, "a revoked contributor cannot move a column", () =>
+    exec("usp_BoardColumn_Move", { BoardColumnId: newCol.BoardColumnId, Direction: "down", RowVer: moved.RowVer, ActorUserId: CONTRIB }));
+
+  // On a standalone board every user is a Contributor, so any user may edit its columns.
+  const [[sharedCol]] = await exec("usp_BoardColumn_Create", {
+    BoardId: sb.BoardId, Name: "Parking", Category: "todo", WipLimit: null, ActorUserId: VIEWER,
+  });
+  ok(sharedCol.BoardColumnId > 0, "any user adds a column to a standalone board");
+
   console.log(`\n${passes} passed, ${failures} failed`);
   await pool.close();
   process.exit(failures ? 1 : 0);
