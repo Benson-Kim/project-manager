@@ -126,14 +126,10 @@ test("register: two needs merge into a functional requirement that two deliverab
   await pickFirst(deliverables);
   await pickFirst(deliverables);
   await axe(page);
-  // The picker's panel still has options left and covers Save, and its options pick on mousedown,
-  // so a click aimed at Save would toggle one instead. Moving the focus to Save needs no hit test
-  // and blurs the picker, which closes the panel. Escape is no use: it only closes the panel while
-  // the picker still holds it open, and otherwise reaches the sheet and shuts it.
-  const save = page.getByTestId("requirement-save");
-  await save.focus();
+  // The picker drops its panel on each pick, so nothing covers Save. Escape is still no use: it
+  // closes the panel while the picker holds it open, and otherwise reaches the sheet and shuts it.
   await expect(deliverables.getByRole("listbox")).toBeHidden();
-  await save.click();
+  await page.getByTestId("requirement-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
   ).toBeVisible();

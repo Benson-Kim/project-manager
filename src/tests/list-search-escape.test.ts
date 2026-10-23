@@ -34,6 +34,8 @@ describe("list search escapes the LIKE metacharacters (ADR-0016)", () => {
   );
 
   it("finds the searching procs", () => {
+    // 24 today. A proc that legitimately stops searching lowers this in the same commit, with the
+    // reason; deleting the assertion instead would let a regex that matches nothing pass.
     expect(searchers.length).toBeGreaterThanOrEqual(24);
   });
 
