@@ -39,7 +39,7 @@ export default async function FinancialTemplatePage({
     <>
       <Link
         href="/settings/financial-templates"
-        className="mt-2 inline-flex min-h-10 items-center text-sm text-accent underline"
+        className="mt-2 inline-flex min-h-10 items-center text-sm text-accent"
       >
         {T.title}
       </Link>

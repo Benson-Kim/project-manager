@@ -71,6 +71,29 @@ any project) and **project** financials that manage the specifics.
   Budget, Monitoring and Settings tabs (ADR-0010 exception, like the meeting workspace). Lines are
   edited one dialog per line with all years at once; the grid is read-only. The page never
   scrolls sideways at 360 px; the tables scroll in their own box.
+  **Amended 2026-10-17 (client feedback):** Financials is its own nav group after People &
+  Resources. Its items are the views Budget, Monitoring, Documents and Settings
+  (`/projects/<id>/financials/<view>?f=<financialId>`); a project with one financial opens it,
+  with several the view lists them to pick from and its header switches between them, and the
+  nav keeps `?f=` across views. `/financials/<financialId>?tab=…` redirects there. Cost
+  categories and funding sources are edited as rows (the dropdown-list editor's rows, without
+  colours) and picked in the app's dropdown (Combobox), not typed with browser suggestions.
+  **Amended 2026-10-17 (client feedback, "edit inline like the other modules"):** the budget lines
+  and the transactions are datasheets, built from the list modules' cells, header and new-entry
+  row (ADR-0023), so they look and behave like every other list. A line's description, cost
+  category, source of financing, tax, recurrence and each year's pre-tax amount are edited in its
+  row and saved as each cell is left, through the same `updateLineAction` as the line's sheet;
+  each section ends with a new-entry row ("[New line…]") instead of an add button and dialog. A
+  year's cell shows the escalated amount as ghost text, and its tax-included amount on hover;
+  totals keep both amounts. A section's totals row, in the budget and in monitoring, shows only
+  its figures under the section's lines; its "Total …" label is read by screen readers only (the
+  CSV keeps it). Typed amounts show with thousands separators, as the totals do. Cost category and source of financing end with "Edit list…", and
+  their headers carry the caret, as list-bound columns do elsewhere; tax's opens the tax profiles.
+  The rest of a line (section, supplier, G/L account, comments) and Delete are in its sheet (↗),
+  the side panel every list opens its records in, which replaces the line dialog. Transactions
+  work the same way: date, fiscal year, line, reference, description and pre-tax amount in their
+  cells, the captured rate on the tax-included cell, a new-entry row to record an invoice, and ↗
+  to the transaction's sheet. A date edited in a cell moves a fiscal year that followed the date.
 - **Export**: `GET /projects/<id>/financials/<financialId>/export` returns CSV (`src/lib/csv.ts`:
   BOM, CRLF, RFC 4180, formula text neutralised), the file name from the id only. A financial of
   another project than the path's is not found.

@@ -13,6 +13,10 @@
 --   Every write to an item locks app.Project first, so RowVer order is commit order. Equal stamps
 --   mean the same items; a later read with an equal stamp may still bring newer names or project
 --   dates, so the editor takes it.
+-- RequirementsJson: the solution requirements allocated to the item, in allocation order
+--   (ADR-0037), each with its type, reference number and the allocation's RowVer. The stamp also
+--   covers app.Requirement and app.RequirementDeliverable by ProjectId, so any register edit or
+--   allocation change moves it.
 -- Row-level access: the project must be accessible (dbo.usp_Project_AssertAccess,
 --   FORBIDDEN_ROW 50003; Admin bypass).
 USE ProjectManager;
@@ -33,6 +37,12 @@ BEGIN
 
     DECLARE @Stamp BIGINT =
         ISNULL((SELECT MAX(CAST(RowVer AS BIGINT)) FROM app.KeyDeliverable WHERE ProjectId = @ProjectId), 0);
+    DECLARE @RequirementStamp BIGINT =
+        ISNULL((SELECT MAX(CAST(RowVer AS BIGINT)) FROM app.Requirement WHERE ProjectId = @ProjectId), 0);
+    DECLARE @AllocationStamp BIGINT =
+        ISNULL((SELECT MAX(CAST(RowVer AS BIGINT)) FROM app.RequirementDeliverable WHERE ProjectId = @ProjectId), 0);
+    IF @RequirementStamp > @Stamp SET @Stamp = @RequirementStamp;
+    IF @AllocationStamp > @Stamp SET @Stamp = @AllocationStamp;
 
     SELECT kd.KeyDeliverableId,
            kd.ProjectId,
@@ -68,7 +78,23 @@ BEGIN
                    ON s.StakeholderId = a.StakeholderId AND s.IsDeleted = 0
                WHERE a.KeyDeliverableId = kd.KeyDeliverableId
                FOR JSON PATH
-           ) AS AssigneesJson
+           ) AS AssigneesJson,
+           (
+               SELECT r.RequirementId          AS id,
+                      r.RequirementType         AS [type],
+                      r.Number                  AS [number],
+                      r.Requirement             AS requirement,
+                      r.IsMet                   AS isMet,
+                      d.SortOrder               AS sortOrder,
+                      CAST(r.RowVer AS BIGINT)  AS rowVer,
+                      CAST(d.RowVer AS BIGINT)  AS placeRowVer
+               FROM app.RequirementDeliverable AS d
+               JOIN app.Requirement AS r
+                   ON r.RequirementId = d.RequirementId AND r.IsDeleted = 0
+               WHERE d.KeyDeliverableId = kd.KeyDeliverableId
+               ORDER BY d.SortOrder, r.RequirementId
+               FOR JSON PATH, INCLUDE_NULL_VALUES
+           ) AS RequirementsJson
     FROM app.Project AS p
     LEFT JOIN app.KeyDeliverable AS kd
         ON kd.ProjectId = p.ProjectId AND kd.IsDeleted = 0

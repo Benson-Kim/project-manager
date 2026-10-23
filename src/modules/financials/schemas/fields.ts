@@ -85,14 +85,6 @@ export const labelListSchema = z
   .max(200, M.listTooLong)
   .refine((list) => new Set(list).size === list.length, M.listDuplicate);
 
-/** One label per line, as typed in a textarea, to a list. */
-export function labelsFromText(text: string): string[] {
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
-
 export const SECTION_VALUES = ["operating", "capital", "other"] as const;
 export const sectionSchema = z.enum(SECTION_VALUES);
 

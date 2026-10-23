@@ -5,7 +5,7 @@ import { messages } from "@/lib/messages";
  * workspace. Each deployed module appends its entry so unbuilt sections do
  * not appear (no placeholders in the section nav).
  * Segment order per ADR-0018 point 3: charter (index) · objectives ·
- * deliverables · stakeholders · suppliers · activities · todos ·
+ * deliverables · requirements · stakeholders · suppliers · activities · todos ·
  * keywords.
  */
 export interface ProjectSection {
@@ -27,6 +27,7 @@ export const projectSections: ProjectSection[] = [
   { segment: ".", label: messages.projects.charterSection, match: "exact" },
   { segment: "objectives", label: messages.projects.objectivesSection, match: "prefix" },
   { segment: "deliverables", label: messages.projects.deliverablesSection, match: "prefix" },
+  { segment: "requirements", label: messages.projects.requirementsSection, match: "prefix" },
   { segment: "stakeholders", label: messages.projects.stakeholdersSection, match: "prefix" },
   { segment: "suppliers", label: messages.projects.suppliersSection, match: "prefix" },
   { segment: "daily-activities", label: messages.projects.dailyActivitiesSection, match: "prefix" },
@@ -43,9 +44,17 @@ export const projectSections: ProjectSection[] = [
     label: messages.projects.assumptionsConstraintsSection,
     match: "prefix",
   },
-  { segment: "financials", label: messages.projects.financialsSection, match: "prefix" },
   { segment: "meetings", label: messages.projects.meetingsSection, match: "prefix" },
   { segment: "notes", label: messages.projects.notesSection, match: "prefix" },
+  // Financials (ADR-0029): one entry per view of the project's financial.
+  { segment: "financials/budget", label: messages.financials.budgetTab, match: "prefix" },
+  { segment: "financials/monitoring", label: messages.financials.monitoringTab, match: "prefix" },
+  {
+    segment: "financials/documents",
+    label: messages.financials.documentsTab,
+    match: "prefix",
+  },
+  { segment: "financials/settings", label: messages.financials.settings, match: "prefix" },
 ];
 
 /** Sections grouped for the disclosure nav (ADR-0018). */
@@ -62,10 +71,10 @@ export const projectSectionGroups: ProjectSectionGroup[] = [
       [
         "objectives",
         "deliverables",
+        "requirements",
         "questions-answers",
         "parking-lot",
         "assumptions-constraints",
-        "financials",
       ].includes(s.segment),
     ),
   },
@@ -73,6 +82,11 @@ export const projectSectionGroups: ProjectSectionGroup[] = [
     key: "people",
     label: messages.people.title,
     sections: projectSections.filter((s) => ["stakeholders", "suppliers"].includes(s.segment)),
+  },
+  {
+    key: "financials",
+    label: messages.projects.financialsSection,
+    sections: projectSections.filter((s) => s.segment.startsWith("financials/")),
   },
   {
     key: "activity",
@@ -87,6 +101,18 @@ export function sectionHref(projectId: number, section: ProjectSection): string 
   return section.segment === "."
     ? `/projects/${projectId}`
     : `/projects/${projectId}/${section.segment}`;
+}
+
+/** The nav link: a Financials view keeps the open financial (?f=<id>) when switching views. */
+export function sectionLinkHref(
+  projectId: number,
+  section: ProjectSection,
+  financialId: string | null,
+): string {
+  const href = sectionHref(projectId, section);
+  return financialId && /^\d+$/.test(financialId) && section.segment.startsWith("financials/")
+    ? `${href}?f=${financialId}`
+    : href;
 }
 
 export function isCurrentSection(

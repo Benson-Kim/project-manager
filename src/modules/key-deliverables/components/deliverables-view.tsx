@@ -56,11 +56,11 @@ const columns: DataViewColumn<Row>[] = [
   },
   textColumn({
     key: "KeyRequirement",
-    header: messages.keyDeliverables.requirement,
+    header: messages.keyDeliverables.deliverable,
     priority: 1,
     field: "keyRequirement",
     value: (r) => r.KeyRequirement,
-    placeholder: P.requirement,
+    placeholder: P.deliverable,
     maxLength: 4000,
     render: (r) => <span className="line-clamp-2">{rowLabel(r)}</span>,
   }),

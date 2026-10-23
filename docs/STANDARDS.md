@@ -130,6 +130,12 @@ Exact signature and behaviour per [ADR-0016](adr/ADR-0016-list-proc-contract.md)
 (never dynamic SQL); `IsDeleted = 0` always. Every whitelisted sort column is backed by
 an index for the common path (usually `(ProjectId, IsDeleted) INCLUDE (…)`).
 
+`@Search` is neutralised before it reaches the predicate, because `%`, `_` and `[` are T-SQL
+wildcards: `SET @Search = REPLACE(REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'),
+N'_', N'\_'), N'[', N'\[');` and every predicate ends `… ESCAPE N'\'`. A search for "50%" or "a[1]"
+must find those strings, not everything. `src/tests/list-search-escape.test.ts` enforces this for
+every proc that searches.
+
 List procs that feed a datasheet also return, per row, `ActorAccess` (the actor's
 level on the row's project, [ADR-0023](adr/ADR-0023-dataview-datasheet-mode.md)) and `ActorGrants` / `ActorRevokes` (the
 actor's per-person overrides for the module, [ADR-0024](adr/ADR-0024-per-person-permission-overrides.md)). Cross-project lists also

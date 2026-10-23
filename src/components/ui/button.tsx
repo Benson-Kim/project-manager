@@ -1,23 +1,11 @@
 "use client";
 
 import { forwardRef } from "react";
+import { buttonClass, type ButtonVariant } from "./button-styles";
 import { Spinner } from "./spinner";
 
-type Variant = "primary" | "secondary" | "danger" | "ghost";
-
-const base =
-  "inline-flex min-h-10 items-center justify-center gap-2 rounded-sm px-4 text-sm font-medium cursor-pointer " +
-  "transition-colors duration-(--duration-fast) disabled:pointer-events-none disabled:opacity-50";
-
-const variants: Record<Variant, string> = {
-  primary: "bg-accent text-on-accent hover:bg-accent-strong",
-  secondary: "border border-line bg-surface text-ink hover:bg-surface-raised",
-  danger: "bg-danger text-on-danger hover:opacity-90",
-  ghost: "text-ink hover:bg-surface-raised",
-};
-
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: Variant;
+  variant?: ButtonVariant;
   /** Shows an inline spinner and disables the button (double-submit guard). */
   pending?: boolean;
 }
@@ -31,7 +19,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       type={type ?? "button"}
       disabled={disabled || pending}
-      className={`${base} ${variants[variant]} ${className ?? ""}`}
+      className={`${buttonClass(variant)} ${className ?? ""}`}
       {...rest}
     >
       {pending ? <Spinner /> : null}

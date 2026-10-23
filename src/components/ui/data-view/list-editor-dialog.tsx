@@ -79,7 +79,6 @@ function ListEditor({
   const [pending, startTransition] = useTransition();
   const { toast } = useToast();
   const { announce } = useAnnouncer();
-  const newId = useId();
   const tintId = useId();
   const errors = optionErrors(listKey, rowVer, options);
   const invalid = Object.keys(errors).length > 0;
@@ -133,30 +132,7 @@ function ListEditor({
         </ol>
       )}
 
-      <div className="flex items-end gap-2">
-        <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor={newId} className="text-sm leading-6 text-ink">
-            {messages.lookupLists.newOption}
-          </label>
-          <input
-            id={newId}
-            value={newLabel}
-            maxLength={LOOKUP_LABEL_MAX}
-            onChange={(e) => setNewLabel(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                add();
-              }
-            }}
-            className="min-h-10 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink"
-          />
-        </div>
-        <Button variant="secondary" onClick={add} disabled={!newLabel.trim()}>
-          <PlusIcon />
-          {messages.lookupLists.addNew}
-        </Button>
-      </div>
+      <AddOptionRow value={newLabel} onChange={setNewLabel} onAdd={add} />
 
       <div className="flex items-start gap-2">
         <input
@@ -189,12 +165,14 @@ function ListEditor({
   );
 }
 
-function OptionRow({
+/** One editable option: its label, colour (when `onRecolor` is given), move and remove. */
+export function OptionRow({
   option,
   position,
   error,
   first,
   last,
+  maxLength = LOOKUP_LABEL_MAX,
   onRename,
   onRecolor,
   onMove,
@@ -205,8 +183,9 @@ function OptionRow({
   error: string | undefined;
   first: boolean;
   last: boolean;
+  maxLength?: number;
   onRename: (label: string) => void;
-  onRecolor: (color: OptionColor | null) => void;
+  onRecolor?: (color: OptionColor | null) => void;
   onMove: (delta: -1 | 1) => void;
   onRemove: () => void;
 }) {
@@ -220,7 +199,7 @@ function OptionRow({
         <input
           value={option.label}
           readOnly={option.locked}
-          maxLength={LOOKUP_LABEL_MAX}
+          maxLength={maxLength}
           aria-label={messages.lookupLists.option(position)}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
@@ -232,19 +211,21 @@ function OptionRow({
             {messages.lookupLists.locked}
           </span>
         ) : null}
-        <select
-          aria-label={messages.lookupLists.color(name)}
-          value={option.color ?? ""}
-          onChange={(e) => onRecolor((e.target.value || null) as OptionColor | null)}
-          className={`min-h-10 w-28 shrink-0 rounded-md border border-line px-2 text-sm ${tone || "bg-surface text-ink"}`}
-        >
-          <option value="">{messages.lookupLists.noColor}</option>
-          {OPTION_COLORS.map((color) => (
-            <option key={color} value={color}>
-              {messages.lookupLists.colors[color]}
-            </option>
-          ))}
-        </select>
+        {onRecolor ? (
+          <select
+            aria-label={messages.lookupLists.color(name)}
+            value={option.color ?? ""}
+            onChange={(e) => onRecolor((e.target.value || null) as OptionColor | null)}
+            className={`min-h-10 w-28 shrink-0 rounded-md border border-line px-2 text-sm ${tone || "bg-surface text-ink"}`}
+          >
+            <option value="">{messages.lookupLists.noColor}</option>
+            {OPTION_COLORS.map((color) => (
+              <option key={color} value={color}>
+                {messages.lookupLists.colors[color]}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <IconButton
           label={messages.lookupLists.moveUp(name)}
           disabled={first}
@@ -274,17 +255,39 @@ function OptionRow({
   );
 }
 
-function PlusIcon() {
+/**
+ * The list's last, blank row ("[New option…]"), as the datasheet's add row:
+ * type the label, then Enter or leaving the row adds it.
+ */
+export function AddOptionRow({
+  value,
+  onChange,
+  onAdd,
+  maxLength = LOOKUP_LABEL_MAX,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onAdd: () => void;
+  maxLength?: number;
+}) {
   return (
-    <svg
-      viewBox="0 0 16 16"
-      className="size-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      aria-hidden="true"
-    >
-      <path d="M8 3v10M3 8h10" />
-    </svg>
+    <input
+      value={value}
+      maxLength={maxLength}
+      aria-label={messages.lookupLists.newOption}
+      placeholder={messages.lookupLists.newOptionPlaceholder}
+      data-testid="list-editor-new"
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          onAdd();
+        }
+      }}
+      onBlur={() => {
+        if (value.trim()) onAdd();
+      }}
+      className="min-h-10 w-full min-w-0 rounded-md border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-muted"
+    />
   );
 }

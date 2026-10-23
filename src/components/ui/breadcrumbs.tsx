@@ -15,7 +15,7 @@ export function Breadcrumbs({ items }: { items: { label: string; href?: string }
             {item.href ? (
               <Link
                 href={item.href}
-                className="inline-flex min-h-11 items-center rounded-sm px-1 text-accent-strong underline-offset-2 hover:underline"
+                className="inline-flex min-h-11 items-center rounded-sm px-1 text-accent-strong hover:bg-surface-raised"
               >
                 {item.label}
               </Link>

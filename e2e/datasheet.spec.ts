@@ -18,8 +18,8 @@ async function addDeliverable(page: import("@playwright/test").Page, requirement
   await page.goto("/projects/2/deliverables?view=list");
   const addRow = page.getByTestId("datasheet-add-row");
   await expect(addRow).toBeVisible();
-  const field = addRow.getByRole("textbox", { name: newEntry(KD.requirement) });
-  await expect(field).toHaveAttribute("placeholder", KD.placeholders.requirement);
+  const field = addRow.getByRole("textbox", { name: newEntry(KD.deliverable) });
+  await expect(field).toHaveAttribute("placeholder", KD.placeholders.deliverable);
   await field.fill(requirement);
   await addRow.getByRole("combobox", { name: newEntry(KD.status) }).selectOption("Pending");
   await field.press("Enter");
@@ -31,7 +31,7 @@ test("new-entry row: Enter adds the record and clears the row", async ({ page })
   const requirement = `E2E datasheet ${Date.now()}`;
   await addDeliverable(page, requirement);
   await page.goto(`/projects/2/deliverables?view=list&q=${encodeURIComponent(requirement)}`);
-  await expect(page.getByRole("textbox", { name: cell(KD.requirement, requirement) })).toHaveValue(
+  await expect(page.getByRole("textbox", { name: cell(KD.deliverable, requirement) })).toHaveValue(
     requirement,
   );
   await expect(page.getByRole("combobox", { name: cell(KD.status, requirement) })).toHaveValue(
@@ -47,7 +47,7 @@ test("a cell saves in place and keeps its value after reload", async ({ page }) 
   await page.getByRole("combobox", { name: cell(KD.priority, requirement) }).selectOption("Low");
   await expect(page.getByText(messages.datasheet.saved(KD.priority))).toBeAttached();
 
-  const text = page.getByRole("textbox", { name: cell(KD.requirement, requirement) });
+  const text = page.getByRole("textbox", { name: cell(KD.deliverable, requirement) });
   await text.fill(`${requirement} edited`);
   await text.press("Escape");
   await expect(text).toHaveValue(requirement);
@@ -91,7 +91,7 @@ test("the header caret edits a list and every select updates at once (kitchen si
   ).toEqual([]);
 
   await dialog.getByLabel(messages.lookupLists.newOption).fill("Blocked");
-  await dialog.getByRole("button", { name: messages.lookupLists.addNew }).click();
+  await dialog.getByLabel(messages.lookupLists.newOption).press("Enter");
   await dialog.getByRole("button", { name: messages.lookupLists.moveUp("Blocked") }).click();
   await dialog.getByRole("button", { name: messages.actions.save }).click();
   await expect(dialog).toBeHidden();

@@ -1,13 +1,20 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ResizeHandle } from "@/components/ui/data-view/datasheet-cells";
+import { TONES } from "@/components/ui/tones";
 import type { OptionColor } from "@/lib/lookup-lists";
 import { formatDate, toDateInput } from "@/lib/format";
 import { messages } from "@/lib/messages";
+import type { SolutionType } from "@/modules/requirements/schemas/requirement-types";
 import {
   descendantIds,
   dropPlacement,
   fitsUnder,
+  indentTarget,
+  moveDownTarget,
+  moveUpTarget,
+  outdentTarget,
   type DropZone,
   type Placement,
   type Wbs,
@@ -15,12 +22,57 @@ import {
 } from "../schemas/wbs";
 import { shortDate } from "./gantt-scale";
 import { DraftInput } from "./draft-input";
-import { connectorSpan, dropZoneAt, edgeScroll, type DropAxis } from "./wbs-diagram-layout";
+import { isMenuKey, menuBelow, type MenuRequest } from "./wbs-context-menu";
+import {
+  BoxRequirements,
+  type RequirementAccess,
+  type RequirementHandlers,
+} from "./wbs-requirements";
+import {
+  ZOOM_STEPS,
+  branchRows,
+  chartPx,
+  chartSize,
+  chartVariables,
+  chooseBranch,
+  dropZoneAt,
+  edgeScroll,
+  fitZoom,
+  zoomStep,
+  type BranchLayout,
+  type ChartSettings,
+  type DropAxis,
+} from "./wbs-diagram-layout";
 
 const W = messages.keyDeliverables.wbs;
 
+const CHART_VARIABLES = chartVariables();
+
+/** Alt+arrow on a box: the toolbar's Move up, Move down, Indent and Outdent. */
+const MOVE_KEYS: Partial<Record<string, (wbs: Wbs, id: number) => Placement | null>> = {
+  ArrowUp: moveUpTarget,
+  ArrowDown: moveDownTarget,
+  ArrowRight: indentTarget,
+  ArrowLeft: outdentTarget,
+};
+
+/**
+ * Where the lines meet a box in its slot: the middle, except in a listed
+ * branch's slot, which is wider on its right, where it is the box's centre.
+ */
+const LISTED_CENTRE = "left-[calc(var(--wbs-gap)+var(--wbs-box)/2)]";
+const LISTED_FIRST = "right-0 left-[calc(var(--wbs-gap)+var(--wbs-box)/2)]";
+const LISTED_LAST = "left-0 w-[calc(var(--wbs-gap)+var(--wbs-box)/2)]";
+
+const MOVE_SHORTCUTS = Object.keys(MOVE_KEYS)
+  .map((key) => `Alt+${key}`)
+  .join(" ");
+
 /** The pixels a pointer must travel before a press on a box becomes a drag. */
 const DRAG_SLOP = 4;
+
+/** A name click waits this long for a double-click (rename) before opening the menu. */
+const NAME_CLICK_MS = 250;
 
 /** What the diagram asks the editor to do. */
 export interface DiagramHandlers {
@@ -37,6 +89,8 @@ export interface DiagramHandlers {
   remove: (id: number) => void;
   /** A drop the 10-level limit refuses. */
   tooDeep: () => void;
+  /** Open the item's context menu (ADR-0036). */
+  menu: (id: number, at: MenuRequest) => void;
 }
 
 /** Top-level boxes: filled with the item's colour, as in the checklist's WBS. */
@@ -61,10 +115,16 @@ const STRIPE: Record<OptionColor, string> = {
   gray: "border-l-tone-gray-ink",
 };
 
-/** Where the "drops here" line goes, by layout and zone. */
+/** Where the "drops here" line goes: in the gap before or after the box. */
 const DROP_LINE: Record<"row" | "column", Record<"before" | "after", string>> = {
-  row: { before: "inset-y-0 -left-3.5 w-1", after: "inset-y-0 -right-3.5 w-1" },
-  column: { before: "inset-x-0 -top-2 h-1", after: "inset-x-0 -bottom-2 h-1" },
+  row: {
+    before: "inset-y-0 -left-[calc(var(--wbs-gap)+0.125rem)] w-1",
+    after: "inset-y-0 -right-[calc(var(--wbs-gap)+0.125rem)] w-1",
+  },
+  column: {
+    before: "inset-x-0 -top-[calc(var(--wbs-list-gap)/2+0.125rem)] h-1",
+    after: "inset-x-0 -bottom-[calc(var(--wbs-list-gap)/2+0.125rem)] h-1",
+  },
 };
 
 interface Press {
@@ -105,13 +165,18 @@ function boxElement(root: HTMLElement | null, id: number): HTMLElement | null {
 
 /**
  * The work breakdown drawn as boxes (ADR-0027 §8, checklist row 67): the
- * project on top, the top-level items side by side under it, and each one's
- * sub-items stacked below it, indented a step per level and joined by lines.
+ * project on top, the top-level items side by side under it, and below each
+ * item its sub-items, side by side where the chart has room and listed under
+ * it where it has not, so the chart fits its width instead of growing
+ * sideways. The viewer can set a branch either way (its switch, or Sub-items
+ * in the toolbar), zoom, and drag the chart's right edge to give it more or
+ * less room; the settings are kept per project in their browser.
  * Drag a box (or its grip, on a touch screen) onto another to make it a
- * sub-item, or onto an edge to put it in front of or behind it. Double-click
- * or Enter renames; clicking the dates of an item without sub-items edits
- * them; the arrow keys walk the tree. It is the same breakdown as the Gantt's
- * outline, so every change shows in both.
+ * sub-item, or onto an edge to put it in front of or behind it. Alt+arrows
+ * move the focused box like the toolbar. Double-click or Enter renames;
+ * clicking the dates of an item without sub-items edits them; the arrow keys
+ * walk the tree. It is the same breakdown as the Gantt's outline, so every
+ * change shows in both.
  */
 export function WbsDiagram({
   projectName,
@@ -122,7 +187,15 @@ export function WbsDiagram({
   renamingId,
   canEdit,
   canDelete,
+  chart,
+  onChart,
   on,
+  requirementsHidden,
+  addingRequirement,
+  addRequirementType,
+  requirementAccess,
+  onRequirement,
+  statusColors,
 }: {
   projectName: string;
   wbs: Wbs;
@@ -133,37 +206,134 @@ export function WbsDiagram({
   renamingId: number | null;
   canEdit: boolean;
   canDelete: boolean;
+  chart: ChartSettings;
+  /** Changes the settings; `save: false` while the width is still being dragged. */
+  onChart: (change: (current: ChartSettings) => ChartSettings, save?: boolean) => void;
   on: DiagramHandlers;
+  /** Items whose requirements are folded away. */
+  requirementsHidden: ReadonlySet<number>;
+  /** The item whose add-requirement field is open. */
+  addingRequirement: number | null;
+  /** The kind that field is set to. */
+  addRequirementType: SolutionType;
+  requirementAccess: RequirementAccess;
+  onRequirement: RequirementHandlers;
+  statusColors: ReadonlyMap<string, OptionColor>;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const rowRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const ghostRef = useRef<HTMLDivElement>(null);
 
-  // ---- the line from the project box to the top-level row -------------------
+  // ---- layout -------------------------------------------------------------------
 
-  const [bar, setBar] = useState<{ left: number; width: number } | null>(null);
+  /** The view's size, the page's rem and the chart's padding; null until measured. */
+  const [view, setView] = useState<{
+    width: number;
+    height: number;
+    rem: number;
+    /** Each side. */
+    pad: number;
+    /** Top and bottom together (the top leaves room for the zoom buttons). */
+    padY: number;
+  } | null>(null);
   useLayoutEffect(() => {
-    const row = rowRef.current;
-    const root = rootRef.current;
-    if (!row || !root) return;
-    const measure = () => {
-      const base = row.getBoundingClientRect().left;
-      const own = root.getBoundingClientRect();
-      const xs = [Math.round(own.left + own.width / 2 - base)];
-      row.querySelectorAll<HTMLElement>("[data-wbs-stub]").forEach((stub) => {
-        xs.push(Math.round(stub.getBoundingClientRect().left - base));
-      });
-      const next = connectorSpan(xs);
-      setBar((current) =>
-        current?.left === next?.left && current?.width === next?.width ? current : next,
+    const scroll = scrollRef.current;
+    const content = contentRef.current;
+    if (!scroll || !content) return;
+    // A ResizeObserver reports as soon as it observes, then on every resize.
+    const observer = new ResizeObserver(() => {
+      const maxHeight = parseFloat(getComputedStyle(scroll).maxHeight);
+      const style = getComputedStyle(content);
+      const next = {
+        width: scroll.clientWidth,
+        height: Number.isFinite(maxHeight) ? maxHeight : scroll.clientHeight,
+        rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
+        pad: parseFloat(style.paddingLeft),
+        padY: parseFloat(style.paddingTop) + parseFloat(style.paddingBottom),
+      };
+      setView((current) =>
+        current && (Object.keys(next) as (keyof typeof next)[]).every((k) => current[k] === next[k])
+          ? current
+          : next,
       );
-    };
-    const observer = new ResizeObserver(measure);
-    observer.observe(row);
-    observer.observe(root);
+    });
+    observer.observe(scroll);
     return () => observer.disconnect();
-  }, [wbs, collapsed, projectName]);
+  }, []);
+
+  /** The width the chart lays itself out in, in screen pixels. */
+  const frame = chart.width ?? view?.width ?? 0;
+  const rows = useMemo(
+    () =>
+      view
+        ? branchRows(
+            wbs,
+            collapsed,
+            chart.branches,
+            frame / chart.zoom - 2 * view.pad,
+            chartPx(view.rem),
+          )
+        : new Set<number>(),
+    [wbs, collapsed, chart.branches, chart.zoom, frame, view],
+  );
+
+  // A breakdown wider than the view opens on its middle, under the project box.
+  const centred = useRef(false);
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !view || centred.current) return;
+    centred.current = true;
+    el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2;
+  }, [view]);
+
+  function setBranch(id: number, layout: BranchLayout) {
+    onChart((current) => ({
+      ...current,
+      branches: chooseBranch(wbs, current.branches, id, layout),
+    }));
+  }
+
+  function zoomTo(zoom: number) {
+    onChart((current) => ({ ...current, zoom }));
+  }
+
+  function fit() {
+    const scroll = scrollRef.current;
+    if (!view || !scroll) return;
+    const zoom = chart.zoom;
+    // Sizes on screen are zoomed; the layout works in the chart's own pixels.
+    const unzoomed = (el: Element | null) => (el?.getBoundingClientRect().height ?? 0) / zoom;
+    const boxes = [...scroll.querySelectorAll("[data-wbs-box]")];
+    const px = chartPx(view.rem, Math.max(0, ...boxes.map(unzoomed)));
+    const head = unzoomed(rootRef.current) + px.link;
+    const best = fitZoom((step) => {
+      const available = view.width / step - 2 * view.pad;
+      const size = chartSize(
+        wbs,
+        collapsed,
+        branchRows(wbs, collapsed, chart.branches, available, px),
+        px,
+      );
+      return (
+        (size.width + 2 * view.pad) * step <= view.width &&
+        (head + size.height + view.padY) * step <= view.height
+      );
+    });
+    if (best !== zoom || chart.width !== null) {
+      onChart((current) => ({ ...current, width: null, zoom: best }));
+    }
+  }
+
+  function resizeTo(width: number) {
+    if (!view) return;
+    const least = (chartPx(view.rem).slot + 2 * view.pad) * chart.zoom;
+    onChart((current) => ({ ...current, width: Math.round(Math.max(width, least)) }), false);
+  }
+
+  function windowWidth() {
+    onChart((current) => ({ ...current, width: null }));
+  }
 
   // ---- keyboard --------------------------------------------------------------
 
@@ -175,9 +345,39 @@ export function WbsDiagram({
     boxElement(scrollRef.current, id)?.focus();
   }
 
+  // A box moved with the keyboard is drawn anew under its new parent, and drawn again where the
+  // server puts it; each time the focus falls back to the page, so it goes back to the box,
+  // until the viewer moves the focus elsewhere themselves.
+  const keyboardMoved = useRef<number | null>(null);
+  useEffect(() => {
+    const id = keyboardMoved.current;
+    if (id === null) return;
+    const el = boxElement(scrollRef.current, id);
+    const active = document.activeElement;
+    if (active && active !== document.body && active !== el) keyboardMoved.current = null;
+    else if (el && active !== el) el.focus();
+  });
+
   function onBoxKey(event: React.KeyboardEvent<HTMLElement>, node: WbsNode) {
     if (event.target !== event.currentTarget) return;
     const id = node.item.id;
+    if (isMenuKey(event)) {
+      event.preventDefault();
+      on.menu(id, menuBelow(event.currentTarget));
+      return;
+    }
+    const shortcut = event.altKey && canEdit ? MOVE_KEYS[event.key] : undefined;
+    if (shortcut) {
+      event.preventDefault();
+      const target = shortcut(wbs, id);
+      if (target) {
+        keyboardMoved.current = id;
+        on.move(id, target);
+      } else if (event.key === "ArrowRight" && node.index > 0) {
+        on.tooDeep();
+      }
+      return;
+    }
     const at = visible.indexOf(id);
     const parent = node.childIds.length > 0;
     switch (event.key) {
@@ -248,12 +448,8 @@ export function WbsDiagram({
     }
     const raw = target.dataset.wbsDrop;
     const targetId = raw === "root" ? null : Number(raw);
-    const zone = dropZoneAt(
-      target.getBoundingClientRect(),
-      x,
-      y,
-      (target.dataset.wbsAxis ?? "column") as DropAxis,
-    );
+    const axis = (target.dataset.wbsAxis ?? "row") as DropAxis;
+    const zone = dropZoneAt(target.getBoundingClientRect(), x, y, axis);
     showDrop({ target: targetId, zone, placement: dropPlacement(wbs, p.id, targetId, zone) });
   }
 
@@ -334,6 +530,13 @@ export function WbsDiagram({
     if (!p || p.pointerId !== event.pointerId) return;
     const landed = dropRef.current;
     const started = p.started;
+    // The click that follows a drag's release is not a click on a name.
+    if (started) {
+      justDragged.current = true;
+      setTimeout(() => {
+        justDragged.current = false;
+      }, 0);
+    }
     endDrag();
     if (!started || !landed) return;
     // A save that landed during the drag may have changed the tree since the last hit test.
@@ -357,6 +560,40 @@ export function WbsDiagram({
     endDrag();
   }
 
+  // ---- the context menu ---------------------------------------------------------
+
+  const justDragged = useRef(false);
+  const nameClick = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(nameClick.current), []);
+
+  /** Opens the menu unless a double-click follows or the focus moved on. */
+  function onNameClick(event: React.MouseEvent<HTMLElement>, id: number) {
+    if (justDragged.current || event.detail > 1) {
+      clearTimeout(nameClick.current);
+      return;
+    }
+    const at = { x: event.clientX, y: event.clientY + 8, status: false };
+    clearTimeout(nameClick.current);
+    nameClick.current = setTimeout(() => {
+      const box = boxElement(scrollRef.current, id);
+      if (box?.contains(document.activeElement)) on.menu(id, { ...at, returnFocus: box });
+    }, NAME_CLICK_MS);
+  }
+
+  function onBoxContextMenu(event: React.MouseEvent<HTMLElement>, id: number) {
+    const target = event.target as HTMLElement;
+    if (target.closest("input")) return;
+    event.preventDefault();
+    clearTimeout(nameClick.current);
+    on.select(id);
+    on.menu(id, {
+      x: event.clientX,
+      y: event.clientY,
+      status: false,
+      returnFocus: boxElement(scrollRef.current, id),
+    });
+  }
+
   // ---- drawing ------------------------------------------------------------------
 
   const dragged = dragId !== null ? wbs.nodes.get(dragId) : undefined;
@@ -378,7 +615,28 @@ export function WbsDiagram({
         onPointerDown={(event) => onBoxPointerDown(event, id)}
         onFocus={() => on.select(id)}
         onKeyDown={(event) => onBoxKey(event, node)}
-        onDoubleClick={() => (canEdit ? on.renameStart(id) : on.open(id))}
+        onDoubleClick={() => {
+          clearTimeout(nameClick.current);
+          if (canEdit) on.renameStart(id);
+          else on.open(id);
+        }}
+        onContextMenu={(event) => onBoxContextMenu(event, id)}
+        onNameClick={(event) => onNameClick(event, id)}
+        onStatusClick={(el) => {
+          on.select(id);
+          on.menu(id, menuBelow(el, true));
+        }}
+        statusColor={node.item.status ? (statusColors.get(node.item.status) ?? null) : null}
+        requirements={
+          <BoxRequirements
+            node={node}
+            hidden={requirementsHidden.has(id)}
+            adding={addingRequirement === id}
+            addType={addRequirementType}
+            access={requirementAccess}
+            on={onRequirement}
+          />
+        }
         onToggle={() => on.toggle(id)}
         onRename={(name) => on.rename(id, name)}
         onRenameEnd={(refocus) => endRename(id, refocus)}
@@ -388,95 +646,272 @@ export function WbsDiagram({
     );
   }
 
-  function branch(id: number): React.ReactNode {
-    const node = wbs.nodes.get(id);
-    if (!node || node.childIds.length === 0 || collapsed.has(id)) return null;
-    const last = node.childIds.length - 1;
+  const shows = (node: WbsNode) => node.childIds.length > 0 && !collapsed.has(node.item.id);
+
+  /**
+   * A box among its siblings side by side, with its sub-items under it. It
+   * hangs from a stub off the line that joins its siblings; the line runs
+   * between the first and last siblings' boxes, so it spans the gaps but stops
+   * at the ends. A listed branch's slot is wider on its right (its list steps
+   * in), so there the lines meet the box rather than the slot's middle.
+   */
+  function slot(id: number, i: number, last: number): React.ReactNode {
+    const node = wbs.nodes.get(id)!;
+    const row = shows(node) && rows.has(id);
+    const listed = shows(node) && !row;
+    const line =
+      i === 0
+        ? listed
+          ? LISTED_FIRST
+          : "right-0 left-1/2"
+        : i === last
+          ? listed
+            ? LISTED_LAST
+            : "right-1/2 left-0"
+          : "inset-x-0";
     return (
-      <div role="none" className="ml-5 flex flex-col">
-        {node.childIds.map((kid, i) => (
-          <div key={kid} role="none" className="relative pt-3 pl-6">
-            <span
-              aria-hidden="true"
-              className={`absolute top-0 left-0 w-px bg-ink-faint ${i === last ? "h-10" : "bottom-0"}`}
-            />
-            <span aria-hidden="true" className="absolute top-10 left-0 h-px w-6 bg-ink-faint" />
-            {box(wbs.nodes.get(kid)!, "column")}
-            {branch(kid)}
-          </div>
-        ))}
+      <div
+        key={id}
+        role="none"
+        className={`relative flex flex-col pt-(--wbs-link) ${row ? "items-center" : "items-start px-(--wbs-gap)"}`}
+      >
+        {last > 0 ? (
+          <span aria-hidden="true" className={`absolute top-0 h-px bg-ink-faint ${line}`} />
+        ) : null}
+        <span
+          aria-hidden="true"
+          className={`absolute top-0 h-(--wbs-link) w-px bg-ink-faint ${listed ? LISTED_CENTRE : "left-1/2"}`}
+        />
+        {box(node, "row")}
+        {row ? (
+          <>
+            <span aria-hidden="true" className="relative h-(--wbs-link) w-px bg-ink-faint">
+              <BranchSwitch node={node} row onSwitch={() => setBranch(id, "list")} />
+            </span>
+            <div role="none" className="flex items-start">
+              {node.childIds.map((kid, k) => slot(kid, k, node.childIds.length - 1))}
+            </div>
+          </>
+        ) : listed ? (
+          list(node)
+        ) : null}
       </div>
     );
   }
 
-  return (
-    <div
-      ref={scrollRef}
-      data-testid="wbs-diagram"
-      className={`relative max-h-[calc(100dvh-16rem)] min-h-64 overflow-auto rounded-lg border border-line bg-surface print:max-h-none print:overflow-visible print:border-0 ${
-        dragged ? "cursor-grabbing" : ""
-      }`}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={endDrag}
-      onLostPointerCapture={() => {
-        if (press.current?.started) endDrag();
-      }}
-      onKeyDown={onKeyDown}
-    >
-      <div className="flex w-max min-w-full flex-col items-center p-4 md:p-6">
-        <div
-          ref={rootRef}
-          data-wbs-drop="root"
-          data-wbs-axis="root"
-          data-testid="wbs-root"
-          className={`max-w-80 rounded-md bg-accent px-5 py-3 text-center text-sm font-semibold break-words text-on-accent outline-offset-4 ${
-            live && live.target === null ? "outline-2 outline-focus outline-dashed" : ""
-          }`}
-        >
-          {projectName}
-        </div>
-        <span aria-hidden="true" className="h-6 w-px bg-ink-faint" />
-        <div
-          ref={rowRef}
-          role="tree"
-          aria-label={W.diagramLabel}
-          className="relative flex items-start gap-6"
-        >
-          {bar ? (
-            <span
-              aria-hidden="true"
-              className="absolute top-0 h-px bg-ink-faint"
-              style={{ left: bar.left, width: bar.width + 1 }}
-            />
-          ) : null}
-          {wbs.rootIds.map((id) => (
-            <div key={id} role="none" className="relative pt-6">
+  /** A parent's sub-items listed under it on a rail, a step in per level. */
+  function list(parent: WbsNode): React.ReactNode {
+    const last = parent.childIds.length - 1;
+    return (
+      <div role="none" className="relative ml-(--wbs-rail) pt-(--wbs-link)">
+        <span aria-hidden="true" className="absolute top-0 left-0 h-(--wbs-link) w-px bg-ink-faint">
+          <BranchSwitch
+            node={parent}
+            row={false}
+            onSwitch={() => setBranch(parent.item.id, "row")}
+          />
+        </span>
+        {parent.childIds.map((id, i) => {
+          const node = wbs.nodes.get(id)!;
+          return (
+            <div key={id} role="none" className="relative pt-(--wbs-list-gap) pl-(--wbs-tick)">
               <span
                 aria-hidden="true"
-                data-wbs-stub=""
-                className="absolute top-0 left-[5.5rem] h-6 w-px bg-ink-faint"
+                className={`absolute top-0 left-0 w-px bg-ink-faint ${i === last ? "h-(--wbs-tick-y)" : "bottom-0"}`}
               />
-              {box(wbs.nodes.get(id)!, "row")}
-              {branch(id)}
+              <span
+                aria-hidden="true"
+                className="absolute top-(--wbs-tick-y) left-0 h-px w-(--wbs-tick) bg-ink-faint"
+              />
+              {box(node, "column")}
+              {shows(node) ? list(node) : null}
             </div>
-          ))}
-        </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  const percent = Math.round(chart.zoom * 100);
+  const zoomButton =
+    "min-h-8 min-w-8 cursor-pointer px-2 text-sm font-medium text-ink-muted tabular-nums first:rounded-l-md last:rounded-r-md hover:bg-surface-raised hover:text-ink disabled:cursor-default disabled:opacity-50";
+
+  return (
+    <div className="relative" style={CHART_VARIABLES}>
+      <div
+        role="group"
+        aria-label={W.zoom}
+        className="absolute top-2 right-4 z-10 flex divide-x divide-line rounded-md border border-line bg-surface shadow-sm print:hidden"
+      >
+        <button
+          type="button"
+          aria-label={W.zoomOut}
+          data-testid="wbs-zoom-out"
+          disabled={chart.zoom <= ZOOM_STEPS[0]}
+          onClick={() => zoomTo(zoomStep(chart.zoom, -1))}
+          className={zoomButton}
+        >
+          −
+        </button>
+        <button
+          type="button"
+          aria-label={W.actualSize(percent)}
+          data-testid="wbs-zoom-reset"
+          onClick={() => zoomTo(1)}
+          className={zoomButton}
+        >
+          {percent}%
+        </button>
+        <button
+          type="button"
+          aria-label={W.zoomIn}
+          data-testid="wbs-zoom-in"
+          disabled={chart.zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]}
+          onClick={() => zoomTo(zoomStep(chart.zoom, 1))}
+          className={zoomButton}
+        >
+          +
+        </button>
+        <button
+          type="button"
+          aria-label={W.fitLabel}
+          data-testid="wbs-zoom-fit"
+          onClick={fit}
+          className={zoomButton}
+        >
+          {W.fit}
+        </button>
+        {chart.width !== null ? (
+          <button
+            type="button"
+            aria-label={W.windowWidthLabel}
+            data-testid="wbs-window-width"
+            onClick={windowWidth}
+            className={zoomButton}
+          >
+            {W.windowWidth}
+          </button>
+        ) : null}
       </div>
 
-      {dragged ? (
+      <div
+        ref={scrollRef}
+        data-testid="wbs-diagram"
+        className={`relative max-h-[calc(100dvh-16rem)] min-h-64 overflow-auto rounded-lg border border-line bg-surface print:max-h-none print:overflow-visible print:border-0 ${
+          dragged ? "cursor-grabbing" : ""
+        }`}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={endDrag}
+        onLostPointerCapture={() => {
+          if (press.current?.started) endDrag();
+        }}
+        onKeyDown={onKeyDown}
+      >
         <div
-          ref={ghostRef}
-          aria-hidden="true"
-          className={`pointer-events-none fixed top-0 left-0 z-50 max-w-56 rounded-md border bg-surface-raised px-2.5 py-1.5 text-sm text-ink shadow-lg ${
-            live ? "border-focus" : "border-line opacity-80"
-          }`}
+          ref={contentRef}
+          className="relative flex w-max flex-col items-center p-4 pt-14 md:p-6 md:pt-14"
+          style={{ zoom: chart.zoom, minWidth: frame ? frame / chart.zoom : "100%" }}
         >
-          <span className="mr-1.5 text-xs text-ink-muted tabular-nums">{dragged.code}</span>
-          {dragged.item.name || messages.keyDeliverables.deliverableFallback(dragged.item.id)}
+          <div
+            ref={rootRef}
+            data-wbs-drop="root"
+            data-wbs-axis="root"
+            data-testid="wbs-root"
+            className={`max-w-80 rounded-md bg-accent px-5 py-3 text-center text-sm font-semibold break-words text-on-accent outline-offset-4 ${
+              live && live.target === null ? "outline-2 outline-focus outline-dashed" : ""
+            }`}
+          >
+            {projectName}
+          </div>
+          {wbs.rootIds.length > 0 ? (
+            <span aria-hidden="true" className="h-(--wbs-link) w-px bg-ink-faint" />
+          ) : null}
+          <div role="tree" aria-label={W.diagramLabel} className="flex items-start">
+            {wbs.rootIds.map((id, i) => slot(id, i, wbs.rootIds.length - 1))}
+          </div>
+          {view ? (
+            <div
+              className="absolute inset-y-0 right-0 flex print:hidden"
+              title={W.chartWidthHint}
+              onDoubleClick={windowWidth}
+            >
+              <ResizeHandle
+                label={W.chartWidth}
+                orientation="vertical"
+                value={chart.width ?? undefined}
+                estimate={view.width}
+                onResize={resizeTo}
+                onCommit={() => onChart((current) => current)}
+                measure={() => contentRef.current?.getBoundingClientRect().width ?? 0}
+                className="h-full w-2 cursor-col-resize border-r-2 border-line"
+              />
+            </div>
+          ) : null}
         </div>
-      ) : null}
+
+        {dragged ? (
+          <div
+            ref={ghostRef}
+            aria-hidden="true"
+            className={`pointer-events-none fixed top-0 left-0 z-50 max-w-(--wbs-box) rounded-md border bg-surface-raised px-2.5 py-1.5 text-sm text-ink shadow-lg ${
+              live ? "border-focus" : "border-line opacity-80"
+            }`}
+          >
+            <span className="mr-1.5 text-xs text-ink-muted tabular-nums">{dragged.code}</span>
+            {dragged.item.name || messages.keyDeliverables.deliverableFallback(dragged.item.id)}
+          </div>
+        ) : null}
+      </div>
     </div>
+  );
+}
+
+/**
+ * On the line under a parent: switches its sub-items between side by side and
+ * listed. The toolbar's Sub-items does the same for the keyboard and screen
+ * readers, and can give the choice back to the chart's width.
+ */
+function BranchSwitch({
+  node,
+  row,
+  onSwitch,
+}: {
+  node: WbsNode;
+  /** Its sub-items are side by side now. */
+  row: boolean;
+  onSwitch: () => void;
+}) {
+  const name = node.item.name || messages.keyDeliverables.deliverableFallback(node.item.id);
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      title={row ? W.listThem(name) : W.spreadThem(name)}
+      data-testid={`wbs-branch-${node.item.id}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSwitch();
+      }}
+      onDoubleClick={(event) => event.stopPropagation()}
+      className="absolute top-1/2 left-1/2 z-10 flex size-5 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-line bg-surface text-ink-muted hover:border-focus hover:text-ink print:hidden"
+    >
+      <svg viewBox="0 0 16 16" className="size-3" fill="currentColor">
+        {row ? (
+          <>
+            <rect x="1" y="5" width="4" height="6" rx="1" />
+            <rect x="6" y="5" width="4" height="6" rx="1" />
+            <rect x="11" y="5" width="4" height="6" rx="1" />
+          </>
+        ) : (
+          <>
+            <rect x="2" y="2" width="12" height="3" rx="1" />
+            <rect x="4" y="6.5" width="10" height="3" rx="1" />
+            <rect x="4" y="11" width="10" height="3" rx="1" />
+          </>
+        )}
+      </svg>
+    </button>
   );
 }
 
@@ -503,8 +938,14 @@ function ItemBox({
   onRenameEnd,
   onStart,
   onEnd,
+  onContextMenu,
+  onNameClick,
+  onStatusClick,
+  statusColor,
+  requirements,
 }: {
   node: WbsNode;
+  /** Side by side with its siblings, or listed under its parent. */
   axis: "row" | "column";
   selected: boolean;
   tabbable: boolean;
@@ -524,6 +965,11 @@ function ItemBox({
   onRenameEnd: (refocus: boolean) => void;
   onStart: (value: string) => void;
   onEnd: (value: string) => void;
+  onContextMenu: (event: React.MouseEvent<HTMLElement>) => void;
+  onNameClick: (event: React.MouseEvent<HTMLElement>) => void;
+  onStatusClick: (chip: HTMLElement) => void;
+  statusColor: OptionColor | null;
+  requirements: React.ReactNode;
 }) {
   const id = node.item.id;
   const parent = node.childIds.length > 0;
@@ -566,7 +1012,8 @@ function ItemBox({
       aria-expanded={parent ? !collapsed : undefined}
       aria-selected={selected}
       aria-label={W.boxLabel(node.code, name, spokenDates)}
-      className={`relative flex min-h-14 w-44 flex-col gap-0.5 rounded-md px-2.5 py-1.5 text-left select-none focus-visible:outline-2 focus-visible:outline-focus print:break-inside-avoid ${shape} ${
+      aria-keyshortcuts={canEdit ? MOVE_SHORTCUTS : undefined}
+      className={`relative flex min-h-(--wbs-box-min) w-(--wbs-box) flex-col gap-0.5 rounded-md px-2.5 py-1.5 text-left select-none focus-visible:outline-2 focus-visible:outline-focus print:break-inside-avoid ${shape} ${
         selected ? "ring-2 ring-accent-strong ring-offset-1 ring-offset-surface" : ""
       } ${zone === "into" ? "outline-2 outline-offset-4 outline-focus outline-dashed" : "outline-offset-2"} ${
         faded ? "opacity-40" : ""
@@ -577,6 +1024,7 @@ function ItemBox({
       }}
       onKeyDown={onKeyDown}
       onDoubleClick={onDoubleClick}
+      onContextMenu={onContextMenu}
     >
       {zone === "before" || zone === "after" ? (
         <span
@@ -584,12 +1032,12 @@ function ItemBox({
           className={`pointer-events-none absolute rounded-full bg-focus ${DROP_LINE[axis][zone]}`}
         />
       ) : null}
-      <div className="flex min-h-6 items-center gap-1">
+      <div className="flex min-h-6 items-start gap-1.5">
         {canEdit ? (
           <span
             aria-hidden="true"
             data-wbs-grip=""
-            className="-ml-1.5 flex size-6 shrink-0 cursor-grab touch-none items-center justify-center rounded-sm text-ink-muted hover:bg-surface-raised print:hidden"
+            className="-my-0.5 -ml-1.5 flex size-6 shrink-0 cursor-grab touch-none items-center justify-center rounded-sm text-ink-muted hover:bg-surface-raised print:hidden"
           >
             <svg viewBox="0 0 16 16" className="size-3.5" fill="currentColor">
               <circle cx="6" cy="3.5" r="1.25" />
@@ -601,7 +1049,41 @@ function ItemBox({
             </svg>
           </span>
         ) : null}
-        <span className="text-xs font-normal text-ink-muted tabular-nums">{node.code}</span>
+        <span className="shrink-0 pt-0.5 text-xs font-normal text-ink-muted tabular-nums">
+          {node.code}
+        </span>
+        {renaming ? (
+          <DraftInput
+            autoFocus
+            data-wbs-name={id}
+            aria-label={W.nameOf(node.code)}
+            value={node.item.name}
+            maxLength={4000}
+            onFocus={(event) => event.currentTarget.select()}
+            onKeyDown={(event) => {
+              if (event.key !== "Escape") return;
+              event.preventDefault();
+              cancelled.current = true;
+              onRenameEnd(true);
+            }}
+            onCommit={(next) => {
+              if (cancelled.current || sent.current === next) return;
+              sent.current = next;
+              onRename(next);
+            }}
+            onSettle={() => onRenameEnd(true)}
+            onBlur={() => onRenameEnd(false)}
+            className="h-7 min-w-0 flex-1 rounded-sm border border-focus bg-surface px-1.5 text-sm font-normal text-ink select-text focus:outline-none"
+          />
+        ) : (
+          <span
+            data-testid={`wbs-name-${id}`}
+            onClick={onNameClick}
+            className="line-clamp-2 min-w-0 flex-1 cursor-pointer text-sm leading-5 break-words text-ink"
+          >
+            {name}
+          </span>
+        )}
         {parent ? (
           <button
             type="button"
@@ -614,7 +1096,7 @@ function ItemBox({
               onToggle();
             }}
             onDoubleClick={(event) => event.stopPropagation()}
-            className="ml-auto flex h-6 min-w-6 cursor-pointer items-center justify-center rounded-sm px-1 text-xs font-medium text-ink-muted tabular-nums hover:bg-surface-raised print:hidden"
+            className="-my-0.5 flex h-6 min-w-6 shrink-0 cursor-pointer items-center justify-center rounded-sm px-1 text-xs font-medium text-ink-muted tabular-nums hover:bg-surface-raised print:hidden"
           >
             {collapsed ? (
               W.moreCount(node.childIds.length)
@@ -626,32 +1108,6 @@ function ItemBox({
           </button>
         ) : null}
       </div>
-      {renaming ? (
-        <DraftInput
-          autoFocus
-          data-wbs-name={id}
-          aria-label={W.nameOf(node.code)}
-          value={node.item.name}
-          maxLength={4000}
-          onFocus={(event) => event.currentTarget.select()}
-          onKeyDown={(event) => {
-            if (event.key !== "Escape") return;
-            event.preventDefault();
-            cancelled.current = true;
-            onRenameEnd(true);
-          }}
-          onCommit={(next) => {
-            if (cancelled.current || sent.current === next) return;
-            sent.current = next;
-            onRename(next);
-          }}
-          onSettle={() => onRenameEnd(true)}
-          onBlur={() => onRenameEnd(false)}
-          className="h-8 w-full min-w-0 rounded-sm border border-focus bg-surface px-1.5 text-sm font-normal text-ink select-text focus:outline-none"
-        />
-      ) : (
-        <span className="text-sm break-words text-ink">{name}</span>
-      )}
       {editingDates && datesEditable ? (
         <div
           className="flex flex-col gap-1 pt-0.5"
@@ -698,6 +1154,26 @@ function ItemBox({
       ) : (
         <span className="text-xs font-normal text-ink-muted tabular-nums">{shownDates}</span>
       )}
+      {node.item.status || canEdit ? (
+        <button
+          type="button"
+          tabIndex={tabbable ? 0 : -1}
+          data-testid={`wbs-status-chip-${id}`}
+          aria-haspopup="menu"
+          aria-label={W.statusOf(node.code, node.item.status ?? W.noStatus)}
+          onClick={(event) => {
+            event.stopPropagation();
+            onStatusClick(event.currentTarget);
+          }}
+          onDoubleClick={(event) => event.stopPropagation()}
+          className={`inline-flex min-h-6 max-w-full cursor-pointer items-center gap-1.5 self-start rounded-full border px-2 text-xs font-medium ${
+            statusColor ? TONES[statusColor].badge : "border-line bg-surface text-ink-muted"
+          } ${canEdit ? "hover:border-focus" : "cursor-default"} print:border-0 print:px-0`}
+        >
+          <span className="truncate">{node.item.status ?? W.noStatus}</span>
+        </button>
+      ) : null}
+      {requirements}
     </div>
   );
 }

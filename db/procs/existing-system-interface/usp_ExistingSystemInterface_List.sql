@@ -18,6 +18,9 @@ BEGIN
                          WHEN @PageSize > 100 THEN 100 ELSE @PageSize END;
     SET @SortDir  = CASE WHEN LOWER(@SortDir) = 'desc' THEN 'desc' ELSE 'asc' END;
 
+    IF @Search IS NOT NULL
+        SET @Search = REPLACE(REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'), N'_', N'\_'), N'[', N'\[');
+
     SELECT ExistingSystemInterfaceId,
            [ProjectId],
            [HasInterface],
@@ -30,8 +33,8 @@ BEGIN
     FROM app.ExistingSystemInterface
     WHERE IsDeleted = 0
       AND (@ProjectId IS NULL OR ProjectId = @ProjectId)
-      AND (@Search IS NULL OR [Notes] LIKE N'%' + @Search + N'%'
-           OR [Location] LIKE N'%' + @Search + N'%')
+      AND (@Search IS NULL OR [Notes] LIKE N'%' + @Search + N'%' ESCAPE N'\'
+           OR [Location] LIKE N'%' + @Search + N'%' ESCAPE N'\')
     ORDER BY
         ExistingSystemInterfaceId ASC
     OFFSET (@Page - 1) * @PageSize ROWS FETCH NEXT @PageSize ROWS ONLY;

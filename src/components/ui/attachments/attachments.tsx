@@ -345,7 +345,7 @@ function AttachmentItem({
             href={downloadUrl(owner, file.FileAttachmentId)}
             download={file.FileName}
             aria-label={messages.attachments.download(file.FileName)}
-            className="inline-flex min-h-11 items-center wrap-anywhere text-sm font-medium text-accent underline"
+            className="inline-flex min-h-11 items-center wrap-anywhere text-sm font-medium text-accent"
           >
             {file.FileName}
           </a>
@@ -359,7 +359,7 @@ function AttachmentItem({
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="wrap-anywhere text-sm text-accent underline"
+                className="wrap-anywhere text-sm text-accent"
               >
                 {location}
               </a>

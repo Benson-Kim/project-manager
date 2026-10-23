@@ -14,7 +14,7 @@ test("a Viewer sees the deliverables datasheet read-only, without a new-entry ro
   await expect(page.getByTestId("datasheet-add-row")).toHaveCount(0);
   await expect(
     page.getByTestId("data-view-table").getByRole("textbox", {
-      name: new RegExp(`^${messages.keyDeliverables.requirement}, `),
+      name: new RegExp(`^${messages.keyDeliverables.deliverable}, `),
     }),
   ).toHaveCount(0);
 });

@@ -1,6 +1,8 @@
 # ADR-0027 — Key deliverables as a work breakdown that draws the Gantt
 
 Status: Accepted · Date: 2026-10-13 · Session: wbs-gantt (client feedback, checklist row 67)
+Amended by ADR-0036 (2026-10-20): requirements under each item, colour from status (the Color
+column is no longer drawn), and an item context menu.
 Amends the module #9 Gantt (a read-only bar chart from `usp_KeyDeliverable_GanttData`).
 
 ## Context
@@ -198,19 +200,40 @@ the other at once, with no reload.
   filled with the item's colour; the boxes below carry it as a stripe. Each box shows the code, the
   name (wrapped) and the dates. A parent has a show/hide toggle that shows how many sub-items are
   hidden.
-- **The line under the project box** is the one measured part: it runs from the leftmost to the
-  rightmost of the project box's centre and the top-level boxes' centres
-  (`connectorSpan`, re-measured by a `ResizeObserver`). The rest is plain flex layout.
+  **Amended 2026-10-17 (client feedback):** every level is laid out like the top one: an item's
+  sub-items sit side by side under it, joined by the same lines, so the chart reads across at
+  every level instead of stacking below the first. The lines are plain CSS on each box's wrapper
+  (a stub up from the box, and a half or whole line along the siblings' row), so nothing is
+  measured. A chart wider than its view opens scrolled to its middle, under the project box.
+  **Amended 2026-10-17 again (client feedback, wide breakdowns):** side by side at every level
+  made a project of four items with four to six sub-items each about 5,000 px wide. The chart now
+  fits its width: the top-level items always sit side by side; below them a branch sits side by
+  side while the chart still fits, and is otherwise listed under its parent on a rail (the
+  original layout). `branchRows` (`components/wbs-diagram-layout.ts`) decides level by level,
+  shallow first and the cheapest branch first, so small branches sit side by side and big ones
+  are listed; a branch with one sub-item always sits side by side (it is no wider). The viewer
+  can set a branch side by side (which opens the branches above it too) or listed, with the
+  switch on the line under its box or **Sub-items** (Automatic, Side by side, Listed) in the
+  toolbar; zoom (−, +, 100 %, Fit: the largest step up to 100 % at which the whole chart is on
+  screen); and drag the chart's right edge (a window splitter, also by keyboard; double-click or
+  **Window width** to go back) to lay it out wider or narrower. These are kept per project in the
+  viewer's browser, like the collapsed branches. The geometry is one set of rem values
+  (`CHART_REM`), read by the markup as CSS variables and by the layout as numbers; only the view's
+  width, the root font size and, for Fit, the boxes' heights are measured.
 - **Drag and drop** (pointer events, no library): with a mouse, drag a box; on a touch screen,
   drag its grip (the box itself scrolls the diagram). Over another box, the middle makes it the
-  last sub-item (dashed outline), the leading edge puts it in front and the trailing edge behind
-  (a line). Leading and trailing are left and right in the top-level row, top and bottom in a
-  column. Dropping on the project box makes it the last top-level item. `dropPlacement`
+  last sub-item (dashed outline), the left edge puts it in front and the right edge behind
+  (a line), at every level; in a listed branch the top and bottom edges do (amended
+  2026-10-17). Dropping on the project box makes it the last top-level item. `dropPlacement`
   (`schemas/wbs.ts`) refuses a drop that changes nothing, goes into the item's own branch, or
   passes ten levels (with the 10-level toast); the server's AssertPlacement checks again. The view
   scrolls near its edges while dragging, and Escape cancels.
 - **The single-pointer alternative** (WCAG 2.5.7): Add item, Add sub-item, Indent, Outdent, Move
-  up and Move down act on the selected box, as in the outline.
+  up and Move down act on the selected box, as in the outline. Amended 2026-10-17: Alt+↑ and
+  Alt+↓ move the focused box among its siblings, Alt+→ and Alt+← indent and outdent it (it keeps
+  the focus), and **Move to…** sends the selected item under any other item, or to the top level,
+  at the place picked among its new siblings (items in its own branch, and parents it would pass
+  ten levels under, are not offered); both use the same move as dragging.
 - **Renaming:** double-click, Enter, F2 or the toolbar's **Rename** (new in both views) opens the
   name in the box; Enter or leaving saves, Escape drops it. A new item opens its name at once.
 - **Keyboard and screen readers:** an ARIA tree with flat `treeitem`s carrying `aria-level`,

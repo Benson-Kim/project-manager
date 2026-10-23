@@ -11,6 +11,7 @@ import {
   CELL_WIDTH,
   CELL_WIDTH_PX,
   cellChoices,
+  cellWidthKind,
   emptyDraft,
   hasDraft,
   invalidFields,
@@ -179,10 +180,11 @@ function CellControl<Row>({
         value={value}
         placeholder={placeholder}
         maxLength={editor.maxLength}
+        inputMode={editor.numeric ? "decimal" : undefined}
         onChange={(e) => onChange(editor.multiline ? e.target.value : singleLine(e.target.value))}
         onKeyDown={onKeyDown}
         onBlur={onBlur ? (e) => onBlur(e.currentTarget.value) : undefined}
-        className={`${textControlClass} cursor-text`}
+        className={`${textControlClass} cursor-text ${editor.numeric ? "text-right tabular-nums" : ""}`}
       />
     );
   }
@@ -270,12 +272,13 @@ export function DatasheetCell<Row>({
             })
           : []
       }
+      placeholder={editor.kind === "select" ? undefined : editor.ghost?.(row)}
       onChange={setValue}
       onEnter={(next) => void commit(next)}
       onBlur={(next) => void commit(next)}
       onEscape={() => setValue(original)}
       commitSelect
-      onEditList={onEditList}
+      onEditList={onEditList ?? editor.editList}
     />
   );
 }
@@ -345,7 +348,7 @@ export function DatasheetAddRow<Row>({
           <td
             key={column.key}
             style={columnStyle(column)}
-            className={`${edit ? `${editableCellClass} ${columnStyle(column) ? "" : CELL_WIDTH[edit.kind]}` : cellClass} ${priorityClass[column.priority]}`}
+            className={`${edit ? `${editableCellClass} ${columnStyle(column) ? "" : CELL_WIDTH[cellWidthKind(edit)]}` : cellClass} ${priorityClass[column.priority]}`}
           >
             {edit ? (
               <CellControl
@@ -360,7 +363,10 @@ export function DatasheetAddRow<Row>({
                 onEnter={() => void commit()}
                 onEscape={reset}
                 onEditList={
-                  edit.list && onEditList ? () => onEditList(edit.list!, column.header) : undefined
+                  edit.editList ??
+                  (edit.list && onEditList
+                    ? () => onEditList(edit.list!, column.header)
+                    : undefined)
                 }
               />
             ) : null}
@@ -422,12 +428,16 @@ export function HeaderCell<Row>({
   resize,
 }: {
   column: DataViewColumn<Row>;
-  canEditLists: boolean;
-  onEditList: (list: LookupListKey, column: string) => void;
+  /** Admins: a managed list's column gets the caret, which calls onEditList. */
+  canEditLists?: boolean;
+  onEditList?: (list: LookupListKey, column: string) => void;
   drag?: HeaderDrag;
   resize?: HeaderResize;
 }) {
   const list = column.edit?.list;
+  const editList =
+    column.edit?.editList ??
+    (list && canEditLists && onEditList ? () => onEditList(list, column.header) : undefined);
   const thRef = useRef<HTMLTableCellElement>(null);
   const width = resize?.width;
   return (
@@ -464,15 +474,12 @@ export function HeaderCell<Row>({
       }
       onDragEnd={drag?.onEnd}
       style={width ? { width, minWidth: width, maxWidth: width } : undefined}
-      className={`relative border border-line px-3 py-2 text-left font-medium text-ink-muted ${drag ? "cursor-grab active:cursor-grabbing" : ""} ${drag?.over ? "bg-accent-soft" : "bg-surface-raised"} ${drag?.dragging ? "opacity-50" : ""} ${column.edit && !width ? CELL_WIDTH[column.edit.kind] : ""} ${priorityClass[column.priority]}`}
+      className={`relative border border-line px-3 py-2 text-left font-medium text-ink-muted ${drag ? "cursor-grab active:cursor-grabbing" : ""} ${drag?.over ? "bg-accent-soft" : "bg-surface-raised"} ${drag?.dragging ? "opacity-50" : ""} ${column.edit && !width ? CELL_WIDTH[cellWidthKind(column.edit)] : ""} ${priorityClass[column.priority]}`}
     >
       <div className="flex min-h-10 items-center justify-between gap-1">
         <span className="wrap-break-word">{column.header}</span>
-        {list && canEditLists ? (
-          <IconButton
-            label={messages.lookupLists.edit(column.header)}
-            onClick={() => onEditList(list, column.header)}
-          >
+        {editList ? (
+          <IconButton label={messages.lookupLists.edit(column.header)} onClick={editList}>
             <path d="M4 6l4 4 4-4" />
           </IconButton>
         ) : null}
@@ -482,7 +489,7 @@ export function HeaderCell<Row>({
           label={messages.datasheet.resizeColumn(column.header)}
           orientation="vertical"
           value={width}
-          estimate={column.edit ? CELL_WIDTH_PX[column.edit.kind] : COLUMN_WIDTH_MIN}
+          estimate={column.edit ? CELL_WIDTH_PX[cellWidthKind(column.edit)] : COLUMN_WIDTH_MIN}
           onResize={(next) => resize.onResize(clampWidth(next))}
           onCommit={resize.onCommit}
           measure={() => thRef.current?.offsetWidth ?? 0}

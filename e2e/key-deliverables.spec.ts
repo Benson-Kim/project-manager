@@ -9,8 +9,9 @@ import { escapeRegExp, expectListed } from "./support/datasheet";
  * WBS and Gantt editor (ADR-0027: add, indent, rename, drag, stretch, scale,
  * a parent's read-only dates in the datasheet, the sub-item delete warning,
  * delete; desktop + 360 px), the WBS diagram (add, rename, drag and drop,
- * the round trip with the Gantt, keyboard, delete) and axe scans on the list,
- * the diagram and the Gantt.
+ * the round trip with the Gantt, keyboard, delete; Alt+arrow moves, Move to…,
+ * a branch listed or side by side, zoom), the item menu and requirements (ADR-0036),
+ * and axe scans on the list, the diagram and the Gantt.
  * Runs as e2e-pm (storage state from auth.setup.ts). Project 2 is seeded with
  * deliverables and stakeholders.
  */
@@ -37,6 +38,11 @@ async function wbsCode(row: Locator): Promise<string> {
   return (label ?? "").slice(W.nameOf("").length);
 }
 
+/** Selects a box by its corner, clear of its name, status chip and buttons. */
+async function selectBox(box: Locator): Promise<void> {
+  await box.click({ position: { x: 4, y: 4 } });
+}
+
 /** yyyy-mm-dd, the given number of days after another. */
 function plusDays(iso: string, days: number): string {
   const date = new Date(`${iso}T00:00:00Z`);
@@ -52,7 +58,7 @@ test("create deliverable happy path — appears in the list", async ({ page }) =
   ).toBeVisible();
   // Scoped to the sheet: the list behind it is a datasheet whose cells carry the same labels.
   const form = page.getByTestId("deliverable-form");
-  await form.getByLabel(messages.keyDeliverables.requirement).fill(requirement);
+  await form.getByLabel(messages.keyDeliverables.deliverable).fill(requirement);
   await form.getByLabel(messages.keyDeliverables.deadline).fill("2027-03-31");
   await page.getByTestId("deliverable-save").click();
   await expect(
@@ -66,7 +72,7 @@ test("create deliverable happy path — appears in the list", async ({ page }) =
 test("validation failure — empty requirement shows the inline error", async ({ page }) => {
   await page.goto("/projects/2/deliverables?d=new");
   await page.getByTestId("deliverable-save").click();
-  await expect(page.getByText(messages.keyDeliverables.requirementRequired).first()).toBeVisible();
+  await expect(page.getByText(messages.keyDeliverables.deliverableRequired).first()).toBeVisible();
   await expect(
     page.getByRole("alert").filter({ hasText: messages.errors.summaryTitle }),
   ).toBeVisible();
@@ -212,10 +218,16 @@ test("WBS: add, indent with Tab, rename, drag, stretch, change scale, delete", a
   await expect(page.getByText(W.deleteBody)).toBeVisible();
   await page.getByRole("button", { name: messages.actions.cancel }).click();
 
-  // Delete the first item: its sub-item goes with it.
+  // Delete the first item: its sub-item goes with it. Focusing a row is what selects it and the
+  // toolbar's Delete stays disabled until something is selected, so after a navigation the focus
+  // can land before the row's handler is attached: focus again until Delete comes alive.
   await page.goto("/projects/2/deliverables/gantt?view=gantt&scale=month");
-  await wbsField(parentRow, W.nameOf).focus();
-  await page.getByTestId("wbs-delete").click();
+  const toolbarDelete = page.getByTestId("wbs-delete");
+  await expect(async () => {
+    await wbsField(parentRow, W.nameOf).focus();
+    await expect(toolbarDelete).toBeEnabled({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await toolbarDelete.click();
   await expect(
     page.getByRole("heading", { name: W.deleteTitle(`E2E phase ${stamp}`, 1) }),
   ).toBeVisible();
@@ -311,7 +323,7 @@ test("WBS diagram: add, rename, drag onto a box, round trip with the Gantt, dele
   await expect(taskBox).toHaveAttribute("aria-level", "1");
 
   // Rename from the toolbar.
-  await phaseBox.click();
+  await selectBox(phaseBox);
   await page.getByTestId("wbs-rename").click();
   const renamed = page.locator("input:focus");
   await expect(renamed).toHaveValue(`E2E phase ${stamp}`);
@@ -339,11 +351,205 @@ test("WBS diagram: add, rename, drag onto a box, round trip with the Gantt, dele
   await expect(phaseBox).toContainText(`E2E stage ${stamp}`);
   await expect(taskBox).toHaveCount(0);
 
-  await phaseBox.click();
+  await selectBox(phaseBox);
   await page.getByTestId("wbs-delete").click();
   await page.getByRole("button", { name: W.delete, exact: true }).last().click();
   await expect(phaseBox).toHaveCount(0);
   await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+});
+
+test("WBS diagram: Alt+arrows, Move to…, a branch listed or side by side, zoom", async ({
+  page,
+}) => {
+  const stamp = Date.now();
+  await page.goto("/projects/2/deliverables/gantt?view=wbs");
+  const diagram = page.getByTestId("wbs-diagram");
+  await expect(diagram).toBeVisible();
+  await closeAlarmToast(page);
+
+  async function addTopLevel(name: string): Promise<Locator> {
+    await page.getByTestId("wbs-add").click();
+    const field = page.locator("input:focus");
+    await expect(field).toHaveValue(W.newItemName, { timeout: 15_000 });
+    await field.fill(name);
+    await field.press("Enter");
+    const added = diagram.getByRole("treeitem", { name: new RegExp(escapeRegExp(name)) });
+    await expect(added).toBeFocused();
+    return page.getByTestId(`wbs-box-${await added.getAttribute("data-wbs-box")}`);
+  }
+  const phase = await addTopLevel(`E2E phase ${stamp}`);
+  const task = await addTopLevel(`E2E task ${stamp}`);
+
+  // Alt+→ makes the focused box a sub-item of the one before it, Alt+← takes it back out,
+  // and it keeps the focus wherever it lands.
+  await page.keyboard.press("Alt+ArrowRight");
+  await expect(task).toHaveAttribute("aria-level", "2");
+  await expect(task).toBeFocused();
+  await page.keyboard.press("Alt+ArrowLeft");
+  await expect(task).toHaveAttribute("aria-level", "1");
+  await expect(task).toBeFocused();
+
+  // Move to… sends the selected item under any other, without dragging across the chart.
+  await page.getByTestId("wbs-move-to").click();
+  const dialog = page.getByRole("dialog", { name: new RegExp(`E2E task ${stamp}`) });
+  await dialog.getByLabel(W.moveUnder).fill(`E2E phase ${stamp}`);
+  await dialog
+    .getByRole("listbox")
+    .getByRole("option", { name: new RegExp(`E2E phase ${stamp}`) })
+    .click();
+  await dialog.getByTestId("wbs-move-submit").click();
+  await expect(dialog).toBeHidden();
+  await expect(task).toHaveAttribute("aria-level", "2");
+
+  // A single sub-item sits under its parent; Listed puts it on a rail, where the top and
+  // bottom edges are the drop zones, and Automatic gives the choice back to the width.
+  await expect(task).toHaveAttribute("data-wbs-axis", "row");
+  await selectBox(phase);
+  await page.getByTestId("wbs-sub-items-list").click();
+  await expect(task).toHaveAttribute("data-wbs-axis", "column");
+  await page.reload();
+  await expect(task).toHaveAttribute("data-wbs-axis", "column");
+  await selectBox(phase);
+  await page.getByTestId("wbs-sub-items-auto").click();
+  await expect(task).toHaveAttribute("data-wbs-axis", "row");
+
+  const zoom = page.getByTestId("wbs-zoom-reset");
+  await page.getByTestId("wbs-zoom-out").click();
+  await expect(zoom).toHaveText("90%");
+  await zoom.click();
+  await expect(zoom).toHaveText("100%");
+
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+  await selectBox(phase);
+  await page.getByTestId("wbs-delete").click();
+  await page.getByRole("button", { name: W.delete, exact: true }).last().click();
+  await expect(phase).toHaveCount(0);
+  await expect(task).toHaveCount(0);
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+});
+
+test("WBS item menu: whole name, status colour; requirements cascade in both views", async ({
+  page,
+}) => {
+  const stamp = Date.now();
+  const longName = `E2E deliverable with a name too long for its box to show in two lines ${stamp}`;
+  await page.goto("/projects/2/deliverables/gantt?view=wbs");
+  const diagram = page.getByTestId("wbs-diagram");
+  await expect(diagram).toBeVisible();
+  await closeAlarmToast(page);
+
+  await page.getByTestId("wbs-add").click();
+  const field = page.locator("input:focus");
+  await expect(field).toHaveValue(W.newItemName, { timeout: 15_000 });
+  await field.fill(longName);
+  await field.press("Enter");
+  const item = diagram.getByRole("treeitem", { name: new RegExp(escapeRegExp(longName)) });
+  await expect(item).toBeFocused();
+  const id = await item.getAttribute("data-wbs-box");
+  const box = page.getByTestId(`wbs-box-${id}`);
+  const menu = page.getByTestId("wbs-menu");
+
+  // Shift+F10 opens the item's menu with its whole name; Escape gives the focus back.
+  await page.keyboard.press("Shift+F10");
+  await expect(menu).toBeVisible();
+  await expect(page.getByTestId("wbs-menu-name")).toContainText(longName);
+  await expect(page.getByTestId("wbs-menu-add")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+  await expect(box).toBeFocused();
+
+  // A right-click opens it too; Status sets the status, and the box takes its colour.
+  await box.click({ button: "right", position: { x: 4, y: 4 } });
+  await expect(menu).toBeVisible();
+  await page.getByTestId("wbs-menu-status").click();
+  await page.getByTestId("wbs-status-Completed").click();
+  await expect(menu).toBeHidden();
+  await expect(page.getByTestId(`wbs-status-chip-${id}`)).toHaveText("Completed");
+  await expect(box).toHaveClass(/bg-tone-green-soft/);
+
+  // Requirements: add two under the box (the field stays open for the next), the second a
+  // non-functional one, then tick one.
+  await page.getByTestId(`wbs-req-add-${id}`).click();
+  const add = page.getByLabel(W.newRequirementFor(""), { exact: false });
+  const addType = page.getByLabel(W.requirementTypeFor(""), { exact: false });
+  await expect(add).toBeFocused({ timeout: 15_000 });
+  await expect(addType).toHaveValue("FR");
+  await add.fill(`E2E permit ${stamp}`);
+  await add.press("Enter");
+  await addType.selectOption("NFR");
+  await add.fill(`E2E soil report ${stamp}`);
+  await add.press("Enter");
+  // The kind chosen stays chosen for the next one.
+  await expect(addType).toHaveValue("NFR");
+  await add.press("Escape");
+  const list = page.getByTestId(`wbs-reqs-${id}`);
+  await expect(list).toContainText(`E2E permit ${stamp}`, { timeout: 15_000 });
+  await expect(list).toContainText(`E2E soil report ${stamp}`, { timeout: 15_000 });
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+
+  // Each chip says which requirement of the register it is, in the kind it was added as.
+  const chipRow = (text: string) => list.locator("li").filter({ hasText: text });
+  await expect(chipRow(`E2E permit ${stamp}`)).toContainText(/^FR-\d+/);
+  await expect(chipRow(`E2E soil report ${stamp}`)).toContainText(/^NFR-\d+/);
+
+  await list.getByLabel(W.requirementMet(`E2E permit ${stamp}`)).check();
+  await expect(page.getByTestId(`wbs-req-toggle-${id}`)).toHaveText(W.requirementCount(1, 2));
+
+  // The Gantt cascades the same requirements under the item; move the second one up there.
+  await page.getByTestId("wbs-view-gantt").click();
+  const soil = page.getByLabel(W.editRequirement(`E2E soil report ${stamp}`), { exact: true });
+  await expect(soil).toHaveValue(`E2E soil report ${stamp}`);
+  await expect(
+    page.getByLabel(W.requirementMet(`E2E permit ${stamp}`), { exact: true }),
+  ).toBeChecked();
+  await expect(page.locator("li[data-wbs-req-row]").filter({ has: soil })).toContainText(
+    /^NFR-\d+$/,
+  );
+  await page
+    .getByRole("button", { name: W.moveRequirementUp(`E2E soil report ${stamp}`), exact: true })
+    .click();
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+
+  // Saved: after a reload the order and the tick are still there.
+  await page.reload();
+  const texts = page.locator(
+    `input[aria-label^="${W.editRequirement("E2E ")}"][aria-label$="${stamp}"]`,
+  );
+  await expect(texts).toHaveCount(2);
+  await expect(texts.first()).toHaveValue(`E2E soil report ${stamp}`);
+  await expect(texts.last()).toHaveValue(`E2E permit ${stamp}`);
+  await expect(page.getByTestId(`wbs-row-status-${id}`)).toHaveText("Completed");
+
+  // The × takes a requirement off this deliverable without asking (ADR-0037).
+  await page
+    .getByRole("button", { name: W.removeRequirement(`E2E permit ${stamp}`), exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(texts).toHaveCount(1);
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+
+  // Deleting the item counts the requirement it unallocates and says it stays in the register.
+  // Shift+F10 is the row's own menu key (isMenuKey, wbs-context-menu.tsx), as the diagram half of
+  // this test already uses. A right-click on the row opened no menu in CI — its pointerdown ran,
+  // since the row came back selected, but no menu was ever in the DOM — so the keyboard path is
+  // used here instead; it does not depend on where the pointer lands or on what Chromium selects.
+  // A background refresh remounts the rows and takes the focus with it, so press again until the
+  // menu is up — the first press is lost whenever one lands in between.
+  await expect(async () => {
+    await wbsField(wbsRow(page, id), W.nameOf).click();
+    await page.keyboard.press("Shift+F10");
+    await expect(menu).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await page.getByTestId("wbs-menu-delete").click();
+  await expect(page.getByRole("dialog")).toContainText(W.deleteUnallocates(1));
+  await page.getByRole("button", { name: W.delete, exact: true }).last().click();
+  await expect(wbsRow(page, id)).toHaveCount(0);
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+
+  // Neither act deleted anything: the register still holds both requirements.
+  await page.goto(`/projects/2/requirements?view=list&q=${stamp}`);
+  await expectListed(page, `E2E permit ${stamp}`);
+  await expectListed(page, `E2E soil report ${stamp}`);
 });
 
 test("axe scan on the deliverables list has no serious or critical violations", async ({

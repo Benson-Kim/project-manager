@@ -7,6 +7,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { Select } from "@/components/ui/form/inputs";
+import { Panel } from "@/components/ui/panel";
 import { messages } from "@/lib/messages";
 import {
   copyDocumentsAction,
@@ -81,15 +82,8 @@ export function DocumentsPanel({
     });
 
   return (
-    <section
-      className="flex flex-col gap-4"
-      aria-labelledby="documents-heading"
-      data-testid="documents-panel"
-    >
+    <Panel id="documents-heading" title={M.heading} testId="documents-panel">
       <div>
-        <h2 id="documents-heading" className="text-lg font-semibold text-ink">
-          {M.heading}
-        </h2>
         <p className="text-sm text-ink-muted">{M.intro}</p>
         <p className="mt-1 text-sm text-ink" data-testid="documents-summary">
           {M.summary(summary.required, summary.requiredWithFile, summary.undecided)}
@@ -110,7 +104,7 @@ export function DocumentsPanel({
           return (
             <li
               key={d.id}
-              className="flex flex-col gap-3 rounded-md border border-line p-3"
+              className="flex flex-col gap-3 rounded-md border border-line bg-surface p-3"
               data-testid={`document-${d.id}`}
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -283,6 +277,6 @@ export function DocumentsPanel({
           }
         />
       ) : null}
-    </section>
+    </Panel>
   );
 }

@@ -135,7 +135,7 @@ export default async function MeetingMinutesPrintPage({
       <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
         <Link
           href={`/projects/${projectId}/meetings/${meeting.MeetingId}`}
-          className="inline-flex min-h-11 items-center text-sm font-medium text-accent underline"
+          className="inline-flex min-h-11 items-center text-sm font-medium text-accent"
         >
           {M.backToMeeting}
         </Link>
