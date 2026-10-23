@@ -106,9 +106,9 @@ describe("note SQL guardrails", () => {
 
   it("soft-deletes a note's pages with the note", () => {
     const text = sql("usp_Note_Delete");
-    expect(afterBeginTran("usp_Note_Delete", /UPDATE app\.NoteTab\b[\s\S]*?IsDeleted\s*=\s*1/)).toBe(
-      true,
-    );
+    expect(
+      afterBeginTran("usp_Note_Delete", /UPDATE app\.NoteTab\b[\s\S]*?IsDeleted\s*=\s*1/),
+    ).toBe(true);
     expect(text).toMatch(/UPDATE app\.Note\b[\s\S]*?IsDeleted\s*=\s*1/);
   });
 
@@ -164,7 +164,9 @@ describe("note SQL guardrails", () => {
   });
 
   it("returns the workspace's pages as JSON with null keys kept", () => {
-    expect(sql("usp_Note_GetWithTabs")).toContain("FOR JSON PATH, INCLUDE_NULL_VALUES) AS TabsJson");
+    expect(sql("usp_Note_GetWithTabs")).toContain(
+      "FOR JSON PATH, INCLUDE_NULL_VALUES) AS TabsJson",
+    );
   });
 
   it("adds the page search column in migration 026", () => {
