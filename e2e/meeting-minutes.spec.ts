@@ -67,7 +67,7 @@ async function addAction(
   await expect(page.getByTestId("action-item").filter({ hasText: action.text })).toBeVisible();
 }
 
-/** One follow-up under an action (ADR-0041). */
+/** One follow-up under an action (ADR-0043). */
 async function addFollowUp(
   page: Page,
   action: string,
@@ -323,7 +323,7 @@ test("print: a meeting of another project is not found", async ({ page }) => {
   await expect(page.getByTestId("printed-minutes")).toHaveCount(0);
 });
 
-test("follow-ups: an action takes many, each with its person and dates (ADR-0041)", async ({
+test("follow-ups: an action takes many, each with its person and dates (ADR-0043)", async ({
   page,
 }) => {
   const minutes = await newMeeting(page);
@@ -363,7 +363,7 @@ test("follow-ups: an action takes many, each with its person and dates (ADR-0041
   await expect(minutes.getByTestId("follow-up")).toHaveCount(0);
 });
 
-test("status: completing an action takes it off the open list (ADR-0041)", async ({ page }) => {
+test("status: completing an action takes it off the open list (ADR-0043)", async ({ page }) => {
   const minutes = await newMeeting(page);
   await addAgendaItem(page, "Budget");
   await addAction(page, "Budget", { text: "Send the revised budget", due: "2099-12-31" });
@@ -389,7 +389,7 @@ test("status: completing an action takes it off the open list (ADR-0041)", async
   ).toHaveValue("completed");
 });
 
-test("on hold: the reason is asked for before the status is written (ADR-0042)", async ({
+test("on hold: the reason is asked for before the status is written (ADR-0044)", async ({
   page,
 }) => {
   const minutes = await newMeeting(page);
@@ -413,7 +413,7 @@ test("on hold: the reason is asked for before the status is written (ADR-0042)",
   await page.getByTestId("on-hold-reason").fill("Waiting on the supplier");
   await page.getByTestId("hold-with-reason").click();
   await expect(action.getByTestId("on-hold-reason-note")).toContainText("Waiting on the supplier");
-  // On hold still counts as open (ADR-0041).
+  // On hold still counts as open (ADR-0043).
   await expect(minutes.getByTestId("open-action")).toHaveCount(1);
 
   // It survives a reload, and completing the action clears it: only a hold
@@ -436,7 +436,7 @@ test("on hold: the reason is asked for before the status is written (ADR-0042)",
   ).toHaveCount(0);
 });
 
-test("carry-over: an unfinished action follows into the project's later meetings (ADR-0041)", async ({
+test("carry-over: an unfinished action follows into the project's later meetings (ADR-0043)", async ({
   page,
 }) => {
   const stamp = Date.now();

@@ -1170,7 +1170,7 @@ export const messages = {
     noOpenActions: "No open actions.",
     overdue: "Overdue",
     overdueCount: (count: number) => `${count} overdue`,
-    // An action's status and its follow-ups (ADR-0041).
+    // An action's status and its follow-ups (ADR-0043).
     status: "Status",
     actionStatus: {
       "on-hold": "On hold",
@@ -1179,7 +1179,7 @@ export const messages = {
     },
     setStatusOf: (name: string) => `Status of ${name}`,
     statusSet: (name: string, status: string) => `${name} is now ${status}`,
-    // Why an action is on hold (ADR-0042). Optional, and only a hold carries one.
+    // Why an action is on hold (ADR-0044). Optional, and only a hold carries one.
     onHoldReason: "Reason for the hold",
     onHoldReasonTitle: "Put this action on hold",
     onHoldReasonBody: "Say why it is waiting, so the next meeting knows. You can leave this empty.",

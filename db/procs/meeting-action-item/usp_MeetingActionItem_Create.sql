@@ -8,11 +8,11 @@
 --   meeting's project (VALIDATION 50004), checked inside the transaction with that row locked
 --   (UPDLOCK, HOLDLOCK) so a concurrent usp_Stakeholder_Delete fails the check or waits. AssigneeName
 --   is NULL when nobody is responsible.
--- Status (ADR-0041): 'on-hold' | 'in-progress' | 'completed'. A new action starts 'in-progress',
+-- Status (ADR-0043): 'on-hold' | 'in-progress' | 'completed'. A new action starts 'in-progress',
 --   which is what every action was before the status existed. 'completed' is what stops it being
 --   carried into the project's later meetings, so the set is closed here and by
 --   CK_MeetingActionItem_Status.
--- OnHoldReason (ADR-0042): a new action may be created on hold with its reason; only an action on
+-- OnHoldReason (ADR-0044): a new action may be created on hold with its reason; only an action on
 --   hold may carry one, so a reason with another status is refused rather than dropped. Same rule
 --   as usp_MeetingActionItem_SetStatus and CK_MeetingActionItem_OnHoldReason.
 -- Access: Contributor on the meeting's project, or a per-person grant (meetings:create, ADR-0024).

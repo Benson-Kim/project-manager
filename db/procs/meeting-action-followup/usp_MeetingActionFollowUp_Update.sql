@@ -1,6 +1,6 @@
 -- usp_MeetingActionFollowUp_Update — change a follow-up's text, person assigned, follow-up date and
 -- due date with rowversion concurrency (50002 CONFLICT, checked in the transaction) and an
--- in-transaction audit row (module #10, ADR-0041). Its action item, meeting and position are
+-- in-transaction audit row (module #10, ADR-0043). Its action item, meeting and position are
 -- immutable here (moves go through _Reorder).
 -- Person assigned: a changed @AssignedToStakeholderId must be a live stakeholder of the meeting's
 --   project (VALIDATION 50004, checked inside the transaction with that row locked under UPDLOCK,

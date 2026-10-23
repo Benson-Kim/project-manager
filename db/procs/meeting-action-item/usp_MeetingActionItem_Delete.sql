@@ -1,6 +1,6 @@
 -- usp_MeetingActionItem_Delete — soft delete with rowversion concurrency (checked in the transaction)
 -- and an in-transaction audit row (module #10, ADR-0028). Deletes the action's follow-ups with it
--- (ADR-0041), naming them in the audit row. Returns ProjectId and MeetingId.
+-- (ADR-0043), naming them in the audit row. Returns ProjectId and MeetingId.
 -- The meeting row is locked (UPDLOCK, HOLDLOCK) like the action reorder, which renumbers siblings.
 -- Access: Manager on the meeting's project, or a per-person grant (meetings:delete, ADR-0024).
 USE ProjectManager;
@@ -55,7 +55,7 @@ BEGIN
         THROW 50002, N'CONFLICT:MeetingActionItem was modified by someone else', 1;
     END
 
-    -- Its follow-ups go with it (ADR-0041).
+    -- Its follow-ups go with it (ADR-0043).
     DECLARE @RemovedFollowUps TABLE (Id INT);
 
     UPDATE app.MeetingActionFollowUp SET

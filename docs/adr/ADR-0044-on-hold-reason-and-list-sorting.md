@@ -1,16 +1,16 @@
-# ADR-0042 — Why an action is on hold, and sorting a list from its column headers
+# ADR-0044 — Why an action is on hold, and sorting a list from its column headers
 
 - **Status:** Accepted
 - **Date:** 2026-10-23
-- **Supersedes:** nothing. Extends ADR-0041 (the action item's status) and ADR-0016/ADR-0023 (the
+- **Supersedes:** nothing. Extends ADR-0043 (the action item's status) and ADR-0016/ADR-0023 (the
   list contract and the datasheet).
-- **Migration:** 040_meeting_action_on_hold_reason.sql
+- **Migration:** 041_meeting_action_on_hold_reason.sql
 
 ## Context
 
-Three asks from the client, on the day ADR-0041 landed:
+Three asks from the client, on the day ADR-0043 landed:
 
-1. **"For on-hold status, we can supply a reason."** ADR-0041 gave an action item one of three
+1. **"For on-hold status, we can supply a reason."** ADR-0043 gave an action item one of three
    statuses. A hold says an action is waiting; it does not say what for, and the next meeting reads
    the minutes without the conversation that produced them.
 2. **"Each table column gets an up/down pointing triangle to order ascending or descending."** The
@@ -151,7 +151,7 @@ this workspace to measure it with.
 
 ## Consequences
 
-- Migration 040 and five changed procs have **never run** on a server from this workspace, and no
+- Migration 041 and five changed procs have **never run** on a server from this workspace, and no
   browser has opened any of this. The commit is tagged `[db]` and `[e2e]`.
 - The meetings module has no `db/tests/*-procs.cjs` behaviour script, so the new refusal
   (50004 for a reason without a hold) is asserted against the proc text, not against a server. The

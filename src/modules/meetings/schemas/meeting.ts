@@ -26,7 +26,7 @@ export const timeOfDaySchema = z
   });
 
 /**
- * An action item's status (ADR-0041). A closed set, not a managed lookup list:
+ * An action item's status (ADR-0043). A closed set, not a managed lookup list:
  * "completed" is what stops an action carrying into the project's later
  * meetings, so renaming a value would change a rule. CK_MeetingActionItem_Status
  * holds the same three; src/tests/meeting-sql-guardrails.test.ts ties them.
@@ -40,7 +40,7 @@ export const DEFAULT_ACTION_STATUS: ActionStatus = "in-progress";
 export const isOpenStatus = (status: ActionStatus): boolean => status !== "completed";
 
 /**
- * Why an action is on hold (ADR-0042). Optional — the client asked to be able to
+ * Why an action is on hold (ADR-0044). Optional — the client asked to be able to
  * give a reason, not to be made to — and it belongs to the hold: only a row whose
  * status is "on-hold" may carry one, which the procs refuse to break and
  * CK_MeetingActionItem_OnHoldReason enforces. Moving an action on clears it, so
@@ -128,7 +128,7 @@ export const workspaceActionItemSchema = z.object({
 export type WorkspaceActionItem = z.infer<typeof workspaceActionItemSchema>;
 
 /**
- * One follow-up under an action item (ADR-0041): the one-to-many the client
+ * One follow-up under an action item (ADR-0043): the one-to-many the client
  * asked for, each with the person it is assigned to, the date it was made and
  * the date it is due. The status stays on the action item, so there is one
  * place to look for whether the action is done.
@@ -150,7 +150,7 @@ export type WorkspaceFollowUp = z.infer<typeof workspaceFollowUpSchema>;
 
 /**
  * An unfinished action of one of this project's earlier meetings, which carries
- * into every later one until it is completed (ADR-0041). Read-only here apart
+ * into every later one until it is completed (ADR-0043). Read-only here apart
  * from its status; the rest of it is edited where it was raised.
  */
 export const carriedOverActionSchema = z.object({
@@ -204,7 +204,7 @@ export interface MeetingWorkspace {
   discussionPoints: WorkspaceDiscussionPoint[];
   actionItems: WorkspaceActionItem[];
   followUps: WorkspaceFollowUp[];
-  /** This project's earlier meetings' unfinished actions (ADR-0041). */
+  /** This project's earlier meetings' unfinished actions (ADR-0043). */
   carriedOver: CarriedOverAction[];
   participants: WorkspaceParticipant[];
   participantsStamp: number;

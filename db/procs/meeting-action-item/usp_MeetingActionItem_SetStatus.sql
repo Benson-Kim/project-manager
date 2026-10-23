@@ -1,12 +1,12 @@
 -- usp_MeetingActionItem_SetStatus — move one action item to 'on-hold', 'in-progress' or 'completed'
--- (module #10, ADR-0041), with rowversion concurrency (50002 CONFLICT, checked in the transaction)
+-- (module #10, ADR-0043), with rowversion concurrency (50002 CONFLICT, checked in the transaction)
 -- and an in-transaction audit row. Returns ProjectId and MeetingId.
 -- One intention of its own, separate from _Update, because the carried-over list of a later meeting
 --   ticks an action off without holding its text, person responsible or due date: an _Update from
 --   there would have to send fields it never read, and would overwrite a concurrent edit of them.
 -- 'completed' is what stops the action being carried into the project's later meetings
 --   (usp_Meeting_GetWorkspace), so the set is closed here and by CK_MeetingActionItem_Status.
--- OnHoldReason (ADR-0042): free text the writer may supply when they put an action on hold, and
+-- OnHoldReason (ADR-0044): free text the writer may supply when they put an action on hold, and
 --   which only an action on hold may carry — moving it on clears it, so nobody reads "why it is
 --   waiting" beside "it is done". CK_MeetingActionItem_OnHoldReason holds the same rule in the
 --   table. A reason sent with another status is refused rather than dropped, so a caller that

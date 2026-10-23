@@ -336,7 +336,7 @@ function PersonAndDates({
   );
 }
 
-/** An action's follow-ups, with their Add button (ADR-0041). */
+/** An action's follow-ups, with their Add button (ADR-0043). */
 function FollowUpList({ node, actionName }: { node: ActionNode; actionName: string }) {
   const { canCreate, focusSoon } = useMinutes();
   const [adding, setAdding] = useState(false);

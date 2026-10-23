@@ -284,7 +284,7 @@ describe("minutes schemas", () => {
     ]);
   });
 
-  it("an action's status defaults to in-progress and takes only the three (ADR-0041)", () => {
+  it("an action's status defaults to in-progress and takes only the three (ADR-0043)", () => {
     const base = { meetingActionItemId: "1", rowVer: "3", action: "Do it" };
     expect(updateActionItemSchema.parse(base).status).toBe("in-progress");
     expect(updateActionItemSchema.parse({ ...base, status: "" }).status).toBe("in-progress");
@@ -311,7 +311,7 @@ describe("minutes schemas", () => {
     ]);
   });
 
-  it("a hold keeps its reason (ADR-0042)", () => {
+  it("a hold keeps its reason (ADR-0044)", () => {
     const parsed = setActionItemStatusSchema.parse({
       meetingActionItemId: "1",
       rowVer: "3",
@@ -370,7 +370,7 @@ describe("minutes schemas", () => {
   });
 });
 
-describe("follow-up schemas (ADR-0041)", () => {
+describe("follow-up schemas (ADR-0043)", () => {
   it("a create takes its action and its own four fields, and nothing else", () => {
     const parsed = createFollowUpSchema.parse({
       meetingActionItemId: "1",

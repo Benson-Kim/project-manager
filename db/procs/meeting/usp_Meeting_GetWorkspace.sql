@@ -5,15 +5,15 @@
 --   DiscussionPointsJson [{MeetingDiscussionPointId, AgendaItemId, DiscussionPoint, SortOrder, RowVer}]
 --   ActionItemsJson      [{MeetingActionItemId, AgendaItemId, DiscussionPointId, Action,
 --                          AssignedToStakeholderId, AssigneeName (null when nobody is responsible),
---                          DueDate, Status, OnHoldReason (ADR-0042; null unless on hold),
+--                          DueDate, Status, OnHoldReason (ADR-0044; null unless on hold),
 --                          SortOrder, RowVer}]
 --   FollowUpsJson        [{MeetingActionFollowUpId, MeetingActionItemId, FollowUp,
 --                          AssignedToStakeholderId, AssigneeName, FollowUpDate, DueDate, SortOrder,
---                          RowVer}] — the one-to-many under an action item (ADR-0041)
+--                          RowVer}] — the one-to-many under an action item (ADR-0043)
 --   CarriedOverJson      [{MeetingActionItemId, Action, Status, OnHoldReason, AssignedToStakeholderId,
 --                          AssigneeName, DueDate, RowVer, FromMeetingId, FromSubject,
 --                          FromStartDate}] — the unfinished actions of this project's EARLIER
---     meetings, which carry into every later one until they are 'completed' (ADR-0041). Read-only
+--     meetings, which carry into every later one until they are 'completed' (ADR-0043). Read-only
 --     here apart from the status and its reason, which usp_MeetingActionItem_SetStatus takes. Same project only,
 --     so it shows nothing this actor was not already granted by the check below, and capped at
 --     @CarryOverMax rows. "Earlier" is (StartDate, MeetingId) with an undated meeting last, so a

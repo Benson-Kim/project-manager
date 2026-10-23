@@ -62,7 +62,7 @@ BEGIN
     OUTPUT inserted.MeetingActionItemId INTO @Removed (Id)
     WHERE IsDeleted = 0 AND DiscussionPointId = @MeetingDiscussionPointId;
 
-    -- The follow-ups of those actions go with them (ADR-0041).
+    -- The follow-ups of those actions go with them (ADR-0043).
     DECLARE @RemovedFollowUps TABLE (Id INT);
 
     UPDATE app.MeetingActionFollowUp SET IsDeleted = 1, DeletedAtUtc = @Now, DeletedBy = @ActorUserId

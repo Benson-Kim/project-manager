@@ -1,5 +1,5 @@
 -- usp_MeetingActionFollowUp_Reorder — put an action item's follow-ups in the order of @OrderJson
--- (module #10, ADR-0041): [{"id": <MeetingActionFollowUpId>, "rowVer": <RowVer>}, ...],
+-- (module #10, ADR-0043): [{"id": <MeetingActionFollowUpId>, "rowVer": <RowVer>}, ...],
 -- first = position 1.
 -- The rules are usp_MeetingActionItem_Reorder's: every live sibling exactly once at the RowVer the
 -- client read, checked inside the transaction with the meeting row and the live siblings locked

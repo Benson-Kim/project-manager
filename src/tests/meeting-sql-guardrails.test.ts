@@ -321,11 +321,11 @@ describe("meeting SQL guardrails", () => {
     );
   });
 
-  // ── An action's status and its follow-ups (ADR-0041) ──────────────────────
+  // ── An action's status and its follow-ups (ADR-0043) ──────────────────────
 
   it("holds the same three statuses in SQL as in TypeScript", () => {
     const list = ACTION_STATUSES.map((v) => `'${v}'`).join(", ");
-    const migration = readFileSync("db/migrations/039_meeting_action_followup.sql", "utf8");
+    const migration = readFileSync("db/migrations/040_meeting_action_followup.sql", "utf8");
     expect(migration.replace(/\s+/g, " ")).toContain(
       `CK_MeetingActionItem_Status CHECK ([Status] IN (${list}))`,
     );
@@ -357,11 +357,11 @@ describe("meeting SQL guardrails", () => {
     expect(sql("usp_Meeting_GetWorkspace")).toContain("ai.[Status],");
   });
 
-  // ── Why an action is on hold (ADR-0042) ───────────────────────────────────
+  // ── Why an action is on hold (ADR-0044) ───────────────────────────────────
 
   it("lets only an action on hold carry a reason, in the table and in every proc", () => {
     const migration = readFileSync(
-      "db/migrations/040_meeting_action_on_hold_reason.sql",
+      "db/migrations/041_meeting_action_on_hold_reason.sql",
       "utf8",
     ).replace(/\s+/g, " ");
     // A CHECK naming a second column has to be table-level, or the apply dies on
@@ -486,7 +486,7 @@ describe("meeting SQL guardrails", () => {
       if (!name.startsWith("usp_MeetingActionFollowUp_")) continue;
       expect(text, name).not.toMatch(/fu\.\[?Status\]?/);
     }
-    const migration = readFileSync("db/migrations/039_meeting_action_followup.sql", "utf8");
+    const migration = readFileSync("db/migrations/040_meeting_action_followup.sql", "utf8");
     const table = migration.slice(migration.indexOf("CREATE TABLE app.MeetingActionFollowUp"));
     expect(table.slice(0, table.indexOf(");"))).not.toContain("Status");
   });

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 /**
  * Guardrail: the hold asks for its reason before the status is written
- * (ADR-0042), so between the pick and the write there is a moment where the
+ * (ADR-0044), so between the pick and the write there is a moment where the
  * select has moved and the row has not. An uncontrolled select keeps whatever
  * the user chose through that moment and past a cancel, leaving the list
  * showing a status nobody saved — the select has to follow the row.

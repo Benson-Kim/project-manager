@@ -7,10 +7,10 @@
 --   row locked under UPDLOCK, HOLDLOCK so a concurrent usp_Stakeholder_Delete fails the check or
 --   waits); an unchanged one stays valid even if that stakeholder was deleted since, so old minutes
 --   keep their names. AssigneeName is NULL when nobody is responsible.
--- Status (ADR-0041): 'on-hold' | 'in-progress' | 'completed', always sent, because this is the form
+-- Status (ADR-0043): 'on-hold' | 'in-progress' | 'completed', always sent, because this is the form
 --   that shows it. Ticking an action off from a later meeting's carried-over list goes through
 --   usp_MeetingActionItem_SetStatus instead, which holds nothing but the status.
--- OnHoldReason (ADR-0042): only an action on hold may carry one, so moving it on clears it; a
+-- OnHoldReason (ADR-0044): only an action on hold may carry one, so moving it on clears it; a
 --   reason sent with another status is refused, not dropped. Same rule as
 --   usp_MeetingActionItem_SetStatus and CK_MeetingActionItem_OnHoldReason.
 -- Access: Contributor on the meeting's project, or a per-person grant (meetings:update, ADR-0024).

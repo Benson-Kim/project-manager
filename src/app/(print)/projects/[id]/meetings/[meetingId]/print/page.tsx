@@ -74,7 +74,7 @@ function People({ title, people, testId }: { title: string; people: string[]; te
 
 /**
  * The actions of one parent, each followed by its follow-ups indented under it
- * (ADR-0041), so the printed minutes show the same one-to-many the workspace
+ * (ADR-0043), so the printed minutes show the same one-to-many the workspace
  * edits.
  */
 function ActionsTable({ actions, name }: { actions: ActionNode[]; name: string }) {
@@ -135,7 +135,7 @@ function ActionsTable({ actions, name }: { actions: ActionNode[]; name: string }
   );
 }
 
-/** The unfinished actions this meeting inherits from the project's earlier ones (ADR-0041). */
+/** The unfinished actions this meeting inherits from the project's earlier ones (ADR-0043). */
 function CarriedOverTable({ rows }: { rows: CarriedOver[] }) {
   if (rows.length === 0) return null;
   return (

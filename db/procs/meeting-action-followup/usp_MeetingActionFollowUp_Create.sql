@@ -1,5 +1,5 @@
 -- usp_MeetingActionFollowUp_Create — add a follow-up at the end of an action item's follow-ups
--- (module #10, ADR-0041); audits in-transaction; returns the row's project and meeting so the app
+-- (module #10, ADR-0043); audits in-transaction; returns the row's project and meeting so the app
 -- can read the whole workspace back.
 -- Parent: @MeetingActionItemId, which must be live and belong to a live meeting (NOT_FOUND 50001).
 --   The meeting and the project are derived from it, never taken from the caller.

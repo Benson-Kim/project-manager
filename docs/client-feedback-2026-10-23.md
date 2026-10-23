@@ -11,10 +11,10 @@ Status: **DONE** (on this branch) · **ALREADY TRUE** (the app already did it) �
 
 | # | Item | Status | Where |
 |---|---|---|---|
-| 2 | Under Activities, a one-to-many for the follow-up, assigned person and due date; add a date field and a status: On hold, In progress, Completed | **DONE** | ADR-0041 decisions 1–2, migration 039, `db/procs/meeting-action-followup/`, `src/modules/meetings/` |
-| 3 | Present and Apologies moved under the Location field | **DONE** | ADR-0041 decision 5, the meeting workspace page and header form |
+| 2 | Under Activities, a one-to-many for the follow-up, assigned person and due date; add a date field and a status: On hold, In progress, Completed | **DONE** | ADR-0043 decisions 1–2, migration 040, `db/procs/meeting-action-followup/`, `src/modules/meetings/` |
+| 3 | Present and Apologies moved under the Location field | **DONE** | ADR-0043 decision 5, the meeting workspace page and header form |
 | 6 | In the drop-down menu change "Meetings" to "Minutes" | **DONE** | `messages.projects.meetingsSection` |
-| 12 | An incomplete action carries over to the next minutes, and every later one, until marked complete | **DONE** | ADR-0041 decisions 3–4, `usp_Meeting_GetWorkspace`, `usp_MeetingActionItem_SetStatus` |
+| 12 | An incomplete action carries over to the next minutes, and every later one, until marked complete | **DONE** | ADR-0043 decisions 3–4, `usp_Meeting_GetWorkspace`, `usp_MeetingActionItem_SetStatus` |
 
 What #2 and #12 became, in one line each:
 
@@ -50,14 +50,14 @@ What #2 and #12 became, in one line each:
 
 ## Follow-up asks of the same day — all three closed
 
-Raised after the four above landed, and recorded in **ADR-0042** (migration 040).
+Raised after the four above landed, and recorded in **ADR-0044** (migration 041).
 
 | Item | Status | Where |
 |---|---|---|
-| For the on-hold status, we can supply a reason | **DONE** | ADR-0042 decisions 1–3, migration 040, the three `meeting-action-item` write procs, `usp_Meeting_GetWorkspace`, `ActionStatusCell` + `OnHoldReasonDialog` |
-| Each table column gets an up/down triangle to order ascending or descending | **DONE** | ADR-0042 decision 4, `ListSort` in `src/lib/list-params.ts`, one constant per module, `DataView sort=` |
-| All columns stick on vertical scroll, so you know which column you are in | **DONE** (hardened; it already stuck) | ADR-0042 decision 5 — the stickiness moved from the `<thead>` to the cells, which is what keeps their borders |
-| A sticky horizontal scroller, so you need not scroll to the bottom to find one | **DONE** | ADR-0042 decision 5, `src/components/ui/data-view/sticky-scrollbar.tsx` |
+| For the on-hold status, we can supply a reason | **DONE** | ADR-0044 decisions 1–3, migration 041, the three `meeting-action-item` write procs, `usp_Meeting_GetWorkspace`, `ActionStatusCell` + `OnHoldReasonDialog` |
+| Each table column gets an up/down triangle to order ascending or descending | **DONE** | ADR-0044 decision 4, `ListSort` in `src/lib/list-params.ts`, one constant per module, `DataView sort=` |
+| All columns stick on vertical scroll, so you know which column you are in | **DONE** (hardened; it already stuck) | ADR-0044 decision 5 — the stickiness moved from the `<thead>` to the cells, which is what keeps their borders |
+| A sticky horizontal scroller, so you need not scroll to the bottom to find one | **DONE** | ADR-0044 decision 5, `src/components/ui/data-view/sticky-scrollbar.tsx` |
 
 Three things worth knowing about what that became:
 
@@ -92,8 +92,8 @@ files) · `prettier --check` clean on every changed file · `next build` succeed
 its own section entry — both kept. The notes list also arrived without a sort contract, which is what
 the new guardrail is for, so it was given one (`NOTE_SORT`: Title, TabCount, LastEditedAtUtc).
 
-**Not verified, because nothing database- or browser-shaped runs in this workspace:** migrations 039
-and 040 have never been applied, the five new stored procedures and the five changed ones have never
+**Not verified, because nothing database- or browser-shaped runs in this workspace:** migrations 040
+and 041 have never been applied, the five new stored procedures and the five changed ones have never
 been created on a server, and no Playwright spec in this change has run. There is no
 `db/tests/meetings-*.cjs` behaviour script, so the new 50004 refusal (a reason without a hold) is
 asserted against the proc text, not against a server; `db-apply` is what proves the migration

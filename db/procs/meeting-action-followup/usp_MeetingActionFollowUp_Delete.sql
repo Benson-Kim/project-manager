@@ -1,5 +1,5 @@
 -- usp_MeetingActionFollowUp_Delete — soft delete with rowversion concurrency (checked in the
--- transaction) and an in-transaction audit row (module #10, ADR-0041). Returns ProjectId and
+-- transaction) and an in-transaction audit row (module #10, ADR-0043). Returns ProjectId and
 -- MeetingId.
 -- The meeting row is locked (UPDLOCK, HOLDLOCK) like the follow-up reorder, which renumbers siblings.
 -- Access: Manager on the meeting's project, or a per-person grant (meetings:delete, ADR-0024).

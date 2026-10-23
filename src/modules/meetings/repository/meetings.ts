@@ -369,9 +369,9 @@ export function updateActionItem(input: UpdateActionItemValues, actorUserId: num
 }
 
 /**
- * The status on its own (ADR-0041), so a later meeting's carried-over list can
+ * The status on its own (ADR-0043), so a later meeting's carried-over list can
  * tick an action off without holding its text, person responsible or due date.
- * A hold carries the reason for it (ADR-0042); every other status carries none.
+ * A hold carries the reason for it (ADR-0044); every other status carries none.
  */
 export function setActionItemStatus(input: SetActionItemStatusValues, actorUserId: number) {
   return workspaceAfter(
@@ -409,7 +409,7 @@ export function reorderActionItems(input: ReorderActionItemsValues, actorUserId:
   );
 }
 
-// ── Action follow-ups (the one-to-many under an action item, ADR-0041) ───────
+// ── Action follow-ups (the one-to-many under an action item, ADR-0043) ───────
 
 /** The proc derives the meeting and the project from the action item. */
 export function createFollowUp(input: CreateFollowUpValues, actorUserId: number) {

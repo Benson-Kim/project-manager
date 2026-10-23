@@ -28,7 +28,7 @@ export const MEETING_TEXT_MAX = 4000;
 /** Most entries one reorder or participant save may carry (the procs' limits). */
 export const MEETING_REORDER_MAX = 500;
 export const MEETING_PARTICIPANTS_MAX = 1000;
-/** Most carried-over actions one workspace read answers with (ADR-0041). */
+/** Most carried-over actions one workspace read answers with (ADR-0043). */
 export const MEETING_CARRY_OVER_MAX = 500;
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -172,13 +172,13 @@ const actionFields = {
   /** Person responsible (checklist row 13): a stakeholder of the meeting's project. */
   assignedToStakeholderId: optionalId,
   dueDate: dateInput,
-  /** ADR-0041; an empty field (a form from before the status existed) is the default. */
+  /** ADR-0043; an empty field (a form from before the status existed) is the default. */
   status: z.preprocess(
     (v) => (v === "" || v == null ? DEFAULT_ACTION_STATUS : v),
     actionStatusSchema,
   ),
   /**
-   * ADR-0042. The field is in the form whatever the status is, because the
+   * ADR-0044. The field is in the form whatever the status is, because the
    * status select is in the same form and may have just been changed; what the
    * writer typed for a status that is no longer the hold is dropped here, so the
    * proc is never sent the pair it refuses.
@@ -219,7 +219,7 @@ export const deleteActionItemSchema = z.object({ meetingActionItemId: id, rowVer
 
 /**
  * Ticking an action off, from its own form or from a later meeting's
- * carried-over list (ADR-0041). It carries the status and nothing else, so a
+ * carried-over list (ADR-0043). It carries the status and nothing else, so a
  * reader who never saw the action's text cannot overwrite it.
  */
 export const setActionItemStatusSchema = z
@@ -227,12 +227,12 @@ export const setActionItemStatusSchema = z
     meetingActionItemId: id,
     rowVer: rowVerSchema,
     status: actionStatusSchema,
-    /** ADR-0042: why it is being put on hold; dropped for any other status. */
+    /** ADR-0044: why it is being put on hold; dropped for any other status. */
     onHoldReason: optionalText(ON_HOLD_REASON_MAX),
   })
   .transform(heldReasonOnly);
 
-// ── Action follow-ups (the one-to-many under an action item, ADR-0041) ───────
+// ── Action follow-ups (the one-to-many under an action item, ADR-0043) ───────
 
 const followUpFields = {
   followUp: plainText(M.followUpRequired),

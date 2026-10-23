@@ -1,10 +1,10 @@
-# ADR-0041 — An action item's status, its follow-ups, and carrying it over
+# ADR-0043 — An action item's status, its follow-ups, and carrying it over
 
 - **Status:** Accepted
 - **Date:** 2026-10-23
 - **Supersedes:** nothing. Extends ADR-0028 (meetings data model); §4 of that ADR said an action
   item has no completion field, which decision 1 below reverses and explains.
-- **Migration:** 039_meeting_action_followup.sql
+- **Migration:** 040_meeting_action_followup.sql
 
 ## Context
 

@@ -262,7 +262,7 @@ describe("open and overdue actions", () => {
     expect(list.map((o) => o.overdue)).toEqual([true, false, false, false, false]);
   });
 
-  it("drops a completed action but keeps one on hold (ADR-0041)", () => {
+  it("drops a completed action but keeps one on hold (ADR-0043)", () => {
     const list = openActions(
       [
         action(1, { agendaId: 1 }, 1, { Status: "completed" }),

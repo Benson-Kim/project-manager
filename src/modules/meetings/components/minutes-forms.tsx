@@ -299,7 +299,7 @@ export function DiscussionPointForm({
   );
 }
 
-/** The three statuses an action moves between (ADR-0041). */
+/** The three statuses an action moves between (ADR-0043). */
 export function StatusSelect({
   defaultValue,
   value,
@@ -374,7 +374,7 @@ function ActionStatusFields({
 }
 
 /**
- * Why an action is going on hold (ADR-0042). The reason is optional, so the
+ * Why an action is going on hold (ADR-0044). The reason is optional, so the
  * dialog offers both: save what was typed, or hold it without a reason. One
  * write either way — the status and its reason reach the proc together, which
  * is the pair CK_MeetingActionItem_OnHoldReason allows.
@@ -547,7 +547,7 @@ export function ActionItemForm({
 }
 
 /**
- * Adds a follow-up under an action item, or edits one (ADR-0041): what was
+ * Adds a follow-up under an action item, or edits one (ADR-0043): what was
  * followed up, the person it is assigned to, the date it was made and the date
  * it is due. The status stays on the action, so a reader looks in one place.
  */

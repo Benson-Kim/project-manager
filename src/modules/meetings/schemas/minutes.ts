@@ -13,7 +13,7 @@ import type {
 /**
  * The minutes as the workspace edits and prints them (ADR-0028, Access
  * Meeting → Agenda → Discussion points → Action items, each action with its
- * follow-ups since ADR-0041). Pure, DOM-free helpers so Vitest covers them;
+ * follow-ups since ADR-0043). Pure, DOM-free helpers so Vitest covers them;
  * the components only render.
  */
 
@@ -145,7 +145,7 @@ const byDueDate =
 
 /**
  * The meeting's open actions by due date, earliest first, undated last. An
- * action is open until its status is "completed" (ADR-0041); before the status
+ * action is open until its status is "completed" (ADR-0043); before the status
  * existed every action counted as open, which is what the migration's default
  * keeps true for rows written then.
  */
@@ -163,7 +163,7 @@ export interface CarriedOver {
 
 /**
  * The unfinished actions this meeting inherits from the project's earlier ones
- * (ADR-0041), by due date, earliest first. The proc has already decided which
+ * (ADR-0043), by due date, earliest first. The proc has already decided which
  * meetings count as earlier and left out anything completed; this orders what
  * it answered and marks what is overdue. Anything still showing as completed —
  * a row ticked off in another tab between the read and the render — is dropped,

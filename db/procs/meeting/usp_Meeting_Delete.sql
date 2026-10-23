@@ -68,7 +68,7 @@ BEGIN
 
     INSERT INTO @Removed (Kind, Id) SELECT 'ActionItems', Id FROM @Actions;
 
-    -- The follow-ups of those actions go with them (ADR-0041).
+    -- The follow-ups of those actions go with them (ADR-0043).
     UPDATE app.MeetingActionFollowUp SET IsDeleted = 1, DeletedAtUtc = @Now, DeletedBy = @ActorUserId
     OUTPUT 'ActionFollowUps', inserted.MeetingActionFollowUpId INTO @Removed (Kind, Id)
     WHERE IsDeleted = 0 AND MeetingActionItemId IN (SELECT Id FROM @Actions);

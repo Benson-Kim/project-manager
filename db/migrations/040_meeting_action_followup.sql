@@ -1,5 +1,5 @@
--- 039_meeting_action_followup.sql — an action item's status and its follow-ups (client feedback
--- 2026-10-23; ADR-0041).
+-- 040_meeting_action_followup.sql — an action item's status and its follow-ups (client feedback
+-- 2026-10-23; ADR-0043).
 --   app.MeetingActionItem.Status: 'on-hold' | 'in-progress' | 'completed'. A closed set, because
 --     'completed' is what stops an action carrying into later meetings — an admin-editable list
 --     would let someone rename the value the carry-over rule reads. Existing rows become

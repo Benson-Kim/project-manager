@@ -191,7 +191,7 @@ export const reorderActionItemsAction = action({
 });
 
 /**
- * Ticking an action off (ADR-0041). It also runs from a later meeting's
+ * Ticking an action off (ADR-0043). It also runs from a later meeting's
  * carried-over list, whose action belongs to another meeting of the same
  * project: the proc resolves that meeting and its project from the action row
  * and checks access there, so this never needs a meeting id from the caller.
@@ -203,7 +203,7 @@ export const setActionItemStatusAction = action({
   handler: (input, ctx) => setActionItemStatus(input, ctx.session.userId),
 });
 
-/* An action item's follow-ups: the one-to-many under it (ADR-0041). */
+/* An action item's follow-ups: the one-to-many under it (ADR-0043). */
 
 export const createFollowUpAction = action({
   name: "meetings.follow-up-create",

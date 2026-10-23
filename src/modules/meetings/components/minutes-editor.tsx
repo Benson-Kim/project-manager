@@ -139,7 +139,7 @@ export function MinutesEditor({
   const [busy, startTransition] = useTransition();
   const [failure, setFailure] = useState<{ message: string; stale: boolean } | null>(null);
   const [target, setTarget] = useState<DeleteTarget | null>(null);
-  /** The action whose hold is being given a reason (ADR-0042). */
+  /** The action whose hold is being given a reason (ADR-0044). */
   const [holding, setHolding] = useState<{
     id: number;
     rowVer: number;

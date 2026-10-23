@@ -44,8 +44,8 @@ export interface MinutesContextValue {
   pointView: (point: WorkspaceDiscussionPoint) => React.ReactNode;
   people: (current?: PickedPerson) => StakeholderOption[];
   /**
-   * Moves one action to a status (ADR-0041), from its own row or a carried-over
-   * one. Asking for the hold asks for its reason first (ADR-0042): the editor
+   * Moves one action to a status (ADR-0043), from its own row or a carried-over
+   * one. Asking for the hold asks for its reason first (ADR-0044): the editor
    * opens the dialog and writes the status and the reason together, so the rows
    * only report the pick and the reason cannot be left to a second write that
    * may never happen. `current` is the reason the action already carries, which
