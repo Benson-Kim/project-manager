@@ -76,6 +76,21 @@ describe("action() wrapper ", () => {
     if (!result.ok) expect(result.error.code).toBe("UNAUTHENTICATED");
   });
 
+  it("parses nothing before the session: invalid input without one is UNAUTHENTICATED", async () => {
+    session = null;
+    const parse = vi.fn((value: unknown) => value);
+    const run = action({
+      name: "test.costly",
+      schema: z.preprocess(parse, schema),
+      permission: "suppliers:create",
+      handler: async (input) => input.name,
+    });
+    const result = await run({ name: "" });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("UNAUTHENTICATED");
+    expect(parse).not.toHaveBeenCalled();
+  });
+
   it("returns FORBIDDEN when the global role lacks the permission (admin module)", async () => {
     session = { userId: 2, username: "member", role: "User" };
     const handler = vi.fn();
@@ -379,7 +394,7 @@ describe("failure references and logging", () => {
     }
   });
 
-  it("does not log a schema failure: it is pre-session and the form shows it per field", async () => {
+  it("does not log a schema failure: the form shows it per field", async () => {
     const run = makeAction(vi.fn());
     const result = await run({ name: "" });
 
@@ -400,6 +415,30 @@ describe("throttle (ADR-0031)", () => {
       const second = await run({ name: "second" });
       expect(second.ok).toBe(false);
       if (!second.ok) expect(second.error.code).toBe("RATE_LIMITED");
+    } finally {
+      process.env.RATE_LIMIT_ACTIONS_PER_MINUTE = previous;
+      resetRateLimits();
+    }
+  });
+
+  it("never parses the input of a throttled call", async () => {
+    const previous = process.env.RATE_LIMIT_ACTIONS_PER_MINUTE;
+    process.env.RATE_LIMIT_ACTIONS_PER_MINUTE = "1";
+    resetRateLimits();
+    session = { userId: 4244, username: "busy", role: "User" };
+    const parse = vi.fn((value: unknown) => value);
+    const run = action({
+      name: "test.costly",
+      schema: z.preprocess(parse, schema),
+      permission: "suppliers:create",
+      handler: async (input) => input.name,
+    });
+    try {
+      await run({ name: "first" });
+      const second = await run({ name: "second" });
+      expect(second.ok).toBe(false);
+      if (!second.ok) expect(second.error.code).toBe("RATE_LIMITED");
+      expect(parse).toHaveBeenCalledTimes(1);
     } finally {
       process.env.RATE_LIMIT_ACTIONS_PER_MINUTE = previous;
       resetRateLimits();

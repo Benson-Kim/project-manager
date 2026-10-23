@@ -15,6 +15,8 @@ const ALLOWED_TAGS = new Set([
   "h2",
   "h3",
   "h4",
+  "h5",
+  "h6",
   "blockquote",
   "table",
   "thead",
@@ -24,10 +26,24 @@ const ALLOWED_TAGS = new Set([
   "td",
   "a",
   "span",
+  "mark",
+  "hr",
 ]);
-const ALLOWED_ATTRIBUTES = new Set(["href", "rel", "style", "colspan", "rowspan"]);
+const ALLOWED_ATTRIBUTES = new Set([
+  "href",
+  "rel",
+  "style",
+  "colspan",
+  "rowspan",
+  "data-color",
+  "data-shade",
+  "data-indent",
+  "data-page-break",
+  "start",
+  "type",
+]);
 
-/** Every tag and attribute in sanitised output is on the ADR-0025 allow-list. */
+/** Every tag and attribute in sanitised output is on the ADR-0025 / ADR-0041 allow-list. */
 function expectOnlyAllowedMarkup(html: string) {
   for (const [, tag, attributes] of html.matchAll(/<\/?([a-z0-9]+)([^>]*)>/gi)) {
     expect(ALLOWED_TAGS, `tag <${tag}> in ${html}`).toContain(tag.toLowerCase());
@@ -97,6 +113,16 @@ const XSS_VECTORS = [
   '<base href="javascript:alert(1)//">',
   '<link rel="stylesheet" href="http://evil.example/x.css">',
   '<td colspan="2 onmouseover=alert(1)">c</td>',
+  // ADR-0041 attributes: only names from the vocabulary survive, never a CSS value.
+  '<span data-color="red;background:url(javascript:alert(1))">x</span>',
+  '<span data-color="url(javascript:alert(1))" style="color:expression(alert(1))">x</span>',
+  '<mark data-color="yellow" style="background:url(//evil)" onclick="alert(1)">x</mark>',
+  '<mark data-color="#ff0;behavior:url(x.htc)">x</mark>',
+  '<td data-shade="javascript:alert(1)" style="background:url(x)">c</td>',
+  '<p data-indent="1;position:fixed" style="margin-left:-9999px">x</p>',
+  '<ol start="1 onmouseover=alert(1)" type="a&quot; onclick=&quot;alert(1)" style="list-style-image:url(javascript:alert(1))"><li>x</li></ol>',
+  '<ol style="list-style-type:url(javascript:alert(1))"><li>x</li></ol>',
+  '<hr data-page-break="javascript:alert(1)" style="background:url(x)" onclick="alert(1)">',
 ];
 
 describe("sanitizeRichText — XSS corpus", () => {
@@ -133,7 +159,7 @@ describe("sanitizeRichText — XSS corpus", () => {
   it("drops script and style text, keeps the text of other stripped wrappers", () => {
     expect(sanitizeRichText("<p>a<script>alert(1)</script>b</p>")).toBe("<p>ab</p>");
     expect(sanitizeRichText("<p>a<style>p{}</style>b</p>")).toBe("<p>ab</p>");
-    expect(sanitizeRichText("<p><code>x</code> <mark>y</mark></p>")).toBe("<p>x y</p>");
+    expect(sanitizeRichText("<p><code>x</code> <kbd>y</kbd></p>")).toBe("<p>x y</p>");
   });
 
   it("escapes text that looks like markup", () => {
@@ -173,17 +199,84 @@ describe("sanitizeRichText — what the toolbar makes survives", () => {
   it("drops style properties and values the toolbar never makes", () => {
     expect(
       sanitizeRichText('<span style="color:red;font-size:12pt;font-family:Arial(1)">x</span>'),
-    ).toBe('<span style="font-size:12pt">x</span>');
+    ).toBe('<span style="font-size:12pt" data-color="red">x</span>');
+    expect(sanitizeRichText('<span style="background:url(x);color:#000">x</span>')).toBe(
+      "<span>x</span>",
+    );
     expect(sanitizeRichText('<p style="text-align:middle">x</p>')).toBe("<p>x</p>");
     expect(sanitizeRichText('<td colspan="99">x</td>')).toBe("<td>x</td>");
   });
 
   it("maps other headings and synonyms onto the editor's tags", () => {
     expect(sanitizeRichText("<h1>a</h1><h5>b</h5><h6>c</h6>")).toBe(
-      "<h2>a</h2><h4>b</h4><h4>c</h4>",
+      "<h2>a</h2><h5>b</h5><h6>c</h6>",
     );
     expect(sanitizeRichText("<b>a</b><i>b</i><strike>c</strike><del>d</del>")).toBe(
       "<strong>a</strong><em>b</em><s>c</s><s>d</s>",
+    );
+  });
+});
+
+describe("sanitizeRichText — ADR-0041 formats", () => {
+  it.each([
+    '<p><span data-color="red">red</span> <mark data-color="yellow">marked</mark></p>',
+    '<p><span style="font-size:14pt" data-color="blue">both</span></p>',
+    '<p data-indent="2">indented</p><h3 style="text-align:center" data-indent="1">h</h3>',
+    "<h5>five</h5><h6>six</h6>",
+    '<ol start="3" type="a" style="list-style-type:lower-alpha"><li><p>c</p></li></ol>',
+    '<ol type="I" style="list-style-type:upper-roman"><li><p>one</p></li></ol>',
+    '<table><tbody><tr><th data-shade="gray">h</th><td data-shade="blue">c</td></tr></tbody></table>',
+    '<p>a</p><hr /><p>b</p><hr data-page-break="true" /><p>c</p>',
+  ])("keeps %s", (html) => {
+    expect(sanitizeRichText(html)).toBe(html);
+  });
+
+  it("drops colour, shade and indent values outside the vocabulary", () => {
+    expect(sanitizeRichText('<span data-color="teal-ish">x</span>')).toBe("<span>x</span>");
+    expect(sanitizeRichText('<mark data-color="none">x</mark>')).toBe("<mark>x</mark>");
+    expect(sanitizeRichText('<td data-shade="#000">c</td>')).toBe("<td>c</td>");
+    expect(sanitizeRichText('<p data-indent="9">x</p>')).toBe("<p>x</p>");
+    expect(sanitizeRichText('<p data-indent="0">x</p>')).toBe("<p>x</p>");
+  });
+
+  it("maps a CSS colour on a shade or a highlight to the nearest name", () => {
+    expect(sanitizeRichText('<mark data-color="#ffff00">x</mark>')).toBe(
+      '<mark data-color="yellow">x</mark>',
+    );
+    expect(sanitizeRichText('<td data-shade="rgb(0, 112, 192)">c</td>')).toBe(
+      '<td data-shade="blue">c</td>',
+    );
+  });
+
+  it("keeps numbering only for a known type and a start of 2..9999", () => {
+    expect(sanitizeRichText('<ol type="1" start="1"><li>x</li></ol>')).toBe("<ol><li>x</li></ol>");
+    expect(sanitizeRichText('<ol type="disc" start="10000"><li>x</li></ol>')).toBe(
+      "<ol><li>x</li></ol>",
+    );
+    expect(sanitizeRichText('<ol type="i"><li>x</li></ol>')).toBe(
+      '<ol type="i" style="list-style-type:lower-roman"><li>x</li></ol>',
+    );
+  });
+
+  it.each([
+    'data-page-break="false"',
+    'data-page-break=""',
+    "data-page-break",
+    'data-page-break="TRUE"',
+    'data-page-break="yes please"',
+  ])("makes <hr %s> a plain line", (attribute) => {
+    expect(sanitizeRichText(`<p>a</p><hr ${attribute} /><p>b</p>`)).toBe("<p>a</p><hr /><p>b</p>");
+  });
+
+  it("keeps indents on legacy divs and h1 as they become p and h2", () => {
+    expect(sanitizeRichText('<div data-indent="3">x</div><h1 data-indent="1">t</h1>')).toBe(
+      '<p data-indent="3">x</p><h2 data-indent="1">t</h2>',
+    );
+  });
+
+  it("turns horizontal lines and page breaks into line breaks in plain text", () => {
+    expect(htmlToPlainText('<p>a</p><hr /><p>b</p><hr data-page-break="true" /><h5>c</h5>')).toBe(
+      "a\n\nb\n\nc",
     );
   });
 });
@@ -208,8 +301,14 @@ describe("legacy Access markup", () => {
   });
 
   it("keeps a font without usable attributes as a bare span", () => {
-    expect(sanitizeRichText('<font face="x;y" size="12" color="red">t</font>')).toBe(
+    expect(sanitizeRichText('<font face="x;y" size="12" color="black">t</font>')).toBe(
       "<span>t</span>",
+    );
+  });
+
+  it("maps a font colour to the nearest colour name", () => {
+    expect(sanitizeRichText('<font color="#C00000">t</font>')).toBe(
+      '<span data-color="red">t</span>',
     );
   });
 
@@ -290,4 +389,39 @@ describe("htmlToPlainText", () => {
     expect(htmlToPlainText("<p></p>")).toBe("");
     expect(htmlToPlainText("")).toBe("");
   });
+});
+
+describe("sanitiser cost on hostile input at the size limit", () => {
+  // Every save and every page read runs these on the server. Each case runs three passes
+  // (sanitise, flatten, which sanitises again, and the fixed-point check) and takes under a
+  // second locally; the budget catches a quadratic path, which takes ten seconds or more here.
+  const N = 200_000;
+  const BUDGET_MS = 2_000;
+  const cases: Record<string, string> = {
+    "nested coloured spans": '<span style="color:#ff0000" data-color="red">'.repeat(4000) + "x",
+    "one huge style": `<span style="color:${" ".repeat(N)}">x</span>`,
+    "a style of semicolons": `<span style="${"; ".repeat(N / 2)}color:red">x</span>`,
+    "legacy fonts": '<font color="#00ff00" face="Arial" size="4">a</font>'.repeat(4000),
+    "numbered lists": '<ol type="i" start="7"><li>a</li></ol>'.repeat(5000),
+    "shaded cells": '<table><tr><td data-shade="#123456">a</td></tr></table>'.repeat(3000),
+    "page breaks": "<hr data-page-break>".repeat(10_000),
+    "unclosed tags": "<hr".repeat(N / 3),
+    "a run of spaces before a letter": `<p>a${" ".repeat(N - 20)}b</p>`,
+    "a run of tabs before a letter": `<p>a${"\t".repeat(N - 20)}b</p>`,
+    "nesting at the schema limit, repeated": (
+      "<blockquote>".repeat(100) +
+      "x" +
+      "</blockquote>".repeat(100)
+    ).repeat(80),
+  };
+
+  for (const [name, html] of Object.entries(cases)) {
+    it(`${name} sanitise and flatten within the budget`, () => {
+      const started = performance.now();
+      const out = sanitizeRichText(html);
+      htmlToPlainText(out);
+      expect(performance.now() - started).toBeLessThan(BUDGET_MS);
+      expect(sanitizeRichText(out)).toBe(out);
+    });
+  }
 });

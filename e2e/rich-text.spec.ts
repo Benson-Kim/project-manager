@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { caretAt } from "./support/editor";
 
 /**
  * Shared rich-text editor + sanitiser (ADR-0025) on the kitchen sink. The
@@ -17,6 +18,16 @@ async function openEditor(page: Page, url = "/kitchen-sink") {
 async function clear(page: Page) {
   await page.keyboard.press("Control+A");
   await page.keyboard.press("Delete");
+}
+
+/** Picks one choice from a toolbar menu; the menu puts focus back in the text. */
+async function pickFrom(page: Page, menu: string, item: string) {
+  await page
+    .getByRole("toolbar", { name: "Formatting" })
+    .getByRole("button", { name: menu, exact: true })
+    .click();
+  await page.getByRole("menuitemradio", { name: item, exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Description", exact: true })).toBeFocused();
 }
 
 test.describe("rich-text editor (ADR-0025)", () => {
@@ -57,6 +68,192 @@ test.describe("rich-text editor (ADR-0025)", () => {
     await expect(
       page.getByRole("textbox", { name: "Description", exact: true }).locator("table"),
     ).toBeVisible();
+  });
+
+  test("colours, highlights, indents, numbering, h5, shading and page breaks survive the server (ADR-0041)", async ({
+    page,
+  }) => {
+    const editor = await openEditor(page);
+    const toolbar = page.getByRole("toolbar", { name: "Formatting" });
+    const pick = async (menu: string, item: string) => {
+      await toolbar.getByRole("button", { name: menu, exact: true }).click();
+      await page.getByRole("menuitemradio", { name: item, exact: true }).click();
+      await expect(editor).toBeFocused();
+    };
+    await editor.click();
+    await clear(page);
+    for (const line of ["Red words", "Marked words", "Indented", "Heading five"]) {
+      await page.keyboard.type(line);
+      await page.keyboard.press("Enter");
+    }
+    await page.keyboard.press("Control+Home");
+    await page.keyboard.press("Shift+End");
+    await pick("Text colour", "Red");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Home");
+    await page.keyboard.press("Shift+End");
+    await pick("Highlight", "Green");
+    await page.keyboard.press("ArrowDown");
+    await caretAt(editor, { text: "Indented" });
+    await page.keyboard.press("Control+M");
+    await page.keyboard.press("ArrowDown");
+    await caretAt(editor, { text: "Heading five" });
+    await page.keyboard.press("Control+Alt+5");
+    await page.keyboard.press("Control+End");
+
+    await pick("Numbering style", "a, b, c");
+    await page.keyboard.type("alpha");
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Enter");
+    await toolbar.getByRole("button", { name: "Insert", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Page break" }).click();
+    await expect(editor.locator("hr[data-page-break]")).toHaveCount(1);
+    await expect(editor).toBeFocused();
+    await toolbar.getByRole("button", { name: "Table", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Insert table" }).click();
+    await expect(editor.locator("table")).toBeVisible();
+    await expect(editor).toBeFocused();
+    await page.keyboard.type("Shaded");
+    await pick("Cell shading", "Blue");
+
+    await page.getByTestId("ks-rich-text-form").getByRole("button", { name: "Preview" }).click();
+    await expect(page).toHaveURL(/richText=/);
+    const view = page.getByTestId("ks-rich-text-view");
+    const red = view.locator('span[data-color="red"]');
+    await expect(red).toHaveText("Red words");
+    await expect(view.locator('mark[data-color="green"]')).toHaveText("Marked words");
+    await expect(view.locator('p[data-indent="1"]')).toHaveText("Indented");
+    await expect(view.locator("h5")).toHaveText("Heading five");
+    await expect(view.locator('ol[type="a"] li')).toHaveText("alpha");
+    await expect(view.locator("hr[data-page-break]")).toHaveCount(1);
+    await expect(view.locator('[data-shade="blue"]')).toHaveText("Shaded");
+
+    const style = (selector: string, property: string) =>
+      view
+        .locator(selector)
+        .first()
+        .evaluate((el, prop) => getComputedStyle(el).getPropertyValue(prop), property);
+    expect(await style('ol[type="a"]', "list-style-type")).toBe("lower-alpha");
+    expect(parseFloat(await style('p[data-indent="1"]', "margin-left"))).toBeGreaterThan(0);
+    expect(await style('mark[data-color="green"]', "background-color")).not.toBe(
+      "rgba(0, 0, 0, 0)",
+    );
+    const lightRed = await style('span[data-color="red"]', "color");
+    expect(lightRed).not.toBe(await style("p", "color"));
+
+    // Dark mode paints the same names with the dark tokens, and they still pass contrast.
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.reload();
+    await expect(red).toHaveText("Red words");
+    expect(await style('span[data-color="red"]', "color")).not.toBe(lightRed);
+    const violations = (
+      await new AxeBuilder({ page }).include('[data-testid="ks-rich-text-view"]').analyze()
+    ).violations.filter((v) => v.impact === "serious" || v.impact === "critical");
+    expect(violations).toEqual([]);
+  });
+
+  test("a highlight over a text colour keeps readable ink in light and dark (axe)", async ({
+    page,
+  }) => {
+    const editor = await openEditor(page);
+    await editor.click();
+    await clear(page);
+    await page.keyboard.type("Both formats");
+    await page.keyboard.press("Shift+Home");
+    await pickFrom(page, "Text colour", "Yellow");
+    await pickFrom(page, "Highlight", "Blue");
+    await page.getByTestId("ks-rich-text-form").getByRole("button", { name: "Preview" }).click();
+    await expect(page).toHaveURL(/richText=/);
+    const view = page.getByTestId("ks-rich-text-view");
+    await expect(view.locator('mark[data-color="blue"]')).toHaveText("Both formats");
+    await expect(view.locator('span[data-color="yellow"]')).toHaveText("Both formats");
+
+    const inkOnHighlight = () =>
+      view
+        .locator("mark")
+        .evaluate((mark) => getComputedStyle(mark.querySelector("[data-color]") ?? mark).color);
+    const pageInk = () =>
+      view
+        .locator("p")
+        .first()
+        .evaluate((p) => getComputedStyle(p).color);
+    const serious = async () =>
+      (
+        await new AxeBuilder({ page }).include('[data-testid="ks-rich-text-view"]').analyze()
+      ).violations.filter((v) => v.impact === "serious" || v.impact === "critical");
+
+    expect(await inkOnHighlight()).toBe(await pageInk());
+    expect(await serious()).toEqual([]);
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.reload();
+    await expect(view.locator("mark")).toHaveText("Both formats");
+    expect(await inkOnHighlight()).toBe(await pageInk());
+    expect(await serious()).toEqual([]);
+  });
+
+  test("numbering style and start change only the innermost list", async ({ page }) => {
+    const editor = await openEditor(page);
+    const toolbar = page.getByRole("toolbar", { name: "Formatting" });
+    await editor.click();
+    await clear(page);
+    await toolbar.getByRole("button", { name: "Numbered list", exact: true }).click();
+    await expect(editor).toBeFocused();
+    await page.keyboard.type("outer");
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Control+M");
+    await page.keyboard.type("inner");
+    await expect(editor.locator("ol ol li")).toHaveText("inner");
+
+    await pickFrom(page, "Numbering style", "A, B, C");
+    await toolbar.getByRole("button", { name: "Numbering style", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Start numbering at" }).click();
+    const dialog = page.getByRole("dialog", { name: "Start numbering at" });
+    await dialog.getByRole("spinbutton", { name: "First number" }).fill("3");
+    await dialog.getByRole("button", { name: "Apply" }).click();
+    await expect(dialog).toBeHidden();
+
+    const inner = editor.locator("ol ol");
+    const outer = editor.locator("ol").first();
+    await expect(inner).toHaveAttribute("type", "A");
+    await expect(inner).toHaveAttribute("start", "3");
+    await expect(outer).not.toHaveAttribute("type");
+    await expect(outer).not.toHaveAttribute("start");
+  });
+
+  test("Start numbering at returns focus to the numbering menu (keyboard only)", async ({
+    page,
+  }) => {
+    const editor = await openEditor(page);
+    const numbering = page
+      .getByRole("toolbar", { name: "Formatting" })
+      .getByRole("button", { name: "Numbering style", exact: true });
+    const dialog = page.getByRole("dialog", { name: "Start numbering at" });
+    const openStartDialog = async () => {
+      await numbering.focus();
+      await page.keyboard.press("Enter");
+      const startAt = page.getByRole("menuitem", { name: "Start numbering at" });
+      while (!(await startAt.evaluate((el) => el === document.activeElement))) {
+        await page.keyboard.press("ArrowDown");
+      }
+      await page.keyboard.press("Enter");
+      await expect(dialog).toBeVisible();
+    };
+    await editor.click();
+    await clear(page);
+    await page.keyboard.type("item");
+
+    await openStartDialog();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(numbering).toBeFocused();
+
+    await openStartDialog();
+    const first = dialog.getByRole("spinbutton", { name: "First number" });
+    await first.fill("5");
+    await first.press("Enter");
+    await expect(dialog).toBeHidden();
+    await expect(numbering).toBeFocused();
+    await expect(editor.locator("ol")).toHaveAttribute("start", "5");
   });
 
   test("adds a link with Ctrl+K and refuses unsafe addresses", async ({ page }) => {
@@ -171,6 +368,82 @@ test.describe("rich-text editor (ADR-0025)", () => {
     await expect(toolbar.getByRole("button", { name: "Redo" })).toBeFocused();
   });
 
+  test("toolbar hints show name and shortcut on hover and keyboard focus (ADR-0042)", async ({
+    page,
+  }) => {
+    const editor = await openEditor(page);
+    const toolbar = page.getByRole("toolbar", { name: "Formatting" });
+    const hint = page.getByTestId("rich-text-hint");
+    const serious = async () =>
+      (
+        await new AxeBuilder({ page }).include('[aria-labelledby="ks-rich-text"]').analyze()
+      ).violations.filter((v) => v.impact === "serious" || v.impact === "critical");
+    await expect(hint).toBeHidden();
+
+    // Hover: after a moment, under the control; along the toolbar it follows at once.
+    const bold = toolbar.getByRole("button", { name: "Bold" });
+    await bold.hover();
+    await expect(hint).toHaveText("Bold (Ctrl+B)");
+    const [control, shown] = [await bold.boundingBox(), await hint.boundingBox()];
+    expect(shown!.y).toBeGreaterThanOrEqual(control!.y + control!.height);
+    expect(await serious()).toEqual([]);
+    await toolbar.getByRole("button", { name: "Align right" }).hover();
+    await expect(hint).toHaveText("Align right (Ctrl+Shift+R)");
+
+    // Hoverable: the pointer can rest on the hint; past it, the hint goes.
+    const over = await hint.boundingBox();
+    await page.mouse.move(over!.x + over!.width / 2, over!.y + over!.height / 2, { steps: 4 });
+    await expect(hint).toBeVisible();
+    await page.mouse.move(over!.x + over!.width / 2, over!.y + over!.height + 60, { steps: 4 });
+    await expect(hint).toBeHidden();
+
+    // Keyboard: reaching a control shows its hint; Escape hides it and leaves focus there.
+    await editor.click();
+    await clear(page);
+    await expect(toolbar.getByRole("combobox", { name: "Text style" })).toHaveValue("0");
+    await page.keyboard.press("Shift+Tab");
+    await expect(hint).toHaveText("Undo (Ctrl+Z)");
+    await page.keyboard.press("ArrowRight");
+    await expect(hint).toHaveText("Redo (Ctrl+Y, Ctrl+Shift+Z)");
+    await page.keyboard.press("Escape");
+    await expect(hint).toBeHidden();
+    await expect(toolbar.getByRole("button", { name: "Redo" })).toBeFocused();
+    await page.keyboard.press("ArrowRight");
+    await expect(hint).toHaveText("Text style");
+
+    await page.emulateMedia({ colorScheme: "dark" });
+    await openEditor(page);
+    await bold.hover();
+    await expect(hint).toHaveText("Bold (Ctrl+B)");
+    expect(await serious()).toEqual([]);
+  });
+
+  test("a scroll that slides a toolbar control under a still mouse shows no hint", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 500 });
+    await openEditor(page);
+    const bold = page.getByRole("toolbar", { name: "Formatting" }).getByRole("button", {
+      name: "Bold",
+    });
+    const hint = page.getByTestId("rich-text-hint");
+    // Bold 100 px from the top, with room to scroll back up 120 px.
+    const scrolled = await bold.evaluate((el) => {
+      window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 100);
+      return window.scrollY;
+    });
+    expect(scrolled).toBeGreaterThanOrEqual(120);
+    const at = (await bold.boundingBox())!;
+    const [x, y] = [at.x + at.width / 2, at.y + at.height / 2];
+    await page.mouse.move(x, y + 120);
+    // Keyboard focus scrolls the page like this, and its own hint must stay.
+    await page.evaluate(() => window.scrollBy(0, -120));
+    await page.waitForTimeout(900);
+    await expect(hint).toBeHidden();
+    await page.mouse.move(x + 2, y + 120);
+    await expect(hint).toHaveText("Bold (Ctrl+B)");
+  });
+
   test("loads and edits without requests to another host (offline desktop)", async ({
     page,
     baseURL,
@@ -189,6 +462,22 @@ test.describe("rich-text editor (ADR-0025)", () => {
       .getByRole("button", { name: "Bold" })
       .click();
     expect(foreign).toEqual([]);
+  });
+
+  test("at 360 px every toolbar menu opens inside the window", async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 780 });
+    await openEditor(page);
+    const toolbar = page.getByRole("toolbar", { name: "Formatting" });
+    const width = await page.evaluate(() => document.documentElement.clientWidth);
+    for (const menu of ["Text colour", "Highlight", "Numbering style", "Insert", "Table"]) {
+      await toolbar.getByRole("button", { name: menu, exact: true }).click();
+      const box = await page.getByRole("menu", { name: menu }).boundingBox();
+      expect(box, menu).not.toBeNull();
+      expect(box!.x, `${menu} left edge`).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width, `${menu} right edge`).toBeLessThanOrEqual(width);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth), menu).toBe(width);
+      await page.keyboard.press("Escape");
+    }
   });
 
   test("axe: no serious or critical violations with the editor loaded (light and dark)", async ({

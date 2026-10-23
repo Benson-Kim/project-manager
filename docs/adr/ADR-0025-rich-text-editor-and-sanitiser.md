@@ -215,3 +215,9 @@ the latest Node 22 and already meet it.
   (`src/tests/rich-text-boundaries.test.ts`).
 - **Editor props.** `RichTextEditor` takes `label` (an accessible name where no `Field`
   labels it), `autoFocus` and `tall` (the datasheet's larger editor).
+
+## Amendment 2026-10-23: formats (ADR-0041)
+
+- [ADR-0041](ADR-0041-rich-text-formats.md) widens the allow-list with colours stored by name
+  (`data-color`, `data-shade`), `mark`, `data-indent`, `ol` numbering type and start, `h5`/`h6` and
+  `hr` (line and page break). Each value is checked against `src/lib/rich-text/formats.ts`.
