@@ -182,6 +182,40 @@ returns nothing for it, and the ADR-0024 overrides — which are rows in a proje
     its sprints to "no phase" rather than taking them with it, which the schema allows and which is
     what stops `FK_BoardSprint_Phase` pointing at a row nobody can see.
 
+23. **Linking a board to a project asks two projects, with a different level on each.**
+    `usp_Board_SetProject` is the module's one cross-scope write, so it makes two access calls and
+    both must pass: **Manager on the board with `boards:delete`**, because taking a board out of a
+    project removes it from everyone who reached it through that project, and **Contributor on the
+    target project with `boards:create`**, because landing a board in a project is creating one
+    there — exactly what `usp_Board_Create` demands. The target check passes
+    `@AllowProjectless = 1`, so unlinking to the standalone space asks no project for permission
+    and the board-side Manager check is the whole gate.
+    Manager on both sides was rejected: a creator who is only a Contributor on the target project
+    could never link their own board, which is the ordinary case this exists for. Two procs inside
+    one repository transaction was rejected too — the proc would no longer defend itself.
+    This is also why `usp_Board_Update` takes no `@ProjectId`: one check cannot answer a question
+    about two projects, so the move is its own intention. The pair is pinned by the `CROSS_SCOPE`
+    registry in `src/tests/proc-access-levels.test.ts`, which asserts the calls, their order, and
+    that each level still equals `requiredLevel()` for its permission. That registry is stricter
+    than the generic one-level rule it replaces for this proc, not an exemption from it — and a
+    second guardrail fails the build if any *other* proc starts asking two different levels without
+    being registered, so the generic rule can never pass by reading only the first call it finds.
+
+24. **A board carries no foreign requirement into a project, and the cards it would have to drop
+    are only dropped on the caller's say-so.** `app.Requirement.ProjectId` is `NOT NULL`, so once a
+    board belongs to a project every card's requirement must belong to that project too. Migration
+    038 deliberately omits the composite foreign key that would make this structural, because a
+    legitimate re-link must stay possible and merely checked — so the rule lives in this proc, under
+    the board lock. The refusal is **50004 VALIDATION, not 50007**: 50007 means a limit the user can
+    see and plan around (a full column, a sprint already running, decision 19), while this is a
+    precondition they can clear. `@RemoveForeignCards = 1` is their confirmation; it soft-deletes
+    exactly those cards, audits one row each with the card as it stood, and the count comes back as
+    `RemovedCards` so the interface can say what the move cost. The default is 0, so the proc
+    refuses rather than destroying work nobody asked it to destroy.
+    **Unlinking takes no cards.** A standalone board may legitimately hold several projects'
+    requirements — that is what the per-reader `restricted` redaction of decision 14 exists for — so
+    a board that belongs to no project has nothing foreign on it.
+
 ## Consequences
 
 - A board's access answer depends on a row that can change, so it is resolved under a lock on every

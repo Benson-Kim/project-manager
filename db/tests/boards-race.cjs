@@ -6,9 +6,9 @@
 // it at a real database.
 //
 // NOT COVERED YET, and why — each needs a proc that is not written:
-//   * overlapping packages, and link-while-packaging — usp_BoardCard_Package and
-//     usp_Board_SetProject are slices B4/B5.
-//   * "link to P while a user without P access moves cards" — needs usp_Board_SetProject (B4).
+//   * overlapping packages, and link-while-packaging — usp_BoardCard_Package is slice B5.
+// Covered since slice B4: linking a board to a project while a user who cannot reach that project
+// moves its cards.
 // Covered since slice B3: one sprint starts out of ten attempts (never 2601); one completion
 // moves the unfinished cards once; no unfinished card is stranded in a completed sprint; and no
 // live card or sprint is left pointing at a deleted sprint or phase.
@@ -29,6 +29,7 @@ try {
 }
 const sql = require("mssql");
 const PM = 3;
+const ADMIN = 1;
 let pool;
 let failures = 0;
 let passes = 0;
@@ -352,6 +353,81 @@ const planBoard = (boardId) =>
     const orphans = sprints.filter((x) => x.BoardPhaseId === ph.BoardPhaseId);
     ok(gone && orphans.length === 0,
       `no live sprint is left in the deleted phase (gone=${gone}, ${orphans.length} orphans)`);
+  }
+
+  // 14. Link a board to P while a user who cannot reach P moves its cards.
+  // A standalone board is the shared space: any signed-in user may move its cards. The moment it
+  // lands in P that stops being true for anyone outside P, and the only thing that makes the
+  // boundary hold is where the access check sits — usp_BoardCard_Move locks the board row and
+  // THEN resolves access from it, so each move is judged against the project the board is in when
+  // that move takes the lock, never the one it was in when the request arrived. If the check ran
+  // before the lock, a move already in flight would be authorised by the shared space and commit
+  // into a project its actor cannot see.
+  {
+    const [[pmRow]] = await exec("usp_User_GetById", { UserId: PM, ActorUserId: ADMIN });
+    const [[madeUser]] = await exec("usp_User_Create", {
+      Username: `boards-race-outsider-${stamp}`,
+      PasswordHash: "not-a-real-hash",
+      DisplayName: "Boards race outsider",
+      Email: null,
+      RoleId: pmRow.RoleId,
+      MustChangePassword: 1,
+      ActorUserId: ADMIN,
+    });
+    const outsider = madeUser.UserId;
+
+    const [[shared]] = await exec("usp_Board_Create", {
+      ProjectId: null, Name: `race-link-${stamp}`, Description: null,
+      ColumnsJson: JSON.stringify([
+        { name: "To do", category: "todo", wipLimit: null },
+        { name: "Doing", category: "doing", wipLimit: null },
+        { name: "Done", category: "done", wipLimit: null },
+      ]),
+      ActorUserId: PM,
+    });
+    const [, sharedCols] = await board(shared.BoardId);
+    const [from, into] = sharedCols;
+    const movers = [];
+    for (let i = 0; i < 8; i += 1) {
+      movers.push(await card(shared.BoardId, from.BoardColumnId, `race-link-${i}`));
+    }
+
+    // One card each, so the only thing the movers contend with is the link itself.
+    const r = codes(await settle([
+      () => exec("usp_Board_SetProject", {
+        BoardId: shared.BoardId, RowVer: Number(shared.RowVer),
+        ProjectId: P, RemoveForeignCards: 0, ActorUserId: PM,
+      }),
+      ...movers.map((c) => () => exec("usp_BoardCard_Move", {
+        BoardCardId: c.BoardCardId, RowVer: Number(c.RowVer), ToColumnId: into.BoardColumnId,
+        ToSprintId: null, SprintSet: 0, BeforeCardId: null, ActorUserId: outsider,
+      })),
+    ]));
+    const [link, ...moves] = r;
+
+    const [[now]] = await exec("usp_Board_GetById", { BoardId: shared.BoardId, ActorUserId: PM });
+    // The plan view: these cards are in no sprint, and the board view's scope would hide them.
+    const [, , , , cards] = await planBoard(shared.BoardId);
+    const landed = cards.filter((c) => c.BoardColumnId === into.BoardColumnId).length;
+
+    ok(link === "ok" && now.ProjectId === P,
+      `the link commits and the board is P's (${link}, project ${now.ProjectId})`);
+    ok(moves.every((c) => c === "ok" || c === 50003),
+      `each move either beat the link or was refused by P: ${JSON.stringify(moves)}`);
+    ok(landed === count(moves, "ok"),
+      `exactly the moves that reported success moved a card (${landed} moved, ${count(moves, "ok")} ok)`);
+    // After the link there is no shared space to fall back on: the outsider is simply out. This
+    // RowVer may well be stale by now (that card may have moved above), and 50003 is still the
+    // right answer: usp_BoardCard_Move asserts access under the board lock BEFORE it compares the
+    // row version, so a reader who cannot see the board is never told whether it changed.
+    const late = codes(await settle([
+      () => exec("usp_BoardCard_Move", {
+        BoardCardId: movers[0].BoardCardId, RowVer: Number(movers[0].RowVer),
+        ToColumnId: from.BoardColumnId, ToSprintId: null, SprintSet: 0, BeforeCardId: null,
+        ActorUserId: outsider,
+      }),
+    ]));
+    ok(late[0] === 50003, `once linked, the board refuses the outsider outright: ${late[0]}`);
   }
 
   console.log(`\n${passes} passed, ${failures} failed`);

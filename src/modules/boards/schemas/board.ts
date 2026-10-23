@@ -92,3 +92,28 @@ export const deleteBoardInput = z.object({
 });
 
 export type DeleteBoardInput = z.input<typeof deleteBoardInput>;
+
+/**
+ * usp_Board_SetProject: linking a board to a project, moving it between
+ * projects, or unlinking it to the standalone space. Its own intention rather
+ * than a field on updateBoardInput, because it crosses two projects' access.
+ * removeForeignCards is the user's confirmation that the cards holding another
+ * project's requirements may go; it defaults to false, so the proc refuses
+ * instead of removing work nobody asked it to remove.
+ */
+export const setBoardProjectInput = z.object({
+  boardId: z.number().int().positive(),
+  rowVer: rowVerSchema,
+  projectId: z.number().int().positive().nullable(),
+  removeForeignCards: z.boolean().default(false),
+});
+
+export type SetBoardProjectInput = z.input<typeof setBoardProjectInput>;
+
+/** usp_Board_SetProject: the board after the move, and how many cards it cost. */
+export const boardProjectSetRowSchema = boardRowSchema.extend({
+  ProjectName: z.string().nullable(),
+  RemovedCards: z.number().int(),
+});
+
+export type BoardProjectSetRow = z.infer<typeof boardProjectSetRowSchema>;

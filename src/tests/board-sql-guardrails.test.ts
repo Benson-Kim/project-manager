@@ -15,7 +15,39 @@ const MIGRATION = join("db", "migrations", "037_boards.sql");
 const CARD_MIGRATION = join("db", "migrations", "038_board_cards.sql");
 
 const sql = (path: string) => readFileSync(path, "utf8");
-const boardProcs = readdirSync(PROCS).filter((f) => f.startsWith("usp_") && f.endsWith(".sql"));
+
+/**
+ * The write sets of a folder, read out of the folder itself so a new proc joins them by
+ * existing. Every assertion that loops one of these also names the procs the set must *at
+ * least* contain, so a filter that matched nothing cannot pass by iterating an empty list.
+ *
+ * This replaced hardcoded verb lists across all five folders, after usp_Board_SetProject was
+ * added to db/procs/board/ and passed the whole suite without being read by the lock, RowVer or
+ * audit assertions: each listed the verbs that existed when it was written. A guardrail keyed to
+ * a list stops covering the codebase the moment someone adds to it, and it does so silently.
+ */
+const procsIn = (dir: string) =>
+  readdirSync(dir).filter((f) => f.startsWith("usp_") && f.endsWith(".sql"));
+const procsContaining = (dir: string, text: string) =>
+  procsIn(dir).filter((f) => sql(join(dir, f)).includes(text));
+/**
+ * The procs that take a row version, read off the PARAMETER LIST alone — the slice from
+ * CREATE OR ALTER PROCEDURE to its AS — so a header that discusses row versions cannot enrol a
+ * proc that never takes one. That is the actual rule ("a proc that accepts a row version guards
+ * it and throws 50002"), and it excludes every Create by construction rather than by omission.
+ */
+const procsTakingRowVer = (dir: string) =>
+  procsIn(dir).filter((f) => {
+    const src = sql(join(dir, f));
+    return src
+      .slice(src.indexOf("CREATE OR ALTER PROCEDURE"), src.indexOf("\nAS\n"))
+      .includes("@RowVer");
+  });
+
+const boardProcs = procsIn(PROCS);
+const boardTranWrites = procsContaining(PROCS, "BEGIN TRAN");
+const boardRowLocks = procsContaining(PROCS, "FROM app.Board WITH (UPDLOCK, HOLDLOCK)");
+const boardRowVerWrites = procsTakingRowVer(PROCS);
 
 /** The board's rules live in the schema, the procs and the contracts at once (ADR-0038). */
 describe("board SQL guardrails", () => {
@@ -58,31 +90,48 @@ describe("board SQL guardrails", () => {
   });
 
   it("locks the board row before asserting access, because a board can change project", () => {
-    for (const verb of ["Update", "Delete"]) {
-      const text = sql(join(PROCS, `usp_Board_${verb}.sql`));
+    // Derived from the folder rather than listed by verb: a hardcoded list stops covering the
+    // next proc someone adds, and usp_Board_SetProject — the proc that actually changes
+    // ProjectId — was added to this folder and passed a listed version of this test without
+    // being read at all.
+    expect(boardRowLocks).toEqual(
+      expect.arrayContaining(["usp_Board_Update.sql", "usp_Board_Delete.sql"]),
+    );
+    for (const file of boardRowLocks) {
+      const text = sql(join(PROCS, file));
       const tran = text.indexOf("BEGIN TRAN");
       const lock = text.indexOf("FROM app.Board WITH (UPDLOCK, HOLDLOCK)");
       const assert = text.indexOf("EXEC dbo.usp_Board_AssertAccess");
-      expect(tran, verb).toBeGreaterThan(0);
-      expect(lock, verb).toBeGreaterThan(tran);
-      expect(assert, verb).toBeGreaterThan(lock);
+      expect(tran, file).toBeGreaterThan(0);
+      expect(lock, file).toBeGreaterThan(tran);
+      expect(assert, file).toBeGreaterThan(lock);
     }
   });
 
   it("refuses a write made against a row version someone else has moved on from", () => {
-    for (const verb of ["Update", "Delete"]) {
-      const text = sql(join(PROCS, `usp_Board_${verb}.sql`));
-      expect(text, verb).toContain("CAST(RowVer AS BIGINT) = @RowVer");
-      expect(text, verb).toContain("THROW 50002");
+    expect(boardRowVerWrites).toEqual(
+      expect.arrayContaining(["usp_Board_Update.sql", "usp_Board_Delete.sql"]),
+    );
+    for (const file of boardRowVerWrites) {
+      const text = sql(join(PROCS, file));
+      expect(text, file).toContain("CAST(RowVer AS BIGINT) = @RowVer");
+      expect(text, file).toContain("THROW 50002");
     }
   });
 
   it("audits every write inside its own transaction", () => {
-    for (const verb of ["Create", "Update", "Delete"]) {
-      const text = sql(join(PROCS, `usp_Board_${verb}.sql`));
+    expect(boardTranWrites).toEqual(
+      expect.arrayContaining([
+        "usp_Board_Create.sql",
+        "usp_Board_Update.sql",
+        "usp_Board_Delete.sql",
+      ]),
+    );
+    for (const file of boardTranWrites) {
+      const text = sql(join(PROCS, file));
       const audit = text.indexOf("INSERT INTO audit.AuditLog");
-      expect(audit, verb).toBeGreaterThan(text.indexOf("BEGIN TRAN"));
-      expect(audit, verb).toBeLessThan(text.indexOf("COMMIT"));
+      expect(audit, file).toBeGreaterThan(text.indexOf("BEGIN TRAN"));
+      expect(audit, file).toBeLessThan(text.indexOf("COMMIT"));
     }
   });
 
@@ -148,9 +197,8 @@ describe("board SQL guardrails", () => {
 });
 
 const PROCS_COLUMN = join("db", "procs", "board-column");
-const columnProcs = readdirSync(PROCS_COLUMN).filter(
-  (f) => f.startsWith("usp_") && f.endsWith(".sql"),
-);
+const columnProcs = procsIn(PROCS_COLUMN);
+const columnRowVerWrites = procsTakingRowVer(PROCS_COLUMN);
 
 /**
  * Column procs live outside db/procs/board/, so they reach the board rule through a run-time proc
@@ -187,11 +235,14 @@ describe("board column SQL guardrails", () => {
   });
 
   it("refuses a write made against a row version someone else has moved on from", () => {
-    for (const name of [
-      "usp_BoardColumn_Update.sql",
-      "usp_BoardColumn_Move.sql",
-      "usp_BoardColumn_Delete.sql",
-    ]) {
+    expect(columnRowVerWrites).toEqual(
+      expect.arrayContaining([
+        "usp_BoardColumn_Update.sql",
+        "usp_BoardColumn_Move.sql",
+        "usp_BoardColumn_Delete.sql",
+      ]),
+    );
+    for (const name of columnRowVerWrites) {
       const text = sql(join(PROCS_COLUMN, name));
       expect(text, name).toContain("CAST(RowVer AS BIGINT) = @RowVer");
       expect(text, name).toContain("THROW 50002");
@@ -235,7 +286,13 @@ describe("board column SQL guardrails", () => {
 });
 
 const PROCS_CARD = join("db", "procs", "board-card");
-const cardProcs = readdirSync(PROCS_CARD).filter((f) => f.startsWith("usp_") && f.endsWith(".sql"));
+const cardProcs = procsIn(PROCS_CARD);
+// This folder was the worst case of the listed-verb problem: lock, row version AND audit each read
+// a list, so the next card proc — usp_BoardCard_Package, slice B5 — would have been covered by
+// none of the three while the suite stayed green.
+const cardLocks = procsContaining(PROCS_CARD, "WITH (UPDLOCK, HOLDLOCK)");
+const cardAudits = procsContaining(PROCS_CARD, "INSERT INTO audit.AuditLog");
+const cardRowVerWrites = procsTakingRowVer(PROCS_CARD);
 const cardWrites = [
   "usp_BoardCard_Create.sql",
   "usp_BoardCard_Update.sql",
@@ -314,7 +371,8 @@ describe("board card SQL guardrails", () => {
   });
 
   it("locks the board row before asserting access, because a board can change project", () => {
-    for (const name of cardWrites) {
+    expect(cardLocks).toEqual(expect.arrayContaining(cardWrites));
+    for (const name of cardLocks) {
       const text = sql(join(PROCS_CARD, name));
       const tran = text.indexOf("BEGIN TRAN");
       const lock = text.indexOf("WITH (UPDLOCK, HOLDLOCK)");
@@ -326,11 +384,14 @@ describe("board card SQL guardrails", () => {
   });
 
   it("refuses a write made against a row version someone else has moved on from", () => {
-    for (const name of [
-      "usp_BoardCard_Update.sql",
-      "usp_BoardCard_Move.sql",
-      "usp_BoardCard_Delete.sql",
-    ]) {
+    expect(cardRowVerWrites).toEqual(
+      expect.arrayContaining([
+        "usp_BoardCard_Update.sql",
+        "usp_BoardCard_Move.sql",
+        "usp_BoardCard_Delete.sql",
+      ]),
+    );
+    for (const name of cardRowVerWrites) {
       const text = sql(join(PROCS_CARD, name));
       expect(text, name).toContain("CAST(RowVer AS BIGINT) = @RowVer");
       expect(text, name).toContain("THROW 50002");
@@ -338,7 +399,8 @@ describe("board card SQL guardrails", () => {
   });
 
   it("audits every card write inside its own transaction", () => {
-    for (const name of cardWrites) {
+    expect(cardAudits).toEqual(expect.arrayContaining(cardWrites));
+    for (const name of cardAudits) {
       const text = sql(join(PROCS_CARD, name));
       const audit = text.indexOf("INSERT INTO audit.AuditLog");
       expect(audit, name).toBeGreaterThan(text.indexOf("BEGIN TRAN"));
@@ -422,9 +484,8 @@ describe("board card SQL guardrails", () => {
 });
 
 const PROCS_PHASE = join("db", "procs", "board-phase");
-const phaseProcs = readdirSync(PROCS_PHASE).filter(
-  (f) => f.startsWith("usp_") && f.endsWith(".sql"),
-);
+const phaseProcs = procsIn(PROCS_PHASE);
+const phaseRowVerWrites = procsTakingRowVer(PROCS_PHASE);
 
 /**
  * Phases group sprints and carry no cards, so their procs are the plainest child-folder shape in
@@ -460,11 +521,14 @@ describe("board phase SQL guardrails", () => {
   });
 
   it("refuses a write made against a row version someone else has moved on from", () => {
-    for (const name of [
-      "usp_BoardPhase_Update.sql",
-      "usp_BoardPhase_Move.sql",
-      "usp_BoardPhase_Delete.sql",
-    ]) {
+    expect(phaseRowVerWrites).toEqual(
+      expect.arrayContaining([
+        "usp_BoardPhase_Update.sql",
+        "usp_BoardPhase_Move.sql",
+        "usp_BoardPhase_Delete.sql",
+      ]),
+    );
+    for (const name of phaseRowVerWrites) {
       const text = sql(join(PROCS_PHASE, name));
       expect(text, name).toContain("CAST(RowVer AS BIGINT) = @RowVer");
       expect(text, name).toContain("THROW 50002");
@@ -516,9 +580,8 @@ describe("board phase SQL guardrails", () => {
 });
 
 const PROCS_SPRINT = join("db", "procs", "board-sprint");
-const sprintProcs = readdirSync(PROCS_SPRINT).filter(
-  (f) => f.startsWith("usp_") && f.endsWith(".sql"),
-);
+const sprintProcs = procsIn(PROCS_SPRINT);
+const sprintRowVerWrites = procsTakingRowVer(PROCS_SPRINT);
 
 /**
  * A sprint's lifecycle moves planned -> active -> completed and never back, and each step is its
@@ -556,12 +619,15 @@ describe("board sprint SQL guardrails", () => {
   });
 
   it("refuses a write made against a row version someone else has moved on from", () => {
-    for (const name of [
-      "usp_BoardSprint_Update.sql",
-      "usp_BoardSprint_Start.sql",
-      "usp_BoardSprint_Complete.sql",
-      "usp_BoardSprint_Delete.sql",
-    ]) {
+    expect(sprintRowVerWrites).toEqual(
+      expect.arrayContaining([
+        "usp_BoardSprint_Update.sql",
+        "usp_BoardSprint_Start.sql",
+        "usp_BoardSprint_Complete.sql",
+        "usp_BoardSprint_Delete.sql",
+      ]),
+    );
+    for (const name of sprintRowVerWrites) {
       const text = sql(join(PROCS_SPRINT, name));
       expect(text, name).toContain("CAST(RowVer AS BIGINT) = @RowVer");
       expect(text, name).toContain("THROW 50002");
@@ -763,5 +829,85 @@ describe("the work-in-progress rule has one definition", () => {
       expect(text, path).not.toContain("usp_Board_AssertRoom");
       expect(text, path).not.toContain("usp_BoardCard_AssertAssignee");
     }
+  });
+});
+
+/**
+ * Linking a board to a project (ADR-0038 decisions 23 and 24). The whole point of the proc is that
+ * it answers to two projects at once, so each half of that is pinned here: the access pair in
+ * src/tests/proc-access-levels.test.ts CROSS_SCOPE, the SQL shape below.
+ */
+describe("board project linking guardrails", () => {
+  const setProject = sql(join(PROCS, "usp_Board_SetProject.sql"));
+  const params = setProject.slice(
+    setProject.indexOf("CREATE OR ALTER PROCEDURE"),
+    setProject.indexOf("AS\nBEGIN"),
+  );
+
+  it("asks the board for a delete and the target project for a create, in that order", () => {
+    const board = setProject.indexOf("EXEC dbo.usp_Board_AssertAccess");
+    const project = setProject.indexOf("EXEC dbo.usp_Project_AssertAccess");
+    expect(board).toBeGreaterThan(0);
+    expect(project).toBeGreaterThan(board);
+    // Unlinking asks no project for permission, so the project-side check must allow a NULL id;
+    // without this the board-side Manager could never move a board out to standalone.
+    expect(setProject).toContain("@AllowProjectless = 1");
+  });
+
+  it("changes project only through its own intention, never as a field on an edit", () => {
+    const update = sql(join(PROCS, "usp_Board_Update.sql"));
+    const updateParams = update.slice(
+      update.indexOf("CREATE OR ALTER PROCEDURE"),
+      update.indexOf("AS\nBEGIN"),
+    );
+    expect(updateParams).not.toContain("@ProjectId");
+    expect(params).toContain("@ProjectId");
+  });
+
+  it("refuses a foreign requirement as a precondition, not as a limit", () => {
+    // 50007 means a limit the user can see and plan around, and it has exactly two throwers
+    // (usp_Board_AssertRoom and usp_BoardSprint_Start). A board holding another project's
+    // requirements is a precondition the user can clear, so it is 50004 VALIDATION. A third
+    // 50007 thrower would have to argue its case in the test above that enumerates them.
+    // On the THROW statements, not the file: this proc's own header explains why it is not 50007,
+    // and a well-documented proc contains every number its guardrail forbids (LESSONS §38).
+    const thrown = [...setProject.matchAll(/THROW\s+(\d+)/g)].map(([, code]) => code);
+    expect(thrown).toContain("50004");
+    expect(thrown).not.toContain("50007");
+    // Nor is it the work-in-progress rule's business: moving a board moves no card between columns.
+    expect(setProject).not.toContain("EXEC dbo.usp_Board_AssertRoom");
+  });
+
+  it("compares each requirement with the project the board is moving to", () => {
+    // Against @ProjectId, the target — not the board's current project, which is what the row
+    // still holds at this point in the transaction.
+    expect(setProject).toMatch(/JOIN app\.Requirement r ON r\.RequirementId = c\.RequirementId/);
+    expect(setProject).toMatch(/r\.ProjectId <> @ProjectId/);
+    expect(setProject).toContain("c.IsDeleted = 0");
+  });
+
+  it("takes no cards when a board is unlinked, because standalone boards may mix projects", () => {
+    // The read procs redact a requirement the reader cannot reach (decision 14), which is what
+    // makes a mixed standalone board legitimate. So the scan runs only for a project target.
+    const guard = setProject.indexOf("IF @ProjectId IS NOT NULL");
+    const scan = setProject.indexOf("INSERT INTO @Foreign");
+    expect(guard).toBeGreaterThan(0);
+    expect(scan).toBeGreaterThan(guard);
+  });
+
+  it("removes a card only on the caller's say-so, and audits each one it removes", () => {
+    expect(params).toContain("@RemoveForeignCards BIT = 0");
+    expect(setProject).toMatch(/@RemovedCards > 0 AND @RemoveForeignCards = 0/);
+    const audit = setProject.indexOf("N'Delete', N'app.BoardCard'");
+    expect(audit).toBeGreaterThan(setProject.indexOf("BEGIN TRAN"));
+    expect(audit).toBeLessThan(setProject.indexOf("COMMIT"));
+    // The snapshot is captured before the update, so BeforeJson is the card as it stood.
+    expect(setProject.indexOf("INSERT INTO @Foreign")).toBeLessThan(
+      setProject.indexOf("UPDATE app.BoardCard"),
+    );
+  });
+
+  it("reports how many cards the move cost", () => {
+    expect(setProject).toContain("@RemovedCards AS RemovedCards");
   });
 });

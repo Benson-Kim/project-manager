@@ -765,6 +765,69 @@ async function main() {
   await expectCode(50001, "a phase id that does not exist", () =>
     exec("usp_BoardPhase_Delete", { BoardPhaseId: 0, RowVer: 1, ActorUserId: PM }));
 
+  // --- Linking a board to a project (usp_Board_SetProject, B4) -------------------------------
+  // Two scopes, two different answers, so each half is isolated: the board side by an actor who
+  // holds the project but not the board, the project side by an actor who holds the board but not
+  // the project. A Contributor is deliberately used for the board-side refusal, because Manager is
+  // what this proc demands there and Contributor is what the rest of the module demands.
+  // NOT COVERED HERE: the foreign-requirement refusal and @RemoveForeignCards. No card can carry a
+  // requirement until usp_BoardCard_Package (B5) — usp_BoardCard_Create takes no @RequirementId —
+  // so the state that branch exists for cannot be built yet, and a test that set
+  // app.BoardCard.RequirementId behind the procs' backs would assert a state no proc can produce.
+  // Those rows land with Package, together with the redaction rows that wait on it for the same
+  // reason. Until then the branch is held by src/tests/board-sql-guardrails.test.ts alone.
+  const linkable = await board({ Name: "Linkable", ActorUserId: PM });
+  await expectCode(50003, "a contributor cannot link a standalone board they did not create", () =>
+    exec("usp_Board_SetProject", {
+      BoardId: linkable.BoardId, RowVer: Number(linkable.RowVer),
+      ProjectId: P, RemoveForeignCards: 0, ActorUserId: CONTRIB,
+    }));
+
+  // The board side passes here (its creator is its Manager) and the project side is what refuses:
+  // without the second check this would succeed and drop a board into a project nobody authorised.
+  const theirs = await board({ Name: "Theirs", ActorUserId: OUTSIDER });
+  await expectCode(50003, "a board's own manager cannot land it in a project they cannot reach",
+    () => exec("usp_Board_SetProject", {
+      BoardId: theirs.BoardId, RowVer: Number(theirs.RowVer),
+      ProjectId: P, RemoveForeignCards: 0, ActorUserId: OUTSIDER,
+    }));
+
+  const [[linked]] = await exec("usp_Board_SetProject", {
+    BoardId: linkable.BoardId, RowVer: Number(linkable.RowVer),
+    ProjectId: P, RemoveForeignCards: 0, ActorUserId: PM,
+  });
+  ok(linked.ProjectId === P, `a manager of both sides links the board (${linked.ProjectId})`);
+  ok(linked.RemovedCards === 0, `a board with no requirement cards costs none (${linked.RemovedCards})`);
+
+  await expectCode(50002, "linking against a stale row version", () =>
+    exec("usp_Board_SetProject", {
+      BoardId: linkable.BoardId, RowVer: Number(linkable.RowVer),
+      ProjectId: R, RemoveForeignCards: 0, ActorUserId: PM,
+    }));
+  await expectCode(50003, "a contributor on the project cannot move its board", () =>
+    exec("usp_Board_SetProject", {
+      BoardId: linkable.BoardId, RowVer: Number(linked.RowVer),
+      ProjectId: R, RemoveForeignCards: 0, ActorUserId: CONTRIB,
+    }));
+
+  const [[movedToR]] = await exec("usp_Board_SetProject", {
+    BoardId: linkable.BoardId, RowVer: Number(linked.RowVer),
+    ProjectId: R, RemoveForeignCards: 0, ActorUserId: PM,
+  });
+  ok(movedToR.ProjectId === R, `a board moves between projects (${movedToR.ProjectId})`);
+
+  const [[unlinked]] = await exec("usp_Board_SetProject", {
+    BoardId: linkable.BoardId, RowVer: Number(movedToR.RowVer),
+    ProjectId: null, RemoveForeignCards: 0, ActorUserId: PM,
+  });
+  ok(unlinked.ProjectId === null, `a board unlinks to the standalone space (${unlinked.ProjectId})`);
+  ok(unlinked.RemovedCards === 0, "unlinking takes no cards, since a standalone board may mix projects");
+
+  await expectCode(50001, "a board id that does not exist", () =>
+    exec("usp_Board_SetProject", {
+      BoardId: 0, RowVer: 1, ProjectId: P, RemoveForeignCards: 0, ActorUserId: PM,
+    }));
+
   console.log(`\n${passes} passed, ${failures} failed`);
   await pool.close();
   process.exit(failures ? 1 : 0);

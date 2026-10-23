@@ -12,11 +12,13 @@ import {
   getBoardById,
   listBoardOptions,
   listBoards,
+  setBoardProject,
   updateBoard,
 } from "../repository/boards";
 import {
   boardColumnDraftInput,
   createBoardInput,
+  setBoardProjectInput,
   updateBoardInput,
   type CreateBoardInput,
 } from "../schemas/board";
@@ -188,6 +190,54 @@ describe("board repository sends exactly the parameters each proc declares", () 
       { boardId: 3, rowVer: 41, name: "Delivery", description: null },
       ACTOR,
     );
+    expect(row.RowVer).toBe(41);
+  });
+});
+
+describe("linking a board to a project is its own intention (ADR-0038 decision 23)", () => {
+  it("takes only the fields the proc declares, whatever else a payload carries", () => {
+    const parsed = setBoardProjectInput.parse({
+      boardId: 3,
+      rowVer: 41,
+      projectId: 9,
+      removeForeignCards: true,
+      name: "Delivery",
+      createdBy: 1,
+      isDeleted: false,
+    });
+    expect(Object.keys(parsed).sort()).toEqual([
+      "boardId",
+      "projectId",
+      "removeForeignCards",
+      "rowVer",
+    ]);
+  });
+
+  it("removes no card unless the caller asked for it", () => {
+    const parsed = setBoardProjectInput.parse({ boardId: 3, rowVer: 41, projectId: 9 });
+    expect(parsed.removeForeignCards).toBe(false);
+  });
+
+  it("takes a null project, which is how a board is unlinked to the standalone space", () => {
+    const parsed = setBoardProjectInput.parse({ boardId: 3, rowVer: 41, projectId: null });
+    expect(parsed.projectId).toBeNull();
+  });
+
+  it("usp_Board_SetProject", async () => {
+    execProc.mockResolvedValue([{ ...boardDbRow, ProjectName: "Alpha", RemovedCards: 2 }]);
+    const row = await setBoardProject(
+      { boardId: 3, rowVer: 41, projectId: 9, removeForeignCards: true },
+      ACTOR,
+    );
+    expect(execProc.mock.calls[0][0]).toBe("usp_Board_SetProject");
+    expect(lastParams()).toEqual([
+      "ActorUserId",
+      "BoardId",
+      "ProjectId",
+      "RemoveForeignCards",
+      "RowVer",
+    ]);
+    expect(row.RemovedCards).toBe(2);
     expect(row.RowVer).toBe(41);
   });
 });

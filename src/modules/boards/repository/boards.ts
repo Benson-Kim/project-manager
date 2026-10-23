@@ -6,14 +6,18 @@ import {
   boardDetailRowSchema,
   boardListRowSchema,
   boardOptionRowSchema,
+  boardProjectSetRowSchema,
   boardRowSchema,
   createBoardInput,
+  setBoardProjectInput,
   updateBoardInput,
   type BoardDetailRow,
   type BoardListRow,
   type BoardOptionRow,
+  type BoardProjectSetRow,
   type BoardRow,
   type CreateBoardInput,
+  type SetBoardProjectInput,
   type UpdateBoardInput,
 } from "../schemas/board";
 import { boardCardListRowSchema } from "../schemas/board-card";
@@ -120,6 +124,27 @@ export async function deleteBoard(
     RowVer: rowVer,
     ActorUserId: actorUserId,
   });
+}
+
+/**
+ * Link a board to a project, move it, or unlink it (projectId null). The proc
+ * asks two projects' access, not one, and refuses while cards hold another
+ * project's requirements unless removeForeignCards confirms their removal; it
+ * reports how many went as RemovedCards.
+ */
+export async function setBoardProject(
+  input: SetBoardProjectInput,
+  actorUserId: number,
+): Promise<BoardProjectSetRow> {
+  const parsed = setBoardProjectInput.parse(input);
+  const rows = await execProc<BoardProjectSetRow>("usp_Board_SetProject", {
+    BoardId: parsed.boardId,
+    RowVer: parsed.rowVer,
+    ProjectId: parsed.projectId,
+    RemoveForeignCards: parsed.removeForeignCards,
+    ActorUserId: actorUserId,
+  });
+  return boardProjectSetRowSchema.parse(rows[0]);
 }
 
 /**
