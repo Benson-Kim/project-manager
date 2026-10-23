@@ -48,6 +48,13 @@ const count = (list, value) => list.filter((c) => c === value).length;
 
 /** The board read: [header, columns, phases, sprints, cards]. */
 const board = (boardId) => exec("usp_Board_GetBoard", { BoardId: boardId, ActorUserId: PM, CardsPerList: 200 });
+// The same five sets through the PLAN view, which skips the work-in-progress scope filter and
+// groups every live card by sprint. The board view above returns only the cards in scope — a card
+// left behind in a completed sprint, or sitting in the backlog while a sprint is active, is
+// deliberately outside it — so any assertion about where a card ENDED UP has to read this one.
+// Column WipCount still comes from the board view, because that count IS the scope.
+const planBoard = (boardId) =>
+  exec("usp_Board_GetBoard", { BoardId: boardId, ActorUserId: PM, View: "plan", CardsPerList: 200 });
 
 (async () => {
   pool = await sql.connect({
@@ -266,7 +273,7 @@ const board = (boardId) => exec("usp_Board_GetBoard", { BoardId: boardId, ActorU
         BoardSprintId: a.BoardSprintId, RowVer: Number(started.RowVer),
         UnfinishedToSprintId: next.BoardSprintId, ActorUserId: PM,
       }))));
-    const [, , , sprints, cards] = await board(b.board.BoardId);
+    const [, , , sprints, cards] = await planBoard(b.board.BoardId);
     const closed = sprints.find((x) => x.BoardSprintId === a.BoardSprintId);
     const moved = [open1, open2].map((x) =>
       cards.find((y) => y.BoardCardId === x.BoardCardId).BoardSprintId);
@@ -298,7 +305,7 @@ const board = (boardId) => exec("usp_Board_GetBoard", { BoardId: boardId, ActorU
         UnfinishedToSprintId: null, ActorUserId: PM,
       }),
     ]);
-    const [, cols, , , cards] = await board(b.board.BoardId);
+    const [, cols, , , cards] = await planBoard(b.board.BoardId);
     const doneIds = cols.filter((x) => x.Category === "done").map((x) => x.BoardColumnId);
     const stranded = cards.filter(
       (x) => x.BoardSprintId === a.BoardSprintId && !doneIds.includes(x.BoardColumnId));
@@ -317,7 +324,7 @@ const board = (boardId) => exec("usp_Board_GetBoard", { BoardId: boardId, ActorU
       BoardSprintId: a.BoardSprintId, RowVer: Number(a.RowVer), ActorUserId: PM,
     });
     await settle([...adds.slice(0, 3), kill, ...adds.slice(3)]);
-    const [, , , sprints, cards] = await board(b.board.BoardId);
+    const [, , , sprints, cards] = await planBoard(b.board.BoardId);
     const gone = !sprints.some((x) => x.BoardSprintId === a.BoardSprintId);
     const dangling = cards.filter((x) => x.BoardSprintId === a.BoardSprintId);
     ok(gone && dangling.length === 0,
