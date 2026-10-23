@@ -19,6 +19,7 @@ import type { SupplierListRow, SupplierRow } from "../schemas/supplier";
 import { supplierFormValues } from "../schemas/supplier-form";
 
 import { SuppliersToolbar } from "./suppliers-toolbar";
+import { SUPPLIER_SORT } from "../schemas/supplier";
 
 export function contractRange(row: {
   ContractStartDate: Date | null;
@@ -146,6 +147,7 @@ export function SuppliersView({
         </div>
       )}
       columns={columns}
+      sort={SUPPLIER_SORT}
       datasheet={{
         canEditRow,
         saveCell,

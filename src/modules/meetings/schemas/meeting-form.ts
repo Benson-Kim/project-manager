@@ -5,7 +5,13 @@ import { messages } from "@/lib/messages";
 import { guestKey } from "./participant-roster";
 import { richTextSchema } from "@/lib/rich-text/schema";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
-import { DEFAULT_ACTION_STATUS, actionStatusSchema, type MeetingRow } from "./meeting";
+import {
+  DEFAULT_ACTION_STATUS,
+  ON_HOLD_REASON_MAX,
+  actionStatusSchema,
+  type ActionStatus,
+  type MeetingRow,
+} from "./meeting";
 
 /**
  * Meeting form contracts (ADR-0009, ADR-0028): ONE schema per form, shared by
@@ -171,7 +177,27 @@ const actionFields = {
     (v) => (v === "" || v == null ? DEFAULT_ACTION_STATUS : v),
     actionStatusSchema,
   ),
+  /**
+   * ADR-0042. The field is in the form whatever the status is, because the
+   * status select is in the same form and may have just been changed; what the
+   * writer typed for a status that is no longer the hold is dropped here, so the
+   * proc is never sent the pair it refuses.
+   */
+  onHoldReason: optionalText(ON_HOLD_REASON_MAX),
 };
+
+/**
+ * A reason belongs to a hold: a form that sends one with another status has it
+ * dropped rather than refused, because the status select and the reason box sit
+ * side by side and the last thing the writer touched is the status. The procs and
+ * CK_MeetingActionItem_OnHoldReason refuse the pair, so this is what keeps a
+ * legitimate form from ever producing it.
+ */
+function heldReasonOnly<T extends { status: ActionStatus; onHoldReason: string | null }>(
+  value: T,
+): T {
+  return value.status === "on-hold" ? value : { ...value, onHoldReason: null };
+}
 
 /** The parent is a discussion point, else an agenda item; the proc derives the rest. */
 export const createActionItemSchema = z
@@ -180,12 +206,15 @@ export const createActionItemSchema = z
     if (value.discussionPointId == null && value.agendaItemId == null) {
       ctx.addIssue({ code: "custom", path: ["agendaItemId"], message: M.actionParentRequired });
     }
-  });
-export const updateActionItemSchema = z.object({
-  meetingActionItemId: id,
-  rowVer: rowVerSchema,
-  ...actionFields,
-});
+  })
+  .transform(heldReasonOnly);
+export const updateActionItemSchema = z
+  .object({
+    meetingActionItemId: id,
+    rowVer: rowVerSchema,
+    ...actionFields,
+  })
+  .transform(heldReasonOnly);
 export const deleteActionItemSchema = z.object({ meetingActionItemId: id, rowVer: rowVerSchema });
 
 /**
@@ -193,11 +222,15 @@ export const deleteActionItemSchema = z.object({ meetingActionItemId: id, rowVer
  * carried-over list (ADR-0041). It carries the status and nothing else, so a
  * reader who never saw the action's text cannot overwrite it.
  */
-export const setActionItemStatusSchema = z.object({
-  meetingActionItemId: id,
-  rowVer: rowVerSchema,
-  status: actionStatusSchema,
-});
+export const setActionItemStatusSchema = z
+  .object({
+    meetingActionItemId: id,
+    rowVer: rowVerSchema,
+    status: actionStatusSchema,
+    /** ADR-0042: why it is being put on hold; dropped for any other status. */
+    onHoldReason: optionalText(ON_HOLD_REASON_MAX),
+  })
+  .transform(heldReasonOnly);
 
 // ── Action follow-ups (the one-to-many under an action item, ADR-0041) ───────
 

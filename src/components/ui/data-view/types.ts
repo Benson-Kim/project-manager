@@ -1,5 +1,5 @@
 import type { ListLayout } from "@/lib/list-layout";
-import type { ViewMode } from "@/lib/list-params";
+import type { ListSort, ViewMode } from "@/lib/list-params";
 import type { OptionColor } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
 import type { CellEditor, DatasheetConfig } from "./datasheet";
@@ -19,6 +19,13 @@ export interface DataViewColumn<Row> {
   render: (row: Row) => React.ReactNode;
   /** Datasheet editing for this column (list view, ADR-0023); read-only when omitted. */
   edit?: CellEditor<Row>;
+  /**
+   * The proc's `@SortBy` token for this column, when it is not the column key
+   * (a key is part of the user's saved layout, so it cannot be renamed to
+   * match). Sorting is offered for the columns the module's `ListSort` names,
+   * never for one the proc's ORDER BY would ignore.
+   */
+  sort?: string;
 }
 
 export interface DataViewProps<Row> {
@@ -49,6 +56,12 @@ export interface DataViewProps<Row> {
   getRowLabel?: (row: Row) => string;
   renderCard: (row: Row) => React.ReactNode;
   columns: DataViewColumn<Row>[];
+  /**
+   * The module's sortable columns — the same constant its page validates
+   * `?sort=` with, so the header offers exactly the orders the proc applies.
+   * Omit it and the list keeps the proc's default order with no sort controls.
+   */
+  sort?: ListSort;
   /** Open the record (Sheet or route per the module's decided pattern). */
   onOpen?: (row: Row) => void;
   /** Enables selection + the bulk bar when provided. */

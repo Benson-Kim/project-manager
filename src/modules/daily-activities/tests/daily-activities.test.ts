@@ -5,7 +5,8 @@ vi.mock("@/lib/db", () => ({
   execProc: (...args: unknown[]) => execProc(...args) as Promise<unknown[]>,
 }));
 
-import { listParamsSchema } from "@/lib/list-params";
+import { listParamsSchema, parseListParams } from "@/lib/list-params";
+import { DAILY_ACTIVITY_SORT } from "../schemas/daily-activity";
 import {
   createDailyActivity,
   deleteDailyActivity,
@@ -105,6 +106,35 @@ describe("daily-activities repository", () => {
       TaskType: null,
       WithoutProject: false,
     });
+  });
+
+  it("list leads with the most recent request", async () => {
+    // DAILY_ACTIVITY_SORT carries the direction. Before it did, both pages asked
+    // for it with `listParams.dir ?? "desc"`, which the schema's own "asc"
+    // default made dead, so the newest-first order they document never applied.
+    execProc.mockResolvedValue([
+      dbRow({ ProjectName: "Charter", TotalCount: 1, ActorAccess: "Contributor" }),
+    ]);
+    await listDailyActivities(parseListParams({}, DAILY_ACTIVITY_SORT), 7, 3);
+    expect(execProc).toHaveBeenCalledWith(
+      "usp_DailyActivity_List",
+      expect.objectContaining({ SortBy: "RequestDate", SortDir: "desc" }),
+    );
+  });
+
+  it("list lets a direction in the URL win over the module's default", async () => {
+    execProc.mockResolvedValue([
+      dbRow({ ProjectName: "Charter", TotalCount: 1, ActorAccess: "Contributor" }),
+    ]);
+    await listDailyActivities(
+      parseListParams({ sort: "ActivityDate", dir: "asc" }, DAILY_ACTIVITY_SORT),
+      7,
+      3,
+    );
+    expect(execProc).toHaveBeenCalledWith(
+      "usp_DailyActivity_List",
+      expect.objectContaining({ SortBy: "ActivityDate", SortDir: "asc" }),
+    );
   });
 
   it("list sends no role to the proc (ADR-0021)", async () => {

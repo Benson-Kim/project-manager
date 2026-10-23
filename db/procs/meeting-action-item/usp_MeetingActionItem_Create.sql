@@ -12,6 +12,9 @@
 --   which is what every action was before the status existed. 'completed' is what stops it being
 --   carried into the project's later meetings, so the set is closed here and by
 --   CK_MeetingActionItem_Status.
+-- OnHoldReason (ADR-0042): a new action may be created on hold with its reason; only an action on
+--   hold may carry one, so a reason with another status is refused rather than dropped. Same rule
+--   as usp_MeetingActionItem_SetStatus and CK_MeetingActionItem_OnHoldReason.
 -- Access: Contributor on the meeting's project, or a per-person grant (meetings:create, ADR-0024).
 --   The meeting row is locked while the position is taken.
 -- VALIDATION 50004: empty Action, a status outside the three.
@@ -24,6 +27,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_MeetingActionItem_Create
     @AssignedToStakeholderId INT           = NULL,
     @DueDate                 DATETIME2     = NULL,
     @Status                  VARCHAR(12)   = 'in-progress',
+    @OnHoldReason            NVARCHAR(500) = NULL,
     @ActorUserId             INT
 AS
 BEGIN
@@ -68,6 +72,10 @@ BEGIN
     IF @Status IS NULL OR @Status NOT IN ('on-hold', 'in-progress', 'completed')
         THROW 50004, N'VALIDATION:Status must be on-hold, in-progress or completed', 1;
 
+    SET @OnHoldReason = NULLIF(TRIM(@OnHoldReason), N'');
+    IF @OnHoldReason IS NOT NULL AND @Status <> 'on-hold'
+        THROW 50004, N'VALIDATION:A reason belongs to an action on hold', 1;
+
     BEGIN TRAN;
 
     IF @MeetingId IS NOT NULL
@@ -98,17 +106,17 @@ BEGIN
                            AND DiscussionPointId IS NULL))), 0) + 1;
 
     INSERT INTO app.MeetingActionItem ([MeetingId], [AgendaItemId], [DiscussionPointId], [Action],
-                                       [AssignedToStakeholderId], [DueDate], [Status], SortOrder,
-                                       CreatedBy)
+                                       [AssignedToStakeholderId], [DueDate], [Status],
+                                       [OnHoldReason], SortOrder, CreatedBy)
     VALUES (@MeetingId, @AgendaItemId, @DiscussionPointId, @Action,
-            @AssignedToStakeholderId, @DueDate, @Status, @Position, @ActorUserId);
+            @AssignedToStakeholderId, @DueDate, @Status, @OnHoldReason, @Position, @ActorUserId);
 
     DECLARE @Id INT = SCOPE_IDENTITY();
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, AfterJson)
     VALUES (@ActorUserId, N'Create', N'app.MeetingActionItem', CAST(@Id AS NVARCHAR(64)),
             (SELECT MeetingActionItemId, [MeetingId], [AgendaItemId], [DiscussionPointId], [Action],
-                    [AssignedToStakeholderId], [DueDate], [Status], SortOrder
+                    [AssignedToStakeholderId], [DueDate], [Status], [OnHoldReason], SortOrder
              FROM app.MeetingActionItem WHERE MeetingActionItemId = @Id
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
@@ -123,6 +131,7 @@ BEGIN
            NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N'') AS AssigneeName,
            ai.[DueDate],
            ai.[Status],
+           ai.[OnHoldReason],
            ai.SortOrder,
            ai.CreatedAtUtc,
            ai.UpdatedAtUtc,

@@ -6,13 +6,19 @@
 --   there would have to send fields it never read, and would overwrite a concurrent edit of them.
 -- 'completed' is what stops the action being carried into the project's later meetings
 --   (usp_Meeting_GetWorkspace), so the set is closed here and by CK_MeetingActionItem_Status.
+-- OnHoldReason (ADR-0042): free text the writer may supply when they put an action on hold, and
+--   which only an action on hold may carry — moving it on clears it, so nobody reads "why it is
+--   waiting" beside "it is done". CK_MeetingActionItem_OnHoldReason holds the same rule in the
+--   table. A reason sent with another status is refused rather than dropped, so a caller that
+--   stopped matching the rule is visible instead of silently losing what someone typed.
 -- Access: Contributor on the meeting's project, or a per-person grant (meetings:update, ADR-0024).
--- VALIDATION 50004: a status outside the three.
+-- VALIDATION 50004: a status outside the three, or a reason without the hold.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_MeetingActionItem_SetStatus
     @MeetingActionItemId INT,
     @Status              VARCHAR(12),
+    @OnHoldReason        NVARCHAR(500) = NULL,
     @RowVer              BIGINT,
     @ActorUserId         INT
 AS
@@ -36,17 +42,22 @@ BEGIN
     IF @Status IS NULL OR @Status NOT IN ('on-hold', 'in-progress', 'completed')
         THROW 50004, N'VALIDATION:Status must be on-hold, in-progress or completed', 1;
 
+    SET @OnHoldReason = NULLIF(TRIM(@OnHoldReason), N'');
+    IF @OnHoldReason IS NOT NULL AND @Status <> 'on-hold'
+        THROW 50004, N'VALIDATION:A reason belongs to an action on hold', 1;
+
     BEGIN TRAN;
 
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT MeetingActionItemId, [MeetingId], [Status]
+        (SELECT MeetingActionItemId, [MeetingId], [Status], [OnHoldReason]
          FROM app.MeetingActionItem WHERE MeetingActionItemId = @MeetingActionItemId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 
     UPDATE app.MeetingActionItem SET
-        [Status]     = @Status,
-        UpdatedAtUtc = SYSUTCDATETIME(),
-        UpdatedBy    = @ActorUserId
+        [Status]       = @Status,
+        [OnHoldReason] = @OnHoldReason,
+        UpdatedAtUtc   = SYSUTCDATETIME(),
+        UpdatedBy      = @ActorUserId
     WHERE MeetingActionItemId = @MeetingActionItemId AND IsDeleted = 0
       AND CAST(RowVer AS BIGINT) = @RowVer;
     IF @@ROWCOUNT = 0
@@ -60,7 +71,7 @@ BEGIN
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'SetStatus', N'app.MeetingActionItem',
             CAST(@MeetingActionItemId AS NVARCHAR(64)), @Before,
-            (SELECT MeetingActionItemId, [MeetingId], [Status]
+            (SELECT MeetingActionItemId, [MeetingId], [Status], [OnHoldReason]
              FROM app.MeetingActionItem WHERE MeetingActionItemId = @MeetingActionItemId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 

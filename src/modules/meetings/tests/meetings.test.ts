@@ -410,6 +410,7 @@ describe("meetings repository: minutes and participants", () => {
         AssignedToStakeholderId: null,
         DueDate: null,
         Status: "in-progress",
+        OnHoldReason: null,
         RowVer: 4,
         ActorUserId: ACTOR,
       },
@@ -471,6 +472,7 @@ describe("meetings repository: minutes and participants", () => {
             assignedToStakeholderId: 3,
             dueDate: new Date("2024-12-20"),
             status: "on-hold",
+            onHoldReason: "Waiting on the supplier",
           },
           ACTOR,
         ),
@@ -482,13 +484,18 @@ describe("meetings repository: minutes and participants", () => {
         AssignedToStakeholderId: 3,
         DueDate: new Date("2024-12-20"),
         Status: "on-hold",
+        OnHoldReason: "Waiting on the supplier",
       },
     ],
     [
       "setActionItemStatus",
-      () => setActionItemStatus({ meetingActionItemId: 1, rowVer: 4, status: "completed" }, ACTOR),
+      () =>
+        setActionItemStatus(
+          { meetingActionItemId: 1, rowVer: 4, status: "completed", onHoldReason: null },
+          ACTOR,
+        ),
       "usp_MeetingActionItem_SetStatus",
-      { MeetingActionItemId: 1, Status: "completed", RowVer: 4 },
+      { MeetingActionItemId: 1, Status: "completed", OnHoldReason: null, RowVer: 4 },
     ],
     [
       "createFollowUp",

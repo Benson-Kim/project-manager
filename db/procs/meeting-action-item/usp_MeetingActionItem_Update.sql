@@ -10,8 +10,11 @@
 -- Status (ADR-0041): 'on-hold' | 'in-progress' | 'completed', always sent, because this is the form
 --   that shows it. Ticking an action off from a later meeting's carried-over list goes through
 --   usp_MeetingActionItem_SetStatus instead, which holds nothing but the status.
+-- OnHoldReason (ADR-0042): only an action on hold may carry one, so moving it on clears it; a
+--   reason sent with another status is refused, not dropped. Same rule as
+--   usp_MeetingActionItem_SetStatus and CK_MeetingActionItem_OnHoldReason.
 -- Access: Contributor on the meeting's project, or a per-person grant (meetings:update, ADR-0024).
--- VALIDATION 50004: empty Action, a status outside the three.
+-- VALIDATION 50004: empty Action, a status outside the three, or a reason without the hold.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_MeetingActionItem_Update
@@ -20,6 +23,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_MeetingActionItem_Update
     @AssignedToStakeholderId INT           = NULL,
     @DueDate                 DATETIME2     = NULL,
     @Status                  VARCHAR(12)   = 'in-progress',
+    @OnHoldReason            NVARCHAR(500) = NULL,
     @RowVer                  BIGINT,
     @ActorUserId             INT
 AS
@@ -45,6 +49,10 @@ BEGIN
     IF @Status IS NULL OR @Status NOT IN ('on-hold', 'in-progress', 'completed')
         THROW 50004, N'VALIDATION:Status must be on-hold, in-progress or completed', 1;
 
+    SET @OnHoldReason = NULLIF(TRIM(@OnHoldReason), N'');
+    IF @OnHoldReason IS NOT NULL AND @Status <> 'on-hold'
+        THROW 50004, N'VALIDATION:A reason belongs to an action on hold', 1;
+
     BEGIN TRAN;
 
     IF @AssignedToStakeholderId IS NOT NULL
@@ -56,7 +64,7 @@ BEGIN
 
     DECLARE @Before NVARCHAR(MAX) =
         (SELECT MeetingActionItemId, [MeetingId], [AgendaItemId], [DiscussionPointId], [Action],
-                [AssignedToStakeholderId], [DueDate], [Status], SortOrder
+                [AssignedToStakeholderId], [DueDate], [Status], [OnHoldReason], SortOrder
          FROM app.MeetingActionItem WHERE MeetingActionItemId = @MeetingActionItemId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 
@@ -65,6 +73,7 @@ BEGIN
         [AssignedToStakeholderId] = @AssignedToStakeholderId,
         [DueDate]                 = @DueDate,
         [Status]                  = @Status,
+        [OnHoldReason]            = @OnHoldReason,
         UpdatedAtUtc              = SYSUTCDATETIME(),
         UpdatedBy                 = @ActorUserId
     WHERE MeetingActionItemId = @MeetingActionItemId AND IsDeleted = 0
@@ -80,7 +89,7 @@ BEGIN
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.MeetingActionItem', CAST(@MeetingActionItemId AS NVARCHAR(64)), @Before,
             (SELECT MeetingActionItemId, [MeetingId], [AgendaItemId], [DiscussionPointId], [Action],
-                    [AssignedToStakeholderId], [DueDate], [Status], SortOrder
+                    [AssignedToStakeholderId], [DueDate], [Status], [OnHoldReason], SortOrder
              FROM app.MeetingActionItem WHERE MeetingActionItemId = @MeetingActionItemId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
@@ -95,6 +104,7 @@ BEGIN
            NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N'') AS AssigneeName,
            ai.[DueDate],
            ai.[Status],
+           ai.[OnHoldReason],
            ai.SortOrder,
            ai.CreatedAtUtc,
            ai.UpdatedAtUtc,

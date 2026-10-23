@@ -15,7 +15,10 @@ import {
 import { listAttachments } from "@/modules/file-storage/repository/attachments";
 import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
 import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
-import { DAILY_ACTIVITY_LISTS } from "@/modules/daily-activities/schemas/daily-activity";
+import {
+  DAILY_ACTIVITY_LISTS,
+  DAILY_ACTIVITY_SORT,
+} from "@/modules/daily-activities/schemas/daily-activity";
 import {
   canAddWith,
   filteredProjectId,
@@ -46,12 +49,8 @@ export default async function GlobalDailyActivitiesPage({
   const session = await auth.requireSession();
   const raw = await searchParams;
   const flat = flattenSearchParams(raw);
-  const listParams = parseListParams(raw);
-  const effectiveParams = {
-    ...listParams,
-    sort: listParams.sort ?? "RequestDate",
-    dir: (listParams.dir ?? "desc") as "asc" | "desc",
-  };
+  const listParams = parseListParams(raw, DAILY_ACTIVITY_SORT);
+  const effectiveParams = listParams;
 
   const isNew = flat.id === "new";
   const selectedId = flat.id && !isNew ? Number(flat.id) : null;

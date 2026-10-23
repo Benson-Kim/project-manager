@@ -7,7 +7,8 @@ import { useAnnouncer } from "@/components/ui/announcer";
 import { Button } from "@/components/ui/button";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
-import { DatePicker, Input, Select } from "@/components/ui/form/inputs";
+import { Dialog } from "@/components/ui/dialog";
+import { DatePicker, Input, Select, Textarea } from "@/components/ui/form/inputs";
 import { useUnsavedPart } from "@/components/ui/form/unsaved-scope";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
@@ -26,6 +27,7 @@ import {
 import {
   ACTION_STATUSES,
   DEFAULT_ACTION_STATUS,
+  ON_HOLD_REASON_MAX,
   type ActionStatus,
   type MeetingWorkspace,
   type WorkspaceActionItem,
@@ -327,9 +329,117 @@ export function StatusSelect({
 }
 
 /**
+ * The status in the action's own form, with the reason box appearing under it
+ * as soon as the hold is chosen. The box stays in the form whatever the status
+ * is (the schema drops a reason that no longer belongs to one), so switching
+ * back and forth does not lose what was typed before the form is saved.
+ */
+function ActionStatusFields({
+  status,
+  reason,
+  errors,
+}: {
+  status: ActionStatus;
+  reason: string;
+  errors: Record<string, string[]>;
+}) {
+  const [picked, setPicked] = useState(status);
+  return (
+    <>
+      <Field label={M.status} name="status" errors={errors.status}>
+        <StatusSelect defaultValue={status} onPick={setPicked} />
+      </Field>
+      <div hidden={picked !== "on-hold"}>
+        <Field label={M.onHoldReason} name="onHoldReason" errors={errors.onHoldReason}>
+          <Textarea
+            name="onHoldReason"
+            rows={2}
+            maxLength={ON_HOLD_REASON_MAX}
+            defaultValue={reason}
+            data-testid="action-on-hold-reason"
+          />
+        </Field>
+      </div>
+    </>
+  );
+}
+
+/**
+ * Why an action is going on hold (ADR-0042). The reason is optional, so the
+ * dialog offers both: save what was typed, or hold it without a reason. One
+ * write either way — the status and its reason reach the proc together, which
+ * is the pair CK_MeetingActionItem_OnHoldReason allows.
+ */
+export function OnHoldReasonDialog({
+  open,
+  actionName,
+  current,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  actionName: string;
+  /** The reason it already carries, when the hold is being changed rather than started. */
+  current: string | null;
+  pending: boolean;
+  onCancel: () => void;
+  onConfirm: (reason: string | null) => void;
+}) {
+  const [reason, setReason] = useState(current ?? "");
+  // Each action opens the dialog with its own reason; the key resets this state.
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onCancel();
+      }}
+      title={M.onHoldReasonTitle}
+      description={M.onHoldReasonBody}
+    >
+      <div className="flex flex-col gap-3">
+        <Field label={M.onHoldReasonOf(actionName)} name="onHoldReason">
+          <Textarea
+            name="onHoldReason"
+            rows={3}
+            maxLength={ON_HOLD_REASON_MAX}
+            autoFocus
+            data-testid="on-hold-reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </Field>
+        <p className="text-xs text-ink-muted">{M.onHoldReasonHint}</p>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="secondary" onClick={onCancel} disabled={pending}>
+            {messages.actions.cancel}
+          </Button>
+          <Button
+            variant="secondary"
+            data-testid="hold-without-reason"
+            onClick={() => onConfirm(null)}
+            disabled={pending}
+          >
+            {M.putOnHold}
+          </Button>
+          <Button
+            data-testid="hold-with-reason"
+            onClick={() => onConfirm(reason.trim() || null)}
+            pending={pending}
+          >
+            {M.saveReason}
+          </Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+/**
  * Adds an action under a discussion point (or directly under an agenda
  * item), or edits one: the action, the person responsible (a stakeholder of
- * the project, checklist row 13), the due date and the status.
+ * the project, checklist row 13), the due date, the status and, for a hold,
+ * its reason.
  */
 export function ActionItemForm({
   parent,
@@ -378,9 +488,11 @@ export function ActionItemForm({
           <DatePicker name="dueDate" defaultValue={action?.DueDate ?? ""} />
         </Field>
       </div>
-      <Field label={M.status} name="status" errors={errors.status}>
-        <StatusSelect defaultValue={action?.Status ?? DEFAULT_ACTION_STATUS} />
-      </Field>
+      <ActionStatusFields
+        status={action?.Status ?? DEFAULT_ACTION_STATUS}
+        reason={action?.OnHoldReason ?? ""}
+        errors={errors}
+      />
     </>
   );
 

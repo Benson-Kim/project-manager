@@ -15,6 +15,7 @@ import { createQuestionAnswerAction, updateQuestionAnswerAction } from "../actio
 import type { QuestionAnswerListRow, QuestionAnswerRow } from "../schemas/question-answer";
 import { questionAnswerFormValues } from "../schemas/question-answer-form";
 import { QuestionsAnswersToolbar } from "./questions-answers-toolbar";
+import { QUESTION_ANSWER_SORT } from "../schemas/question-answer";
 
 type Row = QuestionAnswerListRow;
 const P = messages.questionsAnswers.placeholders;
@@ -130,6 +131,7 @@ export function QuestionsAnswersView({
         </div>
       )}
       columns={columns}
+      sort={QUESTION_ANSWER_SORT}
       datasheet={{
         canEditRow,
         saveCell,

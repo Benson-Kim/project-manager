@@ -140,6 +140,13 @@ export const messages = {
   list: {
     search: "Search",
     sort: "Sort",
+    /** The order control of a column header: what a click will ask for. */
+    sortBy: (column: string) => `Sort by ${column}`,
+    sortedAscending: (column: string) => `Sorted by ${column}, A to Z. Reverse the order`,
+    sortedDescending: (column: string) => `Sorted by ${column}, Z to A. Reverse the order`,
+    sortAnnouncement: (column: string, dir: "asc" | "desc") =>
+      `Sorted by ${column}, ${dir === "asc" ? "A to Z" : "Z to A"}`,
+    scrollTable: "Scroll the table sideways",
     filter: "Filter",
     viewToggle: "View",
     viewGrid: "Grid view",
@@ -1171,6 +1178,16 @@ export const messages = {
     },
     setStatusOf: (name: string) => `Status of ${name}`,
     statusSet: (name: string, status: string) => `${name} is now ${status}`,
+    // Why an action is on hold (ADR-0042). Optional, and only a hold carries one.
+    onHoldReason: "Reason for the hold",
+    onHoldReasonTitle: "Put this action on hold",
+    onHoldReasonBody: "Say why it is waiting, so the next meeting knows. You can leave this empty.",
+    onHoldReasonEdit: "Change the reason",
+    onHoldReasonOf: (name: string) => `Reason ${name} is on hold`,
+    onHoldReasonHint: "Only an action on hold keeps a reason.",
+    putOnHold: "Put on hold",
+    saveReason: "Save the reason",
+    noOnHoldReason: "No reason given",
     followUp: "Follow-up",
     followUps: "Follow-ups",
     followUpsOf: (name: string) => `Follow-ups of ${name}`,

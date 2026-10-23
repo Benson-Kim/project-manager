@@ -174,6 +174,70 @@ export function StatusBadge({ status }: { status: ActionStatus }) {
   );
 }
 
+/**
+ * An action's status wherever it is shown — its own row and a later meeting's
+ * carried-over list — with the reason a hold carries beside it. Both lists had
+ * the same picker-or-badge markup; keeping it in one place is what stops the
+ * reason appearing in only one of them.
+ */
+export function ActionStatusCell({
+  action,
+  name,
+}: {
+  action: {
+    MeetingActionItemId: number;
+    Status: ActionStatus;
+    OnHoldReason: string | null;
+    RowVer: number;
+  };
+  name: string;
+}) {
+  const { canEdit, busy, setStatus } = useMinutes();
+  const id = action.MeetingActionItemId;
+  const hold = (status: ActionStatus) =>
+    setStatus(id, action.RowVer, status, name, action.OnHoldReason);
+  return (
+    <>
+      {canEdit ? (
+        <div className="w-40 shrink-0 print:hidden">
+          <StatusSelect
+            key={action.Status}
+            name={`status-${id}`}
+            ariaLabel={M.setStatusOf(name)}
+            defaultValue={action.Status}
+            onPick={(status) => {
+              if (!busy && status !== action.Status) hold(status);
+            }}
+          />
+        </div>
+      ) : (
+        <StatusBadge status={action.Status} />
+      )}
+      {action.Status === "on-hold" ? (
+        <p
+          data-testid="on-hold-reason-note"
+          className="flex min-w-0 flex-wrap items-center gap-1 text-xs text-ink-muted"
+        >
+          <span className="wrap-anywhere">
+            {action.OnHoldReason ?? (canEdit ? M.noOnHoldReason : "")}
+          </span>
+          {canEdit ? (
+            <button
+              type="button"
+              data-testid="edit-on-hold-reason"
+              onClick={() => hold("on-hold")}
+              disabled={busy}
+              className="rounded-md px-1 underline hover:bg-surface-sunken disabled:opacity-50 print:hidden"
+            >
+              {M.onHoldReasonEdit}
+            </button>
+          ) : null}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
 /** One follow-up of an action: its text, who it is assigned to and its two dates. */
 function FollowUpRow({
   followUp,
@@ -329,7 +393,7 @@ function ActionRow({
   siblings: Sibling[];
   request: MoveRequest;
 }) {
-  const { canEdit, busy, focusSoon, setStatus, today } = useMinutes();
+  const { canEdit, focusSoon, today } = useMinutes();
   const [editing, setEditing] = useState(false);
   const action = node.action;
   const id = action.MeetingActionItemId;
@@ -354,23 +418,7 @@ function ActionRow({
         <>
           <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
             <p className="min-w-0 flex-1 py-2.5 text-sm text-ink wrap-anywhere">{action.Action}</p>
-            {canEdit ? (
-              <div className="w-40 shrink-0 print:hidden">
-                <StatusSelect
-                  key={action.Status}
-                  name={`status-${id}`}
-                  ariaLabel={M.setStatusOf(name)}
-                  defaultValue={action.Status}
-                  onPick={(status) => {
-                    if (!busy && status !== action.Status) {
-                      setStatus(id, action.RowVer, status, name);
-                    }
-                  }}
-                />
-              </div>
-            ) : (
-              <StatusBadge status={action.Status} />
-            )}
+            <ActionStatusCell action={action} name={name} />
             <ItemControls
               name={name}
               focusKey={key}

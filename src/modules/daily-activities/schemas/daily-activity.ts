@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import type { LookupListKey } from "@/lib/lookup-lists";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
@@ -89,3 +90,15 @@ export const deleteDailyActivityInput = z.object({
 });
 
 export type DeleteDailyActivityInput = z.input<typeof deleteDailyActivityInput>;
+
+/**
+ * The orders usp_DailyActivity_List applies (ADR-0016). The list leads with the
+ * most recent request, which is what both daily-activity pages document; until
+ * the direction became part of this constant they asked for it with
+ * `listParams.dir ?? "desc"`, which the schema's own "asc" default made dead.
+ */
+export const DAILY_ACTIVITY_SORT: ListSort = {
+  columns: ["RequestDate", "ActivityDate", "Status", "CompleteDate"],
+  default: "RequestDate",
+  defaultDir: "desc",
+};

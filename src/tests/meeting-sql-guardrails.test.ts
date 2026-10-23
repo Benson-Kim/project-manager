@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ACTION_STATUSES } from "@/modules/meetings/schemas/meeting";
+import { ACTION_STATUSES, ON_HOLD_REASON_MAX } from "@/modules/meetings/schemas/meeting";
 import {
   MEETING_CARRY_OVER_MAX,
   MEETING_PARTICIPANTS_MAX,
@@ -355,6 +355,78 @@ describe("meeting SQL guardrails", () => {
       expect(sql(name), name).toContain("ai.[Status],");
     }
     expect(sql("usp_Meeting_GetWorkspace")).toContain("ai.[Status],");
+  });
+
+  // ── Why an action is on hold (ADR-0042) ───────────────────────────────────
+
+  it("lets only an action on hold carry a reason, in the table and in every proc", () => {
+    const migration = readFileSync(
+      "db/migrations/040_meeting_action_on_hold_reason.sql",
+      "utf8",
+    ).replace(/\s+/g, " ");
+    // A CHECK naming a second column has to be table-level, or the apply dies on
+    // Msg 8141 (src/tests/migration-check-constraints.test.ts reads the shape).
+    expect(migration).toContain(
+      "ADD CONSTRAINT CK_MeetingActionItem_OnHoldReason CHECK ([OnHoldReason] IS NULL OR [Status] = 'on-hold')",
+    );
+    expect(migration).toContain(`ADD [OnHoldReason] NVARCHAR(${ON_HOLD_REASON_MAX}) NULL`);
+
+    for (const name of [
+      "usp_MeetingActionItem_Create",
+      "usp_MeetingActionItem_Update",
+      "usp_MeetingActionItem_SetStatus",
+    ]) {
+      // The same column width as the table, and the pair the table forbids is
+      // refused rather than quietly dropped, so a caller that broke the rule shows.
+      expect(paramsOf(name), name).toMatch(
+        new RegExp(`@OnHoldReason\\s+NVARCHAR\\(${ON_HOLD_REASON_MAX}\\)\\s+= NULL`),
+      );
+      expect(sql(name), name).toContain("SET @OnHoldReason = NULLIF(TRIM(@OnHoldReason), N'');");
+      expect(sql(name), name).toContain("IF @OnHoldReason IS NOT NULL AND @Status <> 'on-hold'");
+      expect(sql(name), name).toContain("THROW 50004, N'VALIDATION:A reason belongs to");
+      // It is checked before the transaction opens, as the status is.
+      expect(sql(name).indexOf("@OnHoldReason IS NOT NULL"), name).toBeLessThan(
+        sql(name).indexOf("BEGIN TRAN"),
+      );
+    }
+
+    // The write carries the reason, so moving a status on clears what was there.
+    for (const name of ["usp_MeetingActionItem_Update", "usp_MeetingActionItem_SetStatus"]) {
+      expect(sql(name), name).toMatch(/\[OnHoldReason\]\s+= @OnHoldReason,/);
+    }
+    const create = sql("usp_MeetingActionItem_Create");
+    const insert = create.slice(create.indexOf("INSERT INTO app.MeetingActionItem"));
+    expect(insert).toContain("[OnHoldReason]");
+    expect(insert).toContain("@OnHoldReason");
+  });
+
+  it("answers the reason wherever it answers the status", () => {
+    for (const name of [
+      "usp_MeetingActionItem_Create",
+      "usp_MeetingActionItem_Update",
+      "usp_MeetingActionItem_GetById",
+      "usp_MeetingActionItem_List",
+    ]) {
+      expect(sql(name), name).toContain("ai.[OnHoldReason],");
+    }
+    // Both sets of the workspace read: the meeting's own actions and the ones
+    // carried over from its project's earlier meetings.
+    const workspace = sql("usp_Meeting_GetWorkspace");
+    expect(workspace.match(/ai\.\[OnHoldReason\]/g)).toHaveLength(2);
+  });
+
+  it("keeps the reason in the audit trail, which is where a cleared one survives", () => {
+    for (const name of [
+      "usp_MeetingActionItem_Create",
+      "usp_MeetingActionItem_Update",
+      "usp_MeetingActionItem_SetStatus",
+    ]) {
+      const audit = sql(name).slice(sql(name).indexOf("INSERT INTO audit.AuditLog"));
+      expect(audit, name).toContain("[OnHoldReason]");
+    }
+    // SetStatus's BeforeJson is the only record of a reason the hold just lost.
+    const set = sql("usp_MeetingActionItem_SetStatus");
+    expect(set.slice(set.indexOf("DECLARE @Before"))).toContain("[OnHoldReason]");
   });
 
   it("carries an action over only within its project, from earlier meetings, within the cap", () => {

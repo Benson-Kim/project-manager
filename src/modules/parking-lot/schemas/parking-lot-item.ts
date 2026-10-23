@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { listValue, type LookupListKey } from "@/lib/lookup-lists";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
@@ -71,3 +72,13 @@ export const deleteParkingLotItemInput = z.object({
 });
 
 export type DeleteParkingLotItemInput = z.input<typeof deleteParkingLotItemInput>;
+
+/**
+ * The orders usp_ParkingLotItem_List applies (ADR-0016). IsStrikethrough is one
+ * of them and has no column of its own; a column is offered the control only
+ * when both sides name it, so it simply goes unused.
+ */
+export const PARKING_LOT_SORT: ListSort = {
+  columns: ["ParkingLotItem", "Status", "IsStrikethrough"],
+  default: null,
+};

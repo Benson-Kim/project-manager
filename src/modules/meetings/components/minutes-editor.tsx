@@ -44,8 +44,8 @@ import {
   type MoveRequest,
   type PickedPerson,
 } from "./minutes-context";
-import { AgendaItemForm, StatusSelect } from "./minutes-forms";
-import { AgendaBlock, OverdueBadge, StatusBadge } from "./minutes-tree";
+import { AgendaItemForm, OnHoldReasonDialog } from "./minutes-forms";
+import { ActionStatusCell, AgendaBlock, OverdueBadge } from "./minutes-tree";
 
 const M = messages.meetings;
 
@@ -139,6 +139,13 @@ export function MinutesEditor({
   const [busy, startTransition] = useTransition();
   const [failure, setFailure] = useState<{ message: string; stale: boolean } | null>(null);
   const [target, setTarget] = useState<DeleteTarget | null>(null);
+  /** The action whose hold is being given a reason (ADR-0042). */
+  const [holding, setHolding] = useState<{
+    id: number;
+    rowVer: number;
+    name: string;
+    current: string | null;
+  } | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [adding, setAdding] = useState(false);
   const [focusTarget, setFocusTarget] = useState<{ key: string } | null>(null);
@@ -226,8 +233,8 @@ export function MinutesEditor({
    * where the action belongs to an earlier meeting. The proc takes the status
    * alone, so a reader who never saw the action's text cannot overwrite it.
    */
-  const setStatus = useCallback(
-    (id: number, rowVer: number, status: ActionStatus, name: string) => {
+  const writeStatus = useCallback(
+    (id: number, rowVer: number, status: ActionStatus, name: string, reason: string | null) => {
       if (busy) return;
       setFailure(null);
       startTransition(async () => {
@@ -235,6 +242,7 @@ export function MinutesEditor({
           meetingActionItemId: id,
           rowVer,
           status,
+          onHoldReason: reason,
         });
         if (!result.ok) {
           fail(result.error);
@@ -247,6 +255,23 @@ export function MinutesEditor({
       });
     },
     [busy, answer, fail, announce],
+  );
+
+  /**
+   * The hold asks for its reason before anything is written, so the status and
+   * the reason reach the proc in one call — the pair the table allows. Every
+   * other status writes straight away and clears whatever reason was there.
+   */
+  const setStatus = useCallback(
+    (id: number, rowVer: number, status: ActionStatus, name: string, current?: string | null) => {
+      if (busy) return;
+      if (status === "on-hold") {
+        setHolding({ id, rowVer, name, current: current ?? null });
+        return;
+      }
+      writeStatus(id, rowVer, status, name, null);
+    },
+    [busy, writeStatus],
   );
 
   // The server's formatted view while it matches; plain text until a refresh brings the new one.
@@ -364,23 +389,7 @@ export function MinutesEditor({
                     >
                       {M.carriedFrom(action.FromSubject ?? messages.app.untitled)}
                     </Link>
-                    {canEdit ? (
-                      <div className="w-40 shrink-0 print:hidden">
-                        <StatusSelect
-                          key={action.Status}
-                          name={`carried-status-${action.MeetingActionItemId}`}
-                          ariaLabel={M.setStatusOf(name)}
-                          defaultValue={action.Status}
-                          onPick={(status) => {
-                            if (status !== action.Status) {
-                              setStatus(action.MeetingActionItemId, action.RowVer, status, name);
-                            }
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <StatusBadge status={action.Status} />
-                    )}
+                    <ActionStatusCell action={action} name={name} />
                   </li>
                 );
               })}
@@ -467,6 +476,22 @@ export function MinutesEditor({
         onConfirm={confirmDelete}
         pending={busy}
       />
+
+      {holding ? (
+        <OnHoldReasonDialog
+          // Each action brings its own reason into the dialog's state.
+          key={holding.id}
+          open
+          actionName={holding.name}
+          current={holding.current}
+          pending={busy}
+          onCancel={() => setHolding(null)}
+          onConfirm={(reason) => {
+            setHolding(null);
+            writeStatus(holding.id, holding.rowVer, "on-hold", holding.name, reason);
+          }}
+        />
+      ) : null}
     </MinutesContext.Provider>
   );
 }

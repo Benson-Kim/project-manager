@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 
@@ -37,6 +38,20 @@ export const actionStatusSchema = z.enum(ACTION_STATUSES);
 export const DEFAULT_ACTION_STATUS: ActionStatus = "in-progress";
 /** An action still counts against the meeting while it is not completed. */
 export const isOpenStatus = (status: ActionStatus): boolean => status !== "completed";
+
+/**
+ * Why an action is on hold (ADR-0042). Optional — the client asked to be able to
+ * give a reason, not to be made to — and it belongs to the hold: only a row whose
+ * status is "on-hold" may carry one, which the procs refuse to break and
+ * CK_MeetingActionItem_OnHoldReason enforces. Moving an action on clears it, so
+ * nobody reads "why it is waiting" beside "it is done"; the audit row keeps what
+ * it said.
+ */
+export const ON_HOLD_REASON_MAX = 500;
+export const onHoldReasonSchema = z.string().max(ON_HOLD_REASON_MAX).nullable();
+/** The reason to show, which is none unless this status is the hold. */
+export const onHoldReasonOf = (status: ActionStatus, reason: string | null): string | null =>
+  status === "on-hold" ? reason : null;
 
 /** A JSON array column (FOR JSON PATH); NULL (no rows) is an empty array. */
 function jsonArray<T extends z.ZodType>(item: T) {
@@ -106,6 +121,7 @@ export const workspaceActionItemSchema = z.object({
   /** "YYYY-MM-DD" (date only). */
   DueDate: z.string().nullable(),
   Status: actionStatusSchema,
+  OnHoldReason: onHoldReasonSchema,
   SortOrder: z.number().int(),
   RowVer: rowVerSchema,
 });
@@ -141,6 +157,7 @@ export const carriedOverActionSchema = z.object({
   MeetingActionItemId: z.number().int(),
   Action: z.string().nullable(),
   Status: actionStatusSchema,
+  OnHoldReason: onHoldReasonSchema,
   AssignedToStakeholderId: z.number().int().nullable(),
   AssigneeName: z.string().nullable(),
   /** "YYYY-MM-DD" (date only). */
@@ -262,6 +279,7 @@ export const actionItemRowSchema = z.object({
   AssigneeName: z.string().nullable(),
   DueDate: z.date().nullable(),
   Status: actionStatusSchema,
+  OnHoldReason: onHoldReasonSchema,
   SortOrder: z.number().int(),
   CreatedAtUtc: z.date(),
   UpdatedAtUtc: z.date().nullable(),
@@ -307,3 +325,12 @@ export const participantSetRowSchema = meetingScopeRowSchema.extend({
   ApologyCount: z.number().int(),
 });
 export type ParticipantSetRow = z.infer<typeof participantSetRowSchema>;
+
+/**
+ * The orders usp_Meeting_List applies (ADR-0016). Null default: the proc leads
+ * with the undated meetings (new drafts), which no column reproduces.
+ */
+export const MEETING_SORT: ListSort = {
+  columns: ["StartDate", "Subject", "Location", "DateReceived"],
+  default: null,
+};

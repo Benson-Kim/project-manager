@@ -16,7 +16,7 @@ import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { createRequirementAction, updateRequirementAction } from "../actions";
 import type { RequirementListRow, RequirementRow } from "../schemas/requirement";
-import { MAX_REQUIREMENT_LENGTH } from "../schemas/requirement";
+import { MAX_REQUIREMENT_LENGTH, REQUIREMENT_SORT } from "../schemas/requirement";
 import { requirementFormValues } from "../schemas/requirement-form";
 import { requirementRef } from "../schemas/requirement-rules";
 import {
@@ -176,6 +176,7 @@ export function RequirementsView({
         </div>
       )}
       columns={columns}
+      sort={REQUIREMENT_SORT}
       datasheet={{
         canEditRow,
         saveCell,

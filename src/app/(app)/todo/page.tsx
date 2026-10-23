@@ -16,7 +16,7 @@ import {
 } from "@/modules/todo-items/repository/todo-items";
 import { getTodoAlertByTodoItemId } from "@/modules/todo-items/repository/todo-alerts";
 import { getTodoPermissions } from "@/modules/todo-items/repository/todo-access";
-import { TODO_ITEM_LISTS } from "@/modules/todo-items/schemas/todo-item";
+import { TODO_ITEM_LISTS, TODO_ITEM_SORT } from "@/modules/todo-items/schemas/todo-item";
 import {
   canAddWith,
   filteredProjectId,
@@ -48,11 +48,8 @@ export default async function GlobalTodoPage({
   const session = await auth.requireSession();
   const raw = await searchParams;
   const flat = flattenSearchParams(raw);
-  const listParams = parseListParams(raw);
-  const effectiveParams = {
-    ...listParams,
-    sort: listParams.sort ?? "DueDate",
-  };
+  const listParams = parseListParams(raw, TODO_ITEM_SORT);
+  const effectiveParams = listParams;
 
   const isNew = flat.id === "new";
   const selectedId = flat.id && !isNew ? Number(flat.id) : null;

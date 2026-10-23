@@ -345,12 +345,13 @@ export function createActionItem(input: CreateActionItemValues, actorUserId: num
       AssignedToStakeholderId: input.assignedToStakeholderId,
       DueDate: input.dueDate,
       Status: input.status,
+      OnHoldReason: input.onHoldReason,
     },
     actorUserId,
   );
 }
 
-/** Text, person responsible, due date and status; the parent never changes. */
+/** Text, person responsible, due date, status and its reason; the parent never changes. */
 export function updateActionItem(input: UpdateActionItemValues, actorUserId: number) {
   return workspaceAfter(
     "usp_MeetingActionItem_Update",
@@ -360,6 +361,7 @@ export function updateActionItem(input: UpdateActionItemValues, actorUserId: num
       AssignedToStakeholderId: input.assignedToStakeholderId,
       DueDate: input.dueDate,
       Status: input.status,
+      OnHoldReason: input.onHoldReason,
       RowVer: input.rowVer,
     },
     actorUserId,
@@ -369,6 +371,7 @@ export function updateActionItem(input: UpdateActionItemValues, actorUserId: num
 /**
  * The status on its own (ADR-0041), so a later meeting's carried-over list can
  * tick an action off without holding its text, person responsible or due date.
+ * A hold carries the reason for it (ADR-0042); every other status carries none.
  */
 export function setActionItemStatus(input: SetActionItemStatusValues, actorUserId: number) {
   return workspaceAfter(
@@ -376,6 +379,7 @@ export function setActionItemStatus(input: SetActionItemStatusValues, actorUserI
     {
       MeetingActionItemId: input.meetingActionItemId,
       Status: input.status,
+      OnHoldReason: input.onHoldReason,
       RowVer: input.rowVer,
     },
     actorUserId,

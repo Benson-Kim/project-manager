@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { OPTION_COLORS, type LookupListKey } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
@@ -370,3 +371,9 @@ export function isOverdue(
   if (status === "Completed" || status === "Cancelled") return false;
   return deadline.getTime() < now.getTime();
 }
+
+/** The orders usp_KeyDeliverable_List applies (ADR-0016); breakdown order by default (ADR-0027). */
+export const KEY_DELIVERABLE_SORT: ListSort = {
+  columns: ["Wbs", "StartDate", "Deadline", "Priority", "Status"],
+  default: "Wbs",
+};

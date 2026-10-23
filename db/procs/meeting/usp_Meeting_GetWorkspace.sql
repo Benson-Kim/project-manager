@@ -5,15 +5,16 @@
 --   DiscussionPointsJson [{MeetingDiscussionPointId, AgendaItemId, DiscussionPoint, SortOrder, RowVer}]
 --   ActionItemsJson      [{MeetingActionItemId, AgendaItemId, DiscussionPointId, Action,
 --                          AssignedToStakeholderId, AssigneeName (null when nobody is responsible),
---                          DueDate, Status, SortOrder, RowVer}]
+--                          DueDate, Status, OnHoldReason (ADR-0042; null unless on hold),
+--                          SortOrder, RowVer}]
 --   FollowUpsJson        [{MeetingActionFollowUpId, MeetingActionItemId, FollowUp,
 --                          AssignedToStakeholderId, AssigneeName, FollowUpDate, DueDate, SortOrder,
 --                          RowVer}] — the one-to-many under an action item (ADR-0041)
---   CarriedOverJson      [{MeetingActionItemId, Action, Status, AssignedToStakeholderId,
+--   CarriedOverJson      [{MeetingActionItemId, Action, Status, OnHoldReason, AssignedToStakeholderId,
 --                          AssigneeName, DueDate, RowVer, FromMeetingId, FromSubject,
 --                          FromStartDate}] — the unfinished actions of this project's EARLIER
 --     meetings, which carry into every later one until they are 'completed' (ADR-0041). Read-only
---     here apart from the status, which usp_MeetingActionItem_SetStatus takes. Same project only,
+--     here apart from the status and its reason, which usp_MeetingActionItem_SetStatus takes. Same project only,
 --     so it shows nothing this actor was not already granted by the check below, and capped at
 --     @CarryOverMax rows. "Earlier" is (StartDate, MeetingId) with an undated meeting last, so a
 --     new draft sees the project's open actions and never leaks into a past meeting.
@@ -82,7 +83,7 @@ BEGIN
                    ai.AssignedToStakeholderId,
                    NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N'') AS AssigneeName,
                    CAST(ai.DueDate AS DATE) AS DueDate,
-                   ai.[Status],
+                   ai.[Status], ai.[OnHoldReason],
                    ai.SortOrder, CAST(ai.RowVer AS BIGINT) AS RowVer
             FROM app.MeetingActionItem AS ai
             LEFT JOIN app.Stakeholder AS s ON s.StakeholderId = ai.AssignedToStakeholderId
@@ -102,7 +103,7 @@ BEGIN
             ORDER BY fu.MeetingActionItemId, fu.SortOrder, fu.MeetingActionFollowUpId
             FOR JSON PATH, INCLUDE_NULL_VALUES) AS FollowUpsJson,
            (SELECT TOP (@CarryOverMax)
-                   ai.MeetingActionItemId, ai.[Action], ai.[Status],
+                   ai.MeetingActionItemId, ai.[Action], ai.[Status], ai.[OnHoldReason],
                    ai.AssignedToStakeholderId,
                    NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N'') AS AssigneeName,
                    CAST(ai.DueDate AS DATE) AS DueDate,

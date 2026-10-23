@@ -13,6 +13,7 @@ import { listMeetings } from "@/modules/meetings/repository/meetings";
 import { meetingDateFilter } from "@/modules/meetings/schemas/meeting-display";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { parseProjectId } from "../project-id";
+import { MEETING_SORT } from "@/modules/meetings/schemas/meeting";
 
 export const metadata: Metadata = {
   title: `${messages.meetings.title} — ${messages.app.name}`,
@@ -38,7 +39,7 @@ export default async function MeetingsPage({
 
   const raw = await searchParams;
   const flat = flattenSearchParams(raw);
-  const listParams = parseListParams(raw);
+  const listParams = parseListParams(raw, MEETING_SORT);
   const dateFrom = meetingDateFilter(flat.from);
   const dateTo = meetingDateFilter(flat.to);
 

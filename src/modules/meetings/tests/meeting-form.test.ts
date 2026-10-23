@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import "@/lib/rich-text/sanitize";
 import { messages } from "@/lib/messages";
-import { ACTION_STATUSES, meetingRowSchema } from "../schemas/meeting";
+import { ACTION_STATUSES, ON_HOLD_REASON_MAX, meetingRowSchema } from "../schemas/meeting";
 import {
   MEETING_PARTICIPANTS_MAX,
   MEETING_REORDER_MAX,
@@ -278,6 +278,7 @@ describe("minutes schemas", () => {
       "assignedToStakeholderId",
       "dueDate",
       "meetingActionItemId",
+      "onHoldReason",
       "rowVer",
       "status",
     ]);
@@ -302,7 +303,70 @@ describe("minutes schemas", () => {
       action: "Overwrite me",
       assignedToStakeholderId: "9",
     });
-    expect(Object.keys(parsed).sort()).toEqual(["meetingActionItemId", "rowVer", "status"]);
+    expect(Object.keys(parsed).sort()).toEqual([
+      "meetingActionItemId",
+      "onHoldReason",
+      "rowVer",
+      "status",
+    ]);
+  });
+
+  it("a hold keeps its reason (ADR-0042)", () => {
+    const parsed = setActionItemStatusSchema.parse({
+      meetingActionItemId: "1",
+      rowVer: "3",
+      status: "on-hold",
+      onHoldReason: "  Waiting on the supplier  ",
+    });
+    expect(parsed.onHoldReason).toBe("Waiting on the supplier");
+  });
+
+  it("an empty reason is no reason", () => {
+    const parsed = setActionItemStatusSchema.parse({
+      meetingActionItemId: "1",
+      rowVer: "3",
+      status: "on-hold",
+      onHoldReason: "   ",
+    });
+    expect(parsed.onHoldReason).toBeNull();
+  });
+
+  it.each(["in-progress", "completed"])(
+    "%s drops a reason before it reaches the proc",
+    (status) => {
+      // The status select and the reason box sit side by side, so a form can post
+      // both; the procs and CK_MeetingActionItem_OnHoldReason refuse that pair.
+      const parsed = setActionItemStatusSchema.parse({
+        meetingActionItemId: "1",
+        rowVer: "3",
+        status,
+        onHoldReason: "Left over from the hold",
+      });
+      expect(parsed.onHoldReason).toBeNull();
+    },
+  );
+
+  it("an action update drops a reason that no longer belongs to a hold", () => {
+    const parsed = updateActionItemSchema.parse({
+      meetingActionItemId: "1",
+      rowVer: "3",
+      action: "Do it",
+      status: "completed",
+      onHoldReason: "Was waiting on the supplier",
+    });
+    expect(parsed.onHoldReason).toBeNull();
+  });
+
+  it("a reason longer than the column is refused", () => {
+    const tooLong = "x".repeat(ON_HOLD_REASON_MAX + 1);
+    expect(() =>
+      setActionItemStatusSchema.parse({
+        meetingActionItemId: "1",
+        rowVer: "3",
+        status: "on-hold",
+        onHoldReason: tooLong,
+      }),
+    ).toThrow();
   });
 });
 

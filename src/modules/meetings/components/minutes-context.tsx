@@ -43,8 +43,21 @@ export interface MinutesContextValue {
   focusSoon: (key: string) => void;
   pointView: (point: WorkspaceDiscussionPoint) => React.ReactNode;
   people: (current?: PickedPerson) => StakeholderOption[];
-  /** Moves one action to a status (ADR-0041), from its own row or a carried-over one. */
-  setStatus: (id: number, rowVer: number, status: ActionStatus, name: string) => void;
+  /**
+   * Moves one action to a status (ADR-0041), from its own row or a carried-over
+   * one. Asking for the hold asks for its reason first (ADR-0042): the editor
+   * opens the dialog and writes the status and the reason together, so the rows
+   * only report the pick and the reason cannot be left to a second write that
+   * may never happen. `current` is the reason the action already carries, which
+   * is what the dialog opens with when a hold is being changed.
+   */
+  setStatus: (
+    id: number,
+    rowVer: number,
+    status: ActionStatus,
+    name: string,
+    current?: string | null,
+  ) => void;
   /** "YYYY-MM-DD" on the server's calendar: actions due before it are overdue. */
   today: string;
 }

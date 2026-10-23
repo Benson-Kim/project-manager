@@ -16,7 +16,10 @@ import {
   getParkingLotItemById,
   listParkingLotItems,
 } from "@/modules/parking-lot/repository/parking-lot-items";
-import { PARKING_LOT_LISTS } from "@/modules/parking-lot/schemas/parking-lot-item";
+import {
+  PARKING_LOT_LISTS,
+  PARKING_LOT_SORT,
+} from "@/modules/parking-lot/schemas/parking-lot-item";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { parseProjectId } from "../project-id";
 
@@ -45,7 +48,7 @@ export default async function ParkingLotPage({
 
   const raw = await searchParams;
   const flat = flattenSearchParams(raw);
-  const listParams = parseListParams(raw);
+  const listParams = parseListParams(raw, PARKING_LOT_SORT);
   const effectiveParams = listParams;
 
   const isNew = flat.id === "new";

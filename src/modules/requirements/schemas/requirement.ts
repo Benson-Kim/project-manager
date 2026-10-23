@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 import { requirementTypeSchema, type RequirementType } from "./requirement-types";
@@ -101,3 +102,13 @@ export const deleteRequirementInput = z.object({
 });
 
 export type DeleteRequirementInput = z.output<typeof deleteRequirementInput>;
+
+/**
+ * The orders usp_Requirement_List applies (ADR-0016). Null default: the proc's
+ * own is the catalog type order then the number (BR-1, SR-1, FR-1 ...), which no
+ * single column reproduces, so Ref carries no control.
+ */
+export const REQUIREMENT_SORT: ListSort = {
+  columns: ["Requirement", "CreatedAtUtc"],
+  default: null,
+};

@@ -16,6 +16,7 @@ import type { MeetingListRow, MeetingRow } from "../schemas/meeting";
 import { attendanceSummary, meetingTimes } from "../schemas/meeting-display";
 import { meetingFormValues } from "../schemas/meeting-form";
 import { MeetingsToolbar } from "./meetings-toolbar";
+import { MEETING_SORT } from "../schemas/meeting";
 
 /** A list row with its Objective as the server rendered it (the sanitiser stays on the server). */
 export type MeetingListItem = MeetingListRow & { views: { Objective: RichCellView } };
@@ -144,6 +145,7 @@ export function MeetingsView({
         );
       }}
       columns={columns}
+      sort={MEETING_SORT}
       datasheet={{
         canEditRow,
         saveCell,
