@@ -6,11 +6,12 @@
 // it at a real database.
 //
 // NOT COVERED YET, and why — each needs a proc that is not written:
-//   * sprint start and complete races (10 starts across 2 sprints; 10 completes) — usp_BoardSprint_*
-//     is slice B3.
-//   * delete a sprint or phase while a card or sprint is assigned to it — same slice.
 //   * overlapping packages, and link-while-packaging — usp_BoardCard_Package and
 //     usp_Board_SetProject are slices B4/B5.
+//   * "link to P while a user without P access moves cards" — needs usp_Board_SetProject (B4).
+// Covered since slice B3: one sprint starts out of ten attempts (never 2601); one completion
+// moves the unfinished cards once; no unfinished card is stranded in a completed sprint; and no
+// live card or sprint is left pointing at a deleted sprint or phase.
 // The plan's race matrix lists all of them; these rows stay Open in docs/BOARDS-TRACKING.md rather
 // than being quietly dropped.
 //
@@ -83,11 +84,22 @@ const board = (boardId) => exec("usp_Board_GetBoard", { BoardId: boardId, ActorU
     const [, columns] = await board(row.BoardId);
     return { board: row, columns };
   }
-  const card = async (boardId, columnId, title) =>
+  const card = async (boardId, columnId, title, sprintId = null) =>
     (await exec("usp_BoardCard_Create", {
-      BoardId: boardId, BoardColumnId: columnId, BoardSprintId: null, Title: title,
+      BoardId: boardId, BoardColumnId: columnId, BoardSprintId: sprintId, Title: title,
       Notes: null, AssigneeUserId: null, DueDate: null, StoryPoints: null, Color: null,
       ActorUserId: PM,
+    }))[0][0];
+  /** A planned sprint of the board. Dates are fixed: nothing here depends on today. */
+  const sprint = async (boardId, name) =>
+    (await exec("usp_BoardSprint_Create", {
+      BoardId: boardId, Name: name, StartDate: "2026-11-01", EndDate: "2026-11-14",
+      Goal: null, BoardPhaseId: null, ActorUserId: PM,
+    }))[0][0];
+  /** Start a sprint, returning the row with its new RowVer (BIGINT, so Number() it to send). */
+  const start = async (row) =>
+    (await exec("usp_BoardSprint_Start", {
+      BoardSprintId: row.BoardSprintId, RowVer: Number(row.RowVer), ActorUserId: PM,
     }))[0][0];
 
   // 1. 20 parallel creates into a column with limit 5 -> exactly 5 land, the rest get 50007.
@@ -215,6 +227,120 @@ const board = (boardId) => exec("usp_Board_GetBoard", { BoardId: boardId, ActorU
       reachable = e.number !== 50001;
     }
     ok(killed && !reachable, `a deleted board stops taking and showing work (killed=${killed})`);
+  }
+
+  // 7. 10 parallel starts across 2 planned sprints -> exactly 1 active, the rest 50007 and
+  //    never 2601. The filtered unique index UQ_BoardSprint_Active is the backstop; the board
+  //    lock plus the proc's own check is what keeps the answer LIMIT_REACHED rather than INTERNAL.
+  {
+    const b = await newBoard("sprint-start", null);
+    const a = await sprint(b.board.BoardId, "race A");
+    const c = await sprint(b.board.BoardId, "race B");
+    const r = codes(await settle([
+      ...Array.from({ length: 5 }, () => () => start(a)),
+      ...Array.from({ length: 5 }, () => () => start(c)),
+    ]));
+    const [, , , sprints] = await board(b.board.BoardId);
+    const active = sprints.filter((x) => x.State === "active");
+    ok(count(r, "ok") === 1 && active.length === 1 && !r.includes(2601),
+      `one sprint starts out of ten attempts: ${count(r, "ok")} ok, ${active.length} active, ${JSON.stringify(r)}`);
+  }
+
+  // 8. 10 parallel completes of the one active sprint -> exactly 1 succeeds, the unfinished cards
+  //    move once (not ten times), and the done card stays behind.
+  {
+    const b = await newBoard("sprint-complete", null);
+    const [todo, , done] = b.columns;
+    const a = await sprint(b.board.BoardId, "to close");
+    const next = await sprint(b.board.BoardId, "to carry into");
+    const started = await start(a);
+    const open1 = await card(b.board.BoardId, todo.BoardColumnId, "open1", a.BoardSprintId);
+    const open2 = await card(b.board.BoardId, todo.BoardColumnId, "open2", a.BoardSprintId);
+    const shut = await card(b.board.BoardId, done.BoardColumnId, "shut", a.BoardSprintId);
+    const r = codes(await settle(Array.from({ length: 10 }, () => () =>
+      exec("usp_BoardSprint_Complete", {
+        BoardSprintId: a.BoardSprintId, RowVer: Number(started.RowVer),
+        UnfinishedToSprintId: next.BoardSprintId, ActorUserId: PM,
+      }))));
+    const [, , , sprints, cards] = await board(b.board.BoardId);
+    const closed = sprints.find((x) => x.BoardSprintId === a.BoardSprintId);
+    const moved = [open1, open2].map((x) =>
+      cards.find((y) => y.BoardCardId === x.BoardCardId).BoardSprintId);
+    const kept = cards.find((y) => y.BoardCardId === shut.BoardCardId).BoardSprintId;
+    ok(count(r, "ok") === 1 && closed.State === "completed"
+      && moved.every((m) => m === next.BoardSprintId) && kept === a.BoardSprintId,
+      `one completion moves the unfinished once: ${count(r, "ok")} ok, state=${closed.State}, moved=${JSON.stringify(moved)}`);
+  }
+
+  // 9. Every card left in a completed sprint is in a done column, even when a move races the
+  //    completion. Either order is legitimate; what must never happen is an unfinished card
+  //    stranded in a sprint nobody can reopen.
+  {
+    const b = await newBoard("complete-vs-move", null);
+    const [todo, doing] = b.columns;
+    const a = await sprint(b.board.BoardId, "closing");
+    const started = await start(a);
+    const cards0 = [];
+    for (let i = 0; i < 6; i++) {
+      cards0.push(await card(b.board.BoardId, todo.BoardColumnId, `m${i}`, a.BoardSprintId));
+    }
+    await settle([
+      ...cards0.map((c0) => () => exec("usp_BoardCard_Move", {
+        BoardCardId: c0.BoardCardId, RowVer: Number(c0.RowVer), ToColumnId: doing.BoardColumnId,
+        ToSprintId: null, SprintSet: 0, BeforeCardId: null, ActorUserId: PM,
+      })),
+      () => exec("usp_BoardSprint_Complete", {
+        BoardSprintId: a.BoardSprintId, RowVer: Number(started.RowVer),
+        UnfinishedToSprintId: null, ActorUserId: PM,
+      }),
+    ]);
+    const [, cols, , , cards] = await board(b.board.BoardId);
+    const doneIds = cols.filter((x) => x.Category === "done").map((x) => x.BoardColumnId);
+    const stranded = cards.filter(
+      (x) => x.BoardSprintId === a.BoardSprintId && !doneIds.includes(x.BoardColumnId));
+    ok(stranded.length === 0,
+      `no unfinished card is stranded in the completed sprint (${stranded.length} stranded)`);
+  }
+
+  // 10. Delete a sprint while cards are added to it -> no live card points at a deleted sprint.
+  {
+    const b = await newBoard("delete-sprint", null);
+    const todo = b.columns[0];
+    const a = await sprint(b.board.BoardId, "doomed");
+    const adds = Array.from({ length: 10 }, (_, i) => () =>
+      card(b.board.BoardId, todo.BoardColumnId, `add${i}`, a.BoardSprintId));
+    const kill = () => exec("usp_BoardSprint_Delete", {
+      BoardSprintId: a.BoardSprintId, RowVer: Number(a.RowVer), ActorUserId: PM,
+    });
+    await settle([...adds.slice(0, 3), kill, ...adds.slice(3)]);
+    const [, , , sprints, cards] = await board(b.board.BoardId);
+    const gone = !sprints.some((x) => x.BoardSprintId === a.BoardSprintId);
+    const dangling = cards.filter((x) => x.BoardSprintId === a.BoardSprintId);
+    ok(gone && dangling.length === 0,
+      `no live card sits in the deleted sprint (gone=${gone}, ${dangling.length} dangling)`);
+  }
+
+  // 11. Delete a phase while sprints are assigned to it -> no live sprint in a deleted phase.
+  {
+    const b = await newBoard("delete-phase", null);
+    const [[ph]] = await exec("usp_BoardPhase_Create", {
+      BoardId: b.board.BoardId, Name: "doomed phase", StartDate: null, EndDate: null,
+      ActorUserId: PM,
+    });
+    const assigns = Array.from({ length: 8 }, (_, i) => () =>
+      exec("usp_BoardSprint_Create", {
+        BoardId: b.board.BoardId, Name: `under-${i}`, StartDate: "2026-11-01",
+        EndDate: "2026-11-14", Goal: null, BoardPhaseId: ph.BoardPhaseId, ActorUserId: PM,
+      }));
+    const kill = () => exec("usp_BoardPhase_Delete", {
+      BoardPhaseId: ph.BoardPhaseId, RowVer: Number(ph.RowVer), ActorUserId: PM,
+    });
+    await settle([...assigns.slice(0, 2), kill, ...assigns.slice(2)]);
+    const [, , phases, sprints] = await board(b.board.BoardId);
+    const gone = !phases.some((x) => x.BoardPhaseId === ph.BoardPhaseId);
+    const orphans = sprints.filter((x) => x.BoardPhaseId === ph.BoardPhaseId);
+    ok(gone && orphans.length === 0,
+      `no live sprint is left in the deleted phase (gone=${gone}, ${orphans.length} orphans)`);
   }
 
   console.log(`\n${passes} passed, ${failures} failed`);

@@ -510,6 +510,237 @@ async function main() {
       TargetColumnId: null, ActorUserId: PM,
     }));
 
+  // ---- Phases and sprints (slice B3) -------------------------------------------------------
+  // A fresh board, so the column categories and card counts here are not the ones the column
+  // reflow above left behind. Every RowVer the driver returns is BIGINT, so it comes back as a
+  // STRING and is wrapped in Number() before it is sent or compared (LESSONS §37).
+  const sp = await board({ Name: `Sprint board ${Date.now()}`, ProjectId: R, ActorUserId: PM });
+  const [, spCols] = await exec("usp_Board_GetBoard", { BoardId: sp.BoardId, ActorUserId: PM });
+  const sTodo = spCols.find((c) => c.Category === "todo");
+  const sDone = spCols.find((c) => c.Category === "done");
+
+  // Phases: a Contributor may add and edit one, only a Manager may delete it.
+  const [[phase]] = await exec("usp_BoardPhase_Create", {
+    BoardId: sp.BoardId, Name: "Discovery", StartDate: "2026-11-01", EndDate: "2026-11-28",
+    ActorUserId: CONTRIB,
+  });
+  ok(phase.SortOrder === 1, `the first phase sorts first (${phase.SortOrder})`);
+  await expectCode(50003, "a viewer cannot add a phase", () =>
+    exec("usp_BoardPhase_Create", {
+      BoardId: sp.BoardId, Name: "Nope", StartDate: null, EndDate: null, ActorUserId: VIEWER,
+    }));
+  await expectCode(50004, "a phase that ends before it starts", () =>
+    exec("usp_BoardPhase_Create", {
+      BoardId: sp.BoardId, Name: "Backwards", StartDate: "2026-11-28", EndDate: "2026-11-01",
+      ActorUserId: PM,
+    }));
+  const [[phase2]] = await exec("usp_BoardPhase_Create", {
+    BoardId: sp.BoardId, Name: "Delivery", StartDate: null, EndDate: null, ActorUserId: PM,
+  });
+  ok(phase2.StartDate === null, "a phase can be named before it is dated");
+
+  const [[phaseMoved]] = await exec("usp_BoardPhase_Move", {
+    BoardPhaseId: phase2.BoardPhaseId, Direction: "up", RowVer: Number(phase2.RowVer),
+    ActorUserId: PM,
+  });
+  ok(phaseMoved.SortOrder === 1, `a phase moves up (${phaseMoved.SortOrder})`);
+  await expectCode(50002, "a phase move against a stale row version", () =>
+    exec("usp_BoardPhase_Move", {
+      BoardPhaseId: phase2.BoardPhaseId, Direction: "down", RowVer: Number(phase2.RowVer),
+      ActorUserId: PM,
+    }));
+  await expectCode(50004, "a phase direction that is neither up nor down", () =>
+    exec("usp_BoardPhase_Move", {
+      BoardPhaseId: phase2.BoardPhaseId, Direction: "sideways",
+      RowVer: Number(phaseMoved.RowVer), ActorUserId: PM,
+    }));
+
+  // Sprints: created planned, and a phase that is not this board's is refused.
+  await expectCode(50004, "a sprint in another board's phase", () =>
+    exec("usp_BoardSprint_Create", {
+      BoardId: sp.BoardId, Name: "Wrong phase", StartDate: "2026-11-01", EndDate: "2026-11-14",
+      Goal: null, BoardPhaseId: 0, ActorUserId: PM,
+    }));
+  await expectCode(50004, "a sprint that ends before it starts", () =>
+    exec("usp_BoardSprint_Create", {
+      BoardId: sp.BoardId, Name: "Backwards", StartDate: "2026-11-14", EndDate: "2026-11-01",
+      Goal: null, BoardPhaseId: null, ActorUserId: PM,
+    }));
+  const newSprint = (params) => exec("usp_BoardSprint_Create", {
+    BoardId: sp.BoardId, StartDate: "2026-11-01", EndDate: "2026-11-14", Goal: null,
+    BoardPhaseId: null, ActorUserId: PM, ...params,
+  });
+  const [[s1]] = await newSprint({ Name: "Sprint 1", BoardPhaseId: phase.BoardPhaseId });
+  const [[s2]] = await newSprint({ Name: "Sprint 2" });
+  ok(s1.State === "planned" && s1.StartedAtUtc === null,
+    `a new sprint is planned with no stamps (${s1.State})`);
+
+  // The read model groups them: set 3 is the phases, set 4 the sprints with their totals.
+  const [, , readPhases, readSprints] =
+    await exec("usp_Board_GetBoard", { BoardId: sp.BoardId, ActorUserId: PM });
+  ok(readPhases.length === 2, `the board reads back both phases (${readPhases.length})`);
+  ok(readSprints.length === 2, `the board reads back both sprints (${readSprints.length})`);
+  ok(readSprints.every((r) => r.CardCount === 0 && r.PointTotal === 0),
+    "an empty sprint totals zero cards and zero points");
+
+  // Three cards in the first sprint: two unfinished, one already in the done column.
+  const sprintCard = (columnId, title, points, sprintId) => exec("usp_BoardCard_Create", {
+    BoardId: sp.BoardId, BoardColumnId: columnId, BoardSprintId: sprintId,
+    Title: title, Notes: null, AssigneeUserId: null, DueDate: null, StoryPoints: points,
+    Color: null, ActorUserId: PM,
+  });
+  const [[openCard]] = await sprintCard(sTodo.BoardColumnId, "Still open", 3, s1.BoardSprintId);
+  await sprintCard(sTodo.BoardColumnId, "Also open", 2, s1.BoardSprintId);
+  const [[doneCard]] = await sprintCard(sDone.BoardColumnId, "Finished", 5, s1.BoardSprintId);
+
+  // Start: only a planned sprint, and only one at a time.
+  await expectCode(50003, "a viewer cannot start a sprint", () =>
+    exec("usp_BoardSprint_Start", {
+      BoardSprintId: s1.BoardSprintId, RowVer: Number(s1.RowVer), ActorUserId: VIEWER,
+    }));
+  await expectCode(50002, "a start against a stale row version", () =>
+    exec("usp_BoardSprint_Start", {
+      BoardSprintId: s1.BoardSprintId, RowVer: Number(s1.RowVer) - 1, ActorUserId: PM,
+    }));
+  const [[started]] = await exec("usp_BoardSprint_Start", {
+    BoardSprintId: s1.BoardSprintId, RowVer: Number(s1.RowVer), ActorUserId: CONTRIB,
+  });
+  ok(started.State === "active" && started.StartedAtUtc !== null,
+    `starting a sprint stamps it active (${started.State})`);
+  await expectCode(50007, "a second sprint cannot start while one is running", () =>
+    exec("usp_BoardSprint_Start", {
+      BoardSprintId: s2.BoardSprintId, RowVer: Number(s2.RowVer), ActorUserId: PM,
+    }));
+  await expectCode(50004, "the active sprint cannot be started again", () =>
+    exec("usp_BoardSprint_Start", {
+      BoardSprintId: s1.BoardSprintId, RowVer: Number(started.RowVer), ActorUserId: PM,
+    }));
+
+  // While a sprint is active the board's scope narrows to its cards, so the header names it.
+  const [[activeHeader]] =
+    await exec("usp_Board_GetBoard", { BoardId: sp.BoardId, ActorUserId: PM });
+  ok(activeHeader.ActiveSprintId === s1.BoardSprintId,
+    `the board names its active sprint (${activeHeader.ActiveSprintId})`);
+
+  // An active sprint still edits; neither a Contributor nor anyone else may delete the active one.
+  const [[sprintEdited]] = await exec("usp_BoardSprint_Update", {
+    BoardSprintId: s1.BoardSprintId, RowVer: Number(started.RowVer), Name: "Sprint one",
+    StartDate: "2026-11-01", EndDate: "2026-11-15", Goal: "Ship the picker",
+    BoardPhaseId: phase.BoardPhaseId, ActorUserId: PM,
+  });
+  ok(sprintEdited.Goal === "Ship the picker", "an active sprint can still be edited");
+  await expectCode(50003, "a contributor cannot delete a sprint", () =>
+    exec("usp_BoardSprint_Delete", {
+      BoardSprintId: s2.BoardSprintId, RowVer: Number(s2.RowVer), ActorUserId: CONTRIB,
+    }));
+  await expectCode(50004, "the active sprint is completed, never deleted", () =>
+    exec("usp_BoardSprint_Delete", {
+      BoardSprintId: s1.BoardSprintId, RowVer: Number(sprintEdited.RowVer), ActorUserId: PM,
+    }));
+
+  // Complete: the unfinished cards move, the done one stays, and the counts say so.
+  await expectCode(50004, "a planned sprint cannot be completed", () =>
+    exec("usp_BoardSprint_Complete", {
+      BoardSprintId: s2.BoardSprintId, RowVer: Number(s2.RowVer),
+      UnfinishedToSprintId: null, ActorUserId: PM,
+    }));
+  await expectCode(50004, "unfinished cards cannot move into the sprint being completed", () =>
+    exec("usp_BoardSprint_Complete", {
+      BoardSprintId: s1.BoardSprintId, RowVer: Number(sprintEdited.RowVer),
+      UnfinishedToSprintId: s1.BoardSprintId, ActorUserId: PM,
+    }));
+  await expectCode(50004, "unfinished cards cannot move to a sprint off this board", () =>
+    exec("usp_BoardSprint_Complete", {
+      BoardSprintId: s1.BoardSprintId, RowVer: Number(sprintEdited.RowVer),
+      UnfinishedToSprintId: 0, ActorUserId: PM,
+    }));
+  const [[completed]] = await exec("usp_BoardSprint_Complete", {
+    BoardSprintId: s1.BoardSprintId, RowVer: Number(sprintEdited.RowVer),
+    UnfinishedToSprintId: s2.BoardSprintId, ActorUserId: CONTRIB,
+  });
+  ok(completed.MovedCards === 2 && completed.KeptCards === 1,
+    `completing moves the unfinished and keeps the done (${completed.MovedCards}/${completed.KeptCards})`);
+  ok(completed.MovedToSprintId === s2.BoardSprintId, "it reports where the unfinished work went");
+
+  const [, , , afterSprints, afterCards] = await exec("usp_Board_GetBoard", {
+    BoardId: sp.BoardId, ActorUserId: PM, CardsPerList: 200,
+  });
+  const stayed = afterCards.find((c) => c.BoardCardId === doneCard.BoardCardId);
+  const movedOut = afterCards.find((c) => c.BoardCardId === openCard.BoardCardId);
+  ok(stayed.BoardSprintId === s1.BoardSprintId, "a card in a done column stays in the sprint");
+  ok(movedOut.BoardSprintId === s2.BoardSprintId, "an unfinished card moves to the chosen sprint");
+  ok(movedOut.BoardColumnId === sTodo.BoardColumnId,
+    "a card that changes sprint keeps the column it was in");
+  const s1After = afterSprints.find((r) => r.BoardSprintId === s1.BoardSprintId);
+  ok(s1After.State === "completed" && s1After.CompletedAtUtc !== null,
+    `the sprint is completed and stamped (${s1After.State})`);
+
+  // A completed sprint is the record of what was done: read-only, and never deleted.
+  await expectCode(50004, "a completed sprint cannot be edited", () =>
+    exec("usp_BoardSprint_Update", {
+      BoardSprintId: s1.BoardSprintId, RowVer: Number(s1After.RowVer), Name: "Rewritten",
+      StartDate: "2026-11-01", EndDate: "2026-11-15", Goal: null, BoardPhaseId: null,
+      ActorUserId: PM,
+    }));
+  await expectCode(50004, "a completed sprint cannot be deleted", () =>
+    exec("usp_BoardSprint_Delete", {
+      BoardSprintId: s1.BoardSprintId, RowVer: Number(s1After.RowVer), ActorUserId: PM,
+    }));
+
+  // With the first sprint closed the second can start: the one-active rule frees up.
+  const s2Now = afterSprints.find((r) => r.BoardSprintId === s2.BoardSprintId);
+  const [[s2Started]] = await exec("usp_BoardSprint_Start", {
+    BoardSprintId: s2.BoardSprintId, RowVer: Number(s2Now.RowVer), ActorUserId: PM,
+  });
+  ok(s2Started.State === "active", "once one sprint is completed the next can start");
+
+  // Deleting a planned sprint sends its cards to the backlog with their columns intact.
+  const [[s3]] = await newSprint({ Name: "Sprint 3" });
+  const [[parkedCard]] =
+    await sprintCard(sTodo.BoardColumnId, "Parked", null, s3.BoardSprintId);
+  const [[dropped]] = await exec("usp_BoardSprint_Delete", {
+    BoardSprintId: s3.BoardSprintId, RowVer: Number(s3.RowVer), ActorUserId: PM,
+  });
+  ok(dropped.CardsToBacklog === 1, `deleting a sprint reports its cards (${dropped.CardsToBacklog})`);
+  const [, , , , backlogCards] = await exec("usp_Board_GetBoard", {
+    BoardId: sp.BoardId, ActorUserId: PM, CardsPerList: 200,
+  });
+  const parked = backlogCards.find((c) => c.BoardCardId === parkedCard.BoardCardId);
+  ok(parked.BoardSprintId === null, "a deleted sprint's card is in the backlog");
+  ok(parked.BoardColumnId === sTodo.BoardColumnId, "and it kept its column");
+
+  // Deleting a phase releases its sprints rather than taking them with it.
+  const [, , livePhases] = await exec("usp_Board_GetBoard", { BoardId: sp.BoardId, ActorUserId: PM });
+  const phaseNow = livePhases.find((p) => p.BoardPhaseId === phase.BoardPhaseId);
+  await expectCode(50003, "a contributor cannot delete a phase", () =>
+    exec("usp_BoardPhase_Delete", {
+      BoardPhaseId: phase.BoardPhaseId, RowVer: Number(phaseNow.RowVer), ActorUserId: CONTRIB,
+    }));
+  const [[released]] = await exec("usp_BoardPhase_Delete", {
+    BoardPhaseId: phase.BoardPhaseId, RowVer: Number(phaseNow.RowVer), ActorUserId: PM,
+  });
+  ok(released.ReleasedSprints === 1,
+    `deleting a phase releases its sprints (${released.ReleasedSprints})`);
+  const [, , phasesLeft, sprintsLeft] =
+    await exec("usp_Board_GetBoard", { BoardId: sp.BoardId, ActorUserId: PM });
+  ok(!phasesLeft.some((p) => p.BoardPhaseId === phase.BoardPhaseId), "the phase is gone");
+  ok(sprintsLeft.every((r) => r.BoardPhaseId !== phase.BoardPhaseId),
+    "no live sprint is left pointing at the deleted phase");
+
+  // An outsider reaches none of it, and a missing id answers NOT_FOUND rather than FORBIDDEN.
+  await expectCode(50003, "an outsider cannot add a phase", () =>
+    exec("usp_BoardPhase_Create", {
+      BoardId: sp.BoardId, Name: "Theirs", StartDate: null, EndDate: null, ActorUserId: OUTSIDER,
+    }));
+  await expectCode(50003, "an outsider cannot start a sprint", () =>
+    exec("usp_BoardSprint_Start", {
+      BoardSprintId: s2.BoardSprintId, RowVer: Number(s2Started.RowVer), ActorUserId: OUTSIDER,
+    }));
+  await expectCode(50001, "a sprint id that does not exist", () =>
+    exec("usp_BoardSprint_Start", { BoardSprintId: 0, RowVer: 1, ActorUserId: PM }));
+  await expectCode(50001, "a phase id that does not exist", () =>
+    exec("usp_BoardPhase_Delete", { BoardPhaseId: 0, RowVer: 1, ActorUserId: PM }));
+
   console.log(`\n${passes} passed, ${failures} failed`);
   await pool.close();
   process.exit(failures ? 1 : 0);
