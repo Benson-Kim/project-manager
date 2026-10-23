@@ -124,7 +124,8 @@ collapse to Admin and User (migration 017). This also closes the IDOR finding
   not an Excel row. A board runs delivery with columns, phases and sprints, and packages the
   project's requirements in as cards. It belongs to a project or stands alone as a shared space,
   and can be linked or unlinked later ([ADR-0038](adr/ADR-0038-boards.md)). `boards` is a
-  per-person overridable section, so it appears in the team cog.
+  per-person overridable section, so it appears in the team cog. Build progress per plan part is
+  tracked in [BOARDS-TRACKING.md](BOARDS-TRACKING.md).
 
 **Coverage check:** every non-header, non-empty row (3–38, 40–62, 64–67,
 69–76) is owned by exactly one primary module; cross-cutting rows (41, 47, 50)

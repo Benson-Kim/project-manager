@@ -4,6 +4,9 @@ Status: Accepted · Date: 2026-10-22 · Session: boards module (#24), slice B1
 Amends ADR-0024 (adds `boards` to the overridable sections) and extends the ADR-0021 access rule
 with a board rule. Registers the `boards` module.
 
+Build progress against the plan, part by part, is tracked in
+[docs/BOARDS-TRACKING.md](../BOARDS-TRACKING.md).
+
 **What has landed with this ADR (slice B1):** migration 037, `db/procs/board/**`, the module's
 contracts, repository and actions, the RBAC and guardrail registrations, and the nav item with an
 honest placeholder page. Decisions 6 to 9 are recorded here because they shape the schema that
