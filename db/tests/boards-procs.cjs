@@ -29,7 +29,12 @@ let pool;
 let failures = 0;
 let passes = 0;
 
+// The last call attempted, so an unexpected throw can name itself. Without this the script dies
+// with a bare RequestError and no indication of which of its ~200 calls raised it, and the whole
+// tally is lost with it — which is exactly what the first CI run of the B3 half did.
+let lastCall = null;
 async function exec(proc, params) {
+  lastCall = { proc, params };
   const req = pool.request();
   for (const [k, v] of Object.entries(params)) req.input(k, v);
   const res = await req.execute(proc);
@@ -297,6 +302,19 @@ async function main() {
   });
   await expectCode(50003, "a revoked contributor cannot move a column", () =>
     exec("usp_BoardColumn_Move", { BoardColumnId: newCol.BoardColumnId, Direction: "down", RowVer: moved.RowVer, ActorUserId: CONTRIB }));
+
+  // Put the override back, because it is project-wide and this script keeps using project R.
+  // Left in place it silently changed the meaning of every later contributor check: the two
+  // "a contributor cannot delete …" cases below would have been refused by the revoked override
+  // rather than by the Manager level they mean to assert, and the sprint lifecycle checks, which
+  // legitimately expect a contributor to succeed, failed outright.
+  await exec("usp_ProjectPermission_Set", {
+    ProjectId: R, UserId: CONTRIB, OverridesJson: "[]", ActorUserId: PM,
+  });
+  const [[restored]] = await exec("usp_BoardColumn_Move", {
+    BoardColumnId: newCol.BoardColumnId, Direction: "down", RowVer: moved.RowVer, ActorUserId: CONTRIB,
+  });
+  ok(restored.SortOrder === 4, `clearing the override restores the move (${restored.SortOrder})`);
 
   // On a standalone board every user is a Contributor, so any user may edit its columns.
   const [[sharedCol]] = await exec("usp_BoardColumn_Create", {
@@ -747,6 +765,15 @@ async function main() {
 }
 
 main().catch(async (e) => {
+  // Name the call and keep the tally: a throw from a call that was expected to succeed used to
+  // take every passing result with it, leaving a stack trace and no way to tell which of the
+  // script's calls raised it.
+  console.log(`\n${passes} passed, ${failures} failed before the error below`);
+  if (lastCall) {
+    console.log(`UNEXPECTED ERROR during ${lastCall.proc}`);
+    console.log(`  params: ${JSON.stringify(lastCall.params)}`);
+    if (e && e.number) console.log(`  code ${e.number} from ${e.procName || "?"}: ${e.message}`);
+  }
   console.error(e);
   if (pool) await pool.close();
   process.exit(1);

@@ -33,7 +33,11 @@ let pool;
 let failures = 0;
 let passes = 0;
 const ok = (c, l) => (c ? passes++ : (failures++, console.log("FAIL", l)));
+// The last call attempted, so an unexpected throw can name itself rather than dying as a bare
+// RequestError with no indication of which call raised it.
+let lastCall = null;
 async function exec(proc, params) {
+  lastCall = { proc, params };
   const req = pool.request();
   for (const [k, v] of Object.entries(params)) req.input(k, v);
   return (await req.execute(proc)).recordsets;
@@ -347,6 +351,12 @@ const board = (boardId) => exec("usp_Board_GetBoard", { BoardId: boardId, ActorU
   await pool.close();
   process.exit(failures ? 1 : 0);
 })().catch((e) => {
+  console.log(`\n${passes} passed, ${failures} failed before the error below`);
+  if (lastCall) {
+    console.log(`UNEXPECTED ERROR during ${lastCall.proc}`);
+    console.log(`  params: ${JSON.stringify(lastCall.params)}`);
+    if (e && e.number) console.log(`  code ${e.number} from ${e.procName || "?"}: ${e.message}`);
+  }
   console.error(e);
   process.exit(2);
 });
