@@ -50,13 +50,22 @@ row as "it ran". What ran locally: `tsc --noEmit`, `vitest run --coverage`, `esl
 | `src/lib/tests/errors.test.ts` | every registered THROW number → code, including 50007 | **Landed** | locally |
 | `src/tests/board-sql-guardrails.test.ts` | CHECK lists vs TS enums, lock-before-assert, RowVer guard, audit in-transaction, project-from-row, deleted-project hiding, escape chain, static SQL, function folder, payload validation; **board-column block** (assert through the board, lock-first, RowVer, audit, static SQL) | **Landed** | locally |
 | `src/tests/proc-access-levels.test.ts` | `board` + `board-column` folders registered; every proc's `@MinLevel`/`@Permission` vs `requiredLevel()` | **Landed** | locally |
-| `db/tests/boards-procs.cjs` | authorization matrix, standalone shared space, overrides, stale RowVer, payload refusals, LIKE-metacharacter search, deleted project, **column create/update/move access + duplicate name + validation** | **Written** (`node --check` clean, in `ci.yml`) | **CI only — never executed** |
+| `db/tests/boards-procs.cjs` | authorization matrix, standalone shared space, overrides, stale RowVer, payload refusals, LIKE-metacharacter search, deleted project, **column create/update/move access + duplicate name + validation** | **Ran in CI 2026-10-23**: 46/50, then 50/50 after the outsider fix below | CI only |
 | `db/tests/boards-race.cjs` | the plan's race matrix (WIP slots, sprint start/complete, renumber, link-while-packaging) | **Open** | CI only |
 | `e2e/boards.spec.ts`, `e2e/boards-rbac.spec.ts` | the board views and the RBAC matrix | **Open** | CI only |
 
-Local battery on the latest tree (after slice B2 partial): `tsc` 0 · **159 files, 7,344 tests, 0
-failures** · 92.7 % statements, 93.48 % lines (gate 80 %) · `eslint` and `prettier --check` clean on
-every changed file. Nothing in `db/**` ran: no database here — CI with `[db]` `[e2e]` proves it.
+Local battery after merging develop (the register) into this branch: `tsc` 0 · **166 files, 8,065
+tests, 0 failures** · 90.73 % statements, 91.63 % lines (gate 80 %) · `eslint` and `prettier --check`
+clean on every changed file. Nothing in `db/**` runs here: no database — CI with `[db]` `[e2e]`
+proves it.
+
+**First CI `[db]` run, 2026-10-23** (branch pushed at `ff9d733`): migration 037 applied and every
+board and board-column proc was created and exercised for the first time. 46 of 50 checks passed;
+the four failures were **one test defect, not a product defect** — `boards-procs.cjs` used user 2
+as "an outsider", but the e2e seed makes user 2 `e2e-admin`, a global Admin who is Manager
+everywhere (ADR-0021), so the two access checks correctly allowed it; the write that should have
+been refused then added a real column, which shifted the two `SortOrder` assertions that follow.
+The test now creates its own unassigned user. Recorded as LESSONS §36.
 
 ## Invariants and where each is enforced
 

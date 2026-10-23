@@ -2,9 +2,11 @@
 // standalone shared space, per-person overrides on a project board and never on a standalone one,
 // rowversion concurrency, the starting-columns payload validation, LIKE-metacharacter search, and
 // what a board whose project was deleted does. Runs against the seeded database in the CI db-apply
-// job (E2E_SEED=1: users 1 admin, 3 e2e-pm, 4 e2e-contributor, 5 e2e-viewer) and locally:
-// node db/tests/boards-procs.cjs. Creates throwaway projects and boards and leaves soft-deleted
-// rows behind, so never point it at a real database.
+// job (E2E_SEED=1: users 1 admin, 2 e2e-admin, 3 e2e-pm, 4 e2e-contributor, 5 e2e-viewer) and
+// locally: node db/tests/boards-procs.cjs. Users 1 AND 2 are both global Admins, who are Manager
+// everywhere (ADR-0021), so neither can stand in for a user with no access; the outsider checks
+// create their own user rather than naming a seeded id. Creates throwaway projects, boards and one
+// user, and leaves soft-deleted rows behind, so never point it at a real database.
 // Env: DB_SERVER, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (a .env file fills what is missing).
 try {
   require("fs")
@@ -77,6 +79,21 @@ async function main() {
     options: { encrypt: true, trustServerCertificate: true },
   }).connect();
 
+  // A user with no project assignment anywhere. No seeded id can play this part: 1 and 2 are both
+  // Admins, and 3-5 are assigned to every project below. The role comes from a seeded 'User' so the
+  // check does not hard-code a RoleId either.
+  const [[pmUser]] = await exec("usp_User_GetById", { UserId: PM, ActorUserId: ADMIN });
+  const [[created]] = await exec("usp_User_Create", {
+    Username: `boards-outsider-${Date.now()}`,
+    PasswordHash: "not-a-real-hash",
+    DisplayName: "Boards outsider",
+    Email: null,
+    RoleId: pmUser.RoleId,
+    MustChangePassword: 1,
+    ActorUserId: ADMIN,
+  });
+  const OUTSIDER = created.UserId;
+
   const P = await project(`Boards test ${Date.now()}`);
   await exec("usp_ProjectAssignee_Set", {
     ProjectId: P,
@@ -136,7 +153,7 @@ async function main() {
   // difference below is the inherited existence oracle (ADR-0012), deliberately left open:
   // it needs its own ADR and branch, so these checks record today's behaviour, not a target.
   await expectCode(50003, "outsider reads a project board", () =>
-    exec("usp_Board_GetById", { BoardId: pb.BoardId, ActorUserId: 2 }));
+    exec("usp_Board_GetById", { BoardId: pb.BoardId, ActorUserId: OUTSIDER }));
   await expectCode(50001, "a board id that does not exist", () =>
     exec("usp_Board_GetById", { BoardId: 2147483600, ActorUserId: PM }));
 
@@ -243,7 +260,7 @@ async function main() {
   await expectCode(50003, "a viewer cannot add a column to a project board", () =>
     exec("usp_BoardColumn_Create", { BoardId: rb.BoardId, Name: "Blocked", Category: "doing", WipLimit: null, ActorUserId: VIEWER }));
   await expectCode(50003, "an outsider cannot add a column", () =>
-    exec("usp_BoardColumn_Create", { BoardId: rb.BoardId, Name: "Blocked", Category: "doing", WipLimit: null, ActorUserId: 2 }));
+    exec("usp_BoardColumn_Create", { BoardId: rb.BoardId, Name: "Blocked", Category: "doing", WipLimit: null, ActorUserId: OUTSIDER }));
   await expectCode(50001, "a column on a board that does not exist", () =>
     exec("usp_BoardColumn_Create", { BoardId: 2147483600, Name: "Nowhere", Category: "todo", WipLimit: null, ActorUserId: PM }));
   await expectCode(50005, "a column name already used on the board", () =>
