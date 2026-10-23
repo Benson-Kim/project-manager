@@ -82,11 +82,14 @@ export function MultiSelect({
     );
   }, [options, query, selectedIds]);
 
+  // The panel closes on each pick: its options take mousedown, so left open it swallows a click
+  // aimed at whatever sits under the field (a sheet's Save). Click, typing or ↓ brings it back.
   const pick = useCallback(
     (option: MultiSelectOption) => {
       onAdd(option);
       setQuery("");
       setActiveIndex(0);
+      setOpen(false);
       inputRef.current?.focus();
     },
     [onAdd],
@@ -154,6 +157,7 @@ export function MultiSelect({
               setActiveIndex(0);
             }}
             onFocus={() => setOpen(true)}
+            onClick={() => setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 100)}
             onKeyDown={onKeyDown}
           />
@@ -161,7 +165,7 @@ export function MultiSelect({
             id={listboxId}
             role="listbox"
             hidden={!open || filtered.length === 0}
-            className="absolute z-(--z-dialog) mt-1 max-h-60 w-full overflow-auto rounded-md border border-line bg-surface-raised py-1 shadow-lg"
+            className="absolute z-(--z-dropdown) mt-1 max-h-60 w-full overflow-auto rounded-md border border-line bg-surface-raised py-1 shadow-lg"
           >
             {filtered.map((option, idx) => (
               <li
