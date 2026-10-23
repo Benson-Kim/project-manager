@@ -680,8 +680,12 @@ async function main() {
     `completing moves the unfinished and keeps the done (${completed.MovedCards}/${completed.KeptCards})`);
   ok(completed.MovedToSprintId === s2.BoardSprintId, "it reports where the unfinished work went");
 
+  // The PLAN view, not the board view. The board view returns only the cards in the board's
+  // working scope, and a card left behind in a completed sprint is deliberately outside it — so
+  // the read that proves where the cards ended up has to be the one allowed to see them. The plan
+  // view skips the scope filter and groups every live card by sprint.
   const [, , , afterSprints, afterCards] = await exec("usp_Board_GetBoard", {
-    BoardId: sp.BoardId, ActorUserId: PM, CardsPerList: 200,
+    BoardId: sp.BoardId, ActorUserId: PM, View: "plan", CardsPerList: 200,
   });
   const stayed = afterCards.find((c) => c.BoardCardId === doneCard.BoardCardId);
   const movedOut = afterCards.find((c) => c.BoardCardId === openCard.BoardCardId);
@@ -720,8 +724,10 @@ async function main() {
     BoardSprintId: s3.BoardSprintId, RowVer: Number(s3.RowVer), ActorUserId: PM,
   });
   ok(dropped.CardsToBacklog === 1, `deleting a sprint reports its cards (${dropped.CardsToBacklog})`);
+  // Plan view again: a sprint is active by now, so the board view's scope is that sprint's cards
+  // and a card sent to the backlog is outside it by design.
   const [, , , , backlogCards] = await exec("usp_Board_GetBoard", {
-    BoardId: sp.BoardId, ActorUserId: PM, CardsPerList: 200,
+    BoardId: sp.BoardId, ActorUserId: PM, View: "plan", CardsPerList: 200,
   });
   const parked = backlogCards.find((c) => c.BoardCardId === parkedCard.BoardCardId);
   ok(parked.BoardSprintId === null, "a deleted sprint's card is in the backlog");
