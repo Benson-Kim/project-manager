@@ -37,12 +37,12 @@ SortOrder), and seed 016 loads 7 notes with no tabs.
 - One editor is mounted at a time, so a long notebook stays light.
 - No autosave: an explicit Save keeps the RowVer conflict handling simple.
 
-## Amendment 2026-10-23: notebooks without a project (migration 038)
+## Amendment 2026-10-23: notebooks without a project (migration 039)
 
 The client asked for notes at the application level as well as in projects, "just like
 activities".
 
-- Migration 038 makes `app.Note.ProjectId` nullable, as 014 did for daily activities. A notebook
+- Migration 039 makes `app.Note.ProjectId` nullable, as 014 did for daily activities. A notebook
   without a project lives in the shared space of ADR-0021: every user reads, creates and edits it
   and its pages (the space resolves to Contributor), and deleting a notebook or a page needs
   Manager, which only an Admin holds there. Every note and page proc passes

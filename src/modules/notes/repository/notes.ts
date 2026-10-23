@@ -21,7 +21,7 @@ import {
  * Notes repository — stored procedures only, zod row parsing (STANDARDS §2.5).
  * Page HTML is sanitised again here and its plain text stored as SearchText,
  * which is what the list searches (ADR-0035). A notebook without a project lives
- * in the shared space every user may read and edit (migration 038).
+ * in the shared space every user may read and edit (migration 039).
  */
 
 interface WorkspaceRow extends NoteRow {

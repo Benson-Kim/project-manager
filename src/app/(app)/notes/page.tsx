@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 
 /**
  * Global notes page (top-level nav, /notes): every notebook the actor may read,
- * from their projects and from the project-less shared space (migration 038,
+ * from their projects and from the project-less shared space (migration 039,
  * ADR-0035 amendment). `?project=<id>|none` narrows the list. New notebook goes
  * to the filtered project, or to the shared space when no project is filtered.
  */

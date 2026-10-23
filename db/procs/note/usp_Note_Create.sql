@@ -1,5 +1,5 @@
 -- usp_Note_Create — create a notebook and, when @FirstTabTitle is given, its first page (ADR-0035).
--- @ProjectId NULL makes a project-less notebook in the shared space (migration 038).
+-- @ProjectId NULL makes a project-less notebook in the shared space (migration 039).
 -- Access: Contributor on the project, or a per-person grant (notes:create, ADR-0024); FORBIDDEN_ROW 50003.
 --   Project-less: every user (dbo.ufn_AccessLevel_Resolve, @AllowProjectless = 1).
 -- VALIDATION 50004: a blank title.

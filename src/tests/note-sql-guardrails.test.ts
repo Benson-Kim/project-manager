@@ -55,7 +55,7 @@ describe("note SQL guardrails", () => {
     }
   });
 
-  it("lets every proc reach the project-less shared space (migration 038)", () => {
+  it("lets every proc reach the project-less shared space (migration 039)", () => {
     for (const [name, text] of PROCS) {
       if (name === "usp_Note_List") continue;
       const assert = text.match(/EXEC dbo\.usp_Project_AssertAccess[^;]*;/)?.[0] ?? "";
@@ -65,7 +65,7 @@ describe("note SQL guardrails", () => {
     expect(list).toMatch(/ufn_AccessLevel_Resolve\(@ActorRole, @ActorUserId, n\.ProjectId, 1\)/);
     expect(list).toContain("AND (@ProjectId IS NOT NULL OR acc.AccessLevel IS NOT NULL)");
     expect(list).toContain("AND (@WithoutProject = 0 OR n.ProjectId IS NULL)");
-    const migration = readFileSync("db/migrations/038_note_projectless.sql", "utf8");
+    const migration = readFileSync("db/migrations/039_note_projectless.sql", "utf8");
     expect(migration).toMatch(/ALTER TABLE app\.Note ALTER COLUMN \[ProjectId\] INT NULL/);
     expect(migration).toContain("FOREIGN KEY ([ProjectId]) REFERENCES app.Project(ProjectId)");
   });
@@ -99,7 +99,7 @@ describe("note SQL guardrails", () => {
     for (const [name, text] of PROCS) {
       expect(text, name).not.toMatch(/UPDATE app\.Note\b(?:(?!;)[\s\S])*\[?ProjectId\]?\s*=/);
     }
-    const migration = readFileSync("db/migrations/038_note_projectless.sql", "utf8");
+    const migration = readFileSync("db/migrations/039_note_projectless.sql", "utf8");
     expect(migration).not.toMatch(/\bON\s+(?:DELETE|UPDATE)\b/i);
   });
 

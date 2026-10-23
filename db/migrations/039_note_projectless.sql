@@ -1,4 +1,4 @@
--- 038_note_projectless.sql — notebooks without a project (ADR-0035 amendment 2026-10-23).
+-- 039_note_projectless.sql — notebooks without a project (ADR-0035 amendment 2026-10-23).
 --   app.Note.ProjectId becomes nullable, as app.DailyActivity's did in 014: a project-less notebook
 --   lives in the shared space every user may read and edit, where deleting needs Manager (Admin)
 --   (dbo.ufn_AccessLevel_Resolve with @AllowProjectless = 1, ADR-0021).
