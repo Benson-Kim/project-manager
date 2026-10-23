@@ -7,19 +7,25 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
  * Accessible dropdown menu primitive (shell spec, issue #28): trigger button
  * with aria-haspopup/expanded/controls, role=menu panel, arrow-key roving
  * focus, Escape closes and returns focus, outside pointer/focus closes.
- * Compose with <MenuLink> and <MenuButton> (both role=menuitem).
+ * Compose with <MenuLink> and <MenuButton> (role=menuitem, or menuitemradio
+ * with aria-checked when given `checked`). The panel opens under the trigger,
+ * its right edge on the trigger's (`align="end"`) or its left edge (`"start"`).
  */
+const ITEM = '[role="menuitem"], [role="menuitemradio"]';
+
 export function Menu({
   label,
   trigger,
   triggerClassName,
   testId,
+  align = "end",
   children,
 }: {
   label: string;
   trigger: React.ReactNode;
   triggerClassName?: string;
   testId?: string;
+  align?: "start" | "end";
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -28,7 +34,7 @@ export function Menu({
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   const items = useCallback(
-    () => Array.from(rootRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []),
+    () => Array.from(rootRef.current?.querySelectorAll<HTMLElement>(ITEM) ?? []),
     [],
   );
 
@@ -86,10 +92,10 @@ export function Menu({
         role="menu"
         aria-label={label}
         hidden={!open}
-        className="absolute right-0 z-(--z-dropdown) mt-1 min-w-48 rounded-md border border-line bg-surface-raised py-1 shadow-lg"
+        className={`absolute ${align === "start" ? "left-0" : "right-0"} z-(--z-dropdown) mt-1 min-w-48 rounded-md border border-line bg-surface-raised py-1 shadow-lg`}
         onClickCapture={(event) => {
           const target = event.target as HTMLElement;
-          if (target.closest('[role="menuitem"]')) setOpen(false);
+          if (target.closest(ITEM)) setOpen(false);
         }}
       >
         {children}
@@ -112,14 +118,27 @@ export function MenuLink({ href, children }: { href: string; children: React.Rea
 export function MenuButton({
   type = "button",
   onClick,
+  checked,
+  testId,
   children,
 }: {
   type?: "button" | "submit";
   onClick?: () => void;
+  /** One choice of several (a colour, a style): role=menuitemradio with aria-checked. */
+  checked?: boolean;
+  testId?: string;
   children: React.ReactNode;
 }) {
   return (
-    <button role="menuitem" tabIndex={-1} type={type} onClick={onClick} className={itemClass}>
+    <button
+      role={checked === undefined ? "menuitem" : "menuitemradio"}
+      aria-checked={checked}
+      tabIndex={-1}
+      type={type}
+      onClick={onClick}
+      data-testid={testId}
+      className={`${itemClass} gap-2 aria-checked:font-semibold`}
+    >
       {children}
     </button>
   );
