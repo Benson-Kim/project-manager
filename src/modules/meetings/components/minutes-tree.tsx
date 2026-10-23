@@ -201,10 +201,9 @@ export function ActionStatusCell({
       {canEdit ? (
         <div className="w-40 shrink-0 print:hidden">
           <StatusSelect
-            key={action.Status}
             name={`status-${id}`}
             ariaLabel={M.setStatusOf(name)}
-            defaultValue={action.Status}
+            value={action.Status}
             onPick={(status) => {
               if (!busy && status !== action.Status) hold(status);
             }}

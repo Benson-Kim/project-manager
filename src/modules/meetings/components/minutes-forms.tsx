@@ -302,11 +302,20 @@ export function DiscussionPointForm({
 /** The three statuses an action moves between (ADR-0041). */
 export function StatusSelect({
   defaultValue,
+  value,
   name = "status",
   onPick,
   ariaLabel,
 }: {
-  defaultValue: ActionStatus;
+  defaultValue?: ActionStatus;
+  /**
+   * The status the row actually has. Passing it makes the select controlled,
+   * which is what a list needs: the hold asks for its reason before anything is
+   * written, and a cancelled or refused pick must not leave the select showing a
+   * status the row never took. A form passes `defaultValue` instead, because
+   * what it shows is the draft and FormData is what reads it.
+   */
+  value?: ActionStatus;
   name?: string;
   onPick?: (status: ActionStatus) => void;
   ariaLabel?: string;
@@ -315,7 +324,7 @@ export function StatusSelect({
     <Select
       name={name}
       aria-label={ariaLabel}
-      defaultValue={defaultValue}
+      {...(value === undefined ? { defaultValue } : { value })}
       data-testid="action-status"
       onChange={onPick ? (event) => onPick(event.target.value as ActionStatus) : undefined}
     >

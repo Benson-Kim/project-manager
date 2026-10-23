@@ -73,6 +73,12 @@ not happen, and until it does the row is a hold with no reason. One call is also
 `ActionStatusCell` now renders the picker, the badge and the reason in both lists. The two lists had
 the same picker-or-badge markup copied; one component is what stops the reason reaching only one.
 
+Deferring the write makes the select **controlled** by the row's status, which it was not before.
+Between the pick and the write there is now a moment where the select has moved and the row has not,
+and an uncontrolled select keeps whatever was chosen through that moment and past a cancel — the list
+would sit there showing a status nobody saved. A form keeps `defaultValue`, because what it shows is
+a draft and FormData is what reads it.
+
 ### 4. A column offers an order only if its proc applies it
 
 `ListSort` (`src/lib/list-params.ts`) is one constant per module, declared beside that module's row
@@ -146,6 +152,9 @@ this workspace to measure it with.
 - The meetings module has no `db/tests/*-procs.cjs` behaviour script, so the new refusal
   (50004 for a reason without a hold) is asserted against the proc text, not against a server. The
   `db-apply` job proves the migration applies, is idempotent and that every proc creates.
+- `e2e/meeting-minutes.spec.ts` covers the dialog in a browser: a cancelled pick leaves the select on
+  the status the row still has, an answered one writes both, the reason survives a reload, and
+  completing the action clears it. It had never run when it was written.
 - Daily activities now actually lists newest-first. Both of its pages documented that order and asked
   for it with `listParams.dir ?? "desc"`, which the list schema's own `"asc"` default made dead code;
   `defaultDir` on `DAILY_ACTIVITY_SORT` is where that default lives now.

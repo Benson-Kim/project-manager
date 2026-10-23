@@ -82,8 +82,8 @@ browser-shaped runs in this workspace to measure it with.
 
 ## What ran, and what did not
 
-Verified locally on this branch: `tsc --noEmit` clean (app and `electron/`) · **165 files, 8,234
-tests, 0 failures** (8,234 from 8,050 after the meetings work, 7,916 before it) · 90.58 % statements,
+Verified locally on this branch: `tsc --noEmit` clean (app and `electron/`) · **166 files, 8,243
+tests, 0 failures** (8,243 from 8,050 after the meetings work, 7,916 before it) · 90.58 % statements,
 91.45 % lines against an 80 % gate · `eslint` 0 errors (5 pre-existing warnings, none in changed
 files) · `prettier --check` clean on every changed file · `next build` succeeds.
 

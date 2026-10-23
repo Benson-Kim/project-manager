@@ -463,10 +463,10 @@ function SortButton({
       title={label}
       data-testid={`sort-${testId}`}
       data-sort={state.active ?? "none"}
-      // The header is draggable for column moves, so the gesture that starts on
-      // this button must not become one.
+      // dragstart fires on the draggable <th>, not here, so a drag that begins
+      // on this button still moves the column — as it does from the list caret
+      // beside it. A click is a click: it never becomes a drag.
       draggable={false}
-      onDragStart={(e) => e.preventDefault()}
       onClick={(e) => {
         e.stopPropagation();
         onSort();

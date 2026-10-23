@@ -389,6 +389,53 @@ test("status: completing an action takes it off the open list (ADR-0041)", async
   ).toHaveValue("completed");
 });
 
+test("on hold: the reason is asked for before the status is written (ADR-0042)", async ({
+  page,
+}) => {
+  const minutes = await newMeeting(page);
+  await addAgendaItem(page, "Budget");
+  await addAction(page, "Budget", { text: "Order the licences" });
+
+  const action = page.getByTestId("action-item").filter({ hasText: "Order the licences" });
+  const picker = action.getByLabel(M.setStatusOf("Order the licences"));
+
+  // Picking the hold opens the dialog and writes nothing yet, so cancelling it
+  // leaves the select on the status the row still has.
+  await picker.selectOption(M.actionStatus["on-hold"]);
+  await expect(page.getByTestId("on-hold-reason")).toBeVisible();
+  await page.getByRole("button", { name: messages.actions.cancel }).last().click();
+  await expect(page.getByTestId("on-hold-reason")).toHaveCount(0);
+  await expect(picker).toHaveValue("in-progress");
+
+  // Answering it writes the status and the reason together.
+  await picker.selectOption(M.actionStatus["on-hold"]);
+  await expect(page.getByTestId("on-hold-reason")).toBeVisible();
+  await page.getByTestId("on-hold-reason").fill("Waiting on the supplier");
+  await page.getByTestId("hold-with-reason").click();
+  await expect(action.getByTestId("on-hold-reason-note")).toContainText("Waiting on the supplier");
+  // On hold still counts as open (ADR-0041).
+  await expect(minutes.getByTestId("open-action")).toHaveCount(1);
+
+  // It survives a reload, and completing the action clears it: only a hold
+  // carries a reason (CK_MeetingActionItem_OnHoldReason).
+  await page.reload();
+  const reloaded = page.getByTestId("action-item").filter({ hasText: "Order the licences" });
+  await expect(reloaded.getByTestId("on-hold-reason-note")).toContainText(
+    "Waiting on the supplier",
+  );
+  await reloaded
+    .getByLabel(M.setStatusOf("Order the licences"))
+    .selectOption(M.actionStatus.completed);
+  await expect(reloaded.getByTestId("on-hold-reason-note")).toHaveCount(0);
+  await page.reload();
+  await expect(
+    page
+      .getByTestId("action-item")
+      .filter({ hasText: "Order the licences" })
+      .getByTestId("on-hold-reason-note"),
+  ).toHaveCount(0);
+});
+
 test("carry-over: an unfinished action follows into the project's later meetings (ADR-0041)", async ({
   page,
 }) => {
