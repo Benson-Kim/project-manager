@@ -1,8 +1,11 @@
 // Race checks for shared notebooks (ADR-0035 amendment 2026-10-23), where any user may write:
 // parallel saves of one page at the same RowVer leave exactly one winner and no lost update;
-// parallel page adds get distinct, gap-free places; a page add racing the notebook's delete, a
-// reorder racing an add, and a save racing the page's delete each end in one valid outcome with
-// no deadlock; and parallel adds at the 500-page cap stop exactly at the cap. Runs in the CI
+// parallel page adds get distinct, gap-free places; a page add or save racing the notebook's
+// delete leaves no live page behind; a reorder racing an add, a save racing the page's delete,
+// two Admins deleting the same row, and a rename or reorder racing the notebook's delete each end
+// in one valid outcome with no deadlock; parallel adds at the 500-page cap stop exactly at the
+// cap, and a delete racing adds there admits at most one; and six users mixing adds, saves,
+// reorders and deletes on one notebook see only valid outcomes. Runs in the CI
 // db-apply job after the seeds (users 1 admin, 3 e2e-pm, 4 e2e-contributor, 5 e2e-viewer) and
 // locally: node db/tests/notes-race.cjs. Creates throwaway notebooks in the shared space, so never
 // point it at a real database.
@@ -46,6 +49,23 @@ const pages = async (noteId) =>
   JSON.parse((await one("usp_Note_GetWithTabs", { NoteId: noteId, ActorUserId: ADMIN })).TabsJson || "[]");
 const gapFree = (list) =>
   list.map((t) => t.SortOrder).sort((a, b) => a - b).every((s, i) => s === i + 1);
+const codeOf = async (fn) => codes(await settle([fn]))[0];
+const pageById = (noteTabId) => exec("usp_NoteTab_GetById", { NoteTabId: noteTabId, ActorUserId: ADMIN });
+const freshNote = (noteId) => one("usp_Note_GetWithTabs", { NoteId: noteId, ActorUserId: ADMIN });
+const deleteNote = (note) => exec("usp_Note_Delete", { NoteId: note.NoteId, RowVer: note.RowVer, ActorUserId: ADMIN });
+const deletePage = (page) =>
+  exec("usp_NoteTab_Delete", { NoteTabId: page.NoteTabId, RowVer: page.RowVer, ActorUserId: ADMIN });
+const savePage = (page, text, actor) =>
+  exec("usp_NoteTab_Update", {
+    NoteTabId: page.NoteTabId, Title: page.Title, Content: `<p>${text}</p>`, SearchText: text,
+    RowVer: page.RowVer, ActorUserId: actor,
+  });
+const reorderAll = (noteId, list, actor) =>
+  exec("usp_NoteTab_Reorder", {
+    NoteId: noteId, OrderJson: JSON.stringify(list.map((t) => ({ id: t.NoteTabId, rowVer: t.RowVer })).reverse()),
+    ActorUserId: actor,
+  });
+const among = (list, ...allowed) => list.every((c) => allowed.includes(c));
 
 (async () => {
   pool = await sql.connect({
@@ -80,11 +100,16 @@ const gapFree = (list) =>
   for (let round = 0; round < 10; round++) {
     const n3 = await notebook(`${stamp} delete ${round}`);
     const fresh = await one("usp_Note_GetWithTabs", { NoteId: n3.NoteId, ActorUserId: ADMIN });
-    const [add, del] = codes(await settle([
+    const results = await settle([
       () => addPage(n3.NoteId, "Late page"),
       () => exec("usp_Note_Delete", { NoteId: n3.NoteId, RowVer: fresh.RowVer, ActorUserId: ADMIN }),
-    ]));
+    ]);
+    const [add, del] = codes(results);
     ok(del === "ok" && (add === "ok" || add === 50001), `round ${round}: delete wins or follows the add (${add}, ${del})`);
+    if (results[0].status === "fulfilled") {
+      const late = await codeOf(() => pageById(results[0].value.NoteTabId));
+      ok(late === 50001, `round ${round}: the late page went with its notebook (${late})`);
+    }
     const listed = (await exec("usp_Note_List", {
       ActorUserId: VIEWER, ProjectId: null, Search: `${stamp} delete ${round}`, SortBy: null,
       SortDir: "asc", Page: 1, PageSize: 10, WithoutProject: 1,
@@ -136,6 +161,86 @@ const gapFree = (list) =>
     NoteId: n6.NoteId, OrderJson: JSON.stringify(full), ActorUserId: VIEWER,
   }))[0];
   ok(reordered.length === PAGES_MAX && reordered[0].NoteTabId === full[0].id, "a full notebook can still be reordered");
+
+  // 7. Churn at the cap: an Admin's page delete racing six adds admits at most one add.
+  const atCap = await pages(n6.NoteId);
+  const [churnDelete, ...churnAdds] = codes(await settle([
+    () => deletePage(atCap[0]),
+    ...Array.from({ length: 6 }, (_, i) => () => addPage(n6.NoteId, `Churn ${i}`, USERS[i % USERS.length])),
+  ]));
+  const after7 = await pages(n6.NoteId);
+  ok(churnDelete === "ok" && count(churnAdds, "ok") <= 1 && among(churnAdds, "ok", 50004),
+    `delete plus adds at the cap admit at most one add (${churnDelete}, ${churnAdds})`);
+  ok(after7.length === PAGES_MAX - 1 + count(churnAdds, "ok"), `the notebook never passes ${PAGES_MAX} (${after7.length})`);
+
+  // 8. A page save racing the Admin's delete of its notebook: the page always goes with it.
+  for (let round = 0; round < 10; round++) {
+    const n8 = await notebook(`${stamp} save-notebook-delete ${round}`);
+    const [p8] = await pages(n8.NoteId);
+    const fresh = await freshNote(n8.NoteId);
+    const [save, del] = codes(await settle([() => savePage(p8, "late", OUTSIDER), () => deleteNote(fresh)]));
+    const after = await codeOf(() => pageById(p8.NoteTabId));
+    ok(del === "ok" && among([save], "ok", 50001, 50002) && after === 50001,
+      `round ${round}: save then delete or delete then refusal, page gone (${save}, ${del}, ${after})`);
+  }
+
+  // 9. Two Admins deleting the same page, the same notebook, or a page and its notebook at once.
+  for (let round = 0; round < 5; round++) {
+    const n9 = await notebook(`${stamp} double-delete ${round}`);
+    const extra = await addPage(n9.NoteId, "Extra");
+    const pageTwice = codes(await settle([() => deletePage(extra), () => deletePage(extra)]));
+    ok(count(pageTwice, "ok") === 1 && among(pageTwice, "ok", 50001, 50002), `round ${round}: one page delete wins (${pageTwice})`);
+    const fresh = await freshNote(n9.NoteId);
+    const noteTwice = codes(await settle([() => deleteNote(fresh), () => deleteNote(fresh)]));
+    ok(count(noteTwice, "ok") === 1 && among(noteTwice, "ok", 50001, 50002), `round ${round}: one notebook delete wins (${noteTwice})`);
+
+    const n9b = await notebook(`${stamp} page-and-notebook ${round}`);
+    const last = await addPage(n9b.NoteId, "Last");
+    const freshB = await freshNote(n9b.NoteId);
+    const [pageDel, noteDel] = codes(await settle([() => deletePage(last), () => deleteNote(freshB)]));
+    ok(noteDel === "ok" && among([pageDel], "ok", 50001, 50002), `round ${round}: the notebook delete always lands (${pageDel}, ${noteDel})`);
+  }
+
+  // 10. A rename, or a reorder, racing the Admin's delete of the notebook.
+  for (let round = 0; round < 5; round++) {
+    const n10 = await notebook(`${stamp} rename-delete ${round}`);
+    const fresh = await freshNote(n10.NoteId);
+    const pair = codes(await settle([
+      () => exec("usp_Note_Update", { NoteId: n10.NoteId, Title: "Renamed", RowVer: fresh.RowVer, ActorUserId: VIEWER }),
+      () => deleteNote(fresh),
+    ]));
+    ok(count(pair, "ok") === 1 && among(pair, "ok", 50001, 50002), `round ${round}: rename or delete wins (${pair})`);
+
+    const n10b = await notebook(`${stamp} reorder-delete ${round}`);
+    await addPage(n10b.NoteId, "B");
+    const list = await pages(n10b.NoteId);
+    const freshB = await freshNote(n10b.NoteId);
+    const [reorder, del] = codes(await settle([() => reorderAll(n10b.NoteId, list, PM), () => deleteNote(freshB)]));
+    ok(del === "ok" && among([reorder], "ok", 50001, 50002), `round ${round}: the delete lands whatever the reorder did (${reorder}, ${del})`);
+  }
+
+  // 11. Mixed load: six users adding, saving, reordering and deleting pages of one notebook.
+  const n11 = await notebook(`${stamp} mixed`);
+  for (let i = 0; i < 5; i++) await addPage(n11.NoteId, `Seed ${i}`);
+  const worker = async (w) => {
+    const seen = [];
+    for (let i = 0; i < 15; i++) {
+      const live = await pages(n11.NoteId);
+      const pick = live[(w * 7 + i) % Math.max(live.length, 1)];
+      const actor = USERS[w % USERS.length];
+      const op = live.length === 0 ? 0 : (w + i) % 4;
+      const run = [
+        () => addPage(n11.NoteId, `W${w}-${i}`, actor),
+        () => savePage(pick, `w${w}-${i}`, actor),
+        () => reorderAll(n11.NoteId, live, actor),
+        () => deletePage(pick),
+      ][op];
+      seen.push(await codeOf(run));
+    }
+    return seen;
+  };
+  const r11 = (await Promise.all(Array.from({ length: 6 }, (_, w) => worker(w)))).flat();
+  ok(among(r11, "ok", 50001, 50002, 50004), `mixed load ends in valid outcomes only, no deadlock (${[...new Set(r11)]})`);
 
   console.log(`${passes} passed, ${failures} failed`);
   await pool.close();

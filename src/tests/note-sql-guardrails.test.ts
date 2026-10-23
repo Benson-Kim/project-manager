@@ -70,6 +70,39 @@ describe("note SQL guardrails", () => {
     expect(migration).toContain("FOREIGN KEY ([ProjectId]) REFERENCES app.Project(ProjectId)");
   });
 
+  // With @AllowProjectless = 1 a NULL project resolves to the shared space, so a project
+  // notebook must never reach a check with NULL: the id comes from the live note row, a missing
+  // row stops the proc, and nothing clears Note.ProjectId after create.
+  it("checks the project of the live note row, so a project notebook never fails open", () => {
+    for (const [name, text] of PROCS) {
+      const asserts = text.match(/EXEC dbo\.usp_Project_AssertAccess[^;]*;/g) ?? [];
+      expect(asserts, name).toHaveLength(1);
+      if (name === "usp_Note_Create" || name === "usp_Note_List") {
+        expect(asserts[0], name).toMatch(/@ProjectId = @ProjectId\b/);
+        continue;
+      }
+      expect(asserts[0], name).toMatch(/@ProjectId = @RowProjectId\b/);
+      const read =
+        /SELECT @RowProjectId = (?:n\.)?ProjectId\b[^;]*;\s*IF @@ROWCOUNT = 0\s+THROW 50001/.exec(
+          text,
+        );
+      expect(read, name).not.toBeNull();
+      const statement = read![0].slice(0, read![0].indexOf(";") + 1).replace(/\s+/g, " ");
+      const fromNote = / FROM app\.Note WHERE NoteId = @NoteId AND IsDeleted = 0;$/;
+      const fromPage =
+        / FROM app\.NoteTab AS t JOIN app\.Note AS n ON n\.NoteId = t\.NoteId AND n\.IsDeleted = 0 WHERE t\.NoteTabId = @NoteTabId AND t\.IsDeleted = 0;$/;
+      expect(fromNote.test(statement) || fromPage.test(statement), `${name}: ${statement}`).toBe(
+        true,
+      );
+      expect(read!.index, name).toBeLessThan(text.indexOf("EXEC dbo.usp_Project_AssertAccess"));
+    }
+    for (const [name, text] of PROCS) {
+      expect(text, name).not.toMatch(/UPDATE app\.Note\b(?:(?!;)[\s\S])*\[?ProjectId\]?\s*=/);
+    }
+    const migration = readFileSync("db/migrations/038_note_projectless.sql", "utf8");
+    expect(migration).not.toMatch(/\bON\s+(?:DELETE|UPDATE)\b/i);
+  });
+
   it("reads need Viewer, writes Contributor with their permission, deletes Manager", () => {
     for (const name of [
       "usp_Note_GetById",
