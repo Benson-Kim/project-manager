@@ -29,6 +29,15 @@ describe("note schemas", () => {
     expect(NOTE_TITLE_MAX).toBe(255);
   });
 
+  it("createNote without a project id makes a project-less notebook", () => {
+    expect(createNoteSchema.parse({ title: "Shared" })).toEqual({
+      projectId: null,
+      title: "Shared",
+    });
+    expect(createNoteSchema.parse({ projectId: null, title: "Shared" }).projectId).toBeNull();
+    expect(createNoteSchema.parse({ projectId: "", title: "Shared" }).projectId).toBeNull();
+  });
+
   it("createNote rejects a non-positive or non-numeric project id", () => {
     expect(createNoteSchema.safeParse({ projectId: "abc", title: "x" }).success).toBe(false);
     expect(createNoteSchema.safeParse({ projectId: "0", title: "x" }).success).toBe(false);

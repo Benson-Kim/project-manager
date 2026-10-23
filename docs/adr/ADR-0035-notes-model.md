@@ -36,3 +36,28 @@ SortOrder), and seed 016 loads 7 notes with no tabs.
 
 - One editor is mounted at a time, so a long notebook stays light.
 - No autosave: an explicit Save keeps the RowVer conflict handling simple.
+
+## Amendment 2026-10-23: notebooks without a project (migration 038)
+
+The client asked for notes at the application level as well as in projects, "just like
+activities".
+
+- Migration 038 makes `app.Note.ProjectId` nullable, as 014 did for daily activities. A notebook
+  without a project lives in the shared space of ADR-0021: every user reads, creates and edits it
+  and its pages (the space resolves to Contributor), and deleting a notebook or a page needs
+  Manager, which only an Admin holds there. Every note and page proc passes
+  `@AllowProjectless = 1`; a notebook keeps the project it was created in.
+- `usp_Note_List` with no project lists every notebook the actor may read: their projects plus the
+  shared space (Admin: all). `@WithoutProject = 1` narrows it to the shared space, and each row
+  carries `ProjectName`, which is also a sort key.
+- UI: `/notes` in the main navigation, after To-do lists, with a Project column and the project
+  filter of the other cross-project lists (All, No project, one project). New notebook goes to the
+  filtered project when the actor may create there, otherwise to the shared space.
+  `/notes/[noteId]` opens a shared notebook and redirects a project's notebook to
+  `/projects/[id]/notes/[noteId]`, so its project's levels and navigation apply. Both routes
+  render the same `NotebookPage`.
+- Tests: `db/tests/notes-procs.cjs` runs the procs in CI: shared-space writes by a Viewer and by a
+  user on no project, deletes refused to a project Manager and allowed to an Admin, and the list
+  across projects. Also the SQL guardrail for `@AllowProjectless = 1`, unit tests for the
+  nullable project, and e2e as e2e-pm and e2e-viewer (no Admin login, to keep the e2e login
+  budget).

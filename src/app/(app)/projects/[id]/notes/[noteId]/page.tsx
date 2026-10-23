@@ -1,13 +1,10 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PageHeader } from "@/components/ui/page-header";
-import { RichTextView } from "@/components/ui/rich-text/rich-text-view";
 import { auth } from "@/lib/auth/provider";
 import { messages } from "@/lib/messages";
 import { guardProjectScope } from "@/lib/project-page-helpers";
 import { orNotFound } from "@/lib/row-access";
-import { NotebookWorkspace } from "@/modules/notes/components/notebook-workspace";
+import { NotebookPage } from "@/modules/notes/components/notebook-page";
 import { getNoteWorkspace } from "@/modules/notes/repository/notes";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { parseProjectId } from "../../project-id";
@@ -36,38 +33,7 @@ export default async function NotePage({
     orNotFound(getNoteWorkspace(noteId, session.userId)),
     getProjectPermissions(projectId, session.userId),
   ]);
-  const note = guardProjectScope(workspace.note, projectId);
-  if (!note) notFound();
+  if (!guardProjectScope(workspace.note, projectId)) notFound();
 
-  const canUpdate = allows("notes:update");
-  const views = canUpdate
-    ? {}
-    : Object.fromEntries(
-        workspace.tabs.map((tab) => [
-          tab.NoteTabId,
-          <RichTextView key={tab.NoteTabId} html={tab.Content} />,
-        ]),
-      );
-
-  return (
-    <div className="mx-auto w-full max-w-5xl">
-      <Link
-        href={`/projects/${projectId}/notes`}
-        data-testid="notes-back"
-        className="inline-flex min-h-11 items-center text-sm font-medium text-accent underline"
-      >
-        {messages.notes.backToList}
-      </Link>
-      <PageHeader title={note.Title ?? messages.notes.untitled} />
-      <NotebookWorkspace
-        note={note}
-        tabs={workspace.tabs}
-        views={views}
-        listHref={`/projects/${projectId}/notes`}
-        canCreate={allows("notes:create")}
-        canUpdate={canUpdate}
-        canDelete={allows("notes:delete")}
-      />
-    </div>
-  );
+  return <NotebookPage workspace={workspace} allows={allows} />;
 }

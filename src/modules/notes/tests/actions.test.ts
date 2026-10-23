@@ -90,6 +90,16 @@ describe("notes actions", () => {
     expect(params.ActorUserId).toBe(7);
   });
 
+  it("create without a project id sends NULL: the project-less shared space", async () => {
+    execProc.mockResolvedValue([noteRow({ ProjectId: null })]);
+    const result = await createNoteAction(form({ title: "Shared notebook" }));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data.ProjectId).toBeNull();
+    const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(proc).toBe("usp_Note_Create");
+    expect(params.ProjectId).toBeNull();
+  });
+
   it("create returns VALIDATION with fieldErrors for an empty title", async () => {
     const result = await createNoteAction(form({ projectId: "2", title: "   " }));
     expect(result.ok).toBe(false);

@@ -40,6 +40,7 @@ export const messages = {
     projects: "Projects",
     dailyActivities: "Daily activities",
     todoLists: "To-do lists",
+    notes: "Notes",
     reports: "Reports",
     settings: "Settings",
     breadcrumb: "Breadcrumb",
@@ -1207,6 +1208,7 @@ export const messages = {
     discardTitle: "Discard unsaved changes?",
     noPages: "This notebook has no pages yet.",
     emptyBody: "Add the first notebook for this project.",
+    emptyBodyAll: "Add the first notebook. Without a project, everyone can read and edit it.",
     backToList: "Back to notes",
   },
   richText: {

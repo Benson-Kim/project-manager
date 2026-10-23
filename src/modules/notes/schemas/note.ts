@@ -25,7 +25,7 @@ const title = z
 
 export const noteRowSchema = z.object({
   NoteId: z.number().int(),
-  ProjectId: z.number().int(),
+  ProjectId: z.number().int().nullable(),
   Title: z.string().nullable(),
   CreatedAtUtc: z.date(),
   UpdatedAtUtc: z.date().nullable(),
@@ -35,6 +35,7 @@ export const noteRowSchema = z.object({
 export type NoteRow = z.infer<typeof noteRowSchema>;
 
 export const noteListRowSchema = noteRowSchema.extend({
+  ProjectName: z.string().nullable(),
   TabCount: z.number().int(),
   LastEditedAtUtc: z.date(),
   TotalCount: z.number().int(),
@@ -46,7 +47,7 @@ export type NoteListRow = z.infer<typeof noteListRowSchema>;
 export const noteTabRowSchema = z.object({
   NoteTabId: z.number().int(),
   NoteId: z.number().int(),
-  ProjectId: z.number().int(),
+  ProjectId: z.number().int().nullable(),
   Title: z.string().nullable(),
   Content: z.string().nullable(),
   SortOrder: z.number().int(),
@@ -62,7 +63,11 @@ export interface NoteWorkspace {
   tabs: NoteTabRow[];
 }
 
-export const createNoteSchema = z.object({ projectId: id, title });
+/** No project id (absent, null or "") makes a notebook in the project-less shared space. */
+export const createNoteSchema = z.object({
+  projectId: z.preprocess((v) => (v === undefined || v === "" ? null : v), id.nullable()),
+  title,
+});
 export const updateNoteSchema = z.object({ noteId: id, title, rowVer: rowVerSchema });
 export const deleteNoteSchema = z.object({ noteId: id, rowVer: rowVerSchema });
 

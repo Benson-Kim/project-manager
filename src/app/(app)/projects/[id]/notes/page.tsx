@@ -44,7 +44,6 @@ export default async function NotesPage({
       <PageHeader title={messages.notes.title} action={newNote} />
       <div className="mt-3 flex flex-col flex-1">
         <NotesView
-          projectId={projectId}
           rows={rows}
           totalCount={rows[0]?.TotalCount ?? 0}
           page={listParams.page}

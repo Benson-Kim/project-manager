@@ -6,9 +6,13 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
 import { createNoteAction } from "../actions";
+import { noteHref } from "../note-links";
 
-/** "New notebook": creates an untitled notebook with one empty page and opens its workspace. */
-export function NewNoteButton({ projectId }: { projectId: number }) {
+/**
+ * "New notebook": creates an untitled notebook with one empty page and opens its
+ * workspace. A null project puts it in the project-less shared space.
+ */
+export function NewNoteButton({ projectId }: { projectId: number | null }) {
   const router = useRouter();
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
@@ -17,7 +21,7 @@ export function NewNoteButton({ projectId }: { projectId: number }) {
     startTransition(async () => {
       const result = await createNoteAction({ projectId, title: messages.notes.untitled });
       if (result.ok) {
-        router.push(`/projects/${projectId}/notes/${result.data.NoteId}`);
+        router.push(noteHref(result.data));
       } else if (result.error.code === "UNAUTHENTICATED") {
         router.push("/login?reason=expired");
       } else {

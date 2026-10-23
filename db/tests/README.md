@@ -23,6 +23,10 @@ and prints `N passed, M failed`.
 - `requirements-race.cjs` — ADR-0037 under concurrency: parallel creates get distinct numbers,
   a link racing a delete leaves no link to a deleted row, a type change racing a new link stays
   valid, and parallel moves under one deliverable leave the order 1..n.
+- `notes-procs.cjs` — ADR-0035 and its 2026-10-23 amendment: the project-less shared space
+  (every user reads, creates and edits notebooks and pages; only an Admin deletes), project
+  notebooks that keep their project's levels, and the cross-project list (the actor's projects
+  plus the shared space, the No project filter, each row's project name).
 
 Run one locally with the `.env` of a throwaway database: `node db/tests/financials-procs.cjs`.
 Never run them against a database anyone depends on: they create projects and leave
