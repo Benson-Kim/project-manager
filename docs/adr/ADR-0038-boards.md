@@ -93,6 +93,49 @@ returns nothing for it, and the ADR-0024 overrides — which are rows in a proje
     user on an older desktop build will lock them out of that project until they update. The
     financials module (5bc4cf5) had the same fault; this is the general fix.
 
+12. **The work-in-progress rule has exactly one definition.** `ufn_Board_CardsInScope` says which
+    cards a board is currently working: the active sprint's cards while a sprint is active,
+    otherwise every card not in a completed sprint, the backlog included. Both
+    `usp_Board_AssertRoom` (the check) and `usp_Board_GetBoard` (the view) read it, so a column's
+    "3 / 5" counts exactly the cards drawn under it — by construction, not by two predicates kept
+    in step by hand. The earlier rule (every card not in a completed sprint, always) counted cards
+    nobody could see, because unfinished cards sent to the backlog keep their column.
+    A column may sit **over** its limit without anyone breaking a rule: starting a sprint,
+    completing one, or lowering a limit can each leave it there. It then shows as over and takes
+    nothing new, rather than the system refusing a sprint the team has planned.
+
+13. **One board-wide rank, with gaps, renumbered in one statement.** Cards carry `SortKey BIGINT`
+    with gaps of 2^20, so the board view and the planning view always agree on order and a move
+    lands halfway between two neighbours without touching anything else. When neighbours are
+    adjacent the board is renumbered first. That rewrite is a **single** UPDATE of every live card:
+    a partial rewrite could collide with the rows it left alone and raise 2601 against
+    `UQ_BoardCard_SortKey`, which would reach the user as INTERNAL. It bumps every live card's
+    RowVer (LESSONS §29), so another user mid-edit gets a CONFLICT — the accepted cost of a board
+    that never loses its order. A neighbour that has moved or gone answers 50002, so the client
+    reloads rather than the server guessing a position.
+
+14. **`restricted` is decided before `removed`.** A card may carry a requirement from a project the
+    reader cannot see, which `usp_Board_GetBoard` and `usp_BoardCard_GetById` report as
+    `restricted` with NULL in every requirement column. The CASE tests `restricted` *first*, so a
+    reader without access is never told whether the requirement still exists — being told it was
+    removed is the same leak by another route. `@Search` is gated the same way: it never matches
+    text the reader may not see, because a match would reveal that the text exists.
+
+15. **The assignee rule is written once and read twice.** `usp_BoardCard_AssertAssignee` decides
+    who may be assigned, and `usp_Board_ListAssignees` offers exactly who it accepts. If the two
+    diverged, the picker would offer someone the write then refuses. Both ask
+    `ufn_AccessLevel_Resolve` with `@AllowProjectless = 1`, so on a standalone board every active
+    user qualifies. The check is point-in-time: losing project access later does not retroactively
+    unassign a card.
+
+16. **Deleting a column moves its cards; it never deletes them, and never takes the last column.**
+    `usp_BoardColumn_Delete` asks the target for room for the whole reflow in one
+    `usp_Board_AssertRoom` call (`@Adding = n`), because checking one card at a time could refuse
+    halfway and leave the board half-emptied. The source column is sized with `@Adding = 0`, which
+    never throws — a column already over its limit must still be emptiable. "A board keeps at least
+    one column" is a proc check, not a constraint: "at least one" cannot be expressed on the row
+    being removed.
+
 ## Consequences
 
 - A board's access answer depends on a row that can change, so it is resolved under a lock on every
@@ -106,16 +149,30 @@ returns nothing for it, and the ADR-0024 overrides — which are rows in a proje
   or whose project is deleted, without distinguishing them.
 - `app.BoardCard` is deliberately absent from migration 037. Its `RequirementId` references
   `app.Requirement`, which arrives with the requirement register (ADR-0037, migration 036); the
-  cards table and that foreign key land together in the next boards migration, so the reference is
-  never written as an unenforced column.
+  cards table and that foreign key landed together in **migration 038**, once PR #35 put the
+  register on develop, so the reference was never written as an unenforced column.
+- A card's requirement is **not** pinned to the board's project by a composite foreign key, even
+  though `app.Requirement` carries `UNIQUE (RequirementId, ProjectId)` and one would fit. A board
+  can be linked to another project later (`usp_Board_SetProject`), and that key would make a
+  legitimate re-link impossible rather than merely checked. "A project board holds only its own
+  project's requirements" is therefore a proc rule under the board lock — the one invariant in
+  this module deliberately enforced below the strongest available layer, and the reason is the
+  re-link, not convenience.
 - The `boards` project section and the sidebar's create button are not registered yet:
   `project-sections.ts` takes no placeholder sections, and a create button pointing at `?id=new`
   needs the board sheet. Both land with the board views.
 - No live updates: boards refresh on focus and after each save.
 - This ADR registers THROW code **50007 `LIMIT_REACHED`** (422) in the ADR-0012 contract, for a
   bounded slot that is full: a column's WIP limit, or a board's one active sprint. The code and its
-  mapping landed with slice B2; the procs that throw it (the WIP check and `usp_BoardSprint_Start`)
-  arrive with the card and sprint slices, so nothing throws it yet.
+  mapping landed with slice B2. `usp_Board_AssertRoom` is now its thrower and, for the moment, its
+  **only** one — a guardrail asserts that, so the second thrower (`usp_BoardSprint_Start`) has to
+  be added deliberately rather than by accident.
+- `usp_Board_AssertRoom` and `usp_BoardCard_AssertAssignee` are internal helpers: they assert no
+  access of their own, because every caller has already locked the board and called
+  `usp_Board_AssertAccess`. Both refuse to run outside a transaction, which is what would happen
+  if a caller forgot the lock — the count or the project they read would be stale before they
+  returned. Both are `EXEMPT` in `src/tests/proc-access-levels.test.ts` with that reason, and a
+  guardrail fails the build if any TypeScript file names either of them.
 
 ## Alternatives considered
 

@@ -26,7 +26,16 @@ and prints `N passed, M failed`.
 - `boards-procs.cjs` — ADR-0038: the board as its own access scope, the standalone shared space
   (everyone a contributor, the creator its manager), per-person overrides on a project board and
   never on a standalone one, rowversion concurrency, the starting-columns payload validation,
-  LIKE-metacharacter search, and a board whose project was deleted.
+  LIKE-metacharacter search, and a board whose project was deleted. Then the cards: a column or
+  neighbour from another board refused, the assignee rule, the work-in-progress limit, an edit
+  that can move nothing, the five-set board read and its counts, the assignee picker, and a
+  column delete that reflows its cards and never takes a board's last column.
+- `boards-race.cjs` — ADR-0038 under concurrency: 20 creates into a column of limit 5 leave
+  exactly 5, 20 moves into the last free slot leave exactly 1 winner, a forced renumber never
+  surfaces as INTERNAL and never leaves two cards sharing a rank, an edit racing a move of one
+  card gives one winner and one CONFLICT, and no live card is left in a deleted column or on a
+  deleted board. The sprint, phase and packaging races wait for those procs (slices B3-B5); the
+  file lists them so the gap is visible.
 
 Run one locally with the `.env` of a throwaway database: `node db/tests/financials-procs.cjs`.
 Never run them against a database anyone depends on: they create projects and leave
