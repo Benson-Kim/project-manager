@@ -1,4 +1,4 @@
-import { execProc } from "@/lib/db";
+import { execProc, execProcSets } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
 import {
@@ -16,6 +16,18 @@ import {
   type CreateBoardInput,
   type UpdateBoardInput,
 } from "../schemas/board";
+import { boardCardListRowSchema } from "../schemas/board-card";
+import {
+  boardAssigneeRowSchema,
+  boardHeaderRowSchema,
+  boardPhaseRowSchema,
+  boardSprintRowSchema,
+  boardViewColumnRowSchema,
+  getBoardInput,
+  type BoardAssigneeRow,
+  type BoardView,
+  type GetBoardInput,
+} from "../schemas/board-view";
 
 /**
  * Board repository — stored procedures only (ADR-0028), rows zod-parsed at the
@@ -108,4 +120,48 @@ export async function deleteBoard(
     RowVer: rowVer,
     ActorUserId: actorUserId,
   });
+}
+
+/**
+ * The whole board in one round trip: usp_Board_GetBoard returns five result
+ * sets through execProcSets (ADR-0028 §8 — note that `execProc reads only the
+ * first recordset` describes execProc, not this). Each set is parsed with its
+ * own schema, so a column the proc stops returning fails here rather than
+ * reaching a view as undefined.
+ */
+export async function getBoard(input: GetBoardInput, actorUserId: number): Promise<BoardView> {
+  const parsed = getBoardInput.parse(input);
+  const sets = await execProcSets("usp_Board_GetBoard", {
+    BoardId: parsed.boardId,
+    ActorUserId: actorUserId,
+    View: parsed.view,
+    CardsPerList: parsed.cardsPerList,
+    Search: parsed.search ?? null,
+    SprintId: parsed.sprintId ?? null,
+  });
+
+  const header = sets[0]?.[0];
+  if (!header) throw new AppError("NOT_FOUND", "Board not found");
+
+  return {
+    header: boardHeaderRowSchema.parse(header),
+    columns: (sets[1] ?? []).map((r) => boardViewColumnRowSchema.parse(r)),
+    phases: (sets[2] ?? []).map((r) => boardPhaseRowSchema.parse(r)),
+    sprints: (sets[3] ?? []).map((r) => boardSprintRowSchema.parse(r)),
+    cards: (sets[4] ?? []).map((r) => boardCardListRowSchema.parse(r)),
+  };
+}
+
+/** The people a card on this board may be assigned to (the card sheet's picker). */
+export async function listBoardAssignees(
+  boardId: number,
+  actorUserId: number,
+  search: string | null = null,
+): Promise<BoardAssigneeRow[]> {
+  const rows = await execProc<BoardAssigneeRow>("usp_Board_ListAssignees", {
+    BoardId: boardId,
+    ActorUserId: actorUserId,
+    Search: search,
+  });
+  return rows.map((r) => boardAssigneeRowSchema.parse(r));
 }

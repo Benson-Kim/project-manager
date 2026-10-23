@@ -54,3 +54,25 @@ export const moveBoardColumnInput = z.object({
 });
 
 export type MoveBoardColumnInput = z.input<typeof moveBoardColumnInput>;
+
+/**
+ * Deleting a column does not delete its cards: they move to targetColumnId,
+ * which the proc requires whenever the column holds any. The dialog names the
+ * consequence first (messages.boards.deleteColumnBody), so nobody relocates
+ * other people's work by accident.
+ */
+export const deleteBoardColumnInput = z.object({
+  boardColumnId: z.number().int().positive(),
+  rowVer: rowVerSchema,
+  targetColumnId: z.number().int().positive().nullish(),
+});
+
+export type DeleteBoardColumnInput = z.input<typeof deleteBoardColumnInput>;
+
+/** What usp_BoardColumn_Delete reports back, so the interface can say what moved. */
+export const boardColumnDeletedSchema = z.object({
+  MovedCards: z.number().int(),
+  MovedToColumnId: z.number().int().nullable(),
+});
+
+export type BoardColumnDeleted = z.infer<typeof boardColumnDeletedSchema>;

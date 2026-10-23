@@ -503,6 +503,19 @@ export const messages = {
       doing: "In progress",
       done: "Done",
     },
+    /** A card whose requirement belongs to a project this reader cannot see. */
+    restrictedCard: "Restricted item",
+    /** A card whose requirement has since been deleted from the register. */
+    removedCard: "Removed requirement",
+    untitledCard: "Untitled card",
+    /** 50007 from a card write: the column the card was going into is full. */
+    columnFull: (name: string) => `“${name}” is at its work-in-progress limit.`,
+    /** 50007 from a sprint start: another sprint of this board is already running. */
+    sprintAlreadyActive: "Another sprint is already active on this board.",
+    deleteColumnTitle: "Delete this column?",
+    deleteColumnBody: (count: number, target: string) =>
+      count === 1 ? `Its 1 card moves to “${target}”.` : `Its ${count} cards move to “${target}”.`,
+    lastColumn: "A board keeps at least one column.",
   },
   planning: {
     title: "Planning",

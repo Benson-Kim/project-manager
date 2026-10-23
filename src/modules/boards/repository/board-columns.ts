@@ -1,11 +1,15 @@
 import { execProc } from "@/lib/db";
 import {
+  boardColumnDeletedSchema,
   boardColumnRowSchema,
   createBoardColumnInput,
+  deleteBoardColumnInput,
   moveBoardColumnInput,
   updateBoardColumnInput,
+  type BoardColumnDeleted,
   type BoardColumnRow,
   type CreateBoardColumnInput,
+  type DeleteBoardColumnInput,
   type MoveBoardColumnInput,
   type UpdateBoardColumnInput,
 } from "../schemas/board-column";
@@ -64,4 +68,19 @@ export async function moveBoardColumn(
     ActorUserId: actorUserId,
   });
   return boardColumnRowSchema.parse(rows[0]);
+}
+
+/** Soft-delete a column, reflowing its cards into targetColumnId; reports how many moved. */
+export async function deleteBoardColumn(
+  input: DeleteBoardColumnInput,
+  actorUserId: number,
+): Promise<BoardColumnDeleted> {
+  const parsed = deleteBoardColumnInput.parse(input);
+  const rows = await execProc<BoardColumnDeleted>("usp_BoardColumn_Delete", {
+    BoardColumnId: parsed.boardColumnId,
+    RowVer: parsed.rowVer,
+    TargetColumnId: parsed.targetColumnId ?? null,
+    ActorUserId: actorUserId,
+  });
+  return boardColumnDeletedSchema.parse(rows[0]);
 }
