@@ -203,10 +203,11 @@ Both were found by reading our own code against the secure-coding checklists in
    `usp_Supplier_Update` documents the reason — do not enter the transaction for a row that is not
    there — so it is a decision, not an oversight; but it does let any signed-in user tell an id that
    exists from one that does not in a project they cannot read. The per-user action rate limit
-   (ADR-0031) blunts it. Closing it means answering alike for a missing row and a forbidden one,
-   which collapses two codes of the ADR-0012 contract, touches every module's write procs and moves
-   the `proc-access-levels` expectations — a decision for its own ADR, not a change to make inside
-   one feature. Left open deliberately.
+   (ADR-0031) blunts it. [ADR-0040](ADR-0040-row-access-answers-alike.md) now proposes how to close
+   it, and corrects this finding: the distinction lives in one branch of `usp_AccessLevel_Require`,
+   so a non-member answers NOT_FOUND where they answer FORBIDDEN_ROW today and no proc changes its
+   order — it does not touch every module's write procs. Still open here on purpose: that decision
+   and the seven `db/tests` assertions it moves belong to its own branch, not to this feature's.
 
 ## The whole-work defensive review
 
@@ -242,8 +243,11 @@ recorded here:
   dependency and no credential; four superseded `usp_KeyDeliverableRequirement_*` procs were deleted
   rather than left behind.
 
-Two things the review left alone on purpose. The new segment has no `loading.tsx` or `error.tsx`,
-because no segment in this app has one — a project-wide gap that deserves its own decision rather
-than one feature's exception. And nothing in migration 036, the eleven procs, the two
+Two things the review left alone on purpose. The new segment has no `loading.tsx` or `error.tsx`.
+That is a conformance gap rather than an open question, and the review first recorded it wrongly as
+one: `docs/STANDARDS.md` §1.1, §7 and §9 already require both per route segment, and the app has a
+single `loading.tsx` (`projects/[id]`) and no `error.tsx` at all behind 35 pages. It is recorded as
+E1 in `docs/bugs.md` with the shared `ErrorState` a boundary should use; a 35-segment sweep is its
+own piece of work, not one feature's exception. And nothing in migration 036, the eleven procs, the two
 `db/tests/*.cjs` suites or the Playwright specs has ever been executed: the workspace has no SQL
 Server, so CI's db-apply job is their first run.
