@@ -2,7 +2,7 @@
 -- board's columns are renumbered 1..n first, then the column swaps SortOrder with its neighbour; at
 -- either end nothing moves. RowVer of the moved column guards the write (CONFLICT 50002).
 -- Write order (ADR-0038): lock the board row, THEN assert access (see usp_BoardColumn_Create). A
---   reorder renumbers the board's columns, so it bumps their RowVers (LESSONS §33) — a rare CONFLICT
+--   reorder renumbers the board's columns, so it bumps their RowVers (LESSONS §29) — a rare CONFLICT
 --   for another user mid-edit, the same trade-off usp_FinancialLine_Move accepts.
 -- Row-level access: Contributor on the board with 'boards:update' (dbo.usp_Board_AssertAccess).
 -- A positional (drag-to-index) move can replace @Direction when the board view lands; up/down is the
