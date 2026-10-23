@@ -54,3 +54,15 @@ export function rovingIndex(current: number, key: string, count: number): number
       return null;
   }
 }
+
+/**
+ * A toolbar control's hover hint (ADR-0042): its name, then its shortcuts as Windows writes
+ * them. `shortcuts` is an aria-keyshortcuts value ("Control+B", several separated by spaces).
+ */
+export function hintText(label: string, shortcuts: string | null | undefined): string {
+  const keys = (shortcuts ?? "")
+    .split(" ")
+    .filter(Boolean)
+    .map((keys) => keys.replace(/\bControl\b/g, "Ctrl"));
+  return keys.length ? `${label} (${keys.join(", ")})` : label;
+}
