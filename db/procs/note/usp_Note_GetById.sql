@@ -17,7 +17,7 @@ BEGIN
 
     EXEC dbo.usp_Project_AssertAccess
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
-         @MinLevel = N'Viewer', @AllowProjectless = 0;
+         @MinLevel = N'Viewer', @AllowProjectless = 1;
 
     SELECT NoteId,
            [ProjectId],
