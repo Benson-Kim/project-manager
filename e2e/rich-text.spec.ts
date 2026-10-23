@@ -365,6 +365,56 @@ test.describe("rich-text editor (ADR-0025)", () => {
     await expect(toolbar.getByRole("button", { name: "Redo" })).toBeFocused();
   });
 
+  test("toolbar hints show name and shortcut on hover and keyboard focus (ADR-0042)", async ({
+    page,
+  }) => {
+    const editor = await openEditor(page);
+    const toolbar = page.getByRole("toolbar", { name: "Formatting" });
+    const hint = page.getByTestId("rich-text-hint");
+    const serious = async () =>
+      (
+        await new AxeBuilder({ page }).include('[aria-labelledby="ks-rich-text"]').analyze()
+      ).violations.filter((v) => v.impact === "serious" || v.impact === "critical");
+    await expect(hint).toBeHidden();
+
+    // Hover: after a moment, under the control; along the toolbar it follows at once.
+    const bold = toolbar.getByRole("button", { name: "Bold" });
+    await bold.hover();
+    await expect(hint).toHaveText("Bold (Ctrl+B)");
+    const [control, shown] = [await bold.boundingBox(), await hint.boundingBox()];
+    expect(shown!.y).toBeGreaterThanOrEqual(control!.y + control!.height);
+    expect(await serious()).toEqual([]);
+    await toolbar.getByRole("button", { name: "Align right" }).hover();
+    await expect(hint).toHaveText("Align right (Ctrl+Shift+R)");
+
+    // Hoverable: the pointer can rest on the hint; past it, the hint goes.
+    const over = await hint.boundingBox();
+    await page.mouse.move(over!.x + over!.width / 2, over!.y + over!.height / 2, { steps: 4 });
+    await expect(hint).toBeVisible();
+    await page.mouse.move(over!.x + over!.width / 2, over!.y + over!.height + 60, { steps: 4 });
+    await expect(hint).toBeHidden();
+
+    // Keyboard: reaching a control shows its hint; Escape hides it and leaves focus there.
+    await editor.click();
+    await clear(page);
+    await expect(toolbar.getByRole("combobox", { name: "Text style" })).toHaveValue("0");
+    await page.keyboard.press("Shift+Tab");
+    await expect(hint).toHaveText("Undo (Ctrl+Z)");
+    await page.keyboard.press("ArrowRight");
+    await expect(hint).toHaveText("Redo (Ctrl+Y, Ctrl+Shift+Z)");
+    await page.keyboard.press("Escape");
+    await expect(hint).toBeHidden();
+    await expect(toolbar.getByRole("button", { name: "Redo" })).toBeFocused();
+    await page.keyboard.press("ArrowRight");
+    await expect(hint).toHaveText("Text style");
+
+    await page.emulateMedia({ colorScheme: "dark" });
+    await openEditor(page);
+    await bold.hover();
+    await expect(hint).toHaveText("Bold (Ctrl+B)");
+    expect(await serious()).toEqual([]);
+  });
+
   test("loads and edits without requests to another host (offline desktop)", async ({
     page,
     baseURL,

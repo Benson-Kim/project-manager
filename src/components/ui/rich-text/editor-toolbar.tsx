@@ -1,7 +1,7 @@
 "use client";
 
 import { type Editor, useEditorState } from "@tiptap/react";
-import { useLayoutEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 import { Menu, MenuButton } from "@/components/ui/menu";
 import {
   DEFAULT_HIGHLIGHT,
@@ -38,14 +38,15 @@ import {
   TextColorMenu,
   toolbarButtonClass as buttonClass,
 } from "./toolbar-menus";
+import { ToolbarHint } from "./toolbar-hint";
 
 const t = messages.richText;
 
 const ALIGNMENTS = [
-  { value: "left", label: t.alignLeft },
-  { value: "center", label: t.alignCenter },
-  { value: "right", label: t.alignRight },
-  { value: "justify", label: t.alignJustify },
+  { value: "left", label: t.alignLeft, shortcut: "Control+Shift+L" },
+  { value: "center", label: t.alignCenter, shortcut: "Control+Shift+E" },
+  { value: "right", label: t.alignRight, shortcut: "Control+Shift+R" },
+  { value: "justify", label: t.alignJustify, shortcut: "Control+Shift+J" },
 ] as const;
 
 const HEADING_LABELS: Record<HeadingLevel, string> = {
@@ -122,6 +123,12 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
     Array.from(toolbarRef.current?.querySelectorAll<HTMLElement>(ITEMS) ?? []).filter(
       (el) => !el.closest('[role="menu"]'),
     );
+  const controlOf = useCallback((target: EventTarget | null) => {
+    const control = target instanceof Element ? target.closest<HTMLElement>(ITEMS) : null;
+    return control && !control.closest('[role="menu"]') && toolbarRef.current?.contains(control)
+      ? control
+      : null;
+  }, []);
 
   // Roving tabindex, set on the DOM: the controls carry no tabIndex prop, so
   // React never resets it on re-render.
@@ -166,7 +173,7 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
       ref={toolbarRef}
       role="toolbar"
       aria-label={t.toolbar}
-      className="flex flex-wrap items-center gap-1 border-b border-line p-1"
+      className="relative flex flex-wrap items-center gap-1 border-b border-line p-1"
       onKeyDown={onKeyDown}
       onFocus={onFocus}
     >
@@ -180,7 +187,7 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
       </ToolButton>
       <ToolButton
         label={t.redo}
-        shortcut="Control+Y"
+        shortcut="Control+Y Control+Shift+Z"
         disabled={!state.canRedo}
         onRun={() => editor.chain().redo().run()}
       >
@@ -293,6 +300,7 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
 
       <ToolButton
         label={t.bulletList}
+        shortcut="Control+Shift+8"
         pressed={state.bulletList}
         onRun={() => editor.chain().toggleBulletList().run()}
       >
@@ -300,6 +308,7 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
       </ToolButton>
       <ToolButton
         label={t.orderedList}
+        shortcut="Control+Shift+7"
         pressed={state.orderedList}
         onRun={() => editor.chain().toggleOrderedList().run()}
       >
@@ -328,6 +337,7 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
         <ToolButton
           key={a.value}
           label={a.label}
+          shortcut={a.shortcut}
           pressed={state.align === a.value}
           onRun={() => editor.chain().setTextAlign(a.value).run()}
         >
@@ -400,6 +410,7 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
       >
         <ClearFormattingIcon />
       </ToolButton>
+      <ToolbarHint toolbar={toolbarRef} controlOf={controlOf} />
     </div>
   );
 }

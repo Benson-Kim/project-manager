@@ -27,6 +27,7 @@ export function Menu({
   label,
   trigger,
   triggerClassName,
+  shortcut,
   testId,
   align = "end",
   children,
@@ -34,6 +35,8 @@ export function Menu({
   label: string;
   trigger: React.ReactNode;
   triggerClassName?: string;
+  /** The trigger's aria-keyshortcuts, when a key does what the menu's main choice does. */
+  shortcut?: string;
   testId?: string;
   align?: "start" | "end";
   children: React.ReactNode;
@@ -102,6 +105,7 @@ export function Menu({
         aria-expanded={open}
         aria-controls={panelId}
         aria-label={label}
+        aria-keyshortcuts={shortcut}
         data-testid={testId}
         className={triggerClassName}
         onClick={() => setOpen((current) => !current)}

@@ -56,6 +56,7 @@ function ColorMenu<C extends ColorName>({
   noneLabel,
   current,
   trigger,
+  shortcut,
   testId,
   onPick,
 }: {
@@ -65,6 +66,7 @@ function ColorMenu<C extends ColorName>({
   noneLabel: string;
   current: string | null;
   trigger: React.ReactNode;
+  shortcut?: string;
   testId: string;
   onPick: (color: C | null) => void;
 }) {
@@ -73,6 +75,7 @@ function ColorMenu<C extends ColorName>({
       label={label}
       trigger={trigger}
       triggerClassName={toolbarButtonClass}
+      shortcut={shortcut}
       testId={testId}
       align="start"
     >
@@ -121,6 +124,7 @@ export function HighlightMenu({ editor, current }: { editor: Editor; current: st
       label={t.highlight}
       noneLabel={t.noHighlight}
       current={current}
+      shortcut="Control+Shift+H"
       testId="rich-text-highlight-menu"
       trigger={
         <span aria-hidden="true" className="flex flex-col items-center gap-0.5 leading-none">
