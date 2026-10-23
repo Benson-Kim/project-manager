@@ -122,6 +122,32 @@ describe("every list view hands the DataView its module's sort contract", () => 
   });
 });
 
+describe("every list page reads its URL against its module's sort contract", () => {
+  // Without it the page hands any ?sort= token to the proc, and a column the
+  // contract does not offer is never reset to the default.
+  const pages = readdirSync("src/app", { recursive: true, encoding: "utf8" })
+    .map((path) => `src/app/${path.replaceAll("\\", "/")}`)
+    .filter((path) => path.endsWith("/page.tsx"))
+    .filter((path) => readFileSync(path, "utf8").includes("parseListParams("));
+
+  /** The page of the one list whose proc orders by its id alone. */
+  const NO_SORT_CONTRACT = ["src/app/(app)/projects/[id]/objectives/page.tsx"];
+
+  it("finds the app-level pages and the one without a contract", () => {
+    expect(pages).toContain("src/app/(app)/notes/page.tsx");
+    expect(pages).toContain(NO_SORT_CONTRACT[0]);
+  });
+
+  it.each(pages)("%s", (path) => {
+    const source = readFileSync(path, "utf8");
+    if (NO_SORT_CONTRACT.includes(path)) {
+      expect(source).toMatch(/parseListParams\([^,()]*\)/);
+    } else {
+      expect(source).toMatch(/parseListParams\([^()]*,\s*[A-Z_]+_SORT\)/);
+    }
+  });
+});
+
 describe("the ORDER BY reader", () => {
   it("finds both directions of one token as one column", () => {
     // Every proc writes a token twice, once per direction.

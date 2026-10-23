@@ -105,6 +105,6 @@ export type ReorderNoteTabsValues = z.output<typeof reorderNoteTabsSchema>;
  * falls back to NoteId, the order the notebooks were made in.
  */
 export const NOTE_SORT: ListSort = {
-  columns: ["Title", "TabCount", "LastEditedAtUtc"],
+  columns: ["Title", "ProjectName", "TabCount", "LastEditedAtUtc"],
   default: null,
 };
