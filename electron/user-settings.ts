@@ -15,6 +15,8 @@ export interface UserSettings {
   attachmentsSetupOffered: boolean;
   /** Where the last detached window was closed, so the next one opens there. */
   detachedWindow?: Placement;
+  /** The version the app last restarted to install; checked and cleared at the next start. */
+  updateInstalling?: string;
 }
 
 function defaultCopyDir(): string {

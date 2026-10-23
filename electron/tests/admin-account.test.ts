@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ensureAdminAccount, resetAdminPassword } from "../admin-account";
+import * as adminAccount from "../admin-account";
+
+const { ensureAdminAccount } = adminAccount;
 
 const db = vi.hoisted(() => ({ queries: [] as string[], activeAdmins: 0 }));
 
@@ -53,11 +55,12 @@ describe("ensureAdminAccount", () => {
   });
 });
 
-describe("resetAdminPassword", () => {
-  it("also hands over to-dos still owned by nobody", async () => {
-    await resetAdminPassword(target, argon2, log as never);
-    expect(db.queries.some((q) => q.includes("UPDATE app.TodoItem SET CreatedBy = @adminId"))).toBe(
-      true,
-    );
+describe("password reset", () => {
+  it("is not offered by the desktop host: it only creates an administrator when none is active", () => {
+    expect(
+      Object.keys(adminAccount)
+        .filter((name) => /reset|password/i.test(name))
+        .sort(),
+    ).toEqual(["generateInitialPassword", "hashPassword"]);
   });
 });

@@ -10,6 +10,23 @@
 ; write SQL Server's registry settings into WOW6432Node where the 64-bit engine
 ; never reads them, so we launch the 64-bit PowerShell through Sysnative.
 
+; The wizard names the product once, in its title bar ("Project Manager Setup"), so its
+; pages and footer do not repeat it. This file is read before the pages are declared: the
+; finish page takes these defines, customPageAfterChangeDir runs just before the Installing
+; page, and customHeader runs after electron-builder sets its "<name> <version>" footer.
+!ifndef BUILD_UNINSTALLER
+  !define MUI_FINISHPAGE_TITLE "Installation complete"
+  !define MUI_FINISHPAGE_TEXT "Click Finish to close Setup."
+!endif
+
+!macro customPageAfterChangeDir
+  !define MUI_PAGE_HEADER_SUBTEXT "This can take a few minutes."
+!macroend
+
+!macro customHeader
+  BrandingText "Version ${VERSION}"
+!macroend
+
 !macro customInstallMode
   StrCpy $isForceCurrentInstall "1"
 !macroend

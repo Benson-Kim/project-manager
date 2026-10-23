@@ -1,5 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { compareVersions, isMandatory, releaseNotesText } from "../update-policy";
+import { compareVersions, installOutcome, isMandatory, releaseNotesText } from "../update-policy";
+
+describe("installOutcome", () => {
+  it("is updated when the version the app restarted for now runs, or a newer one", () => {
+    expect(installOutcome("1.0.9", "1.0.9")).toBe("updated");
+    expect(installOutcome("1.0.10", "1.0.9")).toBe("updated");
+  });
+
+  it("is not-installed when the silent install left the old version in place", () => {
+    expect(installOutcome("1.0.8", "1.0.9")).toBe("not-installed");
+  });
+
+  it("is none without an attempt or with a value that is not a version", () => {
+    expect(installOutcome("1.0.8", undefined)).toBe("none");
+    expect(installOutcome("1.0.8", "latest")).toBe("none");
+    expect(installOutcome("1.0.8", 9)).toBe("none");
+  });
+});
 
 describe("compareVersions", () => {
   it("orders by major, minor, then patch", () => {

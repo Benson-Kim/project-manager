@@ -36,6 +36,21 @@ export function isMandatory(currentVersion: string, info: { minimumVersion?: unk
   }
 }
 
+export type InstallOutcome = "none" | "updated" | "not-installed";
+
+/**
+ * What became of the update this PC restarted to install (`attempted`), judged by the
+ * version that runs now: a silent install that failed leaves the old version in place.
+ */
+export function installOutcome(currentVersion: string, attempted: unknown): InstallOutcome {
+  if (typeof attempted !== "string") return "none";
+  try {
+    return compareVersions(currentVersion, attempted) >= 0 ? "updated" : "not-installed";
+  } catch {
+    return "none";
+  }
+}
+
 /**
  * Release notes as plain text for a native dialog. latest.yml carries text;
  * electron-updater falls back to the GitHub release body (HTML) or a list of
