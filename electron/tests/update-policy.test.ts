@@ -1,5 +1,44 @@
 import { describe, expect, it } from "vitest";
-import { compareVersions, installOutcome, isMandatory, releaseNotesText } from "../update-policy";
+import {
+  checkAnswer,
+  compareVersions,
+  installOutcome,
+  isMandatory,
+  isNewer,
+  releaseNotesText,
+} from "../update-policy";
+
+describe("isNewer", () => {
+  it("is true only for a later version", () => {
+    expect(isNewer("1.0.12", "1.0.11")).toBe(true);
+    expect(isNewer("1.0.11", "1.0.11")).toBe(false);
+    expect(isNewer("1.0.9", "1.0.11")).toBe(false);
+  });
+
+  it("is false for something that is not a version", () => {
+    expect(isNewer("latest", "1.0.11")).toBe(false);
+  });
+});
+
+describe("checkAnswer", () => {
+  it("never offers an update downloaded earlier once the feed has a newer one", () => {
+    // 1.0.11 downloaded overnight, 1.0.12 published since: the PC goes straight to 1.0.12.
+    expect(checkAnswer("1.0.11", "1.0.12", false)).toBe("downloading");
+  });
+
+  it("offers the downloaded update while it is still the newest, or the feed cannot be read", () => {
+    expect(checkAnswer("1.0.12", "1.0.12", false)).toBe("offer-ready");
+    expect(checkAnswer("1.0.12", null, false)).toBe("offer-ready");
+    expect(checkAnswer("1.0.12", null, true)).toBe("offer-ready");
+    expect(checkAnswer("1.0.12", "garbage", false)).toBe("offer-ready");
+  });
+
+  it("reports the check when nothing is downloaded", () => {
+    expect(checkAnswer(null, "1.0.12", false)).toBe("downloading");
+    expect(checkAnswer(null, null, false)).toBe("up-to-date");
+    expect(checkAnswer(null, null, true)).toBe("failed");
+  });
+});
 
 describe("installOutcome", () => {
   it("is updated when the version the app restarted for now runs, or a newer one", () => {

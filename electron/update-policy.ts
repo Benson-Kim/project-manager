@@ -36,6 +36,33 @@ export function isMandatory(currentVersion: string, info: { minimumVersion?: unk
   }
 }
 
+/** True when `candidate` is a later version than `than`; a malformed version never is. */
+export function isNewer(candidate: string, than: string): boolean {
+  try {
+    return compareVersions(candidate, than) > 0;
+  } catch {
+    return false;
+  }
+}
+
+export type CheckAnswer = "offer-ready" | "downloading" | "up-to-date" | "failed";
+
+/**
+ * What to do once the feed has answered, before an update is offered or installed (`latest`
+ * is the newer version it offers, null when none or the check failed). Every release is a
+ * whole app and the database runs every migration it lacks, so a PC goes straight to the
+ * newest: an update downloaded earlier is offered only while the feed has nothing newer.
+ */
+export function checkAnswer(
+  ready: string | null,
+  latest: string | null,
+  failed: boolean,
+): CheckAnswer {
+  if (ready && !(latest && isNewer(latest, ready))) return "offer-ready";
+  if (failed) return "failed";
+  return latest ? "downloading" : "up-to-date";
+}
+
 export type InstallOutcome = "none" | "updated" | "not-installed";
 
 /**
