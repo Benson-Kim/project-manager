@@ -22,6 +22,7 @@ import { createDailyActivityAction, updateDailyActivityAction } from "../actions
 import type { DailyActivityListRow, DailyActivityRow } from "../schemas/daily-activity";
 import { dailyActivityFormValues } from "../schemas/daily-activity-form";
 import { DailyActivitiesToolbar } from "./daily-activities-toolbar";
+import { DAILY_ACTIVITY_SORT } from "../schemas/daily-activity";
 
 type Row = DailyActivityListRow;
 
@@ -92,6 +93,7 @@ function buildColumns(projects: ProjectPicker): DataViewColumn<Row>[] {
     listColumn({
       key: "ActivityStatus",
       header: M.activityStatus,
+      sort: "Status",
       priority: 1,
       field: "activityStatusId",
       list: "daily-activity.status",
@@ -187,6 +189,7 @@ export function DailyActivitiesView({
         </div>
       )}
       columns={buildColumns(projects)}
+      sort={DAILY_ACTIVITY_SORT}
       datasheet={{
         canEditRow,
         saveCell,

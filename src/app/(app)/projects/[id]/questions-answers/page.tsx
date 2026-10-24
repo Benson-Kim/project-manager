@@ -18,10 +18,10 @@ import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helper
 import { parseProjectId } from "../project-id";
 import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
 import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
-import { QUESTION_ANSWER_LISTS } from "@/modules/questions-answers/schemas/question-answer";
-
-/** Allowed sort columns for Q&A — prevents arbitrary strings reaching the proc. */
-const QA_SORT_COLUMNS = new Set(["Question", "Answer", "Category", "Priority", "AssignedTo"]);
+import {
+  QUESTION_ANSWER_LISTS,
+  QUESTION_ANSWER_SORT,
+} from "@/modules/questions-answers/schemas/question-answer";
 
 export const metadata: Metadata = {
   title: `${messages.questionsAnswers.title} — ${messages.app.name}`,
@@ -47,12 +47,8 @@ export default async function QuestionsAnswersPage({
 
   const raw = await searchParams;
   const flat = flattenSearchParams(raw);
-  const listParams = parseListParams(raw);
-  const effectiveParams = {
-    ...listParams,
-    // Whitelist sort column to prevent arbitrary strings reaching the proc.
-    sort: listParams.sort && QA_SORT_COLUMNS.has(listParams.sort) ? listParams.sort : "Question",
-  };
+  const listParams = parseListParams(raw, QUESTION_ANSWER_SORT);
+  const effectiveParams = listParams;
 
   const isNew = flat.id === "new";
   const rawId = !isNew && flat.id ? Number(flat.id) : null;

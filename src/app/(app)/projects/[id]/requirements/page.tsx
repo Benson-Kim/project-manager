@@ -20,6 +20,7 @@ import {
 } from "@/modules/requirements/repository/requirements";
 import { parseValidatesParam } from "@/modules/requirements/schemas/requirement-form";
 import { parseProjectId } from "../project-id";
+import { REQUIREMENT_SORT } from "@/modules/requirements/schemas/requirement";
 
 export const metadata: Metadata = {
   title: `${messages.requirements.title} — ${messages.app.name}`,
@@ -46,7 +47,7 @@ export default async function RequirementsPage({
 
   const raw = await searchParams;
   const flat = flattenSearchParams(raw);
-  const listParams = parseListParams(raw);
+  const listParams = parseListParams(raw, REQUIREMENT_SORT);
   const filterType = registerType(flat.type);
 
   const isNew = flat.id === "new";

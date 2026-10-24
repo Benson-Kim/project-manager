@@ -18,7 +18,10 @@ import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helper
 import { parseProjectId } from "../project-id";
 import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
 import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
-import { ASSUMPTION_CONSTRAINT_LISTS } from "@/modules/assumptions-constraints/schemas/assumption-constraint";
+import {
+  ASSUMPTION_CONSTRAINT_LISTS,
+  ASSUMPTION_CONSTRAINT_SORT,
+} from "@/modules/assumptions-constraints/schemas/assumption-constraint";
 
 export const metadata: Metadata = {
   title: `${messages.assumptionsConstraints.title} — ${messages.app.name}`,
@@ -44,7 +47,7 @@ export default async function AssumptionsConstraintsPage({
 
   const raw = await searchParams;
   const flat = flattenSearchParams(raw);
-  const listParams = parseListParams(raw);
+  const listParams = parseListParams(raw, ASSUMPTION_CONSTRAINT_SORT);
 
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;

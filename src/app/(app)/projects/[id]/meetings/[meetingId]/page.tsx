@@ -25,11 +25,10 @@ const M = messages.meetings;
 
 /**
  * Meeting workspace — /projects/[id]/meetings/[meetingId], the ADR-0010
- * full-route exception: the header form, with the agenda and minutes in the
- * main column and the participants in the right-hand column (desktop; below
- * the header on smaller screens). Every form on the page shares one
- * unsaved-changes guard. A meeting of another project, or one the actor
- * can't open, is not found.
+ * full-route exception: one column — the header form, then who was present and
+ * who sent apologies directly under its Location field, then the agenda and
+ * minutes. Every form on the page shares one unsaved-changes guard. A meeting
+ * of another project, or one the actor can't open, is not found.
  */
 export default async function MeetingPage({
   params,
@@ -64,7 +63,7 @@ export default async function MeetingPage({
       <Breadcrumbs items={[{ label: M.title, href: listHref }, { label: title }]} />
       <PageHeader title={title} />
       <UnsavedChangesScope>
-        <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="flex flex-col gap-8">
           <div className="flex min-w-0 flex-col gap-8">
             <MeetingHeaderForm
               key={meeting.RowVer}
@@ -73,6 +72,21 @@ export default async function MeetingPage({
               canEdit={allows("meetings:update")}
               canDelete={allows("meetings:delete")}
             />
+            {/*
+              Present and apologies, directly under the header form's last
+              field, Location (client feedback 2026-10-23). It was a right-hand
+              column before; it stays a form of its own, with its own stamped
+              save, so it cannot move inside the header form.
+            */}
+            <section aria-labelledby="meeting-participants-heading" className="min-w-0">
+              <ParticipantsPanel
+                meetingId={meeting.MeetingId}
+                projectId={projectId}
+                roster={roster}
+                canEdit={allows("meetings:update")}
+                headingId="meeting-participants-heading"
+              />
+            </section>
             <section aria-labelledby="meeting-minutes-heading" className="flex flex-col gap-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 id="meeting-minutes-heading" className="text-base font-medium text-ink">
@@ -91,21 +105,13 @@ export default async function MeetingPage({
                 pointViews={pointViews}
                 roster={roster.entries}
                 today={todayIso()}
+                meetingsHref={listHref}
                 canCreate={allows("meetings:create")}
                 canEdit={allows("meetings:update")}
                 canDelete={allows("meetings:delete")}
               />
             </section>
           </div>
-          <aside aria-labelledby="meeting-participants-heading" className="min-w-0">
-            <ParticipantsPanel
-              meetingId={meeting.MeetingId}
-              projectId={projectId}
-              roster={roster}
-              canEdit={allows("meetings:update")}
-              headingId="meeting-participants-heading"
-            />
-          </aside>
         </div>
       </UnsavedChangesScope>
     </div>

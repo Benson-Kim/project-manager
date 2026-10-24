@@ -1,16 +1,24 @@
 import { describe, expect, it } from "vitest";
 import type {
+  CarriedOverAction,
   RosterEntry,
   WorkspaceActionItem,
   WorkspaceAgendaItem,
   WorkspaceDiscussionPoint,
+  WorkspaceFollowUp,
 } from "../schemas/meeting";
-import { reorderActionItemsSchema, reorderAgendaSchema } from "../schemas/meeting-form";
+import {
+  reorderActionItemsSchema,
+  reorderAgendaSchema,
+  reorderFollowUpsSchema,
+} from "../schemas/meeting-form";
 import {
   actionSiblings,
   agendaSiblings,
   buildMinutes,
+  carriedOverActions,
   editRowVer,
+  followUpSiblings,
   isOverdue,
   itemName,
   moveOrder,
@@ -19,6 +27,7 @@ import {
   pointSiblings,
   sameAction,
   sameAgendaItem,
+  sameFollowUp,
   samePoint,
   todayIso,
 } from "../schemas/minutes";
@@ -51,8 +60,51 @@ function action(
     AssignedToStakeholderId: null,
     AssigneeName: null,
     DueDate: null,
+    Status: "in-progress",
+    OnHoldReason: null,
     SortOrder: sort,
     RowVer: 300 + id,
+    ...overrides,
+  };
+}
+
+function followUp(
+  id: number,
+  actionId: number,
+  sort: number,
+  overrides: Partial<WorkspaceFollowUp> = {},
+): WorkspaceFollowUp {
+  return {
+    MeetingActionFollowUpId: id,
+    MeetingActionItemId: actionId,
+    FollowUp: `Follow-up ${id}`,
+    AssignedToStakeholderId: null,
+    AssigneeName: null,
+    FollowUpDate: null,
+    DueDate: null,
+    SortOrder: sort,
+    RowVer: 400 + id,
+    ...overrides,
+  };
+}
+
+function carried(
+  id: number,
+  fromMeetingId: number,
+  overrides: Partial<CarriedOverAction> = {},
+): CarriedOverAction {
+  return {
+    MeetingActionItemId: id,
+    Action: `Action ${id}`,
+    Status: "in-progress",
+    OnHoldReason: null,
+    AssignedToStakeholderId: null,
+    AssigneeName: null,
+    DueDate: null,
+    RowVer: 500 + id,
+    FromMeetingId: fromMeetingId,
+    FromSubject: `Meeting ${fromMeetingId}`,
+    FromStartDate: "2026-10-01",
     ...overrides,
   };
 }
@@ -69,6 +121,13 @@ describe("buildMinutes", () => {
       action(24, { agendaId: 1, pointId: 99 }, 1),
       action(25, { agendaId: 404 }, 1),
     ],
+    followUps: [
+      followUp(31, 20, 2),
+      followUp(30, 20, 1),
+      followUp(32, 22, 1),
+      followUp(33, 24, 1),
+      followUp(34, 404, 1),
+    ],
   });
 
   it("orders the agenda by position, then id", () => {
@@ -82,24 +141,38 @@ describe("buildMinutes", () => {
   });
 
   it("puts actions under their discussion point, or directly under the agenda item", () => {
-    expect(tree[0]!.points[0]!.actions.map((a) => a.MeetingActionItemId)).toEqual([20, 21]);
-    expect(tree[0]!.actions.map((a) => a.MeetingActionItemId)).toEqual([22]);
-    expect(tree[1]!.points[0]!.actions.map((a) => a.MeetingActionItemId)).toEqual([23]);
+    expect(tree[0]!.points[0]!.actions.map((a) => a.action.MeetingActionItemId)).toEqual([20, 21]);
+    expect(tree[0]!.actions.map((a) => a.action.MeetingActionItemId)).toEqual([22]);
+    expect(tree[1]!.points[0]!.actions.map((a) => a.action.MeetingActionItemId)).toEqual([23]);
+  });
+
+  it("puts each follow-up under its action, in order", () => {
+    expect(tree[0]!.points[0]!.actions[0]!.followUps.map((f) => f.MeetingActionFollowUpId)).toEqual(
+      [30, 31],
+    );
+    expect(tree[0]!.points[0]!.actions[1]!.followUps).toEqual([]);
+    expect(tree[0]!.actions[0]!.followUps.map((f) => f.MeetingActionFollowUpId)).toEqual([32]);
   });
 
   it("leaves out children whose parent the workspace does not hold", () => {
-    const ids = tree.flatMap((n) => [
-      ...n.points.map((p) => p.point.MeetingDiscussionPointId),
-      ...n.points.flatMap((p) => p.actions.map((a) => a.MeetingActionItemId)),
-      ...n.actions.map((a) => a.MeetingActionItemId),
-    ]);
+    const actions = tree.flatMap((n) => [...n.points.flatMap((p) => p.actions), ...n.actions]);
+    const ids = [
+      ...tree.flatMap((n) => n.points.map((p) => p.point.MeetingDiscussionPointId)),
+      ...actions.map((a) => a.action.MeetingActionItemId),
+    ];
     expect(ids).not.toContain(99);
     expect(ids).not.toContain(24);
     expect(ids).not.toContain(25);
+    // 33 hangs off action 24, which was dropped; 34 off an action that is not here at all.
+    const followUpIds = actions.flatMap((a) => a.followUps.map((u) => u.MeetingActionFollowUpId));
+    expect(followUpIds).not.toContain(33);
+    expect(followUpIds).not.toContain(34);
   });
 
   it("handles an empty meeting", () => {
-    expect(buildMinutes({ agendaItems: [], discussionPoints: [], actionItems: [] })).toEqual([]);
+    expect(
+      buildMinutes({ agendaItems: [], discussionPoints: [], actionItems: [], followUps: [] }),
+    ).toEqual([]);
   });
 });
 
@@ -140,6 +213,7 @@ describe("moveOrder", () => {
       agendaItems: [agenda(1, 1), agenda(2, 2)],
       discussionPoints: [point(10, 1, 1), point(11, 1, 2)],
       actionItems: [action(20, { agendaId: 1 }, 1), action(21, { agendaId: 1 }, 2)],
+      followUps: [followUp(30, 20, 1), followUp(31, 20, 2)],
     });
     const order = moveOrder(agendaSiblings(tree), 2, -1)!;
     expect(reorderAgendaSchema.safeParse({ meetingId: 5, order }).success).toBe(true);
@@ -151,6 +225,11 @@ describe("moveOrder", () => {
     expect(
       reorderActionItemsSchema.safeParse({ agendaItemId: 1, discussionPointId: "", order: actions })
         .success,
+    ).toBe(true);
+    const followUps = moveOrder(followUpSiblings(tree[0]!.actions[0]!.followUps), 31, -1)!;
+    expect(followUps.map((s) => s.id)).toEqual([31, 30]);
+    expect(
+      reorderFollowUpsSchema.safeParse({ meetingActionItemId: 20, order: followUps }).success,
     ).toBe(true);
   });
 });
@@ -181,6 +260,54 @@ describe("open and overdue actions", () => {
     );
     expect(list.map((o) => o.action.MeetingActionItemId)).toEqual([3, 2, 4, 1, 5]);
     expect(list.map((o) => o.overdue)).toEqual([true, false, false, false, false]);
+  });
+
+  it("drops a completed action but keeps one on hold (ADR-0043)", () => {
+    const list = openActions(
+      [
+        action(1, { agendaId: 1 }, 1, { Status: "completed" }),
+        action(2, { agendaId: 1 }, 2, { Status: "on-hold" }),
+        action(3, { agendaId: 1 }, 3, { Status: "in-progress" }),
+      ],
+      "2026-10-15",
+    );
+    expect(list.map((o) => o.action.MeetingActionItemId)).toEqual([2, 3]);
+  });
+
+  it("does not reorder the actions it was given", () => {
+    const given = [
+      action(2, { agendaId: 1 }, 1, { DueDate: "2026-10-20" }),
+      action(1, { agendaId: 1 }, 2, { DueDate: "2026-10-01" }),
+    ];
+    openActions(given, "2026-10-15");
+    expect(given.map((a) => a.MeetingActionItemId)).toEqual([2, 1]);
+  });
+});
+
+describe("carriedOverActions", () => {
+  it("orders by due date, undated last, and marks the overdue ones", () => {
+    const list = carriedOverActions(
+      [
+        carried(1, 7),
+        carried(2, 7, { DueDate: "2026-10-20" }),
+        carried(3, 8, { DueDate: "2026-10-01" }),
+      ],
+      "2026-10-15",
+    );
+    expect(list.map((c) => c.action.MeetingActionItemId)).toEqual([3, 2, 1]);
+    expect(list.map((c) => c.overdue)).toEqual([true, false, false]);
+  });
+
+  it("drops anything that reads as completed, so the list never contradicts the status", () => {
+    const list = carriedOverActions(
+      [carried(1, 7, { Status: "completed" }), carried(2, 7, { Status: "on-hold" })],
+      "2026-10-15",
+    );
+    expect(list.map((c) => c.action.MeetingActionItemId)).toEqual([2]);
+  });
+
+  it("is empty when nothing carries over", () => {
+    expect(carriedOverActions([], "2026-10-15")).toEqual([]);
   });
 });
 
@@ -271,12 +398,26 @@ describe("editRowVer", () => {
     expect(samePoint(a, { ...a, DiscussionPoint: "<p>Other</p>" })).toBe(false);
   });
 
-  it("compares an action's text, person responsible and due date", () => {
+  it("compares an action's text, person responsible, due date and status", () => {
     const a = action(1, { agendaId: 1 }, 1, { AssignedToStakeholderId: 3, DueDate: "2026-10-20" });
     expect(sameAction(a, { ...a, SortOrder: 9, RowVer: 1 })).toBe(true);
     expect(sameAction(a, { ...a, Action: "Other" })).toBe(false);
     expect(sameAction(a, { ...a, AssignedToStakeholderId: 4 })).toBe(false);
     expect(sameAction(a, { ...a, DueDate: null })).toBe(false);
+    expect(sameAction(a, { ...a, Status: "completed" })).toBe(false);
+  });
+
+  it("compares a follow-up's text, person assigned and both dates", () => {
+    const f = followUp(1, 20, 1, {
+      AssignedToStakeholderId: 3,
+      FollowUpDate: "2026-10-10",
+      DueDate: "2026-10-20",
+    });
+    expect(sameFollowUp(f, { ...f, SortOrder: 9, RowVer: 1 })).toBe(true);
+    expect(sameFollowUp(f, { ...f, FollowUp: "Other" })).toBe(false);
+    expect(sameFollowUp(f, { ...f, AssignedToStakeholderId: 4 })).toBe(false);
+    expect(sameFollowUp(f, { ...f, FollowUpDate: null })).toBe(false);
+    expect(sameFollowUp(f, { ...f, DueDate: null })).toBe(false);
   });
 });
 

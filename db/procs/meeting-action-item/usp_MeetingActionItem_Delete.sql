@@ -1,5 +1,6 @@
 -- usp_MeetingActionItem_Delete — soft delete with rowversion concurrency (checked in the transaction)
--- and an in-transaction audit row (module #10, ADR-0028). Returns ProjectId and MeetingId.
+-- and an in-transaction audit row (module #10, ADR-0028). Deletes the action's follow-ups with it
+-- (ADR-0043), naming them in the audit row. Returns ProjectId and MeetingId.
 -- The meeting row is locked (UPDLOCK, HOLDLOCK) like the action reorder, which renumbers siblings.
 -- Access: Manager on the meeting's project, or a per-person grant (meetings:delete, ADR-0024).
 USE ProjectManager;
@@ -36,7 +37,7 @@ BEGIN
 
     DECLARE @Before NVARCHAR(MAX) =
         (SELECT MeetingActionItemId, [MeetingId], [AgendaItemId], [DiscussionPointId], [Action],
-                [AssignedToStakeholderId], [DueDate], SortOrder
+                [AssignedToStakeholderId], [DueDate], [Status], SortOrder
          FROM app.MeetingActionItem WHERE MeetingActionItemId = @MeetingActionItemId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 
@@ -54,10 +55,21 @@ BEGIN
         THROW 50002, N'CONFLICT:MeetingActionItem was modified by someone else', 1;
     END
 
+    -- Its follow-ups go with it (ADR-0043).
+    DECLARE @RemovedFollowUps TABLE (Id INT);
+
+    UPDATE app.MeetingActionFollowUp SET
+        IsDeleted    = 1,
+        DeletedAtUtc = SYSUTCDATETIME(),
+        DeletedBy    = @ActorUserId
+    OUTPUT inserted.MeetingActionFollowUpId INTO @RemovedFollowUps (Id)
+    WHERE IsDeleted = 0 AND MeetingActionItemId = @MeetingActionItemId;
+
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Delete', N'app.MeetingActionItem', CAST(@MeetingActionItemId AS NVARCHAR(64)), @Before,
-            (SELECT MeetingActionItemId, IsDeleted, DeletedAtUtc, DeletedBy
-             FROM app.MeetingActionItem WHERE MeetingActionItemId = @MeetingActionItemId
+            (SELECT ai.MeetingActionItemId, ai.IsDeleted, ai.DeletedAtUtc, ai.DeletedBy,
+                    JSON_QUERY((SELECT Id FROM @RemovedFollowUps FOR JSON PATH)) AS ActionFollowUps
+             FROM app.MeetingActionItem AS ai WHERE ai.MeetingActionItemId = @MeetingActionItemId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
     COMMIT;

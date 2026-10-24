@@ -14,6 +14,7 @@ import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { noteHref } from "../note-links";
 import type { NoteListRow } from "../schemas/note";
+import { NOTE_SORT } from "../schemas/note";
 
 const M = messages.notes;
 
@@ -102,6 +103,7 @@ export function NotesView({
         </div>
       )}
       columns={columns}
+      sort={NOTE_SORT}
       renderToolbar={(viewToggle) => (
         <Toolbar>
           <SearchInput testId="notes-search" />

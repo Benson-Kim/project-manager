@@ -18,6 +18,7 @@ import type { StakeholderListRow, StakeholderRow } from "../schemas/stakeholder"
 import { stakeholderFormValues } from "../schemas/stakeholder-form";
 
 import { StakeholdersToolbar } from "./stakeholders-toolbar";
+import { STAKEHOLDER_SORT } from "../schemas/stakeholder";
 
 export function fullName(row: { FirstName: string; LastName: string | null }): string {
   return [row.FirstName, row.LastName].filter(Boolean).join(" ");
@@ -164,6 +165,7 @@ export function StakeholdersView({
         </div>
       )}
       columns={columns}
+      sort={STAKEHOLDER_SORT}
       datasheet={{
         canEditRow,
         saveCell,

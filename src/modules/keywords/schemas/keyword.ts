@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 
@@ -48,3 +49,6 @@ export const deleteKeywordInput = z.object({
 });
 
 export type DeleteKeywordInput = z.input<typeof deleteKeywordInput>;
+
+/** The orders usp_Keyword_List applies (ADR-0016); alphabetical by default. */
+export const KEYWORD_SORT: ListSort = { columns: ["Keyword"], default: "Keyword" };

@@ -18,6 +18,7 @@ import type { ViewMode } from "@/lib/list-params";
 import { createKeyDeliverableAction, updateKeyDeliverableAction } from "../actions";
 import type { StakeholderOption } from "@/modules/stakeholders/repository/stakeholder-options";
 import {
+  KEY_DELIVERABLE_SORT,
   isOverdue,
   type KeyDeliverableListRow,
   type KeyDeliverableRow,
@@ -51,6 +52,7 @@ const columns: DataViewColumn<Row>[] = [
   {
     key: "WbsCode",
     header: messages.keyDeliverables.wbsCode,
+    sort: "Wbs",
     priority: 1,
     render: (r) => <span className="tabular-nums">{r.WbsCode ?? ""}</span>,
   },
@@ -196,6 +198,7 @@ export function DeliverablesView({
           </div>
         )}
         columns={columns}
+        sort={KEY_DELIVERABLE_SORT}
         datasheet={{
           canEditRow,
           saveCell,

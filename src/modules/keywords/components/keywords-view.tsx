@@ -15,6 +15,7 @@ import { createKeywordAction, updateKeywordAction } from "../actions";
 import type { KeywordListRow, KeywordRow } from "../schemas/keyword";
 import { keywordFormValues } from "../schemas/keyword-form";
 import { KeywordsToolbar } from "./keywords-toolbar";
+import { KEYWORD_SORT } from "../schemas/keyword";
 
 type Row = KeywordListRow;
 const P = messages.keywords.placeholders;
@@ -99,6 +100,7 @@ export function KeywordsView({
         </div>
       )}
       columns={columns}
+      sort={KEYWORD_SORT}
       datasheet={{
         canEditRow,
         saveCell,

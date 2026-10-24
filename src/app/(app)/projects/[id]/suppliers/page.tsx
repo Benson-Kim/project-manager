@@ -14,7 +14,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { SupplierSheet } from "@/modules/suppliers/components/supplier-sheet";
 import { SuppliersView } from "@/modules/suppliers/components/suppliers-view";
 import { getSupplierById, listSuppliers } from "@/modules/suppliers/repository/suppliers";
-import { supplierFiltersSchema } from "@/modules/suppliers/schemas/supplier";
+import { SUPPLIER_SORT, supplierFiltersSchema } from "@/modules/suppliers/schemas/supplier";
 import { parseProjectId } from "../project-id";
 import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
 import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
@@ -44,11 +44,8 @@ export default async function SuppliersPage({
 
   const raw = await searchParams;
   const flat = flattenSearchParams(raw);
-  const listParams = parseListParams(raw);
-  const effectiveParams = {
-    ...listParams,
-    sort: listParams.sort ?? "ContractEndDate",
-  };
+  const listParams = parseListParams(raw, SUPPLIER_SORT);
+  const effectiveParams = listParams;
 
   const filtersParsed = supplierFiltersSchema.safeParse(flat);
   const filters = filtersParsed.success ? filtersParsed.data : {};

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { listValue, type LookupListKey } from "@/lib/lookup-lists";
 import { alertTimeSchema, rowVerSchema } from "./todo-alert";
@@ -178,3 +179,13 @@ export const dueAlertRowSchema = z.object({
 });
 
 export type DueAlertRow = z.infer<typeof dueAlertRowSchema>;
+
+/**
+ * The orders usp_TodoItem_List applies (ADR-0016); by due date by default.
+ * SortKey is the manual order the reorder buttons write, which is why the
+ * Reorder column carries the control for it.
+ */
+export const TODO_ITEM_SORT: ListSort = {
+  columns: ["DueDate", "Priority", "Status", "StartDate", "SortKey"],
+  default: "DueDate",
+};

@@ -13,6 +13,7 @@ import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { createParkingLotItemAction, updateParkingLotItemAction } from "../actions";
 import {
+  PARKING_LOT_SORT,
   PARKING_LOT_STATUS,
   type ParkingLotItemListRow,
   type ParkingLotItemRow,
@@ -137,6 +138,7 @@ export function ParkingLotView({
         </div>
       )}
       columns={columns}
+      sort={PARKING_LOT_SORT}
       datasheet={{
         canEditRow,
         saveCell,

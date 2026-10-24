@@ -11,6 +11,7 @@ import { NotesView } from "@/modules/notes/components/notes-view";
 import { listNotes } from "@/modules/notes/repository/notes";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { parseProjectId } from "../project-id";
+import { NOTE_SORT } from "@/modules/notes/schemas/note";
 
 export const metadata: Metadata = {
   title: `${messages.notes.title} — ${messages.app.name}`,
@@ -29,7 +30,7 @@ export default async function NotesPage({
   const projectId = parseProjectId(id);
   if (projectId === null) notFound();
 
-  const listParams = parseListParams(await searchParams);
+  const listParams = parseListParams(await searchParams, NOTE_SORT);
 
   const [rows, preference, allows] = await Promise.all([
     orNotFound(listNotes(listParams, session.userId, projectId)),

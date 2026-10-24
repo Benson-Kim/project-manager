@@ -21,7 +21,7 @@ import { listDailyActivityOptions } from "@/modules/todo-items/repository/daily-
 import { parseProjectId } from "../project-id";
 import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
 import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
-import { TODO_ITEM_LISTS } from "@/modules/todo-items/schemas/todo-item";
+import { TODO_ITEM_LISTS, TODO_ITEM_SORT } from "@/modules/todo-items/schemas/todo-item";
 
 export const metadata: Metadata = {
   title: `${messages.todoItems.title} — ${messages.app.name}`,
@@ -47,11 +47,8 @@ export default async function TodosPage({
 
   const raw = await searchParams;
   const flat = flattenSearchParams(raw);
-  const listParams = parseListParams(raw);
-  const effectiveParams = {
-    ...listParams,
-    sort: listParams.sort ?? "DueDate",
-  };
+  const listParams = parseListParams(raw, TODO_ITEM_SORT);
+  const effectiveParams = listParams;
 
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;

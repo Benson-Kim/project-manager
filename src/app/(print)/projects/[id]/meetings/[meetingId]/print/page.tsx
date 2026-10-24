@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Fragment } from "react";
 import { parseProjectId } from "@/app/(app)/projects/[id]/project-id";
 import { previewText } from "@/components/ui/data-view/datasheet";
 import { RichTextView } from "@/components/ui/rich-text/rich-text-view";
@@ -11,9 +12,15 @@ import { guardProjectScope } from "@/lib/project-page-helpers";
 import { orNotFound } from "@/lib/row-access";
 import { PrintMinutesButton } from "@/modules/meetings/components/print-minutes-button";
 import { getMeetingWorkspace } from "@/modules/meetings/repository/meetings";
-import type { WorkspaceActionItem } from "@/modules/meetings/schemas/meeting";
 import { meetingTimes } from "@/modules/meetings/schemas/meeting-display";
-import { buildMinutes, itemName } from "@/modules/meetings/schemas/minutes";
+import {
+  buildMinutes,
+  carriedOverActions,
+  itemName,
+  todayIso,
+  type ActionNode,
+  type CarriedOver,
+} from "@/modules/meetings/schemas/minutes";
 
 const M = messages.meetings;
 
@@ -65,7 +72,12 @@ function People({ title, people, testId }: { title: string; people: string[]; te
   );
 }
 
-function ActionsTable({ actions, name }: { actions: WorkspaceActionItem[]; name: string }) {
+/**
+ * The actions of one parent, each followed by its follow-ups indented under it
+ * (ADR-0043), so the printed minutes show the same one-to-many the workspace
+ * edits.
+ */
+function ActionsTable({ actions, name }: { actions: ActionNode[]; name: string }) {
   if (actions.length === 0) return null;
   return (
     <table className="w-full border-collapse text-sm" data-testid="print-actions">
@@ -78,21 +90,93 @@ function ActionsTable({ actions, name }: { actions: WorkspaceActionItem[]; name:
           <th scope="col" className="py-1 pr-3 font-medium">
             {M.personResponsible}
           </th>
-          <th scope="col" className="py-1 font-medium whitespace-nowrap">
+          <th scope="col" className="py-1 pr-3 font-medium whitespace-nowrap">
             {M.dueDate}
+          </th>
+          <th scope="col" className="py-1 font-medium whitespace-nowrap">
+            {M.status}
           </th>
         </tr>
       </thead>
       <tbody>
-        {actions.map((action) => (
-          <tr key={action.MeetingActionItemId} className="border-b border-line align-top">
-            <td className="py-1 pr-3 wrap-anywhere">{action.Action}</td>
-            <td className="py-1 pr-3 wrap-anywhere">{action.AssigneeName}</td>
-            <td className="py-1 whitespace-nowrap tabular-nums">{formatDate(action.DueDate)}</td>
-          </tr>
+        {actions.map((node) => (
+          <Fragment key={node.action.MeetingActionItemId}>
+            <tr className="border-b border-line align-top">
+              <td className="py-1 pr-3 wrap-anywhere">{node.action.Action}</td>
+              <td className="py-1 pr-3 wrap-anywhere">{node.action.AssigneeName}</td>
+              <td className="py-1 pr-3 whitespace-nowrap tabular-nums">
+                {formatDate(node.action.DueDate)}
+              </td>
+              <td className="py-1 whitespace-nowrap">{M.actionStatus[node.action.Status]}</td>
+            </tr>
+            {node.followUps.map((followUp) => (
+              <tr
+                key={followUp.MeetingActionFollowUpId}
+                data-testid="print-follow-up"
+                className="border-b border-line align-top text-ink-muted"
+              >
+                <td className="py-1 pr-3 pl-4 wrap-anywhere">
+                  <span className="pr-1">{M.followUp}:</span>
+                  {followUp.FollowUp}
+                </td>
+                <td className="py-1 pr-3 wrap-anywhere">{followUp.AssigneeName}</td>
+                <td className="py-1 pr-3 whitespace-nowrap tabular-nums">
+                  {formatDate(followUp.DueDate)}
+                </td>
+                <td className="py-1 whitespace-nowrap tabular-nums">
+                  {formatDate(followUp.FollowUpDate)}
+                </td>
+              </tr>
+            ))}
+          </Fragment>
         ))}
       </tbody>
     </table>
+  );
+}
+
+/** The unfinished actions this meeting inherits from the project's earlier ones (ADR-0043). */
+function CarriedOverTable({ rows }: { rows: CarriedOver[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <section className="flex flex-col gap-1" data-testid="print-carried-over">
+      <h2 className="text-base font-semibold">{M.carriedOver}</h2>
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="border-b border-line text-left">
+            <th scope="col" className="py-1 pr-3 font-medium">
+              {M.action}
+            </th>
+            <th scope="col" className="py-1 pr-3 font-medium">
+              {M.personResponsible}
+            </th>
+            <th scope="col" className="py-1 pr-3 font-medium whitespace-nowrap">
+              {M.dueDate}
+            </th>
+            <th scope="col" className="py-1 font-medium whitespace-nowrap">
+              {M.status}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ action }) => (
+            <tr key={action.MeetingActionItemId} className="border-b border-line align-top">
+              <td className="py-1 pr-3 wrap-anywhere">
+                {action.Action}
+                <span className="block text-ink-muted">
+                  {M.carriedFrom(action.FromSubject ?? messages.app.untitled)}
+                </span>
+              </td>
+              <td className="py-1 pr-3 wrap-anywhere">{action.AssigneeName}</td>
+              <td className="py-1 pr-3 whitespace-nowrap tabular-nums">
+                {formatDate(action.DueDate)}
+              </td>
+              <td className="py-1 whitespace-nowrap">{M.actionStatus[action.Status]}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
   );
 }
 
@@ -126,6 +210,7 @@ export default async function MeetingMinutesPrintPage({
   const present = workspace.participants.filter((p) => !p.IsApology).map((p) => p.Label);
   const apologies = workspace.participants.filter((p) => p.IsApology).map((p) => p.Label);
   const agenda = buildMinutes(workspace);
+  const carried = carriedOverActions(workspace.carriedOver, todayIso());
 
   return (
     <main
@@ -163,6 +248,8 @@ export default async function MeetingMinutesPrintPage({
           <People title={M.present} people={present} testId="print-present" />
           <People title={M.apologies} people={apologies} testId="print-apologies" />
         </div>
+
+        <CarriedOverTable rows={carried} />
 
         <section className="flex flex-col gap-3">
           <h2 className="text-base font-semibold">{M.agenda}</h2>

@@ -235,6 +235,29 @@ button:focus-visible {
   }
 }
 
+/* ── The list's sticky horizontal scrollbar ───────────────────────────────────
+   StickyScrollbar mirrors a wide table's own scroller and is the only thing in
+   its box, so it must show a bar on platforms that overlay them and hide them
+   when idle (macOS, iOS). An explicit height and thumb give it a visible track;
+   the colours are tokens, so it follows the theme. */
+.sticky-scroller {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-faint) var(--surface-sunken);
+}
+
+.sticky-scroller::-webkit-scrollbar {
+  height: 0.75rem;
+}
+
+.sticky-scroller::-webkit-scrollbar-track {
+  background: var(--surface-sunken);
+}
+
+.sticky-scroller::-webkit-scrollbar-thumb {
+  background: var(--ink-faint);
+  border-radius: 9999px;
+}
+
 /* ── Rich text (ADR-0025) ─────────────────────────────────────────────────────
    Stored HTML in RichTextView and the editor's surface share these rules, so
    what you type is what the record shows. Tokens only: dark mode and print

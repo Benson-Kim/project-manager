@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import type { LookupListKey } from "@/lib/lookup-lists";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
@@ -77,3 +78,12 @@ export const supplierFiltersSchema = z.object({
 });
 
 export type SupplierFilters = z.infer<typeof supplierFiltersSchema>;
+
+/**
+ * The orders usp_Supplier_List applies (ADR-0016); the earliest contract end
+ * first, so what expires soonest leads. ContractStartDate has no column.
+ */
+export const SUPPLIER_SORT: ListSort = {
+  columns: ["SupplierName", "ContractStartDate", "ContractEndDate", "Rating"],
+  default: "ContractEndDate",
+};

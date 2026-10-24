@@ -6,6 +6,7 @@ import { getListPreference } from "@/lib/repositories/view-preference";
 import { NewNoteButton } from "@/modules/notes/components/new-note-button";
 import { NotesView } from "@/modules/notes/components/notes-view";
 import { listNotes } from "@/modules/notes/repository/notes";
+import { NOTE_SORT } from "@/modules/notes/schemas/note";
 import { filteredProjectId, parseProjectFilter } from "@/modules/projects/project-options";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { listProjectOptions } from "@/modules/projects/repository/projects";
@@ -27,7 +28,7 @@ export default async function GlobalNotesPage({
 }) {
   const session = await auth.requireSession();
   const raw = await searchParams;
-  const listParams = parseListParams(raw);
+  const listParams = parseListParams(raw, NOTE_SORT);
 
   const projectOptions = await listProjectOptions(session.userId);
   const projectFilter = parseProjectFilter(flattenSearchParams(raw).project, projectOptions);

@@ -26,6 +26,8 @@ interface ColumnSpec<Row, Value> {
   render?: (row: Row) => React.ReactNode;
   /** Rows whose cell can be edited; every row the actor may edit by default. */
   editable?: (row: Row) => boolean;
+  /** The proc's `@SortBy` token, when the column key is not it (DataViewColumn.sort). */
+  sort?: string;
 }
 
 export function textColumn<Row>(
@@ -35,6 +37,7 @@ export function textColumn<Row>(
     key: spec.key,
     header: spec.header,
     priority: spec.priority,
+    sort: spec.sort,
     render: spec.render ?? spec.value,
     edit: {
       kind: "text",
@@ -68,6 +71,7 @@ export function richTextColumn<Row>(
     key: spec.key,
     header: spec.header,
     priority: spec.priority,
+    sort: spec.sort,
     render: spec.render ?? display,
     edit: {
       kind: "rich",
@@ -87,6 +91,7 @@ export function numberColumn<Row>(
     key: spec.key,
     header: spec.header,
     priority: spec.priority,
+    sort: spec.sort,
     render: spec.render ?? spec.value,
     edit: {
       kind: "number",
@@ -105,6 +110,7 @@ export function dateColumn<Row>(spec: ColumnSpec<Row, Date | null>): DataViewCol
     key: spec.key,
     header: spec.header,
     priority: spec.priority,
+    sort: spec.sort,
     render: spec.render ?? ((row) => formatDate(spec.value(row))),
     edit: {
       kind: "date",
@@ -127,6 +133,7 @@ export function booleanColumn<Row>(
     key: spec.key,
     header: spec.header,
     priority: spec.priority,
+    sort: spec.sort,
     render: spec.render ?? ((row) => (spec.value(row) ? spec.yes : spec.no)),
     edit: {
       kind: "select",
@@ -163,6 +170,7 @@ export function listColumn<Row>(
     key: spec.key,
     header: spec.header,
     priority: spec.priority,
+    sort: spec.sort,
     // The value's badge in its list colour (migration 020).
     render:
       spec.render ??
@@ -209,6 +217,7 @@ export function choiceColumn<Row>(
     key: spec.key,
     header: spec.header,
     priority: spec.priority,
+    sort: spec.sort,
     render: spec.render ?? label,
     edit: {
       kind: "select",
