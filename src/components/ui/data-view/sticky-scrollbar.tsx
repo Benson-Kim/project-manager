@@ -11,6 +11,10 @@ import { useEffect, useRef, useState } from "react";
  *
  * It renders only while the table is actually wider than its box, and it scrolls
  * nothing of its own — both scrollers write each other's `scrollLeft`.
+ *
+ * It is the list's one horizontal scrollbar: it publishes the height of the box's own
+ * bar as `--hbar`, and the box hangs that bar below a clip (data-view.tsx). The bar's
+ * height depends on the platform (0 where scrollbars overlay), so it is measured.
  */
 export function StickyScrollbar({ targetRef }: { targetRef: React.RefObject<HTMLElement | null> }) {
   const proxyRef = useRef<HTMLDivElement>(null);
@@ -23,9 +27,12 @@ export function StickyScrollbar({ targetRef }: { targetRef: React.RefObject<HTML
     if (!target || !proxy) return;
 
     const measure = () => {
-      setWidth(target.scrollWidth);
+      // The box's vertical scrollbar narrows its view, not this bar's: adding its width
+      // gives both the same range, so this bar reaches the last column too.
+      setWidth(target.scrollWidth + target.offsetWidth - target.clientWidth);
       // A sub-pixel difference is a rounded layout, not an overflow.
       setOverflows(target.scrollWidth - target.clientWidth > 1);
+      target.style.setProperty("--hbar", `${target.offsetHeight - target.clientHeight}px`);
     };
     measure();
 

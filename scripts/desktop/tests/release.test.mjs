@@ -115,23 +115,63 @@ describe("withPolicy / minimumFromYml", () => {
   });
 });
 
+const merge = (n, body) => ({ subject: `Merge pull request #${n} from Benson-Kim/feature/x`, body });
+
 describe("notesFromLog", () => {
-  it("uses PR titles for merges and drops CI markers", () => {
+  it("uses a merge's release-note lines over its title", () => {
     const notes = notesFromLog([
-      {
-        subject: "Merge pull request #21 from Benson-Kim/docs/datasheet-phase",
-        body: "docs(datasheet): standards [skip ci]\n",
-      },
+      merge(
+        38,
+        "Notes without a project (ADR-0035 amendment)\n\n" +
+          "Release note: Notes can live outside a project, in a notebook everyone shares.\n" +
+          "release note: Notes is in the main menu.\n",
+      ),
+    ]);
+    expect(notes).toBe(
+      "- Notes can live outside a project, in a notebook everyone shares.\n- Notes is in the main menu.",
+    );
+  });
+
+  it("falls back to the PR title without commit type, plan numbers, PR number or CI tags", () => {
+    const notes = notesFromLog([
+      merge(
+        39,
+        "[force-update] Meeting action status and follow-ups (ADR-0043), a reason for the hold, and sortable sticky lists (ADR-0044)\n",
+      ),
+      merge(38, "Notes without a project: the shared space everyone edits (ADR-0035 amendment)\n"),
+      merge(41, "fix(desktop): update click installs (#41) [e2e]\n"),
+      merge(36, "feat(requirements): the register, PM-3 follow-up and ADR-0040\n"),
+    ]);
+    expect(notes.split("\n")).toEqual([
+      "- Meeting action status and follow-ups, a reason for the hold, and sortable sticky lists",
+      "- Notes without a project: the shared space everyone edits",
+      "- Update click installs",
+      "- The register, follow-up",
+    ]);
+  });
+
+  it("never lets a plan or PR number through", () => {
+    const notes = notesFromLog([
+      merge(1, "Release note: Faster lists (ADR-0016, PM-6), see #12 and PR-3\n"),
+      merge(2, "docs(adr): ADR-0045 read committed snapshot (#38)\n"),
+    ]);
+    expect(notes).not.toMatch(/ADR|PM-\d|PR-?\d|#\d|\[/);
+  });
+
+  it("leaves out direct commits, branch merges and 'Release note: none'", () => {
+    const notes = notesFromLog([
       { subject: "fix(ci): seed counts [e2e]", body: "" },
       { subject: "Merge branch 'develop' into feature/x", body: "" },
+      merge(40, "chore: CI pins\n\nRelease note: none\n"),
+      { subject: "fix(db): faster search", body: "Release note: Search is faster on long lists.\n" },
     ]);
-    expect(notes).toBe("- docs(datasheet): standards (#21)\n- fix(ci): seed counts");
+    expect(notes).toBe("- Search is faster on long lists.");
   });
 
   it("caps long lists", () => {
-    const many = Array.from({ length: 30 }, (_, i) => ({ subject: `feat: ${i}`, body: "" }));
+    const many = Array.from({ length: 30 }, (_, i) => merge(i, `feat: change ${i}\n`));
     const notes = notesFromLog(many, 3).split("\n");
-    expect(notes).toEqual(["- feat: 0", "- feat: 1", "- feat: 2", "- …and 27 more"]);
+    expect(notes).toEqual(["- Change 0", "- Change 1", "- Change 2", "- …and 27 more"]);
   });
 });
 

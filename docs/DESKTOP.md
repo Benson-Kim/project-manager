@@ -118,7 +118,7 @@ PR merged → CI green on develop → desktop-release.yml (Windows runner)
   ├─ skipped if nothing that reaches the app changed (docs, CI, tests only)
   ├─ version = latest release + 1 patch (or package.json's version if higher)
   ├─ npm run electron:build (PM_VERSION, feed = this repo's GitHub Releases)
-  ├─ GitHub Release vX.Y.Z: installer, .sha256, .blockmap, latest.yml, notes from the merged PR titles
+  ├─ GitHub Release vX.Y.Z: installer, .sha256, .blockmap, latest.yml, "What's new" (see Release notes)
   └─ keeps the newest 10 releases
 ```
 
@@ -153,6 +153,29 @@ What installed apps do (`electron/updater.ts`):
   `main.log` has the reason. If the installer cannot start, the app stays open
   and says so.
 - Offline or GitHub unreachable: logged only, the user is not bothered.
+- **Always the newest version.** Every installer is the whole app, and on start the
+  database runs every migration it has not had yet, in order, so a PC on 1.0.8 goes
+  straight to the newest release without installing the ones between. Clicking the
+  notification, the tray's *Install update* and *Check for updates* each ask the feed
+  first, and a newer release replaces one downloaded earlier (its tray item and notice
+  go). Apps before this change offered the downloaded version until their next 4-hourly
+  check; quitting and reopening the app also makes it check at once.
+
+### Release notes ("What's new")
+
+The update dialogs show the release's notes, written for the people who use the app.
+They come from `Release note:` lines in the merge commit's message (the body of
+`gh pr merge --merge --body`, or the merge dialog on GitHub), one line per change:
+
+```
+Release note: Notes can live outside a project, in notebooks everyone shares.
+Release note: Notes is in the main menu.
+```
+
+`Release note: none` leaves a PR out. A PR without one shows its title, minus the commit
+type, decision-record, plan and PR numbers and CI tags (`scripts/desktop/release.mjs`,
+`userFacing`); write a release note instead of relying on that. Never put ADR, plan or
+PR numbers, file paths or developer terms in a release note.
 
 ### Making an update required (the "force" command)
 

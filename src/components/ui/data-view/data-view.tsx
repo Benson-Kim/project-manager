@@ -448,183 +448,198 @@ export function DataView<Row>({
             // its own box (at most one screen under the app header) and the header row sticks
             // to it (client feedback, 2026-10-12); scroll-pt keeps arrowed rows clear of it.
             // That box puts its own horizontal scrollbar a screen down, so StickyScrollbar
-            // mirrors it within reach (client feedback, 2026-10-23).
+            // mirrors it within reach (client feedback, 2026-10-23) and is the only one shown:
+            // the box's own bar (--hbar tall, measured by StickyScrollbar) hangs below the
+            // clip, while wheel, touch and keyboard still scroll the box. `clip`, unlike
+            // `hidden`, makes no scroll container, so the bar below still sticks to the page;
+            // `flow-root` keeps the negative margin inside the clip instead of pulling the bar
+            // up over the hidden one.
             <>
               <div
-                ref={scrollerRef}
-                data-testid="data-view-scroller"
-                className="relative max-h-[calc(100dvh-5rem)] scroll-pt-14 overflow-auto print:max-h-none print:overflow-visible"
+                data-testid="data-view-clip"
+                className="flow-root overflow-clip print:overflow-visible"
               >
-                <table
-                  data-testid="data-view-table"
-                  style={{ "--row-h": `${rowHeight}px` } as React.CSSProperties}
-                  className="w-full border-collapse border border-line text-sm"
+                <div
+                  ref={scrollerRef}
+                  data-testid="data-view-scroller"
+                  className="relative max-h-[calc(100dvh-5rem)] scroll-pt-14 overflow-auto mb-[calc(var(--hbar,0px)*-1)] print:mb-0 print:max-h-none print:overflow-visible"
                 >
-                  <thead className="sticky top-0 z-20 print:static">
-                    <tr>
-                      {bulkActions ? (
-                        <th
-                          className={`w-11 ${headerCellClass} p-2`}
-                          aria-label={messages.actions.selectAll}
-                        />
-                      ) : null}
-                      {shownColumns.map((col) => {
-                        const order = headerSort(col, sort, currentSort);
-                        return (
-                          <HeaderCell
-                            key={col.key}
-                            column={col}
-                            canEditLists={Boolean(sheet) && canEditLists}
-                            onEditList={(list, column) => setEditingList({ list, column })}
-                            sort={order}
-                            onSort={order ? () => sortBy(col, order.next) : undefined}
-                            resize={{
-                              width: layout?.widths?.[col.key],
-                              onResize: (width) => resizeColumn(col.key, width),
-                              onCommit: commitLayout,
-                            }}
-                            drag={{
-                              dragging: drag?.key === col.key,
-                              over: Boolean(drag) && drag?.over === col.key && drag.key !== col.key,
-                              onStart: () => setDrag({ key: col.key, over: null }),
-                              onOver: () =>
-                                setDrag((current) =>
-                                  current && current.over !== col.key
-                                    ? { ...current, over: col.key }
-                                    : current,
-                                ),
-                              onDrop: () => dropColumn(col.key),
-                              onEnd: () => setDrag(null),
-                            }}
+                  <table
+                    data-testid="data-view-table"
+                    style={{ "--row-h": `${rowHeight}px` } as React.CSSProperties}
+                    className="w-full border-collapse border border-line text-sm"
+                  >
+                    <thead className="sticky top-0 z-20 print:static">
+                      <tr>
+                        {bulkActions ? (
+                          <th
+                            className={`w-11 ${headerCellClass} p-2`}
+                            aria-label={messages.actions.selectAll}
+                          />
+                        ) : null}
+                        {shownColumns.map((col, index) => {
+                          const order = headerSort(col, sort, currentSort);
+                          return (
+                            <HeaderCell
+                              key={col.key}
+                              column={col}
+                              canEditLists={Boolean(sheet) && canEditLists}
+                              onEditList={(list, column) => setEditingList({ list, column })}
+                              sort={order}
+                              onSort={order ? () => sortBy(col, order.next) : undefined}
+                              resize={{
+                                width: layout?.widths?.[col.key],
+                                onResize: (width) => resizeColumn(col.key, width),
+                                onCommit: commitLayout,
+                                atTableEdge: !actionsColumn && index === shownColumns.length - 1,
+                              }}
+                              drag={{
+                                dragging: drag?.key === col.key,
+                                over:
+                                  Boolean(drag) && drag?.over === col.key && drag.key !== col.key,
+                                onStart: () => setDrag({ key: col.key, over: null }),
+                                onOver: () =>
+                                  setDrag((current) =>
+                                    current && current.over !== col.key
+                                      ? { ...current, over: col.key }
+                                      : current,
+                                  ),
+                                onDrop: () => dropColumn(col.key),
+                                onEnd: () => setDrag(null),
+                              }}
+                            />
+                          );
+                        })}
+                        {actionsColumn ? (
+                          <th
+                            className={`w-24 ${headerCellClass} px-3 py-2 text-left font-medium text-ink-muted`}
+                          >
+                            <span className="sr-only">{messages.datasheet.actions}</span>
+                          </th>
+                        ) : null}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {shownRows.map((row, index) => {
+                        const id = getRowId(row);
+                        const editable = Boolean(sheet?.canEditRow(row));
+                        const tone = toneOf(row);
+                        // Access-style row height: the first cell's bottom edge resizes every row
+                        // (pointer only; the Table layout dialog is the keyboard way). It straddles
+                        // the edge, except on the last row: below the table it would make the box
+                        // scroll a few pixels and show a vertical scrollbar on a short list.
+                        const lastRow = index === shownRows.length - 1;
+                        const rowHandle = (
+                          <ResizeHandle
+                            label={messages.datasheet.resizeRows}
+                            orientation="horizontal"
+                            value={layout?.rowHeight}
+                            estimate={rowHeight}
+                            onResize={resizeRows}
+                            onCommit={commitLayout}
+                            measure={() => rowHeight}
+                            focusable={false}
+                            className={`absolute left-0 z-10 w-full cursor-row-resize ${lastRow ? "bottom-0 h-1" : "-bottom-1 h-2"}`}
                           />
                         );
-                      })}
-                      {actionsColumn ? (
-                        <th
-                          className={`w-24 ${headerCellClass} px-3 py-2 text-left font-medium text-ink-muted`}
-                        >
-                          <span className="sr-only">{messages.datasheet.actions}</span>
-                        </th>
-                      ) : null}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {shownRows.map((row, index) => {
-                      const id = getRowId(row);
-                      const editable = Boolean(sheet?.canEditRow(row));
-                      const tone = toneOf(row);
-                      // Access-style row height: the first cell's bottom edge resizes every row
-                      // (pointer only; the Table layout dialog is the keyboard way).
-                      const rowHandle = (
-                        <ResizeHandle
-                          label={messages.datasheet.resizeRows}
-                          orientation="horizontal"
-                          value={layout?.rowHeight}
-                          estimate={rowHeight}
-                          onResize={resizeRows}
-                          onCommit={commitLayout}
-                          measure={() => rowHeight}
-                          focusable={false}
-                          className="absolute -bottom-1 left-0 z-10 h-2 w-full cursor-row-resize"
-                        />
-                      );
-                      return (
-                        <tr
-                          key={id}
-                          data-active={index === activeIndex || undefined}
-                          tabIndex={index === activeIndex ? 0 : -1}
-                          onFocus={() => setActiveIndex(index)}
-                          onClick={
-                            onOpen
-                              ? (e) => {
-                                  // Clicks on a cell's control edit it; the rest of the row opens the record.
-                                  if (!isEditableTarget(e.target as HTMLElement)) onOpen(row);
-                                }
-                              : undefined
-                          }
-                          data-tone={tone ?? undefined}
-                          className={`${onOpen ? "cursor-pointer" : ""} ${tone ? TONES[tone].fill : index === activeIndex ? "bg-surface-raised" : ""}`}
-                        >
-                          {bulkActions ? (
-                            <td className={`relative w-11 ${cellClass} px-2`}>
-                              <input
-                                type="checkbox"
-                                aria-label={rowSelectionLabel(row, getRowLabel) ?? String(id)}
-                                checked={selected.includes(id)}
-                                onClick={(e) => e.stopPropagation()}
-                                onChange={() => toggleSelected(id)}
-                                className="size-5"
-                              />
-                              {rowHandle}
-                            </td>
-                          ) : null}
-                          {shownColumns.map((col, colIndex) => {
-                            const handle = !bulkActions && colIndex === 0 ? rowHandle : null;
-                            const style = columnStyle(col);
-                            return editable && col.edit && (col.edit.editable?.(row) ?? true) ? (
-                              <td
-                                key={col.key}
-                                style={style}
-                                className={`relative ${editableCellClass} ${style ? "" : CELL_WIDTH[cellWidthKind(col.edit)]} ${priorityClass[col.priority]}`}
-                              >
-                                <DatasheetCell
-                                  row={row}
-                                  editor={col.edit}
-                                  label={messages.datasheet.cellLabel(col.header, rowLabel(row))}
-                                  header={col.header}
-                                  onSave={(value) => saveCell(row, col, value)}
-                                  onEditList={
-                                    col.edit.list && editList
-                                      ? () => editList(col.edit!.list!, col.header)
-                                      : undefined
+                        return (
+                          <tr
+                            key={id}
+                            data-active={index === activeIndex || undefined}
+                            tabIndex={index === activeIndex ? 0 : -1}
+                            onFocus={() => setActiveIndex(index)}
+                            onClick={
+                              onOpen
+                                ? (e) => {
+                                    // Clicks on a cell's control edit it; the rest of the row opens the record.
+                                    if (!isEditableTarget(e.target as HTMLElement)) onOpen(row);
                                   }
+                                : undefined
+                            }
+                            data-tone={tone ?? undefined}
+                            className={`${onOpen ? "cursor-pointer" : ""} ${tone ? TONES[tone].fill : index === activeIndex ? "bg-surface-raised" : ""}`}
+                          >
+                            {bulkActions ? (
+                              <td className={`relative w-11 ${cellClass} px-2`}>
+                                <input
+                                  type="checkbox"
+                                  aria-label={rowSelectionLabel(row, getRowLabel) ?? String(id)}
+                                  checked={selected.includes(id)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={() => toggleSelected(id)}
+                                  className="size-5"
                                 />
-                                {handle}
+                                {rowHandle}
                               </td>
-                            ) : (
-                              <td
-                                key={col.key}
-                                style={style}
-                                className={`relative ${cellClass} whitespace-pre-line ${style ? "wrap-anywhere" : "wrap-break-word"} ${priorityClass[col.priority]}`}
-                              >
-                                {col.edit?.kind === "rich" ? (
-                                  // Rich text keeps to the row height, as in the editable cell.
-                                  <div className="max-h-[calc(var(--row-h)-1rem)] overflow-hidden">
-                                    {col.render(row)}
-                                  </div>
-                                ) : (
-                                  col.render(row)
-                                )}
-                                {handle}
-                              </td>
-                            );
-                          })}
-                          {actionsColumn ? (
-                            <td className={`${cellClass} py-1`}>
-                              {onOpen ? (
-                                <IconButton
-                                  label={messages.datasheet.open(rowLabel(row))}
-                                  onClick={() => onOpen(row)}
+                            ) : null}
+                            {shownColumns.map((col, colIndex) => {
+                              const handle = !bulkActions && colIndex === 0 ? rowHandle : null;
+                              const style = columnStyle(col);
+                              return editable && col.edit && (col.edit.editable?.(row) ?? true) ? (
+                                <td
+                                  key={col.key}
+                                  style={style}
+                                  className={`relative ${editableCellClass} ${style ? "" : CELL_WIDTH[cellWidthKind(col.edit)]} ${priorityClass[col.priority]}`}
                                 >
-                                  <path d="M6 3h7v7M13 3L5 11" />
-                                </IconButton>
-                              ) : null}
-                            </td>
-                          ) : null}
-                        </tr>
-                      );
-                    })}
-                    {sheet?.addRow ? (
-                      <DatasheetAddRow
-                        columns={shownColumns}
-                        hasSelectColumn={Boolean(bulkActions)}
-                        columnStyle={columnStyle}
-                        onAdd={addEntry}
-                        onEditList={editList}
-                      />
-                    ) : null}
-                  </tbody>
-                </table>
+                                  <DatasheetCell
+                                    row={row}
+                                    editor={col.edit}
+                                    label={messages.datasheet.cellLabel(col.header, rowLabel(row))}
+                                    header={col.header}
+                                    onSave={(value) => saveCell(row, col, value)}
+                                    onEditList={
+                                      col.edit.list && editList
+                                        ? () => editList(col.edit!.list!, col.header)
+                                        : undefined
+                                    }
+                                  />
+                                  {handle}
+                                </td>
+                              ) : (
+                                <td
+                                  key={col.key}
+                                  style={style}
+                                  className={`relative ${cellClass} whitespace-pre-line ${style ? "wrap-anywhere" : "wrap-break-word"} ${priorityClass[col.priority]}`}
+                                >
+                                  {col.edit?.kind === "rich" ? (
+                                    // Rich text keeps to the row height, as in the editable cell.
+                                    <div className="max-h-[calc(var(--row-h)-1rem)] overflow-hidden">
+                                      {col.render(row)}
+                                    </div>
+                                  ) : (
+                                    col.render(row)
+                                  )}
+                                  {handle}
+                                </td>
+                              );
+                            })}
+                            {actionsColumn ? (
+                              <td className={`${cellClass} py-1`}>
+                                {onOpen ? (
+                                  <IconButton
+                                    label={messages.datasheet.open(rowLabel(row))}
+                                    onClick={() => onOpen(row)}
+                                  >
+                                    <path d="M6 3h7v7M13 3L5 11" />
+                                  </IconButton>
+                                ) : null}
+                              </td>
+                            ) : null}
+                          </tr>
+                        );
+                      })}
+                      {sheet?.addRow ? (
+                        <DatasheetAddRow
+                          columns={shownColumns}
+                          hasSelectColumn={Boolean(bulkActions)}
+                          columnStyle={columnStyle}
+                          onAdd={addEntry}
+                          onEditList={editList}
+                        />
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
               </div>
               <StickyScrollbar targetRef={scrollerRef} />
             </>

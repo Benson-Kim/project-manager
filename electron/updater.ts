@@ -5,7 +5,14 @@ import path from "path";
 import type { Logger } from "./log";
 import { paths } from "./paths";
 import { alignDifferentialBase, updaterCacheDir, type BaseState } from "./update-cache";
-import { installOutcome, isMandatory, releaseNotesText } from "./update-policy";
+import {
+  checkAnswer,
+  installOutcome,
+  isMandatory,
+  isNewer,
+  releaseNotesText,
+  type CheckAnswer,
+} from "./update-policy";
 import type { SettingsStore } from "./user-settings";
 
 const FIRST_CHECK_MS = 30_000;
@@ -56,6 +63,8 @@ export interface Updater {
  *   until someone clicks "Restart and update"; quitting does NOT install it.
  * - Required update (release marked with minimumVersion): a warning, then the
  *   app restarts to install after REQUIRED_GRACE_MS.
+ * - Always the newest: the feed is asked again before a downloaded update is
+ *   offered or installed, and a newer release replaces it (see checkAnswer).
  * - The next start says whether the update installed.
  *
  * Installing runs the NSIS installer silently. The app is installed per user,
@@ -145,10 +154,8 @@ export function setupAutoUpdater(
     void ask({
       type: "warning",
       title: "Update not installed",
-      message: "The update could not be started.",
-      detail:
-        `${err instanceof Error ? err.message : String(err)}\n\n` +
-        'The app keeps running. Try again from the tray menu ("Install update").',
+      message: "The update could not be installed.",
+      detail: "Try again from the tray menu.",
       buttons: ["OK"],
       noLink: true,
     });
@@ -199,12 +206,7 @@ export function setupAutoUpdater(
         type: "info",
         title: "Update ready",
         message: `Project Manager ${info.version} is ready to install.`,
-        detail:
-          whatsNew(info) +
-          "Installing takes a few minutes: the app closes and opens again by itself. " +
-          "Save what you are working on first: changes not saved yet are lost. " +
-          "Saved data stays; if the update changes the database, a backup is taken first.\n\n" +
-          'Choose Later to keep working. You can install it any time from the tray menu ("Install update").',
+        detail: `${whatsNew(info)}Save your work first: the app restarts to update.`,
         buttons: ["Restart and update", "Later"],
         defaultId: 0,
         cancelId: 1,
@@ -228,12 +230,12 @@ export function setupAutoUpdater(
     notice = new Notification({
       id: NOTICE_ID,
       title: `Update ${info.version} is ready`,
-      body: "Click to install it now, or keep working and install it later from the tray menu.",
+      body: "Click to install.",
       icon: paths.icon,
     });
     notice.on("click", () => {
       hooks.showWindow();
-      void offer();
+      void offerNewest();
     });
     notice.show();
   };
@@ -250,11 +252,8 @@ export function setupAutoUpdater(
       type: "warning",
       title: "Required update",
       message: `Project Manager ${info.version} is a required update.`,
-      detail:
-        `Please save what you are working on. Project Manager will restart to install it in ${minutes} minutes.\n\n` +
-        whatsNew(info) +
-        "The app closes and opens again by itself. Your data stays.",
-      buttons: ["Restart now", `OK, restart in ${minutes} minutes`],
+      detail: `${whatsNew(info)}Save your work: the app restarts to update in ${minutes} minutes.`,
+      buttons: ["Restart now", `Restart in ${minutes} minutes`],
       defaultId: 1,
       cancelId: 1,
       noLink: true,
@@ -265,9 +264,24 @@ export function setupAutoUpdater(
   const isRequired = (info: UpdateInfo) =>
     isMandatory(app.getVersion(), info as UpdateInfo & { minimumVersion?: unknown });
 
+  // A newer release replaces one downloaded earlier: nobody installs the version it replaced.
+  const dropReady = (): void => {
+    ready = null;
+    hooks.onReadyChanged(null);
+    notice?.close();
+    notice = null;
+    if (requiredTimer) clearTimeout(requiredTimer);
+    requiredTimer = null;
+    autoUpdater.autoInstallOnAppQuit = false;
+  };
+
   autoUpdater.on("update-available", (info: UpdateInfo) => {
     const kind = isRequired(info) ? "required" : "optional";
     log.info(`[updater] ${info.version} available (${kind}), downloading`);
+    if (ready && isNewer(info.version, ready.version) && !installing) {
+      log.info(`[updater] ${info.version} replaces ${ready.version}, which is no longer offered`);
+      dropReady();
+    }
   });
 
   autoUpdater.on("update-downloaded", (info: UpdateInfo) => {
@@ -313,33 +327,45 @@ export function setupAutoUpdater(
   setTimeout(() => void check(), FIRST_CHECK_MS);
   setInterval(() => void check(), CHECK_INTERVAL_MS);
 
-  return {
-    async checkNow() {
-      if (ready) return offer();
-      let result: Awaited<ReturnType<typeof autoUpdater.checkForUpdates>> = null;
-      let failure: unknown = null;
-      try {
-        result = await checkForUpdates();
-      } catch (err) {
-        failure = err;
-      }
-      if (ready) return offer();
-      await ask({
-        type: failure ? "warning" : "info",
-        title: "Updates",
-        message: failure
-          ? "Could not check for updates."
-          : result?.isUpdateAvailable
-            ? `Project Manager ${result.updateInfo.version} is downloading.`
+  /** Asks the feed first, so an update downloaded earlier is never offered over a newer one. */
+  const freshCheck = async (): Promise<{ answer: CheckAnswer; latest: string | null }> => {
+    let result: Awaited<ReturnType<typeof autoUpdater.checkForUpdates>> = null;
+    let failed = false;
+    try {
+      result = await checkForUpdates();
+    } catch (err) {
+      failed = true;
+      log.warn(`[updater] check failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    const latest = result?.isUpdateAvailable ? result.updateInfo.version : null;
+    return { answer: checkAnswer(ready?.version ?? null, latest, failed), latest };
+  };
+
+  const tell = (answer: CheckAnswer, latest: string | null) =>
+    ask({
+      type: answer === "failed" ? "warning" : "info",
+      title: "Updates",
+      message:
+        answer === "failed"
+          ? "Could not check for updates. Check the internet connection."
+          : answer === "downloading"
+            ? `Project Manager ${latest} is downloading.`
             : `You have the latest version (${app.getVersion()}).`,
-        detail: failure
-          ? "Check the internet connection and try again later."
-          : result?.isUpdateAvailable
-            ? "You will be told when it is ready to install."
-            : undefined,
-        buttons: ["OK"],
-      });
+      buttons: ["OK"],
+    });
+
+  const offerNewest = async (): Promise<void> => {
+    const { answer, latest } = await freshCheck();
+    if (answer === "offer-ready") return offer();
+    await tell(answer, latest);
+  };
+
+  return {
+    checkNow: offerNewest,
+    async installNow() {
+      const { answer, latest } = await freshCheck();
+      if (answer === "offer-ready") return install();
+      await tell(answer, latest);
     },
-    installNow: install,
   };
 }

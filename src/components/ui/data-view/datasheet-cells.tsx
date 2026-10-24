@@ -424,6 +424,11 @@ export interface HeaderResize {
   onResize: (width: number) => void;
   /** Store the width (pointer released, key released). */
   onCommit: () => void;
+  /**
+   * The header's right edge is the table's: the handle stays inside it, since past it the
+   * box would scroll a few pixels sideways and show a scrollbar for a table that fits.
+   */
+  atTableEdge?: boolean;
 }
 
 /**
@@ -573,7 +578,7 @@ export function HeaderCell<Row>({
           onResize={(next) => resize.onResize(clampWidth(next))}
           onCommit={resize.onCommit}
           measure={() => thRef.current?.offsetWidth ?? 0}
-          className="absolute top-0 -right-1 z-10 h-full w-2 cursor-col-resize"
+          className={`absolute top-0 z-10 h-full cursor-col-resize ${resize.atTableEdge ? "right-0 w-1" : "-right-1 w-2"}`}
         />
       ) : null}
     </th>
