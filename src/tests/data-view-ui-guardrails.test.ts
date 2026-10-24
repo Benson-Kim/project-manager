@@ -103,6 +103,22 @@ describe("a wide table's horizontal scrollbar stays in reach", () => {
     }
   });
 
+  it("is the only horizontal scrollbar: the box's own hangs below a clip", () => {
+    const view = source(VIEW);
+    // The bar's height is the platform's (0 where scrollbars overlay), so it is measured.
+    expect(bar).toContain(
+      'target.style.setProperty("--hbar", `${target.offsetHeight - target.clientHeight}px`);',
+    );
+    expect(view).toContain("mb-[calc(var(--hbar,0px)*-1)] print:mb-0");
+    // `overflow: hidden` would make the clip a scroll container, and the sticky bar below
+    // it would then stick to the clip instead of the page. Without `flow-root` the negative
+    // margin collapses through the clip: the box's bar stays and the sticky one overlaps it.
+    expect(view).toMatch(
+      /data-testid="data-view-clip"\s+className="flow-root overflow-clip print:overflow-visible"/,
+    );
+    expect(view).not.toMatch(/data-view-clip"[^>]*overflow-hidden/);
+  });
+
   it("re-measures when the box or the table is resized", () => {
     // A column resize changes the table's width without a window event.
     expect(bar).toContain("new ResizeObserver(measure)");
