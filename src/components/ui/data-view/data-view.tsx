@@ -477,7 +477,7 @@ export function DataView<Row>({
                             aria-label={messages.actions.selectAll}
                           />
                         ) : null}
-                        {shownColumns.map((col) => {
+                        {shownColumns.map((col, index) => {
                           const order = headerSort(col, sort, currentSort);
                           return (
                             <HeaderCell
@@ -491,6 +491,7 @@ export function DataView<Row>({
                                 width: layout?.widths?.[col.key],
                                 onResize: (width) => resizeColumn(col.key, width),
                                 onCommit: commitLayout,
+                                atTableEdge: !actionsColumn && index === shownColumns.length - 1,
                               }}
                               drag={{
                                 dragging: drag?.key === col.key,
@@ -524,7 +525,10 @@ export function DataView<Row>({
                         const editable = Boolean(sheet?.canEditRow(row));
                         const tone = toneOf(row);
                         // Access-style row height: the first cell's bottom edge resizes every row
-                        // (pointer only; the Table layout dialog is the keyboard way).
+                        // (pointer only; the Table layout dialog is the keyboard way). It straddles
+                        // the edge, except on the last row: below the table it would make the box
+                        // scroll a few pixels and show a vertical scrollbar on a short list.
+                        const lastRow = index === shownRows.length - 1;
                         const rowHandle = (
                           <ResizeHandle
                             label={messages.datasheet.resizeRows}
@@ -535,7 +539,7 @@ export function DataView<Row>({
                             onCommit={commitLayout}
                             measure={() => rowHeight}
                             focusable={false}
-                            className="absolute -bottom-1 left-0 z-10 h-2 w-full cursor-row-resize"
+                            className={`absolute left-0 z-10 w-full cursor-row-resize ${lastRow ? "bottom-0 h-1" : "-bottom-1 h-2"}`}
                           />
                         );
                         return (

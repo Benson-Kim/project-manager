@@ -27,7 +27,9 @@ export function StickyScrollbar({ targetRef }: { targetRef: React.RefObject<HTML
     if (!target || !proxy) return;
 
     const measure = () => {
-      setWidth(target.scrollWidth);
+      // The box's vertical scrollbar narrows its view, not this bar's: adding its width
+      // gives both the same range, so this bar reaches the last column too.
+      setWidth(target.scrollWidth + target.offsetWidth - target.clientWidth);
       // A sub-pixel difference is a rounded layout, not an overflow.
       setOverflows(target.scrollWidth - target.clientWidth > 1);
       target.style.setProperty("--hbar", `${target.offsetHeight - target.clientHeight}px`);

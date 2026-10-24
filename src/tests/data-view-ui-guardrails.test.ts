@@ -119,6 +119,25 @@ describe("a wide table's horizontal scrollbar stays in reach", () => {
     expect(view).not.toMatch(/data-view-clip"[^>]*overflow-hidden/);
   });
 
+  it("scrolls as far as the box, also when the box has a vertical scrollbar", () => {
+    // That scrollbar narrows the box's view and not this bar's: a bar as wide as the table
+    // alone stopped the scrollbar's width short, and mirrored back, held the box short too.
+    expect(bar).toContain(
+      "setWidth(target.scrollWidth + target.offsetWidth - target.clientWidth);",
+    );
+  });
+
+  it("keeps the resize handles inside the table, so a table that fits does not scroll", () => {
+    // Each handle straddles an edge between cells. On the last row and the last column that
+    // edge is the table's, and the half outside made the box scroll a few pixels: a vertical
+    // and a sideways scrollbar on a short list that fits (seen on /notes).
+    const view = source(VIEW);
+    expect(view).toContain("const lastRow = index === shownRows.length - 1;");
+    expect(view).toContain('${lastRow ? "bottom-0 h-1" : "-bottom-1 h-2"}');
+    expect(view).toContain("atTableEdge: !actionsColumn && index === shownColumns.length - 1,");
+    expect(source(CELLS)).toContain('${resize.atTableEdge ? "right-0 w-1" : "-right-1 w-2"}');
+  });
+
   it("re-measures when the box or the table is resized", () => {
     // A column resize changes the table's width without a window event.
     expect(bar).toContain("new ResizeObserver(measure)");
