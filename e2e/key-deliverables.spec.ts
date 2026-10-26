@@ -431,6 +431,11 @@ test("WBS diagram: Alt+arrows, Move to…, a branch listed or side by side, zoom
 test("WBS item menu: Assignees… opens the details on the picker; the box names them", async ({
   page,
 }) => {
+  // Long: an item is created and renamed, the context menu is opened (with a
+  // retry, below), a details sheet loads, and a stakeholder is picked and
+  // saved — a dozen round trips against a real database. The default 30s
+  // budget is spent before the last of them.
+  test.slow();
   const name = `E2E assignee item ${Date.now()}`;
   await page.goto("/projects/2/deliverables/gantt?view=wbs");
   const diagram = page.getByTestId("wbs-diagram");
@@ -709,6 +714,9 @@ test("WBS item menu: whole name, status colour; requirements cascade in both vie
 test("WBS: two items are linked, the successor is pushed, and the link goes with its item", async ({
   page,
 }) => {
+  // Long: two items created and renamed, one moved, the dependencies panel
+  // opened twice (each behind a retry), a link made and the cascade awaited.
+  test.slow();
   const stamp = Date.now();
   await page.goto("/projects/2/deliverables/gantt?view=gantt&scale=day");
   await expect(page.getByTestId("gantt-chart")).toBeVisible();

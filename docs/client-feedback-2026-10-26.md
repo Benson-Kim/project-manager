@@ -66,8 +66,12 @@ Number)` and its reference is `FR-3` — flat, with the number assigned as `MAX(
   sort before `"1.2"`.
 - A parent cannot become its own descendant. That check spans rows, so it belongs under the project
   lock in the update proc, like `usp_KeyDeliverable_AssertPlacement`.
-- Decisions needed from the client: what happens to children when a parent is deleted, and what a
-  merge does to a parent that has them.
+- Two decisions are needed from the client before any of it is built: **what deleting a
+  requirement that has sub-requirements should do** (refuse it, delete the whole branch, or promote
+  the children up a level and renumber them), and **what changing a parent's type should do to
+  them** (follow the parent, which changes every child's reference, or refuse while it has
+  children). Merging is not affected — merging makes a new requirement that validates the ones you
+  picked and leaves them, and their sub-requirements, where they are.
 
 It was left because it is the size of the milestones-and-dependencies item, which took a session of
 its own and still shipped two defects that only CI caught. A specification is worth more here than
