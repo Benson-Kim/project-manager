@@ -180,6 +180,7 @@ export const messages = {
     rowHeight: (px: number) => `Row height: ${px} px`,
     resetLayout: "Reset to default",
     columnsArranged: "Columns rearranged",
+    layoutNotSaved: "This table layout could not be saved, so it will not outlast the page.",
     layoutSaved: "Table layout saved",
     resizeColumn: (column: string) => `Resize ${column}`,
     resizeRows: "Resize rows",
