@@ -174,9 +174,6 @@ export function MeetingHeaderForm({
         <Field label={M.conclusion} name="conclusion" errors={errors.conclusion}>
           <RichTextEditor name="conclusion" defaultValue={values.conclusion as string} />
         </Field>
-        <Field label={M.followupAction} name="followupAction" errors={errors.followupAction}>
-          <Input name="followupAction" maxLength={255} defaultValue={values.followupAction} />
-        </Field>
         {/*
           Location is the form's last field so the participant panel, which the
           page renders directly below, sits under it (client feedback

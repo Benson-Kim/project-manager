@@ -72,7 +72,6 @@ function headerParams(input: HeaderValues) {
     EndTime: input.endTime ?? null,
     Conclusion: input.conclusion ?? null,
     NextMeeting: input.nextMeeting ?? null,
-    FollowupAction: input.followupAction ?? null,
   };
 }
 

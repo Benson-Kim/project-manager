@@ -44,7 +44,6 @@ describe("meetingFormSchema", () => {
       startTime: "09:00",
       endTime: "10:30",
       nextMeeting: "2024-12-24",
-      followupAction: "",
     });
     expect(parsed).toMatchObject({
       projectId: 24,
@@ -53,7 +52,6 @@ describe("meetingFormSchema", () => {
       location: "Board room",
       startTime: "09:00",
       endTime: "10:30",
-      followupAction: null,
       description: null,
       conclusion: null,
     });

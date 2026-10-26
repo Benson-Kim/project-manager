@@ -135,7 +135,7 @@ describe("meetings repository: meetings", () => {
       Location: null,
       ActorUserId: ACTOR,
     });
-    expect(Object.keys(params)).toHaveLength(13);
+    expect(Object.keys(params)).toHaveLength(12);
     expect(row).toMatchObject({ MeetingId: 2, StartTime: "09:00", EndTime: "10:30", RowVer: 1001 });
   });
 

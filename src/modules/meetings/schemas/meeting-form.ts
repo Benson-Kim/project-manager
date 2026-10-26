@@ -67,7 +67,6 @@ const headerFields = {
   endTime: timeInput,
   conclusion: richTextSchema({ max: MEETING_RICH_TEXT_MAX }),
   nextMeeting: dateInput,
-  followupAction: optionalText(255),
 };
 
 /** The end time must come after the start time (the issue sits on endTime). */
@@ -122,7 +121,6 @@ export function meetingFormValues(row: MeetingRow): FormValues {
     endTime: noTimes ? "" : formText(row.EndTime),
     conclusion: formText(row.Conclusion),
     nextMeeting: toDateInput(row.NextMeeting),
-    followupAction: formText(row.FollowupAction),
   };
 }
 

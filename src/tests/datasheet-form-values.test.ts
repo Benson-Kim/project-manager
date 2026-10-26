@@ -412,7 +412,6 @@ describe("datasheet form values round-trip through each update form schema", () 
       endTime: "10:30",
       dateReceived: day("2026-10-01"),
       nextMeeting: day("2026-10-16"),
-      followupAction: "Minutes out",
     });
   });
 });
