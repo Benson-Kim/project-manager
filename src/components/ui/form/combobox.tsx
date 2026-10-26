@@ -27,6 +27,15 @@ export interface ComboboxProps {
   placeholder?: string;
   /** Borderless, to fill a bordered grid cell (the team grid's new-member row). */
   inCell?: boolean;
+  /**
+   * Makes the box "pick one, or type a name": text that matches no option is
+   * submitted under this second field name instead of being thrown away. The
+   * two hidden inputs are exclusive — a pick clears the typed name and a typed
+   * name clears the pick — so the row behind them can hold the same rule.
+   */
+  freeTextName?: string;
+  /** The typed name to start with, when the stored value was free text. */
+  defaultFreeText?: string;
 }
 
 export function Combobox({
@@ -37,13 +46,15 @@ export function Combobox({
   ariaLabel,
   placeholder,
   inCell = false,
+  freeTextName,
+  defaultFreeText,
 }: ComboboxProps) {
   const listboxId = useId();
   const aria = useFieldAria();
   const inputRef = useRef<HTMLInputElement>(null);
   const initial = options.find((o) => o.value === defaultValue) ?? null;
   const [selected, setSelected] = useState<ComboboxOption | null>(initial);
-  const [query, setQuery] = useState(initial?.label ?? "");
+  const [query, setQuery] = useState(initial?.label ?? defaultFreeText ?? "");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -87,6 +98,9 @@ export function Combobox({
   return (
     <div className="relative">
       <input type="hidden" name={name} value={selected?.value ?? ""} />
+      {freeTextName ? (
+        <input type="hidden" name={freeTextName} value={selected ? "" : query.trim()} />
+      ) : null}
       <input
         ref={inputRef}
         role="combobox"

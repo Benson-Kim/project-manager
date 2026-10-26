@@ -21,6 +21,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_MeetingActionItem_Update
     @MeetingActionItemId     INT,
     @Action                  NVARCHAR(MAX) = NULL,
     @AssignedToStakeholderId INT           = NULL,
+    @AssigneeOther           NVARCHAR(255) = NULL,
     @DueDate                 DATETIME2     = NULL,
     @Status                  VARCHAR(12)   = 'in-progress',
     @OnHoldReason            NVARCHAR(500) = NULL,
@@ -55,6 +56,10 @@ BEGIN
 
     BEGIN TRAN;
 
+    -- A typed name is for someone with no Stakeholder row; empty text is nobody, not a name.
+    SET @AssigneeOther = NULLIF(LTRIM(RTRIM(@AssigneeOther)), N'');
+    IF @AssignedToStakeholderId IS NOT NULL AND @AssigneeOther IS NOT NULL
+        THROW 50004, N'VALIDATION:An action has one person responsible, not two', 1;
     IF @AssignedToStakeholderId IS NOT NULL
        AND (@CurrentAssignee IS NULL OR @AssignedToStakeholderId <> @CurrentAssignee)
        AND NOT EXISTS (SELECT 1 FROM app.Stakeholder AS s WITH (UPDLOCK, HOLDLOCK)
@@ -64,13 +69,14 @@ BEGIN
 
     DECLARE @Before NVARCHAR(MAX) =
         (SELECT MeetingActionItemId, [MeetingId], [AgendaItemId], [DiscussionPointId], [Action],
-                [AssignedToStakeholderId], [DueDate], [Status], [OnHoldReason], SortOrder
+                [AssignedToStakeholderId], [AssigneeOther], [DueDate], [Status], [OnHoldReason], SortOrder
          FROM app.MeetingActionItem WHERE MeetingActionItemId = @MeetingActionItemId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 
     UPDATE app.MeetingActionItem SET
         [Action]                  = @Action,
         [AssignedToStakeholderId] = @AssignedToStakeholderId,
+        [AssigneeOther]           = @AssigneeOther,
         [DueDate]                 = @DueDate,
         [Status]                  = @Status,
         [OnHoldReason]            = @OnHoldReason,
@@ -89,7 +95,7 @@ BEGIN
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.MeetingActionItem', CAST(@MeetingActionItemId AS NVARCHAR(64)), @Before,
             (SELECT MeetingActionItemId, [MeetingId], [AgendaItemId], [DiscussionPointId], [Action],
-                    [AssignedToStakeholderId], [DueDate], [Status], [OnHoldReason], SortOrder
+                    [AssignedToStakeholderId], [AssigneeOther], [DueDate], [Status], [OnHoldReason], SortOrder
              FROM app.MeetingActionItem WHERE MeetingActionItemId = @MeetingActionItemId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
@@ -101,7 +107,7 @@ BEGIN
            ai.[DiscussionPointId],
            ai.[Action],
            ai.[AssignedToStakeholderId],
-           NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N'') AS AssigneeName,
+           COALESCE(NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N''), ai.[AssigneeOther]) AS AssigneeName,
            ai.[DueDate],
            ai.[Status],
            ai.[OnHoldReason],

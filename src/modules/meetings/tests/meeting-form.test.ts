@@ -274,6 +274,7 @@ describe("minutes schemas", () => {
     expect(Object.keys(parsed).sort()).toEqual([
       "action",
       "assignedToStakeholderId",
+      "assigneeOther",
       "dueDate",
       "meetingActionItemId",
       "onHoldReason",

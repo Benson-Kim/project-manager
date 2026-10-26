@@ -59,6 +59,10 @@ const PERSON_LABEL = `CASE WHEN mp.StakeholderId IS NULL THEN ${GUEST_LABEL} ELS
 const LOCK = "FROM app.Meeting WITH (UPDLOCK, HOLDLOCK)";
 
 /** Meetings' rules live in the procs (ADR-0028); these keep them from drifting. */
+function escape(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 describe("meeting SQL guardrails", () => {
   it("finds every meeting proc", () => {
     expect(PROCS.size).toBe(39);
@@ -240,9 +244,29 @@ describe("meeting SQL guardrails", () => {
         "usp_MeetingActionItem_Update",
       ].sort(),
     );
+    // An action's name is the stakeholder's, else the typed one (migration 046),
+    // else null; a follow-up has no typed name, so it keeps the plain form.
+    const STAKEHOLDER = "NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N'')";
     for (const name of named) {
-      expect(sql(name), name).toContain(
-        "NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N'') AS AssigneeName",
+      expect(sql(name), name).toMatch(
+        new RegExp(
+          `(COALESCE\\(${escape(STAKEHOLDER)}, [a-z]+\\.\\[AssigneeOther\\]\\)|${escape(STAKEHOLDER)}) AS AssigneeName`,
+        ),
+      );
+    }
+  });
+
+  it("lets an action name someone who is not a stakeholder, but never both", () => {
+    for (const name of ["usp_MeetingActionItem_Create", "usp_MeetingActionItem_Update"]) {
+      const text = sql(name);
+      expect(text, name).toContain("@AssigneeOther");
+      // Empty text is nobody, not a name.
+      expect(text, name).toMatch(
+        /SET @AssigneeOther = NULLIF\(LTRIM\(RTRIM\(@AssigneeOther\)\), N''\)/,
+      );
+      // One person responsible, not two — the CHECK constraint's half in the proc.
+      expect(text, name).toMatch(
+        /@AssignedToStakeholderId IS NOT NULL AND @AssigneeOther IS NOT NULL\s*\n\s*THROW 50004/,
       );
     }
   });

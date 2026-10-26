@@ -81,7 +81,7 @@ BEGIN
             FOR JSON PATH, INCLUDE_NULL_VALUES) AS DiscussionPointsJson,
            (SELECT ai.MeetingActionItemId, ai.AgendaItemId, ai.DiscussionPointId, ai.[Action],
                    ai.AssignedToStakeholderId,
-                   NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N'') AS AssigneeName,
+                   COALESCE(NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N''), ai.[AssigneeOther]) AS AssigneeName,
                    CAST(ai.DueDate AS DATE) AS DueDate,
                    ai.[Status], ai.[OnHoldReason],
                    ai.SortOrder, CAST(ai.RowVer AS BIGINT) AS RowVer
@@ -105,7 +105,7 @@ BEGIN
            (SELECT TOP (@CarryOverMax)
                    ai.MeetingActionItemId, ai.[Action], ai.[Status], ai.[OnHoldReason],
                    ai.AssignedToStakeholderId,
-                   NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N'') AS AssigneeName,
+                   COALESCE(NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N''), ai.[AssigneeOther]) AS AssigneeName,
                    CAST(ai.DueDate AS DATE) AS DueDate,
                    CAST(ai.RowVer AS BIGINT) AS RowVer,
                    src.MeetingId AS FromMeetingId, src.[Subject] AS FromSubject,

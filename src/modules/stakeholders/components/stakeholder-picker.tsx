@@ -104,11 +104,16 @@ export function StakeholderSelect({
   options,
   defaultValue,
   onSelect,
+  freeTextName,
+  defaultFreeText,
 }: {
   name: string;
   options: StakeholderOption[];
   defaultValue: number | null;
   onSelect?: (option: ComboboxOption | null) => void;
+  /** Submit a name that matches no stakeholder under this field (see Combobox). */
+  freeTextName?: string;
+  defaultFreeText?: string;
 }) {
   const choices = useMemo(
     () => options.map((o) => ({ value: String(o.stakeholderId), label: o.name })),
@@ -120,6 +125,8 @@ export function StakeholderSelect({
       options={choices}
       defaultValue={defaultValue == null ? "" : String(defaultValue)}
       onSelect={onSelect}
+      freeTextName={freeTextName}
+      defaultFreeText={defaultFreeText}
     />
   );
 }

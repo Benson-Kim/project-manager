@@ -26,7 +26,7 @@ BEGIN
            ai.[DiscussionPointId],
            ai.[Action],
            ai.[AssignedToStakeholderId],
-           NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N'') AS AssigneeName,
+           COALESCE(NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N''), ai.[AssigneeOther]) AS AssigneeName,
            ai.[DueDate],
            ai.[Status],
            ai.[OnHoldReason],
