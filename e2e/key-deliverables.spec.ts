@@ -450,8 +450,15 @@ test("WBS item menu: Assignees… opens the details on the picker; the box names
   await expect(page.getByTestId(`wbs-assignees-${id}`)).toHaveCount(0);
 
   // Assignees… opens the item's details with the caret already in the picker.
-  await page.keyboard.press("Shift+F10");
-  await expect(page.getByTestId("wbs-menu")).toBeVisible();
+  // The item was created a moment ago, so let its save settle first: a re-render
+  // mid-gesture drops the menu and Shift+F10 lands on nothing. Then retry the
+  // gesture itself, as the dependencies test does for the same reason.
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+  await expect(async () => {
+    await item.click();
+    await page.keyboard.press("Shift+F10");
+    await expect(page.getByTestId("wbs-menu")).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   await page.getByTestId("wbs-menu-assignees").click();
   const form = page.getByTestId("deliverable-form");
   await expect(form).toBeVisible();
@@ -707,7 +714,10 @@ test("WBS: two items are linked, the successor is pushed, and the link goes with
   await expect(page.getByTestId("gantt-chart")).toBeVisible();
   await closeAlarmToast(page);
 
-  // Two items, the second starting on the same day as the first, so an FS link must move it.
+  // Two items. A new sibling is placed the day AFTER the one it follows ends
+  // (newItemDates), so out of the box an FS link has nothing to push: the
+  // successor already starts where the link would put it. The overlap this test
+  // needs is made below, by moving the second item back onto the first.
   const ids: string[] = [];
   for (const name of [`E2E pour ${stamp}`, `E2E cure ${stamp}`]) {
     await page.getByTestId("wbs-add").click();
@@ -721,10 +731,18 @@ test("WBS: two items are linked, the successor is pushed, and the link goes with
     ids.push(id!);
   }
   const [firstId, secondId] = ids;
+  const firstStart = await wbsField(wbsRow(page, firstId), W.startOf).inputValue();
   const firstEnd = await wbsField(wbsRow(page, firstId), W.endOf).inputValue();
   const secondStart = wbsField(wbsRow(page, secondId), W.startOf);
-  const before = await secondStart.inputValue();
   await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+
+  // Overlap them: the second now starts the day the first does, which an FS
+  // link may not allow, so there is something for the cascade to do.
+  await secondStart.fill(firstStart);
+  await secondStart.blur();
+  await expect(secondStart).toHaveValue(firstStart, { timeout: 15_000 });
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+  const before = await secondStart.inputValue();
 
   // The Dependencies panel is the keyboard way in: dragging from a bar edge is pointer-only.
   await expect(async () => {
