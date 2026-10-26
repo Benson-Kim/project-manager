@@ -66,6 +66,7 @@ BEGIN
            [DueDate],
            [Priority],
            [Status],
+           [Assignee],
            [Notes],
            [SortKey],
            CreatedAtUtc,

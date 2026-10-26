@@ -23,7 +23,7 @@ BEGIN
     BEGIN TRAN;
 
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT TodoItemId, [ProjectId], [DailyActivityId], [ProjectOrActivity], [TodoItem], [StartDate], [DueDate], [Priority], [Status], [Notes]
+        (SELECT TodoItemId, [ProjectId], [DailyActivityId], [ProjectOrActivity], [TodoItem], [StartDate], [DueDate], [Priority], [Status], [Assignee], [Notes]
          FROM app.TodoItem WHERE TodoItemId = @TodoItemId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 
