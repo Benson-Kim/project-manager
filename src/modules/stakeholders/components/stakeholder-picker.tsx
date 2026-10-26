@@ -49,6 +49,7 @@ export function StakeholderMultiSelect({
   inputName,
   removeLabel,
   emptyPlaceholder,
+  autoFocus,
   onAdd,
   onRemove,
 }: {
@@ -59,6 +60,7 @@ export function StakeholderMultiSelect({
   removeLabel: (name: string) => string;
   /** Shown in the input when the project has no stakeholders. */
   emptyPlaceholder: string;
+  autoFocus?: boolean;
   onAdd: (opt: StakeholderOption) => void;
   onRemove: (id: number) => void;
 }) {
@@ -85,6 +87,7 @@ export function StakeholderMultiSelect({
       inputName={inputName}
       removeLabel={removeLabel}
       emptyPlaceholder={emptyPlaceholder}
+      autoFocus={autoFocus}
       onAdd={add}
       onRemove={onRemove}
     />

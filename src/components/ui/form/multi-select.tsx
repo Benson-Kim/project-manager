@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useFieldContext } from "./field";
 
 export interface MultiSelectOption {
@@ -53,6 +53,7 @@ export function MultiSelect({
   inputName,
   removeLabel,
   emptyPlaceholder,
+  autoFocus = false,
   onAdd,
   onRemove,
 }: {
@@ -63,6 +64,8 @@ export function MultiSelect({
   removeLabel: (label: string) => string;
   /** Shown in the input when there is nothing to pick. */
   emptyPlaceholder: string;
+  /** Put the caret in the field once it is on screen (a command that opens a form on it). */
+  autoFocus?: boolean;
   onAdd: (option: MultiSelectOption) => void;
   onRemove: (id: number) => void;
 }) {
@@ -74,6 +77,14 @@ export function MultiSelect({
   const fieldCtx = useFieldContext();
 
   const selectedIds = useMemo(() => new Set(selected.map((s) => s.id)), [selected]);
+
+  // A frame later, not on mount: a dialog focuses its first field as it opens,
+  // which would otherwise land after this and take the caret away.
+  useEffect(() => {
+    if (!autoFocus) return;
+    const frame = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [autoFocus]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

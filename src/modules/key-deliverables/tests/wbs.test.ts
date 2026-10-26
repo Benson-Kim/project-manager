@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_WBS_DEPTH,
   addDays,
+  applyMilestone,
   applyMove,
   applyReschedule,
   buildWbs,
@@ -11,6 +12,7 @@ import {
   durationDays,
   fitsUnder,
   indentTarget,
+  milestoneRefusal,
   moveDownTarget,
   moveUpTarget,
   newItemDates,
@@ -46,6 +48,7 @@ function item(id: number, parentId: number | null, sortOrder: number, more: Part
     status: null,
     priority: null,
     color: null,
+    isMilestone: false,
     assigneeNames: null,
     assignees: [],
     requirements: [],
@@ -507,5 +510,98 @@ describe("requirements and status on screen (ADR-0037)", () => {
     expect(statusColor("Completed", colors)).toBe("green");
     expect(statusColor("Pending", colors)).toBe(NO_STATUS_COLOR);
     expect(statusColor(null, colors)).toBe(NO_STATUS_COLOR);
+  });
+});
+
+/**
+ * Milestones (ADR-0046): a date in the breakdown rather than a span. The pure rules here mirror
+ * usp_KeyDeliverable_SetMilestone, and the proc keeps the same refusals under the project lock.
+ */
+describe("milestones (what usp_KeyDeliverable_SetMilestone does)", () => {
+  const dated = () => [
+    item(1, null, 1, { name: "Phase", start: d("2026-11-02"), end: d("2026-11-13") }),
+    item(2, 1, 1, { name: "Task", start: d("2026-11-02"), end: d("2026-11-10") }),
+    item(3, 1, 2, { name: "Sign-off", start: d("2026-11-12"), end: d("2026-11-13") }),
+  ];
+
+  it("collapses the span to the start date when an item becomes a milestone", () => {
+    const next = applyMilestone(dated(), 3, true);
+    const row = next.find((i) => i.id === 3)!;
+    expect(row.isMilestone).toBe(true);
+    expect(row.start).toEqual(d("2026-11-12"));
+    expect(row.end).toEqual(d("2026-11-12"));
+    // Nothing else moves.
+    expect(next.find((i) => i.id === 2)!.end).toEqual(d("2026-11-10"));
+  });
+
+  it("keeps the one day as both ends when a milestone becomes a task again", () => {
+    const asMilestone = applyMilestone(dated(), 3, true);
+    const back = applyMilestone(asMilestone, 3, false);
+    const row = back.find((i) => i.id === 3)!;
+    expect(row.isMilestone).toBe(false);
+    expect(row.start).toEqual(d("2026-11-12"));
+    expect(row.end).toEqual(d("2026-11-12"));
+  });
+
+  it("leaves an undated item's missing end alone, and an unknown id changes nothing", () => {
+    const rows = [item(9, null, 1)];
+    expect(applyMilestone(rows, 9, true)[0]).toMatchObject({ isMilestone: true, end: null });
+    expect(applyMilestone(dated(), 99, true)).toEqual(dated());
+  });
+
+  it("refuses an item with sub-items, and one without a date, naming which", () => {
+    const wbs = buildWbs(dated());
+    expect(milestoneRefusal(wbs, 1)).toBe("subItems");
+    expect(milestoneRefusal(wbs, 3)).toBeNull();
+    expect(milestoneRefusal(buildWbs([item(9, null, 1)]), 9)).toBe("noDate");
+    expect(milestoneRefusal(wbs, 404)).toBeNull();
+  });
+
+  it("moves a milestone without ever giving it a length", () => {
+    const rows = applyMilestone(dated(), 3, true);
+    const wbs = buildWbs(rows);
+    // Even a span asked for by a stray caller collapses: a date has no length.
+    const next = applyReschedule(rows, wbs, 3, d("2026-11-20"), d("2026-11-27"));
+    expect(next.find((i) => i.id === 3)).toMatchObject({
+      start: d("2026-11-20"),
+      end: d("2026-11-20"),
+    });
+  });
+
+  it("still rolls its one day up into its parents, exactly as a one-day task does", () => {
+    // 3 is the branch's last item, so collapsing it shortens the phase above it.
+    const before = buildWbs(dated());
+    expect(before.nodes.get(1)!.end).toEqual(d("2026-11-13"));
+    const after = buildWbs(applyMilestone(dated(), 3, true));
+    expect(after.nodes.get(1)!.start).toEqual(d("2026-11-02"));
+    expect(after.nodes.get(1)!.end).toEqual(d("2026-11-12"));
+  });
+
+  it("gives a new milestone one day where a new item would have started", () => {
+    const wbs = buildWbs(dated());
+    const task = newItemDates(wbs, { parentId: 1, afterId: 3 }, d("2026-01-01"), null);
+    const milestone = newItemDates(wbs, { parentId: 1, afterId: 3 }, d("2026-01-01"), null, true);
+    expect(milestone.start).toEqual(task.start);
+    expect(milestone.end).toEqual(milestone.start);
+    // The first sub-item of a dated item takes that item's start, and nothing more: 3 has no
+    // sub-items yet, so there is no sibling to follow.
+    const first = newItemDates(wbs, { parentId: 3, afterId: null }, d("2026-01-01"), null, true);
+    expect(first).toEqual({ start: d("2026-11-12"), end: d("2026-11-12") });
+    // The same place as a task would take: the day after the last sibling ends.
+    expect(newItemDates(wbs, { parentId: 1, afterId: null }, d("2026-01-01"), null, true)).toEqual({
+      start: d("2026-11-14"),
+      end: d("2026-11-14"),
+    });
+    // With nothing to go on: the project start, one day long.
+    const empty = buildWbs([]);
+    expect(
+      newItemDates(
+        empty,
+        { parentId: null, afterId: null },
+        d("2026-01-01"),
+        d("2026-02-03"),
+        true,
+      ),
+    ).toEqual({ start: d("2026-02-03"), end: d("2026-02-03") });
   });
 });

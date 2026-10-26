@@ -19,6 +19,7 @@ export interface ToolbarCommand {
 export interface WbsToolbarProps {
   addItem: ToolbarCommand;
   addSubItem: ToolbarCommand;
+  addMilestone: ToolbarCommand;
   indent: ToolbarCommand;
   outdent: ToolbarCommand;
   moveUp: ToolbarCommand;
@@ -40,6 +41,8 @@ export interface WbsToolbarProps {
   onScale: (scale: GanttScale) => void;
   tab: WbsTab;
   onTab: (tab: WbsTab) => void;
+  /** Links the schedule cannot satisfy, because an end they depend on has no date (ADR-0046). */
+  unmet: number;
   /** Changes are still being sent to the server. */
   saving: boolean;
 }
@@ -140,6 +143,7 @@ export function WbsToolbar(props: WbsToolbarProps) {
       >
         <Command label={W.addItem} command={props.addItem} testId="wbs-add" variant="primary" />
         <Command label={W.addSubItem} command={props.addSubItem} testId="wbs-add-sub" />
+        <Command label={W.addMilestone} command={props.addMilestone} testId="wbs-add-milestone" />
         <Command label={W.indent} command={props.indent} testId="wbs-indent" />
         <Command label={W.outdent} command={props.outdent} testId="wbs-outdent" />
         <Command label={W.moveUp} command={props.moveUp} testId="wbs-move-up" />
@@ -201,6 +205,11 @@ export function WbsToolbar(props: WbsToolbarProps) {
           testId="wbs-collapse-all"
           variant="secondary"
         />
+        {props.unmet > 0 ? (
+          <span data-testid="wbs-unmet" className="text-sm text-danger">
+            {W.notMet(props.unmet)}
+          </span>
+        ) : null}
         <span
           aria-hidden="true"
           data-testid="wbs-saving"

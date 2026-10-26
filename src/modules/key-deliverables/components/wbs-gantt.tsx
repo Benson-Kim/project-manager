@@ -19,7 +19,10 @@ import {
   deleteWbsItemAction,
   moveWbsItemAction,
   renameWbsItemAction,
+  linkWbsItemsAction,
   rescheduleWbsItemAction,
+  setWbsMilestoneAction,
+  unlinkWbsItemsAction,
   setWbsStatusAction,
 } from "../actions";
 import type { StakeholderOption } from "@/modules/stakeholders/repository/stakeholder-options";
@@ -28,6 +31,7 @@ import {
   MAX_WBS_DEPTH,
   NEW_ITEM_DAYS,
   addDays,
+  applyMilestone,
   applyMove,
   applyReschedule,
   applyStatus,
@@ -35,7 +39,9 @@ import {
   buildWbs,
   dayDiff,
   descendantIds,
+  durationDays,
   indentTarget,
+  milestoneRefusal,
   moveDownTarget,
   moveUpTarget,
   newItemDates,
@@ -74,6 +80,17 @@ import {
   type ChartSettings,
   type WbsView,
 } from "./wbs-diagram-layout";
+import {
+  cascadeEffect,
+  cascadeSchedule,
+  linkRefusal,
+  violatedLinks,
+  type DependencyType,
+  type LinkRefusal,
+  type WbsLink,
+} from "../schemas/wbs-dependencies";
+import { WbsDependenciesDialog } from "./wbs-dependencies-dialog";
+import { WbsDependencyArrows } from "./wbs-dependency-arrows";
 import { WbsMoveDialog } from "./wbs-move-dialog";
 import {
   AddRequirementRow,
@@ -90,6 +107,14 @@ import { useWbsRequirements } from "./use-wbs-requirements";
 
 const W = messages.keyDeliverables.wbs;
 
+/** Why a link was refused, as the editor words it; the proc refuses the same four (ADR-0046). */
+const LINK_REFUSALS: Record<LinkRefusal, string> = {
+  self: W.linkSelf,
+  duplicate: W.linkDuplicate,
+  related: W.linkRelated,
+  cycle: W.linkCycle,
+};
+
 /** How long arrow-key nudges wait for the next key before saving. */
 const NUDGE_SAVE_MS = 600;
 
@@ -103,6 +128,8 @@ interface PendingOp {
 /** The rows the server last confirmed, and the stamp of the read that brought them. */
 interface Confirmed {
   items: WbsItem[];
+  /** Server state: every write answers with the whole breakdown, links included (ADR-0046). */
+  links: WbsLink[];
   stamp: number;
 }
 
@@ -198,14 +225,20 @@ export function WbsGantt({
   const { announce } = useAnnouncer();
   const { update: updateUrl } = useListUrlState();
 
-  const [confirmed, setConfirmed] = useState<Confirmed>({ items: data.items, stamp: data.stamp });
+  const [confirmed, setConfirmed] = useState<Confirmed>({
+    items: data.items,
+    links: data.links,
+    stamp: data.stamp,
+  });
   const [seenData, setSeenData] = useState(data);
   // A page refresh (the details sheet, an error) brings the breakdown again; it
   // is taken unless older than what the last save answered with. An equal stamp
   // is the same items, possibly with newer assignee names or project dates.
   if (data !== seenData) {
     setSeenData(data);
-    if (data.stamp >= confirmed.stamp) setConfirmed({ items: data.items, stamp: data.stamp });
+    if (data.stamp >= confirmed.stamp) {
+      setConfirmed({ items: data.items, links: data.links, stamp: data.stamp });
+    }
   }
   const confirmedRef = useRef(confirmed);
   useEffect(() => {
@@ -244,6 +277,15 @@ export function WbsGantt({
     [statuses],
   );
   const wbs = useMemo(() => buildWbs(items, statusColors), [items, statusColors]);
+
+  // Links are server state: a link write answers with the whole breakdown, so the arrows follow the
+  // confirmed graph while the bars follow the optimistic rows.
+  const links = confirmed.links;
+  const linksRef = useRef(links);
+  useEffect(() => {
+    linksRef.current = links;
+  }, [links]);
+  const unmet = useMemo(() => violatedLinks(links, wbs).length, [links, wbs]);
 
   const [preview, setPreview] = useState<{ id: number; span: Span } | null>(null);
   const shown = useMemo(
@@ -315,7 +357,12 @@ export function WbsGantt({
   }, [view]);
   const [tab, setTab] = useState<WbsTab>("outline");
   const [confirmId, setConfirmId] = useState<number | null>(null);
+  /** The item a "Turn into milestone" is waiting on: the span it drops is named first. */
+  const [milestoneId, setMilestoneId] = useState<number | null>(null);
   const [moveId, setMoveId] = useState<number | null>(null);
+  const [dependenciesId, setDependenciesId] = useState<number | null>(null);
+  /** The field the details form opens on: the Assignees… command, else nothing. */
+  const [detailsFocus, setDetailsFocus] = useState<"assignees" | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const nameHeadRef = useRef<HTMLDivElement>(null);
@@ -349,9 +396,16 @@ export function WbsGantt({
 
   function enqueue<T extends WbsData>(op: QueuedChange<T>) {
     const key = ++opKey.current;
+    const apply = op.apply ?? ((rows: WbsItem[]) => rows);
     setOps((current) => [
       ...current,
-      { key, kind: op.kind ?? "change", apply: op.apply ?? ((rows) => rows) },
+      {
+        key,
+        kind: op.kind ?? "change",
+        // Every proc that can move a date later runs the scheduler before it commits, so the rows
+        // shown while the save is in flight are pushed the same way (ADR-0046 decision 10).
+        apply: (rows) => cascadeSchedule(apply(rows), linksRef.current),
+      },
     ]);
     queue.current = queue.current
       .then(async () => {
@@ -363,9 +417,9 @@ export function WbsGantt({
         }
         try {
           if (result?.ok) {
-            const { items: rows, stamp } = result.data;
+            const { items: rows, links: rowLinks, stamp } = result.data;
             if (stamp >= confirmedRef.current.stamp) {
-              const next = { items: rows, stamp };
+              const next = { items: rows, links: rowLinks, stamp };
               confirmedRef.current = next;
               setConfirmed(next);
             }
@@ -483,6 +537,7 @@ export function WbsGantt({
       });
       return;
     }
+    const carried = cascadeEffect(applyReschedule(items, wbs, id, start, end), links);
     enqueue({
       apply: (rows) => applyReschedule(rows, buildWbs(rows), id, start, end),
       send: (current) =>
@@ -495,17 +550,41 @@ export function WbsGantt({
           }),
         ),
     });
-    announce(W.rescheduled(formatDate(start), formatDate(end)));
+    // A move that carries other items says so, rather than letting bars shift unannounced
+    // (ADR-0046 decision 9).
+    announce(
+      carried.length === 0
+        ? W.rescheduled(formatDate(start), formatDate(end))
+        : `${W.rescheduled(formatDate(start), formatDate(end))}. ${W.alsoMoved(carried.length)}`,
+    );
   }
 
-  /** Add an item after `fromId` (the selected item by default), or as its last sub-item. */
-  function addItem(asSubItem: boolean, fromId: number | null = selected?.item.id ?? null) {
+  /**
+   * Add an item after `fromId` (the selected item by default), or as its last sub-item.
+   * A milestone is added the same way and is a date from the start (ADR-0046).
+   */
+  function addItem(
+    asSubItem: boolean,
+    fromId: number | null = selected?.item.id ?? null,
+    asMilestone = false,
+  ) {
     const from = fromId !== null ? (wbs.nodes.get(fromId) ?? null) : null;
     if (!canCreate) return;
     if (asSubItem && (!from || from.depth >= MAX_WBS_DEPTH)) return;
+    // A milestone takes no sub-items, so one is never added under it.
+    if (asSubItem && from!.item.isMilestone) {
+      toast({ variant: "info", title: W.milestoneHasSubItems });
+      return;
+    }
     const parentId = asSubItem ? from!.item.id : (from?.parentId ?? null);
     const afterId = asSubItem ? null : (from?.item.id ?? null);
-    const { start, end } = newItemDates(wbs, { parentId, afterId }, today, data.projectStart);
+    const { start, end } = newItemDates(
+      wbs,
+      { parentId, afterId },
+      today,
+      data.projectStart,
+      asMilestone,
+    );
     enqueue({
       kind: "add",
       send: () =>
@@ -516,6 +595,7 @@ export function WbsGantt({
           afterId,
           start: toDateInput(start),
           end: toDateInput(end),
+          isMilestone: asMilestone,
         }),
       done: (added, rows) => {
         setSelectedId(added.id);
@@ -553,7 +633,57 @@ export function WbsGantt({
     announce(status ? W.statusChanged(status) : W.statusCleared);
   }
 
+  /**
+   * Turn an item into a milestone or back into a task (ADR-0046). Turning one on drops the span,
+   * so the caller confirms it first; the refusals the proc would raise are answered here with the
+   * reason, so nothing is sent that cannot succeed.
+   */
+  function setMilestone(id: number, isMilestone: boolean) {
+    const item = wbs.nodes.get(id)?.item;
+    if (!canEdit || !item || item.isMilestone === isMilestone) return;
+    if (isMilestone) {
+      const refusal = milestoneRefusal(wbs, id);
+      if (refusal) {
+        toast({
+          variant: "info",
+          title: refusal === "subItems" ? W.milestoneHasSubItems : W.milestoneNeedsDate,
+        });
+        return;
+      }
+    }
+    const code = wbs.nodes.get(id)?.code ?? "";
+    enqueue({
+      apply: (rows) => applyMilestone(rows, id, isMilestone),
+      send: (current) =>
+        withRowVer(current, id, (rowVer) => setWbsMilestoneAction({ id, isMilestone, rowVer })),
+    });
+    announce(isMilestone ? W.becameMilestone(code) : W.becameTask(code));
+  }
+
   // ---- requirements (ADR-0036) -------------------------------------------------
+
+  /**
+   * Sequence two items, retype a link, or take one away (ADR-0046). The proc refuses a self-link, a
+   * duplicate pair, an ancestor pair and a cycle, and reschedules whatever the link pushes, so each
+   * of these is sent rather than mirrored: the answer replaces the breakdown.
+   */
+  function link(predecessorId: number, type: DependencyType, lagDays: number) {
+    const successorId = dependenciesId;
+    if (!canEdit || successorId === null) return;
+    const refusal = linkRefusal(wbs, links, predecessorId, successorId);
+    if (refusal !== null) {
+      toast({ variant: "error", title: LINK_REFUSALS[refusal] });
+      return;
+    }
+    enqueue({ send: () => linkWbsItemsAction({ predecessorId, successorId, type, lagDays }) });
+    announce(W.linked(wbs.nodes.get(predecessorId)?.code ?? ""));
+  }
+
+  function unlink(target: WbsLink) {
+    if (!canEdit) return;
+    enqueue({ send: () => unlinkWbsItemsAction({ id: target.id, rowVer: target.rowVer }) });
+    announce(W.unlinked);
+  }
 
   const cascade = useWbsRequirements({
     projectId,
@@ -564,6 +694,31 @@ export function WbsGantt({
     announce,
     select: setSelectedId,
   });
+
+  /**
+   * Everything that can move a bar: which rows are on screen and where each one's span sits, plus
+   * the timeline's own geometry. The arrow layer measures the bars again whenever this changes.
+   * Requirement rows and the add row sit between the bars, so their heights are part of it too —
+   * which is why the layer measures the DOM instead of computing y from the breakdown.
+   */
+  const geometryKey = useMemo(
+    () =>
+      [
+        timeline.width,
+        timeline.pxPerDay,
+        tab,
+        visible
+          .map((id) => {
+            const node = shown.nodes.get(id);
+            return `${id}:${node?.start?.getTime() ?? ""}:${node?.end?.getTime() ?? ""}`;
+          })
+          .join(","),
+        cascade.hidden.size,
+        cascade.adding ?? "",
+        selectedId ?? "",
+      ].join("|"),
+    [timeline, tab, visible, shown, cascade.hidden, cascade.adding, selectedId],
+  );
 
   // ---- the context menu (ADR-0036) -----------------------------------------------
 
@@ -582,7 +737,8 @@ export function WbsGantt({
     });
   }, []);
 
-  function openDetails(id: number) {
+  function openDetails(id: number, focus: "assignees" | null = null) {
+    setDetailsFocus(focus);
     updateUrl({ d: String(id) });
   }
 
@@ -661,6 +817,11 @@ export function WbsGantt({
     const node = wbs.nodes.get(id);
     const start = parseDay(value);
     if (!node || !start || node.childIds.length > 0) return;
+    // A milestone is a date: typing one moves the day, both ends with it.
+    if (node.item.isMilestone) {
+      reschedule(id, { start, end: start });
+      return;
+    }
     const days = node.start && node.end ? dayDiff(node.start, node.end) : NEW_ITEM_DAYS - 1;
     reschedule(id, { start, end: addDays(start, days) });
   }
@@ -669,13 +830,18 @@ export function WbsGantt({
     const node = wbs.nodes.get(id);
     const end = parseDay(value);
     if (!node || !end || node.childIds.length > 0) return;
+    if (node.item.isMilestone) {
+      reschedule(id, { start: end, end });
+      return;
+    }
     reschedule(id, { start: node.start ?? addDays(end, -(NEW_ITEM_DAYS - 1)), end });
   }
 
   function setDays(id: number, value: string) {
     const node = wbs.nodes.get(id);
     const days = Number(value);
-    if (!node?.start || !Number.isInteger(days) || days < 1 || days > 36500) return;
+    if (!node?.start || node.item.isMilestone) return;
+    if (!Number.isInteger(days) || days < 1 || days > 36500) return;
     reschedule(id, { start: node.start, end: addDays(node.start, days - 1) });
   }
 
@@ -748,8 +914,12 @@ export function WbsGantt({
   const confirmNode = confirmId !== null ? wbs.nodes.get(confirmId) : undefined;
   // Deleting an item only unallocates its requirements, so the dialog counts them (ADR-0037).
   const unallocates = confirmNode ? branchRequirementCount(wbs, confirmNode.item.id) : 0;
-  const closeDetails = () => updateUrl({ d: null });
+  const closeDetails = () => {
+    setDetailsFocus(null);
+    updateUrl({ d: null });
+  };
 
+  const milestoneNode = milestoneId !== null ? wbs.nodes.get(milestoneId) : undefined;
   const menuNode = menu ? wbs.nodes.get(menu.id) : undefined;
   const menuGroups = ((): MenuCommand[][] => {
     if (!menuNode) return [];
@@ -779,6 +949,12 @@ export function WbsGantt({
           label: W.rename,
           testId: "wbs-menu-rename",
           run: () => startRename(id),
+          hidden: !canEdit,
+        },
+        {
+          label: menuNode.item.isMilestone ? W.turnIntoTask : W.turnIntoMilestone,
+          testId: "wbs-menu-milestone",
+          run: () => (menuNode.item.isMilestone ? setMilestone(id, false) : setMilestoneId(id)),
           hidden: !canEdit,
         },
       ],
@@ -812,9 +988,19 @@ export function WbsGantt({
           disabled: !moveDownTarget(wbs, id),
         },
         { label: W.moveTo, testId: "wbs-menu-move-to", run: () => setMoveId(id), hidden: !canEdit },
+        {
+          label: W.dependencies,
+          testId: "wbs-menu-dependencies",
+          run: () => setDependenciesId(id),
+        },
       ],
       [
         { label: W.details, testId: "wbs-menu-details", run: () => openDetails(id) },
+        {
+          label: W.assignees,
+          testId: "wbs-menu-assignees",
+          run: () => openDetails(id, "assignees"),
+        },
         {
           label: W.delete,
           testId: "wbs-menu-delete",
@@ -836,7 +1022,12 @@ export function WbsGantt({
       addSubItem={{
         run: () => addItem(true),
         hidden: !canCreate,
-        disabled: !selected || selected.depth >= MAX_WBS_DEPTH,
+        disabled: !selected || selected.depth >= MAX_WBS_DEPTH || selected.item.isMilestone,
+      }}
+      addMilestone={{
+        run: () => addItem(false, selId, true),
+        hidden: !canCreate,
+        pending: ops.some((op) => op.kind === "add"),
       }}
       indent={{
         run: () => selId !== null && move(selId, indentTarget(wbs, selId)),
@@ -900,6 +1091,7 @@ export function WbsGantt({
       onScale={changeScale}
       tab={tab}
       onTab={setTab}
+      unmet={unmet}
       saving={saving}
     />
   );
@@ -1069,6 +1261,13 @@ export function WbsGantt({
               return rows;
             })}
           </ul>
+
+          <WbsDependencyArrows
+            scrollRef={scrollRef}
+            links={links}
+            wbs={shown}
+            geometryKey={geometryKey}
+          />
         </div>
       )}
 
@@ -1080,6 +1279,19 @@ export function WbsGantt({
           projectName={projectName}
           onClose={() => setMoveId(null)}
           onMove={(placement) => move(moveId, placement)}
+        />
+      ) : null}
+
+      {dependenciesId !== null && wbs.nodes.has(dependenciesId) ? (
+        <WbsDependenciesDialog
+          key={dependenciesId}
+          wbs={wbs}
+          links={links}
+          id={dependenciesId}
+          canEdit={canEdit}
+          onClose={() => setDependenciesId(null)}
+          onLink={link}
+          onUnlink={unlink}
         />
       ) : null}
 
@@ -1117,6 +1329,35 @@ export function WbsGantt({
         onConfirm={remove}
       />
 
+      <ConfirmDialog
+        open={milestoneNode !== undefined}
+        onOpenChange={(open) => {
+          if (!open) setMilestoneId(null);
+        }}
+        title={
+          milestoneNode
+            ? W.milestoneTitle(
+                milestoneNode.item.name ||
+                  messages.keyDeliverables.deliverableFallback(milestoneNode.item.id),
+              )
+            : ""
+        }
+        body={
+          milestoneNode?.start
+            ? W.milestoneBody(
+                formatDate(milestoneNode.start),
+                milestoneNode.end ? durationDays(milestoneNode.start, milestoneNode.end) : 1,
+              )
+            : W.milestoneNeedsDate
+        }
+        confirmLabel={W.turnIntoMilestone}
+        onConfirm={() => {
+          const id = milestoneId;
+          setMilestoneId(null);
+          if (id !== null) setMilestone(id, true);
+        }}
+      />
+
       <Sheet
         open={sheetOpen}
         onOpenChange={(open) => {
@@ -1132,6 +1373,7 @@ export function WbsGantt({
             assigneeOptions={assigneeOptions}
             canEdit={canEdit}
             canDelete={canDelete}
+            focusField={detailsFocus}
             onDone={closeDetails}
           />
         ) : null}

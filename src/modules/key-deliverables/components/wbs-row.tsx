@@ -117,6 +117,8 @@ export function WbsRow({
   const rowBg = selected ? "bg-accent-soft" : "bg-surface";
   const dateReadOnly = !canEdit || parent;
   const assignees = node.item.assigneeNames;
+  /** A milestone is one day: its length is not a field to type in (ADR-0046). */
+  const milestone = node.item.isMilestone;
 
   return (
     <li
@@ -216,7 +218,7 @@ export function WbsRow({
           type="date"
           aria-label={W.endOf(node.code)}
           value={toDateInput(node.end)}
-          readOnly={dateReadOnly}
+          readOnly={dateReadOnly || milestone}
           onCommit={(next) => on.setEnd(id, next)}
           className={`${cellInput} tabular-nums ${parent ? "text-ink-muted" : ""}`}
         />
@@ -224,7 +226,7 @@ export function WbsRow({
       <div
         className={`flex w-20 shrink-0 items-center border-r border-line px-1 ${tabClass(tab, "outline")}`}
       >
-        {dated && !dateReadOnly ? (
+        {dated && !dateReadOnly && !milestone ? (
           <DraftInput
             type="number"
             inputMode="numeric"
@@ -272,7 +274,9 @@ export function WbsRow({
               }`}
               style={{ left: barRight(timeline, node.start!, node.end!) + 8 }}
             >
-              {`${shortDate(node.start!)} – ${shortDate(node.end!)}`}
+              {milestone
+                ? shortDate(node.start!)
+                : `${shortDate(node.start!)} – ${shortDate(node.end!)}`}
               {assignees ? ` · ${assignees}` : ""}
             </span>
           </>

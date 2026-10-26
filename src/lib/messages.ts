@@ -520,6 +520,8 @@ export const messages = {
     startDate: "Start date",
     startDateRequired: "Enter a start date",
     deadline: "Deadline",
+    /** A milestone has one day, so the sheet shows one date field instead of two (ADR-0046). */
+    milestoneDate: "Milestone date",
     rolledUp: (field: string) => `${field} (set by its sub-items)`,
     wbsCode: "WBS",
     assignedTo: "Assigned to",
@@ -548,6 +550,7 @@ export const messages = {
       moveUp: "Move up",
       moveDown: "Move down",
       details: "Details",
+      assignees: "Assignees…",
       delete: "Delete",
       expandAll: "Expand all",
       collapseAll: "Collapse all",
@@ -570,7 +573,8 @@ export const messages = {
       views: { wbs: "WBS", gantt: "Gantt" },
       rename: "Rename",
       diagramLabel: "Work breakdown",
-      boxLabel: (code: string, name: string, dates: string) => `${code} ${name}, ${dates}`,
+      boxLabel: (code: string, name: string, dates: string, assignees?: string | null) =>
+        `${code} ${name}, ${dates}${assignees ? `, ${assignees}` : ""}`,
       dateRange: (start: string, end: string) => `${start} to ${end}`,
       moreCount: (count: number) => `+${count}`,
       changeDates: (code: string, dates: string) => `Change the dates of item ${code}: ${dates}`,
@@ -630,6 +634,59 @@ export const messages = {
       statusOf: (code: string, status: string) => `Status of item ${code}: ${status}`,
       statusChanged: (status: string) => `Status now ${status}`,
       statusCleared: "Status cleared",
+      // Milestones (ADR-0046): a date in the breakdown rather than a span, drawn as a diamond.
+      addMilestone: "Add milestone",
+      turnIntoMilestone: "Turn into milestone",
+      turnIntoTask: "Turn into task",
+      milestoneTitle: (name: string) => `Turn ${name} into a milestone?`,
+      milestoneBody: (date: string, days: number) =>
+        `It becomes a milestone on ${date}. Its ${days}-day span is dropped.`,
+      milestoneOneDay: "A milestone is one day.",
+      milestoneHasSubItems: "An item with sub-items cannot become a milestone.",
+      milestoneNeedsDate: "Give the item a date before making it a milestone.",
+      milestoneDate: (date: string) => `Milestone, ${date}`,
+      milestoneName: (code: string, name: string, date: string) =>
+        `${code} ${name}, milestone on ${date}`,
+      becameMilestone: (code: string) => `Item ${code} is now a milestone`,
+      becameTask: (code: string) => `Item ${code} is now a task`,
+      // Dependencies (ADR-0046): one item waits on another, and a violated link moves it.
+      dependencies: "Dependencies",
+      dependenciesOf: (name: string) => `Dependencies of ${name}`,
+      predecessorsLabel: "Waits for",
+      successorsLabel: "Followed by",
+      noDependencies: "No dependencies.",
+      addDependency: "Add dependency",
+      dependencyPredecessor: "Waits for",
+      dependencyType: "Type",
+      dependencyLag: "Lag (days)",
+      dependencyTypes: {
+        FS: "Finish to start",
+        SS: "Start to start",
+        FF: "Finish to finish",
+        SF: "Start to finish",
+      },
+      dependencyTypeShort: { FS: "FS", SS: "SS", FF: "FF", SF: "SF" },
+      linkSummary: (code: string, name: string, type: string, lag: number) =>
+        lag === 0
+          ? `${code} ${name}, ${type}`
+          : `${code} ${name}, ${type}, ${lag > 0 ? `${lag} day${lag === 1 ? "" : "s"} lag` : `${-lag} day${lag === -1 ? "" : "s"} lead`}`,
+      link: "Link",
+      unlink: "Remove",
+      unlinkLabel: (code: string) => `Remove the dependency on item ${code}`,
+      linked: (code: string) => `Linked to item ${code}`,
+      unlinked: "Dependency removed",
+      relinked: "Dependency changed",
+      // Decision 9: a move that carries other items names them before it commits.
+      willMove: (count: number) =>
+        `${count} later item${count === 1 ? "" : "s"} will move with it.`,
+      alsoMoved: (count: number) =>
+        count === 1 ? "1 later item moved too" : `${count} later items moved too`,
+      linkSelf: "An item cannot depend on itself.",
+      linkDuplicate: "These items are already linked.",
+      linkRelated: "An item cannot depend on its own sub-item or summary.",
+      linkCycle: "That would make a loop of dependencies.",
+      notMet: (count: number) =>
+        count === 1 ? "1 dependency not met" : `${count} dependencies not met`,
       // Requirements (ADR-0037): allocated to this deliverable, owned by the register.
       requirements: "Requirements",
       requirementsOf: (name: string) => `Requirements of ${name}`,

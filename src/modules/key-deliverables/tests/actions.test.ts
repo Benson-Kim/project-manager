@@ -36,6 +36,10 @@ import {
   moveWbsItemAction,
   renameWbsItemAction,
   rescheduleWbsItemAction,
+  linkWbsItemsAction,
+  relinkWbsItemsAction,
+  setWbsMilestoneAction,
+  unlinkWbsItemsAction,
   updateKeyDeliverableAction,
 } from "../actions";
 
@@ -248,6 +252,151 @@ describe("key-deliverables actions", () => {
           "usp_KeyDeliverable_GanttData",
         ]);
       }
+    });
+
+    // Dependencies (ADR-0046): each sends exactly its own fields, with no spread from a form.
+    it("links two items, forwarding the pair, the type and the lag", async () => {
+      execProc
+        .mockResolvedValueOnce([{ DependencyId: 3, ProjectId: 24 }])
+        .mockResolvedValueOnce([wbsDbRow()]);
+      const result = await linkWbsItemsAction({
+        predecessorId: 7,
+        successorId: 9,
+        type: "SS",
+        lagDays: 2,
+      });
+      expect(result.ok).toBe(true);
+      const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+      expect(proc).toBe("usp_KeyDeliverableDependency_Link");
+      expect(params).toEqual({
+        PredecessorId: 7,
+        SuccessorId: 9,
+        DependencyType: "SS",
+        LagDays: 2,
+        ActorUserId: 7,
+      });
+    });
+
+    it("defaults a link's lag to none", async () => {
+      execProc
+        .mockResolvedValueOnce([{ DependencyId: 3, ProjectId: 24 }])
+        .mockResolvedValueOnce([wbsDbRow()]);
+      await linkWbsItemsAction({ predecessorId: 7, successorId: 9, type: "FS" });
+      const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+      expect(params).toMatchObject({ LagDays: 0 });
+    });
+
+    it("refuses a type the database would not allow", async () => {
+      const result = await linkWbsItemsAction({
+        predecessorId: 7,
+        successorId: 9,
+        type: "XX" as "FS",
+      });
+      expect(result.ok).toBe(false);
+      expect(execProc).not.toHaveBeenCalled();
+    });
+
+    it("refuses a lag outside the bounds the CHECK constraint allows", async () => {
+      const result = await linkWbsItemsAction({
+        predecessorId: 7,
+        successorId: 9,
+        type: "FS",
+        lagDays: 4000,
+      });
+      expect(result.ok).toBe(false);
+      expect(execProc).not.toHaveBeenCalled();
+    });
+
+    it("retypes a link against its own rowVer", async () => {
+      execProc.mockResolvedValueOnce([{ ProjectId: 24 }]).mockResolvedValueOnce([wbsDbRow()]);
+      const result = await relinkWbsItemsAction({ id: 3, type: "FF", lagDays: -1, rowVer: 40 });
+      expect(result.ok).toBe(true);
+      const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+      expect(proc).toBe("usp_KeyDeliverableDependency_Relink");
+      expect(params).toEqual({
+        DependencyId: 3,
+        DependencyType: "FF",
+        LagDays: -1,
+        RowVer: 40,
+        ActorUserId: 7,
+      });
+    });
+
+    it("unlinks against the link's rowVer, sending nothing else", async () => {
+      execProc.mockResolvedValueOnce([{ ProjectId: 24 }]).mockResolvedValueOnce([wbsDbRow()]);
+      const result = await unlinkWbsItemsAction({ id: 3, rowVer: 40 });
+      expect(result.ok).toBe(true);
+      const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+      expect(proc).toBe("usp_KeyDeliverableDependency_Unlink");
+      expect(params).toEqual({ DependencyId: 3, RowVer: 40, ActorUserId: 7 });
+    });
+
+    // Milestones (ADR-0046): the flag has its own action, and travels on nothing else.
+    it("turns an item into a milestone and back, forwarding only the flag and the rowVer", async () => {
+      for (const isMilestone of [true, false]) {
+        execProc.mockReset();
+        execProc.mockResolvedValueOnce([{ ProjectId: 24 }]).mockResolvedValueOnce([wbsDbRow()]);
+        const result = await setWbsMilestoneAction({ id: 7, isMilestone, rowVer: 10 });
+        expect(result.ok).toBe(true);
+        const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+        expect(proc).toBe("usp_KeyDeliverable_SetMilestone");
+        expect(params).toEqual({
+          KeyDeliverableId: 7,
+          IsMilestone: isMilestone,
+          RowVer: 10,
+          ActorUserId: 7,
+        });
+      }
+    });
+
+    it("adds a milestone as one day, and refuses one asked for with a span", async () => {
+      execProc
+        .mockResolvedValueOnce([{ ...dbRow({ KeyDeliverableId: 9 }), HasChildren: false }])
+        .mockResolvedValueOnce([wbsDbRow({ KeyDeliverableId: 9 })]);
+      const ok = await addWbsItemAction({
+        projectId: 24,
+        name: "Design freeze",
+        parentId: null,
+        afterId: null,
+        start: "2026-11-12",
+        end: "2026-11-12",
+        isMilestone: true,
+      });
+      expect(ok.ok).toBe(true);
+      expect((execProc.mock.calls[0] as [string, Record<string, unknown>])[1]).toMatchObject({
+        IsMilestone: true,
+      });
+
+      execProc.mockReset();
+      const spanned = await addWbsItemAction({
+        projectId: 24,
+        name: "Design freeze",
+        parentId: null,
+        afterId: null,
+        start: "2026-11-12",
+        end: "2026-11-19",
+        isMilestone: true,
+      });
+      expect(spanned.ok).toBe(false);
+      if (!spanned.ok) expect(spanned.error.code).toBe("VALIDATION");
+      expect(execProc).not.toHaveBeenCalled();
+    });
+
+    it("creates an ordinary item as a task, so nothing becomes a milestone by omission", async () => {
+      execProc
+        .mockResolvedValueOnce([{ ...dbRow({ KeyDeliverableId: 9 }), HasChildren: false }])
+        .mockResolvedValueOnce([wbsDbRow({ KeyDeliverableId: 9 })]);
+      await addWbsItemAction({
+        projectId: 24,
+        name: "Walls",
+        parentId: null,
+        afterId: null,
+        start: "2026-04-16",
+        end: "2026-04-22",
+      });
+      expect((execProc.mock.calls[0] as [string, Record<string, unknown>])[1]).toMatchObject({
+        IsMilestone: false,
+      });
     });
 
     it("passes on the proc's refusal (another project's parent, a cycle, too deep)", async () => {

@@ -79,6 +79,7 @@ BEGIN
            kd.[Priority],
            kd.[Status],
            kd.Color,
+           kd.[IsMilestone],
            CAST(CASE WHEN EXISTS (SELECT 1 FROM app.KeyDeliverable AS ch
                                   WHERE ch.ParentKeyDeliverableId = kd.KeyDeliverableId
                                     AND ch.IsDeleted = 0)

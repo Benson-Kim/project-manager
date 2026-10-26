@@ -13,7 +13,11 @@ import {
   moveCascadeRequirement,
   renameKeyDeliverable,
   rescheduleKeyDeliverable,
+  linkWbsItems,
+  relinkWbsItems,
+  setWbsItemMilestone,
   setWbsItemStatus,
+  unlinkWbsItems,
   updateCascadeRequirement,
 } from "../repository/key-deliverables";
 import {
@@ -30,7 +34,11 @@ import {
   moveWbsItemInput,
   renameWbsItemInput,
   rescheduleWbsItemInput,
+  linkWbsItemsInput,
+  relinkWbsItemsInput,
+  setWbsMilestoneInput,
   setWbsStatusInput,
+  unlinkWbsItemsInput,
   updateRequirementInput,
 } from "../schemas/key-deliverable";
 
@@ -93,6 +101,7 @@ export const addWbsItemAction = action({
         deadline: input.end,
         parentId: input.parentId,
         afterId: input.afterId,
+        isMilestone: input.isMilestone,
       },
       ctx.session.userId,
     );
@@ -138,6 +147,43 @@ export const setWbsStatusAction = action({
   schema: setWbsStatusInput,
   permission: "key-deliverables:update",
   handler: (input, ctx) => setWbsItemStatus(input, ctx.session.userId),
+});
+
+/** Turn an item into a milestone, or back into a task (ADR-0046). The proc checks the project's
+ *  access level and that the item is a dated leaf; nothing but the flag changes. */
+export const setWbsMilestoneAction = action({
+  name: "key-deliverables.wbs-milestone",
+  schema: setWbsMilestoneInput,
+  permission: "key-deliverables:update",
+  handler: (input, ctx) => setWbsItemMilestone(input, ctx.session.userId),
+});
+
+/*
+ * Dependencies between items (ADR-0046). The procs own every rule: both ends in one project, no
+ * self-link, no duplicate pair, no ancestor pair and no cycle, each taken under the project lock.
+ * Linking and relinking also reschedule whatever the link pushes, so each answers with the whole
+ * breakdown and the editor replaces what it had rather than patching it.
+ */
+
+export const linkWbsItemsAction = action({
+  name: "key-deliverables.wbs-link",
+  schema: linkWbsItemsInput,
+  permission: "key-deliverables:update",
+  handler: (input, ctx) => linkWbsItems(input, ctx.session.userId),
+});
+
+export const relinkWbsItemsAction = action({
+  name: "key-deliverables.wbs-relink",
+  schema: relinkWbsItemsInput,
+  permission: "key-deliverables:update",
+  handler: (input, ctx) => relinkWbsItems(input, ctx.session.userId),
+});
+
+export const unlinkWbsItemsAction = action({
+  name: "key-deliverables.wbs-unlink",
+  schema: unlinkWbsItemsInput,
+  permission: "key-deliverables:update",
+  handler: (input, ctx) => unlinkWbsItems(input, ctx.session.userId),
 });
 
 /*

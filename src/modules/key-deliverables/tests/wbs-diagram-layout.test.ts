@@ -30,6 +30,7 @@ function item(id: number, parentId: number | null, sortOrder: number): WbsItem {
     status: null,
     priority: null,
     color: null,
+    isMilestone: false,
     assigneeNames: null,
     assignees: [],
     requirements: [],

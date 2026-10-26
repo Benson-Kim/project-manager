@@ -99,6 +99,9 @@ BEGIN
         EXEC dbo.usp_KeyDeliverable_RollUp
              @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId, @FromKeyDeliverableId = @OldParent;
 
+    EXEC dbo.usp_KeyDeliverable_CascadeDependencies
+         @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId;
+
     COMMIT;
 
     SELECT @RowProjectId AS ProjectId;

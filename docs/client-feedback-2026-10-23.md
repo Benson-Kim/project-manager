@@ -80,6 +80,18 @@ scrolling the page far enough can slide that box — and the header stuck to it 
 header. Making the page one scroller is a layout change for its own ADR, and nothing
 browser-shaped runs in this workspace to measure it with.
 
+## Follow-up asks, 2026-10-24 — four WBS/Gantt items
+
+Recorded in **ADR-0046**; the implementation plan, split by concern, is
+`.agent-scratch/plan-wbs-milestones-dependencies.md`.
+
+| Item | Status | Where |
+|---|---|---|
+| Each deliverable takes 0 to many assignees | **ALREADY TRUE**, with three gaps closed | Migration 015 made assignees a junction table and the form already sent none as "clear them all". ADR-0046 decision 3: an **Assignees…** command on the WBS item menu opens the details on the picker, a diagram box names its assignees (in its text and in its spoken label), and `db/tests/key-deliverable-assignees.cjs` pins none/one/many, clearing, a repeated id and a foreign-project id being dropped |
+| Requirements moves in the project section nav | **DONE** | ADR-0046 decisions 1–2: it is its own group before Planning, and a group of one section is a pill link rather than a disclosure that opens nothing |
+| The breakdown has milestones | **DONE** | ADR-0046 decision 4, migration 043: a milestone is a one-day leaf on `app.KeyDeliverable` (`IsMilestone`), added from the toolbar or converted either way from the item menu — which names the span it drops first. It is drawn as a diamond, moves but never stretches, takes no sub-items, and the details sheet shows it one **Milestone date** field. `db/tests/key-deliverable-milestone.cjs` pins the rules the CHECK and the project lock enforce |
+| Dependencies between items: FS, SS, FF, SF | **DONE**, the client chose auto-scheduling | ADR-0046 decisions 5–10, migration 044. `app.KeyDeliverableDependency` holds one typed, lagged link per ordered pair, both ends in one project by composite foreign key, with no self-link and no cycle or ancestor pair. Asked on 2026-10-24 whether a link should be drawn and warned about or **reschedule like MS Project**, the client chose rescheduling: a violated link pushes its successor to the earliest day it allows, and the push cascades down the chain. It only ever pushes **later**, never earlier — so the schedule never contracts behind anyone's back, the loop always settles, and the requested-date floor cannot be broken by it. A drag says how many later items it will carry before it commits. Links are drawn as arrows and reached by keyboard through **Dependencies…**; `db/tests/key-deliverable-dependency.cjs` pins every rule and each type's boundary |
+
 ## What ran, and what did not
 
 Verified locally on this branch, after merging `develop` in: `tsc --noEmit` clean (app and

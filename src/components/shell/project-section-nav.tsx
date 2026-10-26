@@ -66,11 +66,14 @@ function GroupTrigger({
 
   if (group.sections.length === 0) return null;
 
-  // A group with only one section that is the charter index renders as a
-  // plain link — no disclosure needed. onClose is called so any other open
-  // disclosure collapses on navigation (review #4162765957).
-  if (group.sections.length === 1 && group.sections[0]?.segment === ".") {
-    const section = group.sections[0];
+  // A group with one section renders as a plain link — a disclosure holding a
+  // single link would open a panel to say what the pill already says (the
+  // Overview charter, and the Requirements register since ADR-0046). onClose is
+  // called so any other open disclosure collapses on navigation (review
+  // #4162765957). The panels below skip these groups for the same reason.
+  const only = group.sections.length === 1 ? group.sections[0] : undefined;
+  if (only) {
+    const section = only;
     const current = isCurrentSection(pathname, projectId, section);
     return (
       <li className="shrink-0">
@@ -125,9 +128,11 @@ function openReducer(state: OpenState, action: OpenAction): OpenState {
 
 /**
  * Project section navigation (ADR-0019): group disclosure buttons (Overview /
- * Planning / People & Resources / Financials / Activity), each toggling a dropdown panel
- * of section links. Every panel starts closed (the active group's pill stays
- * highlighted) and a route change closes any open panel.
+ * Requirements / Planning / People & Resources / Financials / Activity), each
+ * toggling a dropdown panel of section links. A group of one section is a pill
+ * link instead of a disclosure (ADR-0046). Every panel starts closed (the
+ * active group's pill stays highlighted) and a route change closes any open
+ * panel.
  *
  * ARIA disclosure pattern: buttons are aria-expanded, panels are role="group".
  *

@@ -975,10 +975,18 @@ function ItemBox({
   const parent = node.childIds.length > 0;
   const name = node.item.name || messages.keyDeliverables.deliverableFallback(id);
   const dated = node.start !== null && node.end !== null;
-  const shownDates = dated ? W.dateRange(shortDate(node.start!), shortDate(node.end!)) : W.noDates;
-  const spokenDates = dated
-    ? W.dateRange(formatDate(node.start!), formatDate(node.end!))
-    : W.noDates;
+  // A milestone is one day, so it reads as a date rather than a range (ADR-0046).
+  const milestone = node.item.isMilestone;
+  const shownDates = !dated
+    ? W.noDates
+    : milestone
+      ? shortDate(node.start!)
+      : W.dateRange(shortDate(node.start!), shortDate(node.end!));
+  const spokenDates = !dated
+    ? W.noDates
+    : milestone
+      ? W.milestoneDate(formatDate(node.start!))
+      : W.dateRange(formatDate(node.start!), formatDate(node.end!));
   const shape =
     node.depth === 1
       ? `font-semibold ${LEVEL_ONE[node.color]}`
@@ -1011,7 +1019,7 @@ function ItemBox({
       aria-posinset={node.index + 1}
       aria-expanded={parent ? !collapsed : undefined}
       aria-selected={selected}
-      aria-label={W.boxLabel(node.code, name, spokenDates)}
+      aria-label={W.boxLabel(node.code, name, spokenDates, node.item.assigneeNames)}
       aria-keyshortcuts={canEdit ? MOVE_SHORTCUTS : undefined}
       className={`relative flex min-h-(--wbs-box-min) w-(--wbs-box) flex-col gap-0.5 rounded-md px-2.5 py-1.5 text-left select-none focus-visible:outline-2 focus-visible:outline-focus print:break-inside-avoid ${shape} ${
         selected ? "ring-2 ring-accent-strong ring-offset-1 ring-offset-surface" : ""
@@ -1048,6 +1056,13 @@ function ItemBox({
               <circle cx="10" cy="12.5" r="1.25" />
             </svg>
           </span>
+        ) : null}
+        {milestone ? (
+          <span
+            aria-hidden="true"
+            data-testid={`wbs-milestone-${id}`}
+            className="mt-1.5 size-2.5 shrink-0 rotate-45 rounded-xs bg-ink-muted"
+          />
         ) : null}
         <span className="shrink-0 pt-0.5 text-xs font-normal text-ink-muted tabular-nums">
           {node.code}
@@ -1131,13 +1146,15 @@ function ItemBox({
             onCommit={onStart}
             className={dateField}
           />
-          <DraftInput
-            type="date"
-            aria-label={W.endOf(node.code)}
-            value={toDateInput(node.end)}
-            onCommit={onEnd}
-            className={dateField}
-          />
+          {milestone ? null : (
+            <DraftInput
+              type="date"
+              aria-label={W.endOf(node.code)}
+              value={toDateInput(node.end)}
+              onCommit={onEnd}
+              className={dateField}
+            />
+          )}
         </div>
       ) : datesEditable ? (
         <button
@@ -1154,6 +1171,14 @@ function ItemBox({
       ) : (
         <span className="text-xs font-normal text-ink-muted tabular-nums">{shownDates}</span>
       )}
+      {node.item.assigneeNames ? (
+        <span
+          data-testid={`wbs-assignees-${id}`}
+          className="truncate text-xs font-normal text-ink-muted"
+        >
+          {node.item.assigneeNames}
+        </span>
+      ) : null}
       {node.item.status || canEdit ? (
         <button
           type="button"
