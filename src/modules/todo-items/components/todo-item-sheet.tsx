@@ -405,6 +405,9 @@ export function TodoItemSheet({
                   ))}
                 </Select>
               </Field>
+              <Field label={messages.todoItems.assignee} name="assignee">
+                <Input name="assignee" maxLength={255} defaultValue={todoItem?.Assignee ?? ""} />
+              </Field>
               <Field label={messages.todoItems.notes} name="notes">
                 <Textarea name="notes" rows={3} defaultValue={todoItem?.Notes ?? ""} />
               </Field>

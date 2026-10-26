@@ -60,6 +60,7 @@ function todoRow(overrides: Record<string, unknown> = {}) {
     DueDate: new Date("2025-12-31T00:00:00Z"),
     Priority: "High",
     Status: "Not Started",
+    Assignee: null,
     Notes: null,
     SortKey: 4,
     CreatedAtUtc: new Date("2025-06-01T00:00:00Z"),

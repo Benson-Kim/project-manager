@@ -20,6 +20,14 @@ const optionalLongText = () =>
     .optional()
     .transform((v) => (v ? v : null));
 
+const optionalText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .optional()
+    .transform((v) => (v ? v : null));
+
 const dateInput = z
   .string()
   .trim()
@@ -52,6 +60,8 @@ const todoItemFields = z.object({
   todoItem: z.string().trim().min(1, messages.todoItems.todoItemRequired).max(255),
   startDate: dateInput,
   dueDate: dateInput,
+  /** Who is doing it (migration 047): a typed name, not a stakeholder id. */
+  assignee: optionalText(255),
   /** Managed lists (ADR-0022): the proc checks the value against the live options. */
   priority: listChoice,
   status: listChoice,
@@ -92,6 +102,7 @@ export function todoItemFormValues(row: TodoItemRow): FormValues {
     ...storedDates({ startDate: row.StartDate, dueDate: row.DueDate }),
     priority: formText(row.Priority),
     status: formText(row.Status),
+    assignee: formText(row.Assignee),
     notes: formText(row.Notes),
   };
 }

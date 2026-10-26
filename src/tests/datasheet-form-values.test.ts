@@ -302,6 +302,7 @@ describe("datasheet form values round-trip through each update form schema", () 
         DueDate: day("2026-10-20"),
         Priority: "High",
         Status: "In Review",
+        Assignee: "Ada",
         Notes: null,
         SortKey: 3,
         ...audit,
@@ -316,6 +317,7 @@ describe("datasheet form values round-trip through each update form schema", () 
       dueDate: day("2026-10-20"),
       priority: "High",
       status: "In Review",
+      assignee: "Ada",
     });
   });
 
