@@ -232,7 +232,6 @@ export function AssumptionConstraintSheet({
               </Select>
             </Field>
 
-
             <Switch
               name="isValidated"
               label={messages.assumptionsConstraints.isValidated}
