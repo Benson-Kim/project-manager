@@ -31,7 +31,15 @@ interface ColumnSpec<Row, Value> {
 }
 
 export function textColumn<Row>(
-  spec: ColumnSpec<Row, string | null> & { maxLength?: number },
+  spec: ColumnSpec<Row, string | null> & {
+    maxLength?: number;
+    /**
+     * Edit this cell as a wrapping box rather than one line. Long prose capped
+     * at 255 characters still needs it, so a column whose sheet uses a textarea
+     * says so here instead of being inferred from the cap alone.
+     */
+    multiline?: boolean;
+  },
 ): DataViewColumn<Row> {
   return {
     key: spec.key,
@@ -45,7 +53,7 @@ export function textColumn<Row>(
       value: (row) => formText(spec.value(row)),
       placeholder: spec.placeholder,
       maxLength: spec.maxLength,
-      multiline: spec.maxLength === undefined || spec.maxLength > 255,
+      multiline: spec.multiline ?? (spec.maxLength === undefined || spec.maxLength > 255),
       editable: spec.editable,
     },
   };

@@ -28,7 +28,6 @@ function toProcParams(input: CreateAssumptionConstraintParsed) {
     Description: input.description,
     IsValidated: input.isValidated,
     Impact: input.impact ?? null,
-    MitigationPlan: input.mitigationPlan ?? null,
   };
 }
 

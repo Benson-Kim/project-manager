@@ -20,7 +20,6 @@ describe("assumptionConstraintFormSchema", () => {
     expect(parsed.type).toBeNull();
     expect(parsed.isValidated).toBe(false);
     expect(parsed.impact).toBeNull();
-    expect(parsed.mitigationPlan).toBeNull();
   });
 
   it("trims and keeps a supplied description", () => {
@@ -103,12 +102,14 @@ describe("assumptionConstraintFormSchema", () => {
     ).toBe(false);
   });
 
-  it("coerces whitespace-only mitigationPlan to null", () => {
+  // The mitigation plan left the sheet on 2026-10-26; the column stays, but the
+  // form no longer carries it, so a posted one is dropped rather than written.
+  it("drops a posted mitigationPlan", () => {
     const parsed = assumptionConstraintFormSchema.parse({
       ...minimal,
-      mitigationPlan: "   ",
+      mitigationPlan: "Keep a buffer",
     });
-    expect(parsed.mitigationPlan).toBeNull();
+    expect(parsed).not.toHaveProperty("mitigationPlan");
   });
 });
 

@@ -23,6 +23,29 @@ import { NOTE_PAGES_MAX, NOTE_TITLE_MAX, type NoteRow, type NoteTabRow } from ".
 
 const M = messages.notes;
 
+/** The page-move arrows beside the tab strip; the button carries the accessible name. */
+function MoveArrow({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      viewBox="0 0 16 16"
+      className="size-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {direction === "left" ? (
+        <path d="M10 3.5L5.5 8l4.5 4.5" />
+      ) : (
+        <path d="M6 3.5L10.5 8 6 12.5" />
+      )}
+    </svg>
+  );
+}
+
 /**
  * The notebook workspace: rename/delete the notebook, an ARIA tablist of its
  * pages (add, move, delete) and the editor for the active page with an explicit
@@ -251,13 +274,45 @@ export function NotebookWorkspace({
             );
           })}
         </div>
+        {/*
+          The page moves sit beside the tabs they reorder, as two arrows rather
+          than two worded buttons at the far end of the editor (client feedback
+          2026-10-26). The name stays on aria-label, so the arrow is still
+          announced as "Move page left".
+        */}
+        {canUpdate ? (
+          <div className="ml-auto flex items-center gap-1">
+            <Button
+              variant="secondary"
+              aria-label={M.moveLeft}
+              title={M.moveLeft}
+              className="min-h-11 px-3"
+              disabled={pending || pageDirty || activeIndex <= 0}
+              onClick={() => move(-1)}
+              data-testid="note-page-move-left"
+            >
+              <MoveArrow direction="left" />
+            </Button>
+            <Button
+              variant="secondary"
+              aria-label={M.moveRight}
+              title={M.moveRight}
+              className="min-h-11 px-3"
+              disabled={pending || pageDirty || activeIndex === tabs.length - 1}
+              onClick={() => move(1)}
+              data-testid="note-page-move-right"
+            >
+              <MoveArrow direction="right" />
+            </Button>
+          </div>
+        ) : null}
         {canCreate ? (
           <Button
             type="button"
             variant="secondary"
             pending={pending}
             disabled={full}
-            className="min-h-11"
+            className={`min-h-11 ${canUpdate ? "" : "ml-auto"}`}
             onClick={addPage}
             data-testid="note-add-page"
           >
@@ -307,26 +362,6 @@ export function NotebookWorkspace({
                   data-testid="note-page-save"
                 >
                   {M.savePage}
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="min-h-11"
-                  disabled={pending || pageDirty || activeIndex === 0}
-                  onClick={() => move(-1)}
-                  data-testid="note-page-move-left"
-                >
-                  {M.moveLeft}
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="min-h-11"
-                  disabled={pending || pageDirty || activeIndex === tabs.length - 1}
-                  onClick={() => move(1)}
-                  data-testid="note-page-move-right"
-                >
-                  {M.moveRight}
                 </Button>
                 {canDelete ? (
                   <Button
