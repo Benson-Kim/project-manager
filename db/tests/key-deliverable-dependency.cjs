@@ -261,15 +261,23 @@ async function leaf(projectId, name, start, end, extra = {}) {
   ok(span(rows.get(gate.KeyDeliverableId)) === "2026-11-07..2026-11-07",
     "a pushed milestone keeps its one day");
 
-  // ---- an undated end is not scheduled ---------------------------------------
+  // ---- an undated end cannot be reached through the procs --------------------
+  // The scheduler refuses to date an undated successor (it requires StartDate and Deadline to be
+  // NOT NULL both when it collects a shift and when it writes one), but that guard cannot be
+  // exercised from here: usp_KeyDeliverable_Create fills a missing @StartDate with @RequestedDate
+  // or today for callers from before migration 032, and usp_KeyDeliverable_Update coalesces to the
+  // row's current value, so no proc leaves a live row undated. This connection is the EXECUTE-only
+  // pm_web login (ADR-0033) and cannot null the columns with a query. What is pinned instead is the
+  // reachable truth: an item sent no dates comes back dated, so the NULL guard protects legacy rows
+  // only and must not be read as a live code path.
 
   const Y = await project(`kdd-undated-${stamp}`);
   const dated = await leaf(Y, `dated-${stamp}`, "2026-11-02", "2026-11-06");
   const undated = await item(Y, `undated-${stamp}`, { StartDate: null, Deadline: null });
   await link(dated.KeyDeliverableId, undated.KeyDeliverableId);
   rows = await gantt(Y);
-  ok(rows.get(undated.KeyDeliverableId).StartDate === null,
-    "a link to an undated item schedules nothing rather than inventing a date");
+  ok(rows.get(undated.KeyDeliverableId).StartDate !== null,
+    "an item created with no dates is dated by Create, so an undated successor is unreachable");
 
   // ---- the link itself: retype, unlink, concurrency, and the read back --------
 
