@@ -110,7 +110,9 @@ BEGIN
     IF @AssigneeIds IS NOT NULL AND LEN(@AssigneeIds) > 2
     BEGIN
         INSERT INTO app.KeyDeliverableAssignee (KeyDeliverableId, StakeholderId, CreatedBy)
-        SELECT @Id, CAST(j.[value] AS INT), @ActorUserId
+        -- DISTINCT, not NOT EXISTS: the subquery reads the table as of statement start, so it
+        -- never saw a repeat inside one payload, and @Id is a fresh identity it could never match.
+        SELECT DISTINCT @Id, CAST(j.[value] AS INT), @ActorUserId
         FROM OPENJSON(@AssigneeIds) AS j
         WHERE TRY_CAST(j.[value] AS INT) IS NOT NULL
           AND EXISTS (
@@ -118,10 +120,6 @@ BEGIN
               WHERE s.StakeholderId = CAST(j.[value] AS INT)
                 AND s.ProjectId     = @ProjectId
                 AND s.IsDeleted     = 0
-          )
-          AND NOT EXISTS (
-              SELECT 1 FROM app.KeyDeliverableAssignee
-              WHERE KeyDeliverableId = @Id AND StakeholderId = CAST(j.[value] AS INT)
           );
     END;
 

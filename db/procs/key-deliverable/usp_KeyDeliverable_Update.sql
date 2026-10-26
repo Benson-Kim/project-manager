@@ -148,9 +148,11 @@ BEGIN
     IF @AssigneeIds IS NOT NULL AND LEN(@AssigneeIds) > 2
     BEGIN
         -- Only insert assignees whose active stakeholder belongs to @ProjectId,
-        -- preventing cross-project stakeholder injection.
+        -- preventing cross-project stakeholder injection. DISTINCT because the same id twice is a
+        -- set of one, not a key violation: the payload is a caller's list and is not de-duplicated
+        -- before it arrives.
         INSERT INTO app.KeyDeliverableAssignee (KeyDeliverableId, StakeholderId, CreatedBy)
-        SELECT @KeyDeliverableId, CAST(j.[value] AS INT), @ActorUserId
+        SELECT DISTINCT @KeyDeliverableId, CAST(j.[value] AS INT), @ActorUserId
         FROM OPENJSON(@AssigneeIds) AS j
         WHERE TRY_CAST(j.[value] AS INT) IS NOT NULL
           AND EXISTS (
