@@ -205,7 +205,9 @@ export function RequirementsView({
             }
           : undefined
       }
-      renderToolbar={(viewToggle) => <RequirementsToolbar>{viewToggle}</RequirementsToolbar>}
+      renderToolbar={(viewToggle) => (
+        <RequirementsToolbar projectId={projectId}>{viewToggle}</RequirementsToolbar>
+      )}
       empty={listEmptyState(filtersActive, M.emptyBody, newRequirementAction)}
     />
   );

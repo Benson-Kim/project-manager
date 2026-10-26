@@ -206,7 +206,7 @@ export function ProjectForm({
             </Field>
           </div>
           <Field label={messages.projects.mandate} name="mandate" errors={form.errors.mandate}>
-            <Input name="mandate" defaultValue={project?.Mandate ?? ""} />
+            <Textarea name="mandate" defaultValue={project?.Mandate ?? ""} />
           </Field>
           <Field
             label={messages.projects.problemStatement}

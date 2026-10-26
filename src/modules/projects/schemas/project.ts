@@ -81,7 +81,7 @@ export const createProjectInput = z.object({
   currentState: z.string().nullish(),
   futureState: z.string().nullish(),
   userImpact: z.string().nullish(),
-  mandate: z.string().trim().max(255).nullish(),
+  mandate: z.string().nullish(),
   projectStatusCom: z.string().nullish(),
   existBusMod: z.string().trim().max(255).nullish(),
   a1: z.boolean().default(false),

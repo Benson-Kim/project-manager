@@ -63,7 +63,7 @@ const projectFields = z.object({
   currentState: memo,
   futureState: memo,
   userImpact: memo,
-  mandate: optionalText(255),
+  mandate: memo,
   projectStatusCom: memo,
   existBusMod: optionalText(255),
   a1: flag,
