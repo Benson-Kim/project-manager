@@ -1349,6 +1349,7 @@ export const messages = {
     numberingStyle: "Numbering style",
     numberingStyles: {
       "1": "1, 2, 3",
+      "1.1": "1.1, 1.1.1",
       a: "a, b, c",
       A: "A, B, C",
       i: "i, ii, iii",

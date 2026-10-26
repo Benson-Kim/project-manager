@@ -19,6 +19,7 @@ import {
   indentFromCss,
   indentLevel,
   nearestColor,
+  isLegalNumbering,
   numberingCss,
   type CellShade,
   type HighlightColor,
@@ -264,6 +265,9 @@ export const RichTextFormats = Extension.create({
             default: null,
             parseHTML: () => null,
             renderHTML: (attributes) => {
+              if (isLegalNumbering(attributes.type as string)) {
+                return { "data-numbering": "legal" };
+              }
               const css = attributes.type === "1" ? null : numberingCss(attributes.type);
               return css ? { style: `list-style-type:${css}` } : {};
             },

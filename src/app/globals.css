@@ -308,6 +308,27 @@ button:focus-visible {
   padding-left: 1.5rem;
 }
 
+/* Legal numbering (client feedback 2026-10-26, E6): an indented item reads
+   1.1, then 1.1.1, instead of restarting at 1. counters() joins the chain, so
+   the nested lists an indent creates inherit it without carrying the attribute
+   themselves. */
+.rich-text ol[data-numbering="legal"],
+.rich-text ol[data-numbering="legal"] ol {
+  list-style: none;
+  counter-reset: rt-legal;
+}
+
+.rich-text ol[data-numbering="legal"] > li,
+.rich-text ol[data-numbering="legal"] ol > li {
+  counter-increment: rt-legal;
+}
+
+.rich-text ol[data-numbering="legal"] > li::before,
+.rich-text ol[data-numbering="legal"] ol > li::before {
+  content: counters(rt-legal, ".") ". ";
+  margin-inline-end: 0.25rem;
+}
+
 .rich-text blockquote {
   border-left: 3px solid var(--line);
   padding-left: 0.75rem;

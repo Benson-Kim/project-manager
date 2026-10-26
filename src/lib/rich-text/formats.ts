@@ -34,9 +34,22 @@ export const INDENT_STEP_EM = 2;
 /** A pasted margin of this many points is one level (Word's default tab stop, 0.5 in). */
 const INDENT_STEP_PT = 36;
 
-/** Numbering styles: the HTML `type` of an `<ol>` and the CSS list-style-type it renders with. */
+/**
+ * Legal (outline) numbering: a nested item reads 1.1, then 1.1.1, rather than
+ * restarting at 1 (client feedback 2026-10-26, E6). It is the one style no
+ * list-style-type can express, so it renders through CSS counters keyed off
+ * data-numbering rather than an inline style.
+ */
+export const LEGAL_NUMBERING = "1.1";
+
+/**
+ * Numbering styles: the HTML `type` of an `<ol>` and the CSS list-style-type it
+ * renders with. Legal numbering has no list-style-type of its own, so its css
+ * is null and `.rich-text ol[data-numbering="legal"]` draws it instead.
+ */
 export const NUMBERING_STYLES = [
   { type: "1", css: "decimal" },
+  { type: LEGAL_NUMBERING, css: null },
   { type: "a", css: "lower-alpha" },
   { type: "A", css: "upper-alpha" },
   { type: "i", css: "lower-roman" },
@@ -58,6 +71,11 @@ export function isOneOf<T extends string>(list: readonly T[], value: unknown): v
 
 export function numberingCss(type: string | null | undefined): string | null {
   return NUMBERING_STYLES.find((s) => s.type === type)?.css ?? null;
+}
+
+/** Legal numbering is carried by data-numbering, not by a list-style-type. */
+export function isLegalNumbering(type: string | null | undefined): boolean {
+  return type === LEGAL_NUMBERING;
 }
 
 /** An `<ol start>` value the editor keeps: an integer 1..LIST_START_MAX, else null (start at 1). */
