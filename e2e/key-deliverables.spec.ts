@@ -473,7 +473,9 @@ test("WBS item menu: Assignees… opens the details on the picker; the box names
   // Take the first stakeholder the project offers, save, and the box carries the name —
   // in its text and in the label a screen reader hears instead of that text.
   await picker.press("ArrowDown");
-  const option = page.getByRole("option").first();
+  // The picker's own listbox, not the page's first option: the Status and Priority fields above it
+  // are native selects whose "None" option comes first in the DOM and can never be clicked.
+  const option = form.getByRole("listbox").getByRole("option").first();
   const who = ((await option.textContent()) ?? "").trim();
   expect(who).not.toBe("");
   await option.click();
@@ -767,6 +769,11 @@ test("WBS: two items are linked, the successor is pushed, and the link goes with
   await page.getByRole("option", { name: new RegExp(escapeRegExp(`E2E pour ${stamp}`)) }).click();
   await page.getByTestId("wbs-dependency-submit").click();
   await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+
+  // Linking leaves the panel open, so more links can be made from it. Close it before touching the
+  // rows again: it is a modal, and a click on anything behind it never reaches the row.
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
 
   // The successor has been pushed past its predecessor's end, and it did not move on its own
   // before the link existed (ADR-0046 decisions 6-7).
