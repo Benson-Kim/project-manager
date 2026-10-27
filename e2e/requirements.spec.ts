@@ -335,6 +335,9 @@ test("sub-requirements: the register nests them, and the WBS names them the same
 
   await page.goto("/projects/2/deliverables/gantt?view=wbs");
   await expect(page.getByTestId("wbs-diagram")).toBeVisible();
-  const chipRow = page.locator("li[data-wbs-row]").filter({ hasText: childA });
-  await expect(chipRow.first()).toContainText(`${parentRef}.1`);
+  // The box view lists a deliverable's requirements as li[data-testid="wbs-req-<id>"], each a
+  // RefChip beside the text. `li[data-wbs-row]` is the Gantt outline's *item* row, a different
+  // surface, and the text there lives in an input value that hasText cannot see.
+  const chipRow = page.locator('li[data-testid^="wbs-req-"]').filter({ hasText: childA });
+  await expect(chipRow.first()).toContainText(`${parentRef}.1`, { timeout: 15_000 });
 });
