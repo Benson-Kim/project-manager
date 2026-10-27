@@ -4,8 +4,9 @@ Everything the client marked on the "Project Manager 1.0.12: what to test" sheet
 done about it. Three checks failed with a comment (M2, M6, E6), four more things were written in as
 "what I noticed", and the table at the end of the sheet mixes new asks with corrections.
 
-This branch (`feature/wbs-requirements`) closed **every correction except sub-requirements**. The
-reasoning behind each decision is **ADR-0047**; this file is the inventory.
+This branch (`feature/wbs-requirements`) closed **every correction on the sheet**, sub-requirements
+included. The reasoning is **ADR-0047**, and **ADR-0048** for sub-requirements; this file is the
+inventory.
 
 Status: **DONE** (on this branch, not yet released) · **ALREADY TRUE** (the app already did it) ·
 **ASK** (needs the client before code) · **OPEN**.
@@ -47,35 +48,44 @@ The client asked for these in the backlog table. They landed in `bef447a` (ADR-0
 | What the client wrote | Status | What was done |
 |---|---|---|
 | "Requirements need to be printed sometimes. They need to exported in csv etc and or pdf" | **DONE** | Both exports are in the register's toolbar. The type filter travels with them, so what downloads is what is on screen |
-| "The requirements BR, SR, FR, NF, TR all should be able to create subrequirement E.g. subBR1.1, subBR1.2 then subBR1.1.1 … (as many subs as necessary)" | **OPEN** | **Not built.** Specified below. This is a tree, not a field, and it is the only correction on the sheet that was not closed |
+| "The requirements BR, SR, FR, NF, TR all should be able to create subrequirement E.g. subBR1.1, subBR1.2 then subBR1.1.1 … (as many subs as necessary)" | **DONE** · **ASK** | **Built** (migration 048, ADR-0048). Any requirement can take sub-requirements, four levels deep — `FR-1`, `FR-1.1`, `FR-1.1.1`, `FR-1.1.1.1` — and the register indents them under their parent. A sub-requirement takes its type from the requirement above it, so the letters in its reference are always its parent's. Nothing already in the register changed name or number. **Two questions below are yours, not ours** |
 
-### Sub-requirements — what it needs, for whoever picks it up
+### Sub-requirements — built, and the two questions that are still yours
 
-Reserved: **ADR-0048**, **migration 048**. Today a requirement is `(ProjectId, RequirementType,
-Number)` and its reference is `FR-3` — flat, with the number assigned as `MAX(Number) + 1` per type.
+A requirement can now sit under another one. `FR-1` can take `FR-1.1` and `FR-1.2`, `FR-1.1` can
+take `FR-1.1.1`, and so on to **four levels** — you wrote "normally this does not going for long",
+so four is where it stops rather than being unbounded. Say if that is too shallow; it is one number
+in two places.
 
-- `app.Requirement.ParentRequirementId INT NULL`, self-referencing, with the parent in the same
-  project **and** the same type.
-- `Number` becomes the ordinal within the parent, not within the type, so uniqueness moves to
-  `(ProjectId, RequirementType, ParentRequirementId, Number)`. Existing rows have a null parent, so
-  their numbers and references do not change.
-- The reference becomes the path — `FR-1`, `FR-1.1`, `FR-1.1.1` — which no column holds. The list
-  proc needs a recursive CTE, because the register is paged and a child can land on a different
-  page from its parent, so it cannot be assembled in the browser.
-- The register's order becomes the path, which is not a sort on any column, and `"1.10"` must not
-  sort before `"1.2"`.
-- A parent cannot become its own descendant. That check spans rows, so it belongs under the project
-  lock in the update proc, like `usp_KeyDeliverable_AssertPlacement`.
-- Two decisions are needed from the client before any of it is built: **what deleting a
-  requirement that has sub-requirements should do** (refuse it, delete the whole branch, or promote
-  the children up a level and renumber them), and **what changing a parent's type should do to
-  them** (follow the parent, which changes every child's reference, or refuse while it has
-  children). Merging is not affected — merging makes a new requirement that validates the ones you
-  picked and leaves them, and their sub-requirements, where they are.
+What this does **not** change is as important: **every requirement already in the register keeps
+the name and number it has today.** Nothing was renumbered to make room for the tree.
 
-It was left because it is the size of the milestones-and-dependencies item, which took a session of
-its own and still shipped two defects that only CI caught. A specification is worth more here than
-a half-built tree.
+How it behaves:
+
+- **A sub-requirement's type is the one above it.** Put a sub-requirement under `BR-2` and it is
+  `BR-2.1`; you are not asked to pick a type, and you cannot change it to something else, because
+  the letters in its reference are its parent's. That is how the example on your sheet reads
+  — `subBR1.1` under `BR1`.
+- **Numbering restarts under each parent**, so `FR-1.1` and `FR-2.1` both exist and neither one
+  waits for the other.
+- **The reference is the whole path**, everywhere it appears — the register, the exports, the
+  traceability chips, and the Gantt/WBS chip, which cannot disagree with the register about what a
+  requirement is called.
+- `1.10` sorts **after** `1.9`, not between `1.1` and `1.2`.
+- **Merging is unaffected.** Merging makes a new requirement that validates the ones you picked and
+  leaves them, and their sub-requirements, where they are.
+
+**The two questions.** Both are implemented today as a refusal with a message saying why, because a
+refusal is the one answer that can still become either of the others later without anything having
+been thrown away in the meantime. Neither is a limitation we are arguing for — tell us which you
+want and it changes:
+
+| Question | What it does today | The alternatives |
+|---|---|---|
+| **You delete a requirement that has sub-requirements under it** | Refuses, and says how many sub-requirements must go first | Delete the whole branch in one go; **or** move the sub-requirements up a level and renumber them — which changes references you may already have quoted in a document |
+| **You change the type of a requirement that has sub-requirements** (say `FR-3` becomes `TR-1`) | Refuses, and says to remove the sub-requirements first | Let them follow the parent — `FR-3.1` becomes `TR-1.1`, and every reference beneath it changes with it |
+
+Until you answer, the register says no in both cases and explains itself rather than guessing.
 
 ## Corrections inside the backlog table
 
