@@ -271,7 +271,10 @@ test("sub-requirements: the register nests them, and the WBS names them the same
   async function addSub(under: string, text: string): Promise<void> {
     const row = rowOf(page, under);
     await expect(row).toBeVisible();
-    await row.getByRole("button", { name: M.addSubRequirement, exact: true }).click();
+    // The button's aria-label replaces its text for the accessible name (LESSONS §36), so it is
+    // "Add a sub-requirement under FR-1", not the column header. Scoped to the row, so the prefix
+    // is unambiguous, and asserting the descriptive name is what a screen reader actually hears.
+    await row.getByRole("button", { name: /^Add a sub-requirement under / }).click();
     await expect(page).toHaveURL(/id=new&?.*parent=\d+|parent=\d+&?.*id=new/);
 
     const form = page.getByTestId("requirement-form");
