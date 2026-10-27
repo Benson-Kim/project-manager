@@ -118,7 +118,12 @@ for f in db/migrations/*.sql; do
   fi
 done
 
-find db/procs -name '*.sql' | sort | while read -r f; do run "$f"; done
+# Functions before procedures, across every folder. An inline table-valued function is bound when
+# it is created, so one that reads another must meet it already there; a procedure's references are
+# resolved when it runs, so this order is enough for both. Folder-then-file order alone put
+# ufn_Requirement_AncestorPath after key-deliverable/, whose Gantt proc reads it.
+find db/procs -name 'ufn_*.sql' | sort | while read -r f; do run "$f"; done
+find db/procs -name 'usp_*.sql' | sort | while read -r f; do run "$f"; done
 for f in db/seed/*.sql; do run "$f"; done
 
 app_login

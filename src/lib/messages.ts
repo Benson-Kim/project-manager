@@ -830,6 +830,15 @@ export const messages = {
       TR: "Transitional",
     },
     typeWithRef: (type: string, ref: string) => `${type} ${ref}`,
+    subRequirement: "Sub-Requirement",
+    subRequirementOf: (ref: string) => `Sub-requirement of ${ref}`,
+    addSubRequirement: "Add sub-requirement",
+    addSubRequirementUnder: (ref: string) => `Add a sub-requirement under ${ref}`,
+    subRequirementsBlockType: (count: number) =>
+      `Its type is fixed while it has ${count === 1 ? "a sub-requirement" : `${count} sub-requirements`}.`,
+    subRequirementsBlockDelete: (count: number) =>
+      `Delete the ${count === 1 ? "sub-requirement" : `${count} sub-requirements`} under it first.`,
+    typeIsParents: "A sub-requirement takes its type from the requirement above it.",
     typeWithCode: (label: string, code: string) => `${label} (${code})`,
     ref: "Ref",
     type: "Type",

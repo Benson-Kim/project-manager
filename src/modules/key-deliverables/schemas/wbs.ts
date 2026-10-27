@@ -1,5 +1,4 @@
 import type { OptionColor } from "@/lib/lookup-lists";
-import { requirementRef } from "@/modules/requirements/schemas/requirement-rules";
 import type { SolutionType } from "@/modules/requirements/schemas/requirement-types";
 import type { AssigneeEntry } from "./key-deliverable";
 
@@ -32,7 +31,8 @@ export interface WbsRequirement {
   id: number;
   /** Only a solution is ever allocated to a deliverable (ADR-0037). */
   type: SolutionType;
-  number: number;
+  /** "FR-1.2", the register's own reference, from the server (ADR-0048); "" until it has one. */
+  ref: string;
   text: string;
   isMet: boolean;
   sortOrder: number;
@@ -497,12 +497,12 @@ function numbered(requirements: WbsRequirement[]): WbsRequirement[] {
   );
 }
 
-/** The chip in front of a requirement's wording: "FR-3", or its type alone until the server has
- *  given a queued one its number, so the chip never shows a number that turns out wrong. */
+/** The chip in front of a requirement's wording: "FR-1.2", or its type alone until the server has
+ *  given a queued one its reference, so the chip never shows one that turns out wrong. The whole
+ *  path, not the type and a number: the register shows the same reference and the two must agree
+ *  (ADR-0048), and a path cannot be rebuilt here from a row whose parent was never sent. */
 export function requirementChip(requirement: WbsRequirement): string {
-  return requirement.number > 0
-    ? requirementRef(requirement.type, requirement.number)
-    : requirement.type;
+  return requirement.ref !== "" ? requirement.ref : requirement.type;
 }
 
 /** Distinct requirements allocated anywhere in a branch: what deleting the item unallocates. */

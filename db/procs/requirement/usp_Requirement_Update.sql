@@ -3,7 +3,15 @@
 -- Access: Contributor + requirements:update. CONFLICT 50002 on a stale RowVer.
 -- @ValidatesSet / @DeliverablesSet follow the @ColorSet pattern: that side is replaced only when
 --   its flag is 1, so a datasheet cell edit leaves links and allocations alone.
--- A type change takes the next free number of the new type.
+-- A type change takes the next free number of the new type, among that type's *roots*: a
+--   sub-requirement's number is unique under its parent, not across the type (ADR-0048).
+-- Two type changes are refused outright rather than cascaded (ADR-0048):
+--   * a sub-requirement's type is its parent's, so it has none of its own to change;
+--   * a requirement that still has sub-requirements cannot change type, because every one of their
+--     references carries its letters and would silently become something the client never renamed.
+--   Both are checked under the project lock, since both read other rows. Refusing is reversible —
+--   the client has been asked whether children should instead follow the parent.
+-- Nothing here re-parents a requirement: parentage is usp_Requirement_Create's alone.
 -- The rules are checked on the resulting state, after the scalars and both lists are written, so a
 --   save that changes type and links together is judged as a whole. A refusal rolls it all back.
 USE ProjectManager;
@@ -24,9 +32,10 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    DECLARE @CurrentVer BIGINT, @RowProjectId INT, @OldType VARCHAR(3), @OldNumber INT;
+    DECLARE @CurrentVer BIGINT, @RowProjectId INT, @OldType VARCHAR(3), @OldNumber INT,
+            @OldParentId INT;
     SELECT @CurrentVer = CAST(RowVer AS BIGINT), @RowProjectId = ProjectId,
-           @OldType = RequirementType, @OldNumber = Number
+           @OldType = RequirementType, @OldNumber = Number, @OldParentId = ParentRequirementId
     FROM app.Requirement WHERE RequirementId = @RequirementId AND IsDeleted = 0;
     IF @CurrentVer IS NULL
         THROW 50001, N'NOT_FOUND:Requirement not found', 1;
@@ -55,12 +64,23 @@ BEGIN
 
     DECLARE @Number INT = @OldNumber;
     IF @RequirementType <> @OldType
+    BEGIN
+        IF @OldParentId IS NOT NULL
+            THROW 50004, N'VALIDATION:A sub-requirement takes its type from the requirement above it', 1;
+
+        IF EXISTS (SELECT 1 FROM app.Requirement
+                   WHERE ParentRequirementId = @RequirementId AND IsDeleted = 0)
+            THROW 50004, N'VALIDATION:Remove the sub-requirements before changing this type', 1;
+
         SET @Number =
             ISNULL((SELECT MAX(Number) FROM app.Requirement
-                    WHERE ProjectId = @RowProjectId AND RequirementType = @RequirementType), 0) + 1;
+                    WHERE ProjectId = @RowProjectId AND RequirementType = @RequirementType
+                      AND ParentRequirementId IS NULL), 0) + 1;
+    END
 
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT RequirementId, ProjectId, RequirementType, Number, Requirement, IsMet
+        (SELECT RequirementId, ProjectId, RequirementType, Number, ParentRequirementId,
+                Requirement, IsMet
          FROM app.Requirement WHERE RequirementId = @RequirementId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 
@@ -104,7 +124,8 @@ BEGIN
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.Requirement',
             CAST(@RequirementId AS NVARCHAR(64)), @Before,
-            (SELECT RequirementId, ProjectId, RequirementType, Number, Requirement, IsMet
+            (SELECT RequirementId, ProjectId, RequirementType, Number, ParentRequirementId,
+                    Requirement, IsMet
              FROM app.Requirement WHERE RequirementId = @RequirementId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 

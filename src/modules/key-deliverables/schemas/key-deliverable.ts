@@ -66,7 +66,7 @@ const requirementEntrySchema = z
   .object({
     id: z.number().int().positive(),
     type: solutionTypeSchema,
-    number: z.number().int().positive(),
+    ref: z.string().min(1),
     requirement: z.string(),
     isMet: z.union([z.boolean(), z.literal(0), z.literal(1)]).transform(Boolean),
     sortOrder: z.number().int(),
@@ -76,7 +76,7 @@ const requirementEntrySchema = z
   .transform((r): WbsRequirement => ({
     id: r.id,
     type: r.type,
-    number: r.number,
+    ref: r.ref,
     text: r.requirement,
     isMet: r.isMet,
     sortOrder: r.sortOrder,

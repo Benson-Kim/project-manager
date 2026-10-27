@@ -319,7 +319,7 @@ describe("key-deliverables repository", () => {
             {
               id: 42,
               type: "BR",
-              number: 1,
+              ref: "BR-1",
               requirement: "Fewer delays",
               isMet: false,
               sortOrder: 1,
@@ -339,7 +339,7 @@ describe("key-deliverables repository", () => {
             {
               id: 41,
               type: "NFR",
-              number: 2,
+              ref: "NFR-2",
               requirement: "Soil report",
               isMet: false,
               sortOrder: 2,
@@ -349,7 +349,7 @@ describe("key-deliverables repository", () => {
             {
               id: 40,
               type: "FR",
-              number: 1,
+              ref: "FR-1.2",
               requirement: "Permit",
               isMet: true,
               sortOrder: 1,
@@ -366,7 +366,7 @@ describe("key-deliverables repository", () => {
         {
           id: 40,
           type: "FR",
-          number: 1,
+          ref: "FR-1.2",
           text: "Permit",
           isMet: true,
           sortOrder: 1,
@@ -376,7 +376,7 @@ describe("key-deliverables repository", () => {
         {
           id: 41,
           type: "NFR",
-          number: 2,
+          ref: "NFR-2",
           text: "Soil report",
           isMet: false,
           sortOrder: 2,
@@ -498,6 +498,10 @@ describe("key-deliverables repository", () => {
       ProjectId: 31,
       RequirementType: "FR",
       Number: 1,
+      Ref: "FR-1",
+      SortPath: "0000000001",
+      Depth: 0,
+      ChildCount: 0,
       Requirement: "Permit",
       IsMet: false,
       CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),
@@ -522,6 +526,8 @@ describe("key-deliverables repository", () => {
           RequirementType: "FR",
           Requirement: "Permit",
           IsMet: false,
+          // The cascade allocates to a deliverable; it never creates a sub-requirement (ADR-0048).
+          ParentRequirementId: null,
           ValidatesIds: null,
           KeyDeliverableIds: JSON.stringify([7]),
           ActorUserId: 9,

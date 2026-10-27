@@ -325,6 +325,9 @@ export async function addCascadeRequirement(
       type: input.type,
       text: input.text,
       isMet: false,
+      // The WBS adds a requirement to a deliverable, never a sub-requirement: the tree is the
+      // register's own shape (ADR-0048) and the cascade has no row to hang one under.
+      parentRequirementId: null,
       validatesIds: null,
       deliverableIds: [input.itemId],
     },

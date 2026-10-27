@@ -21,9 +21,13 @@
 --   ProjectId, so linking, retyping or unlinking moves it and a refresh cannot restore stale
 --   arrows.
 -- RequirementsJson: the solution requirements allocated to the item, in allocation order
---   (ADR-0037), each with its type, reference number and the allocation's RowVer. The stamp also
+--   (ADR-0037), each with its type, reference and the allocation's RowVer. The stamp also
 --   covers app.Requirement and app.RequirementDeliverable by ProjectId, so any register edit or
 --   allocation change moves it.
+--   The reference is the whole path from ufn_Requirement_AncestorPath (ADR-0048), not a number:
+--   the WBS and the Gantt are a second surface rendering a register reference, so an allocated
+--   sub-requirement has to read FR-1.2 here exactly as it does in the register. Composing it from
+--   the type and the number is what would have made the two disagree.
 -- Row-level access: the project must be accessible (dbo.usp_Project_AssertAccess,
 --   FORBIDDEN_ROW 50003; Admin bypass).
 USE ProjectManager;
@@ -93,7 +97,7 @@ BEGIN
            (
                SELECT r.RequirementId          AS id,
                       r.RequirementType         AS [type],
-                      r.Number                  AS [number],
+                      ap.Ref                    AS ref,
                       r.Requirement             AS requirement,
                       r.IsMet                   AS isMet,
                       d.SortOrder               AS sortOrder,
@@ -102,6 +106,7 @@ BEGIN
                FROM app.RequirementDeliverable AS d
                JOIN app.Requirement AS r
                    ON r.RequirementId = d.RequirementId AND r.IsDeleted = 0
+               CROSS APPLY dbo.ufn_Requirement_AncestorPath(r.RequirementId) AS ap
                WHERE d.KeyDeliverableId = kd.KeyDeliverableId
                ORDER BY d.SortOrder, r.RequirementId
                FOR JSON PATH, INCLUDE_NULL_VALUES

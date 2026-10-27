@@ -96,6 +96,7 @@ export async function createRequirement(
     RequirementType: input.type,
     Requirement: input.text,
     IsMet: input.isMet,
+    ParentRequirementId: input.parentRequirementId,
     ValidatesIds: jsonIds(input.validatesIds),
     KeyDeliverableIds: jsonIds(input.deliverableIds),
     ActorUserId: actorUserId,

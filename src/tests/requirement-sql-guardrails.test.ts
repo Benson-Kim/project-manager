@@ -113,3 +113,136 @@ describe("no application code calls a requirement helper proc (ADR-0037)", () =>
     expect(offenders).toEqual([]);
   });
 });
+
+/**
+ * Sub-requirements (ADR-0048). Migration 047 shipped with two procs short of a required column and
+ * CI found it, not a test; this is the same shape of check session 12 added for to-dos, applied to
+ * the requirement row before the next column can repeat it.
+ */
+const MIGRATION_048 = "db/migrations/048_requirement_sub_requirements.sql";
+
+/** The procs whose result set the repository parses as a full requirement row. */
+const ROW_PROCS = ["usp_Requirement_List", "usp_Requirement_GetById"] as const;
+
+describe("every proc answering a requirement row answers with every column (ADR-0048)", () => {
+  // requirementRowSchema requires these and they are selected by name. Create and Update are not
+  // listed: both answer by EXEC-ing GetById, so they cannot drift from it.
+  const REQUIRED = ["Ref", "SortPath", "Depth", "ChildCount", "Number", "RequirementType"] as const;
+
+  it.each(ROW_PROCS)("%s names every column the row schema requires", (name) => {
+    const text = sql(join(DIR, `${name}.sql`));
+    for (const column of REQUIRED) {
+      expect(text, `${name} is missing ${column}`).toContain(column);
+    }
+  });
+
+  it("Create and Update answer through GetById rather than selecting a row of their own", () => {
+    for (const name of ["Create", "Update"]) {
+      const text = sql(join(DIR, `usp_Requirement_${name}.sql`));
+      expect(text, name).toContain("EXEC dbo.usp_Requirement_GetById");
+    }
+  });
+
+  it("the WBS chip reads the same reference the register does", () => {
+    const gantt = sql("db/procs/key-deliverable/usp_KeyDeliverable_GanttData.sql");
+    expect(gantt).toContain("dbo.ufn_Requirement_AncestorPath");
+    // A number would let the Gantt label a sub-requirement FR-1 while the register calls it FR-1.2.
+    expect(gantt).not.toMatch(/r\.Number\s+AS \[?number\]?/);
+  });
+});
+
+describe("the reference has one definition (ADR-0048)", () => {
+  const path = sql(join(DIR, "ufn_Requirement_AncestorPath.sql"));
+
+  it("pads every level to the ten digits CK_Requirement_Number allows, so 1.2 sorts before 1.10", () => {
+    expect(path).toContain("RIGHT(CONCAT('0000000000', CAST(c.Number AS VARCHAR(10))), 10)");
+  });
+
+  it("bounds its own recursion, as ufn_KeyDeliverable_Ancestors does", () => {
+    expect(path).toMatch(/WHERE c\.Distance < \d+/);
+  });
+
+  it("every reader of a reference goes through it, and none composes one", () => {
+    for (const file of procFiles) {
+      const text = sql(file);
+      if (!/\bRef\b|\[?number\]?\s*,/.test(text)) continue;
+      // The only place a reference is built is the function itself.
+      if (file.endsWith("ufn_Requirement_AncestorPath.sql")) continue;
+      expect(text, file).not.toMatch(/CONCAT\(\s*\w*\.?RequirementType\s*,\s*'-'/);
+    }
+  });
+});
+
+describe("migration 048 holds the tree's invariants where they cannot be bypassed", () => {
+  const m = sql(MIGRATION_048);
+
+  it("keeps a child in its parent's project with a composite foreign key", () => {
+    expect(m).toContain("FOREIGN KEY (ParentRequirementId, ProjectId)");
+    expect(m).toContain("REFERENCES app.Requirement (RequirementId, ProjectId)");
+  });
+
+  it("refuses a row that is its own parent, as a table constraint (error 8141)", () => {
+    expect(m).toContain("CK_Requirement_NotSelfParent");
+    expect(m).toContain("CHECK (ParentRequirementId <> RequirementId)");
+  });
+
+  it("makes a number unique per parent, and keeps the Gantt stamp's leading column and INCLUDE", () => {
+    expect(m).toContain(
+      "ON app.Requirement (ProjectId, RequirementType, ParentRequirementId, Number)",
+    );
+    expect(m).toContain("INCLUDE (IsDeleted, IsMet, RowVer)");
+  });
+
+  it("is idempotent: every object it adds is guarded", () => {
+    const creates = m.match(/^\s*(ALTER TABLE|CREATE (UNIQUE )?INDEX|DROP INDEX)/gm) ?? [];
+    expect(creates.length).toBeGreaterThan(0);
+    expect(m.match(/IF (NOT )?EXISTS|IF COL_LENGTH/g)?.length ?? 0).toBeGreaterThanOrEqual(
+      creates.length,
+    );
+  });
+});
+
+describe("the write procs own the invariants a constraint cannot express (ADR-0048)", () => {
+  it("numbers a new requirement within its parent, not across its type", () => {
+    const create = sql(join(DIR, "usp_Requirement_Create.sql"));
+    expect(create).toContain(
+      "((@ParentRequirementId IS NULL AND ParentRequirementId IS NULL)\n" +
+        "                       OR ParentRequirementId = @ParentRequirementId)",
+    );
+  });
+
+  it("takes a child's type from its parent rather than from the caller", () => {
+    expect(sql(join(DIR, "usp_Requirement_Create.sql"))).toContain(
+      "SET @RequirementType = @ParentType;",
+    );
+  });
+
+  it("caps the depth under the project lock, since depth spans rows", () => {
+    const create = sql(join(DIR, "usp_Requirement_Create.sql"));
+    const lock = create.indexOf("WITH (UPDLOCK, HOLDLOCK)");
+    const depth = create.indexOf("@ParentDepth >= 3");
+    expect(lock).toBeGreaterThan(0);
+    expect(depth).toBeGreaterThan(lock);
+  });
+
+  it("refuses to delete a requirement that still has children, under the lock", () => {
+    const del = sql(join(DIR, "usp_Requirement_Delete.sql"));
+    const lock = del.indexOf("WITH (UPDLOCK, HOLDLOCK)");
+    const refusal = del.indexOf("WHERE ParentRequirementId = @RequirementId AND IsDeleted = 0");
+    expect(refusal).toBeGreaterThan(lock);
+    expect(del).toMatch(/THROW 50004, N'VALIDATION:Delete the sub-requirements/);
+  });
+
+  it("refuses a type change on a child and on a row that still has children", () => {
+    const update = sql(join(DIR, "usp_Requirement_Update.sql"));
+    expect(update).toMatch(/THROW 50004, N'VALIDATION:A sub-requirement takes its type/);
+    expect(update).toMatch(/THROW 50004, N'VALIDATION:Remove the sub-requirements/);
+  });
+
+  it("re-parents nowhere: only Create ever writes ParentRequirementId", () => {
+    for (const file of procFiles) {
+      if (file.endsWith("usp_Requirement_Create.sql")) continue;
+      expect(sql(file), file).not.toMatch(/SET\s+[\s\S]{0,400}?ParentRequirementId\s*=/);
+    }
+  });
+});

@@ -41,6 +41,10 @@ function dbRow(overrides: Record<string, unknown> = {}) {
     ProjectId: 2,
     RequirementType: "FR",
     Number: 1,
+    Ref: "FR-1",
+    SortPath: "0000000001",
+    Depth: 0,
+    ChildCount: 0,
     Requirement: "The system sends a receipt",
     IsMet: false,
     CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),
@@ -77,6 +81,8 @@ describe("requirements actions (ADR-0037)", () => {
     expect(params.Requirement).toBe("The system sends a receipt");
     // isMet is honoured for a solution type.
     expect(params.IsMet).toBe(true);
+    // No ?parent=, so this is a root requirement (ADR-0048).
+    expect(params.ParentRequirementId).toBeNull();
     // No "set" flag was sent, so the proc leaves links and allocations alone.
     expect(params.ValidatesIds).toBeNull();
     expect(params.KeyDeliverableIds).toBeNull();
@@ -162,6 +168,7 @@ describe("requirements actions (ADR-0037)", () => {
     fd.set("projectId", "999");
     fd.set("number", "42");
     fd.set("isDeleted", "1");
+    fd.set("parentRequirementId", "5");
     const result = await updateRequirementAction(fd);
     expect(result.ok).toBe(true);
     const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
@@ -169,6 +176,9 @@ describe("requirements actions (ADR-0037)", () => {
     expect(params).not.toHaveProperty("ProjectId");
     expect(params).not.toHaveProperty("Number");
     expect(params).not.toHaveProperty("IsDeleted");
+    // Parentage is usp_Requirement_Create's alone: no update re-parents a requirement, so the
+    // update proc must not take one even if a client posts it (ADR-0048).
+    expect(params).not.toHaveProperty("ParentRequirementId");
     // A plain cell edit sent no "set" flags, so both lists stay untouched.
     expect(params.ValidatesSet).toBe(0);
     expect(params.DeliverablesSet).toBe(0);

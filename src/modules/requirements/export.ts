@@ -2,8 +2,9 @@ import { messages } from "@/lib/messages";
 import { PdfWriter, textWidth, type TableColumn } from "@/lib/pdf";
 import type { CsvCell } from "@/lib/csv";
 import type { RequirementListRow } from "./schemas/requirement";
-import { coverageLabel, coverageOf, refList, requirementRef } from "./schemas/requirement-rules";
-import { typeLabel, typeOrder } from "./schemas/requirement-types";
+import { coverageLabel, coverageOf, refList } from "./schemas/requirement-rules";
+import { typeOrder } from "./schemas/requirement-types";
+import { refCell, typeCell } from "./components/register-model";
 
 /**
  * The requirements register as a file the client can print or open in a
@@ -16,14 +17,28 @@ import { typeLabel, typeOrder } from "./schemas/requirement-types";
  * Met, Validates, Validated by and Coverage. A need carries no Met of its own
  * — only a solution does — so its cell is empty rather than "No", which would
  * read as a failure.
+ *
+ * Sub-requirements (ADR-0048) are carried, not flattened: the order is the
+ * register's tree order and the Ref cell keeps the register's indent, so a
+ * spreadsheet shows FR-1.1 under FR-1 rather than as an unrelated row. Both
+ * come from register-model, the same two functions the on-screen register
+ * renders with, so the file and the page cannot disagree about the shape of
+ * the tree.
  */
 
 const M = messages.requirements;
 
-/** The register's order: catalog type order, then number — what the list proc returns. */
+/**
+ * The register's order: catalog type order, then the padded tree path — what the list proc returns.
+ * SortPath, not Number: a number is only unique under its parent now, so ordering by it would
+ * interleave branches. Compared with < and > rather than localeCompare, for the reason refList
+ * gives — locale collation can ignore the dots and read "1.10" as "110".
+ */
 function inRegisterOrder(rows: readonly RequirementListRow[]): RequirementListRow[] {
   return [...rows].sort(
-    (a, b) => typeOrder(a.RequirementType) - typeOrder(b.RequirementType) || a.Number - b.Number,
+    (a, b) =>
+      typeOrder(a.RequirementType) - typeOrder(b.RequirementType) ||
+      (a.SortPath < b.SortPath ? -1 : a.SortPath > b.SortPath ? 1 : 0),
   );
 }
 
@@ -34,8 +49,8 @@ function metCell(row: RequirementListRow): string {
 
 function cells(row: RequirementListRow): string[] {
   return [
-    requirementRef(row.RequirementType, row.Number),
-    typeLabel(row.RequirementType),
+    refCell(row),
+    typeCell(row),
     row.Requirement,
     metCell(row),
     refList(row.Validates),

@@ -426,7 +426,7 @@ describe("requirements and status on screen (ADR-0037)", () => {
   const req = (id: number, sortOrder: number, text = `R${id}`) => ({
     id,
     type: "FR" as const,
-    number: id,
+    ref: `FR-${id}`,
     text,
     isMet: false,
     sortOrder,
@@ -443,10 +443,16 @@ describe("requirements and status on screen (ADR-0037)", () => {
     item(2, null, 2, { requirements: [req(11, 1), req(21, 2)] }),
   ];
 
-  it("chips a requirement as its reference, and as its type alone until it has a number", () => {
-    expect(requirementChip({ ...req(11, 1), type: "NFR", number: 7 })).toBe("NFR-7");
-    // A queued one carries no number yet, so the chip shows no number rather than a wrong one.
-    expect(requirementChip({ ...req(-1, 1), number: 0 })).toBe("FR");
+  it("chips a requirement as its reference, and as its type alone until it has one", () => {
+    expect(requirementChip({ ...req(11, 1), type: "NFR", ref: "NFR-7" })).toBe("NFR-7");
+    // A queued one carries no reference yet, so the chip shows none rather than a wrong one.
+    expect(requirementChip({ ...req(-1, 1), ref: "" })).toBe("FR");
+  });
+
+  it("chips an allocated sub-requirement with the register's whole path (ADR-0048)", () => {
+    // The WBS is a second surface rendering a register reference; composing it from the type and
+    // a number is what would have made the two disagree once the register grew a tree.
+    expect(requirementChip({ ...req(11, 1), ref: "FR-1.2" })).toBe("FR-1.2");
   });
 
   it("counts the distinct requirements a branch would unallocate, each one once", () => {
