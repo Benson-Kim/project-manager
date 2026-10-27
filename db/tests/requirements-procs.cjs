@@ -163,7 +163,8 @@ function reqsOf(rows, kdId) {
   const onD1 = reqsOf(g, D1.KeyDeliverableId).find((r) => r.id === fr1.RequirementId);
   const onD2 = reqsOf(g, D2.KeyDeliverableId).find((r) => r.id === fr1.RequirementId);
   ok(onD1 && onD2 && onD1.isMet === true && onD2.isMet === true, "one tick shows under both deliverables");
-  ok(onD1.type === "FR" && onD1.number === 1, "the cascade carries the type and reference");
+  ok(onD1.type === "FR" && onD1.ref === fr1.Ref,
+    `the cascade carries the type and reference (got ${onD1.ref}, register ${fr1.Ref})`);
 
   // An incompatible type change is refused on the resulting state.
   const fr1now = (await exec("usp_Requirement_GetById", { RequirementId: fr1.RequirementId, ActorUserId: PM }))[0][0];
