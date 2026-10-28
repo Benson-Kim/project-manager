@@ -545,7 +545,8 @@ export const messages = {
       link: "Change project",
       removeForeign: "Remove cards belonging to another project",
       refresh: "Refresh",
-      count: "cards",
+      cards: (count: number, limit?: number | null) =>
+        `${count}${limit ? ` / ${limit}` : ""} ${count === 1 && !limit ? "card" : "cards"}`,
       deleteBoard: "Delete board",
       packageTitle: "Add to board",
       noRequirements: "No requirements found.",

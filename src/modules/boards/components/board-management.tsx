@@ -185,7 +185,12 @@ export function BoardManagement({
                 <Row
                   key={c.BoardColumnId}
                   name={c.Name}
-                  detail={`${M.defaultColumns[c.Category]} · ${c.WipCount}${c.WipLimit ? ` / ${c.WipLimit}` : ""} ${U.count}`}
+                  detail={[
+                    M.defaultColumns[c.Category] === c.Name ? "" : M.defaultColumns[c.Category],
+                    U.cards(c.WipCount, c.WipLimit),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                   move={
                     edit
                       ? {
@@ -261,7 +266,7 @@ export function BoardManagement({
                     detail={[
                       M.sprintStates[s.State],
                       dates(s.StartDate, s.EndDate),
-                      `${s.CardCount} ${U.count}`,
+                      U.cards(s.CardCount),
                       `${s.PointTotal} ${U.points}`,
                     ]
                       .filter(Boolean)
