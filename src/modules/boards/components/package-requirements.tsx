@@ -101,7 +101,7 @@ function PackagingDialog({
     <BoardForm
       title={U.packageTitle}
       close={close}
-      readOnly={loading || !boardId || !columns.length || Boolean(error)}
+      submitDisabled={loading || !boardId || !columns.length || Boolean(error)}
       schema={boardFormSchema(packageRequirementsInput, {
         boardId,
         boardColumnId: columns[0]?.BoardColumnId,
@@ -110,7 +110,14 @@ function PackagingDialog({
       })}
       save={async (input) => {
         const result = await packageRequirementsAction(input);
-        if (result.ok && !board) router.push(`/projects/${project}/boards/${boardId}`);
+        if (result.ok && !board) {
+          const destination = boards.find((item) => item.BoardId === boardId);
+          router.push(
+            destination?.ProjectId
+              ? `/projects/${destination.ProjectId}/boards/${boardId}`
+              : `/boards/${boardId}`,
+          );
+        }
         return result;
       }}
     >

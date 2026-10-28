@@ -25,6 +25,7 @@ interface Props<T extends z.ZodType> {
   save: (input: z.output<T>) => Promise<ActionResult<unknown>>;
   close: () => void;
   readOnly?: boolean;
+  submitDisabled?: boolean;
   sheet?: boolean;
   submitLabel?: string;
 }
@@ -42,6 +43,7 @@ function FormContent<T extends z.ZodType>({
   save,
   close,
   readOnly = false,
+  submitDisabled = false,
   sheet = false,
   submitLabel = messages.actions.save,
 }: Props<T>) {
@@ -70,7 +72,7 @@ function FormContent<T extends z.ZodType>({
         onBlur={form.onBlur}
         onSubmit={(event) => {
           event.preventDefault();
-          if (pending || readOnly || !form.validate(event.currentTarget)) return;
+          if (pending || readOnly || submitDisabled || !form.validate(event.currentTarget)) return;
           const parsed = schema.safeParse(Object.fromEntries(new FormData(event.currentTarget)));
           if (!parsed.success) return;
           setError(null);
@@ -100,7 +102,7 @@ function FormContent<T extends z.ZodType>({
             {messages.actions.cancel}
           </Button>
           {!readOnly ? (
-            <Button type="submit" pending={pending}>
+            <Button type="submit" pending={pending} disabled={submitDisabled}>
               {submitLabel}
             </Button>
           ) : null}
