@@ -1,6 +1,7 @@
 "use server";
 
 import {
+  getBoardCardById,
   createBoardCard,
   updateBoardCard,
   moveBoardCard,
@@ -309,4 +310,11 @@ export const setBoardProjectAction = action({
     refreshBoardViews();
     return result;
   },
+});
+
+export const readBoardCardAction = action({
+  name: "boards.cardDetails",
+  schema: deleteBoardCardInput.pick({ boardCardId: true }),
+  permission: "boards:read",
+  handler: async (input, ctx) => getBoardCardById(input.boardCardId, ctx.session.userId),
 });
