@@ -780,12 +780,7 @@ async function main() {
   // holds the project but not the board, the project side by an actor who holds the board but not
   // the project. A Contributor is deliberately used for the board-side refusal, because Manager is
   // what this proc demands there and Contributor is what the rest of the module demands.
-  // NOT COVERED HERE: the foreign-requirement refusal and @RemoveForeignCards. No card can carry a
-  // requirement until usp_BoardCard_Package (B5) — usp_BoardCard_Create takes no @RequirementId —
-  // so the state that branch exists for cannot be built yet, and a test that set
-  // app.BoardCard.RequirementId behind the procs' backs would assert a state no proc can produce.
-  // Those rows land with Package, together with the redaction rows that wait on it for the same
-  // reason. Until then the branch is held by src/tests/board-sql-guardrails.test.ts alone.
+  // Foreign-card relinking and redaction are exercised through Package below.
   const linkable = await board({ Name: "Linkable", ActorUserId: PM });
   await expectCode(50003, "a contributor cannot link a standalone board they did not create", () =>
     exec("usp_Board_SetProject", {
@@ -842,6 +837,75 @@ async function main() {
     exec("usp_Board_SetProject", {
       BoardId: 0, RowVer: 1, ProjectId: P, RemoveForeignCards: 0, ActorUserId: PM,
     }));
+
+  // --- Requirement packaging (B5): all fixture rows go through public procs. ----------------
+  async function requirement(projectId, type, label, parent = null) {
+    const [[row]] = await exec("usp_Requirement_Create", {
+      ProjectId: projectId, RequirementType: type, Requirement: label,
+      ParentRequirementId: parent, ActorUserId: PM,
+    });
+    return row;
+  }
+  const importBoard = await board({ ProjectId: P, Name: "e2e-import", ActorUserId: PM });
+  const [, importColumns] = await exec("usp_Board_GetBoard", { BoardId: importBoard.BoardId, ActorUserId: PM });
+  const importColumn = importColumns[0].BoardColumnId;
+  const needs = [];
+  for (const type of ["BR", "SR", "FR", "NFR", "TR"]) needs.push(await requirement(P, type, `e2e-${type} work`));
+  const child = await requirement(P, "FR", "e2e-child", needs[2].RequirementId);
+  const [allOptions] = await exec("usp_Requirement_ListPackagingOptions", { ProjectId: P, ActorUserId: VIEWER });
+  ok(["BR", "SR", "FR", "NFR", "TR"].every(type => allOptions.some(row => row.RequirementType === type)), "import options include every requirement type");
+  ok(allOptions.find(row => row.RequirementId === child.RequirementId).Ref.includes("."), "import options keep child references");
+  await expectCode(50003, "outsider cannot enumerate import options", () => exec("usp_Requirement_ListPackagingOptions", { ProjectId: P, ActorUserId: OUTSIDER }));
+  const ids = needs.map(row => row.RequirementId);
+  const payload = { BoardId: importBoard.BoardId, BoardColumnId: importColumn, RequirementIds: JSON.stringify(ids), ActorUserId: PM };
+  await expectCode(50003, "viewer cannot package", () => exec("usp_BoardCard_Package", { ...payload, ActorUserId: VIEWER }));
+  await expectCode(50003, "outsider cannot package on an inaccessible board", () => exec("usp_BoardCard_Package", { ...payload, ActorUserId: OUTSIDER }));
+  const [[packaged]] = await exec("usp_BoardCard_Package", { ...payload, ActorUserId: CONTRIB });
+  ok(packaged.AddedCards === 5 && packaged.SkippedCards === 0, "Contributor imports all five types atomically");
+  const [[repeated]] = await exec("usp_BoardCard_Package", payload);
+  ok(repeated.AddedCards === 0 && repeated.SkippedCards === 5, "repeat import skips live duplicates");
+  const [, , , , importedCards] = await exec("usp_Board_GetBoard", { BoardId: importBoard.BoardId, ActorUserId: PM });
+  ok(importedCards.length === 5, "duplicates do not create cards");
+  const foreign = await requirement(R, "FR", "e2e-private solution");
+  await expectCode(50004, "project board refuses a foreign requirement", () => exec("usp_BoardCard_Package", { ...payload, RequirementIds: JSON.stringify([foreign.RequirementId]) }));
+  await expectCode(50001, "a missing requirement rolls back the entire batch", () => exec("usp_BoardCard_Package", { ...payload, RequirementIds: JSON.stringify([child.RequirementId, 2147483647]) }));
+  const [, , , , afterRefusal] = await exec("usp_Board_GetBoard", { BoardId: importBoard.BoardId, ActorUserId: PM });
+  ok(afterRefusal.length === 5 && !afterRefusal.some(card => card.RequirementId === child.RequirementId), "a failed batch adds nothing");
+  for (const invalid of ["[]", "{}", "[0]", '["1"]', "[1.5]"]) await expectCode(50004, `invalid packaging selection ${invalid}`, () => exec("usp_BoardCard_Package", { ...payload, RequirementIds: invalid }));
+
+  const limitedBoard = await board({ ProjectId: P, Name: "e2e-import-limit", ActorUserId: PM, ColumnsJson: JSON.stringify([{ name: "Limited", category: "todo", wipLimit: 1 }]) });
+  const [, limitedColumns] = await exec("usp_Board_GetBoard", { BoardId: limitedBoard.BoardId, ActorUserId: PM });
+  const limitedPayload = { ...payload, BoardId: limitedBoard.BoardId, BoardColumnId: limitedColumns[0].BoardColumnId };
+  await expectCode(50007, "bulk import respects the WIP limit before adding anything", () => exec("usp_BoardCard_Package", { ...limitedPayload, RequirementIds: JSON.stringify(ids.slice(0, 2)) }));
+  const [, , , , noPartial] = await exec("usp_Board_GetBoard", { BoardId: limitedBoard.BoardId, ActorUserId: PM });
+  ok(noPartial.length === 0, "WIP refusal is atomic");
+  await exec("usp_BoardCard_Package", { ...limitedPayload, RequirementIds: JSON.stringify([ids[0]]) });
+  await expectCode(50007, "a full column refuses another import", () => exec("usp_BoardCard_Package", { ...limitedPayload, RequirementIds: JSON.stringify([ids[1]]) }));
+  const [[fullRepeat]] = await exec("usp_BoardCard_Package", { ...limitedPayload, RequirementIds: JSON.stringify([ids[0]]) });
+  ok(fullRepeat.AddedCards === 0 && fullRepeat.SkippedCards === 1, "duplicates are harmless even in a full column");
+
+  const sharedImport = await board({ Name: "e2e-mixed-import", ActorUserId: PM });
+  const [, sharedColumns] = await exec("usp_Board_GetBoard", { BoardId: sharedImport.BoardId, ActorUserId: PM });
+  const sharedPayload = { ...payload, BoardId: sharedImport.BoardId, BoardColumnId: sharedColumns[0].BoardColumnId, RequirementIds: JSON.stringify([ids[0], foreign.RequirementId]) };
+  await expectCode(50003, "standalone board still requires read access to every source project", () => exec("usp_BoardCard_Package", { ...sharedPayload, ActorUserId: VIEWER }));
+  const [[mixed]] = await exec("usp_BoardCard_Package", sharedPayload);
+  ok(mixed.AddedCards === 2, "standalone board can mix accessible source projects");
+  const [, , , , redacted] = await exec("usp_Board_GetBoard", { BoardId: sharedImport.BoardId, ActorUserId: VIEWER });
+  const hidden = redacted.find(card => card.RequirementState === "restricted");
+  ok(hidden && hidden.RequirementId === null && hidden.RequirementRef === null && hidden.RequirementText === null, "inaccessible requirement content is redacted from board reads");
+  const [[hiddenDetails]] = await exec("usp_BoardCard_GetById", { BoardCardId: hidden.BoardCardId, ActorUserId: VIEWER });
+  ok(hiddenDetails.RequirementId === null && hiddenDetails.RequirementRef === null && hiddenDetails.RequirementText === null, "card details also redact inaccessible requirement content");
+  await expectCode(50004, "link refuses foreign cards without explicit removal", () => exec("usp_Board_SetProject", { BoardId: sharedImport.BoardId, RowVer: sharedImport.RowVer, ProjectId: P, ActorUserId: PM }));
+  const [[relinked]] = await exec("usp_Board_SetProject", { BoardId: sharedImport.BoardId, RowVer: sharedImport.RowVer, ProjectId: P, RemoveForeignCards: 1, ActorUserId: PM });
+  ok(relinked.RemovedCards === 1, "explicit relink removes only the foreign requirement card");
+  const [, , , , retained] = await exec("usp_Board_GetBoard", { BoardId: sharedImport.BoardId, ActorUserId: PM });
+  ok(retained.length === 1 && retained[0].RequirementId === ids[0], "relink keeps the board project's cards");
+
+  const capIds = [];
+  for (let i = 0; i < 201; i++) capIds.push((await requirement(P, "FR", `e2e-import-cap-${i}`)).RequirementId);
+  await expectCode(50004, "201 requirements exceed the packaging cap", () => exec("usp_BoardCard_Package", { ...payload, RequirementIds: JSON.stringify(capIds) }));
+  const [[atCap]] = await exec("usp_BoardCard_Package", { ...payload, RequirementIds: JSON.stringify(capIds.slice(0, 200)) });
+  ok(atCap.AddedCards === 200, "200 requirements are accepted at the cap");
 
   console.log(`\n${passes} passed, ${failures} failed`);
   await pool.close();
