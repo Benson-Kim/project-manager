@@ -120,7 +120,7 @@ export function Menu({
         role="menu"
         aria-label={label}
         hidden={!open}
-        className={`absolute ${align === "start" ? "left-0" : "right-0"} ${up ? "bottom-full mb-1" : "mt-1"} z-(--z-dropdown) max-w-[calc(100vw-1rem)] min-w-48 rounded-md border border-line bg-surface-raised py-1 shadow-lg`}
+        className={`absolute ${align === "start" ? "left-0" : "right-0"} ${up ? "bottom-full mb-1" : "mt-1"} z-(--z-dropdown) max-w-[calc(100vw-1rem)] min-w-48 overflow-hidden rounded-md border border-line bg-surface-raised shadow-lg`}
         onClickCapture={(event) => {
           const target = event.target as HTMLElement;
           if (!target.closest(ITEM)) return;
@@ -137,7 +137,7 @@ export function Menu({
 }
 
 const itemClass =
-  "flex min-h-10 w-full items-center px-6 text-left text-sm text-ink hover:bg-surface-sunken";
+  "flex min-h-10 w-full items-center px-6 text-left text-sm text-ink first:rounded-t-md last:rounded-b-md hover:bg-surface-sunken";
 
 export function MenuLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (

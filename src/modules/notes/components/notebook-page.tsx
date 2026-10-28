@@ -34,7 +34,7 @@ export function NotebookPage({
       <Link
         href={listHref}
         data-testid="notes-back"
-        className="inline-flex min-h-11 items-center text-sm font-medium text-accent underline"
+        className="inline-flex min-h-11 items-center text-sm font-medium text-accent"
       >
         {messages.notes.backToList}
       </Link>

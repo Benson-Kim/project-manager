@@ -21,6 +21,8 @@ export interface ConfirmDialogProps {
   confirmLabel: string;
   onConfirm: () => void;
   pending?: boolean;
+  /** Destination choices for destructive moves; the confirmation still owns its controls. */
+  children?: React.ReactNode;
 }
 
 export function ConfirmDialog({
@@ -31,12 +33,14 @@ export function ConfirmDialog({
   confirmLabel,
   onConfirm,
   pending = false,
+  children,
 }: ConfirmDialogProps) {
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={title} description={body}>
-      <div className="flex justify-end gap-2">
+      {children}
+      <div className="mt-4 flex justify-end gap-2">
         <Button
           ref={cancelRef}
           variant="secondary"

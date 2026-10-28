@@ -35,6 +35,7 @@ const requirementFields = {
   RequirementId: z.number().int().nullable(),
   RequirementType: z.enum(REQUIREMENT_TYPES).nullable(),
   RequirementNumber: z.number().int().nullable(),
+  RequirementRef: z.string().nullable().default(null),
   RequirementText: z.string().nullable(),
   RequirementIsMet: z.boolean().nullable(),
   RequirementProjectId: z.number().int().nullable(),
@@ -131,3 +132,6 @@ export const deleteBoardCardInput = z.object({
 });
 
 export type DeleteBoardCardInput = z.input<typeof deleteBoardCardInput>;
+
+/** Card details are a read intention; no row version or write contract. */
+export const readBoardCardInput = z.object({ boardCardId: z.number().int().positive() });

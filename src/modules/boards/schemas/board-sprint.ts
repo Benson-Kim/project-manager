@@ -28,7 +28,10 @@ const sprintGoal = z.string().trim().max(BOARD_SPRINT_GOAL_MAX).nullish();
  * because a sprint is a timebox and one without dates is a phase. The ordering
  * rule is CK_BoardSprint_Dates in the database and is checked by the procs.
  */
-const sprintDate = z.coerce.date();
+const sprintDate = z.preprocess(
+  (value) => (value === null || value === "" ? undefined : value),
+  z.coerce.date(),
+);
 
 /**
  * The sprint entity, as the four write procs return it. The planning view needs

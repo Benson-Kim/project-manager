@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { PackageRequirementsButton } from "@/modules/boards/components/package-requirements";
 import { Button } from "@/components/ui/button";
 import { booleanColumn, choiceColumn, textColumn } from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
@@ -66,12 +67,14 @@ export function RequirementsView({
   deliverableOptions,
   projectId,
   canCreate,
+  canPackage = false,
   newRequirementAction,
 }: {
   rows: RequirementListRow[];
   projectId: number;
   /** Shows the datasheet's new-entry row. */
   canCreate: boolean;
+  canPackage?: boolean;
   totalCount: number;
   page: number;
   initialView: ViewMode;
@@ -209,26 +212,38 @@ export function RequirementsView({
           : undefined,
       }}
       bulkActions={
-        canCreate
+        canCreate || canPackage
           ? (selectedIds, clear) => {
               const merge = mergeSelection(rows, selectedIds);
-              if (!merge) return null;
+              if (!selectedIds.length) return null;
               return (
-                <Button
-                  data-testid="requirements-merge"
-                  onClick={() => {
-                    update({ id: "new", type: merge.type, validates: merge.validates });
-                    clear();
-                  }}
-                >
-                  {M.merge}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  {canPackage ? (
+                    <PackageRequirementsButton
+                      projectId={projectId}
+                      selectedIds={selectedIds.map(Number)}
+                    />
+                  ) : null}
+                  <Button
+                    disabled={!canCreate || !merge}
+                    data-testid="requirements-merge"
+                    onClick={() => {
+                      if (merge)
+                        update({ id: "new", type: merge.type, validates: merge.validates });
+                      clear();
+                    }}
+                  >
+                    {M.merge}
+                  </Button>
+                </div>
               );
             }
           : undefined
       }
       renderToolbar={(viewToggle) => (
-        <RequirementsToolbar projectId={projectId}>{viewToggle}</RequirementsToolbar>
+        <RequirementsToolbar projectId={projectId} canPackage={canPackage}>
+          {viewToggle}
+        </RequirementsToolbar>
       )}
       empty={listEmptyState(filtersActive, M.emptyBody, newRequirementAction)}
     />

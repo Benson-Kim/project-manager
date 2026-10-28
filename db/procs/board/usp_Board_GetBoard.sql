@@ -162,6 +162,7 @@ BEGIN
                rq.IsDeleted AS RequirementIsDeleted,
                rq.RequirementType,
                rq.Number AS RequirementNumber,
+               rp.Ref AS RequirementRef,
                rq.Requirement AS RequirementText,
                rq.IsMet AS RequirementIsMet,
                rq.ProjectId AS RequirementProjectId,
@@ -169,6 +170,7 @@ BEGIN
                CASE WHEN @View = 'plan' THEN ISNULL(c.BoardSprintId, 0) ELSE c.BoardColumnId END AS ListKey
         FROM app.BoardCard c
         LEFT JOIN app.Requirement rq ON rq.RequirementId = c.RequirementId
+        OUTER APPLY dbo.ufn_Requirement_AncestorPath(rq.RequirementId) rp
         OUTER APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, rq.ProjectId, 0) ra
         WHERE c.BoardId = @BoardId
           AND c.IsDeleted = 0
@@ -209,6 +211,7 @@ BEGIN
                 THEN RequirementType END AS RequirementType,
            CASE WHEN RequirementAccess IS NOT NULL AND RequirementIsDeleted = 0
                 THEN RequirementNumber END AS RequirementNumber,
+           CASE WHEN RequirementAccess IS NOT NULL AND RequirementIsDeleted = 0 THEN RequirementRef END AS RequirementRef,
            CASE WHEN RequirementAccess IS NOT NULL AND RequirementIsDeleted = 0
                 THEN RequirementText END AS RequirementText,
            CASE WHEN RequirementAccess IS NOT NULL AND RequirementIsDeleted = 0

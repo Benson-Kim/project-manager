@@ -1,5 +1,6 @@
 "use client";
 
+import { PackageRequirementsButton } from "@/modules/boards/components/package-requirements";
 import { SearchInput } from "@/components/ui/data-view/search-input";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { buttonClass } from "@/components/ui/button-styles";
@@ -16,9 +17,11 @@ import { REQUIREMENT_TYPES, typeLabel } from "../schemas/requirement-types";
  */
 export function RequirementsToolbar({
   projectId,
+  canPackage,
   children,
 }: {
   projectId: number;
+  canPackage: boolean;
   children?: React.ReactNode;
 }) {
   const { searchParams, update } = useListUrlState();
@@ -60,6 +63,7 @@ export function RequirementsToolbar({
       >
         {messages.requirements.exportPdf}
       </a>
+      {canPackage ? <PackageRequirementsButton projectId={projectId} /> : null}
       {children}
     </Toolbar>
   );

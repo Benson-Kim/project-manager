@@ -57,6 +57,7 @@ BEGIN
                 THEN rq.RequirementType END AS RequirementType,
            CASE WHEN ra.AccessLevel IS NOT NULL AND rq.IsDeleted = 0
                 THEN rq.Number END AS RequirementNumber,
+           CASE WHEN ra.AccessLevel IS NOT NULL AND rq.IsDeleted = 0 THEN rp.Ref END AS RequirementRef,
            CASE WHEN ra.AccessLevel IS NOT NULL AND rq.IsDeleted = 0
                 THEN rq.Requirement END AS RequirementText,
            CASE WHEN ra.AccessLevel IS NOT NULL AND rq.IsDeleted = 0
@@ -65,6 +66,7 @@ BEGIN
                 THEN rq.ProjectId END AS RequirementProjectId
     FROM app.BoardCard c
     LEFT JOIN app.Requirement rq ON rq.RequirementId = c.RequirementId
+    OUTER APPLY dbo.ufn_Requirement_AncestorPath(rq.RequirementId) rp
     OUTER APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, rq.ProjectId, 0) ra
     LEFT JOIN auth.[User] u ON u.UserId = c.AssigneeUserId
     WHERE c.BoardCardId = @BoardCardId AND c.IsDeleted = 0;

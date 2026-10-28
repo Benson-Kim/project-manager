@@ -1,9 +1,76 @@
 "use server";
-
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { action } from "@/lib/action";
-import { createBoard, deleteBoard, updateBoard } from "../repository/boards";
-import { createBoardInput, deleteBoardInput, updateBoardInput } from "../schemas/board";
+import {
+  createBoard,
+  deleteBoard,
+  getBoard,
+  listBoardOptions,
+  setBoardProject,
+  updateBoard,
+} from "../repository/boards";
+import {
+  createBoardCard,
+  deleteBoardCard,
+  getBoardCardById,
+  moveBoardCard,
+  updateBoardCard,
+} from "../repository/board-cards";
+import {
+  createBoardColumn,
+  deleteBoardColumn,
+  moveBoardColumn,
+  updateBoardColumn,
+} from "../repository/board-columns";
+import { listPackagingRequirementOptions, packageRequirements } from "../repository/board-package";
+import {
+  createBoardPhase,
+  deleteBoardPhase,
+  moveBoardPhase,
+  updateBoardPhase,
+} from "../repository/board-phases";
+import {
+  completeBoardSprint,
+  createBoardSprint,
+  deleteBoardSprint,
+  startBoardSprint,
+  updateBoardSprint,
+} from "../repository/board-sprints";
+import {
+  createBoardInput,
+  deleteBoardInput,
+  setBoardProjectInput,
+  updateBoardInput,
+} from "../schemas/board";
+import {
+  createBoardCardInput,
+  deleteBoardCardInput,
+  moveBoardCardInput,
+  readBoardCardInput,
+  updateBoardCardInput,
+} from "../schemas/board-card";
+import {
+  createBoardColumnInput,
+  deleteBoardColumnInput,
+  moveBoardColumnInput,
+  updateBoardColumnInput,
+} from "../schemas/board-column";
+import { packageRequirementsInput } from "../schemas/board-package";
+import {
+  createBoardPhaseInput,
+  deleteBoardPhaseInput,
+  moveBoardPhaseInput,
+  updateBoardPhaseInput,
+} from "../schemas/board-phase";
+import {
+  completeBoardSprintInput,
+  createBoardSprintInput,
+  deleteBoardSprintInput,
+  startBoardSprintInput,
+  updateBoardSprintInput,
+} from "../schemas/board-sprint";
+import { boardMutation } from "./board-mutation";
 
 /**
  * Board mutations. Each one is an intention with its own boards:* permission:
@@ -14,8 +81,8 @@ import { createBoardInput, deleteBoardInput, updateBoardInput } from "../schemas
  */
 
 function revalidateBoards(projectId: number | null | undefined) {
-  revalidatePath("/boards");
-  if (projectId) revalidatePath(`/projects/${projectId}/boards`);
+  revalidatePath("/boards", "layout");
+  if (projectId) revalidatePath(`/projects/${projectId}/boards`, "layout");
 }
 
 /** Create a board (boards:create — the project level is checked in-proc; audited in-proc). */
@@ -49,7 +116,171 @@ export const deleteBoardAction = action({
   permission: "boards:delete",
   handler: async (input, ctx) => {
     await deleteBoard(input.boardId, input.rowVer, ctx.session.userId);
-    revalidatePath("/boards");
+    revalidatePath("/boards", "layout");
     return { boardId: input.boardId };
+  },
+});
+
+export const createBoardCardAction = boardMutation({
+  name: "boards.createCard",
+  schema: createBoardCardInput,
+  permission: "boards:create",
+  mutate: createBoardCard,
+});
+
+export const updateBoardCardAction = boardMutation({
+  name: "boards.updateCard",
+  schema: updateBoardCardInput,
+  permission: "boards:update",
+  mutate: updateBoardCard,
+});
+
+export const moveBoardCardAction = boardMutation({
+  name: "boards.moveCard",
+  schema: moveBoardCardInput,
+  permission: "boards:update",
+  mutate: moveBoardCard,
+});
+
+export const deleteBoardCardAction = boardMutation({
+  name: "boards.deleteCard",
+  schema: deleteBoardCardInput,
+  permission: "boards:delete",
+  mutate: deleteBoardCard,
+});
+
+export const createBoardColumnAction = boardMutation({
+  name: "boards.createColumn",
+  schema: createBoardColumnInput,
+  permission: "boards:create",
+  mutate: createBoardColumn,
+});
+
+export const updateBoardColumnAction = boardMutation({
+  name: "boards.updateColumn",
+  schema: updateBoardColumnInput,
+  permission: "boards:update",
+  mutate: updateBoardColumn,
+});
+
+export const moveBoardColumnAction = boardMutation({
+  name: "boards.moveColumn",
+  schema: moveBoardColumnInput,
+  permission: "boards:update",
+  mutate: moveBoardColumn,
+});
+
+export const deleteBoardColumnAction = boardMutation({
+  name: "boards.deleteColumn",
+  schema: deleteBoardColumnInput,
+  permission: "boards:delete",
+  mutate: deleteBoardColumn,
+});
+
+export const createBoardPhaseAction = boardMutation({
+  name: "boards.createPhase",
+  schema: createBoardPhaseInput,
+  permission: "boards:create",
+  mutate: createBoardPhase,
+});
+
+export const updateBoardPhaseAction = boardMutation({
+  name: "boards.updatePhase",
+  schema: updateBoardPhaseInput,
+  permission: "boards:update",
+  mutate: updateBoardPhase,
+});
+
+export const moveBoardPhaseAction = boardMutation({
+  name: "boards.movePhase",
+  schema: moveBoardPhaseInput,
+  permission: "boards:update",
+  mutate: moveBoardPhase,
+});
+
+export const deleteBoardPhaseAction = boardMutation({
+  name: "boards.deletePhase",
+  schema: deleteBoardPhaseInput,
+  permission: "boards:delete",
+  mutate: deleteBoardPhase,
+});
+
+export const createBoardSprintAction = boardMutation({
+  name: "boards.createSprint",
+  schema: createBoardSprintInput,
+  permission: "boards:create",
+  mutate: createBoardSprint,
+});
+
+export const updateBoardSprintAction = boardMutation({
+  name: "boards.updateSprint",
+  schema: updateBoardSprintInput,
+  permission: "boards:update",
+  mutate: updateBoardSprint,
+});
+
+export const startBoardSprintAction = boardMutation({
+  name: "boards.startSprint",
+  schema: startBoardSprintInput,
+  permission: "boards:update",
+  mutate: startBoardSprint,
+});
+
+export const completeBoardSprintAction = boardMutation({
+  name: "boards.completeSprint",
+  schema: completeBoardSprintInput,
+  permission: "boards:update",
+  mutate: completeBoardSprint,
+});
+
+export const deleteBoardSprintAction = boardMutation({
+  name: "boards.deleteSprint",
+  schema: deleteBoardSprintInput,
+  permission: "boards:delete",
+  mutate: deleteBoardSprint,
+});
+
+export const setBoardProjectAction = boardMutation({
+  name: "boards.setProject",
+  schema: setBoardProjectInput,
+  permission: "boards:delete",
+  mutate: setBoardProject,
+});
+
+export const readBoardCardAction = action({
+  name: "boards.cardDetails",
+  schema: readBoardCardInput,
+  permission: "boards:read",
+  handler: async (input, ctx) => getBoardCardById(input.boardCardId, ctx.session.userId),
+});
+
+export const packageRequirementsAction = boardMutation({
+  name: "boards.package",
+  schema: packageRequirementsInput,
+  permission: "boards:create",
+  mutate: packageRequirements,
+});
+export const readPackagingOptionsAction = action({
+  name: "boards.packageOptions",
+  schema: z.object({ projectId: z.number().int().positive() }),
+  permission: "boards:read",
+  handler: async (input, ctx) => {
+    const [requirements, boards] = await Promise.all([
+      listPackagingRequirementOptions(input.projectId, ctx.session.userId),
+      listBoardOptions(ctx.session.userId),
+    ]);
+    return {
+      requirements,
+      boards: boards.filter((b) => b.ProjectId === null || b.ProjectId === input.projectId),
+    };
+  },
+});
+export const readPackagingBoardAction = action({
+  name: "boards.packageColumns",
+  schema: z.object({ boardId: z.number().int().positive() }),
+  permission: "boards:read",
+  handler: async (input, ctx) => {
+    const board = await getBoard({ boardId: input.boardId, cardsPerList: 1 }, ctx.session.userId);
+    return { columns: board.columns, activeSprintId: board.header.ActiveSprintId };
   },
 });

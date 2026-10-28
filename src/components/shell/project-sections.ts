@@ -47,6 +47,7 @@ export const projectSections: ProjectSection[] = [
     match: "prefix",
   },
   { segment: "meetings", label: messages.projects.meetingsSection, match: "prefix" },
+  { segment: "boards", label: messages.projects.boardsSection, match: "prefix" },
   { segment: "notes", label: messages.projects.notesSection, match: "prefix" },
   // Financials (ADR-0029): one entry per view of the project's financial.
   { segment: "financials/budget", label: messages.financials.budgetTab, match: "prefix" },
@@ -76,6 +77,7 @@ export const projectSectionGroups: ProjectSectionGroup[] = [
     label: messages.planning.title,
     sections: projectSections.filter((s) =>
       [
+        "boards",
         "objectives",
         "deliverables",
         "questions-answers",

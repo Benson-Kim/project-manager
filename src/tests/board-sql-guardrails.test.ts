@@ -295,6 +295,7 @@ const cardAudits = procsContaining(PROCS_CARD, "INSERT INTO audit.AuditLog");
 const cardRowVerWrites = procsTakingRowVer(PROCS_CARD);
 const cardWrites = [
   "usp_BoardCard_Create.sql",
+  "usp_BoardCard_Package.sql",
   "usp_BoardCard_Update.sql",
   "usp_BoardCard_Move.sql",
   "usp_BoardCard_Delete.sql",
@@ -359,6 +360,7 @@ describe("board card SQL guardrails", () => {
       "usp_BoardCard_Delete.sql",
       "usp_BoardCard_GetById.sql",
       "usp_BoardCard_Move.sql",
+      "usp_BoardCard_Package.sql",
       "usp_BoardCard_Update.sql",
     ]);
   });

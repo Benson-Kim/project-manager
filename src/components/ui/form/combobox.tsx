@@ -158,7 +158,7 @@ export function Combobox({
         id={listboxId}
         role="listbox"
         hidden={!open || filtered.length === 0}
-        className={`absolute z-(--z-dropdown) ${up ? "bottom-full mb-1" : "mt-1"} max-h-60 w-full overflow-auto rounded-md border border-line bg-surface-raised py-1 shadow-lg`}
+        className={`absolute z-(--z-dropdown) ${up ? "bottom-full mb-1" : "mt-1"} max-h-60 w-full overflow-auto rounded-md border border-line bg-surface-raised shadow-lg`}
       >
         {ranked.map(({ option, rank }, index) => (
           <li
@@ -166,7 +166,7 @@ export function Combobox({
             id={`${listboxId}-${option.value}`}
             role="option"
             aria-selected={selected?.value === option.value}
-            className={`flex min-h-10 cursor-pointer items-center px-6 text-sm ${
+            className={`flex min-h-10 cursor-pointer items-center px-6 text-sm first:rounded-t-md last:rounded-b-md ${
               index === activeIndex ? "bg-accent-soft" : ""
             } ${rank < NO_MATCH ? "text-ink" : "text-ink-muted"}`}
             onMouseDown={(e) => {

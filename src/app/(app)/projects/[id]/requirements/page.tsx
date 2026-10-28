@@ -109,6 +109,7 @@ export default async function RequirementsPage({
         <RequirementsView
           projectId={projectId}
           canCreate={canCreate}
+          canPackage={allows("boards:create")}
           rows={rows}
           totalCount={totalCount}
           page={listParams.page}

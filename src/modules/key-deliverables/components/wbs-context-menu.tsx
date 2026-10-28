@@ -240,7 +240,7 @@ export function WbsContextMenu({
         role="menu"
         aria-label={W.actionsFor(name)}
         data-testid="wbs-menu"
-        className="fixed z-(--z-dropdown) w-72 max-w-[calc(100vw-1rem)] rounded-md border border-line bg-surface-raised py-1 shadow-lg print:hidden"
+        className="fixed z-(--z-dropdown) w-72 max-w-[calc(100vw-1rem)] overflow-hidden rounded-md border border-line bg-surface-raised shadow-lg print:hidden"
         style={place ?? { left: state.x, top: state.y, visibility: "hidden" }}
         onKeyDown={onMenuKey}
         onContextMenu={(event) => event.preventDefault()}
@@ -316,7 +316,7 @@ export function WbsContextMenu({
           role="menu"
           aria-label={W.status}
           data-testid="wbs-menu-statuses"
-          className="fixed z-(--z-dropdown) max-h-[min(24rem,calc(100dvh-1rem))] w-56 overflow-y-auto rounded-md border border-line bg-surface-raised py-1 shadow-lg print:hidden"
+          className="fixed z-(--z-dropdown) max-h-[min(24rem,calc(100dvh-1rem))] w-56 overflow-y-auto rounded-md border border-line bg-surface-raised shadow-lg print:hidden"
           style={subPlace ?? { left: 0, top: 0, visibility: "hidden" }}
           onKeyDown={onSubKey}
           onContextMenu={(event) => event.preventDefault()}
@@ -334,7 +334,7 @@ export function WbsContextMenu({
                   aria-checked={checked}
                   data-testid={`wbs-status-${choice.label ?? "none"}`}
                   onClick={() => act(() => onStatus(choice.label))}
-                  className={itemClass}
+                  className={`${itemClass} first:rounded-t-md last:rounded-b-md`}
                 >
                   <span
                     aria-hidden="true"
