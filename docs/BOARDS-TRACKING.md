@@ -1,5 +1,17 @@
 # Boards Tracking Matrix — plan part → slice → files → proof
 
+## UI delivery — 2026-10-28
+
+The implementation on `feature/boards-ui` supersedes the historical deferred-UI status below.
+
+Implemented: cross-project DataView catalogue and board creation; project board lists and navigation; Kanban columns and card details with rich notes, assignees, dates, points and colour; desktop drag/drop and explicit column/sprint moves and ordering controls; WIP counts/limits and column creation, editing, ordering and deletion with reflow; board editing/deletion and project link/unlink with explicit foreign-card removal; planning lanes, phase management and sprint creation/edit/start/complete/delete; atomic requirement packaging from the register (including selected rows) or board; hierarchical requirement references and links with existing restricted/removed redaction preserved. Polling pauses while a dialog is open.
+
+Validation follows the user's explicit request: no tests added or run for this UI delivery. CI skips unit/database/E2E jobs only for `feature/boards-ui` and its PR; main/develop keep their existing checks. Lint, TypeScript and production compilation remain enabled. Final functional acceptance is manual and is not claimed complete. WBS/Gantt colour-by work remains its separately scoped feature, outside Kanban delivery.
+
+Manual acceptance: create standalone/project boards; add/edit/delete and reorder cards; drag between columns and use move selectors on mobile; verify a WIP refusal; manage columns and confirm reflow; create phases/sprints, start a sprint, move backlog cards, complete into another sprint/backlog; package selected requirements and repeat to verify no duplicates; open requirement links; verify Viewer/Contributor/Manager permissions; edit in two sessions to observe a stale-version refusal; link/unlink projects and check foreign-card confirmation. Test completed and restricted/removed requirement states with appropriate accounts.
+
+The earlier matrix below is retained as implementation history rather than a current claim that UI is absent.
+
 Source of truth for *what* to build: the approved plan
 `~/.claude/plans/help-me-create-a-structured-hanrahan.md` ("Kanban/Scrum boards + item colour in
 WBS and Gantt"), written 2026-10-21. Decisions are recorded in

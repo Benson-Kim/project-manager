@@ -4,6 +4,8 @@ This file is a living ledger of hard-won lessons. **Every session must read it b
 
 A briefing is a snapshot; the ledger is the truth.
 
+- 2026-10-28 boards UI delivery: the user explicitly deferred new tests and test-suite execution until final manual acceptance. Implemented subfeatures are committed and pushed separately on feature/boards-ui. CI test skipping is scoped to that branch/PR; shared branch rules remain intact. Compile/lint/type results do not establish functional acceptance.
+
 ## Integration review, 2026-10-28
 
 - A combobox accepting a typed assignee must preserve that text on blur, including when an existing name is merely focused and left. The meeting-minutes browser regression waits for the popup to close, checks the submitted hidden value, then saves and reopens an unrelated edit.
