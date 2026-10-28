@@ -20,6 +20,7 @@ import {
 } from "@/modules/requirements/repository/requirements";
 import { parseValidatesParam } from "@/modules/requirements/schemas/requirement-form";
 import { parseProjectId } from "../project-id";
+import { REQUIREMENT_SORT } from "@/modules/requirements/schemas/requirement";
 
 export const metadata: Metadata = {
   title: `${messages.requirements.title} — ${messages.app.name}`,
@@ -29,8 +30,9 @@ export const metadata: Metadata = {
  * The project's requirement register (ADR-0037) — composition root: it loads the requirements
  * module's list and the key-deliverables module's picker options, and passes both as plain props,
  * so neither module imports the other. ?type= filters and starts a new row's type; ?id=<n>|new
- * opens the sheet; ?validates= carries the merge's selected needs into a new solution.
- * Default sort: catalog type order, then number (BR-1, SR-1, FR-1…).
+ * opens the sheet; ?validates= carries the merge's selected needs into a new solution; ?parent=
+ * carries the requirement a new sub-requirement goes under (ADR-0048), which also fixes its type.
+ * Default sort: catalog type order, then the tree path (BR-1, BR-1.1, SR-1, FR-1…).
  */
 export default async function RequirementsPage({
   params,
@@ -46,20 +48,26 @@ export default async function RequirementsPage({
 
   const raw = await searchParams;
   const flat = flattenSearchParams(raw);
-  const listParams = parseListParams(raw);
+  const listParams = parseListParams(raw, REQUIREMENT_SORT);
   const filterType = registerType(flat.type);
 
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
   const sheetOpen = isNew || (selectedId !== null && Number.isInteger(selectedId));
 
-  const [rows, preference, selectedRaw, allows, deliverableOptions, needOptions] =
+  const parentId = isNew && flat.parent ? Number(flat.parent) : null;
+  const wantsParent = parentId !== null && Number.isInteger(parentId) && parentId > 0;
+
+  const [rows, preference, selectedRaw, parentRaw, allows, deliverableOptions, needOptions] =
     await Promise.all([
       orNotFound(listRequirements(listParams, session.userId, projectId, filterType)),
       getListPreference(session.userId, "requirements").catch(() => null),
       selectedId && Number.isInteger(selectedId) && selectedId > 0
         ? orNull(getRequirementById(selectedId, session.userId))
         : null,
+      // Only read when a sub-requirement is actually being created; the sheet names the parent and
+      // takes its type from it, so a bad ?parent= must read as not found rather than as a root.
+      wantsParent ? orNull(getRequirementById(parentId, session.userId)) : null,
       getProjectPermissions(projectId, session.userId),
       orNotFound(listDeliverableOptions(projectId, session.userId)),
       // Only the sheet picks needs to validate.
@@ -68,6 +76,7 @@ export default async function RequirementsPage({
 
   // A deep link to a requirement from another project is treated as not found.
   const selected = guardProjectScope(selectedRaw, projectId);
+  const initialParent = guardProjectScope(parentRaw, projectId);
 
   const totalCount = rows[0]?.TotalCount ?? 0;
   const canCreate = allows("requirements:create");
@@ -77,7 +86,12 @@ export default async function RequirementsPage({
 
   const newRequirementLink = (
     <Link
-      href={buildNewEntityHref(`/projects/${projectId}/requirements`, flat)}
+      // Without dropping ?parent=, the header's own link would open a new row under whatever
+      // sub-requirement was last added. This link always creates a root requirement.
+      href={buildNewEntityHref(`/projects/${projectId}/requirements`, {
+        ...flat,
+        parent: undefined,
+      })}
       data-testid="new-requirement"
       className="inline-flex min-h-10 items-center rounded-md border border-line bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-raised"
     >
@@ -110,8 +124,9 @@ export default async function RequirementsPage({
         requirement={selected}
         isNew={isNew && canCreate}
         projectId={projectId}
-        initialType={newRequirementType(filterType)}
+        initialType={initialParent?.RequirementType ?? newRequirementType(filterType)}
         initialValidates={parseValidatesParam(flat.validates)}
+        initialParent={initialParent}
         needOptions={needOptions}
         deliverableOptions={deliverableOptions}
         canEdit={canEdit}

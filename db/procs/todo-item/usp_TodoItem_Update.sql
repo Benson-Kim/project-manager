@@ -20,6 +20,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_TodoItem_Update
     @DueDate           DATETIME2    = NULL,
     @Priority          NVARCHAR(255) = NULL,
     @Status            NVARCHAR(255) = NULL,
+    @Assignee          NVARCHAR(255) = NULL,
     @Notes             NVARCHAR(MAX) = NULL,
     @RowVer            BIGINT,
     @ActorUserId       INT
@@ -61,7 +62,7 @@ BEGIN
 
     DECLARE @Before NVARCHAR(MAX) =
         (SELECT TodoItemId, [ProjectId], [DailyActivityId], [ProjectOrActivity], [TodoItem],
-                [StartDate], [DueDate], [Priority], [Status], [Notes]
+                [StartDate], [DueDate], [Priority], [Status], [Assignee], [Notes]
          FROM app.TodoItem WHERE TodoItemId = @TodoItemId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 
@@ -76,6 +77,7 @@ BEGIN
         [DueDate]           = @DueDate,
         [Priority]          = @Priority,
         [Status]            = @Status,
+        [Assignee]          = NULLIF(LTRIM(RTRIM(@Assignee)), N''),
         [Notes]             = @Notes,
         UpdatedAtUtc        = SYSUTCDATETIME(),
         UpdatedBy           = @ActorUserId
@@ -93,7 +95,7 @@ BEGIN
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.TodoItem', CAST(@TodoItemId AS NVARCHAR(64)), @Before,
             (SELECT TodoItemId, [ProjectId], [DailyActivityId], [ProjectOrActivity], [TodoItem],
-                    [StartDate], [DueDate], [Priority], [Status], [Notes]
+                    [StartDate], [DueDate], [Priority], [Status], [Assignee], [Notes]
              FROM app.TodoItem WHERE TodoItemId = @TodoItemId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
@@ -108,6 +110,7 @@ BEGIN
            [DueDate],
            [Priority],
            [Status],
+           [Assignee],
            [Notes],
            [SortKey],
            CreatedAtUtc,

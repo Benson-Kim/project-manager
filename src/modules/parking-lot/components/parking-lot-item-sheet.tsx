@@ -26,6 +26,7 @@ import {
   deleteParkingLotItemAction,
   updateParkingLotItemAction,
 } from "../actions";
+import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
 
 /**
  * Parking lot detail/edit sheet (ADR-0010 default pattern): URL-synced via ?id=
@@ -236,11 +237,7 @@ export function ParkingLotItemSheet({
               name="followUpActions"
               errors={form.errors.followUpActions}
             >
-              <Textarea
-                name="followUpActions"
-                rows={3}
-                defaultValue={item?.FollowUpActions ?? ""}
-              />
+              <RichTextEditor name="followUpActions" defaultValue={item?.FollowUpActions} />
             </Field>
 
             <Field label={messages.parkingLot.owner} name="owner" errors={form.errors.owner}>

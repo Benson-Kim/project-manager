@@ -13,6 +13,7 @@ import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { createParkingLotItemAction, updateParkingLotItemAction } from "../actions";
 import {
+  PARKING_LOT_SORT,
   PARKING_LOT_STATUS,
   type ParkingLotItemListRow,
   type ParkingLotItemRow,
@@ -32,6 +33,9 @@ const columns: DataViewColumn<Row>[] = [
     value: (r) => r.ParkingLotItem,
     placeholder: P.item,
     maxLength: 255,
+    // A parking lot item is prose: it wraps in the sheet's textarea, so it
+    // wraps in the cell too (client feedback 2026-10-26).
+    multiline: true,
     render: (r) => (
       <span
         aria-label={
@@ -137,6 +141,7 @@ export function ParkingLotView({
         </div>
       )}
       columns={columns}
+      sort={PARKING_LOT_SORT}
       datasheet={{
         canEditRow,
         saveCell,

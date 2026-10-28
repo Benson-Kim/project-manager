@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { listValue, type LookupListKey } from "@/lib/lookup-lists";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
@@ -89,3 +90,9 @@ export const stakeholderFiltersSchema = z.object({
 });
 
 export type StakeholderFilters = z.infer<typeof stakeholderFiltersSchema>;
+
+/** The orders usp_Stakeholder_List applies (ADR-0016); the proc's own by default. */
+export const STAKEHOLDER_SORT: ListSort = {
+  columns: ["LastName", "FirstName", "ProjectRole", "EngagementLevel"],
+  default: null,
+};

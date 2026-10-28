@@ -117,7 +117,7 @@ test("new item with followUpActions and owner — saved and visible on reopen", 
   await openListed(page, itemText);
   const editForm = page.getByTestId("parking-lot-form");
   await expect(editForm).toBeVisible();
-  await expect(editForm.getByLabel(messages.parkingLot.followUpActions)).toHaveValue(
+  await expect(editForm.getByLabel(messages.parkingLot.followUpActions)).toHaveText(
     "Follow up with team",
   );
   await expect(editForm.getByLabel(messages.parkingLot.owner)).toHaveValue("Alice");

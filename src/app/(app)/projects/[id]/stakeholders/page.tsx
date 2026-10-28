@@ -16,6 +16,7 @@ import {
 } from "@/modules/stakeholders/repository/stakeholders";
 import {
   STAKEHOLDER_LISTS,
+  STAKEHOLDER_SORT,
   stakeholderFiltersSchema,
 } from "@/modules/stakeholders/schemas/stakeholder";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
@@ -46,7 +47,7 @@ export default async function StakeholdersPage({
 
   const raw = await searchParams;
   const flat = flattenSearchParams(raw);
-  const listParams = parseListParams(raw);
+  const listParams = parseListParams(raw, STAKEHOLDER_SORT);
 
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;

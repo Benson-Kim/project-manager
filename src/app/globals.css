@@ -107,6 +107,14 @@
   --tone-purple-ink: #6b21a8;
   --tone-gray-soft: #e2e8f0;
   --tone-gray-ink: #334155;
+  /* Highlighter colours (ADR-0041): strong enough to read as a marker, dark ink on top. */
+  --hl-yellow: #fde047;
+  --hl-green: #86efac;
+  --hl-blue: #93c5fd;
+  --hl-pink: #f9a8d4;
+  --hl-orange: #fdba74;
+  --hl-purple: #d8b4fe;
+  --hl-gray: #cbd5e1;
   color-scheme: light;
 }
 
@@ -145,6 +153,13 @@
   --tone-purple-ink: #d8b4fe;
   --tone-gray-soft: #1c2536;
   --tone-gray-ink: #cbd5e1;
+  --hl-yellow: #713f12;
+  --hl-green: #14532d;
+  --hl-blue: #1e3a8a;
+  --hl-pink: #831843;
+  --hl-orange: #7c2d12;
+  --hl-purple: #581c87;
+  --hl-gray: #334155;
   color-scheme: dark;
 }
 
@@ -220,6 +235,29 @@ button:focus-visible {
   }
 }
 
+/* ── The list's sticky horizontal scrollbar ───────────────────────────────────
+   StickyScrollbar mirrors a wide table's own scroller and is the only thing in
+   its box, so it must show a bar on platforms that overlay them and hide them
+   when idle (macOS, iOS). An explicit height and thumb give it a visible track;
+   the colours are tokens, so it follows the theme. */
+.sticky-scroller {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-faint) var(--surface-sunken);
+}
+
+.sticky-scroller::-webkit-scrollbar {
+  height: 0.75rem;
+}
+
+.sticky-scroller::-webkit-scrollbar-track {
+  background: var(--surface-sunken);
+}
+
+.sticky-scroller::-webkit-scrollbar-thumb {
+  background: var(--ink-faint);
+  border-radius: 9999px;
+}
+
 /* ── Rich text (ADR-0025) ─────────────────────────────────────────────────────
    Stored HTML in RichTextView and the editor's surface share these rules, so
    what you type is what the record shows. Tokens only: dark mode and print
@@ -270,6 +308,27 @@ button:focus-visible {
   padding-left: 1.5rem;
 }
 
+/* Legal numbering (client feedback 2026-10-26, E6): an indented item reads
+   1.1, then 1.1.1, instead of restarting at 1. counters() joins the chain, so
+   the nested lists an indent creates inherit it without carrying the attribute
+   themselves. */
+.rich-text ol[data-numbering="legal"],
+.rich-text ol[data-numbering="legal"] ol {
+  list-style: none;
+  counter-reset: rt-legal;
+}
+
+.rich-text ol[data-numbering="legal"] > li,
+.rich-text ol[data-numbering="legal"] ol > li {
+  counter-increment: rt-legal;
+}
+
+.rich-text ol[data-numbering="legal"] > li::before,
+.rich-text ol[data-numbering="legal"] ol > li::before {
+  content: counters(rt-legal, ".") ". ";
+  margin-inline-end: 0.25rem;
+}
+
 .rich-text blockquote {
   border-left: 3px solid var(--line);
   padding-left: 0.75rem;
@@ -311,6 +370,256 @@ button:focus-visible {
   background: var(--accent-soft);
 }
 
+/* ADR-0041 formats. Colours are names (data-color, data-shade) mapped to the
+   theme's tone tokens, so coloured text reads in light, dark and print alike. */
+.rich-text h5 {
+  font-size: 0.9375rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+}
+
+.rich-text h6 {
+  font-size: 0.875rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.rich-text span[data-color="red"] {
+  color: var(--tone-red-ink);
+}
+
+.rich-text span[data-color="orange"] {
+  color: var(--tone-orange-ink);
+}
+
+.rich-text span[data-color="yellow"] {
+  color: var(--tone-yellow-ink);
+}
+
+.rich-text span[data-color="green"] {
+  color: var(--tone-green-ink);
+}
+
+.rich-text span[data-color="blue"] {
+  color: var(--tone-blue-ink);
+}
+
+.rich-text span[data-color="purple"] {
+  color: var(--tone-purple-ink);
+}
+
+.rich-text span[data-color="gray"] {
+  color: var(--tone-gray-ink);
+}
+
+/* A highlight sets its own ink, so a text colour never sits on it below 4.5:1:
+   the highlight wins whichever way the two nest (ADR-0041). */
+.rich-text mark {
+  background: var(--hl-yellow);
+  color: var(--ink);
+  border-radius: 2px;
+  padding: 0 0.1em;
+}
+
+.rich-text mark span[data-color] {
+  color: inherit;
+}
+
+.rich-text mark[data-color="green"] {
+  background: var(--hl-green);
+}
+
+.rich-text mark[data-color="blue"] {
+  background: var(--hl-blue);
+}
+
+.rich-text mark[data-color="pink"] {
+  background: var(--hl-pink);
+}
+
+.rich-text mark[data-color="orange"] {
+  background: var(--hl-orange);
+}
+
+.rich-text mark[data-color="purple"] {
+  background: var(--hl-purple);
+}
+
+.rich-text mark[data-color="gray"] {
+  background: var(--hl-gray);
+}
+
+.rich-text [data-shade="gray"] {
+  background: var(--tone-gray-soft);
+}
+
+.rich-text [data-shade="blue"] {
+  background: var(--tone-blue-soft);
+}
+
+.rich-text [data-shade="green"] {
+  background: var(--tone-green-soft);
+}
+
+.rich-text [data-shade="yellow"] {
+  background: var(--tone-yellow-soft);
+}
+
+.rich-text [data-shade="orange"] {
+  background: var(--tone-orange-soft);
+}
+
+.rich-text [data-shade="red"] {
+  background: var(--tone-red-soft);
+}
+
+.rich-text [data-shade="purple"] {
+  background: var(--tone-purple-soft);
+}
+
+.rich-text [data-indent="1"] {
+  margin-left: 2em;
+}
+
+.rich-text [data-indent="2"] {
+  margin-left: 4em;
+}
+
+.rich-text [data-indent="3"] {
+  margin-left: 6em;
+}
+
+.rich-text [data-indent="4"] {
+  margin-left: 8em;
+}
+
+.rich-text [data-indent="5"] {
+  margin-left: 10em;
+}
+
+.rich-text [data-indent="6"] {
+  margin-left: 12em;
+}
+
+.rich-text [data-indent="7"] {
+  margin-left: 14em;
+}
+
+.rich-text [data-indent="8"] {
+  margin-left: 16em;
+}
+
+.rich-text hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 1rem 0;
+}
+
+/* On screen a page break is a dashed line; on paper it starts a new page. */
+.rich-text hr[data-page-break="true"] {
+  border-top: 2px dashed var(--ink-faint);
+  margin: 1.5rem 0;
+}
+
+.rich-text hr.ProseMirror-selectednode {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Toolbar colour samples, painted with the tokens the text uses. */
+.rt-swatch[data-color="auto"] {
+  background: transparent;
+}
+
+.rt-swatch[data-swatch="text"][data-color="auto"] {
+  background: var(--ink);
+}
+
+.rt-swatch[data-swatch="text"][data-color="red"] {
+  background: var(--tone-red-ink);
+}
+
+.rt-swatch[data-swatch="text"][data-color="orange"] {
+  background: var(--tone-orange-ink);
+}
+
+.rt-swatch[data-swatch="text"][data-color="yellow"] {
+  background: var(--tone-yellow-ink);
+}
+
+.rt-swatch[data-swatch="text"][data-color="green"] {
+  background: var(--tone-green-ink);
+}
+
+.rt-swatch[data-swatch="text"][data-color="blue"] {
+  background: var(--tone-blue-ink);
+}
+
+.rt-swatch[data-swatch="text"][data-color="purple"] {
+  background: var(--tone-purple-ink);
+}
+
+.rt-swatch[data-swatch="text"][data-color="gray"] {
+  background: var(--tone-gray-ink);
+}
+
+.rt-swatch[data-swatch="highlight"][data-color="yellow"] {
+  background: var(--hl-yellow);
+}
+
+.rt-swatch[data-swatch="highlight"][data-color="green"] {
+  background: var(--hl-green);
+}
+
+.rt-swatch[data-swatch="highlight"][data-color="blue"] {
+  background: var(--hl-blue);
+}
+
+.rt-swatch[data-swatch="highlight"][data-color="pink"] {
+  background: var(--hl-pink);
+}
+
+.rt-swatch[data-swatch="highlight"][data-color="orange"] {
+  background: var(--hl-orange);
+}
+
+.rt-swatch[data-swatch="highlight"][data-color="purple"] {
+  background: var(--hl-purple);
+}
+
+.rt-swatch[data-swatch="highlight"][data-color="gray"] {
+  background: var(--hl-gray);
+}
+
+.rt-swatch[data-swatch="shade"][data-color="gray"] {
+  background: var(--tone-gray-soft);
+}
+
+.rt-swatch[data-swatch="shade"][data-color="blue"] {
+  background: var(--tone-blue-soft);
+}
+
+.rt-swatch[data-swatch="shade"][data-color="green"] {
+  background: var(--tone-green-soft);
+}
+
+.rt-swatch[data-swatch="shade"][data-color="yellow"] {
+  background: var(--tone-yellow-soft);
+}
+
+.rt-swatch[data-swatch="shade"][data-color="orange"] {
+  background: var(--tone-orange-soft);
+}
+
+.rt-swatch[data-swatch="shade"][data-color="red"] {
+  background: var(--tone-red-soft);
+}
+
+.rt-swatch[data-swatch="shade"][data-color="purple"] {
+  background: var(--tone-purple-soft);
+}
+
 @media print {
   .rich-text {
     overflow: visible;
@@ -318,6 +627,19 @@ button:focus-visible {
 
   .rich-text tr {
     break-inside: avoid;
+  }
+
+  .rich-text hr[data-page-break="true"] {
+    break-after: page;
+    border: 0;
+    margin: 0;
+    height: 0;
+  }
+
+  .rich-text mark,
+  .rich-text [data-shade] {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 
   /* Paper has no hover: print each link's address after its text. */
@@ -356,6 +678,28 @@ button:focus-visible {
     --on-success: #ffffff;
     --warning: #a16207;
     --warning-soft: #fef9c3;
+    /* Coloured rich text (ADR-0041) prints in its light-theme colours. */
+    --tone-red-soft: #fee2e2;
+    --tone-red-ink: #991b1b;
+    --tone-orange-soft: #ffedd5;
+    --tone-orange-ink: #9a3412;
+    --tone-yellow-soft: #fef9c3;
+    --tone-yellow-ink: #854d0e;
+    --tone-green-soft: #dcfce7;
+    --tone-green-ink: #166534;
+    --tone-blue-soft: #dbeafe;
+    --tone-blue-ink: #1e40af;
+    --tone-purple-soft: #f3e8ff;
+    --tone-purple-ink: #6b21a8;
+    --tone-gray-soft: #e2e8f0;
+    --tone-gray-ink: #334155;
+    --hl-yellow: #fde047;
+    --hl-green: #86efac;
+    --hl-blue: #93c5fd;
+    --hl-pink: #f9a8d4;
+    --hl-orange: #fdba74;
+    --hl-purple: #d8b4fe;
+    --hl-gray: #cbd5e1;
     color-scheme: light;
   }
 

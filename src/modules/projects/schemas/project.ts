@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ListSort } from "@/lib/list-params";
 import { LOOKUP_LABEL_MAX } from "@/lib/lookup-lists";
 import { actorAccessSchema } from "@/lib/auth/actor-access";
 import { ACCESS_LEVELS } from "@/lib/auth/types";
@@ -80,7 +81,7 @@ export const createProjectInput = z.object({
   currentState: z.string().nullish(),
   futureState: z.string().nullish(),
   userImpact: z.string().nullish(),
-  mandate: z.string().trim().max(255).nullish(),
+  mandate: z.string().nullish(),
   projectStatusCom: z.string().nullish(),
   existBusMod: z.string().trim().max(255).nullish(),
   a1: z.boolean().default(false),
@@ -173,3 +174,17 @@ export const setProjectAssigneesInput = z.object({
 
 export type SetProjectAssigneesInput = z.input<typeof setProjectAssigneesInput>;
 export type SetProjectAssigneesParsed = z.infer<typeof setProjectAssigneesInput>;
+
+/** The orders usp_Project_List applies (ADR-0016); the proc's own by default. */
+export const PROJECT_SORT: ListSort = {
+  columns: [
+    "ProjectName",
+    "DateOfProject",
+    "StartDate",
+    "EndDate",
+    "ProjectStatus",
+    "ProjectPriority",
+    "ProjectManager",
+  ],
+  default: null,
+};

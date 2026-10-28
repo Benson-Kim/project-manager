@@ -21,6 +21,7 @@ import {
   type CellEditor,
 } from "./datasheet";
 import { RichTextCell } from "./rich-text-cell";
+import { ariaSort, type HeaderSort } from "./sorting";
 import { priorityClass, type DataViewColumn } from "./types";
 
 /**
@@ -35,6 +36,17 @@ import { priorityClass, type DataViewColumn } from "./types";
  * Rows follow the user's row height: DataView sets --row-h on the table.
  */
 export const cellClass = "h-(--row-h) border border-line px-3 py-2 align-middle";
+
+/**
+ * A header cell, stuck to the top of the table's scroll box. `sticky` sits on
+ * the cells rather than the `<thead>` because with border-collapse the borders
+ * belong to the table and scroll away with it, leaving a stuck row without its
+ * grid lines; the inset shadow redraws the two edges that costs. Every cell of
+ * the row carries it — one that does not would scroll away alone.
+ */
+export const headerCellClass =
+  "sticky top-0 z-20 border border-line bg-surface-raised " +
+  "shadow-[inset_0_-1px_0_var(--line),inset_-1px_0_0_var(--line)] print:static print:shadow-none";
 export const editableCellClass = "h-(--row-h) border border-line p-0 align-middle";
 
 /**
@@ -412,6 +424,11 @@ export interface HeaderResize {
   onResize: (width: number) => void;
   /** Store the width (pointer released, key released). */
   onCommit: () => void;
+  /**
+   * The header's right edge is the table's: the handle stays inside it, since past it the
+   * box would scroll a few pixels sideways and show a scrollbar for a table that fits.
+   */
+  atTableEdge?: boolean;
 }
 
 /**
@@ -420,12 +437,69 @@ export interface HeaderResize {
  * the edge and use the arrow keys — to resize it; list-bound columns get the ∨
  * caret that opens the list editor (Admins).
  */
+/**
+ * The order control of a sortable column (client feedback, 2026-10-23): one
+ * triangle per direction, the applied one filled. Both are drawn at once so the
+ * column says which orders it offers before it is clicked, and the pair is a
+ * single button because a column is sorted one way at a time — clicking it
+ * reverses the order the proc is asked for.
+ */
+function SortButton({
+  header,
+  testId,
+  state,
+  onSort,
+}: {
+  header: string;
+  testId: string;
+  state: HeaderSort;
+  onSort: () => void;
+}) {
+  const label =
+    state.active === "asc"
+      ? messages.list.sortedAscending(header)
+      : state.active === "desc"
+        ? messages.list.sortedDescending(header)
+        : messages.list.sortBy(header);
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      data-testid={`sort-${testId}`}
+      data-sort={state.active ?? "none"}
+      // dragstart fires on the draggable <th>, not here, so a drag that begins
+      // on this button still moves the column — as it does from the list caret
+      // beside it. A click is a click: it never becomes a drag.
+      draggable={false}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSort();
+      }}
+      className="flex min-h-10 min-w-9 shrink-0 items-center justify-center rounded-md text-ink-muted hover:bg-surface-sunken"
+    >
+      <svg viewBox="0 0 8 16" className="h-4 w-2" aria-hidden="true">
+        <path
+          d="M4 2.5 7 7H1z"
+          className={state.active === "asc" ? "fill-accent" : "fill-current opacity-30"}
+        />
+        <path
+          d="M4 13.5 1 9h6z"
+          className={state.active === "desc" ? "fill-accent" : "fill-current opacity-30"}
+        />
+      </svg>
+    </button>
+  );
+}
+
 export function HeaderCell<Row>({
   column,
   canEditLists,
   onEditList,
   drag,
   resize,
+  sort,
+  onSort,
 }: {
   column: DataViewColumn<Row>;
   /** Admins: a managed list's column gets the caret, which calls onEditList. */
@@ -433,6 +507,9 @@ export function HeaderCell<Row>({
   onEditList?: (list: LookupListKey, column: string) => void;
   drag?: HeaderDrag;
   resize?: HeaderResize;
+  /** This column's order, when the module offers sorting on it. */
+  sort?: HeaderSort | null;
+  onSort?: () => void;
 }) {
   const list = column.edit?.list;
   const editList =
@@ -445,6 +522,7 @@ export function HeaderCell<Row>({
       ref={thRef}
       scope="col"
       data-column={column.key}
+      aria-sort={ariaSort(sort ?? null)}
       draggable={drag ? true : undefined}
       onDragStart={
         drag
@@ -474,10 +552,17 @@ export function HeaderCell<Row>({
       }
       onDragEnd={drag?.onEnd}
       style={width ? { width, minWidth: width, maxWidth: width } : undefined}
-      className={`relative border border-line px-3 py-2 text-left font-medium text-ink-muted ${drag ? "cursor-grab active:cursor-grabbing" : ""} ${drag?.over ? "bg-accent-soft" : "bg-surface-raised"} ${drag?.dragging ? "opacity-50" : ""} ${column.edit && !width ? CELL_WIDTH[cellWidthKind(column.edit)] : ""} ${priorityClass[column.priority]}`}
+      // `sticky` sits on the cells, not only on the <thead>: with
+      // border-collapse the collapsed borders belong to the table and scroll
+      // away with it, so a stuck row would lose its grid lines. The inset
+      // shadow redraws the edges the stuck row needs to read as a header.
+      className={`${headerCellClass} px-3 py-2 text-left font-medium text-ink-muted ${drag ? "cursor-grab active:cursor-grabbing" : ""} ${drag?.over ? "bg-accent-soft" : "bg-surface-raised"} ${drag?.dragging ? "opacity-50" : ""} ${column.edit && !width ? CELL_WIDTH[cellWidthKind(column.edit)] : ""} ${priorityClass[column.priority]}`}
     >
       <div className="flex min-h-10 items-center justify-between gap-1">
         <span className="wrap-break-word">{column.header}</span>
+        {sort && onSort ? (
+          <SortButton header={column.header} testId={column.key} state={sort} onSort={onSort} />
+        ) : null}
         {editList ? (
           <IconButton label={messages.lookupLists.edit(column.header)} onClick={editList}>
             <path d="M4 6l4 4 4-4" />
@@ -493,7 +578,7 @@ export function HeaderCell<Row>({
           onResize={(next) => resize.onResize(clampWidth(next))}
           onCommit={resize.onCommit}
           measure={() => thRef.current?.offsetWidth ?? 0}
-          className="absolute top-0 -right-1 z-10 h-full w-2 cursor-col-resize"
+          className={`absolute top-0 z-10 h-full cursor-col-resize ${resize.atTableEdge ? "right-0 w-1" : "-right-1 w-2"}`}
         />
       ) : null}
     </th>

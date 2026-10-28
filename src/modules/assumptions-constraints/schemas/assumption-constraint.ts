@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { listValue, type LookupListKey } from "@/lib/lookup-lists";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
@@ -70,3 +71,13 @@ export const deleteAssumptionConstraintInput = z.object({
 });
 
 export type DeleteAssumptionConstraintInput = z.input<typeof deleteAssumptionConstraintInput>;
+
+/**
+ * The orders usp_AssumptionConstraint_List applies (ADR-0016). Null default:
+ * the proc falls back to AssumptionConstraintId, which is the order they were
+ * raised in.
+ */
+export const ASSUMPTION_CONSTRAINT_SORT: ListSort = {
+  columns: ["Type", "Impact"],
+  default: null,
+};

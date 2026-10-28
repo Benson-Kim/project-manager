@@ -19,6 +19,7 @@ import {
 import { listStakeholderOptions } from "@/modules/stakeholders/repository/stakeholder-options";
 import {
   KEY_DELIVERABLE_LISTS,
+  KEY_DELIVERABLE_SORT,
   keyDeliverableFiltersSchema,
 } from "@/modules/key-deliverables/schemas/key-deliverable";
 import { parseProjectId } from "../project-id";
@@ -45,8 +46,7 @@ export default async function DeliverablesPage({
   if (projectId === null) notFound();
 
   const raw = await searchParams;
-  const listParams = parseListParams(raw);
-  if (!listParams.sort) listParams.sort = "Wbs"; // default: breakdown order (ADR-0027)
+  const listParams = parseListParams(raw, KEY_DELIVERABLE_SORT);
   const filtersParsed = keyDeliverableFiltersSchema.safeParse(flattenSearchParams(raw));
   const filters = filtersParsed.success ? filtersParsed.data : {};
   const dParam = flattenSearchParams(raw).d;

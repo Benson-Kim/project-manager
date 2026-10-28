@@ -104,16 +104,46 @@ export function withPolicy(yml, { minimumVersion, notes }) {
   return `${kept.join("\n")}\n`;
 }
 
-/** One line per merged PR / direct commit since the previous release (first-parent history). */
+const COMMIT_TYPE = /^(feat|fix|docs|chore|refactor|perf|test|build|ci|style|revert)(\([^)]*\))?!?:\s*/i;
+/** Decision records, plan items and PR numbers: they mean nothing to the people who use the app. */
+const PLAN_REFS = /\s*\([^()]*\b(ADR|PM|PR)[- ]?\d+[^()]*\)|\s*\(#\d+\)|\b(ADR|PM|PR)[- ]?\d+\b|#\d+\b/gi;
+const NOTE_LINE = /^\s*release note:\s*(.*)$/gim;
+
+/** A PR title or release-note line as the people who use the app should read it ("" when nothing is left). */
+export function userFacing(text) {
+  const cleaned = String(text ?? "")
+    .replace(RELEASE_TAGS, "")
+    .trim()
+    .replace(COMMIT_TYPE, "")
+    .replace(PLAN_REFS, "")
+    .replace(/\s+([,.;:])/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .replace(/[\s,;:]*\b(and|or|with|plus)\s*$/i, "")
+    .replace(/[\s,;:]+$/, "")
+    .trim();
+  return cleaned && cleaned[0].toUpperCase() + cleaned.slice(1);
+}
+
+/**
+ * The "What's new" lines installed apps show, one or more per PR merged since the previous
+ * release (first-parent history). A merge commit's `Release note:` lines win; "Release note:
+ * none" leaves the PR out; otherwise its title is used. A direct commit appears only with a
+ * release note of its own.
+ */
 export function notesFromLog(entries, max = 25) {
   const lines = [];
-  for (const { subject, body } of entries) {
-    const pr = /^Merge pull request #(\d+) from \S+/.exec(subject);
-    let title = subject;
-    if (pr) title = `${(body ?? "").split("\n").find((l) => l.trim()) ?? subject} (#${pr[1]})`;
-    else if (/^Merge (branch|remote-tracking branch) /.test(subject)) continue;
-    title = title.replace(RELEASE_TAGS, "").trim();
-    if (title) lines.push(`- ${title}`);
+  for (const { subject, body = "" } of entries) {
+    const written = [...body.matchAll(NOTE_LINE)].map((m) => m[1].trim());
+    let notes = written;
+    if (!written.length) {
+      if (!/^Merge pull request #\d+ from \S+/.test(subject)) continue;
+      notes = [body.split("\n").find((l) => l.trim()) ?? ""];
+    }
+    for (const note of notes) {
+      if (/^none\.?$/i.test(note)) continue;
+      const text = userFacing(note);
+      if (text) lines.push(`- ${text}`);
+    }
   }
   if (lines.length > max) return [...lines.slice(0, max), `- …and ${lines.length - max} more`].join("\n");
   return lines.join("\n");

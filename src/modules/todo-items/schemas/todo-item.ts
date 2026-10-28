@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { listValue, type LookupListKey } from "@/lib/lookup-lists";
 import { alertTimeSchema, rowVerSchema } from "./todo-alert";
@@ -38,6 +39,8 @@ export const todoItemRowSchema = z.object({
   TodoItem: z.string().nullable(),
   StartDate: z.date().nullable(),
   DueDate: z.date().nullable(),
+  /** Who is doing it (migration 047): a typed name, since a to-do need not have a project. */
+  Assignee: z.string().nullable(),
   Priority: z.string().nullable(),
   Status: z.string().nullable(),
   Notes: z.string().nullable(),
@@ -66,6 +69,7 @@ export const createTodoItemInput = z.object({
   todoItem: z.string().trim().min(1).max(255),
   startDate: z.coerce.date().nullish(),
   dueDate: z.coerce.date().nullish(),
+  assignee: z.string().trim().max(255).nullish(),
   priority: listValue.nullish(),
   status: listValue.nullish(),
   notes: z.string().trim().nullish(),
@@ -178,3 +182,13 @@ export const dueAlertRowSchema = z.object({
 });
 
 export type DueAlertRow = z.infer<typeof dueAlertRowSchema>;
+
+/**
+ * The orders usp_TodoItem_List applies (ADR-0016); by due date by default.
+ * SortKey is the manual order the reorder buttons write, which is why the
+ * Reorder column carries the control for it.
+ */
+export const TODO_ITEM_SORT: ListSort = {
+  columns: ["DueDate", "Priority", "Status", "StartDate", "SortKey"],
+  default: "DueDate",
+};

@@ -13,6 +13,7 @@ import { messages } from "@/lib/messages";
 import type { ObjectiveRow } from "../schemas/objective";
 import { objectiveFormSchema, updateObjectiveFormSchema } from "../schemas/objective-form";
 import { createObjectiveAction, deleteObjectiveAction, updateObjectiveAction } from "../actions";
+import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
 
 /**
  * Objective detail/edit sheet (default pattern): URL-synced via ?id=
@@ -102,7 +103,7 @@ export function ObjectiveSheet({
             <Input name="qMeasurable" defaultValue={objective?.QMeasurable ?? ""} />
           </Field>
           <Field label={messages.objectives.qSuccess} name="qSuccess" errors={form.errors.qSuccess}>
-            <Textarea name="qSuccess" rows={3} defaultValue={objective?.QSuccess ?? ""} />
+            <RichTextEditor name="qSuccess" defaultValue={objective?.QSuccess} />
           </Field>
           <Field
             label={messages.objectives.qAlignmentStrategy}

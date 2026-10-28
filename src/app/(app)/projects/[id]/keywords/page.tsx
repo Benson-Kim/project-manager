@@ -13,6 +13,7 @@ import { KeywordsView } from "@/modules/keywords/components/keywords-view";
 import { listKeywords, getKeywordById } from "@/modules/keywords/repository/keywords";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { parseProjectId } from "../project-id";
+import { KEYWORD_SORT } from "@/modules/keywords/schemas/keyword";
 
 export const metadata: Metadata = {
   title: `${messages.keywords.title} — ${messages.app.name}`,
@@ -37,11 +38,8 @@ export default async function KeywordsPage({
 
   const raw = await searchParams;
   const flat = flattenSearchParams(raw);
-  const listParams = parseListParams(raw);
-  const effectiveParams = {
-    ...listParams,
-    sort: listParams.sort ?? "Keyword",
-  };
+  const listParams = parseListParams(raw, KEYWORD_SORT);
+  const effectiveParams = listParams;
 
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;

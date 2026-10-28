@@ -1,19 +1,28 @@
 "use client";
 
 import { type Editor, useEditorState } from "@tiptap/react";
-import { useLayoutEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 import { Menu, MenuButton } from "@/components/ui/menu";
+import {
+  DEFAULT_HIGHLIGHT,
+  HEADING_LEVELS,
+  type HeadingLevel,
+  type NumberingType,
+} from "@/lib/rich-text/formats";
 import { messages } from "@/lib/messages";
 import {
   AlignIcon,
   BulletListIcon,
   ClearFormattingIcon,
+  IndentIcon,
   LinkIcon,
   OrderedListIcon,
+  OutdentIcon,
   RedoIcon,
   TableIcon,
   UndoIcon,
 } from "./icons";
+import { innermostList } from "./format-extensions";
 import {
   FONT_FAMILIES,
   FONT_SIZES_PT,
@@ -21,30 +30,38 @@ import {
   rovingIndex,
   withCurrentOption,
 } from "./toolbar-model";
+import {
+  HighlightMenu,
+  InsertMenu,
+  NumberingMenu,
+  ShadingMenu,
+  TextColorMenu,
+  toolbarButtonClass as buttonClass,
+} from "./toolbar-menus";
+import { ToolbarHint } from "./toolbar-hint";
 
 const t = messages.richText;
 
 const ALIGNMENTS = [
-  { value: "left", label: t.alignLeft },
-  { value: "center", label: t.alignCenter },
-  { value: "right", label: t.alignRight },
-  { value: "justify", label: t.alignJustify },
+  { value: "left", label: t.alignLeft, shortcut: "Control+Shift+L" },
+  { value: "center", label: t.alignCenter, shortcut: "Control+Shift+E" },
+  { value: "right", label: t.alignRight, shortcut: "Control+Shift+R" },
+  { value: "justify", label: t.alignJustify, shortcut: "Control+Shift+J" },
 ] as const;
 
-const HEADINGS = [
-  { level: 2, label: t.heading2 },
-  { level: 3, label: t.heading3 },
-  { level: 4, label: t.heading4 },
-] as const;
+const HEADING_LABELS: Record<HeadingLevel, string> = {
+  2: t.heading2,
+  3: t.heading3,
+  4: t.heading4,
+  5: t.heading5,
+  6: t.heading6,
+};
+const HEADINGS = HEADING_LEVELS.map((level) => ({ level, label: HEADING_LABELS[level] }));
 
 const FONT_SIZE_OPTIONS = FONT_SIZES_PT.map((pt) => `${pt}pt`);
 
-// Toolbar stops: buttons and selects, but not the table menu's items.
-const ITEMS = 'button:not([role="menuitem"]), select';
-
-const buttonClass =
-  "flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md text-sm text-ink " +
-  "hover:bg-surface-sunken aria-pressed:bg-accent-soft aria-disabled:cursor-default aria-disabled:opacity-50";
+// Toolbar stops: buttons and selects; items inside a menu are filtered out below.
+const ITEMS = "button, select";
 
 const selectClass =
   "min-h-11 shrink-0 cursor-pointer rounded-md border border-line bg-surface px-2 text-sm text-ink";
@@ -66,6 +83,14 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
     editor,
     selector: ({ editor: e }) => {
       const style = e.getAttributes("textStyle") as { fontFamily?: string; fontSize?: string };
+      const inner = innermostList(e.state.selection.$from);
+      const list = (inner?.node.type.name === "orderedList" ? inner.node.attrs : null) as {
+        type?: NumberingType | null;
+        start?: number;
+      } | null;
+      const cell = e.isActive("tableHeader")
+        ? e.getAttributes("tableHeader")
+        : e.getAttributes("tableCell");
       return {
         bold: e.isActive("bold"),
         italic: e.isActive("italic"),
@@ -73,6 +98,15 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
         strike: e.isActive("strike"),
         bulletList: e.isActive("bulletList"),
         orderedList: e.isActive("orderedList"),
+        listType: list ? (list.type ?? "1") : null,
+        listStart: list?.start ?? 1,
+        textColor: (e.getAttributes("textColor").color as string | undefined) ?? null,
+        highlight: e.isActive("highlight")
+          ? ((e.getAttributes("highlight").color as string | undefined) ?? DEFAULT_HIGHLIGHT)
+          : null,
+        shade: (cell.shade as string | undefined) ?? null,
+        canIndent: e.can().indent(),
+        canOutdent: e.can().outdent(),
         heading: HEADINGS.find((h) => e.isActive("heading", { level: h.level }))?.level ?? 0,
         align: ALIGNMENTS.find((a) => e.isActive({ textAlign: a.value }))?.value ?? "left",
         fontFamily: primaryFontFamily(style.fontFamily),
@@ -89,6 +123,12 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
     Array.from(toolbarRef.current?.querySelectorAll<HTMLElement>(ITEMS) ?? []).filter(
       (el) => !el.closest('[role="menu"]'),
     );
+  const controlOf = useCallback((target: EventTarget | null) => {
+    const control = target instanceof Element ? target.closest<HTMLElement>(ITEMS) : null;
+    return control && !control.closest('[role="menu"]') && toolbarRef.current?.contains(control)
+      ? control
+      : null;
+  }, []);
 
   // Roving tabindex, set on the DOM: the controls carry no tabIndex prop, so
   // React never resets it on re-render.
@@ -133,7 +173,7 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
       ref={toolbarRef}
       role="toolbar"
       aria-label={t.toolbar}
-      className="flex flex-wrap items-center gap-1 border-b border-line p-1"
+      className="relative flex flex-wrap items-center gap-1 border-b border-line p-1"
       onKeyDown={onKeyDown}
       onFocus={onFocus}
     >
@@ -147,7 +187,7 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
       </ToolButton>
       <ToolButton
         label={t.redo}
-        shortcut="Control+Y"
+        shortcut="Control+Y Control+Shift+Z"
         disabled={!state.canRedo}
         onRun={() => editor.chain().redo().run()}
       >
@@ -161,7 +201,7 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
         value={state.heading}
         {...selectEvents}
         onChange={(event) => {
-          const level = Number(event.target.value) as 0 | 2 | 3 | 4;
+          const level = Number(event.target.value) as 0 | HeadingLevel;
           if (level === 0) editor.chain().setParagraph().run();
           else editor.chain().setHeading({ level }).run();
           afterPick();
@@ -254,10 +294,13 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
           S
         </span>
       </ToolButton>
+      <TextColorMenu editor={editor} current={state.textColor} />
+      <HighlightMenu editor={editor} current={state.highlight} />
       <Divider />
 
       <ToolButton
         label={t.bulletList}
+        shortcut="Control+Shift+8"
         pressed={state.bulletList}
         onRun={() => editor.chain().toggleBulletList().run()}
       >
@@ -265,10 +308,28 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
       </ToolButton>
       <ToolButton
         label={t.orderedList}
+        shortcut="Control+Shift+7"
         pressed={state.orderedList}
         onRun={() => editor.chain().toggleOrderedList().run()}
       >
         <OrderedListIcon />
+      </ToolButton>
+      <NumberingMenu editor={editor} current={state.listType} start={state.listStart} />
+      <ToolButton
+        label={t.outdent}
+        shortcut="Control+Shift+M"
+        disabled={!state.canOutdent}
+        onRun={() => editor.chain().outdent().run()}
+      >
+        <OutdentIcon />
+      </ToolButton>
+      <ToolButton
+        label={t.indent}
+        shortcut="Control+M"
+        disabled={!state.canIndent}
+        onRun={() => editor.chain().indent().run()}
+      >
+        <IndentIcon />
       </ToolButton>
       <Divider />
 
@@ -276,6 +337,7 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
         <ToolButton
           key={a.value}
           label={a.label}
+          shortcut={a.shortcut}
           pressed={state.align === a.value}
           onRun={() => editor.chain().setTextAlign(a.value).run()}
         >
@@ -330,14 +392,25 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
           </MenuButton>
         )}
       </Menu>
+      {state.inTable ? <ShadingMenu editor={editor} current={state.shade} /> : null}
+      <InsertMenu editor={editor} />
       <Divider />
 
       <ToolButton
         label={t.clearFormatting}
-        onRun={() => editor.chain().unsetAllMarks().clearNodes().unsetTextAlign().run()}
+        onRun={() =>
+          editor
+            .chain()
+            .unsetAllMarks()
+            .clearNodes()
+            .unsetTextAlign()
+            .updateAttributes("paragraph", { indent: 0 })
+            .run()
+        }
       >
         <ClearFormattingIcon />
       </ToolButton>
+      <ToolbarHint toolbar={toolbarRef} controlOf={controlOf} />
     </div>
   );
 }

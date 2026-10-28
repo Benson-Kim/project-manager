@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { listValue, type LookupListKey } from "@/lib/lookup-lists";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
@@ -67,3 +68,9 @@ export const deleteQuestionAnswerInput = z.object({
 });
 
 export type DeleteQuestionAnswerInput = z.input<typeof deleteQuestionAnswerInput>;
+
+/** The orders usp_QuestionAnswer_List applies (ADR-0016); by question by default. */
+export const QUESTION_ANSWER_SORT: ListSort = {
+  columns: ["Question", "Answer", "Category", "Priority", "AssignedTo"],
+  default: "Question",
+};

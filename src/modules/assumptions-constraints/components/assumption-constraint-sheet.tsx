@@ -232,14 +232,6 @@ export function AssumptionConstraintSheet({
               </Select>
             </Field>
 
-            <Field
-              label={messages.assumptionsConstraints.mitigationPlan}
-              name="mitigationPlan"
-              errors={form.errors.mitigationPlan}
-            >
-              <Textarea name="mitigationPlan" rows={3} defaultValue={item?.MitigationPlan ?? ""} />
-            </Field>
-
             <Switch
               name="isValidated"
               label={messages.assumptionsConstraints.isValidated}

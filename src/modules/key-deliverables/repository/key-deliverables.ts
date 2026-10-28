@@ -11,6 +11,7 @@ import {
   createKeyDeliverableInput,
   keyDeliverableListRowSchema,
   keyDeliverableRowSchema,
+  parsePredecessorsJson,
   updateKeyDeliverableInput,
   wbsRowSchema,
   wbsWindowSchema,
@@ -23,6 +24,7 @@ import {
   type UpdateKeyDeliverableParsed,
   type WbsData,
 } from "../schemas/key-deliverable";
+import type { DependencyType } from "../schemas/wbs-dependencies";
 import { buildWbs } from "../schemas/wbs";
 
 /**
@@ -54,6 +56,7 @@ export async function createKeyDeliverable(
     Color: parsed.color ?? null,
     ParentKeyDeliverableId: parsed.parentId ?? null,
     AfterKeyDeliverableId: parsed.afterId ?? null,
+    IsMilestone: parsed.isMilestone ?? false,
     ActorUserId: actorUserId,
   });
   return keyDeliverableRowSchema.parse(rows[0]);
@@ -123,8 +126,14 @@ export async function getWbs(projectId: number, actorUserId: number): Promise<Wb
     WithProjectRow: 1,
   });
   const project = rows[0] ? wbsWindowSchema.parse(rows[0]) : null;
+  const itemRows = rows.filter((r) => r.KeyDeliverableId != null);
   return {
-    items: rows.filter((r) => r.KeyDeliverableId != null).map((r) => wbsRowSchema.parse(r)),
+    items: itemRows.map((r) => wbsRowSchema.parse(r)),
+    // Each row carries the links it is the successor of, so the graph arrives once; flattened here
+    // because the editor draws it across rows and the tree functions take no part in it (ADR-0046).
+    links: itemRows.flatMap((r) =>
+      parsePredecessorsJson(r.PredecessorsJson, r.KeyDeliverableId as number),
+    ),
     projectStart: project?.ProjectStartDate ?? null,
     projectEnd: project?.ProjectEndDate ?? null,
     stamp: project?.Stamp ?? 0,
@@ -159,6 +168,56 @@ export function moveKeyDeliverable(
       Position: input.position,
       RowVer: input.rowVer,
     },
+    actorUserId,
+  );
+}
+
+/**
+ * Link two items in sequence (ADR-0046). The proc refuses a self-link, a duplicate pair, an
+ * ancestor pair and a cycle, then reschedules whatever the new link pushes, so the answer is the
+ * whole breakdown rather than the link alone.
+ */
+export function linkWbsItems(
+  input: { predecessorId: number; successorId: number; type: DependencyType; lagDays: number },
+  actorUserId: number,
+): Promise<WbsData> {
+  return wbsAfter(
+    "usp_KeyDeliverableDependency_Link",
+    {
+      PredecessorId: input.predecessorId,
+      SuccessorId: input.successorId,
+      DependencyType: input.type,
+      LagDays: input.lagDays,
+    },
+    actorUserId,
+  );
+}
+
+/** Change a link's type or lag (@RowVer is the link's); its ends never move. */
+export function relinkWbsItems(
+  input: { id: number; type: DependencyType; lagDays: number; rowVer: number },
+  actorUserId: number,
+): Promise<WbsData> {
+  return wbsAfter(
+    "usp_KeyDeliverableDependency_Relink",
+    {
+      DependencyId: input.id,
+      DependencyType: input.type,
+      LagDays: input.lagDays,
+      RowVer: input.rowVer,
+    },
+    actorUserId,
+  );
+}
+
+/** Unlink two items (@RowVer is the link's). Nothing is pulled back: the cascade only pushes. */
+export function unlinkWbsItems(
+  input: { id: number; rowVer: number },
+  actorUserId: number,
+): Promise<WbsData> {
+  return wbsAfter(
+    "usp_KeyDeliverableDependency_Unlink",
+    { DependencyId: input.id, RowVer: input.rowVer },
     actorUserId,
   );
 }
@@ -214,6 +273,18 @@ export function setWbsItemStatus(
   );
 }
 
+/** Turn an item into a milestone, or back into a task (ADR-0046). */
+export function setWbsItemMilestone(
+  input: { id: number; isMilestone: boolean; rowVer: number },
+  actorUserId: number,
+): Promise<WbsData> {
+  return wbsAfter(
+    "usp_KeyDeliverable_SetMilestone",
+    { KeyDeliverableId: input.id, IsMilestone: input.isMilestone, RowVer: input.rowVer },
+    actorUserId,
+  );
+}
+
 /** An option of the requirement register's deliverable picker: "1.2 Site survey". */
 export interface DeliverableOption {
   id: number;
@@ -254,6 +325,9 @@ export async function addCascadeRequirement(
       type: input.type,
       text: input.text,
       isMet: false,
+      // The WBS adds a requirement to a deliverable, never a sub-requirement: the tree is the
+      // register's own shape (ADR-0048) and the cascade has no row to hang one under.
+      parentRequirementId: null,
       validatesIds: null,
       deliverableIds: [input.itemId],
     },

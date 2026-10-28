@@ -15,6 +15,10 @@ export interface UserSettings {
   attachmentsSetupOffered: boolean;
   /** Where the last detached window was closed, so the next one opens there. */
   detachedWindow?: Placement;
+  /** Spelling and grammar are checked as this user types, and offered on right-click. */
+  checkSpelling: boolean;
+  /** The version the app last restarted to install; checked and cleared at the next start. */
+  updateInstalling?: string;
 }
 
 function defaultCopyDir(): string {
@@ -34,6 +38,7 @@ export class SettingsStore {
       backupCopyDir: defaultCopyDir(),
       trayHintShown: false,
       attachmentsSetupOffered: false,
+      checkSpelling: true,
     };
     try {
       const parsed = JSON.parse(fs.readFileSync(this.file, "utf-8")) as Partial<UserSettings>;

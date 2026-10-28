@@ -16,9 +16,8 @@ import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { createRequirementAction, updateRequirementAction } from "../actions";
 import type { RequirementListRow, RequirementRow } from "../schemas/requirement";
-import { MAX_REQUIREMENT_LENGTH } from "../schemas/requirement";
+import { MAX_REQUIREMENT_LENGTH, REQUIREMENT_SORT } from "../schemas/requirement";
 import { requirementFormValues } from "../schemas/requirement-form";
-import { requirementRef } from "../schemas/requirement-rules";
 import {
   isSolution,
   REQUIREMENT_TYPES,
@@ -26,11 +25,14 @@ import {
   type RequirementType,
 } from "../schemas/requirement-types";
 import {
+  canAddSubRequirement,
   coverageText,
   deliverablesText,
   mergeSelection,
   newRequirementType,
+  refCell,
   refsText,
+  typeCell,
   typeIsFree,
 } from "./register-model";
 import { RequirementsToolbar } from "./requirements-toolbar";
@@ -90,7 +92,8 @@ export function RequirementsView({
         key: "Ref",
         header: M.ref,
         priority: 1,
-        render: (r) => requirementRef(r.RequirementType, r.Number),
+        // The server's whole path, indented by Depth and arrow-marked for a child (ADR-0048).
+        render: refCell,
       },
       choiceColumn({
         key: "RequirementType",
@@ -102,7 +105,11 @@ export function RequirementsView({
         clearable: false,
         initial: newRequirementType(filterType),
         placeholder: P.type,
-        // A linked or allocated row changes type in the sheet, which offers only the types that fit.
+        // The cell reads "Sub-Requirement" for a child, as the client's mock-up shows: the
+        // relationship goes here and the type stays visible in the reference's letters.
+        render: typeCell,
+        // A linked or allocated row changes type in the sheet, which offers only the types that
+        // fit; a child and a row with children cannot change it at all (typeIsFree).
         editable: typeIsFree,
       }),
       textColumn({
@@ -145,8 +152,26 @@ export function RequirementsView({
         priority: 3,
         render: (r) => formatDate(r.CreatedAtUtc),
       },
+      // Per row rather than in the toolbar: a sub-requirement is always "under this one", and the
+      // deepest level stops offering it instead of letting usp_Requirement_Create refuse the save.
+      {
+        key: "AddSub",
+        header: M.addSubRequirement,
+        priority: 3,
+        render: (r) =>
+          canCreate && canAddSubRequirement(r) ? (
+            <Button
+              variant="secondary"
+              data-testid={`requirement-add-sub-${r.RequirementId}`}
+              aria-label={M.addSubRequirementUnder(r.Ref)}
+              onClick={() => update({ id: "new", parent: String(r.RequirementId) })}
+            >
+              {M.addSubRequirement}
+            </Button>
+          ) : null,
+      },
     ],
-    [deliverableOptions, filterType],
+    [canCreate, deliverableOptions, filterType, update],
   );
 
   return (
@@ -166,16 +191,14 @@ export function RequirementsView({
       renderCard={(row) => (
         <div className="flex flex-col gap-1">
           <p className="text-xs font-medium text-ink-muted">
-            {M.typeWithRef(
-              typeLabel(row.RequirementType),
-              requirementRef(row.RequirementType, row.Number),
-            )}
+            {M.typeWithRef(typeCell(row), row.Ref)}
           </p>
           <p className="text-sm font-semibold text-ink">{row.Requirement}</p>
           <p className="text-xs text-ink-muted">{coverageText(row)}</p>
         </div>
       )}
       columns={columns}
+      sort={REQUIREMENT_SORT}
       datasheet={{
         canEditRow,
         saveCell,
@@ -204,7 +227,9 @@ export function RequirementsView({
             }
           : undefined
       }
-      renderToolbar={(viewToggle) => <RequirementsToolbar>{viewToggle}</RequirementsToolbar>}
+      renderToolbar={(viewToggle) => (
+        <RequirementsToolbar projectId={projectId}>{viewToggle}</RequirementsToolbar>
+      )}
       empty={listEmptyState(filtersActive, M.emptyBody, newRequirementAction)}
     />
   );

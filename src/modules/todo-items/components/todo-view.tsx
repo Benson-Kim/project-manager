@@ -22,6 +22,7 @@ import { messages } from "@/lib/messages";
 import { formatDate } from "@/lib/format";
 import type { ProjectPicker } from "@/modules/projects/project-options";
 import {
+  TODO_ITEM_SORT,
   isApproachingDeadline,
   isOverdue,
   type TodoItemListRow,
@@ -128,6 +129,15 @@ function buildColumns(
       value: (r) => r.Status,
       placeholder: P.status,
     }),
+    textColumn({
+      key: "Assignee",
+      header: messages.todoItems.assignee,
+      priority: 2,
+      field: "assignee",
+      value: (r) => r.Assignee,
+      placeholder: P.assignee,
+      maxLength: 255,
+    }),
     listColumn({
       key: "Priority",
       header: messages.todoItems.priority,
@@ -176,6 +186,8 @@ function buildColumns(
     {
       key: "Reorder",
       header: messages.todoItems.reorderLabel,
+      // The order the buttons write; sorting by it puts the list back in manual order.
+      sort: "SortKey",
       priority: 2,
       render: (r) => <ReorderControls row={r} rows={rows} canReorder={canReorder} />,
     },
@@ -270,6 +282,7 @@ export function TodoView({
         </div>
       )}
       columns={columns}
+      sort={TODO_ITEM_SORT}
       datasheet={{
         canEditRow,
         saveCell,

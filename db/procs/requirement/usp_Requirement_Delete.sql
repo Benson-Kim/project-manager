@@ -3,6 +3,11 @@
 -- Access: Manager + requirements:delete. CONFLICT 50002 on a stale RowVer.
 -- BeforeJson keeps the links and allocations so the change can be read back. Answers with the
 --   project id. Deliverables stay; only this requirement leaves the register.
+-- A requirement that still has sub-requirements is refused (ADR-0048), under the project lock
+--   since it reads other rows. Refusing is the reversible choice of the three: deleting the subtree
+--   takes rows the client may not have meant, and promoting the children renumbers references they
+--   may already have quoted in a document. The client has been asked which they want; until they
+--   answer, this says no and names why, which turns into either of the others without a migration.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Requirement_Delete
@@ -32,13 +37,18 @@ BEGIN
     DECLARE @Locked INT;
     SELECT @Locked = ProjectId FROM app.Project WITH (UPDLOCK, HOLDLOCK) WHERE ProjectId = @RowProjectId;
 
+    IF EXISTS (SELECT 1 FROM app.Requirement
+               WHERE ParentRequirementId = @RequirementId AND IsDeleted = 0)
+        THROW 50004, N'VALIDATION:Delete the sub-requirements under this one first', 1;
+
     -- The deliverables that will lose an allocation; their lists are renumbered after the delete.
     DECLARE @Touched TABLE (KeyDeliverableId INT PRIMARY KEY);
     INSERT INTO @Touched (KeyDeliverableId)
     SELECT KeyDeliverableId FROM app.RequirementDeliverable WHERE RequirementId = @RequirementId;
 
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT r.RequirementId, r.ProjectId, r.RequirementType, r.Number, r.Requirement, r.IsMet,
+        (SELECT r.RequirementId, r.ProjectId, r.RequirementType, r.Number, r.ParentRequirementId,
+                r.Requirement, r.IsMet,
                 l.ValidatesJson, l.ValidatedByJson, l.DeliverablesJson
          FROM app.Requirement AS r
          OUTER APPLY dbo.ufn_Requirement_Links(r.RequirementId) AS l

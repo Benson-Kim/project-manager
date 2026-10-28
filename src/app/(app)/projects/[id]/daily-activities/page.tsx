@@ -1,3 +1,4 @@
+import { withRichViews } from "@/components/ui/rich-text/rich-views";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -21,7 +22,10 @@ import {
 import { listAttachments } from "@/modules/file-storage/repository/attachments";
 import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
 import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
-import { DAILY_ACTIVITY_LISTS } from "@/modules/daily-activities/schemas/daily-activity";
+import {
+  DAILY_ACTIVITY_LISTS,
+  DAILY_ACTIVITY_SORT,
+} from "@/modules/daily-activities/schemas/daily-activity";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { parseProjectId } from "../project-id";
 
@@ -49,12 +53,8 @@ export default async function DailyActivitiesPage({
 
   const raw = await searchParams;
   const flat = flattenSearchParams(raw);
-  const listParams = parseListParams(raw);
-  const effectiveParams = {
-    ...listParams,
-    sort: listParams.sort ?? "RequestDate",
-    dir: (listParams.dir ?? "desc") as "asc" | "desc",
-  };
+  const listParams = parseListParams(raw, DAILY_ACTIVITY_SORT);
+  const effectiveParams = listParams;
 
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
@@ -112,7 +112,7 @@ export default async function DailyActivitiesPage({
       <LookupListsScope {...lookup}>
         <div className="mt-3 flex flex-col flex-1">
           <DailyActivitiesView
-            rows={rows}
+            rows={withRichViews(rows, ["Comments"])}
             totalCount={totalCount}
             page={effectiveParams.page}
             initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}

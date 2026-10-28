@@ -4,9 +4,11 @@ import { messages } from "@/lib/messages";
  * Project section registry (ADR-0018): mirrors nav-items.ts for the project
  * workspace. Each deployed module appends its entry so unbuilt sections do
  * not appear (no placeholders in the section nav).
- * Segment order per ADR-0018 point 3: charter (index) · objectives ·
- * deliverables · requirements · stakeholders · suppliers · activities · todos ·
- * keywords.
+ * Segment order per ADR-0018 point 3, amended by ADR-0046: charter (index) ·
+ * requirements · objectives · deliverables · stakeholders · suppliers ·
+ * activities · todos · keywords. The register comes first because the
+ * deliverables under it are what satisfy it (ADR-0037), and it is its own nav
+ * group rather than a Planning entry.
  */
 export interface ProjectSection {
   /** Route segment under /projects/[id]; "." is the charter index route. */
@@ -25,9 +27,9 @@ export interface ProjectSectionGroup {
 
 export const projectSections: ProjectSection[] = [
   { segment: ".", label: messages.projects.charterSection, match: "exact" },
+  { segment: "requirements", label: messages.projects.requirementsSection, match: "prefix" },
   { segment: "objectives", label: messages.projects.objectivesSection, match: "prefix" },
   { segment: "deliverables", label: messages.projects.deliverablesSection, match: "prefix" },
-  { segment: "requirements", label: messages.projects.requirementsSection, match: "prefix" },
   { segment: "stakeholders", label: messages.projects.stakeholdersSection, match: "prefix" },
   { segment: "suppliers", label: messages.projects.suppliersSection, match: "prefix" },
   { segment: "daily-activities", label: messages.projects.dailyActivitiesSection, match: "prefix" },
@@ -45,6 +47,7 @@ export const projectSections: ProjectSection[] = [
     match: "prefix",
   },
   { segment: "meetings", label: messages.projects.meetingsSection, match: "prefix" },
+  { segment: "notes", label: messages.projects.notesSection, match: "prefix" },
   // Financials (ADR-0029): one entry per view of the project's financial.
   { segment: "financials/budget", label: messages.financials.budgetTab, match: "prefix" },
   { segment: "financials/monitoring", label: messages.financials.monitoringTab, match: "prefix" },
@@ -64,13 +67,17 @@ export const projectSectionGroups: ProjectSectionGroup[] = [
     sections: projectSections.filter((s) => s.segment === "."),
   },
   {
+    key: "requirements",
+    label: messages.projects.requirementsSection,
+    sections: projectSections.filter((s) => s.segment === "requirements"),
+  },
+  {
     key: "planning",
     label: messages.planning.title,
     sections: projectSections.filter((s) =>
       [
         "objectives",
         "deliverables",
-        "requirements",
         "questions-answers",
         "parking-lot",
         "assumptions-constraints",
@@ -91,7 +98,7 @@ export const projectSectionGroups: ProjectSectionGroup[] = [
     key: "activity",
     label: messages.activity.title,
     sections: projectSections.filter((s) =>
-      ["daily-activities", "todos", "keywords", "meetings"].includes(s.segment),
+      ["daily-activities", "todos", "keywords", "meetings", "notes"].includes(s.segment),
     ),
   },
 ];

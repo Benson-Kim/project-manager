@@ -1,12 +1,24 @@
 import sanitizeHtml from "sanitize-html";
+import {
+  CELL_SHADES,
+  HIGHLIGHT_COLORS,
+  PAGE_BREAK_VALUE,
+  TEXT_COLORS,
+  indentLevel,
+  isLegalNumbering,
+  listStart,
+  nearestColor,
+  numberingCss,
+} from "./formats";
 import { isAllowedLinkHref } from "./links";
 import { installRichTextSanitizer } from "./schema";
 
 /**
- * Server-side rich-text sanitiser (ADR-0025). The allow-list is exactly what
- * the toolbar can produce, plus the legacy Access markup it converts:
- * <div> → <p>, <font face size> → <span style>, b/i/strike/del → the editor's
- * strong/em/s. Server only: client modules never import this file
+ * Server-side rich-text sanitiser (ADR-0025, ADR-0041). The allow-list is
+ * exactly what the toolbar can produce, plus the legacy Access markup it
+ * converts: <div> → <p>, <font face size color> → <span style data-color>,
+ * b/i/strike/del → the editor's strong/em/s. Colours, shades, indents and
+ * numbering are checked against the shared vocabulary (formats.ts). Server only: client modules never import this file
  * (src/tests/rich-text-boundaries.test.ts), so sanitize-html stays out of the
  * browser. Loading it installs the sanitiser for richTextSchema.
  */
@@ -30,6 +42,8 @@ const FONT_FAMILY = /^[\w\s"',-]{1,200}$/;
 const FONT_SIZE = /^\d{1,3}(?:\.\d{1,4})?(?:pt|px)$/;
 const TEXT_DECORATION = /^(?:none|underline|line-through)(?:\s+(?:underline|line-through))?$/;
 const CELL_SPAN = /^(?:[1-9]|[1-4]\d|50)$/;
+const HEADINGS = ["h2", "h3", "h4", "h5", "h6"] as const;
+const LIST_STYLE = /^(?:decimal|lower-alpha|upper-alpha|lower-roman|upper-roman)$/;
 
 function cell(tagName: string, attribs: sanitizeHtml.Attributes): sanitizeHtml.Tag {
   const kept: sanitizeHtml.Attributes = {};
@@ -37,17 +51,80 @@ function cell(tagName: string, attribs: sanitizeHtml.Attributes): sanitizeHtml.T
     const value = attribs[name]?.trim();
     if (value && CELL_SPAN.test(value) && value !== "1") kept[name] = value;
   }
+  const shade = nearestColor(attribs["data-shade"], CELL_SHADES);
+  if (shade) kept["data-shade"] = shade;
   return { tagName, attribs: kept };
 }
 
-/** <font face size> → <span style> with the equivalent font-family / font-size. */
+/** The `color:` value of a style attribute (legacy and pasted markup). */
+function styleColor(style: string | undefined): string | undefined {
+  return style?.match(/(?:^|;)\s*color\s*:\s*([^;]+)/i)?.[1];
+}
+
+/** p and h2–h6 keep their style (filtered to text-align below) and a valid indent level. */
+function block(tagName: string, attribs: sanitizeHtml.Attributes): sanitizeHtml.Tag {
+  const kept: sanitizeHtml.Attributes = {};
+  if (attribs.style) kept.style = attribs.style;
+  const indent = indentLevel(attribs["data-indent"]);
+  if (indent > 0) kept["data-indent"] = String(indent);
+  return { tagName, attribs: kept };
+}
+
+/** A span keeps its style (filtered below) and a colour name, mapped from a CSS colour if need be. */
+function span(_tagName: string, attribs: sanitizeHtml.Attributes): sanitizeHtml.Tag {
+  const kept: sanitizeHtml.Attributes = {};
+  if (attribs.style) kept.style = attribs.style;
+  const color =
+    nearestColor(attribs["data-color"], TEXT_COLORS) ??
+    nearestColor(styleColor(attribs.style), TEXT_COLORS);
+  if (color) kept["data-color"] = color;
+  return { tagName: "span", attribs: kept };
+}
+
+function highlight(_tagName: string, attribs: sanitizeHtml.Attributes): sanitizeHtml.Tag {
+  const color = nearestColor(attribs["data-color"], HIGHLIGHT_COLORS);
+  return { tagName: "mark", attribs: color ? { "data-color": color } : {} };
+}
+
+/** <ol>: a numbering type other than 1 (with its list-style-type) and a start other than 1. */
+function orderedList(_tagName: string, attribs: sanitizeHtml.Attributes): sanitizeHtml.Tag {
+  const kept: sanitizeHtml.Attributes = {};
+  const start = listStart(attribs.start);
+  if (start !== null && start !== 1) kept.start = String(start);
+  const type = attribs.type?.trim();
+  const css = numberingCss(type);
+  if (isLegalNumbering(type)) {
+    kept.type = type as string;
+    kept["data-numbering"] = "legal";
+  } else if (type && css && type !== "1") {
+    kept.type = type;
+    kept.style = `list-style-type:${css}`;
+  }
+  return { tagName: "ol", attribs: kept };
+}
+
+/** <hr>: a page break only for data-page-break="true", otherwise a line. */
+function rule(_tagName: string, attribs: sanitizeHtml.Attributes): sanitizeHtml.Tag {
+  return {
+    tagName: "hr",
+    attribs:
+      attribs["data-page-break"] === PAGE_BREAK_VALUE
+        ? { "data-page-break": PAGE_BREAK_VALUE }
+        : {},
+  };
+}
+
+/** <font face size color> → <span style data-color> with the equivalent font and colour name. */
 function legacyFont(_tagName: string, attribs: sanitizeHtml.Attributes): sanitizeHtml.Tag {
   const styles: string[] = [];
   const face = attribs.face?.trim();
   if (face && FONT_FAMILY.test(face)) styles.push(`font-family:${face}`);
   const size = legacyFontSizeToPt(attribs.size);
   if (size) styles.push(`font-size:${size}`);
-  return { tagName: "span", attribs: styles.length ? { style: styles.join(";") } : {} };
+  const kept: sanitizeHtml.Attributes = styles.length ? { style: styles.join(";") } : {};
+  const color = nearestColor(attribs.color, TEXT_COLORS);
+  if (color) kept["data-color"] = color;
+  return { tagName: "span", attribs: kept };
 }
 
 /** Only http/https/mailto links survive, always with rel; anything else keeps its text. */
@@ -69,9 +146,7 @@ const OPTIONS: sanitizeHtml.IOptions = {
     "ul",
     "ol",
     "li",
-    "h2",
-    "h3",
-    "h4",
+    ...HEADINGS,
     "blockquote",
     "table",
     "thead",
@@ -81,16 +156,20 @@ const OPTIONS: sanitizeHtml.IOptions = {
     "td",
     "a",
     "span",
+    "mark",
+    "hr",
   ],
+  // The transforms below check every value; these lists only name what may stay.
   allowedAttributes: {
     a: ["href", "rel"],
-    td: ["colspan", "rowspan"],
-    th: ["colspan", "rowspan"],
-    span: ["style"],
-    p: ["style"],
-    h2: ["style"],
-    h3: ["style"],
-    h4: ["style"],
+    td: ["colspan", "rowspan", "data-shade"],
+    th: ["colspan", "rowspan", "data-shade"],
+    span: ["style", "data-color"],
+    mark: ["data-color"],
+    ol: ["start", "type", "style", "data-numbering"],
+    hr: ["data-page-break"],
+    p: ["style", "data-indent"],
+    ...Object.fromEntries(HEADINGS.map((h) => [h, ["style", "data-indent"]])),
   },
   allowedStyles: {
     span: {
@@ -98,10 +177,9 @@ const OPTIONS: sanitizeHtml.IOptions = {
       "font-size": [FONT_SIZE],
       "text-decoration": [TEXT_DECORATION],
     },
+    ol: { "list-style-type": [LIST_STYLE] },
     p: ALIGN,
-    h2: ALIGN,
-    h3: ALIGN,
-    h4: ALIGN,
+    ...Object.fromEntries(HEADINGS.map((h) => [h, ALIGN])),
   },
   allowedSchemes: ["http", "https", "mailto"],
   allowedSchemesByTag: {},
@@ -124,16 +202,20 @@ const OPTIONS: sanitizeHtml.IOptions = {
     "math",
   ],
   transformTags: {
-    div: "p",
+    div: (_tagName, attribs) => block("p", attribs),
+    p: block,
+    h1: (_tagName, attribs) => block("h2", attribs),
+    ...Object.fromEntries(HEADINGS.map((h) => [h, block])),
     b: "strong",
     i: "em",
     strike: "s",
     del: "s",
-    h1: "h2",
-    h5: "h4",
-    h6: "h4",
     td: cell,
     th: cell,
+    span,
+    mark: highlight,
+    ol: orderedList,
+    hr: rule,
     font: legacyFont,
     a: link,
   },
@@ -154,7 +236,8 @@ export function htmlToPlainText(html: string): string {
       // A list item's or cell's last paragraph ends with its container, not a line.
       .replace(/<\/p>(?=<\/(?:li|td|th)>)/gi, "")
       .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<\/(?:p|h[2-4]|li|tr|blockquote)>/gi, "\n")
+      .replace(/<hr[^>]*>/gi, "\n")
+      .replace(/<\/(?:p|h[2-6]|li|tr|blockquote)>/gi, "\n")
       .replace(/<\/(?:td|th)>/gi, "\t")
       .replace(/<[^>]*>/g, "")
       .replace(/&lt;/g, "<")
@@ -162,7 +245,9 @@ export function htmlToPlainText(html: string): string {
       .replace(/&quot;/g, '"')
       .replace(/&amp;/g, "&")
       .split("\n")
-      .map((line) => line.replace(/[ \t]+$/, ""))
+      // The lookbehind starts a match only at the start of a run, which keeps a long run of
+      // spaces before a letter linear (without it, 40k spaces took 3.7 s).
+      .map((line) => line.replace(/(?<![ \t])[ \t]+$/, ""))
       .join("\n")
       .replace(/\n{3,}/g, "\n\n")
       .trim()

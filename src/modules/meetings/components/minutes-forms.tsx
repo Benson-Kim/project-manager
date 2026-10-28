@@ -7,7 +7,8 @@ import { useAnnouncer } from "@/components/ui/announcer";
 import { Button } from "@/components/ui/button";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
-import { DatePicker, Input } from "@/components/ui/form/inputs";
+import { Dialog } from "@/components/ui/dialog";
+import { DatePicker, Input, Select, Textarea } from "@/components/ui/form/inputs";
 import { useUnsavedPart } from "@/components/ui/form/unsaved-scope";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
@@ -17,26 +18,41 @@ import {
   createActionItemAction,
   createAgendaItemAction,
   createDiscussionPointAction,
+  createFollowUpAction,
   updateActionItemAction,
   updateAgendaItemAction,
   updateDiscussionPointAction,
+  updateFollowUpAction,
 } from "../actions";
-import type {
-  MeetingWorkspace,
-  WorkspaceActionItem,
-  WorkspaceAgendaItem,
-  WorkspaceDiscussionPoint,
+import {
+  ACTION_STATUSES,
+  DEFAULT_ACTION_STATUS,
+  ON_HOLD_REASON_MAX,
+  type ActionStatus,
+  type MeetingWorkspace,
+  type WorkspaceActionItem,
+  type WorkspaceAgendaItem,
+  type WorkspaceDiscussionPoint,
+  type WorkspaceFollowUp,
 } from "../schemas/meeting";
 import {
   MEETING_TEXT_MAX,
   createActionItemSchema,
   createAgendaItemSchema,
   createDiscussionPointSchema,
+  createFollowUpSchema,
   updateActionItemSchema,
   updateAgendaItemSchema,
   updateDiscussionPointSchema,
+  updateFollowUpSchema,
 } from "../schemas/meeting-form";
-import { editRowVer, sameAction, sameAgendaItem, samePoint } from "../schemas/minutes";
+import {
+  editRowVer,
+  sameAction,
+  sameAgendaItem,
+  sameFollowUp,
+  samePoint,
+} from "../schemas/minutes";
 import { useMinutes, type MinutesAnswer } from "./minutes-context";
 
 const M = messages.meetings;
@@ -283,10 +299,156 @@ export function DiscussionPointForm({
   );
 }
 
+/** The three statuses an action moves between (ADR-0043). */
+export function StatusSelect({
+  defaultValue,
+  value,
+  name = "status",
+  onPick,
+  ariaLabel,
+}: {
+  defaultValue?: ActionStatus;
+  /**
+   * The status the row actually has. Passing it makes the select controlled,
+   * which is what a list needs: the hold asks for its reason before anything is
+   * written, and a cancelled or refused pick must not leave the select showing a
+   * status the row never took. A form passes `defaultValue` instead, because
+   * what it shows is the draft and FormData is what reads it.
+   */
+  value?: ActionStatus;
+  name?: string;
+  onPick?: (status: ActionStatus) => void;
+  ariaLabel?: string;
+}) {
+  return (
+    <Select
+      name={name}
+      aria-label={ariaLabel}
+      {...(value === undefined ? { defaultValue } : { value })}
+      data-testid="action-status"
+      onChange={onPick ? (event) => onPick(event.target.value as ActionStatus) : undefined}
+    >
+      {ACTION_STATUSES.map((value) => (
+        <option key={value} value={value}>
+          {M.actionStatus[value]}
+        </option>
+      ))}
+    </Select>
+  );
+}
+
+/**
+ * The status in the action's own form, with the reason box appearing under it
+ * as soon as the hold is chosen. The box stays in the form whatever the status
+ * is (the schema drops a reason that no longer belongs to one), so switching
+ * back and forth does not lose what was typed before the form is saved.
+ */
+function ActionStatusFields({
+  status,
+  reason,
+  errors,
+}: {
+  status: ActionStatus;
+  reason: string;
+  errors: Record<string, string[]>;
+}) {
+  const [picked, setPicked] = useState(status);
+  return (
+    <>
+      <Field label={M.status} name="status" errors={errors.status}>
+        <StatusSelect defaultValue={status} onPick={setPicked} />
+      </Field>
+      <div hidden={picked !== "on-hold"}>
+        <Field label={M.onHoldReason} name="onHoldReason" errors={errors.onHoldReason}>
+          <Textarea
+            name="onHoldReason"
+            rows={2}
+            maxLength={ON_HOLD_REASON_MAX}
+            defaultValue={reason}
+            data-testid="action-on-hold-reason"
+          />
+        </Field>
+      </div>
+    </>
+  );
+}
+
+/**
+ * Why an action is going on hold (ADR-0044). The reason is optional, so the
+ * dialog offers both: save what was typed, or hold it without a reason. One
+ * write either way — the status and its reason reach the proc together, which
+ * is the pair CK_MeetingActionItem_OnHoldReason allows.
+ */
+export function OnHoldReasonDialog({
+  open,
+  actionName,
+  current,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  actionName: string;
+  /** The reason it already carries, when the hold is being changed rather than started. */
+  current: string | null;
+  pending: boolean;
+  onCancel: () => void;
+  onConfirm: (reason: string | null) => void;
+}) {
+  const [reason, setReason] = useState(current ?? "");
+  // Each action opens the dialog with its own reason; the key resets this state.
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onCancel();
+      }}
+      title={M.onHoldReasonTitle}
+      description={M.onHoldReasonBody}
+    >
+      <div className="flex flex-col gap-3">
+        <Field label={M.onHoldReasonOf(actionName)} name="onHoldReason">
+          <Textarea
+            name="onHoldReason"
+            rows={3}
+            maxLength={ON_HOLD_REASON_MAX}
+            autoFocus
+            data-testid="on-hold-reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </Field>
+        <p className="text-xs text-ink-muted">{M.onHoldReasonHint}</p>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="secondary" onClick={onCancel} disabled={pending}>
+            {messages.actions.cancel}
+          </Button>
+          <Button
+            variant="secondary"
+            data-testid="hold-without-reason"
+            onClick={() => onConfirm(null)}
+            disabled={pending}
+          >
+            {M.putOnHold}
+          </Button>
+          <Button
+            data-testid="hold-with-reason"
+            onClick={() => onConfirm(reason.trim() || null)}
+            pending={pending}
+          >
+            {M.saveReason}
+          </Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
 /**
  * Adds an action under a discussion point (or directly under an agenda
  * item), or edits one: the action, the person responsible (a stakeholder of
- * the project, checklist row 13) and the due date.
+ * the project, checklist row 13), the due date, the status and, for a hold,
+ * its reason.
  */
 export function ActionItemForm({
   parent,
@@ -320,10 +482,26 @@ export function ActionItemForm({
           name="assignedToStakeholderId"
           errors={errors.assignedToStakeholderId}
         >
+          {/*
+            Pick a stakeholder, or type the name of someone who is not one — a
+            guest, or somebody outside the organisation (client feedback
+            2026-10-26). A stored name with no stakeholder behind it is free
+            text, so it comes back into the box as text.
+          */}
           <StakeholderSelect
             name="assignedToStakeholderId"
-            options={people(action)}
+            options={people(
+              action && action.AssignedToStakeholderId !== null
+                ? { id: action.AssignedToStakeholderId, name: action.AssigneeName }
+                : undefined,
+            )}
             defaultValue={action?.AssignedToStakeholderId ?? null}
+            freeTextName="assigneeOther"
+            defaultFreeText={
+              action && action.AssignedToStakeholderId === null
+                ? (action.AssigneeName ?? "")
+                : undefined
+            }
             onSelect={changed}
           />
         </Field>
@@ -331,6 +509,11 @@ export function ActionItemForm({
           <DatePicker name="dueDate" defaultValue={action?.DueDate ?? ""} />
         </Field>
       </div>
+      <ActionStatusFields
+        status={action?.Status ?? DEFAULT_ACTION_STATUS}
+        reason={action?.OnHoldReason ?? ""}
+        errors={errors}
+      />
     </>
   );
 
@@ -368,6 +551,110 @@ export function ActionItemForm({
           ) : (
             <input type="hidden" name="discussionPointId" value={discussionPointId} />
           )}
+          {fields(errors, changed)}
+        </>
+      )}
+    </MinutesForm>
+  );
+}
+
+/**
+ * Adds a follow-up under an action item, or edits one (ADR-0043): what was
+ * followed up, the person it is assigned to, the date it was made and the date
+ * it is due. The status stays on the action, so a reader looks in one place.
+ */
+export function FollowUpForm({
+  meetingActionItemId,
+  followUp,
+  onDone,
+}: {
+  meetingActionItemId: number;
+  followUp?: WorkspaceFollowUp;
+  onDone: (saved: boolean) => void;
+}) {
+  const { answer, people } = useMinutes();
+  const [started] = useState(followUp);
+  const common = {
+    label: followUp ? M.editItem(M.followUpEntity) : M.addFollowUp,
+    testId: "follow-up-form",
+    onSaved: (workspace: MeetingWorkspace | null) => {
+      answer(workspace);
+      onDone(true);
+    },
+    onClose: () => onDone(false),
+  };
+  const fields = (errors: Record<string, string[]>, changed: () => void) => (
+    <>
+      <Field label={M.followUp} name="followUp" errors={errors.followUp}>
+        <Input
+          name="followUp"
+          maxLength={MEETING_TEXT_MAX}
+          defaultValue={followUp?.FollowUp ?? ""}
+        />
+      </Field>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Field
+          label={M.assignedTo}
+          name="assignedToStakeholderId"
+          errors={errors.assignedToStakeholderId}
+        >
+          <StakeholderSelect
+            name="assignedToStakeholderId"
+            options={people(
+              followUp
+                ? { id: followUp.AssignedToStakeholderId, name: followUp.AssigneeName }
+                : undefined,
+            )}
+            defaultValue={followUp?.AssignedToStakeholderId ?? null}
+            onSelect={changed}
+          />
+        </Field>
+        <Field label={M.followUpDate} name="followUpDate" errors={errors.followUpDate}>
+          <DatePicker name="followUpDate" defaultValue={followUp?.FollowUpDate ?? ""} />
+        </Field>
+        <Field label={M.dueDate} name="dueDate" errors={errors.dueDate}>
+          <DatePicker name="dueDate" defaultValue={followUp?.DueDate ?? ""} />
+        </Field>
+      </div>
+    </>
+  );
+
+  if (followUp && started) {
+    return (
+      <MinutesForm
+        {...common}
+        part={`follow-up-${followUp.MeetingActionFollowUpId}`}
+        schema={updateFollowUpSchema}
+        submit={updateFollowUpAction}
+      >
+        {(errors, changed) => (
+          <>
+            <input
+              type="hidden"
+              name="meetingActionFollowUpId"
+              value={followUp.MeetingActionFollowUpId}
+            />
+            <input
+              type="hidden"
+              name="rowVer"
+              value={editRowVer(started, followUp, sameFollowUp)}
+            />
+            {fields(errors, changed)}
+          </>
+        )}
+      </MinutesForm>
+    );
+  }
+  return (
+    <MinutesForm
+      {...common}
+      part={`follow-up-new-${meetingActionItemId}`}
+      schema={createFollowUpSchema}
+      submit={createFollowUpAction}
+    >
+      {(errors, changed) => (
+        <>
+          <input type="hidden" name="meetingActionItemId" value={meetingActionItemId} />
           {fields(errors, changed)}
         </>
       )}

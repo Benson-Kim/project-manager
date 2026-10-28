@@ -308,7 +308,7 @@ function RequirementText({
   const [editing, setEditing] = useState(false);
   // Enter and the closing blur both report the text.
   const sent = useRef<string | null>(null);
-  const textClass = `min-w-0 flex-1 text-xs leading-5 wrap-anywhere ${
+  const textClass = `min-w-0 flex-1 truncate text-xs leading-5 print:whitespace-normal ${
     requirement.isMet ? "text-ink-muted line-through" : "text-ink"
   }`;
   if (editing) {
@@ -330,21 +330,38 @@ function RequirementText({
       />
     );
   }
+  const bubble = (
+    <span
+      aria-hidden="true"
+      data-testid="wbs-req-bubble"
+      className="pointer-events-none absolute bottom-full left-0 z-(--z-dropdown) mb-1 hidden w-72 max-w-[80vw] rounded bg-ink px-2 py-1.5 text-xs whitespace-normal text-surface shadow-md wrap-anywhere group-focus-within:block group-hover:block print:hidden"
+    >
+      <span className="font-semibold">{requirementChip(requirement)}</span> {requirement.text}
+    </span>
+  );
   if (!canEdit || isPending(requirement)) {
-    return <span className={textClass}>{requirement.text}</span>;
+    return (
+      <>
+        <span className={textClass}>{requirement.text}</span>
+        {bubble}
+      </>
+    );
   }
   return (
-    <button
-      type="button"
-      aria-label={W.editRequirement(requirement.text)}
-      onClick={() => {
-        sent.current = null;
-        setEditing(true);
-      }}
-      className={`${textClass} -mx-1 cursor-text rounded-sm px-1 text-left hover:bg-surface-raised`}
-    >
-      {requirement.text}
-    </button>
+    <>
+      <button
+        type="button"
+        aria-label={W.editRequirement(requirement.text)}
+        onClick={() => {
+          sent.current = null;
+          setEditing(true);
+        }}
+        className={`${textClass} -mx-1 cursor-text rounded-sm px-1 text-left hover:bg-surface-raised`}
+      >
+        {requirement.text}
+      </button>
+      {bubble}
+    </>
   );
 }
 
@@ -393,14 +410,14 @@ export function BoxRequirements({
             <li
               key={requirement.id}
               data-testid={`wbs-req-${requirement.id}`}
-              className="group flex items-start gap-1.5"
+              className="group relative flex items-start gap-1.5"
             >
               <span className="flex h-5 items-center">
                 <MetBox requirement={requirement} canEdit={access.canEdit} on={on} />
               </span>
               <RefChip requirement={requirement} />
               <RequirementText requirement={requirement} canEdit={access.canEdit} on={on} />
-              <span className="-my-1 flex opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100">
+              <span className="-my-1 hidden group-focus-within:flex group-hover:flex pointer-coarse:flex">
                 <RequirementControls
                   itemId={node.item.id}
                   requirement={requirement}

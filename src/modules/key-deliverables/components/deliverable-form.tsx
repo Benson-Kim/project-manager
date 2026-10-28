@@ -38,6 +38,7 @@ export function DeliverableForm({
   assigneeOptions,
   canEdit,
   canDelete,
+  focusField = null,
   onDone,
 }: {
   projectId: number;
@@ -45,12 +46,16 @@ export function DeliverableForm({
   assigneeOptions: StakeholderOption[];
   canEdit: boolean;
   canDelete: boolean;
+  /** The field the caret starts in — the WBS editor's Assignees… command opens the form on it. */
+  focusField?: "assignees" | null;
   onDone: () => void;
 }) {
   const schema = deliverable ? updateKeyDeliverableFormSchema : keyDeliverableFormSchema;
   const form = useZodForm(schema);
   /** A parent's dates come from its sub-items (ADR-0027); the form shows them, read-only. */
   const rolledUp = deliverable?.HasChildren === true;
+  /** A milestone is one day (ADR-0046): one date field, and the proc derives the end from it. */
+  const milestone = deliverable?.IsMilestone === true;
   const subItems = deliverable?.SubItemCount ?? 0;
   const deliverableName = deliverable
     ? (deliverable.KeyRequirement ??
@@ -136,9 +141,11 @@ export function DeliverableForm({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field
             label={
-              rolledUp
-                ? messages.keyDeliverables.rolledUp(messages.keyDeliverables.startDate)
-                : messages.keyDeliverables.startDate
+              milestone
+                ? messages.keyDeliverables.milestoneDate
+                : rolledUp
+                  ? messages.keyDeliverables.rolledUp(messages.keyDeliverables.startDate)
+                  : messages.keyDeliverables.startDate
             }
             name="startDate"
             errors={form.errors.startDate}
@@ -149,21 +156,23 @@ export function DeliverableForm({
               defaultValue={toDateInput(deliverable ? deliverable.StartDate : defaultStart)}
             />
           </Field>
-          <Field
-            label={
-              rolledUp
-                ? messages.keyDeliverables.rolledUp(messages.keyDeliverables.deadline)
-                : messages.keyDeliverables.deadline
-            }
-            name="deadline"
-            errors={form.errors.deadline}
-          >
-            <DatePicker
+          {milestone ? null : (
+            <Field
+              label={
+                rolledUp
+                  ? messages.keyDeliverables.rolledUp(messages.keyDeliverables.deadline)
+                  : messages.keyDeliverables.deadline
+              }
               name="deadline"
-              readOnly={rolledUp}
-              defaultValue={toDateInput(deliverable?.Deadline)}
-            />
-          </Field>
+              errors={form.errors.deadline}
+            >
+              <DatePicker
+                name="deadline"
+                readOnly={rolledUp}
+                defaultValue={toDateInput(deliverable?.Deadline)}
+              />
+            </Field>
+          )}
           <Field
             label={messages.keyDeliverables.requestedDate}
             name="requestedDate"
@@ -200,6 +209,7 @@ export function DeliverableForm({
             inputName="assigneeIds[]"
             removeLabel={messages.keyDeliverables.removeAssignee}
             emptyPlaceholder={messages.keyDeliverables.unassigned}
+            autoFocus={focusField === "assignees" && canEdit}
             onAdd={handleAdd}
             onRemove={handleRemove}
           />

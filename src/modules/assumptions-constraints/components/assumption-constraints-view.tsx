@@ -17,6 +17,7 @@ import type {
 } from "../schemas/assumption-constraint";
 import { assumptionConstraintFormValues } from "../schemas/assumption-constraint-form";
 import { AssumptionConstraintToolbar } from "./assumption-constraint-toolbar";
+import { ASSUMPTION_CONSTRAINT_SORT } from "../schemas/assumption-constraint";
 
 type Row = AssumptionConstraintListRow;
 const P = messages.assumptionsConstraints.placeholders;
@@ -135,6 +136,7 @@ export function AssumptionConstraintsView({
         </div>
       )}
       columns={columns}
+      sort={ASSUMPTION_CONSTRAINT_SORT}
       datasheet={{
         canEditRow,
         saveCell,

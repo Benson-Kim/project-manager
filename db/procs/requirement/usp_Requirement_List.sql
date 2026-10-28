@@ -1,6 +1,17 @@
 -- usp_Requirement_List — the project's requirement register, paged per ADR-0016 (ADR-0037).
--- Search column: Requirement. Sort whitelist: Ref (default: catalog type order, then Number),
---   Requirement, CreatedAtUtc. An unknown @SortBy falls back to the default.
+-- Search column: Requirement. Sort whitelist: Ref (default: catalog type order, then the tree
+--   path), Requirement, CreatedAtUtc. An unknown @SortBy falls back to the default.
+-- Ref, SortPath and Depth come from ufn_Requirement_AncestorPath (ADR-0048), inside the paging CTE
+--   rather than beside it: the default order *is* the path, so it has to be known before the page
+--   is cut, or a sub-requirement would land on a different page from its parent. Depth is sent so
+--   the register indents by it instead of recomputing the tree in the browser.
+-- ChildCount is the live sub-requirements directly under the row (ADR-0048). The register needs it
+--   to stop offering what the procs would refuse — a type change or a delete on a row that still
+--   has children — rather than letting the save fail and explaining afterwards (STANDARDS §5.6).
+--   It seeks IX_Requirement_Parent, which migration 048 adds for exactly these lookups.
+-- A @Type or @Search filter is applied to rows, not to branches: a sub-requirement that matches is
+--   returned whether or not its parent did. Its Ref is the whole path, so the row still says where
+--   it belongs even when the parent is not on the page.
 -- Paged in a CTE first; the links JSON is built for the page's rows only.
 -- Row-level access: dbo.usp_Project_AssertAccess on @ProjectId (FORBIDDEN_ROW 50003).
 -- ActorAccess / ActorGrants / ActorRevokes per ADR-0023 and ADR-0024, as usp_Objective_List.
@@ -34,46 +45,52 @@ BEGIN
         SET @Search = REPLACE(REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'), N'_', N'\_'), N'[', N'\[');
 
     WITH page AS (
-        SELECT RequirementId,
+        SELECT r.RequirementId, ap.Ref, ap.SortPath, ap.Depth,
                COUNT(*) OVER () AS TotalCount,
                ROW_NUMBER() OVER (
                    ORDER BY
                        CASE WHEN @SortBy = N'Requirement' AND @SortDir = 'asc'
-                            THEN Requirement END ASC,
+                            THEN r.Requirement END ASC,
                        CASE WHEN @SortBy = N'Requirement' AND @SortDir = 'desc'
-                            THEN Requirement END DESC,
+                            THEN r.Requirement END DESC,
                        CASE WHEN @SortBy = N'CreatedAtUtc' AND @SortDir = 'asc'
-                            THEN CreatedAtUtc END ASC,
+                            THEN r.CreatedAtUtc END ASC,
                        CASE WHEN @SortBy = N'CreatedAtUtc' AND @SortDir = 'desc'
-                            THEN CreatedAtUtc END DESC,
+                            THEN r.CreatedAtUtc END DESC,
                        CASE WHEN @SortDir = 'desc'
                                  AND (@SortBy IS NULL OR @SortBy NOT IN (N'Requirement', N'CreatedAtUtc'))
-                            THEN CASE RequirementType
+                            THEN CASE r.RequirementType
                                      WHEN 'BR' THEN 1 WHEN 'SR' THEN 2 WHEN 'FR' THEN 3
                                      WHEN 'NFR' THEN 4 WHEN 'TR' THEN 5 END END DESC,
                        CASE WHEN @SortDir = 'desc'
                                  AND (@SortBy IS NULL OR @SortBy NOT IN (N'Requirement', N'CreatedAtUtc'))
-                            THEN Number END DESC,
-                       CASE RequirementType
+                            THEN ap.SortPath END DESC,
+                       CASE r.RequirementType
                            WHEN 'BR' THEN 1 WHEN 'SR' THEN 2 WHEN 'FR' THEN 3
                            WHEN 'NFR' THEN 4 WHEN 'TR' THEN 5 END ASC,
-                       Number ASC
+                       ap.SortPath ASC
                ) AS RowNum
-        FROM app.Requirement
-        WHERE ProjectId = @ProjectId
-          AND IsDeleted = 0
-          AND (@Type IS NULL OR RequirementType = @Type)
-          AND (@Search IS NULL OR Requirement LIKE N'%' + @Search + N'%' ESCAPE N'\')
+        FROM app.Requirement AS r
+        CROSS APPLY dbo.ufn_Requirement_AncestorPath(r.RequirementId) AS ap
+        WHERE r.ProjectId = @ProjectId
+          AND r.IsDeleted = 0
+          AND (@Type IS NULL OR r.RequirementType = @Type)
+          AND (@Search IS NULL OR r.Requirement LIKE N'%' + @Search + N'%' ESCAPE N'\')
     )
     SELECT r.RequirementId,
            r.ProjectId,
            r.RequirementType,
            r.Number,
+           p.Ref,
+           p.SortPath,
+           p.Depth,
            r.Requirement,
            r.IsMet,
            r.CreatedAtUtc,
            r.UpdatedAtUtc,
            CAST(r.RowVer AS BIGINT) AS RowVer,
+           (SELECT COUNT(*) FROM app.Requirement AS ch
+            WHERE ch.ParentRequirementId = r.RequirementId AND ch.IsDeleted = 0) AS ChildCount,
            l.ValidatesJson,
            l.ValidatedByJson,
            l.DeliverablesJson,

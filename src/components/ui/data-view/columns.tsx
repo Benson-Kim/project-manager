@@ -2,7 +2,7 @@ import { formatDate, toDateInput } from "@/lib/format";
 import type { ListChoice, LookupListKey } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
 import { ListBadge } from "../lookup-lists";
-import { formText, previewText, type RichCellView } from "./datasheet";
+import { formText, richContent, type RichCellView } from "./datasheet";
 import type { DataViewColumn } from "./types";
 
 /**
@@ -26,15 +26,26 @@ interface ColumnSpec<Row, Value> {
   render?: (row: Row) => React.ReactNode;
   /** Rows whose cell can be edited; every row the actor may edit by default. */
   editable?: (row: Row) => boolean;
+  /** The proc's `@SortBy` token, when the column key is not it (DataViewColumn.sort). */
+  sort?: string;
 }
 
 export function textColumn<Row>(
-  spec: ColumnSpec<Row, string | null> & { maxLength?: number },
+  spec: ColumnSpec<Row, string | null> & {
+    maxLength?: number;
+    /**
+     * Edit this cell as a wrapping box rather than one line. Long prose capped
+     * at 255 characters still needs it, so a column whose sheet uses a textarea
+     * says so here instead of being inferred from the cap alone.
+     */
+    multiline?: boolean;
+  },
 ): DataViewColumn<Row> {
   return {
     key: spec.key,
     header: spec.header,
     priority: spec.priority,
+    sort: spec.sort,
     render: spec.render ?? spec.value,
     edit: {
       kind: "text",
@@ -42,7 +53,7 @@ export function textColumn<Row>(
       value: (row) => formText(spec.value(row)),
       placeholder: spec.placeholder,
       maxLength: spec.maxLength,
-      multiline: spec.maxLength === undefined || spec.maxLength > 255,
+      multiline: spec.multiline ?? (spec.maxLength === undefined || spec.maxLength > 255),
       editable: spec.editable,
     },
   };
@@ -59,15 +70,12 @@ export function textColumn<Row>(
 export function richTextColumn<Row>(
   spec: ColumnSpec<Row, string | null> & { view: (row: Row) => RichCellView },
 ): DataViewColumn<Row> {
-  const display = (row: Row) => {
-    const view = spec.view(row);
-    const html = spec.value(row);
-    return view.html === html ? view.node : previewText(html);
-  };
+  const display = (row: Row) => richContent(spec.view(row), spec.value(row));
   return {
     key: spec.key,
     header: spec.header,
     priority: spec.priority,
+    sort: spec.sort,
     render: spec.render ?? display,
     edit: {
       kind: "rich",
@@ -87,6 +95,7 @@ export function numberColumn<Row>(
     key: spec.key,
     header: spec.header,
     priority: spec.priority,
+    sort: spec.sort,
     render: spec.render ?? spec.value,
     edit: {
       kind: "number",
@@ -105,6 +114,7 @@ export function dateColumn<Row>(spec: ColumnSpec<Row, Date | null>): DataViewCol
     key: spec.key,
     header: spec.header,
     priority: spec.priority,
+    sort: spec.sort,
     render: spec.render ?? ((row) => formatDate(spec.value(row))),
     edit: {
       kind: "date",
@@ -127,6 +137,7 @@ export function booleanColumn<Row>(
     key: spec.key,
     header: spec.header,
     priority: spec.priority,
+    sort: spec.sort,
     render: spec.render ?? ((row) => (spec.value(row) ? spec.yes : spec.no)),
     edit: {
       kind: "select",
@@ -163,6 +174,7 @@ export function listColumn<Row>(
     key: spec.key,
     header: spec.header,
     priority: spec.priority,
+    sort: spec.sort,
     // The value's badge in its list colour (migration 020).
     render:
       spec.render ??
@@ -209,6 +221,7 @@ export function choiceColumn<Row>(
     key: spec.key,
     header: spec.header,
     priority: spec.priority,
+    sort: spec.sort,
     render: spec.render ?? label,
     edit: {
       kind: "select",

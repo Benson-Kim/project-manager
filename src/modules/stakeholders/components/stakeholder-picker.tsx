@@ -49,6 +49,7 @@ export function StakeholderMultiSelect({
   inputName,
   removeLabel,
   emptyPlaceholder,
+  autoFocus,
   onAdd,
   onRemove,
 }: {
@@ -59,6 +60,7 @@ export function StakeholderMultiSelect({
   removeLabel: (name: string) => string;
   /** Shown in the input when the project has no stakeholders. */
   emptyPlaceholder: string;
+  autoFocus?: boolean;
   onAdd: (opt: StakeholderOption) => void;
   onRemove: (id: number) => void;
 }) {
@@ -85,6 +87,7 @@ export function StakeholderMultiSelect({
       inputName={inputName}
       removeLabel={removeLabel}
       emptyPlaceholder={emptyPlaceholder}
+      autoFocus={autoFocus}
       onAdd={add}
       onRemove={onRemove}
     />
@@ -101,11 +104,16 @@ export function StakeholderSelect({
   options,
   defaultValue,
   onSelect,
+  freeTextName,
+  defaultFreeText,
 }: {
   name: string;
   options: StakeholderOption[];
   defaultValue: number | null;
   onSelect?: (option: ComboboxOption | null) => void;
+  /** Submit a name that matches no stakeholder under this field (see Combobox). */
+  freeTextName?: string;
+  defaultFreeText?: string;
 }) {
   const choices = useMemo(
     () => options.map((o) => ({ value: String(o.stakeholderId), label: o.name })),
@@ -117,6 +125,8 @@ export function StakeholderSelect({
       options={choices}
       defaultValue={defaultValue == null ? "" : String(defaultValue)}
       onSelect={onSelect}
+      freeTextName={freeTextName}
+      defaultFreeText={defaultFreeText}
     />
   );
 }

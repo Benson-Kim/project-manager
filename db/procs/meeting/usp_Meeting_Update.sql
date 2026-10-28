@@ -19,7 +19,6 @@ CREATE OR ALTER PROCEDURE dbo.usp_Meeting_Update
     @EndTime        TIME(0)       = NULL,
     @Conclusion     NVARCHAR(MAX) = NULL,
     @NextMeeting    DATETIME2     = NULL,
-    @FollowupAction NVARCHAR(255) = NULL,
     @RowVer         BIGINT,
     @ActorUserId    INT
 AS
@@ -60,7 +59,6 @@ BEGIN
         [EndTime]        = @EndTime,
         [Conclusion]     = @Conclusion,
         [NextMeeting]    = @NextMeeting,
-        [FollowupAction] = @FollowupAction,
         UpdatedAtUtc     = SYSUTCDATETIME(),
         UpdatedBy        = @ActorUserId
     WHERE MeetingId = @MeetingId AND IsDeleted = 0

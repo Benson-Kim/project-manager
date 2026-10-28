@@ -1,3 +1,4 @@
+import "@/lib/rich-text/sanitize";
 import { describe, expect, it } from "vitest";
 import { objectiveFormSchema, updateObjectiveFormSchema } from "../schemas/objective-form";
 
@@ -22,11 +23,11 @@ describe("objectiveFormSchema", () => {
     const parsed = objectiveFormSchema.parse({
       ...minimal,
       qMeasurable: "Yes",
-      qSuccess: "Metric > 99%",
+      qSuccess: "<p>Metric &gt; 99%</p>",
       qAlignmentStrategy: "Aligned with strategy A",
     });
     expect(parsed.qMeasurable).toBe("Yes");
-    expect(parsed.qSuccess).toBe("Metric > 99%");
+    expect(parsed.qSuccess).toBe("<p>Metric &gt; 99%</p>");
     expect(parsed.qAlignmentStrategy).toBe("Aligned with strategy A");
   });
 

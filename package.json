@@ -26,6 +26,7 @@
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
     "@tiptap/core": "3.31.4",
+    "@tiptap/extension-highlight": "3.31.4",
     "@tiptap/extension-table": "3.31.4",
     "@tiptap/extension-text-align": "3.31.4",
     "@tiptap/extension-text-style": "3.31.4",
@@ -59,6 +60,7 @@
     "eslint": "^9",
     "eslint-config-next": "^16.4.2",
     "eslint-config-prettier": "^10.1.0",
+    "harper.js": "3.0.0",
     "prettier": "^3.9.6",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.0",

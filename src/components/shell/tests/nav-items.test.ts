@@ -9,6 +9,7 @@ describe("nav registry (shell spec, issue #28)", () => {
       messages.nav.projects,
       messages.nav.dailyActivities,
       messages.nav.todoLists,
+      messages.nav.notes,
       messages.nav.boards,
       messages.nav.reports,
     ]);
@@ -20,6 +21,8 @@ describe("nav registry (shell spec, issue #28)", () => {
     expect(pageTitleFor("/projects")).toBe(messages.nav.projects);
     expect(pageTitleFor("/projects/17")).toBe(messages.nav.projects);
     expect(pageTitleFor("/projects/new")).toBe(messages.projects.newProject);
+    expect(pageTitleFor("/notes")).toBe(messages.nav.notes);
+    expect(pageTitleFor("/notes/12")).toBe(messages.nav.notes);
     expect(pageTitleFor("/boards")).toBe(messages.nav.boards);
     expect(pageTitleFor("/boards/3")).toBe(messages.nav.boards);
     expect(pageTitleFor("/settings")).toBe(messages.nav.settings);

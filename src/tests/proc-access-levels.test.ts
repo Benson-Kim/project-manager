@@ -19,6 +19,7 @@ const MODULES: Record<string, string> = {
   "board-sprint": "boards",
   "daily-activity": "daily-activities",
   "key-deliverable": "key-deliverables",
+  "key-deliverable-dependency": "key-deliverables",
   keyword: "keywords",
   objective: "objectives",
   requirement: "requirements",
@@ -26,6 +27,8 @@ const MODULES: Record<string, string> = {
   stakeholder: "stakeholders",
   supplier: "suppliers",
   "parking-lot-item": "parking-lot",
+  note: "notes",
+  "note-tab": "notes",
   "assumption-constraint": "assumptions-constraints",
   "todo-item": "todo-items",
   "todo-alert": "todo-alerts",
@@ -40,6 +43,7 @@ const MODULES: Record<string, string> = {
   "meeting-agenda-item": "meetings",
   "meeting-discussion-point": "meetings",
   "meeting-action-item": "meetings",
+  "meeting-action-followup": "meetings",
   "meeting-participant": "meetings",
 };
 
@@ -57,6 +61,7 @@ const VERBS: Record<string, string> = {
   GetApologies: "read",
   // Financials calculator (ADR-0029).
   GetSheet: "read",
+  GetWithTabs: "read",
   // Boards (ADR-0038): the whole board in five sets, and the card sheet's assignee picker.
   GetBoard: "read",
   ListAssignees: "read",
@@ -78,6 +83,13 @@ const VERBS: Record<string, string> = {
   Complete: "update",
   // Status picked from the WBS or Gantt menu (ADR-0036).
   SetStatus: "update",
+  // Turning an item into a milestone, or back into a task, edits it (ADR-0046).
+  SetMilestone: "update",
+  // Sequencing two items, retyping the link or taking it away all edit the plan, never the
+  // deliverables themselves, so all three are an update (ADR-0046).
+  Link: "update",
+  Relink: "update",
+  Unlink: "update",
   Dismiss: "update",
   Snooze: "update",
   Set: "update",
@@ -108,6 +120,8 @@ const EXEMPT: Record<string, string> = {
     "replaces a line's amounts inside the line write procs' transaction, after their own access check",
   usp_KeyDeliverable_RollUp:
     "recomputes parent dates inside the write procs' transaction, after their own access check",
+  usp_KeyDeliverable_CascadeDependencies:
+    "pushes dependent items inside the write procs' transaction, after their own access check",
   usp_Requirement_ReplaceTraces:
     "replaces links inside the requirement write procs' transaction, after their own access check",
   usp_Requirement_ReplaceAllocations:

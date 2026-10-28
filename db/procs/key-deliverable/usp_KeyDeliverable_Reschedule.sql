@@ -3,6 +3,8 @@
 --   * An item without sub-items takes @StartDate and @Deadline as given.
 --   * An item with sub-items takes its dates from them, so it can only be moved: the whole branch
 --     shifts by the same number of days, and a different length is VALIDATION.
+--   * A milestone is one day, so it can only be moved too: a different length is VALIDATION
+--     (ADR-0046). Converting it back into a task is usp_KeyDeliverable_SetMilestone's job.
 --   Then the dates of the item and the items above it are rolled up; nothing else can move.
 --   * Deadline >= RequestedDate, as Create and Update require (VALIDATION): for the item and for
 --     every sub-item a shift moves; the roll-up checks the parents.
@@ -29,9 +31,10 @@ BEGIN
         THROW 50004, N'VALIDATION:Deadline cannot be before StartDate', 1;
 
     DECLARE @CurrentVer BIGINT, @RowProjectId INT, @CurrentStart DATETIME2, @CurrentEnd DATETIME2,
-            @RequestedDate DATETIME2;
+            @RequestedDate DATETIME2, @IsMilestone BIT;
     SELECT @CurrentVer = CAST(RowVer AS BIGINT), @RowProjectId = ProjectId,
-           @CurrentStart = StartDate, @CurrentEnd = [Deadline], @RequestedDate = [RequestedDate]
+           @CurrentStart = StartDate, @CurrentEnd = [Deadline], @RequestedDate = [RequestedDate],
+           @IsMilestone = [IsMilestone]
     FROM app.KeyDeliverable WHERE KeyDeliverableId = @KeyDeliverableId AND IsDeleted = 0;
     IF @CurrentVer IS NULL
         THROW 50001, N'NOT_FOUND:KeyDeliverable not found', 1;
@@ -45,6 +48,12 @@ BEGIN
 
     IF @Deadline < @RequestedDate
         THROW 50004, N'VALIDATION:Deadline cannot be before RequestedDate', 1;
+
+    -- A milestone is a date: dragging it moves the day, and stretching it is refused the way a
+    -- parent's stretch is (ADR-0046). Caught here rather than by the one-day CHECK, so the editor
+    -- gets a VALIDATION it can show instead of a constraint error.
+    IF @IsMilestone = 1 AND DATEDIFF(DAY, @StartDate, @Deadline) <> 0
+        THROW 50004, N'VALIDATION:A milestone is one day, so it can be moved, not stretched', 1;
 
     DECLARE @Changed TABLE (
         KeyDeliverableId INT PRIMARY KEY,
@@ -112,6 +121,9 @@ BEGIN
 
     EXEC dbo.usp_KeyDeliverable_RollUp
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId, @FromKeyDeliverableId = @KeyDeliverableId;
+
+    EXEC dbo.usp_KeyDeliverable_CascadeDependencies
+         @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId;
 
     COMMIT;
 

@@ -1,10 +1,11 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import { listColumn, textColumn } from "@/components/ui/data-view/columns";
+import { listColumn, richTextColumn, textColumn } from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
-import { formCellSaver } from "@/components/ui/data-view/datasheet";
+import { formCellSaver, richContent } from "@/components/ui/data-view/datasheet";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
+import type { WithRichViews } from "@/components/ui/rich-text/rich-views";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { listEmptyState } from "@/components/ui/states";
 import { rowAllows } from "@/lib/auth/actor-access";
@@ -15,8 +16,10 @@ import { createQuestionAnswerAction, updateQuestionAnswerAction } from "../actio
 import type { QuestionAnswerListRow, QuestionAnswerRow } from "../schemas/question-answer";
 import { questionAnswerFormValues } from "../schemas/question-answer-form";
 import { QuestionsAnswersToolbar } from "./questions-answers-toolbar";
+import { QUESTION_ANSWER_SORT } from "../schemas/question-answer";
 
-type Row = QuestionAnswerListRow;
+export type QuestionAnswerListItem = WithRichViews<QuestionAnswerListRow, "Answer">;
+type Row = QuestionAnswerListItem;
 const P = messages.questionsAnswers.placeholders;
 
 const columns: DataViewColumn<Row>[] = [
@@ -29,14 +32,14 @@ const columns: DataViewColumn<Row>[] = [
     placeholder: P.question,
     maxLength: 4000,
   }),
-  textColumn({
+  richTextColumn({
     key: "Answer",
     header: messages.questionsAnswers.answer,
     priority: 1,
     field: "answer",
     value: (r) => r.Answer,
     placeholder: P.answer,
-    maxLength: 4000,
+    view: (r) => r.views.Answer,
   }),
   listColumn({
     key: "Category",
@@ -90,7 +93,7 @@ export function QuestionsAnswersView({
   canCreate,
   newQuestionAction,
 }: {
-  rows: QuestionAnswerListRow[];
+  rows: Row[];
   projectId: number;
   /** Shows the datasheet's new-entry row. */
   canCreate: boolean;
@@ -122,7 +125,11 @@ export function QuestionsAnswersView({
         <div className="flex flex-col gap-1.5">
           {/* Question truncated to 2 lines per spec */}
           <p className="line-clamp-2 text-sm font-semibold text-ink">{row.Question}</p>
-          {row.Answer ? <p className="line-clamp-3 text-sm text-ink-muted">{row.Answer}</p> : null}
+          {row.Answer ? (
+            <div className="line-clamp-3 text-sm text-ink-muted">
+              {richContent(row.views.Answer, row.Answer)}
+            </div>
+          ) : null}
           <div className="flex flex-wrap gap-1.5">
             <Badge value={row.Category} />
             <Badge value={row.Priority} />
@@ -130,6 +137,7 @@ export function QuestionsAnswersView({
         </div>
       )}
       columns={columns}
+      sort={QUESTION_ANSWER_SORT}
       datasheet={{
         canEditRow,
         saveCell,

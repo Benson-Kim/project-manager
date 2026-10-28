@@ -12,6 +12,9 @@
 -- Entity app.KeyDeliverable (source: tblKeyRequirementsDeliverable). Module: key-deliverables (#9).
 -- Dates in order (VALIDATION 50004) only when one of the pair changes: an item saved with them
 --   inverted before the rule existed can still be edited without rewriting its history.
+-- A milestone (ADR-0046) is one day: this proc derives its end from its start rather than taking
+--   one, and whether it is a milestone changes only through usp_KeyDeliverable_SetMilestone — this
+--   proc neither accepts nor alters the flag, so the details sheet cannot turn an item into one.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_KeyDeliverable_Update
@@ -36,11 +39,11 @@ BEGIN
     DECLARE @CurrentVer BIGINT, @RowProjectId INT,
             @CurrentPriority NVARCHAR(255), @CurrentStatus NVARCHAR(255),
             @CurrentStart DATETIME2, @CurrentEnd DATETIME2, @CurrentColor VARCHAR(10),
-            @CurrentRequested DATETIME2;
+            @CurrentRequested DATETIME2, @IsMilestone BIT;
     SELECT @CurrentVer = CAST(RowVer AS BIGINT), @RowProjectId = ProjectId,
            @CurrentPriority = [Priority], @CurrentStatus = [Status],
            @CurrentStart = StartDate, @CurrentEnd = [Deadline], @CurrentColor = Color,
-           @CurrentRequested = [RequestedDate]
+           @CurrentRequested = [RequestedDate], @IsMilestone = [IsMilestone]
     FROM app.KeyDeliverable WHERE KeyDeliverableId = @KeyDeliverableId AND IsDeleted = 0;
     IF @CurrentVer IS NULL
         THROW 50001, N'NOT_FOUND:KeyDeliverable not found', 1;
@@ -86,6 +89,21 @@ BEGIN
         SET @StartDate = @CurrentStart;
         SET @Deadline = @CurrentEnd;
     END
+    ELSE IF @IsMilestone = 1
+    BEGIN
+        -- A milestone is a date: its end is its day, so the row owns that rather than asking the
+        -- form to keep two fields equal (ADR-0046). The details sheet shows it as one field, and
+        -- CK_KeyDeliverable_Milestone_OneDay still backs the rule.
+        SET @StartDate = ISNULL(@StartDate, @CurrentStart);
+        IF @StartDate IS NULL
+            THROW 50004, N'VALIDATION:A milestone needs a date', 1;
+        SET @Deadline = @StartDate;
+        -- The end is derived here, after the check at the top of the proc read the one sent, so the
+        -- requested-date rule is applied again to the day actually being written.
+        IF @Deadline < @RequestedDate
+           AND (@CurrentEnd IS NULL OR CAST(@Deadline AS DATE) <> CAST(@CurrentEnd AS DATE))
+            THROW 50004, N'VALIDATION:Deadline cannot be before RequestedDate', 1;
+    END
     ELSE
     BEGIN
         SET @StartDate = ISNULL(@StartDate, @CurrentStart);
@@ -98,7 +116,7 @@ BEGIN
 
     DECLARE @Before NVARCHAR(MAX) =
         (SELECT KeyDeliverableId, [ProjectId], [KeyRequirement], [RequestedDate], StartDate, [Deadline],
-                [Priority], [Status], Color,
+                [Priority], [Status], Color, [IsMilestone],
                 (SELECT CAST(a.StakeholderId AS NVARCHAR(20)) AS id
                  FROM app.KeyDeliverableAssignee AS a
                  WHERE a.KeyDeliverableId = @KeyDeliverableId
@@ -130,9 +148,11 @@ BEGIN
     IF @AssigneeIds IS NOT NULL AND LEN(@AssigneeIds) > 2
     BEGIN
         -- Only insert assignees whose active stakeholder belongs to @ProjectId,
-        -- preventing cross-project stakeholder injection.
+        -- preventing cross-project stakeholder injection. DISTINCT because the same id twice is a
+        -- set of one, not a key violation: the payload is a caller's list and is not de-duplicated
+        -- before it arrives.
         INSERT INTO app.KeyDeliverableAssignee (KeyDeliverableId, StakeholderId, CreatedBy)
-        SELECT @KeyDeliverableId, CAST(j.[value] AS INT), @ActorUserId
+        SELECT DISTINCT @KeyDeliverableId, CAST(j.[value] AS INT), @ActorUserId
         FROM OPENJSON(@AssigneeIds) AS j
         WHERE TRY_CAST(j.[value] AS INT) IS NOT NULL
           AND EXISTS (
@@ -146,7 +166,7 @@ BEGIN
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.KeyDeliverable', CAST(@KeyDeliverableId AS NVARCHAR(64)), @Before,
             (SELECT KeyDeliverableId, [ProjectId], [KeyRequirement], [RequestedDate], StartDate, [Deadline],
-                    [Priority], [Status], Color,
+                    [Priority], [Status], Color, [IsMilestone],
                     (SELECT CAST(a.StakeholderId AS NVARCHAR(20)) AS id
                      FROM app.KeyDeliverableAssignee AS a
                      WHERE a.KeyDeliverableId = @KeyDeliverableId
@@ -156,6 +176,9 @@ BEGIN
 
     EXEC dbo.usp_KeyDeliverable_RollUp
          @ProjectId = @ProjectId, @ActorUserId = @ActorUserId, @FromKeyDeliverableId = @KeyDeliverableId;
+
+    EXEC dbo.usp_KeyDeliverable_CascadeDependencies
+         @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId;
 
     COMMIT;
 
@@ -170,6 +193,7 @@ BEGIN
            kd.[Priority],
            kd.[Status],
            kd.Color,
+           kd.[IsMilestone],
            CAST(CASE WHEN EXISTS (SELECT 1 FROM app.KeyDeliverable AS ch
                                   WHERE ch.ParentKeyDeliverableId = kd.KeyDeliverableId
                                     AND ch.IsDeleted = 0)

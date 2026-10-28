@@ -1,5 +1,4 @@
 import type { OptionColor } from "@/lib/lookup-lists";
-import { requirementRef } from "@/modules/requirements/schemas/requirement-rules";
 import type { SolutionType } from "@/modules/requirements/schemas/requirement-types";
 import type { AssigneeEntry } from "./key-deliverable";
 
@@ -32,7 +31,8 @@ export interface WbsRequirement {
   id: number;
   /** Only a solution is ever allocated to a deliverable (ADR-0037). */
   type: SolutionType;
-  number: number;
+  /** "FR-1.2", the register's own reference, from the server (ADR-0048); "" until it has one. */
+  ref: string;
   text: string;
   isMet: boolean;
   sortOrder: number;
@@ -56,6 +56,8 @@ export interface WbsItem {
   priority: string | null;
   /** Legacy stored colour; not drawn. */
   color: OptionColor | null;
+  /** A date rather than a span (ADR-0046): start and end are the same day, and it has no sub-items. */
+  isMilestone: boolean;
   assigneeNames: string | null;
   assignees: AssigneeEntry[];
   requirements: WbsRequirement[];
@@ -346,7 +348,8 @@ export function applyReschedule(
   const node = wbs.nodes.get(id);
   if (!node) return [...items];
   if (node.childIds.length === 0) {
-    return items.map((i) => (i.id === id ? { ...i, start, end } : i));
+    // A milestone is a date: it moves to the day it was dragged to and never gains a length.
+    return items.map((i) => (i.id === id ? { ...i, start, end: i.isMilestone ? start : end } : i));
   }
   if (!node.start) return [...items];
   const shift = dayDiff(node.start, start);
@@ -405,14 +408,18 @@ export function requestedDateClash(
  *   not change the parent's span;
  * - any other item starts the day after the one before it ends;
  * - else the project start, else today; one week long.
+ *
+ * A new milestone takes the same first day and ends on it, so it is a date from the start.
  */
 export function newItemDates(
   wbs: Wbs,
   where: { parentId: number | null; afterId: number | null },
   today: Date,
   projectStart: Date | null,
+  asMilestone = false,
 ): { start: Date; end: Date } {
-  const week = (start: Date) => ({ start, end: addDays(start, NEW_ITEM_DAYS - 1) });
+  const week = (start: Date) =>
+    asMilestone ? { start, end: start } : { start, end: addDays(start, NEW_ITEM_DAYS - 1) };
   const parent = where.parentId !== null ? wbs.nodes.get(where.parentId) : undefined;
   const siblings = parent ? parent.childIds : wbs.rootIds;
   const beforeId = where.afterId ?? siblings[siblings.length - 1];
@@ -422,6 +429,7 @@ export function newItemDates(
     if (before.start) return week(before.start);
   }
   if (parent?.start) {
+    if (asMilestone) return { start: parent.start, end: parent.start };
     return { start: parent.start, end: parent.end ?? addDays(parent.start, NEW_ITEM_DAYS - 1) };
   }
   return week(projectStart ? utcDay(projectStart) : today);
@@ -447,6 +455,34 @@ export function applyStatus(
   return items.map((i) => (i.id === id ? { ...i, status } : i));
 }
 
+/**
+ * What usp_KeyDeliverable_SetMilestone does, applied to the rows on screen: turning an item into a
+ * milestone collapses its span to its start date; turning it back keeps that one day as both ends,
+ * so the person widens it afterwards.
+ */
+export function applyMilestone(
+  items: readonly WbsItem[],
+  id: number,
+  isMilestone: boolean,
+): WbsItem[] {
+  return items.map((i) =>
+    i.id === id ? { ...i, isMilestone, end: isMilestone && i.start ? i.start : i.end } : i,
+  );
+}
+
+/**
+ * Whether the item may become a milestone: it must have a start date to be a date, and no
+ * sub-items, whose dates would roll up into it and contradict its one day (ADR-0046). The proc
+ * refuses both under the project lock; this answers the menu so the reason can be shown first.
+ */
+export function milestoneRefusal(wbs: Wbs, id: number): "subItems" | "noDate" | null {
+  const node = wbs.nodes.get(id);
+  if (!node) return null;
+  if (node.childIds.length > 0) return "subItems";
+  if (!node.item.start) return "noDate";
+  return null;
+}
+
 function withRequirements(
   items: readonly WbsItem[],
   id: number,
@@ -461,12 +497,12 @@ function numbered(requirements: WbsRequirement[]): WbsRequirement[] {
   );
 }
 
-/** The chip in front of a requirement's wording: "FR-3", or its type alone until the server has
- *  given a queued one its number, so the chip never shows a number that turns out wrong. */
+/** The chip in front of a requirement's wording: "FR-1.2", or its type alone until the server has
+ *  given a queued one its reference, so the chip never shows one that turns out wrong. The whole
+ *  path, not the type and a number: the register shows the same reference and the two must agree
+ *  (ADR-0048), and a path cannot be rebuilt here from a row whose parent was never sent. */
 export function requirementChip(requirement: WbsRequirement): string {
-  return requirement.number > 0
-    ? requirementRef(requirement.type, requirement.number)
-    : requirement.type;
+  return requirement.ref !== "" ? requirement.ref : requirement.type;
 }
 
 /** Distinct requirements allocated anywhere in a branch: what deleting the item unallocates. */

@@ -20,6 +20,7 @@ import type { ProjectListRow, ProjectRow } from "../schemas/project";
 import { projectFormValues } from "../schemas/project-form";
 
 import { ProjectsToolbar } from "./projects-toolbar";
+import { PROJECT_SORT } from "../schemas/project";
 
 function dateRange(row: ProjectListRow): string {
   const start = formatDate(row.StartDate);
@@ -179,6 +180,7 @@ export function ProjectsView({
         </div>
       )}
       columns={columns}
+      sort={PROJECT_SORT}
       datasheet={{
         canEditRow,
         saveCell,

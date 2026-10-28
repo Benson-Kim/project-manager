@@ -103,7 +103,7 @@ export function useWbsRequirements({
                   {
                     id: tempId,
                     type,
-                    number: 0,
+                    ref: "",
                     text,
                     isMet: false,
                     sortOrder: i.requirements.length + 1,

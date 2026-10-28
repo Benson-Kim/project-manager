@@ -65,9 +65,21 @@ function toInput(raw: Fields) {
   };
 }
 
+/**
+ * `parentRequirementId` makes the new row a sub-requirement of that one (ADR-0048). The type still
+ * travels — the row the button sits on already knows it — but usp_Requirement_Create takes the
+ * parent's own type regardless, so the two cannot disagree. Absent means a root requirement.
+ */
 export const createRequirementFormSchema = requirementFields
-  .extend({ projectId: z.coerce.number().int().positive() })
-  .transform((raw) => ({ projectId: raw.projectId, ...toInput(raw) }));
+  .extend({
+    projectId: z.coerce.number().int().positive(),
+    parentRequirementId: idEntry.optional(),
+  })
+  .transform((raw) => ({
+    projectId: raw.projectId,
+    parentRequirementId: raw.parentRequirementId ?? null,
+    ...toInput(raw),
+  }));
 
 export type CreateRequirementValues = z.output<typeof createRequirementFormSchema>;
 

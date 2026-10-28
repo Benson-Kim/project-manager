@@ -20,9 +20,37 @@ and prints `N passed, M failed`.
   reference numbers never reused, the shared met tick across deliverables, a deliverable delete
   that keeps the requirements, a requirement delete that removes its links and allocations, and a
   create whose links fail after the insert leaving nothing behind.
+- `key-deliverable-assignees.cjs` — migration 015: none, one and many assignees on a deliverable,
+  clearing the set, a repeated id landing once, and a stakeholder of another project being dropped
+  rather than refused.
+- `key-deliverable-milestone.cjs` — migration 043 / ADR-0046: a milestone is one day and has no
+  sub-items. Creating one as a date, refusing one asked for with a span, converting either way,
+  dragging but not stretching it, an update deriving its end from its start, no item under a
+  milestone (create and move) and no parent becoming one, a stale RowVer conflicting, and its one
+  day rolling up into its parents.
+- `key-deliverable-dependency.cjs` — migration 044 / ADR-0046 decisions 5-10: the rules no
+  constraint can express and the scheduler itself. A self-link, a duplicate ordered pair, a cycle,
+  an ancestor pair and a cross-project pair all refused; each of the four types at its boundary
+  (including FS and SS at lag 0, where they differ by one day); a lag pushing further; a push
+  carried down a chain and re-run when the head is dragged; a predecessor moved earlier leaving its
+  successors put (push-only, decision 7); a successor dragged too early put back; a summary
+  successor moved as a branch and rolled up; a pushed milestone keeping its one day; an undated end
+  scheduling nothing; a link read back on its successor row with its RowVer; retyping, a stale
+  RowVer conflicting, an idempotent no-op relink, unlinking and re-linking the same pair; a deleted
+  item taking the links at both of its ends; and a link alone moving the Gantt freshness stamp.
 - `requirements-race.cjs` — ADR-0037 under concurrency: parallel creates get distinct numbers,
   a link racing a delete leaves no link to a deleted row, a type change racing a new link stays
   valid, and parallel moves under one deliverable leave the order 1..n.
+- `notes-procs.cjs` — ADR-0035 and its 2026-10-23 amendment: the project-less shared space
+  (every user reads, creates and edits notebooks and pages; only an Admin deletes), project
+  notebooks that keep their project's levels, and the cross-project list (the actor's projects
+  plus the shared space, the No project filter, each row's project name).
+- `notes-race.cjs` — the shared space under concurrency, where any user may write: parallel saves
+  of one page (one winner, no lost update), parallel page adds (distinct places), an add or a
+  save racing the notebook's delete (the page goes with it), a reorder racing an add, a save
+  racing the page's delete, two Admins deleting the same row, a rename or reorder racing the
+  notebook's delete, parallel adds at the 500-page cap and delete-plus-add churn there, and a
+  mixed load of six users.
 - `boards-procs.cjs` — ADR-0038: the board as its own access scope, the standalone shared space
   (everyone a contributor, the creator its manager), per-person overrides on a project board and
   never on a standalone one, rowversion concurrency, the starting-columns payload validation,

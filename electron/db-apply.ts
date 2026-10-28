@@ -258,7 +258,11 @@ async function listProcFiles(procsDir: string): Promise<string[]> {
     const full = path.join(procsDir, entry);
     if ((await fs.stat(full)).isDirectory()) files.push(...(await listSqlFiles(full)));
   }
-  return files;
+  // Functions first, as scripts/db-apply.sh does: an inline table-valued function is bound when it
+  // is created, so one that reads another must meet it already there, and folder order alone does
+  // not put them together. Changing the order changes procsKey once, which only re-applies them.
+  const isFunction = (f: string) => path.basename(f).startsWith("ufn_");
+  return [...files.filter(isFunction), ...files.filter((f) => !isFunction(f))];
 }
 
 async function hashFiles(files: string[], base: string): Promise<string> {

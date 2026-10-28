@@ -3,15 +3,19 @@ import {
   BrowserWindow,
   clipboard,
   dialog,
+  Menu,
   screen,
   session,
   shell,
+  utilityProcess,
   type BrowserWindowConstructorOptions,
+  type ContextMenuParams,
   type WebContents,
 } from "electron";
+import fs from "fs";
 import { createRequire } from "module";
 import path from "path";
-import { ensureAdminAccount, resetAdminPassword, type Argon2Like } from "./admin-account";
+import { ensureAdminAccount, type Argon2Like } from "./admin-account";
 import {
   backupDatabase,
   latestBackup,
@@ -22,12 +26,22 @@ import {
 import { waitForSql } from "./db";
 import { applyDatabaseSchema } from "./db-apply";
 import { createDbWatchdog } from "./db-watchdog";
+import { contextMenuTemplate } from "./context-menu";
 import { createExclusive } from "./exclusive";
+import { GrammarChecker } from "./grammar";
 import { createLogger, describeError } from "./log";
 import { readMachineConfig, SetupRequiredError, type MachineConfig } from "./machine-config";
 import { NextServer } from "./next-server";
 import { paths } from "./paths";
 import { allowPermission } from "./permissions";
+import {
+  dialectFor,
+  grammarFixes,
+  paragraphAtCaret,
+  spellingLanguage,
+  writtenEnglish,
+  type Paragraph,
+} from "./proofing";
 import { getServiceState, isListening, runElevatedRepair, startService } from "./sql-service";
 import {
   destroyTray,
@@ -41,6 +55,7 @@ import { setupAutoUpdater } from "./updater";
 import { restoreSources, restoreUploads } from "./uploads-mirror";
 import { SettingsStore } from "./user-settings";
 import { detachedPlacement, type Placement } from "./window-placement";
+import { windowTitle } from "./window-title";
 
 // A fixed, explicit profile folder (otherwise Electron derives it from the
 // package name). Must be set before anything touches app paths.
@@ -54,6 +69,23 @@ const settings = new SettingsStore(app.getPath("userData"));
 const BACKUP_INTERVAL_MS = 24 * 60 * 60_000;
 const BACKUP_CHECK_MS = 60 * 60_000;
 const DB_CHECK_MS = 30_000;
+
+const grammar = new GrammarChecker({
+  fork: () => {
+    const child = utilityProcess.fork(path.join(__dirname, "grammar-worker.js"), [], {
+      serviceName: "Project Manager grammar check",
+    });
+    return {
+      postMessage: (message) => child.postMessage(message),
+      kill: () => child.kill(),
+      onMessage: (listener) => void child.on("message", listener),
+      onExit: (listener) => void child.on("exit", listener),
+    };
+  },
+  readWasm: () => fs.promises.readFile(path.join(__dirname, "harper_wasm_slim_bg.wasm")),
+  dialect: dialectFor(writtenEnglish(app.getPreferredSystemLanguages())),
+  warn: (message) => log.warn(message),
+});
 
 let config: MachineConfig | null = null;
 let server: NextServer | null = null;
@@ -105,6 +137,14 @@ const appWindowOptions = {
   webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
 } satisfies BrowserWindowConstructorOptions;
 
+/** The title bar shows the page's own title, without the app name the sidebar already shows. */
+function keepTitlesShort(win: BrowserWindow): void {
+  win.on("page-title-updated", (e, title) => {
+    e.preventDefault();
+    win.setTitle(windowTitle(title, app.getName()));
+  });
+}
+
 /**
  * Only our own local server is shown in-app; anything else opens in the browser.
  * A page of ours asking for a new window ("Open in new window", Shift/Ctrl-click)
@@ -137,6 +177,7 @@ function guardContents(contents: WebContents, origin: string): void {
   contents.on("did-create-window", (child) => {
     if (placement?.maximized) child.maximize();
     placement = null;
+    keepTitlesShort(child);
     guardContents(child.webContents, origin);
     child.on("close", () => {
       settings.set({
@@ -150,6 +191,67 @@ function guardContents(contents: WebContents, origin: string): void {
       openExternally(target);
     }
   });
+  contents.on("context-menu", (_e, params) => {
+    void showContextMenu(contents, params).catch((err) =>
+      log.warn(`[context-menu] ${describeError(err)}`),
+    );
+  });
+}
+
+function inPage(contents: WebContents, select: Parameters<typeof paragraphAtCaret>[0]) {
+  return contents.executeJavaScript(
+    `(${paragraphAtCaret.toString()})(${JSON.stringify(select)})`,
+  ) as Promise<ReturnType<typeof paragraphAtCaret>>;
+}
+
+/** Electron has no right-click menu of its own; this one adds spelling and grammar (ADR-0049). */
+async function showContextMenu(contents: WebContents, params: ContextMenuParams): Promise<void> {
+  const checking = settings.get().checkSpelling;
+  const paragraph = params.isEditable ? ((await inPage(contents, null)) as Paragraph | null) : null;
+  let fixes: { label: string; apply(): void }[] | "loading" = [];
+  if (paragraph && checking) {
+    const issues = paragraph.text.trim() ? await grammar.check(paragraph.text) : [];
+    if (issues === null) fixes = "loading";
+    else {
+      fixes = grammarFixes(issues, paragraph.caret).map((fix) => ({
+        label: fix.label,
+        apply: () => {
+          void inPage(contents, { text: paragraph.text, start: fix.start, end: fix.end }).then(
+            (selected) => {
+              if (selected !== true) return;
+              if (fix.text) void contents.insertText(fix.text);
+              else contents.delete();
+            },
+          );
+        },
+      }));
+    }
+  }
+  const template = contextMenuTemplate(
+    {
+      isEditable: params.isEditable,
+      checkable: paragraph !== null,
+      hasSelection: params.selectionText.trim() !== "",
+      linkURL: params.linkURL,
+      misspelledWord: params.misspelledWord,
+      dictionarySuggestions: params.dictionarySuggestions,
+      editFlags: params.editFlags,
+      checking,
+      grammar: fixes,
+    },
+    {
+      replaceMisspelling: (word) => contents.replaceMisspelling(word),
+      addToDictionary: (word) => contents.session.addWordToSpellCheckerDictionary(word),
+      copyLink: () => clipboard.writeText(params.linkURL),
+      setChecking: (on) => {
+        settings.set({ checkSpelling: on });
+        contents.session.setSpellCheckerEnabled(on);
+        if (on) grammar.warm();
+        else grammar.stop();
+      },
+    },
+  );
+  if (template.length && !contents.isDestroyed()) Menu.buildFromTemplate(template).popup();
 }
 
 function detachedWindowPlacement(): Placement {
@@ -169,8 +271,12 @@ function createMainWindow(url: string): BrowserWindow {
     height: 800,
     show: false,
   });
+  keepTitlesShort(win);
   guardContents(win.webContents, new URL(url).origin);
 
+  win.on("focus", () => {
+    if (settings.get().checkSpelling) grammar.warm();
+  });
   win.once("ready-to-show", () => {
     splash?.close();
     splash = null;
@@ -401,7 +507,8 @@ async function runBackup(kind: BackupKind): Promise<BackupResult> {
 }
 
 async function backupIfDue(): Promise<void> {
-  if (!config || backups.current()) return;
+  // Not while quitting: a backup started now would hold up an update's restart.
+  if (!config || quitting || backups.current()) return;
   try {
     const last = await latestBackup(config.backupDir, config.sql.database);
     if (last && Date.now() - last.time.getTime() < BACKUP_INTERVAL_MS) return;
@@ -547,27 +654,6 @@ async function restoreAttachmentFiles(cfg: MachineConfig, bakFile: string): Prom
   }
 }
 
-async function resetAdminAction(): Promise<void> {
-  if (!config) return;
-  const { response } = await dialog.showMessageBox({
-    type: "question",
-    title: "Reset administrator password",
-    message: "Create a new one-time password for the 'admin' account?",
-    detail: "Anyone signed in as admin will be signed out.",
-    buttons: ["Reset", "Cancel"],
-    defaultId: 1,
-    cancelId: 1,
-  });
-  if (response !== 0) return;
-  try {
-    const pwd = await resetAdminPassword(config.sql, loadArgon2(), log);
-    await showAdminCredentials(pwd, "The administrator password was reset.");
-  } catch (err) {
-    log.error("[admin] reset failed", err);
-    await message("error", "Reset failed", "The password could not be reset.", describeError(err));
-  }
-}
-
 // ---------------------------------------------------------------------------
 
 async function bootstrap(): Promise<void> {
@@ -575,6 +661,12 @@ async function bootstrap(): Promise<void> {
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback, details) =>
     callback(server !== null && allowPermission(permission, details.requestingUrl, server.url)),
   );
+  session.defaultSession.setSpellCheckerEnabled(settings.get().checkSpelling);
+  const spelling = spellingLanguage(
+    writtenEnglish(app.getPreferredSystemLanguages()),
+    session.defaultSession.availableSpellCheckerLanguages,
+  );
+  if (spelling) session.defaultSession.setSpellCheckerLanguages([spelling]);
   watchDownloads();
   splash = createSplash();
 
@@ -642,21 +734,25 @@ async function bootstrap(): Promise<void> {
         openBackupsFolder: () => void shell.openPath(settings.get().backupCopyDir),
         chooseBackupCopyFolder: () => void chooseBackupCopyFolder(),
         restore: () => void restoreAction(),
-        resetAdminPassword: () => void resetAdminAction(),
         openLogs: () => void shell.openPath(path.dirname(log.file)),
         quit: () => app.quit(),
         ...(cfg.uploadsDir ? {} : { setUpAttachments: () => void setUpAttachmentsAction() }),
       },
       app.getVersion(),
     );
-    const updater = setupAutoUpdater(log, {
+    const updater = setupAutoUpdater(log, settings, {
       getWindow: () => mainWindow,
+      showWindow: showMain,
       prepareToQuit: async () => {
         quitting = true;
         // Never cut a backup/restore off half-way for an update.
         await backups.current();
       },
+      cancelQuit: () => {
+        quitting = false;
+      },
       onReadyChanged: setTrayUpdateReady,
+      notify: showTrayNotice,
     });
     if (updater) {
       setTrayUpdateActions({
@@ -729,6 +825,7 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
   app.on("will-quit", () => {
+    grammar.stop();
     server?.stop();
     destroyTray();
     log.info("=== quit ===");

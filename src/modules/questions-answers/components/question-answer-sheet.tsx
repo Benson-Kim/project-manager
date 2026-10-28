@@ -26,6 +26,7 @@ import {
   deleteQuestionAnswerAction,
   updateQuestionAnswerAction,
 } from "../actions";
+import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
 
 /**
  * Q&A detail/edit sheet (ADR-0010 default pattern): URL-synced via ?id=
@@ -219,7 +220,7 @@ export function QuestionAnswerSheet({
               name="answer"
               errors={form.errors.answer}
             >
-              <Textarea name="answer" rows={4} defaultValue={questionAnswer?.Answer ?? ""} />
+              <RichTextEditor name="answer" defaultValue={questionAnswer?.Answer} />
             </Field>
 
             <Field

@@ -208,6 +208,11 @@ export function previewText(html: string | null | undefined): string {
     .trim();
 }
 
+/** A rich field as its server-rendered view, or as plain text while that view is stale after a save. */
+export function richContent(view: RichCellView, html: string | null | undefined): ReactNode {
+  return view.html === (html ?? null) ? view.node : previewText(html);
+}
+
 /** Where a rich cell's editor panel sits: under the cell, or over it when there's no room below. */
 export interface PanelPosition {
   left: number;

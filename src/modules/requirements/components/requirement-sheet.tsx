@@ -5,13 +5,14 @@ import { Sheet } from "@/components/ui/dialog";
 import type { MultiSelectOption } from "@/components/ui/form/multi-select";
 import { messages } from "@/lib/messages";
 import type { RequirementOption, RequirementRow } from "../schemas/requirement";
-import { requirementRef } from "../schemas/requirement-rules";
-import { typeLabel, type RequirementType } from "../schemas/requirement-types";
+import { type RequirementType } from "../schemas/requirement-types";
+import { typeCell } from "./register-model";
 import { RequirementForm } from "./requirement-form";
 
 /**
  * The register's detail/edit sheet, URL-synced via ?id= (a numeric id or "new"). Closing clears
- * the merge link's parameters too, so re-opening a new requirement starts empty.
+ * the merge link's and the sub-requirement link's parameters too, so re-opening a new requirement
+ * starts empty rather than under whatever row the last one hung off (ADR-0048).
  */
 export function RequirementSheet({
   requirement,
@@ -19,6 +20,7 @@ export function RequirementSheet({
   projectId,
   initialType,
   initialValidates,
+  initialParent,
   needOptions,
   deliverableOptions,
   canEdit,
@@ -29,13 +31,15 @@ export function RequirementSheet({
   projectId: number;
   initialType: RequirementType;
   initialValidates: readonly number[];
+  /** ?parent=: the requirement a new one goes under, already scoped to this project. */
+  initialParent: RequirementRow | null;
   needOptions: RequirementOption[];
   deliverableOptions: MultiSelectOption[];
   canEdit: boolean;
   canDelete: boolean;
 }) {
   const { update } = useListUrlState();
-  const close = () => update({ id: null, validates: null });
+  const close = () => update({ id: null, validates: null, parent: null });
   const open = isNew || requirement !== null;
 
   return (
@@ -46,11 +50,10 @@ export function RequirementSheet({
       }}
       title={
         requirement
-          ? messages.requirements.typeWithRef(
-              typeLabel(requirement.RequirementType),
-              requirementRef(requirement.RequirementType, requirement.Number),
-            )
-          : messages.requirements.newRequirement
+          ? messages.requirements.typeWithRef(typeCell(requirement), requirement.Ref)
+          : initialParent
+            ? messages.requirements.addSubRequirementUnder(initialParent.Ref)
+            : messages.requirements.newRequirement
       }
     >
       {open ? (
@@ -61,6 +64,7 @@ export function RequirementSheet({
           projectId={projectId}
           initialType={initialType}
           initialValidates={initialValidates}
+          initialParent={initialParent}
           needOptions={needOptions}
           deliverableOptions={deliverableOptions}
           canEdit={canEdit}

@@ -2,11 +2,7 @@
 
 import { createContext, useContext } from "react";
 import type { ActionResult } from "@/lib/action";
-import type {
-  MeetingWorkspace,
-  WorkspaceActionItem,
-  WorkspaceDiscussionPoint,
-} from "../schemas/meeting";
+import type { ActionStatus, MeetingWorkspace, WorkspaceDiscussionPoint } from "../schemas/meeting";
 import type { Sibling } from "../schemas/minutes";
 import type { StakeholderOption } from "@/modules/stakeholders/repository/stakeholder-options";
 
@@ -16,13 +12,20 @@ export type MinutesAnswer = ActionResult<MeetingWorkspace | null>;
 export type MoveRequest =
   | { kind: "agenda" }
   | { kind: "point"; agendaItemId: number }
-  | { kind: "action"; agendaItemId: number; discussionPointId: number | null };
+  | { kind: "action"; agendaItemId: number; discussionPointId: number | null }
+  | { kind: "followUp"; meetingActionItemId: number };
 
 export interface DeleteTarget {
-  kind: "agenda" | "point" | "action";
+  kind: "agenda" | "point" | "action" | "followUp";
   id: number;
   rowVer: number;
   name: string;
+}
+
+/** Who a person picker offers, plus the one already picked so a save keeps them. */
+export interface PickedPerson {
+  id: number | null;
+  name: string | null;
 }
 
 export interface MinutesContextValue {
@@ -39,7 +42,22 @@ export interface MinutesContextValue {
   /** Focuses the element with this data-focus-key once the next render lands. */
   focusSoon: (key: string) => void;
   pointView: (point: WorkspaceDiscussionPoint) => React.ReactNode;
-  people: (action?: WorkspaceActionItem) => StakeholderOption[];
+  people: (current?: PickedPerson) => StakeholderOption[];
+  /**
+   * Moves one action to a status (ADR-0043), from its own row or a carried-over
+   * one. Asking for the hold asks for its reason first (ADR-0044): the editor
+   * opens the dialog and writes the status and the reason together, so the rows
+   * only report the pick and the reason cannot be left to a second write that
+   * may never happen. `current` is the reason the action already carries, which
+   * is what the dialog opens with when a hold is being changed.
+   */
+  setStatus: (
+    id: number,
+    rowVer: number,
+    status: ActionStatus,
+    name: string,
+    current?: string | null,
+  ) => void;
   /** "YYYY-MM-DD" on the server's calendar: actions due before it are overdue. */
   today: string;
 }

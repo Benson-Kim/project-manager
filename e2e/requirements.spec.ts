@@ -15,7 +15,9 @@ import { escapeRegExp, expectListed } from "./support/datasheet";
 const M = messages.requirements;
 const W = messages.keyDeliverables.wbs;
 const REGISTER = "/projects/2/requirements?view=list";
-const REF = /\b(?:BR|SR|FR|NFR|TR)-\d+\b/;
+// A reference is a path now (ADR-0048): "FR-3", "FR-3.1", "FR-3.1.2". The trailing groups are
+// optional, so a root row reads exactly as it did.
+const REF = /\b(?:BR|SR|FR|NFR|TR)-\d+(?:\.\d+)*\b/;
 
 const newEntry = (column: string) => messages.datasheet.newEntryField(column);
 const cellName = (column: string, row: string) =>
@@ -236,4 +238,106 @@ test("the register fits a 360 px screen", async ({ page }) => {
   await expect(page.getByRole("heading", { name: M.title })).toBeVisible();
   const width = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(width).toBeLessThanOrEqual(360);
+});
+
+/**
+ * Sub-requirements (ADR-0048). The client asked for FR-1, then FR-1.1, then FR-1.1.1, and sent a
+ * mock-up: a child is indented, its Type column reads "Sub-Requirement", and its reference carries
+ * its parent's letters. The tree lives in SQL — the path is a recursive walk and the numbering is
+ * per parent — so this checks what the browser does with it, and that the WBS, which is a second
+ * surface rendering the same reference, agrees with the register about an allocated child.
+ *
+ * Every state here is built through the surface the test is allowed to use: the parent is created
+ * in the new-entry row, each child through the row's own "Add sub-requirement" (LESSONS §37 — a
+ * state the UI cannot reach is not a state to assert about).
+ */
+test("sub-requirements: the register nests them, and the WBS names them the same way", async ({
+  page,
+}) => {
+  const stamp = Date.now();
+  const parent = `E2E parent requirement ${stamp}`;
+  const childA = `E2E first sub-requirement ${stamp}`;
+  const childB = `E2E second sub-requirement ${stamp}`;
+  const grandchild = `E2E nested sub-requirement ${stamp}`;
+
+  await page.goto(REGISTER);
+  await expect(page.getByRole("heading", { name: M.title })).toBeVisible();
+
+  await addRequirement(page, "FR", parent);
+  const parentRef = await refOf(page, parent);
+  expect(parentRef).toMatch(/^FR-\d+$/);
+
+  /** Adds a sub-requirement under the row holding `under`, through that row's own action. */
+  async function addSub(under: string, text: string): Promise<void> {
+    const row = rowOf(page, under);
+    await expect(row).toBeVisible();
+    // The button's aria-label replaces its text for the accessible name (LESSONS §36), so it is
+    // "Add a sub-requirement under FR-1", not the column header. Scoped to the row, so the prefix
+    // is unambiguous, and asserting the descriptive name is what a screen reader actually hears.
+    await row.getByRole("button", { name: /^Add a sub-requirement under / }).click();
+    await expect(page).toHaveURL(/id=new&?.*parent=\d+|parent=\d+&?.*id=new/);
+
+    const form = page.getByTestId("requirement-form");
+    await expect(form).toBeVisible();
+    // The parent is named and the type is its parent's: no select to get wrong.
+    await expect(page.getByTestId("requirement-parent")).toBeVisible();
+    await expect(page.getByTestId("requirement-type-fixed")).toContainText("FR");
+    await expect(form.getByRole("combobox", { name: M.type, exact: true })).toHaveCount(0);
+
+    await form.getByLabel(M.requirement, { exact: true }).fill(text);
+    await page.getByTestId("requirement-save").click();
+    await expect(
+      page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
+    ).toBeVisible();
+    await expect(form).toHaveCount(0);
+  }
+
+  await addSub(parent, childA);
+  await page.goto(REGISTER);
+  await addSub(parent, childB);
+
+  // Both children are numbered under the parent, from 1, and read as sub-requirements.
+  await page.goto(`${REGISTER}&q=${encodeURIComponent(`sub-requirement ${stamp}`)}`);
+  await expectListed(page, childA);
+  expect(await refOf(page, childA)).toBe(`${parentRef}.1`);
+  expect(await refOf(page, childB)).toBe(`${parentRef}.2`);
+  await expect(rowOf(page, childA)).toContainText(M.subRequirement);
+
+  // A third level, under the first child.
+  await page.goto(`${REGISTER}&q=${encodeURIComponent(childA)}`);
+  await addSub(childA, grandchild);
+  await page.goto(`${REGISTER}&q=${encodeURIComponent(grandchild)}`);
+  expect(await refOf(page, grandchild)).toBe(`${parentRef}.1.1`);
+
+  // The parent cannot be deleted or retyped while they are under it: the register says so instead
+  // of letting the save fail (ADR-0048 decisions 8 and 9, both refusals until the client chooses).
+  await page.goto(`${REGISTER}&q=${encodeURIComponent(parent)}`);
+  await openRow(page, parent);
+  await expect(page.getByTestId("requirement-form")).toBeVisible();
+  await expect(page.getByTestId("requirement-delete-blocked")).toBeVisible();
+  await expect(page.getByTestId("requirement-delete")).toHaveCount(0);
+  await expect(page.getByTestId("requirement-type-fixed")).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // Allocate the first child to a deliverable, then read the chip the WBS draws for it: the whole
+  // path, not the parent's reference. This is the surface ADR-0046 shipped a defect on.
+  await page.goto(`${REGISTER}&q=${encodeURIComponent(childA)}`);
+  await openRow(page, childA);
+  const form = page.getByTestId("requirement-form");
+  await expect(form).toBeVisible();
+  const deliverables = picker(form, "deliverableIds[]");
+  await pickFirst(deliverables);
+  await expect(deliverables.getByRole("listbox")).toBeHidden();
+  await page.getByTestId("requirement-save").click();
+  await expect(
+    page.getByTestId("toast-success").filter({ hasText: messages.feedback.saved }).first(),
+  ).toBeVisible();
+
+  await page.goto("/projects/2/deliverables/gantt?view=wbs");
+  await expect(page.getByTestId("wbs-diagram")).toBeVisible();
+  // The box view lists a deliverable's requirements as li[data-testid="wbs-req-<id>"], each a
+  // RefChip beside the text. `li[data-wbs-row]` is the Gantt outline's *item* row, a different
+  // surface, and the text there lives in an input value that hasText cannot see.
+  const chipRow = page.locator('li[data-testid^="wbs-req-"]').filter({ hasText: childA });
+  await expect(chipRow.first()).toContainText(`${parentRef}.1`, { timeout: 15_000 });
 });

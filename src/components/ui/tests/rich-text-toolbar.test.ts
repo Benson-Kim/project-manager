@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   FONT_FAMILIES,
+  hintText,
   primaryFontFamily,
   rovingIndex,
   withCurrentOption,
@@ -56,5 +57,17 @@ describe("font options", () => {
     expect(withCurrentOption(["8pt", "12pt"], "12pt")).toEqual(["8pt", "12pt"]);
     expect(withCurrentOption(["8pt", "12pt"], "")).toEqual(["8pt", "12pt"]);
     expect(withCurrentOption(["8pt", "12pt"], "18.6667px")).toEqual(["8pt", "12pt", "18.6667px"]);
+  });
+});
+
+describe("hintText (toolbar hover hints, ADR-0042)", () => {
+  it.each([
+    ["Bold", "Control+B", "Bold (Ctrl+B)"],
+    ["Highlight", "Control+Shift+H", "Highlight (Ctrl+Shift+H)"],
+    ["Redo", "Control+Y Control+Shift+Z", "Redo (Ctrl+Y, Ctrl+Shift+Z)"],
+    ["Text colour", null, "Text colour"],
+    ["Insert", "", "Insert"],
+  ])("%s with %j reads %j", (label, shortcuts, hint) => {
+    expect(hintText(label, shortcuts)).toBe(hint);
   });
 });
