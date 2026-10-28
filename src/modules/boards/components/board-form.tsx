@@ -19,11 +19,13 @@ export function BoardForm({
   children,
   save,
   close,
+  readOnly = false,
 }: {
   title: string;
   children: React.ReactNode;
   save: (data: FormData) => Promise<ActionResult<unknown>>;
   close: () => void;
+  readOnly?: boolean;
 }) {
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
@@ -68,7 +70,7 @@ export function BoardForm({
           <Button variant="secondary" disabled={pending} onClick={close}>
             {messages.boards.ui.cancel}
           </Button>
-          <Button type="submit" pending={pending}>
+          <Button type="submit" pending={pending} disabled={readOnly}>
             {messages.boards.ui.save}
           </Button>
         </div>
@@ -79,3 +81,6 @@ export function BoardForm({
 export const text = (data: FormData, key: string) => String(data.get(key) ?? "");
 export const optionalNumber = (data: FormData, key: string) =>
   text(data, key) ? Number(text(data, key)) : null;
+
+export const isoDate = (date: Date | null) =>
+  date ? new Date(date).toISOString().slice(0, 10) : "";

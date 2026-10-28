@@ -13,6 +13,7 @@ import type { ActionResult } from "@/lib/action";
 import type { ProjectOption } from "@/modules/projects/project-options";
 import type { BoardView, BoardAssigneeRow } from "../schemas/board-view";
 import type { BoardCardListRow, BoardCardDetailRow } from "../schemas/board-card";
+import { BoardManagement } from "./board-management";
 import { cardLabel } from "../schemas/board-rules";
 import {
   createBoardCardAction,
@@ -21,23 +22,19 @@ import {
   deleteBoardCardAction,
   readBoardCardAction,
 } from "../actions";
-import { BoardField, BoardForm, control, text, optionalNumber } from "./board-form";
+import { BoardField, BoardForm, control, text, optionalNumber, isoDate } from "./board-form";
 const M = messages.boards;
 const U = M.ui;
-export const isoDate = (date: Date | null) =>
-  date ? new Date(date).toISOString().slice(0, 10) : "";
 export function BoardWorkspace({
   board,
   assignees,
   projects,
   planning = false,
-  management,
 }: {
   board: BoardView;
   assignees: BoardAssigneeRow[];
   projects: ProjectOption[];
   planning?: boolean;
-  management?: React.ReactNode;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -134,7 +131,7 @@ export function BoardWorkspace({
             {U.newCard}
           </Button>
         ) : null}
-        {management}
+        <BoardManagement board={board} projects={projects} />
       </div>
       {error ? (
         <p role="alert" className="rounded-md border border-danger p-3 text-danger">
@@ -339,6 +336,7 @@ export function BoardWorkspace({
         <BoardForm
           key={editing?.BoardCardId ?? "new"}
           title={editing ? U.editCard : U.newCard}
+          readOnly={Boolean(editing) && !canEdit}
           close={() => {
             setEditing(null);
             setNewColumn(null);
