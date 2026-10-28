@@ -21,7 +21,6 @@ try {
 }
 const sql = require("mssql");
 
-const ADMIN = 1;
 const PM = 3;
 const CONTRIB = 4;
 const VIEWER = 5;

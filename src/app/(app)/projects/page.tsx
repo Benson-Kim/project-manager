@@ -5,7 +5,6 @@ import { can } from "@/lib/auth/rbac";
 import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { getListPreference } from "@/lib/repositories/view-preference";
-import { ProjectsToolbar } from "@/modules/projects/components/projects-toolbar";
 import { ProjectsView } from "@/modules/projects/components/projects-view";
 import { listProjects } from "@/modules/projects/repository/projects";
 import { PROJECT_SORT, projectFiltersSchema } from "@/modules/projects/schemas/project";
@@ -55,7 +54,6 @@ export default async function ProjectsPage({
     <>
       {/* The top bar shows the title; the page still needs its heading for assistive tech. */}
       <h1 className="sr-only">{messages.projects.title}</h1>
-      {/* <ProjectsToolbar /> */}
       <LookupListsScope {...lookup}>
         <div className="mt-3">
           <ProjectsView

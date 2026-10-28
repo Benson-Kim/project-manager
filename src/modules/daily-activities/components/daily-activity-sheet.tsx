@@ -74,7 +74,7 @@ export function DailyActivitySheet({
       form,
       createAction: createDailyActivityAction,
       updateAction: updateDailyActivityAction,
-      deleteAction: (_args: void) =>
+      deleteAction: () =>
         deleteDailyActivityAction({
           dailyActivityId: activity!.DailyActivityId,
           rowVer: activity!.RowVer,
