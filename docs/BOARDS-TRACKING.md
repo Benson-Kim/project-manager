@@ -48,7 +48,7 @@ that way because its UI (Part 8) is not built. No board spec has ever executed.
 | 7b | Project section, sidebar create button, the four real routes | B2 | **Open** | — | Deliberately deferred: `project-sections.ts` states the section nav takes **no placeholders**, and a create button pointing at `?id=new` needs the board sheet. See "Deferred on purpose". |
 | 8 | Board UI: board view, card, moves, card sheet, planning view, column editor, link dialog | B2–B4 | **Open** | — | The list must be a DataView (`docs/AGENTS.md` quality gate), so no hand-rolled list is acceptable |
 | 9 | Requirements packaging and redaction | B5 | **Partial** (was Blocked) | `db/procs/board/usp_Board_GetBoard.sql`, `db/procs/board-card/usp_BoardCard_GetById.sql` | **Unblocked**: the register is on this base, so `app.Requirement` and `requirementRef` are importable. **Redaction landed early, with the read procs**: both report `RequirementState` none/live/restricted/removed, NULL every requirement column for a restricted card, and refuse to match restricted text in a search — leaving a read that leaks once packaging lands was not an acceptable gap. **`usp_BoardCard_Package` and the register's "Add to board…" are still Open.** Redaction is therefore *written but not yet exercisable*: with no Package proc, no card can carry a requirement, so `boards-procs.cjs` cannot build the restricted case. Those db tests land with Package. |
-| 10 | Docs | B1–B4 | **Partial** | `docs/adr/ADR-0038-boards.md` (**decisions 23 and 24 added in B4**: the cross-scope access pair, and the foreign-requirement rule with its 50004-not-50007 reasoning), `docs/adr/ADR-0012-proc-error-contract.md` (50007), `docs/adr/README.md`, `docs/MODULE-PROMPTS.md`, `db/README.md`, `db/tests/README.md`, `docs/STANDARDS.md` (50007), `docs/TRACEABILITY.md`, `LESSONS.md` §35–§39, this file | ADR-0039 (colour mode) and the ADR-0028 §8 `execProcSets` note are Open (both land with their slices) |
+| 10 | Docs | B1–B4 | **Partial** | `docs/adr/ADR-0038-boards.md` (**decisions 23 and 24 added in B4**: the cross-scope access pair, and the foreign-requirement rule with its 50004-not-50007 reasoning), `docs/adr/ADR-0012-proc-error-contract.md` (50007), `docs/adr/README.md`, `docs/MODULE-PROMPTS.md`, `db/README.md`, `db/tests/README.md`, `docs/STANDARDS.md` (50007), `docs/TRACEABILITY.md`, `LESSONS.md` §40–§44, this file | ADR-0039 (colour mode) and the ADR-0028 §8 `execProcSets` note are Open (both land with their slices) |
 
 ## Tests
 
@@ -84,7 +84,7 @@ the four failures were **one test defect, not a product defect** — `boards-pro
 as "an outsider", but the e2e seed makes user 2 `e2e-admin`, a global Admin who is Manager
 everywhere (ADR-0021), so the two access checks correctly allowed it; the write that should have
 been refused then added a real column, which shifted the two `SortOrder` assertions that follow.
-The test now creates its own unassigned user. Recorded as LESSONS §36.
+The test now creates its own unassigned user. Recorded as LESSONS §41.
 
 **The card and sprint slices took three more runs to turn green, 2026-10-23**, and every failure
 was a test defect rather than a product defect — the procs did what they were told each time:
@@ -104,7 +104,7 @@ was a test defect rather than a product defect — the procs did what they were 
    its blocks would have **passed vacuously** on the board view, asserting nothing.
 4. `39937547186` (`e7b9ec0`) — **green.** Both suites complete.
 
-Recorded as LESSONS §38. The diagnosis cost one run per defect because the scripts crashed without
+Recorded as LESSONS §43. The diagnosis cost one run per defect because the scripts crashed without
 naming the call; both now print their running tally and the last proc and parameters attempted.
 
 ## Invariants and where each is enforced
@@ -205,7 +205,7 @@ a second ADR-0038:
 | 0040 | the `NOT_FOUND`-before-access oracle | `feature/wbs-requirements` |
 
 The oracle ADR renumbered, not this one: ADR-0038 was already pushed and cited in `STANDARDS.md`,
-`ADR-0012`, `adr/README.md`, `TRACEABILITY.md`, `LESSONS.md` §35–36 and the header comment of every
+`ADR-0012`, `adr/README.md`, `TRACEABILITY.md`, `LESSONS.md` §40–41 and the header comment of every
 file in `db/procs/board*/` plus migration 037, while the other was untracked. It took 0040 rather
 than 0039 because 0039 is itself already named in this file and in the plan. A gap at 0039 is
 normal here — 0035 is on another branch and absent from both indexes.
