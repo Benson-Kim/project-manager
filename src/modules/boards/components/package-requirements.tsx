@@ -2,44 +2,62 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/form/combobox";
+import { MultiSelect } from "@/components/ui/form/multi-select";
+import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { messages } from "@/lib/messages";
 import type { ProjectOption } from "@/modules/projects/project-options";
 import type { BoardView } from "../schemas/board-view";
 import type { RequirementOption } from "@/modules/requirements/schemas/requirement";
 import type { BoardOptionRow } from "../schemas/board";
+import { packageRequirementsInput } from "../schemas/board-package";
+import { boardFormSchema } from "../schemas/board-form";
 import {
   packageRequirementsAction,
   readPackagingBoardAction,
   readPackagingOptionsAction,
 } from "../actions";
-import { BoardForm, BoardField, control, text } from "./board-form";
+import { BoardForm, BoardField } from "./board-form";
 const M = messages.boards;
 const U = M.ui;
-export function PackageRequirementsButton({
-  projectId,
-  projects = [],
-  board,
-  selectedIds,
-}: {
+interface Props {
   projectId?: number;
   projects?: ProjectOption[];
   board?: BoardView;
   selectedIds?: number[];
-}) {
-  const router = useRouter();
+}
+export function PackageRequirementsButton(props: Props) {
   const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        {U.packageTitle}
+      </Button>
+      {open ? <PackagingDialog {...props} close={() => setOpen(false)} /> : null}
+    </>
+  );
+}
+function PackagingDialog({
+  projectId,
+  projects = [],
+  board,
+  selectedIds = [],
+  close,
+}: Props & { close: () => void }) {
+  const router = useRouter();
   const [project, setProject] = useState(
     projectId ?? board?.header.ProjectId ?? projects[0]?.id ?? 0,
   );
   const [boardId, setBoardId] = useState(board?.header.BoardId ?? 0);
   const [requirements, setRequirements] = useState<RequirementOption[]>([]);
+  const [selected, setSelected] = useState(selectedIds);
   const [boards, setBoards] = useState<BoardOptionRow[]>([]);
   const [columns, setColumns] = useState(board?.columns ?? []);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState("");
+  const [activeSprintId, setActiveSprintId] = useState(board?.header.ActiveSprintId ?? null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(Boolean(project));
   useEffect(() => {
-    if (!open || !project) return;
+    if (!project) return;
     let active = true;
     readPackagingOptionsAction({ projectId: project })
       .then((result) => {
@@ -59,16 +77,17 @@ export function PackageRequirementsButton({
     return () => {
       active = false;
     };
-  }, [open, project]);
+  }, [project]);
   useEffect(() => {
-    if (!open || !boardId || board) return;
+    if (!boardId || board) return;
     let active = true;
     readPackagingBoardAction({ boardId })
       .then((result) => {
-        if (active) {
-          if (result.ok) setColumns(result.data.columns);
-          else setError(result.error.message);
-        }
+        if (!active) return;
+        if (result.ok) {
+          setColumns(result.data.columns);
+          setActiveSprintId(result.data.activeSprintId);
+        } else setError(result.error.message);
       })
       .catch(() => {
         if (active) setError(messages.errors.INTERNAL);
@@ -76,131 +95,84 @@ export function PackageRequirementsButton({
     return () => {
       active = false;
     };
-  }, [boardId, open, board]);
+  }, [boardId, board]);
+  const options = requirements.map((r) => ({ id: r.id, label: `${r.ref} · ${r.text}` }));
   return (
-    <>
-      <Button
-        variant="secondary"
-        onClick={() => {
-          setError("");
-          setLoading(true);
-          setRequirements([]);
-          setSearch("");
-          setOpen(true);
-        }}
-      >
-        {U.packageTitle}
-      </Button>
-      {open ? (
-        <BoardForm
-          title={U.packageTitle}
-          close={() => setOpen(false)}
-          save={async (data) => {
-            const result = await packageRequirementsAction({
-              boardId,
-              boardColumnId: Number(text(data, "column")),
-              boardSprintId: board?.header.ActiveSprintId,
-              requirementIds: data.getAll("requirements").map(Number),
-            });
-            if (result.ok) {
-              router.refresh();
-              if (!board) router.push(`/boards/${boardId}`);
-            }
-            return result;
-          }}
-        >
-          {!projectId && board?.header.ProjectId === null ? (
-            <BoardField label={M.project}>
-              <select
-                className={control}
-                value={project}
-                onChange={(e) => {
-                  setLoading(true);
-                  setError("");
-                  setProject(Number(e.target.value));
-                  setRequirements([]);
-                }}
-              >
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </BoardField>
-          ) : null}
-          {!board ? (
-            <BoardField label={M.name}>
-              <select
-                className={control}
-                value={boardId || ""}
-                required
-                onChange={(e) => {
-                  setColumns([]);
-                  setBoardId(Number(e.target.value));
-                }}
-              >
-                <option value="" disabled>
-                  {U.open}
-                </option>
-                {boards.map((b) => (
-                  <option key={b.BoardId} value={b.BoardId}>
-                    {b.Name} · {b.ProjectName ?? M.noProject}
-                  </option>
-                ))}
-              </select>
-            </BoardField>
-          ) : null}
-          <BoardField label={U.column}>
-            <select className={control} name="column" required key={boardId}>
-              {columns.map((c) => (
-                <option key={c.BoardColumnId} value={c.BoardColumnId}>
-                  {c.Name}
-                </option>
-              ))}
-            </select>
-          </BoardField>
-          <BoardField label={U.requirements}>
-            <input
-              className={control}
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </BoardField>
-          {loading ? <p role="status">{U.loading}</p> : null}
-          {error ? (
-            <p role="alert" className="text-danger">
-              {error}
-            </p>
-          ) : null}
-          <div className="max-h-60 overflow-y-auto">
-            {!loading &&
-            !error &&
-            !requirements.some((r) =>
-              `${r.ref} ${r.text}`.toLowerCase().includes(search.toLowerCase()),
-            ) ? (
-              <p role="status">{U.noRequirements}</p>
-            ) : null}
-            {requirements.map((r) => (
-              <label
-                key={`${project}-${r.id}`}
-                className={`min-h-11 items-center gap-2 border-b border-line py-2 ${!`${r.ref} ${r.text}`.toLowerCase().includes(search.toLowerCase()) ? "hidden" : "flex"}`}
-              >
-                <input
-                  type="checkbox"
-                  name="requirements"
-                  value={r.id}
-                  defaultChecked={selectedIds?.includes(r.id)}
-                />
-                <span>
-                  {r.ref} · {r.text}
-                </span>
-              </label>
-            ))}
-          </div>
-        </BoardForm>
+    <BoardForm
+      title={U.packageTitle}
+      close={close}
+      readOnly={loading || !boardId || !columns.length || Boolean(error)}
+      schema={boardFormSchema(packageRequirementsInput, {
+        boardId,
+        boardColumnId: columns[0]?.BoardColumnId,
+        boardSprintId: activeSprintId,
+        requirementIds: selected,
+      })}
+      save={async (input) => {
+        const result = await packageRequirementsAction(input);
+        if (result.ok && !board) router.push(`/projects/${project}/boards/${boardId}`);
+        return result;
+      }}
+    >
+      <ErrorSummary message={error} />
+      {!projectId && board?.header.ProjectId === null ? (
+        <BoardField name="sourceProject" label={M.project}>
+          <Combobox
+            name="sourceProject"
+            defaultValue={String(project)}
+            options={projects.map((p) => ({ value: String(p.id), label: p.name }))}
+            onSelect={(option) => {
+              setLoading(Boolean(option));
+              setError(null);
+              setProject(Number(option?.value ?? 0));
+              setRequirements([]);
+              setSelected([]);
+            }}
+          />
+        </BoardField>
       ) : null}
-    </>
+      {!board ? (
+        <BoardField name="destinationBoard" label={M.name}>
+          <Combobox
+            name="destinationBoard"
+            defaultValue={String(boardId || "")}
+            options={boards.map((b) => ({
+              value: String(b.BoardId),
+              label: `${b.Name} · ${b.ProjectName ?? M.noProject}`,
+            }))}
+            onSelect={(option) => {
+              setColumns([]);
+              setError(null);
+              setBoardId(Number(option?.value ?? 0));
+            }}
+          />
+        </BoardField>
+      ) : null}
+      <BoardField name="boardColumnId" label={U.column}>
+        <Combobox
+          key={columns.map((c) => c.BoardColumnId).join(",")}
+          name="boardColumnId"
+          defaultValue={String(columns[0]?.BoardColumnId ?? "")}
+          options={columns.map((c) => ({ value: String(c.BoardColumnId), label: c.Name }))}
+        />
+      </BoardField>
+      <BoardField name="requirementIds" label={U.requirements}>
+        <MultiSelect
+          options={options}
+          selected={options.filter((o) => selected.includes(o.id))}
+          disabled={loading}
+          inputName="selectedRequirements"
+          emptyPlaceholder={U.noRequirements}
+          removeLabel={U.removeRequirement}
+          onAdd={(option) => setSelected((ids) => [...ids, option.id])}
+          onRemove={(id) => setSelected((ids) => ids.filter((item) => item !== id))}
+        />
+      </BoardField>
+      {loading ? (
+        <p>{messages.app.loading}</p>
+      ) : !requirements.length ? (
+        <p>{U.noRequirements}</p>
+      ) : null}
+    </BoardForm>
   );
 }
