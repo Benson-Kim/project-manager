@@ -171,8 +171,14 @@ export function WbsContextMenu({
     const onPointerDown = (event: PointerEvent) => {
       if (!inside(event.target)) onClose(false);
     };
+    // Only a scroll that moves the item leaves the menu apart from it; a list or the floating
+    // scrollbar scrolling elsewhere does not.
+    const origin = state.returnFocus;
     const onScroll = (event: Event) => {
-      if (!inside(event.target)) onClose(false);
+      const scrolled = event.target;
+      if (inside(scrolled)) return;
+      if (origin && scrolled instanceof Element && !scrolled.contains(origin)) return;
+      onClose(false);
     };
     const onResize = () => onClose(false);
     document.addEventListener("pointerdown", onPointerDown, true);
@@ -183,7 +189,7 @@ export function WbsContextMenu({
       window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", onResize);
     };
-  }, [onClose]);
+  }, [onClose, state.returnFocus]);
 
   function closeSub() {
     setSubOpen(false);

@@ -59,12 +59,13 @@ test.describe("kitchen sink — shared primitives", () => {
     await expect(page.getByTestId("toast-success")).toBeVisible();
   });
 
-  test("combobox filters and selects with the keyboard", async ({ page }) => {
+  test("combobox ranks the best match first and selects with the keyboard", async ({ page }) => {
     // Named — native <select> elements (Category, Theme) are also role=combobox.
     const combo = page.getByRole("combobox", { name: "Owner" });
     await combo.fill("ra");
-    await expect(page.getByRole("option", { name: "Rachid" })).toBeVisible();
-    await combo.press("ArrowDown");
+    const list = page.locator(`[id="${await combo.getAttribute("aria-controls")}"]`);
+    await expect(list.getByRole("option").first()).toHaveText("Rachid");
+    await expect(list.getByRole("option", { name: "Dana" })).toBeVisible();
     await combo.press("Enter");
     await expect(combo).toHaveValue("Rachid");
   });
