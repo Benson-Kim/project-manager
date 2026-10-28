@@ -49,6 +49,13 @@ export function BoardDetailsDialog({
         title={M.ui.link}
         schema={boardFormSchema(setBoardProjectInput, { ...identity, removeForeignCards: false })}
         save={setBoardProjectAction}
+        onSaved={(updated) =>
+          router.push(
+            updated.ProjectId
+              ? `/projects/${updated.ProjectId}/boards/${updated.BoardId}`
+              : `/boards/${updated.BoardId}`,
+          )
+        }
         close={close}
       >
         <BoardField name="projectId" label={M.project}>

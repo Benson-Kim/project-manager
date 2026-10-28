@@ -6,7 +6,9 @@ export function boardFormSchema<T extends z.ZodType>(
   defaults: Record<string, unknown> = {},
 ) {
   return z.preprocess((raw) => {
-    const record = z.record(z.string(), z.unknown()).parse(raw);
+    const parsed = z.record(z.string(), z.unknown()).safeParse(raw);
+    if (!parsed.success) return raw;
+    const record = parsed.data;
     const values = { ...defaults, ...record };
     for (const key of [
       "projectId",

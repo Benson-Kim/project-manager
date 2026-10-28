@@ -12,7 +12,7 @@ import { ColumnDialog } from "./column-dialog";
 import { PhaseDialog } from "./phase-dialog";
 import { SprintDialog } from "./sprint-dialog";
 import { MAX_BOARD_COLUMNS } from "../schemas/board-rules";
-import { isoDate } from "./board-form";
+import { formatDate as isoDate } from "@/lib/format";
 import type { ActionResult } from "@/lib/action";
 const M = messages.boards;
 const U = M.ui;
@@ -59,7 +59,7 @@ export function BoardManagement({
         <div className="mt-3 flex flex-wrap gap-2">
           {edit ? (
             <Button variant="secondary" onClick={() => setMode({ kind: "board" })}>
-              {U.edit}
+              {messages.actions.edit}
             </Button>
           ) : null}
           {remove ? (
@@ -96,7 +96,7 @@ export function BoardManagement({
                       variant="secondary"
                       onClick={() => setMode({ kind: "column", id: c.BoardColumnId })}
                     >
-                      {U.edit}
+                      {messages.actions.edit}
                     </Button>
                     <Button
                       variant="secondary"
@@ -136,7 +136,7 @@ export function BoardManagement({
                     disabled={board.columns.length === 1}
                     onClick={() => setMode({ kind: "delete-column", id: c.BoardColumnId })}
                   >
-                    {U.delete}
+                    {messages.actions.delete}
                   </Button>
                 ) : null}
               </div>
@@ -162,7 +162,7 @@ export function BoardManagement({
                       variant="secondary"
                       onClick={() => setMode({ kind: "phase", id: p.BoardPhaseId })}
                     >
-                      {U.edit}
+                      {messages.actions.edit}
                     </Button>
                     <Button
                       variant="secondary"
@@ -201,7 +201,7 @@ export function BoardManagement({
                     variant="secondary"
                     onClick={() => setMode({ kind: "delete-phase", id: p.BoardPhaseId })}
                   >
-                    {U.delete}
+                    {messages.actions.delete}
                   </Button>
                 ) : null}
               </div>
@@ -230,7 +230,7 @@ export function BoardManagement({
                     variant="secondary"
                     onClick={() => setMode({ kind: "sprint", id: s.BoardSprintId })}
                   >
-                    {U.edit}
+                    {messages.actions.edit}
                   </Button>
                 ) : null}
                 {edit && s.State === "planned" ? (
@@ -258,7 +258,7 @@ export function BoardManagement({
                     variant="secondary"
                     onClick={() => setMode({ kind: "delete-sprint", id: s.BoardSprintId })}
                   >
-                    {U.delete}
+                    {messages.actions.delete}
                   </Button>
                 ) : null}
               </div>

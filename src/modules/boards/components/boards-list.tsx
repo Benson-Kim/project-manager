@@ -103,16 +103,8 @@ export function BoardsList({
           title={M.newBoard}
           close={() => setCreating(false)}
           schema={boardFormSchema(createBoardInput, { columns: defaultBoardColumns() })}
-          save={async (input) => {
-            const result = await createBoardAction(input);
-            if (result.ok)
-              router.push(
-                scoped
-                  ? `/projects/${projectId}/boards/${result.data.BoardId}`
-                  : `/boards/${result.data.BoardId}`,
-              );
-            return result;
-          }}
+          save={createBoardAction}
+          onSaved={(created) => router.push(boardHref(created.BoardId))}
         >
           <BoardField name="name" label={M.name}>
             <Input name="name" required maxLength={BOARD_NAME_MAX} autoFocus />

@@ -67,6 +67,7 @@ import { setBoardProjectInput } from "../schemas/board";
 
 import { revalidatePath } from "next/cache";
 import { action } from "@/lib/action";
+import { boardMutation } from "./board-mutation";
 import { createBoardInput, deleteBoardInput, updateBoardInput } from "../schemas/board";
 
 /**
@@ -79,7 +80,7 @@ import { createBoardInput, deleteBoardInput, updateBoardInput } from "../schemas
 
 function revalidateBoards(projectId: number | null | undefined) {
   revalidatePath("/boards", "layout");
-  if (projectId) revalidatePath(`/projects/${projectId}/boards`);
+  if (projectId) revalidatePath(`/projects/${projectId}/boards`, "layout");
 }
 
 /** Create a board (boards:create — the project level is checked in-proc; audited in-proc). */
@@ -118,207 +119,130 @@ export const deleteBoardAction = action({
   },
 });
 
-function refreshBoardViews() {
-  revalidatePath("/boards", "layout");
-  revalidatePath("/projects/[id]/boards", "page");
-}
-
-export const createBoardCardAction = action({
+export const createBoardCardAction = boardMutation({
   name: "boards.createCard",
   schema: createBoardCardInput,
   permission: "boards:create",
-  handler: async (input, ctx) => {
-    const result = await createBoardCard(input, ctx.session.userId);
-    refreshBoardViews();
-    return result ?? null;
-  },
+  mutate: createBoardCard,
 });
 
-export const updateBoardCardAction = action({
+export const updateBoardCardAction = boardMutation({
   name: "boards.updateCard",
   schema: updateBoardCardInput,
   permission: "boards:update",
-  handler: async (input, ctx) => {
-    const result = await updateBoardCard(input, ctx.session.userId);
-    refreshBoardViews();
-    return result ?? null;
-  },
+  mutate: updateBoardCard,
 });
 
-export const moveBoardCardAction = action({
+export const moveBoardCardAction = boardMutation({
   name: "boards.moveCard",
   schema: moveBoardCardInput,
   permission: "boards:update",
-  handler: async (input, ctx) => {
-    const result = await moveBoardCard(input, ctx.session.userId);
-    refreshBoardViews();
-    return result ?? null;
-  },
+  mutate: moveBoardCard,
 });
 
-export const deleteBoardCardAction = action({
+export const deleteBoardCardAction = boardMutation({
   name: "boards.deleteCard",
   schema: deleteBoardCardInput,
   permission: "boards:delete",
-  handler: async (input, ctx) => {
-    const result = await deleteBoardCard(input, ctx.session.userId);
-    refreshBoardViews();
-    return result ?? null;
-  },
+  mutate: deleteBoardCard,
 });
 
-export const createBoardColumnAction = action({
+export const createBoardColumnAction = boardMutation({
   name: "boards.createColumn",
   schema: createBoardColumnInput,
   permission: "boards:create",
-  handler: async (input, ctx) => {
-    const result = await createBoardColumn(input, ctx.session.userId);
-    refreshBoardViews();
-    return result ?? null;
-  },
+  mutate: createBoardColumn,
 });
 
-export const updateBoardColumnAction = action({
+export const updateBoardColumnAction = boardMutation({
   name: "boards.updateColumn",
   schema: updateBoardColumnInput,
   permission: "boards:update",
-  handler: async (input, ctx) => {
-    const result = await updateBoardColumn(input, ctx.session.userId);
-    refreshBoardViews();
-    return result ?? null;
-  },
+  mutate: updateBoardColumn,
 });
 
-export const moveBoardColumnAction = action({
+export const moveBoardColumnAction = boardMutation({
   name: "boards.moveColumn",
   schema: moveBoardColumnInput,
   permission: "boards:update",
-  handler: async (input, ctx) => {
-    const result = await moveBoardColumn(input, ctx.session.userId);
-    refreshBoardViews();
-    return result ?? null;
-  },
+  mutate: moveBoardColumn,
 });
 
-export const deleteBoardColumnAction = action({
+export const deleteBoardColumnAction = boardMutation({
   name: "boards.deleteColumn",
   schema: deleteBoardColumnInput,
   permission: "boards:delete",
-  handler: async (input, ctx) => {
-    const result = await deleteBoardColumn(input, ctx.session.userId);
-    refreshBoardViews();
-    return result ?? null;
-  },
+  mutate: deleteBoardColumn,
 });
 
-export const createBoardPhaseAction = action({
+export const createBoardPhaseAction = boardMutation({
   name: "boards.createPhase",
   schema: createBoardPhaseInput,
   permission: "boards:create",
-  handler: async (input, ctx) => {
-    const result = await createBoardPhase(input, ctx.session.userId);
-    refreshBoardViews();
-    return result ?? null;
-  },
+  mutate: createBoardPhase,
 });
 
-export const updateBoardPhaseAction = action({
+export const updateBoardPhaseAction = boardMutation({
   name: "boards.updatePhase",
   schema: updateBoardPhaseInput,
   permission: "boards:update",
-  handler: async (input, ctx) => {
-    const result = await updateBoardPhase(input, ctx.session.userId);
-    refreshBoardViews();
-    return result ?? null;
-  },
+  mutate: updateBoardPhase,
 });
 
-export const moveBoardPhaseAction = action({
+export const moveBoardPhaseAction = boardMutation({
   name: "boards.movePhase",
   schema: moveBoardPhaseInput,
   permission: "boards:update",
-  handler: async (input, ctx) => {
-    const result = await moveBoardPhase(input, ctx.session.userId);
-    refreshBoardViews();
-    return result ?? null;
-  },
+  mutate: moveBoardPhase,
 });
 
-export const deleteBoardPhaseAction = action({
+export const deleteBoardPhaseAction = boardMutation({
   name: "boards.deletePhase",
   schema: deleteBoardPhaseInput,
   permission: "boards:delete",
-  handler: async (input, ctx) => {
-    const result = await deleteBoardPhase(input, ctx.session.userId);
-    refreshBoardViews();
-    return result ?? null;
-  },
+  mutate: deleteBoardPhase,
 });
 
-export const createBoardSprintAction = action({
+export const createBoardSprintAction = boardMutation({
   name: "boards.createSprint",
   schema: createBoardSprintInput,
   permission: "boards:create",
-  handler: async (input, ctx) => {
-    const result = await createBoardSprint(input, ctx.session.userId);
-    refreshBoardViews();
-    return result ?? null;
-  },
+  mutate: createBoardSprint,
 });
 
-export const updateBoardSprintAction = action({
+export const updateBoardSprintAction = boardMutation({
   name: "boards.updateSprint",
   schema: updateBoardSprintInput,
   permission: "boards:update",
-  handler: async (input, ctx) => {
-    const result = await updateBoardSprint(input, ctx.session.userId);
-    refreshBoardViews();
-    return result ?? null;
-  },
+  mutate: updateBoardSprint,
 });
 
-export const startBoardSprintAction = action({
+export const startBoardSprintAction = boardMutation({
   name: "boards.startSprint",
   schema: startBoardSprintInput,
   permission: "boards:update",
-  handler: async (input, ctx) => {
-    const result = await startBoardSprint(input, ctx.session.userId);
-    refreshBoardViews();
-    return result ?? null;
-  },
+  mutate: startBoardSprint,
 });
 
-export const completeBoardSprintAction = action({
+export const completeBoardSprintAction = boardMutation({
   name: "boards.completeSprint",
   schema: completeBoardSprintInput,
   permission: "boards:update",
-  handler: async (input, ctx) => {
-    const result = await completeBoardSprint(input, ctx.session.userId);
-    refreshBoardViews();
-    return result ?? null;
-  },
+  mutate: completeBoardSprint,
 });
 
-export const deleteBoardSprintAction = action({
+export const deleteBoardSprintAction = boardMutation({
   name: "boards.deleteSprint",
   schema: deleteBoardSprintInput,
   permission: "boards:delete",
-  handler: async (input, ctx) => {
-    const result = await deleteBoardSprint(input, ctx.session.userId);
-    refreshBoardViews();
-    return result ?? null;
-  },
+  mutate: deleteBoardSprint,
 });
 
-export const setBoardProjectAction = action({
+export const setBoardProjectAction = boardMutation({
   name: "boards.setProject",
   schema: setBoardProjectInput,
   permission: "boards:delete",
-  handler: async (input, ctx) => {
-    const result = await setBoardProject(input, ctx.session.userId);
-    refreshBoardViews();
-    return result;
-  },
+  mutate: setBoardProject,
 });
 
 export const readBoardCardAction = action({
@@ -328,15 +252,11 @@ export const readBoardCardAction = action({
   handler: async (input, ctx) => getBoardCardById(input.boardCardId, ctx.session.userId),
 });
 
-export const packageRequirementsAction = action({
+export const packageRequirementsAction = boardMutation({
   name: "boards.package",
   schema: packageRequirementsInput,
   permission: "boards:create",
-  handler: async (input, ctx) => {
-    const result = await packageRequirements(input, ctx.session.userId);
-    refreshBoardViews();
-    return result;
-  },
+  mutate: packageRequirements,
 });
 export const readPackagingOptionsAction = action({
   name: "boards.packageOptions",

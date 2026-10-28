@@ -18,35 +18,37 @@ export function BoardField(props: Omit<FieldProps, "errors">) {
   const errors = useContext(Errors);
   return <Field {...props} errors={errors[props.name]} />;
 }
-interface Props<T extends z.ZodType> {
+interface Props<T extends z.ZodType, R> {
   title: string;
   children: React.ReactNode;
   schema: T;
-  save: (input: z.output<T>) => Promise<ActionResult<unknown>>;
+  save: (input: z.output<T>) => Promise<ActionResult<R>>;
   close: () => void;
+  onSaved?: (result: R) => void;
   readOnly?: boolean;
   submitDisabled?: boolean;
   sheet?: boolean;
   submitLabel?: string;
 }
-export function BoardForm<T extends z.ZodType>(props: Props<T>) {
+export function BoardForm<T extends z.ZodType, R>(props: Props<T, R>) {
   return (
     <UnsavedChangesScope>
       <FormContent {...props} />
     </UnsavedChangesScope>
   );
 }
-function FormContent<T extends z.ZodType>({
+function FormContent<T extends z.ZodType, R>({
   title,
   children,
   schema,
   save,
   close,
+  onSaved,
   readOnly = false,
   submitDisabled = false,
   sheet = false,
   submitLabel = messages.actions.save,
-}: Props<T>) {
+}: Props<T, R>) {
   const form = useZodForm(schema);
   const { toast } = useToast();
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +85,7 @@ function FormContent<T extends z.ZodType>({
               if (result.ok) {
                 unsaved.markClean();
                 toast({ variant: "success", title: messages.feedback.saved });
+                onSaved?.(result.data);
                 close();
               } else setError(result.error.message);
             } catch {

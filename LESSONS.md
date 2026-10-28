@@ -4,7 +4,9 @@ This file is a living ledger of hard-won lessons. **Every session must read it b
 
 A briefing is a snapshot; the ledger is the truth.
 
-- 2026-10-28 boards UI delivery: the user explicitly deferred new tests and test-suite execution until final manual acceptance. Implemented subfeatures are committed and pushed separately on feature/boards-ui. CI test skipping is scoped to that branch/PR; shared branch rules remain intact. Compile/lint/type results do not establish functional acceptance.
+- 2026-10-28 review follow-up: the user has now requested strict repository compliance and new tests after implementation fixes. The earlier no-tests instruction is superseded. Unit, DB and E2E CI conditions have been restored.
+
+- 2026-10-28 boards UI delivery (superseded for follow-up work): the user explicitly deferred new tests and test-suite execution until final manual acceptance. Implemented subfeatures are committed and pushed separately on feature/boards-ui. CI test skipping is scoped to that branch/PR; shared branch rules remain intact. Compile/lint/type results do not establish functional acceptance.
 
 ## Integration review, 2026-10-28
 

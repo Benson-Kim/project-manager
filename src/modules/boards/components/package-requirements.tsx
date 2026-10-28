@@ -108,9 +108,9 @@ function PackagingDialog({
         boardSprintId: activeSprintId,
         requirementIds: selected,
       })}
-      save={async (input) => {
-        const result = await packageRequirementsAction(input);
-        if (result.ok && !board) {
+      save={packageRequirementsAction}
+      onSaved={() => {
+        if (!board) {
           const destination = boards.find((item) => item.BoardId === boardId);
           router.push(
             destination?.ProjectId
@@ -118,7 +118,6 @@ function PackagingDialog({
               : `/boards/${boardId}`,
           );
         }
-        return result;
       }}
     >
       <ErrorSummary message={error} />
