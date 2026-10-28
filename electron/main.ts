@@ -3,12 +3,16 @@ import {
   BrowserWindow,
   clipboard,
   dialog,
+  Menu,
   screen,
   session,
   shell,
+  utilityProcess,
   type BrowserWindowConstructorOptions,
+  type ContextMenuParams,
   type WebContents,
 } from "electron";
+import fs from "fs";
 import { createRequire } from "module";
 import path from "path";
 import { ensureAdminAccount, type Argon2Like } from "./admin-account";
@@ -22,12 +26,22 @@ import {
 import { waitForSql } from "./db";
 import { applyDatabaseSchema } from "./db-apply";
 import { createDbWatchdog } from "./db-watchdog";
+import { contextMenuTemplate } from "./context-menu";
 import { createExclusive } from "./exclusive";
+import { GrammarChecker } from "./grammar";
 import { createLogger, describeError } from "./log";
 import { readMachineConfig, SetupRequiredError, type MachineConfig } from "./machine-config";
 import { NextServer } from "./next-server";
 import { paths } from "./paths";
 import { allowPermission } from "./permissions";
+import {
+  dialectFor,
+  grammarFixes,
+  paragraphAtCaret,
+  spellingLanguage,
+  writtenEnglish,
+  type Paragraph,
+} from "./proofing";
 import { getServiceState, isListening, runElevatedRepair, startService } from "./sql-service";
 import {
   destroyTray,
@@ -55,6 +69,23 @@ const settings = new SettingsStore(app.getPath("userData"));
 const BACKUP_INTERVAL_MS = 24 * 60 * 60_000;
 const BACKUP_CHECK_MS = 60 * 60_000;
 const DB_CHECK_MS = 30_000;
+
+const grammar = new GrammarChecker({
+  fork: () => {
+    const child = utilityProcess.fork(path.join(__dirname, "grammar-worker.js"), [], {
+      serviceName: "Project Manager grammar check",
+    });
+    return {
+      postMessage: (message) => child.postMessage(message),
+      kill: () => child.kill(),
+      onMessage: (listener) => void child.on("message", listener),
+      onExit: (listener) => void child.on("exit", listener),
+    };
+  },
+  readWasm: () => fs.promises.readFile(path.join(__dirname, "harper_wasm_slim_bg.wasm")),
+  dialect: dialectFor(writtenEnglish(app.getPreferredSystemLanguages())),
+  warn: (message) => log.warn(message),
+});
 
 let config: MachineConfig | null = null;
 let server: NextServer | null = null;
@@ -160,6 +191,67 @@ function guardContents(contents: WebContents, origin: string): void {
       openExternally(target);
     }
   });
+  contents.on("context-menu", (_e, params) => {
+    void showContextMenu(contents, params).catch((err) =>
+      log.warn(`[context-menu] ${describeError(err)}`),
+    );
+  });
+}
+
+function inPage(contents: WebContents, select: Parameters<typeof paragraphAtCaret>[0]) {
+  return contents.executeJavaScript(
+    `(${paragraphAtCaret.toString()})(${JSON.stringify(select)})`,
+  ) as Promise<ReturnType<typeof paragraphAtCaret>>;
+}
+
+/** Electron has no right-click menu of its own; this one adds spelling and grammar (ADR-0049). */
+async function showContextMenu(contents: WebContents, params: ContextMenuParams): Promise<void> {
+  const checking = settings.get().checkSpelling;
+  const paragraph = params.isEditable ? ((await inPage(contents, null)) as Paragraph | null) : null;
+  let fixes: { label: string; apply(): void }[] | "loading" = [];
+  if (paragraph && checking) {
+    const issues = paragraph.text.trim() ? await grammar.check(paragraph.text) : [];
+    if (issues === null) fixes = "loading";
+    else {
+      fixes = grammarFixes(issues, paragraph.caret).map((fix) => ({
+        label: fix.label,
+        apply: () => {
+          void inPage(contents, { text: paragraph.text, start: fix.start, end: fix.end }).then(
+            (selected) => {
+              if (selected !== true) return;
+              if (fix.text) void contents.insertText(fix.text);
+              else contents.delete();
+            },
+          );
+        },
+      }));
+    }
+  }
+  const template = contextMenuTemplate(
+    {
+      isEditable: params.isEditable,
+      checkable: paragraph !== null,
+      hasSelection: params.selectionText.trim() !== "",
+      linkURL: params.linkURL,
+      misspelledWord: params.misspelledWord,
+      dictionarySuggestions: params.dictionarySuggestions,
+      editFlags: params.editFlags,
+      checking,
+      grammar: fixes,
+    },
+    {
+      replaceMisspelling: (word) => contents.replaceMisspelling(word),
+      addToDictionary: (word) => contents.session.addWordToSpellCheckerDictionary(word),
+      copyLink: () => clipboard.writeText(params.linkURL),
+      setChecking: (on) => {
+        settings.set({ checkSpelling: on });
+        contents.session.setSpellCheckerEnabled(on);
+        if (on) grammar.warm();
+        else grammar.stop();
+      },
+    },
+  );
+  if (template.length && !contents.isDestroyed()) Menu.buildFromTemplate(template).popup();
 }
 
 function detachedWindowPlacement(): Placement {
@@ -182,6 +274,9 @@ function createMainWindow(url: string): BrowserWindow {
   keepTitlesShort(win);
   guardContents(win.webContents, new URL(url).origin);
 
+  win.on("focus", () => {
+    if (settings.get().checkSpelling) grammar.warm();
+  });
   win.once("ready-to-show", () => {
     splash?.close();
     splash = null;
@@ -566,6 +661,12 @@ async function bootstrap(): Promise<void> {
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback, details) =>
     callback(server !== null && allowPermission(permission, details.requestingUrl, server.url)),
   );
+  session.defaultSession.setSpellCheckerEnabled(settings.get().checkSpelling);
+  const spelling = spellingLanguage(
+    writtenEnglish(app.getPreferredSystemLanguages()),
+    session.defaultSession.availableSpellCheckerLanguages,
+  );
+  if (spelling) session.defaultSession.setSpellCheckerLanguages([spelling]);
   watchDownloads();
   splash = createSplash();
 
@@ -724,6 +825,7 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
   app.on("will-quit", () => {
+    grammar.stop();
     server?.stop();
     destroyTray();
     log.info("=== quit ===");

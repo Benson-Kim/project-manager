@@ -43,7 +43,14 @@ module.exports = {
   nodeGypRebuild: false,
   asar: true,
   electronLanguages: ["en-US"],
-  files: ["main.js", "splash.html", "splash-logo.png", "package.json"],
+  files: [
+    "main.js",
+    "grammar-worker.js",
+    "harper_wasm_slim_bg.wasm",
+    "splash.html",
+    "splash-logo.png",
+    "package.json",
+  ],
 
   extraResources: [
     { from: r("db"), to: "db", filter: ["migrations/*.sql", "procs/**/*.sql", "seed/*.sql"] },

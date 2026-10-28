@@ -31,7 +31,7 @@ What #2 and #12 became, in one line each:
 | # | Item | Status | Where |
 |---|---|---|---|
 | 16 | Under Overview, change "Problem statement" to "Opportunity/Problem statement" | **DONE** | `messages.projects.problemStatement`; the form field name and the `ProblemStatement` column are unchanged, so no migration and no data move |
-| 8 | Right-click spell check | **ALREADY TRUE** | `spellCheck` is on every prose `Input` and `Textarea` (`src/components/ui/form/inputs.tsx`) and on the rich-text surface (`editor-surface.tsx:84`); the browser's own menu does the rest. Nothing to build |
+| 8 | Right-click spell check | **ALREADY TRUE** | `spellCheck` is on every prose `Input` and `Textarea` (`src/components/ui/form/inputs.tsx`) and on the rich-text surface (`editor-surface.tsx:84`); the browser's own menu does the rest. Nothing to build. **Wrong for the desktop app**, which had no right-click menu: corrected 2026-10-28 by ADR-0049 |
 
 ## Still open, and why they are not quick
 
