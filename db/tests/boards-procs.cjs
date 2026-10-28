@@ -866,7 +866,9 @@ async function main() {
   ok(repeated.AddedCards === 0 && repeated.SkippedCards === 5, "repeat import skips live duplicates");
   const [, , , , importedCards] = await exec("usp_Board_GetBoard", { BoardId: importBoard.BoardId, ActorUserId: PM });
   ok(importedCards.length === 5, "duplicates do not create cards");
-  const foreign = await requirement(R, "FR", "e2e-private solution");
+  // Only its creator (PM) is on this project, so the viewer of P cannot read its requirement.
+  const privateProject = await project(`Boards private ${Date.now()}`);
+  const foreign = await requirement(privateProject, "FR", "e2e-private solution");
   await expectCode(50004, "project board refuses a foreign requirement", () => exec("usp_BoardCard_Package", { ...payload, RequirementIds: JSON.stringify([foreign.RequirementId]) }));
   await expectCode(50001, "a missing requirement rolls back the entire batch", () => exec("usp_BoardCard_Package", { ...payload, RequirementIds: JSON.stringify([child.RequirementId, 2147483647]) }));
   const [, , , , afterRefusal] = await exec("usp_Board_GetBoard", { BoardId: importBoard.BoardId, ActorUserId: PM });
