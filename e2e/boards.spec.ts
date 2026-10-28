@@ -42,10 +42,10 @@ async function axe(page: Page): Promise<void> {
 async function importRequirements(page: Page, stamp: number): Promise<void> {
   await page.getByRole("button", { name: B.ui.packageTitle }).click();
   const dialog = page.getByRole("dialog");
-  const picker: Locator = dialog.getByRole("combobox").last();
-  for (let i = 0; i < 2; i++) {
-    await picker.fill(String(stamp));
-    await dialog.getByRole("option").first().click();
+  const picker: Locator = dialog.getByRole("combobox", { name: B.ui.requirements, exact: true });
+  for (const wording of [`E2E board functional ${stamp}`, `E2E board quality ${stamp}`]) {
+    await picker.fill(wording);
+    await dialog.getByRole("option").filter({ hasText: wording }).click();
   }
   await expect(dialog.getByRole("button", { name: /^Remove / })).toHaveCount(2);
   await dialog.getByRole("button", { name: messages.actions.save }).click();
@@ -73,22 +73,24 @@ test("a project board takes a card and imports FR and NFR requirements once", as
 
   await page.getByRole("button", { name: B.ui.newCard }).first().click();
   const card = page.getByRole("dialog");
-  await card.getByLabel(B.ui.cardTitle, { exact: true }).fill(`E2E card ${stamp}`);
+  const title = card.getByLabel(B.ui.cardTitle, { exact: true });
+  await title.fill(`E2E card ${stamp}`);
+  await title.blur();
   await card.getByRole("button", { name: messages.actions.save }).click();
   await expect(card).toBeHidden();
-  await expect(page.getByRole("button", { name: `E2E card ${stamp}` })).toBeVisible();
+  await expect(page.getByRole("button", { name: `E2E card ${stamp}`, exact: true })).toBeVisible();
 
   await importRequirements(page, stamp);
   const lane = page.getByRole("region", { name: B.defaultColumns.todo });
-  await expect(lane.getByRole("button", { name: fr })).toBeVisible();
-  await expect(lane.getByRole("button", { name: nfr })).toBeVisible();
+  await expect(lane.getByRole("button", { name: fr, exact: true })).toBeVisible();
+  await expect(lane.getByRole("button", { name: nfr, exact: true })).toBeVisible();
   await expect(lane.getByText(/^FR-\d+/)).toBeVisible();
   await expect(lane.getByText(/^NFR-\d+/)).toBeVisible();
   await axe(page);
 
   await importRequirements(page, stamp);
-  await expect(lane.getByRole("button", { name: fr })).toHaveCount(1);
-  await expect(lane.getByRole("button", { name: nfr })).toHaveCount(1);
+  await expect(lane.getByRole("button", { name: fr, exact: true })).toHaveCount(1);
+  await expect(lane.getByRole("button", { name: nfr, exact: true })).toHaveCount(1);
 
   await page.goto(`${page.url()}?view=plan`);
   await expect(page.getByRole("region", { name: B.backlog })).toBeVisible();
