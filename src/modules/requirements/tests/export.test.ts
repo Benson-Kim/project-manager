@@ -59,17 +59,23 @@ function row(over: Partial<RequirementListRow>): RequirementListRow {
 }
 
 describe("requirementCsvRows", () => {
-  it.each(["BR", "SR"] as const)("exports an uncovered %s as a need without a Met value", (type) => {
-    const [, need] = requirementCsvRows([row({ RequirementType: type })]);
-    expect(need?.[3]).toBe("");
-    expect(need?.[6]).toBe(messages.requirements.coverageNone);
-  });
+  it.each(["BR", "SR"] as const)(
+    "exports an uncovered %s as a need without a Met value",
+    (type) => {
+      const [, need] = requirementCsvRows([row({ RequirementType: type })]);
+      expect(need?.[3]).toBe("");
+      expect(need?.[6]).toBe(messages.requirements.coverageNone);
+    },
+  );
 
-  it.each(["FR", "NFR", "TR"] as const)("exports an unmet %s as a solution without coverage", (type) => {
-    const [, solution] = requirementCsvRows([row({ RequirementType: type })]);
-    expect(solution?.[3]).toBe(messages.requirements.no);
-    expect(solution?.[6]).toBe("");
-  });
+  it.each(["FR", "NFR", "TR"] as const)(
+    "exports an unmet %s as a solution without coverage",
+    (type) => {
+      const [, solution] = requirementCsvRows([row({ RequirementType: type })]);
+      expect(solution?.[3]).toBe(messages.requirements.no);
+      expect(solution?.[6]).toBe("");
+    },
+  );
 
   it("heads the file and puts the register in catalog order", () => {
     const rows = requirementCsvRows([
