@@ -1,6 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { messages } from "@/lib/messages";
 import { rowAllows } from "@/lib/auth/actor-access";
@@ -37,7 +37,7 @@ export function BoardManagement({
   board: BoardView;
   projects: ProjectOption[];
 }) {
-  const router = useRouter();
+  const { toast } = useToast();
   const [mode, setMode] = useState<Mode | null>(null);
   const [pending, start] = useTransition();
   const [error, setError] = useState("");
@@ -48,7 +48,7 @@ export function BoardManagement({
     setError("");
     start(async () => {
       const result = await work();
-      if (result.ok) router.refresh();
+      if (result.ok) toast({ variant: "success", title: messages.feedback.saved });
       else setError(result.error.message);
     });
   }

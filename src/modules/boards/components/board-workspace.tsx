@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/data-view/search-input";
 import { Menu, MenuButton } from "@/components/ui/menu";
@@ -40,6 +41,7 @@ export function BoardWorkspace({
   listHref?: string;
 }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [pending, start] = useTransition();
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<BoardCardDetailRow | null>(null);
@@ -57,13 +59,13 @@ export function BoardWorkspace({
     }, 20000);
     return () => clearInterval(timer);
   }, [busy, pending, router]);
-  function run(operation: () => Promise<ActionResult<unknown>>) {
+  function run(operation: () => Promise<ActionResult<unknown>>, notify = true) {
     setError("");
     start(async () => {
       try {
         const result = await operation();
         if (!result.ok) setError(result.error.message);
-        else router.refresh();
+        else if (notify) toast({ variant: "success", title: messages.feedback.saved });
       } catch {
         setError(messages.errors.INTERNAL);
       }
@@ -99,7 +101,7 @@ export function BoardWorkspace({
       const result = await readBoardCardAction({ boardCardId: card.BoardCardId });
       if (result.ok) setEditing(result.data);
       return result;
-    });
+    }, false);
   }
   const drag = usePointerDrag({
     enabled: canEdit && !pending && !busy,
