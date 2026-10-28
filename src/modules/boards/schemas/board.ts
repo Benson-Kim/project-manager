@@ -1,7 +1,14 @@
 import { z } from "zod";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
-import { BOARD_COLUMN_NAME_MAX, COLUMN_CATEGORIES, MAX_BOARD_COLUMNS } from "./board-rules";
+import {
+  BOARD_NAME_MAX,
+  BOARD_DESCRIPTION_MAX,
+  WIP_LIMIT_MAX,
+  BOARD_COLUMN_NAME_MAX,
+  COLUMN_CATEGORIES,
+  MAX_BOARD_COLUMNS,
+} from "./board-rules";
 
 /**
  * Board (app.Board) — zod contracts. The row schemas mirror the SELECT shape of
@@ -58,14 +65,14 @@ export const boardOptionRowSchema = z.object({
 
 export type BoardOptionRow = z.infer<typeof boardOptionRowSchema>;
 
-const boardName = z.string().trim().min(1).max(200);
-const boardDescription = z.string().trim().max(2000).nullish();
+const boardName = z.string().trim().min(1).max(BOARD_NAME_MAX);
+const boardDescription = z.string().trim().max(BOARD_DESCRIPTION_MAX).nullish();
 
 /** One starting column of a new board (usp_Board_Create @ColumnsJson). */
 export const boardColumnDraftInput = z.object({
   name: z.string().trim().min(1).max(BOARD_COLUMN_NAME_MAX),
   category: z.enum(COLUMN_CATEGORIES),
-  wipLimit: z.number().int().min(1).max(999).nullable(),
+  wipLimit: z.number().int().min(1).max(WIP_LIMIT_MAX).nullable(),
 });
 
 export const createBoardInput = z.object({

@@ -14,7 +14,12 @@ import { listEmptyState } from "@/components/ui/states";
 import type { BoardListRow } from "../schemas/board";
 import type { ProjectOption } from "@/modules/projects/project-options";
 import { createBoardAction } from "../actions";
-import { BoardForm, BoardField, control, text, optionalNumber } from "./board-form";
+import { BoardForm, BoardField } from "./board-form";
+import { Input, Textarea } from "@/components/ui/form/inputs";
+import { Combobox } from "@/components/ui/form/combobox";
+import { boardFormSchema } from "../schemas/board-form";
+import { createBoardInput } from "../schemas/board";
+import { BOARD_NAME_MAX, BOARD_DESCRIPTION_MAX } from "../schemas/board-rules";
 const M = messages.boards;
 export function BoardsList({
   rows,
@@ -35,6 +40,8 @@ export function BoardsList({
   const { searchParams } = useListUrlState();
   const filtersActive = Boolean(searchParams.get("q") || (!scoped && searchParams.get("project")));
   const [creating, setCreating] = useState(false);
+  const boardHref = (id: number) =>
+    scoped ? `/projects/${projectId}/boards/${id}` : `/boards/${id}`;
   const add = allowCreate ? (
     <Button onClick={() => setCreating(true)}>{M.newBoard}</Button>
   ) : undefined;
@@ -52,10 +59,10 @@ export function BoardsList({
         initialView="grid"
         getRowId={(r) => r.BoardId}
         getRowLabel={(r) => r.Name}
-        onOpen={(r) => router.push(`/boards/${r.BoardId}`)}
+        onOpen={(r) => router.push(boardHref(r.BoardId))}
         renderCard={(r) => (
           <div>
-            <Link className="text-lg font-semibold text-accent" href={`/boards/${r.BoardId}`}>
+            <Link className="text-lg font-semibold text-accent" href={boardHref(r.BoardId)}>
               {r.Name}
             </Link>
             <p className="text-sm text-ink-muted">{r.ProjectName ?? M.noProject}</p>
@@ -68,7 +75,7 @@ export function BoardsList({
             header: M.name,
             priority: 1,
             render: (r) => (
-              <Link className="text-accent underline" href={`/boards/${r.BoardId}`}>
+              <Link className="text-accent underline" href={boardHref(r.BoardId)}>
                 {r.Name}
               </Link>
             ),
@@ -95,32 +102,33 @@ export function BoardsList({
         <BoardForm
           title={M.newBoard}
           close={() => setCreating(false)}
-          save={async (data) => {
-            const result = await createBoardAction({
-              name: text(data, "name"),
-              description: text(data, "description"),
-              projectId: optionalNumber(data, "project"),
-              columns: defaultBoardColumns(),
-            });
-            if (result.ok) router.push(`/boards/${result.data.BoardId}`);
+          schema={boardFormSchema(createBoardInput, { columns: defaultBoardColumns() })}
+          save={async (input) => {
+            const result = await createBoardAction(input);
+            if (result.ok)
+              router.push(
+                scoped
+                  ? `/projects/${projectId}/boards/${result.data.BoardId}`
+                  : `/boards/${result.data.BoardId}`,
+              );
             return result;
           }}
         >
-          <BoardField label={M.name}>
-            <input className={control} name="name" required maxLength={200} autoFocus />
+          <BoardField name="name" label={M.name}>
+            <Input name="name" required maxLength={BOARD_NAME_MAX} autoFocus />
           </BoardField>
-          <BoardField label={M.description}>
-            <textarea className={control} name="description" maxLength={2000} />
+          <BoardField name="description" label={M.description}>
+            <Textarea name="description" maxLength={BOARD_DESCRIPTION_MAX} />
           </BoardField>
-          <BoardField label={M.project}>
-            <select className={control} name="project" defaultValue={projectId ?? ""}>
-              <option value="">{M.noProject}</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+          <BoardField name="projectId" label={M.project}>
+            <Combobox
+              name="projectId"
+              defaultValue={String(projectId ?? "")}
+              options={[
+                { value: "", label: M.noProject },
+                ...projects.map((p) => ({ value: String(p.id), label: p.name })),
+              ]}
+            />
           </BoardField>
         </BoardForm>
       ) : null}

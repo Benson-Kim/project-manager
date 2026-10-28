@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
-import { BOARD_COLUMN_NAME_MAX, COLUMN_CATEGORIES } from "./board-rules";
+import { BOARD_COLUMN_NAME_MAX, COLUMN_CATEGORIES, WIP_LIMIT_MAX } from "./board-rules";
 
 /**
  * Board column (app.BoardColumn) — zod contracts, mirroring the SELECT shape of
@@ -11,7 +11,7 @@ import { BOARD_COLUMN_NAME_MAX, COLUMN_CATEGORIES } from "./board-rules";
  */
 
 const columnName = z.string().trim().min(1).max(BOARD_COLUMN_NAME_MAX);
-const wipLimit = z.number().int().min(1).max(999).nullable();
+const wipLimit = z.number().int().min(1).max(WIP_LIMIT_MAX).nullable();
 
 export const boardColumnRowSchema = z.object({
   BoardColumnId: z.number().int(),

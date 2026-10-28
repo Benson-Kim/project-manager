@@ -24,6 +24,10 @@ export const BOARD_SORT: ListSort = { columns: BOARD_SORT_KEYS, default: "Name" 
 /** usp_Board_Create refuses more than this many starting columns. */
 export const MAX_BOARD_COLUMNS = 12;
 
+export const BOARD_NAME_MAX = 200;
+export const BOARD_DESCRIPTION_MAX = 2000;
+export const WIP_LIMIT_MAX = 999;
+
 /** app.BoardColumn.Name. */
 export const BOARD_COLUMN_NAME_MAX = 60;
 

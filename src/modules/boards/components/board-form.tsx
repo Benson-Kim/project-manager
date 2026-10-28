@@ -1,88 +1,111 @@
 "use client";
-import { useState, useTransition } from "react";
+import { createContext, useContext, useState, useTransition } from "react";
+import { z } from "zod";
 import type { ActionResult } from "@/lib/action";
-import { Dialog } from "@/components/ui/dialog";
+import { Dialog, Sheet } from "@/components/ui/dialog";
+import { Field, type FieldProps } from "@/components/ui/form/field";
+import { ErrorSummary } from "@/components/ui/form/error-summary";
+import { useZodForm } from "@/components/ui/form/use-zod-form";
+import { UnsavedChangesScope, useUnsavedPart } from "@/components/ui/form/unsaved-scope";
+import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { messages } from "@/lib/messages";
-export const control =
-  "min-h-11 w-full rounded-md border border-line bg-surface px-3 py-2 text-ink";
-export function BoardField({ label, children }: { label: string; children: React.ReactNode }) {
+export { toDateInput as isoDate } from "@/lib/format";
+
+const Errors = createContext<Record<string, string[]>>({});
+/** Only composes the shared Field; labels, ids, errors and aria stay in one primitive. */
+export function BoardField(props: Omit<FieldProps, "errors">) {
+  const errors = useContext(Errors);
+  return <Field {...props} errors={errors[props.name]} />;
+}
+interface Props<T extends z.ZodType> {
+  title: string;
+  children: React.ReactNode;
+  schema: T;
+  save: (input: z.output<T>) => Promise<ActionResult<unknown>>;
+  close: () => void;
+  readOnly?: boolean;
+  sheet?: boolean;
+  submitLabel?: string;
+}
+export function BoardForm<T extends z.ZodType>(props: Props<T>) {
   return (
-    <label className="flex flex-col gap-1 text-sm font-medium">
-      {label}
-      {children}
-    </label>
+    <UnsavedChangesScope>
+      <FormContent {...props} />
+    </UnsavedChangesScope>
   );
 }
-export function BoardForm({
+function FormContent<T extends z.ZodType>({
   title,
   children,
+  schema,
   save,
   close,
   readOnly = false,
-  submitLabel = messages.boards.ui.save,
-}: {
-  title: string;
-  children: React.ReactNode;
-  save: (data: FormData) => Promise<ActionResult<unknown>>;
-  close: () => void;
-  readOnly?: boolean;
-  submitLabel?: string;
-}) {
-  const [error, setError] = useState("");
+  sheet = false,
+  submitLabel = messages.actions.save,
+}: Props<T>) {
+  const form = useZodForm(schema);
+  const { toast } = useToast();
+  const [error, setError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
   const [pending, start] = useTransition();
+  const unsaved = useUnsavedPart("board-form", dirty);
+  const Overlay = sheet ? Sheet : Dialog;
+  const requestClose = () => {
+    if (!pending) unsaved.leave(close);
+  };
   return (
-    <Dialog
+    <Overlay
       open
       onOpenChange={(open) => {
-        if (!open && !pending) close();
+        if (!open) requestClose();
       }}
       title={title}
     >
       <form
         className="flex max-h-[70dvh] flex-col gap-4 overflow-y-auto"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const data = new FormData(e.currentTarget);
-          setError("");
+        noValidate
+        onChange={() => setDirty(true)}
+        onBlur={form.onBlur}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (pending || readOnly || !form.validate(event.currentTarget)) return;
+          const parsed = schema.safeParse(Object.fromEntries(new FormData(event.currentTarget)));
+          if (!parsed.success) return;
+          setError(null);
           start(async () => {
             try {
-              const result = await save(data);
-              if (result.ok) close();
-              else
-                setError(
-                  [
-                    result.error.message,
-                    ...Object.values(result.error.fieldErrors ?? {}).flat(),
-                  ].join(" "),
-                );
+              const result = await save(parsed.data);
+              form.applyResult(result);
+              if (result.ok) {
+                unsaved.markClean();
+                toast({ variant: "success", title: messages.feedback.saved });
+                close();
+              } else setError(result.error.message);
             } catch {
               setError(messages.errors.INTERNAL);
             }
           });
         }}
       >
-        {children}
-        {error ? (
-          <p role="alert" className="text-danger">
-            {error}
-          </p>
-        ) : null}
+        <ErrorSummary message={error} />
+        <Errors.Provider value={form.errors}>
+          <fieldset disabled={pending || readOnly} className="flex min-w-0 flex-col gap-4">
+            {children}
+          </fieldset>
+        </Errors.Provider>
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" disabled={pending} onClick={close}>
-            {messages.boards.ui.cancel}
+          <Button variant="secondary" disabled={pending} onClick={requestClose}>
+            {messages.actions.cancel}
           </Button>
-          <Button type="submit" pending={pending} disabled={readOnly}>
-            {submitLabel}
-          </Button>
+          {!readOnly ? (
+            <Button type="submit" pending={pending}>
+              {submitLabel}
+            </Button>
+          ) : null}
         </div>
       </form>
-    </Dialog>
+    </Overlay>
   );
 }
-export const text = (data: FormData, key: string) => String(data.get(key) ?? "");
-export const optionalNumber = (data: FormData, key: string) =>
-  text(data, key) ? Number(text(data, key)) : null;
-
-export const isoDate = (date: Date | null) =>
-  date ? new Date(date).toISOString().slice(0, 10) : "";
