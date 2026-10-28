@@ -126,6 +126,13 @@ async function onGantt(projectId, id) {
   const unchanged = await onGantt(P, task.KeyDeliverableId);
   ok(String(unchanged.RowVer) === String(row.RowVer), "and it does not touch the row");
 
+  const [[replayed]] = await exec("usp_KeyDeliverable_SetMilestone", {
+    KeyDeliverableId: task.KeyDeliverableId, IsMilestone: true, RowVer: task.RowVer, ActorUserId: PM,
+  });
+  ok(replayed && replayed.ProjectId === P, "replaying the original request succeeds with its original RowVer");
+  const afterReplay = await onGantt(P, task.KeyDeliverableId);
+  ok(String(afterReplay.RowVer) === String(row.RowVer), "replaying the original request writes nothing");
+
   // A milestone moves; it never gains a length.
   await exec("usp_KeyDeliverable_Reschedule", {
     KeyDeliverableId: task.KeyDeliverableId, StartDate: DAY("2026-11-20"),
