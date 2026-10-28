@@ -4,6 +4,12 @@ This file is a living ledger of hard-won lessons. **Every session must read it b
 
 A briefing is a snapshot; the ledger is the truth.
 
+## Integration review, 2026-10-28
+
+- A combobox accepting a typed assignee must preserve that text on blur, including when an existing name is merely focused and left. The meeting-minutes browser regression waits for the popup to close, checks the submitted hidden value, then saves and reopens an unrelated edit.
+- Requirement export cells follow the requirement type, never the number of links: an uncovered BR/SR still has no Met value and its coverage is Not validated. The export suite covers both need types without solutions.
+- An idempotent milestone request may replay with its original RowVer. Lock the project and re-read before returning an already-satisfied state; check RowVer before an actual transition. The database regression replays the original request and asserts no new row version.
+
 ---
 
 ## 1. Commit cadence (loss prevention)
