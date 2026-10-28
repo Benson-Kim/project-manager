@@ -20,6 +20,8 @@ import { isSatisfied, type DependencyType, type WbsLink } from "../schemas/wbs-d
 
 interface Segment {
   id: number;
+  predecessorId: number;
+  successorId: number;
   d: string;
   head: string;
   satisfied: boolean;
@@ -87,7 +89,14 @@ export function WbsDependencyArrows({
       // edge from the right.
       const dir = edges.to === "end" ? 1 : -1;
       const head = `M ${x2} ${to.middle} l ${dir * HEAD} ${-HEAD} M ${x2} ${to.middle} l ${dir * HEAD} ${HEAD}`;
-      next.push({ id: link.id, d, head, satisfied: isSatisfied(link, wbs) });
+      next.push({
+        id: link.id,
+        predecessorId: link.predecessorId,
+        successorId: link.successorId,
+        d,
+        head,
+        satisfied: isSatisfied(link, wbs),
+      });
     }
     setSegments(next);
     setSize({ width: container.scrollWidth, height: container.scrollHeight });
@@ -105,6 +114,8 @@ export function WbsDependencyArrows({
       {segments.map((segment) => (
         <g
           key={segment.id}
+          data-gantt-dependency-from={segment.predecessorId}
+          data-gantt-dependency-to={segment.successorId}
           className={segment.satisfied ? "stroke-ink-muted" : "stroke-danger"}
           fill="none"
           strokeWidth={1.5}
