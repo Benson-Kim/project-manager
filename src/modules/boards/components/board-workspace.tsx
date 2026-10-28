@@ -4,10 +4,15 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/data-view/search-input";
-import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
+import { Menu, MenuButton } from "@/components/ui/menu";
+import { buttonClass } from "@/components/ui/button-styles";
+import { usePointerDrag } from "@/components/ui/drag/use-pointer-drag";
+import { formatDate } from "@/lib/format";
+import { CardDialog, CardMoveDialog } from "./card-dialog";
+import { BoardConfirm } from "./board-confirm";
+import { deleteBoardCardInput } from "../schemas/board-card";
 import { messages } from "@/lib/messages";
 import { rowAllows } from "@/lib/auth/actor-access";
-import { OPTION_COLORS, type OptionColor } from "@/lib/lookup-lists";
 import { TONES } from "@/components/ui/tones";
 import type { ActionResult } from "@/lib/action";
 import type { ProjectOption } from "@/modules/projects/project-options";
@@ -16,14 +21,7 @@ import type { BoardCardListRow, BoardCardDetailRow } from "../schemas/board-card
 import { PackageRequirementsButton } from "./package-requirements";
 import { BoardManagement } from "./board-management";
 import { cardLabel } from "../schemas/board-rules";
-import {
-  createBoardCardAction,
-  updateBoardCardAction,
-  moveBoardCardAction,
-  deleteBoardCardAction,
-  readBoardCardAction,
-} from "../actions";
-import { BoardField, BoardForm, control, text, optionalNumber, isoDate } from "./board-form";
+import { moveBoardCardAction, deleteBoardCardAction, readBoardCardAction } from "../actions";
 const M = messages.boards;
 const U = M.ui;
 export function BoardWorkspace({
@@ -31,22 +29,27 @@ export function BoardWorkspace({
   assignees,
   projects,
   planning = false,
+  basePath = `/boards/${board.header.BoardId}`,
+  listHref = "/boards",
 }: {
   board: BoardView;
   assignees: BoardAssigneeRow[];
   projects: ProjectOption[];
   planning?: boolean;
+  basePath?: string;
+  listHref?: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<BoardCardDetailRow | null>(null);
   const [newColumn, setNewColumn] = useState<number | null>(null);
+  const [moving, setMoving] = useState<BoardCardListRow | null>(null);
   const [deleting, setDeleting] = useState<BoardCardListRow | null>(null);
   const canCreate = rowAllows("boards:create")(board.header),
     canEdit = rowAllows("boards:update")(board.header),
     canDelete = rowAllows("boards:delete")(board.header);
-  const busy = Boolean(editing || newColumn || deleting);
+  const busy = Boolean(editing || newColumn || deleting || moving);
   useEffect(() => {
     if (busy || pending) return;
     const timer = setInterval(() => {
@@ -98,6 +101,21 @@ export function BoardWorkspace({
       return result;
     });
   }
+  const drag = usePointerDrag({
+    enabled: canEdit && !pending && !busy,
+    onDrop: ({ itemId, lane, beforeId }) => {
+      const card = board.cards.find((c) => c.BoardCardId === itemId);
+      if (!card) return;
+      const target = lane === "backlog" ? null : Number(lane);
+      const before = board.cards.find((c) => c.BoardCardId === beforeId);
+      move(
+        card,
+        planning ? card.BoardColumnId : Number(target),
+        planning ? target : undefined,
+        before && (!planning || before.BoardColumnId === card.BoardColumnId) ? beforeId : undefined,
+      );
+    },
+  });
   const lanes = planning
     ? [
         { id: null, name: M.backlog, limit: null, count: board.header.BacklogCount },
@@ -118,19 +136,29 @@ export function BoardWorkspace({
     <section className="flex min-w-0 flex-1 flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <Link href="/boards" className="text-sm text-accent underline">
+          <Link href={listHref} className="text-sm text-accent underline">
             {M.title}
           </Link>
           <h1 className="text-2xl font-semibold">{board.header.Name}</h1>
           <p className="text-sm text-ink-muted">{board.header.ProjectName ?? M.noProject}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link className={control} href={`/boards/${board.header.BoardId}`}>
-            {U.board}
-          </Link>
-          <Link className={control} href={`/boards/${board.header.BoardId}?view=plan`}>
-            {U.plan}
-          </Link>
+          <nav aria-label={U.views} className="flex gap-1 rounded-md border border-line p-1">
+            <Link
+              className={buttonClass(planning ? "ghost" : "secondary")}
+              aria-current={!planning ? "page" : undefined}
+              href={basePath}
+            >
+              {U.board}
+            </Link>
+            <Link
+              className={buttonClass(planning ? "secondary" : "ghost")}
+              aria-current={planning ? "page" : undefined}
+              href={`${basePath}?view=plan`}
+            >
+              {U.plan}
+            </Link>
+          </nav>
           <Button variant="secondary" onClick={() => router.refresh()} disabled={pending}>
             {U.refresh}
           </Button>
@@ -155,7 +183,7 @@ export function BoardWorkspace({
           {error}
         </p>
       ) : null}
-      <div className="flex gap-4 overflow-x-auto pb-6" aria-busy={pending}>
+      <div data-drag-container className="flex gap-4 overflow-x-auto pb-6" aria-busy={pending}>
         {lanes.map((lane) => {
           const cards = board.cards.filter((c) =>
             planning ? c.BoardSprintId === lane.id : c.BoardColumnId === lane.id,
@@ -165,20 +193,7 @@ export function BoardWorkspace({
               key={lane.id ?? "backlog"}
               aria-label={lane.name}
               className="flex min-w-[280px] max-w-[360px] flex-1 flex-col rounded-lg border border-line bg-surface-sunken"
-              onDragOver={(e) => {
-                if (canEdit) e.preventDefault();
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                const id = Number(e.dataTransfer.getData("application/x-board-card"));
-                const card = board.cards.find((c) => c.BoardCardId === id);
-                if (card && canEdit && !pending)
-                  move(
-                    card,
-                    planning ? card.BoardColumnId : lane.id!,
-                    planning ? lane.id : undefined,
-                  );
-              }}
+              data-drag-lane={lane.id ?? "backlog"}
             >
               <header className="flex items-center justify-between border-b border-line p-3">
                 <h2 className="font-semibold">{lane.name}</h2>
@@ -197,44 +212,50 @@ export function BoardWorkspace({
                 {cards.map((card) => (
                   <article
                     key={card.BoardCardId}
-                    draggable={canEdit && !pending}
-                    onDragStart={(e) =>
-                      e.dataTransfer.setData("application/x-board-card", String(card.BoardCardId))
-                    }
-                    onDragOver={(e) => {
-                      if (canEdit) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      const moving = board.cards.find(
-                        (c) =>
-                          c.BoardCardId ===
-                          Number(e.dataTransfer.getData("application/x-board-card")),
-                      );
-                      if (moving && moving.BoardCardId !== card.BoardCardId && canEdit && !pending)
-                        move(
-                          moving,
-                          planning ? moving.BoardColumnId : card.BoardColumnId,
-                          card.BoardSprintId,
-                          !planning || moving.BoardColumnId === card.BoardColumnId
-                            ? card.BoardCardId
-                            : undefined,
-                        );
-                    }}
-                    className={`rounded-md border border-line p-3 shadow-sm ${card.Color ? TONES[card.Color].fill : "bg-surface"}`}
+                    data-drag-item={card.BoardCardId}
+                    className={`rounded-md border border-line p-3 shadow-sm ${card.Color ? TONES[card.Color].fill : "bg-surface"} ${drag.dragging === card.BoardCardId ? "opacity-50" : ""}`}
                   >
-                    <button
-                      type="button"
-                      className="min-h-11 w-full text-left font-semibold"
-                      disabled={pending}
-                      onClick={() => open(card)}
-                    >
-                      {cardLabel(card)}
-                    </button>
+                    <div className="flex items-start gap-1">
+                      {canEdit ? (
+                        <button
+                          type="button"
+                          aria-label={U.dragCard(cardLabel(card))}
+                          className="min-h-10 min-w-9 touch-none cursor-grab text-ink-muted"
+                          {...drag.bind(card.BoardCardId)}
+                        >
+                          ⠿
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="min-h-11 min-w-0 flex-1 line-clamp-3 text-left font-semibold"
+                        disabled={pending}
+                        onClick={() => open(card)}
+                      >
+                        {cardLabel(card)}
+                      </button>
+                      {canEdit || canDelete ? (
+                        <Menu
+                          label={U.cardActions}
+                          trigger="⋮"
+                          triggerClassName="min-h-10 min-w-9 text-ink-muted"
+                        >
+                          <MenuButton onClick={() => open(card)}>{U.editCard}</MenuButton>
+                          {canEdit ? (
+                            <>
+                              <MenuButton onClick={() => setMoving(card)}>{U.move}</MenuButton>
+                              <MenuButton onClick={() => reorder(card, -1)}>{U.up}</MenuButton>
+                              <MenuButton onClick={() => reorder(card, 1)}>{U.down}</MenuButton>
+                            </>
+                          ) : null}
+                          {canDelete ? (
+                            <MenuButton onClick={() => setDeleting(card)}>
+                              {messages.actions.delete}
+                            </MenuButton>
+                          ) : null}
+                        </Menu>
+                      ) : null}
+                    </div>
                     {card.RequirementState !== "none" ? (
                       <p className="text-xs text-ink-muted">
                         {card.RequirementState === "live"
@@ -252,103 +273,13 @@ export function BoardWorkspace({
                             U.assignee}
                         </span>
                       ) : null}
-                      {card.DueDate ? <time>{isoDate(card.DueDate)}</time> : null}
+                      {card.DueDate ? <time>{formatDate(card.DueDate)}</time> : null}
                       {card.StoryPoints !== null ? (
                         <span>
                           {card.StoryPoints} {U.points}
                         </span>
                       ) : null}
                     </div>
-                    {canEdit ? (
-                      <div className="mt-2 flex flex-col gap-2">
-                        <label className="text-xs">
-                          {U.column}
-                          <select
-                            className={control}
-                            disabled={pending}
-                            value={card.BoardColumnId}
-                            onChange={(e) => move(card, Number(e.target.value))}
-                          >
-                            {board.columns.map((c) => (
-                              <option key={c.BoardColumnId} value={c.BoardColumnId}>
-                                {c.Name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="text-xs">
-                          {U.sprint}
-                          <select
-                            className={control}
-                            disabled={pending}
-                            value={card.BoardSprintId ?? ""}
-                            onChange={(e) =>
-                              run(() =>
-                                moveBoardCardAction({
-                                  boardCardId: card.BoardCardId,
-                                  rowVer: card.RowVer,
-                                  toColumnId: card.BoardColumnId,
-                                  toSprintId: e.target.value ? Number(e.target.value) : null,
-                                  sprintSet: true,
-                                }),
-                              )
-                            }
-                          >
-                            <option value="">{M.backlog}</option>
-                            {board.sprints
-                              .filter(
-                                (s) =>
-                                  s.State !== "completed" || s.BoardSprintId === card.BoardSprintId,
-                              )
-                              .map((s) => (
-                                <option
-                                  key={s.BoardSprintId}
-                                  value={s.BoardSprintId}
-                                  disabled={s.State === "completed"}
-                                >
-                                  {s.Name}
-                                </option>
-                              ))}
-                          </select>
-                        </label>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="secondary"
-                            disabled={pending || cards[0]?.BoardCardId === card.BoardCardId}
-                            onClick={() => {
-                              reorder(card, -1);
-                            }}
-                          >
-                            {U.up}
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            disabled={
-                              pending ||
-                              board.cards
-                                .filter(
-                                  (c) =>
-                                    c.BoardColumnId === card.BoardColumnId &&
-                                    c.BoardSprintId === card.BoardSprintId,
-                                )
-                                .at(-1)?.BoardCardId === card.BoardCardId
-                            }
-                            onClick={() => reorder(card, 1)}
-                          >
-                            {U.down}
-                          </Button>
-                          {canDelete ? (
-                            <Button
-                              variant="secondary"
-                              disabled={pending}
-                              onClick={() => setDeleting(card)}
-                            >
-                              {U.delete}
-                            </Button>
-                          ) : null}
-                        </div>
-                      </div>
-                    ) : null}
                   </article>
                 ))}
               </div>
@@ -362,119 +293,33 @@ export function BoardWorkspace({
                   {U.newCard}
                 </Button>
               ) : null}
-              {cards.length >= 200 ? <p className="p-3 text-sm">{U.limited}</p> : null}
             </section>
           );
         })}
       </div>
       {editing || newColumn ? (
-        <BoardForm
-          key={editing?.BoardCardId ?? "new"}
-          title={editing ? U.editCard : U.newCard}
-          readOnly={Boolean(editing) && !canEdit}
+        <CardDialog
+          board={board}
+          card={editing}
+          columnId={newColumn}
+          assignees={assignees}
+          canEdit={canEdit}
           close={() => {
             setEditing(null);
             setNewColumn(null);
           }}
-          save={async (data) => {
-            const values = {
-              title: text(data, "title") || null,
-              notes: text(data, "notes"),
-              assigneeUserId: optionalNumber(data, "assignee"),
-              dueDate: text(data, "due") || null,
-              storyPoints: optionalNumber(data, "points"),
-              color: (text(data, "color") || null) as OptionColor | null,
-            };
-            const result = editing
-              ? await updateBoardCardAction({
-                  ...values,
-                  boardCardId: editing.BoardCardId,
-                  rowVer: editing.RowVer,
-                })
-              : await createBoardCardAction({
-                  ...values,
-                  title: values.title ?? "",
-                  boardId: board.header.BoardId,
-                  boardColumnId: newColumn!,
-                  boardSprintId: board.header.ActiveSprintId,
-                });
-            if (result.ok) router.refresh();
-            return result;
-          }}
-        >
-          <fieldset disabled={!canEdit && Boolean(editing)} className="flex flex-col gap-4">
-            <BoardField label={U.cardTitle}>
-              <input
-                name="title"
-                className={control}
-                defaultValue={editing?.Title ?? ""}
-                required={!editing?.RequirementId}
-                maxLength={300}
-                autoFocus
-              />
-            </BoardField>
-            <RichTextEditor name="notes" label={U.notes} defaultValue={editing?.Notes} />
-            <BoardField label={U.assignee}>
-              <select
-                className={control}
-                name="assignee"
-                defaultValue={editing?.AssigneeUserId ?? ""}
-              >
-                <option value="">{U.unassigned}</option>
-                {assignees.map((a) => (
-                  <option key={a.UserId} value={a.UserId}>
-                    {a.DisplayName}
-                  </option>
-                ))}
-              </select>
-            </BoardField>
-            <BoardField label={U.due}>
-              <input
-                type="date"
-                name="due"
-                className={control}
-                defaultValue={isoDate(editing?.DueDate ?? null)}
-              />
-            </BoardField>
-            <BoardField label={U.points}>
-              <input
-                type="number"
-                name="points"
-                min={0}
-                max={999}
-                className={control}
-                defaultValue={editing?.StoryPoints ?? ""}
-              />
-            </BoardField>
-            <BoardField label={U.color}>
-              <select name="color" className={control} defaultValue={editing?.Color ?? ""}>
-                <option value="">{U.noColor}</option>
-                {OPTION_COLORS.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </BoardField>
-          </fieldset>
-        </BoardForm>
+        />
       ) : null}
+      {moving ? <CardMoveDialog board={board} card={moving} close={() => setMoving(null)} /> : null}
       {deleting ? (
-        <BoardForm
+        <BoardConfirm
           title={U.deleteCard}
-          submitLabel={U.delete}
+          body={U.deleteCardBody}
+          schema={deleteBoardCardInput}
+          input={{ boardCardId: deleting.BoardCardId, rowVer: deleting.RowVer }}
+          save={deleteBoardCardAction}
           close={() => setDeleting(null)}
-          save={async () => {
-            const result = await deleteBoardCardAction({
-              boardCardId: deleting.BoardCardId,
-              rowVer: deleting.RowVer,
-            });
-            if (result.ok) router.refresh();
-            return result;
-          }}
-        >
-          <p>{U.deleteCardBody}</p>
-        </BoardForm>
+        />
       ) : null}
     </section>
   );
