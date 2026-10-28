@@ -150,7 +150,8 @@ return `ProjectName` and take `@WithoutProject`.
   never sequential auto-commit calls for related writes.
 - Business failures use the THROW registry ([ADR-0012](adr/ADR-0012-proc-error-contract.md)):
   50001 `NOT_FOUND`, 50002 `CONFLICT`, 50003 `FORBIDDEN_ROW`, 50004 `VALIDATION`,
-  50005 `DUPLICATE`, 50006 `QUOTA_EXCEEDED` ([ADR-0026](adr/ADR-0026-file-storage.md)). Example:
+  50005 `DUPLICATE`, 50006 `QUOTA_EXCEEDED` ([ADR-0026](adr/ADR-0026-file-storage.md)),
+  50007 `LIMIT_REACHED` ([ADR-0038](adr/ADR-0038-boards.md)). Example:
   `IF @@ROWCOUNT = 0 THROW 50001, N'NOT_FOUND:Supplier not found', 1;`
 
 ### 2.5 Typed result mapping

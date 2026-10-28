@@ -11,6 +11,7 @@ export const APP_ERROR_CODES = [
   "VALIDATION", // 50004 — business-rule violation
   "DUPLICATE", // 50005
   "QUOTA_EXCEEDED", // 50006 — a project's attachment quota is full (ADR-0026)
+  "LIMIT_REACHED", // 50007 — a bounded slot is full: a column's WIP limit, or a board's one active sprint (ADR-0038)
   "UNAUTHENTICATED",
   "FORBIDDEN",
   "RATE_LIMITED", // too many requests in a minute (429; ADR-0031), never from a proc
@@ -36,6 +37,7 @@ const CODE_BY_NUMBER: Record<number, AppErrorCode> = {
   50004: "VALIDATION",
   50005: "DUPLICATE",
   50006: "QUOTA_EXCEEDED",
+  50007: "LIMIT_REACHED",
 };
 
 /** Map a THROW from a stored procedure to a typed AppError . */

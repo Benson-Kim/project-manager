@@ -12,6 +12,11 @@ import { OVERRIDABLE_MODULES, requiredLevel } from "@/lib/auth/rbac";
 
 /** Proc folder -> permission module (rbac.ts names). */
 const MODULES: Record<string, string> = {
+  board: "boards",
+  "board-column": "boards",
+  "board-card": "boards",
+  "board-phase": "boards",
+  "board-sprint": "boards",
   "daily-activity": "daily-activities",
   "key-deliverable": "key-deliverables",
   "key-deliverable-dependency": "key-deliverables",
@@ -57,6 +62,9 @@ const VERBS: Record<string, string> = {
   // Financials calculator (ADR-0029).
   GetSheet: "read",
   GetWithTabs: "read",
+  // Boards (ADR-0038): the whole board in five sets, and the card sheet's assignee picker.
+  GetBoard: "read",
+  ListAssignees: "read",
   Create: "create",
   // Copying a template's documents into a financial adds rows (ADR-0030).
   CreateFromTemplate: "create",
@@ -69,6 +77,10 @@ const VERBS: Record<string, string> = {
   Rename: "update",
   // Requirements (ADR-0037): taking a requirement off one deliverable is an update of it.
   Unallocate: "update",
+  // Boards (ADR-0038): running a sprint is editing the board's work, not administering it, so
+  // both lifecycle steps are Contributor verbs — the same level as moving a card.
+  Start: "update",
+  Complete: "update",
   // Status picked from the WBS or Gantt menu (ADR-0036).
   SetStatus: "update",
   // Turning an item into a milestone, or back into a task, edits it (ADR-0046).
@@ -114,6 +126,32 @@ const EXEMPT: Record<string, string> = {
     "replaces links inside the requirement write procs' transaction, after their own access check",
   usp_Requirement_ReplaceAllocations:
     "replaces allocations inside the requirement write procs' transaction, after their own access check",
+  usp_Board_AssertRoom:
+    "checks a column's work-in-progress limit inside the card write procs' transaction, after their own access check; it refuses to run outside one",
+  usp_BoardCard_AssertAssignee:
+    "checks an assignee against the board's project inside the card write procs' transaction, after their own access check; it refuses to run outside one",
+};
+
+/**
+ * Procs that cross two scopes and so ask two different questions, with a
+ * different level and permission on each. The one-level rule below cannot read
+ * them, so each entry lists every call the proc must make, in order, and the
+ * last block in this file asserts that set exactly — a call added, dropped or
+ * re-levelled fails there rather than quietly widening what the proc accepts.
+ * This registry is the stricter replacement for the generic rule, not an escape
+ * from it: a proc listed here is checked against this table and against
+ * requiredLevel(), which is more than the generic blocks ask of anything else.
+ */
+const CROSS_SCOPE: Record<
+  string,
+  { entity: string; level: string; permission: `${string}:${string}` }[]
+> = {
+  usp_Board_SetProject: [
+    // Taking a board out of a project removes it from everyone who reached it there.
+    { entity: "Board", level: "Manager", permission: "boards:delete" },
+    // Landing it in one is creating a board there, so it asks what usp_Board_Create asks.
+    { entity: "Project", level: "Contributor", permission: "boards:create" },
+  ],
 };
 
 /** The access helpers themselves (they take @MinLevel as a parameter). */
@@ -181,15 +219,16 @@ describe("stored procedure access levels match rbac.ts (ADR-0021)", () => {
     },
   );
 
-  it.each(procs.filter((p) => !(p.name in EXEMPT)).map((p) => [p.name, p] as const))(
-    "%s demands the level requiredLevel() gives the UI",
-    (name, proc) => {
-      const verb = verbOf(name);
-      expect(verb, `${name}: map its verb in VERBS`).toBeDefined();
-      const expected = requiredLevel(`${MODULES[proc.folder]}:${verb}`);
-      for (const level of operationLevels(proc)) expect(level, name).toBe(expected);
-    },
-  );
+  it.each(
+    procs
+      .filter((p) => !(p.name in EXEMPT) && !(p.name in CROSS_SCOPE))
+      .map((p) => [p.name, p] as const),
+  )("%s demands the level requiredLevel() gives the UI", (name, proc) => {
+    const verb = verbOf(name);
+    expect(verb, `${name}: map its verb in VERBS`).toBeDefined();
+    const expected = requiredLevel(`${MODULES[proc.folder]}:${verb}`);
+    for (const level of operationLevels(proc)) expect(level, name).toBe(expected);
+  });
 });
 
 /** A whole access-helper call, up to its semicolon. */
@@ -200,7 +239,9 @@ const writeChecks = (proc: Proc) =>
     .filter((call) => /@MinLevel\s*=\s*N'(Contributor|Manager)'/.test(call));
 
 describe("write checks name their permission for per-person overrides (ADR-0024)", () => {
-  const writes = procs.filter((p) => !(p.name in EXEMPT) && verbOf(p.name) !== "read");
+  const writes = procs.filter(
+    (p) => !(p.name in EXEMPT) && !(p.name in CROSS_SCOPE) && verbOf(p.name) !== "read",
+  );
 
   it.each(
     writes
@@ -229,5 +270,38 @@ describe("write checks name their permission for per-person overrides (ADR-0024)
     const listed = setProc.match(/\[Module\] NOT IN \(([^)]*)\)/)?.[1] ?? "";
     const modules = [...listed.matchAll(/N'([a-z-]+)'/g)].map((m) => m[1]);
     expect(modules.sort()).toEqual([...OVERRIDABLE_MODULES].sort());
+  });
+});
+
+describe("a cross-scope proc asks every scope it crosses (ADR-0038 decision 23)", () => {
+  it.each(Object.entries(CROSS_SCOPE))("%s makes exactly its registered checks", (name, wanted) => {
+    const proc = procs.find((p) => p.name === name);
+    expect(proc, `${name}: no such proc under db/procs`).toBeDefined();
+
+    const calls = [...proc!.source.matchAll(WHOLE_CALL)].map(([call]) => call);
+    expect(calls, `${name}: one call per registered scope, in order`).toHaveLength(wanted.length);
+
+    wanted.forEach((want, i) => {
+      const call = calls[i]!;
+      expect(call, `${name} call ${i + 1}`).toContain(`dbo.usp_${want.entity}_AssertAccess`);
+      expect(call, `${name} call ${i + 1}`).toContain(`@MinLevel = N'${want.level}'`);
+      expect(call, `${name} call ${i + 1}`).toContain(`@Permission = N'${want.permission}'`);
+      // The level the UI computes for that permission, so proc and cog cannot drift apart.
+      expect(requiredLevel(want.permission), `${name}: ${want.permission}`).toBe(want.level);
+      // Both permissions stay in the folder's own module: crossing scope is not crossing module.
+      expect(want.permission.split(":")[0], `${name}: ${want.permission}`).toBe(
+        MODULES[proc!.folder],
+      );
+    });
+  });
+
+  it("registers every proc whose checks disagree with each other", () => {
+    // The generic rule reads one level per proc. Any proc that asks two different levels must be
+    // registered above, or it would pass that rule by accident on whichever call it reads first.
+    const disagreeing = procs
+      .filter((p) => !(p.name in EXEMPT))
+      .filter((p) => new Set(operationLevels(p)).size > 1)
+      .map((p) => p.name);
+    expect(disagreeing.sort()).toEqual(Object.keys(CROSS_SCOPE).sort());
   });
 });

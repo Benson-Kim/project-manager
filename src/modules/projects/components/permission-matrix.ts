@@ -20,6 +20,7 @@ const P = messages.projects;
 /** Section names as the project's section nav shows them. */
 export const SECTION_LABELS: Record<OverridableModule, string> = {
   "assumptions-constraints": P.assumptionsConstraintsSection,
+  boards: P.boardsSection,
   "daily-activities": P.dailyActivitiesSection,
   "financial-tax-invoices": P.financialTaxInvoicesSection,
   financials: P.financialsSection,

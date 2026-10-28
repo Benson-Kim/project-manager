@@ -3,7 +3,7 @@ import { messages } from "@/lib/messages";
 /**
  * Navigation registry (STANDARDS §5.3, shell spec in issue #28). Order is the
  * product owner's: Dashboard, Projects, Daily activities, To-do lists,
- * Notes, Reports; Settings is pinned at the bottom of the sidebar. Items whose
+ * Notes, Boards, Reports; Settings is pinned at the bottom of the sidebar. Items whose
  * module has not landed yet point at the planned route with an honest
  * placeholder page (owning issues: #19 daily activities, #20 to-do, #21
  * reports, #23 settings/admin).
@@ -11,7 +11,15 @@ import { messages } from "@/lib/messages";
 export interface NavItem {
   href: string;
   label: string;
-  icon: "dashboard" | "projects" | "dailyActivities" | "todo" | "notes" | "reports" | "settings";
+  icon:
+    | "dashboard"
+    | "projects"
+    | "dailyActivities"
+    | "todo"
+    | "notes"
+    | "boards"
+    | "reports"
+    | "settings";
 }
 
 export const navItems: NavItem[] = [
@@ -20,6 +28,7 @@ export const navItems: NavItem[] = [
   { href: "/daily-activities", label: messages.nav.dailyActivities, icon: "dailyActivities" },
   { href: "/todo", label: messages.nav.todoLists, icon: "todo" },
   { href: "/notes", label: messages.nav.notes, icon: "notes" },
+  { href: "/boards", label: messages.nav.boards, icon: "boards" },
   { href: "/reports", label: messages.nav.reports, icon: "reports" },
 ];
 

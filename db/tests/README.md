@@ -51,6 +51,25 @@ and prints `N passed, M failed`.
   racing the page's delete, two Admins deleting the same row, a rename or reorder racing the
   notebook's delete, parallel adds at the 500-page cap and delete-plus-add churn there, and a
   mixed load of six users.
+- `boards-procs.cjs` — ADR-0038: the board as its own access scope, the standalone shared space
+  (everyone a contributor, the creator its manager), per-person overrides on a project board and
+  never on a standalone one, rowversion concurrency, the starting-columns payload validation,
+  LIKE-metacharacter search, and a board whose project was deleted. Then the cards: a column or
+  neighbour from another board refused, the assignee rule, the work-in-progress limit, an edit
+  that can move nothing, the five-set board read and its counts, the assignee picker, and a
+  column delete that reflows its cards and never takes a board's last column. Then the phases
+  and sprints: a phase released of its sprints rather than deleted with them, a sprint created
+  planned, the second start refused while one is running, a completion that moves the unfinished
+  cards and keeps the done ones, and a completed sprint that can be neither edited nor deleted.
+- `boards-race.cjs` — ADR-0038 under concurrency: 20 creates into a column of limit 5 leave
+  exactly 5, 20 moves into the last free slot leave exactly 1 winner, a forced renumber never
+  surfaces as INTERNAL and never leaves two cards sharing a rank, an edit racing a move of one
+  card gives one winner and one CONFLICT, and no live card is left in a deleted column or on a
+  deleted board. Then the sprint lifecycle: one sprint starts out of ten parallel attempts (never
+  as error 2601), one completion moves the unfinished cards once, no unfinished card is stranded
+  in a completed sprint, and no live card or sprint is left pointing at a deleted sprint or
+  phase. The packaging and board-relink races wait for those procs (slices B4-B5); the file
+  lists them so the gap is visible.
 
 Run one locally with the `.env` of a throwaway database: `node db/tests/financials-procs.cjs`.
 Never run them against a database anyone depends on: they create projects and leave

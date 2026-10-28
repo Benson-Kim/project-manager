@@ -5,7 +5,7 @@ import {
   setProjectPermissionsInput,
   type SetProjectPermissionsInput,
 } from "../schemas/project-permission";
-import { overrideRowSchema, toOverride } from "./project-access";
+import { overrideRowSchema, toOverride, toOverrides } from "./project-access";
 
 /**
  * Per-person permission overrides of a project (ADR-0024): stored procedures
@@ -26,7 +26,8 @@ export async function listProjectPermissions(
   });
   const byUser: Record<number, PermissionOverride[]> = {};
   for (const row of rows.map((r) => listRowSchema.parse(r))) {
-    (byUser[row.UserId] ??= []).push(toOverride(row));
+    const override = toOverride(row);
+    if (override) (byUser[row.UserId] ??= []).push(override);
   }
   return byUser;
 }
@@ -43,5 +44,5 @@ export async function setProjectPermissions(
     OverridesJson: JSON.stringify(parsed.overrides),
     ActorUserId: actorUserId,
   });
-  return rows.map((r) => toOverride(listRowSchema.parse(r)));
+  return toOverrides(rows.map((r) => listRowSchema.parse(r)));
 }
