@@ -47,14 +47,29 @@ BEGIN
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
          @MinLevel = N'Manager', @Permission = N'key-deliverables:update', @AllowProjectless = 0;
 
-    IF @CurrentVer <> @RowVer
-        THROW 50002, N'CONFLICT:KeyDeliverable was modified by someone else', 1;
+    BEGIN TRAN;
+
+    DECLARE @Locked INT;
+    SELECT @Locked = ProjectId FROM app.Project WITH (UPDLOCK, HOLDLOCK) WHERE ProjectId = @RowProjectId;
+
+    -- A queued duplicate may carry the version from before the first save. Re-read under the
+    -- same project lock as every breakdown write before deciding whether any change is needed.
+    SET @CurrentVer = NULL;
+    SELECT @CurrentVer = CAST(RowVer AS BIGINT), @CurrentIsMilestone = [IsMilestone],
+           @CurrentStart = StartDate, @CurrentEnd = [Deadline], @RequestedDate = [RequestedDate]
+    FROM app.KeyDeliverable WHERE KeyDeliverableId = @KeyDeliverableId AND IsDeleted = 0;
+    IF @CurrentVer IS NULL
+        THROW 50001, N'NOT_FOUND:KeyDeliverable not found', 1;
 
     IF @CurrentIsMilestone = @IsMilestone
     BEGIN
+        COMMIT;
         SELECT @RowProjectId AS ProjectId;
         RETURN;
     END;
+
+    IF @CurrentVer <> @RowVer
+        THROW 50002, N'CONFLICT:KeyDeliverable was modified by someone else', 1;
 
     IF @IsMilestone = 1
     BEGIN
@@ -65,11 +80,6 @@ BEGIN
     END;
 
     DECLARE @NewEnd DATETIME2 = CASE WHEN @IsMilestone = 1 THEN @CurrentStart ELSE @CurrentEnd END;
-
-    BEGIN TRAN;
-
-    DECLARE @Locked INT;
-    SELECT @Locked = ProjectId FROM app.Project WITH (UPDLOCK, HOLDLOCK) WHERE ProjectId = @RowProjectId;
 
     IF @IsMilestone = 1
        AND EXISTS (SELECT 1 FROM app.KeyDeliverable
