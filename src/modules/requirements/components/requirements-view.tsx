@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { PackageRequirementsButton } from "@/modules/boards/components/package-requirements";
 import { Button } from "@/components/ui/button";
 import { booleanColumn, choiceColumn, textColumn } from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
@@ -212,17 +213,25 @@ export function RequirementsView({
         canCreate
           ? (selectedIds, clear) => {
               const merge = mergeSelection(rows, selectedIds);
-              if (!merge) return null;
+              if (!selectedIds.length) return null;
               return (
-                <Button
-                  data-testid="requirements-merge"
-                  onClick={() => {
-                    update({ id: "new", type: merge.type, validates: merge.validates });
-                    clear();
-                  }}
-                >
-                  {M.merge}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <PackageRequirementsButton
+                    projectId={projectId}
+                    selectedIds={selectedIds.map(Number)}
+                  />
+                  <Button
+                    disabled={!merge}
+                    data-testid="requirements-merge"
+                    onClick={() => {
+                      if (merge)
+                        update({ id: "new", type: merge.type, validates: merge.validates });
+                      clear();
+                    }}
+                  >
+                    {M.merge}
+                  </Button>
+                </div>
               );
             }
           : undefined

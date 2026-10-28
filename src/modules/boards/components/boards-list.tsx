@@ -19,15 +19,21 @@ export function BoardsList({
   page,
   projects,
   projectId = null,
+  scoped = false,
+  allowCreate = true,
 }: {
   rows: BoardListRow[];
   page: number;
   projects: ProjectOption[];
   projectId?: number | null;
+  scoped?: boolean;
+  allowCreate?: boolean;
 }) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
-  const add = <Button onClick={() => setCreating(true)}>{M.newBoard}</Button>;
+  const add = allowCreate ? (
+    <Button onClick={() => setCreating(true)}>{M.newBoard}</Button>
+  ) : undefined;
   return (
     <>
       <header className="flex items-center justify-between gap-3 py-4">
@@ -75,7 +81,7 @@ export function BoardsList({
         renderToolbar={(toggle) => (
           <Toolbar>
             <SearchInput />
-            {projectId === null ? <ProjectFilter options={projects} /> : null}
+            {!scoped ? <ProjectFilter options={projects} /> : null}
             {toggle}
           </Toolbar>
         )}

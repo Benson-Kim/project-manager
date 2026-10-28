@@ -1,3 +1,4 @@
+import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth/provider";
 import { orNotFound } from "@/lib/row-access";
@@ -23,5 +24,15 @@ export default async function Page({
     orNotFound(listBoards(list, session.userId, id)),
     listProjectOptions(session.userId),
   ]);
-  return <BoardsList rows={rows} page={list.page} projects={projects} projectId={id} />;
+  const allows = await orNotFound(getProjectPermissions(id, session.userId));
+  return (
+    <BoardsList
+      scoped
+      allowCreate={allows("boards:create")}
+      rows={rows}
+      page={list.page}
+      projects={projects}
+      projectId={id}
+    />
+  );
 }

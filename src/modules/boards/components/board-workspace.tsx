@@ -78,6 +78,19 @@ export function BoardWorkspace({
       }),
     );
   }
+  function reorder(card: BoardCardListRow, offset: number) {
+    const peers = board.cards.filter(
+      (c) => c.BoardColumnId === card.BoardColumnId && c.BoardSprintId === card.BoardSprintId,
+    );
+    const index = peers.findIndex((c) => c.BoardCardId === card.BoardCardId);
+    if (index + offset < 0 || index + offset >= peers.length) return;
+    move(
+      card,
+      card.BoardColumnId,
+      card.BoardSprintId,
+      offset < 0 ? peers[index - 1]?.BoardCardId : peers[index + 2]?.BoardCardId,
+    );
+  }
   function open(card: BoardCardListRow) {
     run(async () => {
       const result = await readBoardCardAction({ boardCardId: card.BoardCardId });
@@ -225,7 +238,8 @@ export function BoardWorkspace({
                     {card.RequirementState !== "none" ? (
                       <p className="text-xs text-ink-muted">
                         {card.RequirementState === "live"
-                          ? `${card.RequirementType}-${card.RequirementNumber}`
+                          ? (card.RequirementRef ??
+                            `${card.RequirementType}-${card.RequirementNumber}`)
                           : card.RequirementState === "restricted"
                             ? M.restrictedCard
                             : M.removedCard}
@@ -302,16 +316,26 @@ export function BoardWorkspace({
                             variant="secondary"
                             disabled={pending || cards[0]?.BoardCardId === card.BoardCardId}
                             onClick={() => {
-                              const i = cards.indexOf(card);
-                              move(
-                                card,
-                                card.BoardColumnId,
-                                card.BoardSprintId,
-                                cards[i - 1]?.BoardCardId,
-                              );
+                              reorder(card, -1);
                             }}
                           >
                             {U.up}
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            disabled={
+                              pending ||
+                              board.cards
+                                .filter(
+                                  (c) =>
+                                    c.BoardColumnId === card.BoardColumnId &&
+                                    c.BoardSprintId === card.BoardSprintId,
+                                )
+                                .at(-1)?.BoardCardId === card.BoardCardId
+                            }
+                            onClick={() => reorder(card, 1)}
+                          >
+                            {U.down}
                           </Button>
                           {canDelete ? (
                             <Button
@@ -438,6 +462,7 @@ export function BoardWorkspace({
       {deleting ? (
         <BoardForm
           title={U.deleteCard}
+          submitLabel={U.delete}
           close={() => setDeleting(null)}
           save={async () => {
             const result = await deleteBoardCardAction({

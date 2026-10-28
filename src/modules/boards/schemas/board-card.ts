@@ -35,6 +35,7 @@ const requirementFields = {
   RequirementId: z.number().int().nullable(),
   RequirementType: z.enum(REQUIREMENT_TYPES).nullable(),
   RequirementNumber: z.number().int().nullable(),
+  RequirementRef: z.string().nullable().default(null),
   RequirementText: z.string().nullable(),
   RequirementIsMet: z.boolean().nullable(),
   RequirementProjectId: z.number().int().nullable(),

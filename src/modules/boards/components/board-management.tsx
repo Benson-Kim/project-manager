@@ -399,7 +399,18 @@ export function BoardManagement({
         </div>
       </details>
       {mode ? (
-        <BoardForm title={title} close={() => setMode(null)} save={save}>
+        <BoardForm
+          title={title}
+          submitLabel={
+            mode.kind.startsWith("delete")
+              ? U.delete
+              : mode.kind === "complete"
+                ? M.completeSprint
+                : U.save
+          }
+          close={() => setMode(null)}
+          save={save}
+        >
           {["board", "column", "phase", "sprint"].includes(mode.kind) ? (
             <BoardField
               label={
@@ -569,17 +580,7 @@ export function BoardManagement({
           ) : null}
           {mode.kind === "complete" ? (
             <>
-              <p>
-                {M.completeSprintBody(
-                  board.cards.filter(
-                    (c) =>
-                      c.BoardSprintId === sprint?.BoardSprintId &&
-                      board.columns.find((col) => col.BoardColumnId === c.BoardColumnId)
-                        ?.Category !== "done",
-                  ).length,
-                  U.target,
-                )}
-              </p>
+              <p>{U.completeBody}</p>
               <BoardField label={U.target}>
                 <select className={control} name="target">
                   <option value="">{M.backlog}</option>

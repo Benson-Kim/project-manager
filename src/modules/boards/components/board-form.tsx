@@ -20,12 +20,14 @@ export function BoardForm({
   save,
   close,
   readOnly = false,
+  submitLabel = messages.boards.ui.save,
 }: {
   title: string;
   children: React.ReactNode;
   save: (data: FormData) => Promise<ActionResult<unknown>>;
   close: () => void;
   readOnly?: boolean;
+  submitLabel?: string;
 }) {
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
@@ -71,7 +73,7 @@ export function BoardForm({
             {messages.boards.ui.cancel}
           </Button>
           <Button type="submit" pending={pending} disabled={readOnly}>
-            {messages.boards.ui.save}
+            {submitLabel}
           </Button>
         </div>
       </form>

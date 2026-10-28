@@ -41,8 +41,6 @@ export function PackageRequirementsButton({
   useEffect(() => {
     if (!open || !project) return;
     let active = true;
-    setLoading(true);
-    setError("");
     readPackagingOptionsAction({ projectId: project })
       .then((result) => {
         if (!active) return;
@@ -65,7 +63,6 @@ export function PackageRequirementsButton({
   useEffect(() => {
     if (!open || !boardId || board) return;
     let active = true;
-    setColumns([]);
     readPackagingBoardAction({ boardId })
       .then((result) => {
         if (active) {
@@ -82,7 +79,14 @@ export function PackageRequirementsButton({
   }, [boardId, open, board]);
   return (
     <>
-      <Button variant="secondary" onClick={() => setOpen(true)}>
+      <Button
+        variant="secondary"
+        onClick={() => {
+          setError("");
+          setLoading(true);
+          setOpen(true);
+        }}
+      >
         {U.packageTitle}
       </Button>
       {open ? (
@@ -109,6 +113,8 @@ export function PackageRequirementsButton({
                 className={control}
                 value={project}
                 onChange={(e) => {
+                  setLoading(true);
+                  setError("");
                   setProject(Number(e.target.value));
                   setRequirements([]);
                 }}
@@ -127,7 +133,10 @@ export function PackageRequirementsButton({
                 className={control}
                 value={boardId || ""}
                 required
-                onChange={(e) => setBoardId(Number(e.target.value))}
+                onChange={(e) => {
+                  setColumns([]);
+                  setBoardId(Number(e.target.value));
+                }}
               >
                 <option value="" disabled>
                   {U.open}

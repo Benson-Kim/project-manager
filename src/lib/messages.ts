@@ -500,6 +500,8 @@ export const messages = {
   },
   boards: {
     ui: {
+      completeBody:
+        "Completed cards stay in this sprint. Unfinished cards move to the selected destination. This sprint cannot be reopened.",
       empty: "Create your first board.",
       open: "Open board",
       edit: "Edit board",
