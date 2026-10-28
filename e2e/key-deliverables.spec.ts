@@ -4,6 +4,10 @@ import { messages } from "../src/lib/messages";
 import { closeAlarmToast } from "./support/alarms";
 import { escapeRegExp, expectListed } from "./support/datasheet";
 
+// These editors mutate the same seeded project's tree. Run this file's tests in order so one
+// test's refresh cannot replace another test's focused new item while it is being renamed.
+test.describe.configure({ mode: "default" });
+
 /**
  * Key deliverables module (#9) — create happy path, validation failure, the
  * WBS and Gantt editor (ADR-0027: add, indent, rename, drag, stretch, scale,
@@ -606,6 +610,7 @@ test("WBS item menu: whole name, status colour; requirements cascade in both vie
   await field.press("Enter");
   const item = diagram.getByRole("treeitem", { name: new RegExp(escapeRegExp(longName)) });
   await expect(item).toBeFocused();
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
   const id = await item.getAttribute("data-wbs-box");
   const box = page.getByTestId(`wbs-box-${id}`);
   const menu = page.getByTestId("wbs-menu");
@@ -741,6 +746,7 @@ test("WBS: two items are linked, the successor is pushed, and the link goes with
       .getAttribute("data-wbs-row");
     await field.fill(name);
     await field.press("Enter");
+    await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
     ids.push(id!);
   }
   const [firstId, secondId] = ids;
@@ -784,7 +790,10 @@ test("WBS: two items are linked, the successor is pushed, and the link goes with
   expect(new Date(await secondStart.inputValue()) > new Date(firstEnd)).toBe(true);
 
   // The link is drawn, and the panel lists it in both directions.
-  await expect(page.locator('[data-testid="gantt-chart"] svg path').first()).toBeVisible();
+  const dependency = page.locator(
+    `[data-gantt-dependency-from="${firstId}"][data-gantt-dependency-to="${secondId}"]`,
+  );
+  await expect(dependency.locator("path").first()).toBeVisible();
   await expect(async () => {
     await wbsField(wbsRow(page, secondId), W.nameOf).click();
     await page.keyboard.press("Shift+F10");
@@ -804,7 +813,11 @@ test("WBS: two items are linked, the successor is pushed, and the link goes with
   await page.getByRole("button", { name: W.delete, exact: true }).last().click();
   await expect(wbsRow(page, firstId)).toHaveCount(0);
   await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
-  await expect(page.locator('[data-testid="gantt-chart"] svg path')).toHaveCount(0);
+  await expect(
+    page.locator(
+      `[data-gantt-dependency-from="${firstId}"], [data-gantt-dependency-to="${firstId}"]`,
+    ),
+  ).toHaveCount(0);
 });
 
 test("axe scan on the deliverables list has no serious or critical violations", async ({
