@@ -193,6 +193,14 @@ async function main() {
   await expectCode(50001, "a deleted board is gone", () =>
     exec("usp_Board_GetById", { BoardId: pb.BoardId, ActorUserId: PM }));
 
+  // Overrides belong to the project, not the deleted board. Restore the actors' base levels
+  // before later checks use them as an ordinary Viewer and Contributor on this same project.
+  for (const userId of [VIEWER, CONTRIB]) {
+    await exec("usp_ProjectPermission_Set", {
+      ProjectId: P, UserId: userId, OverridesJson: "[]", ActorUserId: PM,
+    });
+  }
+
   // --- the standalone shared space ------------------------------------------------------------
   const sb = await board({ Name: "Shared board", ActorUserId: CONTRIB });
   ok(sb.ProjectId === null && sb.ActorAccess === "Manager", "the creator of a standalone board is its manager");
@@ -218,9 +226,11 @@ async function main() {
   ok(adminRow.ActorAccess === "Manager", "an admin is a manager on a standalone board");
 
   // --- search escapes the LIKE metacharacters ------------------------------------------------
-  const odd = await board({ Name: "50% [draft] a_b", ActorUserId: PM });
-  await board({ Name: "50 percent plain", ActorUserId: PM });
-  const [found] = await exec("usp_Board_List", { ActorUserId: PM, Search: "50% [draft] a_b", WithoutProject: true });
+  const searchStamp = Date.now();
+  const oddName = `50% [draft] a_b ${searchStamp}`;
+  const odd = await board({ Name: oddName, ActorUserId: PM });
+  await board({ Name: `50 percent plain ${searchStamp}`, ActorUserId: PM });
+  const [found] = await exec("usp_Board_List", { ActorUserId: PM, Search: oddName, WithoutProject: true });
   ok(found.length === 1 && found[0].BoardId === odd.BoardId, "a search for wildcards matches the one literal name");
   const [underscore] = await exec("usp_Board_List", { ActorUserId: PM, Search: "a_b", WithoutProject: true });
   ok(underscore.every((r) => r.Name.includes("a_b")), "an underscore is not a single-character wildcard");
@@ -798,6 +808,11 @@ async function main() {
   });
   ok(linked.ProjectId === P, `a manager of both sides links the board (${linked.ProjectId})`);
   ok(linked.RemovedCards === 0, `a board with no requirement cards costs none (${linked.RemovedCards})`);
+  const [[plainContributor]] = await exec("usp_Board_GetById", {
+    BoardId: linkable.BoardId, ActorUserId: CONTRIB,
+  });
+  ok(plainContributor.ActorAccess === "Contributor", "the relink fixture is an ordinary contributor");
+  ok(!(plainContributor.ActorGrants || "").includes("delete"), "the earlier delete grant was cleared");
 
   await expectCode(50002, "linking against a stale row version", () =>
     exec("usp_Board_SetProject", {
