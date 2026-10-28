@@ -1,28 +1,32 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useToast } from "@/components/ui/toast";
+import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { SearchInput } from "@/components/ui/data-view/search-input";
-import { Menu, MenuButton } from "@/components/ui/menu";
 import { buttonClass } from "@/components/ui/button-styles";
+import { SearchInput } from "@/components/ui/data-view/search-input";
 import { usePointerDrag } from "@/components/ui/drag/use-pointer-drag";
-import { formatDate } from "@/lib/format";
-import { CardDialog, CardMoveDialog } from "./card-dialog";
-import { BoardConfirm } from "./board-confirm";
-import { deleteBoardCardInput } from "../schemas/board-card";
-import { messages } from "@/lib/messages";
-import { rowAllows } from "@/lib/auth/actor-access";
+import { Menu, MenuButton } from "@/components/ui/menu";
+import { useToast } from "@/components/ui/toast";
 import { TONES } from "@/components/ui/tones";
 import type { ActionResult } from "@/lib/action";
+import { rowAllows } from "@/lib/auth/actor-access";
+import { formatDate } from "@/lib/format";
+import { messages } from "@/lib/messages";
 import type { ProjectOption } from "@/modules/projects/project-options";
-import type { BoardView, BoardAssigneeRow } from "../schemas/board-view";
-import type { BoardCardListRow, BoardCardDetailRow } from "../schemas/board-card";
-import { PackageRequirementsButton } from "./package-requirements";
-import { BoardManagement } from "./board-management";
+import { deleteBoardCardAction, moveBoardCardAction, readBoardCardAction } from "../actions";
+import {
+  deleteBoardCardInput,
+  type BoardCardDetailRow,
+  type BoardCardListRow,
+} from "../schemas/board-card";
 import { cardLabel } from "../schemas/board-rules";
-import { moveBoardCardAction, deleteBoardCardAction, readBoardCardAction } from "../actions";
+import type { BoardAssigneeRow, BoardView } from "../schemas/board-view";
+import { BoardConfirm } from "./board-confirm";
+import { BoardManagement } from "./board-management";
+import { CardDialog, CardMoveDialog } from "./card-dialog";
+import { PackageRequirementsButton } from "./package-requirements";
+
 const M = messages.boards;
 const U = M.ui;
 export function BoardWorkspace({
@@ -31,14 +35,12 @@ export function BoardWorkspace({
   projects,
   planning = false,
   basePath = `/boards/${board.header.BoardId}`,
-  listHref = "/boards",
 }: {
   board: BoardView;
   assignees: BoardAssigneeRow[];
   projects: ProjectOption[];
   planning?: boolean;
   basePath?: string;
-  listHref?: string;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -138,9 +140,6 @@ export function BoardWorkspace({
     <section className="flex min-w-0 flex-1 flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <Link href={listHref} className="text-sm text-accent underline">
-            {M.title}
-          </Link>
           <h1 className="text-2xl font-semibold">{board.header.Name}</h1>
           <p className="text-sm text-ink-muted">{board.header.ProjectName ?? M.noProject}</p>
         </div>

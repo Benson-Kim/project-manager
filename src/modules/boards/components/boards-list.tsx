@@ -47,10 +47,7 @@ export function BoardsList({
   ) : undefined;
   return (
     <>
-      <header className="flex items-center justify-between gap-3 py-4">
-        <h1 className="text-xl font-semibold">{M.title}</h1>
-        {add}
-      </header>
+      <header className="flex items-center justify-end gap-3 py-4">{add}</header>
       <DataView
         moduleKey="boards"
         rows={rows}

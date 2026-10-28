@@ -40,7 +40,6 @@ export async function BoardPage({
       projects={projects}
       planning={planning}
       basePath={projectId ? `/projects/${projectId}/boards/${id}` : `/boards/${id}`}
-      listHref={projectId ? `/projects/${projectId}/boards` : "/boards"}
     />
   );
 }

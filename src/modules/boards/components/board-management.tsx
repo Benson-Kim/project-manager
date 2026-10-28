@@ -1,21 +1,31 @@
 "use client";
-import { useState, useTransition } from "react";
-import { useToast } from "@/components/ui/toast";
+import { useId, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { messages } from "@/lib/messages";
+import { buttonClass } from "@/components/ui/button-styles";
+import { Chevron } from "@/components/ui/chevron";
+import { IconButton } from "@/components/ui/data-view/datasheet-cells";
+import { ErrorSummary } from "@/components/ui/form/error-summary";
+import { Menu, MenuButton } from "@/components/ui/menu";
+import { Panel } from "@/components/ui/panel";
+import { useToast } from "@/components/ui/toast";
+import type { ActionResult } from "@/lib/action";
 import { rowAllows } from "@/lib/auth/actor-access";
+import { formatDate } from "@/lib/format";
+import { messages } from "@/lib/messages";
 import type { ProjectOption } from "@/modules/projects/project-options";
-import type { BoardView } from "../schemas/board-view";
 import * as actions from "../actions";
+import { MAX_BOARD_COLUMNS } from "../schemas/board-rules";
+import type { BoardView } from "../schemas/board-view";
 import { BoardDetailsDialog } from "./board-details-dialog";
 import { ColumnDialog } from "./column-dialog";
 import { PhaseDialog } from "./phase-dialog";
 import { SprintDialog } from "./sprint-dialog";
-import { MAX_BOARD_COLUMNS } from "../schemas/board-rules";
-import { formatDate as isoDate } from "@/lib/format";
-import type { ActionResult } from "@/lib/action";
+
 const M = messages.boards;
 const U = M.ui;
+const ROW_MENU = "min-h-10 min-w-9 rounded-md text-ink-muted hover:bg-surface-sunken";
+
+type Direction = "up" | "down";
 type Mode = {
   kind:
     | "board"
@@ -30,6 +40,54 @@ type Mode = {
     | "complete";
   id?: number;
 };
+
+const dates = (start: Date | null, end: Date | null) =>
+  start || end ? `${formatDate(start)} – ${formatDate(end)}` : "";
+
+function Row({
+  name,
+  detail,
+  move,
+  children,
+}: {
+  name: string;
+  detail: string;
+  move?: { first: boolean; last: boolean; disabled: boolean; onMove: (to: Direction) => void };
+  children?: React.ReactNode;
+}) {
+  return (
+    <li className="flex min-h-12 items-center gap-1 py-1.5">
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium">{name}</p>
+        {detail ? <p className="text-sm text-ink-muted">{detail}</p> : null}
+      </div>
+      {move ? (
+        <>
+          <IconButton
+            label={messages.lookupLists.moveUp(name)}
+            disabled={move.first || move.disabled}
+            onClick={() => move.onMove("up")}
+          >
+            <path d="M4 10l4-4 4 4" />
+          </IconButton>
+          <IconButton
+            label={messages.lookupLists.moveDown(name)}
+            disabled={move.last || move.disabled}
+            onClick={() => move.onMove("down")}
+          >
+            <path d="M4 6l4 4 4-4" />
+          </IconButton>
+        </>
+      ) : null}
+      {children ? (
+        <Menu label={U.actionsFor(name)} trigger="⋮" triggerClassName={ROW_MENU}>
+          {children}
+        </Menu>
+      ) : null}
+    </li>
+  );
+}
+
 export function BoardManagement({
   board,
   projects,
@@ -38,244 +96,221 @@ export function BoardManagement({
   projects: ProjectOption[];
 }) {
   const { toast } = useToast();
+  const panelId = useId();
+  const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode | null>(null);
   const [pending, start] = useTransition();
-  const [error, setError] = useState("");
-  const edit = rowAllows("boards:update")(board.header),
-    create = rowAllows("boards:create")(board.header),
-    remove = rowAllows("boards:delete")(board.header);
+  const [error, setError] = useState<string | null>(null);
+  const edit = rowAllows("boards:update")(board.header);
+  const create = rowAllows("boards:create")(board.header);
+  const remove = rowAllows("boards:delete")(board.header);
+  const close = () => setMode(null);
+
   function run(work: () => Promise<ActionResult<unknown>>) {
-    setError("");
+    setError(null);
     start(async () => {
       const result = await work();
       if (result.ok) toast({ variant: "success", title: messages.feedback.saved });
       else setError(result.error.message);
     });
   }
+
+  const moveColumn = (c: BoardView["columns"][number], direction: Direction) =>
+    run(() =>
+      actions.moveBoardColumnAction({
+        boardColumnId: c.BoardColumnId,
+        rowVer: c.RowVer,
+        direction,
+      }),
+    );
+  const movePhase = (p: BoardView["phases"][number], direction: Direction) =>
+    run(() =>
+      actions.moveBoardPhaseAction({ boardPhaseId: p.BoardPhaseId, rowVer: p.RowVer, direction }),
+    );
+
   return (
     <>
-      <details className="w-full rounded-lg border border-line bg-surface p-3">
-        <summary className="cursor-pointer py-2 font-semibold">{U.settings}</summary>
-        <div className="mt-3 flex flex-wrap gap-2">
+      <Button
+        variant="secondary"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((value) => !value)}
+      >
+        {U.settings}
+      </Button>
+      {create ? (
+        <Menu
+          label={U.create}
+          align="start"
+          trigger={
+            <>
+              {U.create}
+              <Chevron />
+            </>
+          }
+          triggerClassName={buttonClass("secondary")}
+        >
+          {board.columns.length < MAX_BOARD_COLUMNS ? (
+            <MenuButton onClick={() => setMode({ kind: "column" })}>{U.column}</MenuButton>
+          ) : null}
+          <MenuButton onClick={() => setMode({ kind: "phase" })}>{U.phase}</MenuButton>
+          <MenuButton onClick={() => setMode({ kind: "sprint" })}>{U.sprint}</MenuButton>
+        </Menu>
+      ) : null}
+      {edit || remove ? (
+        <Menu
+          label={U.boardActions}
+          trigger="⋮"
+          triggerClassName={`${ROW_MENU} border border-line`}
+        >
           {edit ? (
-            <Button variant="secondary" onClick={() => setMode({ kind: "board" })}>
-              {messages.actions.edit}
-            </Button>
+            <MenuButton onClick={() => setMode({ kind: "board" })}>{U.editBoard}</MenuButton>
           ) : null}
           {remove ? (
             <>
-              <Button variant="secondary" onClick={() => setMode({ kind: "link" })}>
-                {U.link}
-              </Button>
-              <Button variant="secondary" onClick={() => setMode({ kind: "delete-board" })}>
+              <MenuButton onClick={() => setMode({ kind: "link" })}>{U.link}</MenuButton>
+              <MenuButton onClick={() => setMode({ kind: "delete-board" })}>
                 {U.deleteBoard}
-              </Button>
+              </MenuButton>
             </>
           ) : null}
-        </div>
-        {error ? (
-          <p role="alert" className="text-danger">
-            {error}
-          </p>
-        ) : null}
-        <div className="mt-4 grid gap-6 lg:grid-cols-3">
-          <section>
-            <h2 className="mb-2 font-semibold">{M.columns}</h2>
-            {board.columns.map((c, i) => (
-              <div
-                key={c.BoardColumnId}
-                className="mb-2 flex flex-wrap items-center gap-2 rounded border border-line p-2"
-              >
-                <span className="flex-1">
-                  {c.Name} · {c.WipCount}
-                  {c.WipLimit ? `/${c.WipLimit}` : ""}
-                </span>
-                {edit ? (
-                  <>
-                    <Button
-                      variant="secondary"
-                      onClick={() => setMode({ kind: "column", id: c.BoardColumnId })}
-                    >
+        </Menu>
+      ) : null}
+      <div id={panelId} hidden={!open} className="w-full" aria-busy={pending}>
+        <ErrorSummary message={error} />
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Panel id={`${panelId}-columns`} title={M.columns}>
+            <ul className="divide-y divide-line">
+              {board.columns.map((c, i) => (
+                <Row
+                  key={c.BoardColumnId}
+                  name={c.Name}
+                  detail={`${M.defaultColumns[c.Category]} · ${c.WipCount}${c.WipLimit ? ` / ${c.WipLimit}` : ""} ${U.count}`}
+                  move={
+                    edit
+                      ? {
+                          first: i === 0,
+                          last: i === board.columns.length - 1,
+                          disabled: pending,
+                          onMove: (to) => moveColumn(c, to),
+                        }
+                      : undefined
+                  }
+                >
+                  {edit ? (
+                    <MenuButton onClick={() => setMode({ kind: "column", id: c.BoardColumnId })}>
                       {messages.actions.edit}
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      disabled={pending || i === 0}
-                      onClick={() =>
-                        run(() =>
-                          actions.moveBoardColumnAction({
-                            boardColumnId: c.BoardColumnId,
-                            rowVer: c.RowVer,
-                            direction: "up",
-                          }),
-                        )
-                      }
+                    </MenuButton>
+                  ) : null}
+                  {remove && board.columns.length > 1 ? (
+                    <MenuButton
+                      onClick={() => setMode({ kind: "delete-column", id: c.BoardColumnId })}
                     >
-                      {U.up}
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      disabled={pending || i === board.columns.length - 1}
-                      onClick={() =>
-                        run(() =>
-                          actions.moveBoardColumnAction({
-                            boardColumnId: c.BoardColumnId,
-                            rowVer: c.RowVer,
-                            direction: "down",
-                          }),
-                        )
-                      }
-                    >
-                      {U.down}
-                    </Button>
-                  </>
-                ) : null}
-                {remove ? (
-                  <Button
-                    variant="secondary"
-                    disabled={board.columns.length === 1}
-                    onClick={() => setMode({ kind: "delete-column", id: c.BoardColumnId })}
-                  >
-                    {messages.actions.delete}
-                  </Button>
-                ) : null}
-              </div>
-            ))}
-            {create && board.columns.length < MAX_BOARD_COLUMNS ? (
-              <Button onClick={() => setMode({ kind: "column" })}>{U.newColumn}</Button>
-            ) : null}
-          </section>
-          <section>
-            <h2 className="mb-2 font-semibold">{M.phases}</h2>
-            {board.phases.map((p, i) => (
-              <div
-                key={p.BoardPhaseId}
-                className="mb-2 flex flex-wrap gap-2 rounded border border-line p-2"
-              >
-                <span className="w-full font-medium">{p.Name}</span>
-                <span>
-                  {isoDate(p.StartDate)} — {isoDate(p.EndDate)}
-                </span>
-                {edit ? (
-                  <>
-                    <Button
-                      variant="secondary"
-                      onClick={() => setMode({ kind: "phase", id: p.BoardPhaseId })}
-                    >
-                      {messages.actions.edit}
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      disabled={pending || i === 0}
-                      onClick={() =>
-                        run(() =>
-                          actions.moveBoardPhaseAction({
-                            boardPhaseId: p.BoardPhaseId,
-                            rowVer: p.RowVer,
-                            direction: "up",
-                          }),
-                        )
-                      }
-                    >
-                      {U.up}
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      disabled={pending || i === board.phases.length - 1}
-                      onClick={() =>
-                        run(() =>
-                          actions.moveBoardPhaseAction({
-                            boardPhaseId: p.BoardPhaseId,
-                            rowVer: p.RowVer,
-                            direction: "down",
-                          }),
-                        )
-                      }
-                    >
-                      {U.down}
-                    </Button>
-                  </>
-                ) : null}
-                {remove ? (
-                  <Button
-                    variant="secondary"
-                    onClick={() => setMode({ kind: "delete-phase", id: p.BoardPhaseId })}
-                  >
-                    {messages.actions.delete}
-                  </Button>
-                ) : null}
-              </div>
-            ))}
-            {create ? (
-              <Button onClick={() => setMode({ kind: "phase" })}>{M.newPhase}</Button>
-            ) : null}
-          </section>
-          <section>
-            <h2 className="mb-2 font-semibold">{M.sprints}</h2>
-            {board.sprints.map((s) => (
-              <div
-                key={s.BoardSprintId}
-                className="mb-2 flex flex-wrap gap-2 rounded border border-line p-2"
-              >
-                <span className="w-full font-medium">
-                  {s.Name} · {M.sprintStates[s.State]}
-                </span>
-                <p className="w-full text-sm">
-                  {isoDate(s.StartDate)} — {isoDate(s.EndDate)} · {s.CardCount} {U.count} ·{" "}
-                  {s.PointTotal} {U.points}
-                </p>
-                {s.Goal ? <p className="w-full text-sm">{s.Goal}</p> : null}
-                {edit && s.State !== "completed" ? (
-                  <Button
-                    variant="secondary"
-                    onClick={() => setMode({ kind: "sprint", id: s.BoardSprintId })}
-                  >
-                    {messages.actions.edit}
-                  </Button>
-                ) : null}
-                {edit && s.State === "planned" ? (
-                  <Button
-                    disabled={pending || board.header.ActiveSprintId !== null}
-                    onClick={() =>
-                      run(() =>
-                        actions.startBoardSprintAction({
-                          boardSprintId: s.BoardSprintId,
-                          rowVer: s.RowVer,
-                        }),
-                      )
+                      {messages.actions.delete}
+                    </MenuButton>
+                  ) : null}
+                </Row>
+              ))}
+            </ul>
+          </Panel>
+          <Panel id={`${panelId}-phases`} title={M.phases}>
+            {board.phases.length ? (
+              <ul className="divide-y divide-line">
+                {board.phases.map((p, i) => (
+                  <Row
+                    key={p.BoardPhaseId}
+                    name={p.Name}
+                    detail={dates(p.StartDate, p.EndDate)}
+                    move={
+                      edit
+                        ? {
+                            first: i === 0,
+                            last: i === board.phases.length - 1,
+                            disabled: pending,
+                            onMove: (to) => movePhase(p, to),
+                          }
+                        : undefined
                     }
                   >
-                    {M.startSprint}
-                  </Button>
-                ) : null}
-                {edit && s.State === "active" ? (
-                  <Button onClick={() => setMode({ kind: "complete", id: s.BoardSprintId })}>
-                    {M.completeSprint}
-                  </Button>
-                ) : null}
-                {remove && s.State === "planned" ? (
-                  <Button
-                    variant="secondary"
-                    onClick={() => setMode({ kind: "delete-sprint", id: s.BoardSprintId })}
+                    {edit ? (
+                      <MenuButton onClick={() => setMode({ kind: "phase", id: p.BoardPhaseId })}>
+                        {messages.actions.edit}
+                      </MenuButton>
+                    ) : null}
+                    {remove ? (
+                      <MenuButton
+                        onClick={() => setMode({ kind: "delete-phase", id: p.BoardPhaseId })}
+                      >
+                        {messages.actions.delete}
+                      </MenuButton>
+                    ) : null}
+                  </Row>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-ink-muted">{U.noPhases}</p>
+            )}
+          </Panel>
+          <Panel id={`${panelId}-sprints`} title={M.sprints}>
+            {board.sprints.length ? (
+              <ul className="divide-y divide-line">
+                {board.sprints.map((s) => (
+                  <Row
+                    key={s.BoardSprintId}
+                    name={s.Name}
+                    detail={[
+                      M.sprintStates[s.State],
+                      dates(s.StartDate, s.EndDate),
+                      `${s.CardCount} ${U.count}`,
+                      `${s.PointTotal} ${U.points}`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
                   >
-                    {messages.actions.delete}
-                  </Button>
-                ) : null}
-              </div>
-            ))}
-            {create ? (
-              <Button onClick={() => setMode({ kind: "sprint" })}>{M.newSprint}</Button>
-            ) : null}
-          </section>
+                    {edit && s.State !== "completed" ? (
+                      <MenuButton onClick={() => setMode({ kind: "sprint", id: s.BoardSprintId })}>
+                        {messages.actions.edit}
+                      </MenuButton>
+                    ) : null}
+                    {edit && s.State === "planned" && board.header.ActiveSprintId === null ? (
+                      <MenuButton
+                        onClick={() =>
+                          run(() =>
+                            actions.startBoardSprintAction({
+                              boardSprintId: s.BoardSprintId,
+                              rowVer: s.RowVer,
+                            }),
+                          )
+                        }
+                      >
+                        {M.startSprint}
+                      </MenuButton>
+                    ) : null}
+                    {edit && s.State === "active" ? (
+                      <MenuButton
+                        onClick={() => setMode({ kind: "complete", id: s.BoardSprintId })}
+                      >
+                        {M.completeSprint}
+                      </MenuButton>
+                    ) : null}
+                    {remove && s.State === "planned" ? (
+                      <MenuButton
+                        onClick={() => setMode({ kind: "delete-sprint", id: s.BoardSprintId })}
+                      >
+                        {messages.actions.delete}
+                      </MenuButton>
+                    ) : null}
+                  </Row>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-ink-muted">{U.noSprints}</p>
+            )}
+          </Panel>
         </div>
-      </details>
+      </div>
       {mode?.kind === "board" || mode?.kind === "link" || mode?.kind === "delete-board" ? (
-        <BoardDetailsDialog
-          board={board}
-          projects={projects}
-          mode={mode.kind}
-          close={() => setMode(null)}
-        />
+        <BoardDetailsDialog board={board} projects={projects} mode={mode.kind} close={close} />
       ) : null}
       {mode?.kind === "column" || mode?.kind === "delete-column" ? (
         <ColumnDialog
@@ -283,7 +318,7 @@ export function BoardManagement({
           board={board}
           id={mode.id}
           deleting={mode.kind === "delete-column"}
-          close={() => setMode(null)}
+          close={close}
         />
       ) : null}
       {mode?.kind === "phase" || mode?.kind === "delete-phase" ? (
@@ -292,7 +327,7 @@ export function BoardManagement({
           board={board}
           id={mode.id}
           deleting={mode.kind === "delete-phase"}
-          close={() => setMode(null)}
+          close={close}
         />
       ) : null}
       {mode?.kind === "sprint" || mode?.kind === "delete-sprint" || mode?.kind === "complete" ? (
@@ -301,7 +336,7 @@ export function BoardManagement({
           board={board}
           id={mode.id}
           mode={mode.kind}
-          close={() => setMode(null)}
+          close={close}
         />
       ) : null}
     </>
