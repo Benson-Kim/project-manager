@@ -84,6 +84,8 @@ export function PackageRequirementsButton({
         onClick={() => {
           setError("");
           setLoading(true);
+          setRequirements([]);
+          setSearch("");
           setOpen(true);
         }}
       >
@@ -173,6 +175,13 @@ export function PackageRequirementsButton({
             </p>
           ) : null}
           <div className="max-h-60 overflow-y-auto">
+            {!loading &&
+            !error &&
+            !requirements.some((r) =>
+              `${r.ref} ${r.text}`.toLowerCase().includes(search.toLowerCase()),
+            ) ? (
+              <p role="status">{U.noRequirements}</p>
+            ) : null}
             {requirements.map((r) => (
               <label
                 key={`${project}-${r.id}`}

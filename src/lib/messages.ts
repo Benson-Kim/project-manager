@@ -557,6 +557,7 @@ export const messages = {
       moved: "Saved",
       limited: "Showing up to 200 cards per column or sprint. Use search to narrow the board.",
       packageTitle: "Add to board",
+      noRequirements: "No requirements found.",
       requirements: "Requirements",
       chooseRequirement: "Select requirements",
       none: "None",

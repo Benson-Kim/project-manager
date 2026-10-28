@@ -17,9 +17,11 @@ import { REQUIREMENT_TYPES, typeLabel } from "../schemas/requirement-types";
  */
 export function RequirementsToolbar({
   projectId,
+  canPackage,
   children,
 }: {
   projectId: number;
+  canPackage: boolean;
   children?: React.ReactNode;
 }) {
   const { searchParams, update } = useListUrlState();
@@ -61,7 +63,7 @@ export function RequirementsToolbar({
       >
         {messages.requirements.exportPdf}
       </a>
-      <PackageRequirementsButton projectId={projectId} />
+      {canPackage ? <PackageRequirementsButton projectId={projectId} /> : null}
       {children}
     </Toolbar>
   );

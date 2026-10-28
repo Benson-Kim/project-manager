@@ -67,12 +67,14 @@ export function RequirementsView({
   deliverableOptions,
   projectId,
   canCreate,
+  canPackage = false,
   newRequirementAction,
 }: {
   rows: RequirementListRow[];
   projectId: number;
   /** Shows the datasheet's new-entry row. */
   canCreate: boolean;
+  canPackage?: boolean;
   totalCount: number;
   page: number;
   initialView: ViewMode;
@@ -210,18 +212,20 @@ export function RequirementsView({
           : undefined,
       }}
       bulkActions={
-        canCreate
+        canCreate || canPackage
           ? (selectedIds, clear) => {
               const merge = mergeSelection(rows, selectedIds);
               if (!selectedIds.length) return null;
               return (
                 <div className="flex flex-wrap gap-2">
-                  <PackageRequirementsButton
-                    projectId={projectId}
-                    selectedIds={selectedIds.map(Number)}
-                  />
+                  {canPackage ? (
+                    <PackageRequirementsButton
+                      projectId={projectId}
+                      selectedIds={selectedIds.map(Number)}
+                    />
+                  ) : null}
                   <Button
-                    disabled={!merge}
+                    disabled={!canCreate || !merge}
                     data-testid="requirements-merge"
                     onClick={() => {
                       if (merge)
@@ -237,7 +241,9 @@ export function RequirementsView({
           : undefined
       }
       renderToolbar={(viewToggle) => (
-        <RequirementsToolbar projectId={projectId}>{viewToggle}</RequirementsToolbar>
+        <RequirementsToolbar projectId={projectId} canPackage={canPackage}>
+          {viewToggle}
+        </RequirementsToolbar>
       )}
       empty={listEmptyState(filtersActive, M.emptyBody, newRequirementAction)}
     />

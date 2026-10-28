@@ -1,8 +1,7 @@
 "use server";
 import { z } from "zod";
 import { packageRequirementsInput } from "../schemas/board-package";
-import { packageRequirements } from "../repository/board-package";
-import { listRequirementOptions } from "@/modules/requirements/repository/requirements";
+import { packageRequirements, listPackagingRequirementOptions } from "../repository/board-package";
 import { getBoard, listBoardOptions } from "../repository/boards";
 
 import {
@@ -340,7 +339,7 @@ export const readPackagingOptionsAction = action({
   permission: "boards:read",
   handler: async (input, ctx) => {
     const [requirements, boards] = await Promise.all([
-      listRequirementOptions(input.projectId, ctx.session.userId),
+      listPackagingRequirementOptions(input.projectId, ctx.session.userId),
       listBoardOptions(ctx.session.userId),
     ]);
     return {
