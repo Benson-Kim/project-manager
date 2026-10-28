@@ -799,7 +799,7 @@ export function WbsDiagram({
         <div
           ref={scrollRef}
           data-testid="wbs-diagram"
-          className={`relative mb-[calc(var(--hbar,0px)*-1)] max-h-[calc(100dvh-16rem)] min-h-64 overflow-auto print:mb-0 print:max-h-none print:overflow-visible ${
+          className={`relative mb-[calc(var(--hbar,0px)*-1)] max-h-[var(--fit-h,calc(100dvh-16rem))] min-h-64 overflow-auto print:mb-0 print:max-h-none print:overflow-visible ${
             dragged ? "cursor-grabbing" : ""
           }`}
           onPointerMove={onPointerMove}

@@ -16,6 +16,21 @@ import { useEffect, useRef, useState } from "react";
  * bar as `--hbar`, and the box hangs that bar below a clip (data-view.tsx). The bar's
  * height depends on the platform (0 where scrollbars overlay), so it is measured.
  */
+const MIN_BOX_PX = 240;
+
+/**
+ * The height that fills the window between what sits above the box and what sits below it, so
+ * the page itself does not scroll as well (client feedback, 2026-10-28): a long list has one
+ * vertical scrollbar, its own. The box reads it as `--fit-h`.
+ */
+function fitHeight(target: HTMLElement): number {
+  const doc = document.documentElement;
+  const rect = target.getBoundingClientRect();
+  const top = rect.top + window.scrollY;
+  const below = doc.scrollHeight - (rect.bottom + window.scrollY);
+  return Math.max(doc.clientHeight - top - below, MIN_BOX_PX);
+}
+
 export function StickyScrollbar({ targetRef }: { targetRef: React.RefObject<HTMLElement | null> }) {
   const proxyRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -33,6 +48,7 @@ export function StickyScrollbar({ targetRef }: { targetRef: React.RefObject<HTML
       // A sub-pixel difference is a rounded layout, not an overflow.
       setOverflows(target.scrollWidth - target.clientWidth > 1);
       target.style.setProperty("--hbar", `${target.offsetHeight - target.clientHeight}px`);
+      target.style.setProperty("--fit-h", `${fitHeight(target)}px`);
     };
     measure();
 
@@ -50,8 +66,12 @@ export function StickyScrollbar({ targetRef }: { targetRef: React.RefObject<HTML
     const resize = new ResizeObserver(measure);
     resize.observe(target);
     if (target.firstElementChild) resize.observe(target.firstElementChild);
+    // What sits above or below it can change height too, and so can the window.
+    resize.observe(document.body);
+    window.addEventListener("resize", measure);
 
     return () => {
+      window.removeEventListener("resize", measure);
       target.removeEventListener("scroll", onTarget);
       proxy.removeEventListener("scroll", onProxy);
       resize.disconnect();

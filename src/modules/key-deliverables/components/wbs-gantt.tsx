@@ -1142,7 +1142,7 @@ export function WbsGantt({
             <div
               ref={scrollRef}
               data-testid="gantt-chart"
-              className="relative mb-[calc(var(--hbar,0px)*-1)] max-h-[calc(100dvh-16rem)] min-h-64 overflow-auto print:mb-0 print:max-h-none print:overflow-visible"
+              className="relative mb-[calc(var(--hbar,0px)*-1)] max-h-[var(--fit-h,calc(100dvh-16rem))] min-h-64 overflow-auto print:mb-0 print:max-h-none print:overflow-visible"
             >
               <div className="sticky top-0 z-20 flex h-12 w-max min-w-full border-b border-line bg-surface">
                 <div

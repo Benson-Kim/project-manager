@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { usePopoverPlacement } from "../popover-placement";
 import { useFieldContext } from "./field";
+import { NO_MATCH, rankByMatch } from "./rank-options";
 
 export interface MultiSelectOption {
   id: number;
@@ -74,6 +76,9 @@ export function MultiSelect({
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  // Enter takes an option the text does not match only once the arrows chose it.
+  const keyedRef = useRef(false);
   const fieldCtx = useFieldContext();
 
   const selectedIds = useMemo(() => new Set(selected.map((s) => s.id)), [selected]);
@@ -86,12 +91,20 @@ export function MultiSelect({
     return () => cancelAnimationFrame(frame);
   }, [autoFocus]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return options.filter(
-      (o) => !selectedIds.has(o.id) && (!q || o.label.toLowerCase().includes(q)),
-    );
-  }, [options, query, selectedIds]);
+  const ranked = useMemo(
+    () =>
+      rankByMatch(
+        options.filter((o) => !selectedIds.has(o.id)),
+        query,
+        (o) => o.label,
+      ),
+    [options, query, selectedIds],
+  );
+  const filtered = ranked.map((r) => r.option);
+  const up = usePopoverPlacement(inputRef, listRef, open && filtered.length > 0, {
+    fit: true,
+    contentKey: filtered.length,
+  });
 
   // The panel closes on each pick: its options take mousedown, so left open it swallows a click
   // aimed at whatever sits under the field (a sheet's Save). Click, typing or ↓ brings it back.
@@ -109,13 +122,16 @@ export function MultiSelect({
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
+      keyedRef.current = true;
       if (!open) setOpen(true);
       else setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
+      keyedRef.current = true;
       setActiveIndex((i) => Math.max(i - 1, 0));
     } else if (e.key === "Enter") {
-      if (open && filtered[activeIndex]) {
+      const active = ranked[activeIndex];
+      if (open && active && (keyedRef.current || active.rank < NO_MATCH)) {
         e.preventDefault();
         pick(filtered[activeIndex]);
       }
@@ -166,6 +182,7 @@ export function MultiSelect({
               setQuery(e.target.value);
               setOpen(true);
               setActiveIndex(0);
+              keyedRef.current = false;
             }}
             onFocus={() => setOpen(true)}
             onClick={() => setOpen(true)}
@@ -173,20 +190,21 @@ export function MultiSelect({
             onKeyDown={onKeyDown}
           />
           <ul
+            ref={listRef}
             id={listboxId}
             role="listbox"
             hidden={!open || filtered.length === 0}
-            className="absolute z-(--z-dropdown) mt-1 max-h-60 w-full overflow-auto rounded-md border border-line bg-surface-raised py-1 shadow-lg"
+            className={`absolute z-(--z-dropdown) ${up ? "bottom-full mb-1" : "mt-1"} max-h-60 w-full overflow-auto rounded-md border border-line bg-surface-raised py-1 shadow-lg`}
           >
-            {filtered.map((option, idx) => (
+            {ranked.map(({ option, rank }, idx) => (
               <li
                 key={option.id}
                 id={`${listboxId}-${option.id}`}
                 role="option"
                 aria-selected={false}
                 className={`flex min-h-11 cursor-pointer items-center px-3 text-sm ${
-                  idx === activeIndex ? "bg-accent-soft text-ink" : "text-ink"
-                }`}
+                  idx === activeIndex ? "bg-accent-soft" : ""
+                } ${rank < NO_MATCH ? "text-ink" : "text-ink-muted"}`}
                 onMouseDown={(e) => {
                   e.preventDefault();
                   pick(option);

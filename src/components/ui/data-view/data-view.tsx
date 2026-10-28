@@ -469,7 +469,7 @@ export function DataView<Row>({
                 <div
                   ref={scrollerRef}
                   data-testid="data-view-scroller"
-                  className="relative max-h-[calc(100dvh-5rem)] scroll-pt-14 overflow-auto mb-[calc(var(--hbar,0px)*-1)] print:mb-0 print:max-h-none print:overflow-visible"
+                  className="relative max-h-[var(--fit-h,calc(100dvh-5rem))] scroll-pt-14 overflow-auto mb-[calc(var(--hbar,0px)*-1)] print:mb-0 print:max-h-none print:overflow-visible"
                 >
                   <table
                     data-testid="data-view-table"

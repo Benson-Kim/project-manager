@@ -2,7 +2,9 @@
 
 import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { Chevron } from "../chevron";
+import { usePopoverPlacement } from "../popover-placement";
 import { useFieldAria } from "./field";
+import { NO_MATCH, rankByMatch } from "./rank-options";
 
 /**
  * Minimal ARIA 1.2 combobox : text input + filtered listbox popup.
@@ -52,17 +54,24 @@ export function Combobox({
   const listboxId = useId();
   const aria = useFieldAria();
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  // Enter takes an option the text does not match only once the arrows chose it.
+  const keyedRef = useRef(false);
   const initial = options.find((o) => o.value === defaultValue) ?? null;
   const [selected, setSelected] = useState<ComboboxOption | null>(initial);
   const [query, setQuery] = useState(initial?.label ?? defaultFreeText ?? "");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q || query === selected?.label) return options;
-    return options.filter((o) => o.label.toLowerCase().includes(q));
-  }, [options, query, selected]);
+  const ranked = useMemo(
+    () => rankByMatch(options, query === selected?.label ? "" : query, (o) => o.label),
+    [options, query, selected],
+  );
+  const filtered = ranked.map((r) => r.option);
+  const up = usePopoverPlacement(inputRef, listRef, open && filtered.length > 0, {
+    fit: true,
+    contentKey: filtered.length,
+  });
 
   const select = useCallback(
     (option: ComboboxOption | null) => {
@@ -77,13 +86,16 @@ export function Combobox({
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
+      keyedRef.current = true;
       if (!open) setOpen(true);
       else setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
+      keyedRef.current = true;
       setActiveIndex((i) => Math.max(i - 1, 0));
     } else if (event.key === "Enter") {
-      if (open && filtered[activeIndex]) {
+      const active = ranked[activeIndex];
+      if (open && active && (keyedRef.current || active.rank < NO_MATCH)) {
         event.preventDefault();
         select(filtered[activeIndex]);
       }
@@ -119,6 +131,7 @@ export function Combobox({
           setQuery(e.target.value);
           setOpen(true);
           setActiveIndex(0);
+          keyedRef.current = false;
           if (selected && e.target.value !== selected.label) {
             setSelected(null);
             onSelect?.(null);
@@ -141,20 +154,21 @@ export function Combobox({
         <Chevron open={open && filtered.length > 0} />
       </span>
       <ul
+        ref={listRef}
         id={listboxId}
         role="listbox"
         hidden={!open || filtered.length === 0}
-        className="absolute z-(--z-dropdown) mt-1 max-h-60 w-full overflow-auto rounded-md border border-line bg-surface-raised py-1 shadow-lg"
+        className={`absolute z-(--z-dropdown) ${up ? "bottom-full mb-1" : "mt-1"} max-h-60 w-full overflow-auto rounded-md border border-line bg-surface-raised py-1 shadow-lg`}
       >
-        {filtered.map((option, index) => (
+        {ranked.map(({ option, rank }, index) => (
           <li
             key={option.value}
             id={`${listboxId}-${option.value}`}
             role="option"
             aria-selected={selected?.value === option.value}
             className={`flex min-h-10 cursor-pointer items-center px-6 text-sm ${
-              index === activeIndex ? "bg-accent-soft text-ink" : "text-ink"
-            }`}
+              index === activeIndex ? "bg-accent-soft" : ""
+            } ${rank < NO_MATCH ? "text-ink" : "text-ink-muted"}`}
             onMouseDown={(e) => {
               e.preventDefault();
               select(option);
