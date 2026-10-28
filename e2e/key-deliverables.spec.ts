@@ -4,6 +4,10 @@ import { messages } from "../src/lib/messages";
 import { closeAlarmToast } from "./support/alarms";
 import { escapeRegExp, expectListed } from "./support/datasheet";
 
+// These editors mutate the same seeded project's tree. Run this file's tests in order so one
+// test's refresh cannot replace another test's focused new item while it is being renamed.
+test.describe.configure({ mode: "default" });
+
 /**
  * Key deliverables module (#9) — create happy path, validation failure, the
  * WBS and Gantt editor (ADR-0027: add, indent, rename, drag, stretch, scale,
@@ -428,6 +432,167 @@ test("WBS diagram: Alt+arrows, Move to…, a branch listed or side by side, zoom
   await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
 });
 
+test("WBS item menu: Assignees… opens the details on the picker; the box names them", async ({
+  page,
+}) => {
+  // Long: an item is created and renamed, the context menu is opened (with a
+  // retry, below), a details sheet loads, and a stakeholder is picked and
+  // saved — a dozen round trips against a real database. The default 30s
+  // budget is spent before the last of them.
+  test.slow();
+  const name = `E2E assignee item ${Date.now()}`;
+  await page.goto("/projects/2/deliverables/gantt?view=wbs");
+  const diagram = page.getByTestId("wbs-diagram");
+  await expect(diagram).toBeVisible();
+  await closeAlarmToast(page);
+
+  await page.getByTestId("wbs-add").click();
+  const field = page.locator("input:focus");
+  await expect(field).toHaveValue(W.newItemName, { timeout: 15_000 });
+  await field.fill(name);
+  await field.press("Enter");
+  const item = diagram.getByRole("treeitem", { name: new RegExp(escapeRegExp(name)) });
+  await expect(item).toBeFocused();
+  const id = await item.getAttribute("data-wbs-box");
+
+  // A new item has nobody on it: none is a normal number of assignees (migration 015).
+  await expect(page.getByTestId(`wbs-assignees-${id}`)).toHaveCount(0);
+
+  // Assignees… opens the item's details with the caret already in the picker.
+  // The item was created a moment ago, so let its save settle first: a re-render
+  // mid-gesture drops the menu and Shift+F10 lands on nothing. Then retry the
+  // gesture itself, as the dependencies test does for the same reason.
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+  await expect(async () => {
+    await item.click();
+    await page.keyboard.press("Shift+F10");
+    await expect(page.getByTestId("wbs-menu")).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await page.getByTestId("wbs-menu-assignees").click();
+  const form = page.getByTestId("deliverable-form");
+  await expect(form).toBeVisible();
+  const picker = form.getByLabel(messages.keyDeliverables.assignees);
+  await expect(picker).toBeFocused();
+
+  // Take the first stakeholder the project offers, save, and the box carries the name —
+  // in its text and in the label a screen reader hears instead of that text.
+  await picker.press("ArrowDown");
+  // The picker's own listbox, not the page's first option: the Status and Priority fields above it
+  // are native selects whose "None" option comes first in the DOM and can never be clicked.
+  const option = form.getByRole("listbox").getByRole("option").first();
+  const who = ((await option.textContent()) ?? "").trim();
+  expect(who).not.toBe("");
+  await option.click();
+  await page.getByTestId("deliverable-save").click();
+  await expect(
+    page.getByTestId("toast-success").filter({ hasText: messages.feedback.saved }).first(),
+  ).toBeVisible();
+  await expect(page.getByTestId(`wbs-assignees-${id}`)).toHaveText(who);
+  await expect(diagram.getByRole("treeitem", { name: new RegExp(escapeRegExp(who)) })).toHaveCount(
+    1,
+  );
+});
+
+test("WBS: a milestone is added as one day, converted either way, moved but not stretched", async ({
+  page,
+}) => {
+  const stamp = Date.now();
+  await page.goto("/projects/2/deliverables/gantt?view=gantt&scale=day");
+  await expect(page.getByTestId("gantt-chart")).toBeVisible();
+  // The seeded overdue alert sits over the bottom-right of the chart, where the bars are dragged.
+  await closeAlarmToast(page);
+
+  // Add milestone: a date from the start, so its two ends are the same day.
+  await page.getByTestId("wbs-add-milestone").click();
+  const gateName = page.locator("input:focus");
+  await expect(gateName).toHaveValue(W.newItemName, { timeout: 15_000 });
+  const gateId = await page
+    .locator("li[data-wbs-row]", { has: page.locator("input:focus") })
+    .getAttribute("data-wbs-row");
+  await gateName.fill(`E2E gate ${stamp}`);
+  await gateName.press("Enter");
+  const gateRow = wbsRow(page, gateId);
+  const gateStart = wbsField(gateRow, W.startOf);
+  const gateEnd = wbsField(gateRow, W.endOf);
+  await expect(gateEnd).toHaveValue(await gateStart.inputValue());
+  // Its one day is not a length to type in, and its end follows its start.
+  await expect(gateRow.getByLabel(new RegExp(escapeRegExp(W.daysHeader)))).toHaveCount(0);
+  await expect(gateEnd).toHaveAttribute("readonly", "");
+  // The bar reads as a date rather than a span.
+  const gateBar = page.getByTestId(`gantt-bar-${gateId}`);
+  await expect(gateBar).toHaveAttribute("aria-label", /milestone on /);
+  // However small a diamond is drawn, it is still a 40 px target.
+  const gateBox = (await gateBar.boundingBox())!;
+  expect(gateBox.height).toBeGreaterThanOrEqual(40);
+  expect(gateBox.width).toBeGreaterThanOrEqual(40);
+
+  // Arrow keys move it a day; Shift+arrow, which changes a task's end, leaves it alone.
+  const day0 = await gateStart.inputValue();
+  await gateBar.focus();
+  await gateBar.press("ArrowRight");
+  await expect(gateStart).toHaveValue(plusDays(day0, 1));
+  await expect(gateEnd).toHaveValue(plusDays(day0, 1));
+  await gateBar.press("Shift+ArrowRight");
+  await expect(gateEnd).toHaveValue(plusDays(day0, 1));
+
+  // A task's conversion names the span it drops before it runs.
+  await page.getByTestId("wbs-add").click();
+  const taskName = page.locator("input:focus");
+  await expect(taskName).toHaveValue(W.newItemName, { timeout: 15_000 });
+  const taskId = await page
+    .locator("li[data-wbs-row]", { has: page.locator("input:focus") })
+    .getAttribute("data-wbs-row");
+  await taskName.fill(`E2E span ${stamp}`);
+  await taskName.press("Enter");
+  const taskRow = wbsRow(page, taskId);
+  const taskStart = wbsField(taskRow, W.startOf);
+  const taskDay0 = await taskStart.inputValue();
+
+  await wbsField(taskRow, W.nameOf).press("Shift+F10");
+  await expect(page.getByTestId("wbs-menu")).toBeVisible();
+  await expect(page.getByTestId("wbs-menu-milestone")).toHaveText(W.turnIntoMilestone);
+  await page.getByTestId("wbs-menu-milestone").click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText(new RegExp(escapeRegExp("span is dropped")));
+  await dialog.getByRole("button", { name: W.turnIntoMilestone }).click();
+
+  // It keeps its start and loses the span.
+  await expect(wbsField(taskRow, W.endOf)).toHaveValue(taskDay0);
+  await expect(taskStart).toHaveValue(taskDay0);
+  await expect(page.getByTestId(`gantt-bar-${taskId}`)).toHaveAttribute(
+    "aria-label",
+    /milestone on /,
+  );
+
+  // Turning it back keeps the one day, and then it can be stretched again.
+  await wbsField(taskRow, W.nameOf).press("Shift+F10");
+  await expect(page.getByTestId("wbs-menu-milestone")).toHaveText(W.turnIntoTask);
+  await page.getByTestId("wbs-menu-milestone").click();
+  const taskEnd = wbsField(taskRow, W.endOf);
+  await expect(taskEnd).not.toHaveAttribute("readonly", "");
+  await taskEnd.fill(plusDays(taskDay0, 4));
+  await taskEnd.press("Enter");
+  await expect(taskEnd).toHaveValue(plusDays(taskDay0, 4));
+
+  // The WBS diagram draws the milestone with a diamond beside its number.
+  await page.getByTestId("wbs-view-wbs").click();
+  await expect(page.getByTestId("wbs-diagram")).toBeVisible();
+  await expect(page.getByTestId(`wbs-milestone-${gateId}`)).toBeVisible();
+  await expect(page.getByTestId(`wbs-milestone-${taskId}`)).toHaveCount(0);
+  await expect(
+    page.getByRole("treeitem", { name: new RegExp(escapeRegExp(`E2E gate ${stamp}`)) }),
+  ).toHaveAttribute("aria-label", /Milestone, /);
+
+  // Clean up both items so the seeded project does not grow a milestone per run.
+  for (const id of [gateId, taskId]) {
+    await selectBox(page.getByTestId(`wbs-box-${id}`));
+    await page.getByTestId("wbs-delete").click();
+    await page.getByRole("button", { name: W.delete, exact: true }).last().click();
+    await expect(page.getByTestId(`wbs-box-${id}`)).toHaveCount(0);
+  }
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+});
+
 test("WBS item menu: whole name, status colour; requirements cascade in both views", async ({
   page,
 }) => {
@@ -445,6 +610,7 @@ test("WBS item menu: whole name, status colour; requirements cascade in both vie
   await field.press("Enter");
   const item = diagram.getByRole("treeitem", { name: new RegExp(escapeRegExp(longName)) });
   await expect(item).toBeFocused();
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
   const id = await item.getAttribute("data-wbs-box");
   const box = page.getByTestId(`wbs-box-${id}`);
   const menu = page.getByTestId("wbs-menu");
@@ -491,6 +657,9 @@ test("WBS item menu: whole name, status colour; requirements cascade in both vie
   const chipRow = (text: string) => list.locator("li").filter({ hasText: text });
   await expect(chipRow(`E2E permit ${stamp}`)).toContainText(/^FR-\d+/);
   await expect(chipRow(`E2E soil report ${stamp}`)).toContainText(/^NFR-\d+/);
+  // A row keeps to one line; pointing at it shows the whole requirement.
+  await chipRow(`E2E permit ${stamp}`).hover();
+  await expect(chipRow(`E2E permit ${stamp}`).getByTestId("wbs-req-bubble")).toBeVisible();
 
   await list.getByLabel(W.requirementMet(`E2E permit ${stamp}`)).check();
   await expect(page.getByTestId(`wbs-req-toggle-${id}`)).toHaveText(W.requirementCount(1, 2));
@@ -550,6 +719,105 @@ test("WBS item menu: whole name, status colour; requirements cascade in both vie
   await page.goto(`/projects/2/requirements?view=list&q=${stamp}`);
   await expectListed(page, `E2E permit ${stamp}`);
   await expectListed(page, `E2E soil report ${stamp}`);
+});
+
+test("WBS: two items are linked, the successor is pushed, and the link goes with its item", async ({
+  page,
+}) => {
+  // Long: two items created and renamed, one moved, the dependencies panel
+  // opened twice (each behind a retry), a link made and the cascade awaited.
+  test.slow();
+  const stamp = Date.now();
+  await page.goto("/projects/2/deliverables/gantt?view=gantt&scale=day");
+  await expect(page.getByTestId("gantt-chart")).toBeVisible();
+  await closeAlarmToast(page);
+
+  // Two items. A new sibling is placed the day AFTER the one it follows ends
+  // (newItemDates), so out of the box an FS link has nothing to push: the
+  // successor already starts where the link would put it. The overlap this test
+  // needs is made below, by moving the second item back onto the first.
+  const ids: string[] = [];
+  for (const name of [`E2E pour ${stamp}`, `E2E cure ${stamp}`]) {
+    await page.getByTestId("wbs-add").click();
+    const field = page.locator("input:focus");
+    await expect(field).toHaveValue(W.newItemName, { timeout: 15_000 });
+    const id = await page
+      .locator("li[data-wbs-row]", { has: page.locator("input:focus") })
+      .getAttribute("data-wbs-row");
+    await field.fill(name);
+    await field.press("Enter");
+    await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+    ids.push(id!);
+  }
+  const [firstId, secondId] = ids;
+  const firstStart = await wbsField(wbsRow(page, firstId), W.startOf).inputValue();
+  const firstEnd = await wbsField(wbsRow(page, firstId), W.endOf).inputValue();
+  const secondStart = wbsField(wbsRow(page, secondId), W.startOf);
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+
+  // Overlap them: the second now starts the day the first does, which an FS
+  // link may not allow, so there is something for the cascade to do.
+  await secondStart.fill(firstStart);
+  await secondStart.blur();
+  await expect(secondStart).toHaveValue(firstStart, { timeout: 15_000 });
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+  const before = await secondStart.inputValue();
+
+  // The Dependencies panel is the keyboard way in: dragging from a bar edge is pointer-only.
+  await expect(async () => {
+    await wbsField(wbsRow(page, secondId), W.nameOf).click();
+    await page.keyboard.press("Shift+F10");
+    await expect(page.getByTestId("wbs-menu-dependencies")).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await page.getByTestId("wbs-menu-dependencies").click();
+
+  const panel = page.getByTestId("wbs-dependencies");
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText(W.noDependencies);
+  await panel.getByRole("combobox", { name: W.dependencyPredecessor }).fill(`E2E pour ${stamp}`);
+  await page.getByRole("option", { name: new RegExp(escapeRegExp(`E2E pour ${stamp}`)) }).click();
+  await page.getByTestId("wbs-dependency-submit").click();
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+
+  // Linking leaves the panel open, so more links can be made from it. Close it before touching the
+  // rows again: it is a modal, and a click on anything behind it never reaches the row.
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+
+  // The successor has been pushed past its predecessor's end, and it did not move on its own
+  // before the link existed (ADR-0046 decisions 6-7).
+  await expect(secondStart).not.toHaveValue(before, { timeout: 15_000 });
+  expect(new Date(await secondStart.inputValue()) > new Date(firstEnd)).toBe(true);
+
+  // The link is drawn, and the panel lists it in both directions.
+  const dependency = page.locator(
+    `[data-gantt-dependency-from="${firstId}"][data-gantt-dependency-to="${secondId}"]`,
+  );
+  await expect(dependency.locator("path").first()).toBeVisible();
+  await expect(async () => {
+    await wbsField(wbsRow(page, secondId), W.nameOf).click();
+    await page.keyboard.press("Shift+F10");
+    await expect(page.getByTestId("wbs-menu-dependencies")).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await page.getByTestId("wbs-menu-dependencies").click();
+  await expect(page.getByTestId("wbs-dependencies")).toContainText(`E2E pour ${stamp}`);
+  await page.keyboard.press("Escape");
+
+  // Deleting the predecessor takes the link with it, so no arrow is left pointing at nothing.
+  await expect(async () => {
+    await wbsField(wbsRow(page, firstId), W.nameOf).click();
+    await page.keyboard.press("Shift+F10");
+    await expect(page.getByTestId("wbs-menu-delete")).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await page.getByTestId("wbs-menu-delete").click();
+  await page.getByRole("button", { name: W.delete, exact: true }).last().click();
+  await expect(wbsRow(page, firstId)).toHaveCount(0);
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+  await expect(
+    page.locator(
+      `[data-gantt-dependency-from="${firstId}"], [data-gantt-dependency-to="${firstId}"]`,
+    ),
+  ).toHaveCount(0);
 });
 
 test("axe scan on the deliverables list has no serious or critical violations", async ({

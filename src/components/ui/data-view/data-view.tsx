@@ -233,9 +233,16 @@ export function DataView<Row>({
     setLayout(stored);
     layoutRef.current = stored;
     // One save at a time, in order: two quick arrow-key steps must not land out of order.
+    // A refused save used to be swallowed, so a column that sprang back read as
+    // "reordering does not work" with nothing to report (client feedback
+    // 2026-10-26). The layout on screen is already the new one, so the toast
+    // says what will not outlast the page rather than undoing the gesture.
     savingRef.current = savingRef.current
       .then(() => saveListLayout({ moduleKey, layout: stored }))
-      .catch(() => undefined);
+      .then((saved) => {
+        if (!saved) toast({ variant: "error", title: messages.datasheet.layoutNotSaved });
+      })
+      .catch(() => toast({ variant: "error", title: messages.datasheet.layoutNotSaved }));
   };
 
   const applyColumnOrder = (keys: string[]) => {
@@ -462,7 +469,7 @@ export function DataView<Row>({
                 <div
                   ref={scrollerRef}
                   data-testid="data-view-scroller"
-                  className="relative max-h-[calc(100dvh-5rem)] scroll-pt-14 overflow-auto mb-[calc(var(--hbar,0px)*-1)] print:mb-0 print:max-h-none print:overflow-visible"
+                  className="relative max-h-[var(--fit-h,calc(100dvh-5rem))] scroll-pt-14 overflow-auto mb-[calc(var(--hbar,0px)*-1)] print:mb-0 print:max-h-none print:overflow-visible"
                 >
                   <table
                     data-testid="data-view-table"

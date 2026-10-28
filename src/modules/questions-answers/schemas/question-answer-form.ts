@@ -2,6 +2,7 @@ import { z } from "zod";
 import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
 import { listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
+import { richTextSchema, RICH_TEXT_FIELD_MAX } from "@/lib/rich-text/schema";
 import type { QuestionAnswerRow } from "./question-answer";
 
 /**
@@ -21,7 +22,7 @@ const optionalText = (max: number) =>
 export const questionAnswerFormSchema = z.object({
   projectId: z.coerce.number().int().positive(),
   question: z.string().trim().min(1, messages.questionsAnswers.questionRequired).max(4000),
-  answer: optionalText(4000),
+  answer: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
   /** Managed lists (ADR-0022): the proc checks the value against the live options. */
   category: listChoice,
   priority: listChoice,

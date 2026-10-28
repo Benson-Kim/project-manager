@@ -1,3 +1,4 @@
+import { withRichViews } from "@/components/ui/rich-text/rich-views";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -80,7 +81,7 @@ export default async function ObjectivesPage({
         <ObjectivesView
           projectId={projectId}
           canCreate={canCreate}
-          rows={rows}
+          rows={withRichViews(rows, ["QSuccess"])}
           totalCount={totalCount}
           page={listParams.page}
           initialView={initialViewOf(listParams.view, preference?.viewMode)}

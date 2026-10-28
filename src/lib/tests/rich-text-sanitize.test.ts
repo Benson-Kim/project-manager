@@ -258,6 +258,17 @@ describe("sanitizeRichText — ADR-0041 formats", () => {
     );
   });
 
+  // Legal numbering is the one style no list-style-type can draw, so it travels
+  // as data-numbering and never as an inline style (client feedback, E6).
+  it("carries legal numbering as data-numbering, not a list-style-type", () => {
+    expect(sanitizeRichText('<ol type="1.1"><li>x</li></ol>')).toBe(
+      '<ol type="1.1" data-numbering="legal"><li>x</li></ol>',
+    );
+    expect(sanitizeRichText('<ol data-numbering="evil"><li>x</li></ol>')).toBe(
+      "<ol><li>x</li></ol>",
+    );
+  });
+
   it.each([
     'data-page-break="false"',
     'data-page-break=""',

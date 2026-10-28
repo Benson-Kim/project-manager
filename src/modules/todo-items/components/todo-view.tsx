@@ -129,6 +129,15 @@ function buildColumns(
       value: (r) => r.Status,
       placeholder: P.status,
     }),
+    textColumn({
+      key: "Assignee",
+      header: messages.todoItems.assignee,
+      priority: 2,
+      field: "assignee",
+      value: (r) => r.Assignee,
+      placeholder: P.assignee,
+      maxLength: 255,
+    }),
     listColumn({
       key: "Priority",
       header: messages.todoItems.priority,

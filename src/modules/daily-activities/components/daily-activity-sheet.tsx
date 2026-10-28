@@ -30,6 +30,7 @@ import {
 } from "../schemas/daily-activity-form";
 import { buildTodoFromDailyActivityAction } from "@/modules/todo-items/actions";
 import type { AttachmentRow } from "@/modules/file-storage/schemas/attachment";
+import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
 
 /**
  * Daily Activity detail/edit sheet  default pattern): edit is the
@@ -74,7 +75,7 @@ export function DailyActivitySheet({
       form,
       createAction: createDailyActivityAction,
       updateAction: updateDailyActivityAction,
-      deleteAction: (_args: void) =>
+      deleteAction: () =>
         deleteDailyActivityAction({
           dailyActivityId: activity!.DailyActivityId,
           rowVer: activity!.RowVer,
@@ -292,7 +293,7 @@ export function DailyActivitySheet({
               name="comments"
               errors={form.errors.comments}
             >
-              <Textarea name="comments" rows={3} defaultValue={activity?.Comments ?? ""} />
+              <RichTextEditor name="comments" defaultValue={activity?.Comments} />
             </Field>
           </section>
 

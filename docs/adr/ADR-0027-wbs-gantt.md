@@ -247,7 +247,12 @@ the other at once, with no reload.
 
 ### 9. Not included
 
-No dependency arrows, critical path, or time of day.
+No critical path, and no time of day.
+
+**Superseded in part by [ADR-0046](ADR-0046-milestones-dependencies-and-the-requirements-group.md)
+decisions 5-10 (2026-10-24):** dependency arrows now exist, and a dependency also schedules — a
+violated link pushes its successor forward, and the push cascades. Only the dependency sentence of
+this section is withdrawn; the critical path and time of day stay out.
 
 The status, priority and assignee filters of the old Gantt page are gone: a filtered breakdown
 would hide the parents that give items their place. The list view keeps its filters.

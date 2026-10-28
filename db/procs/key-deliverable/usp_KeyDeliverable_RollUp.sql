@@ -9,13 +9,18 @@
 -- been deleted. Without it every parent in the project is recomputed.
 -- Called by the key-deliverable write procs inside their transaction, after their access check;
 -- it changes parent dates only, and audits each parent it changes (Action 'RollUp').
+-- @Audit = 0 makes the same changes without the audit rows, for
+-- usp_KeyDeliverable_CascadeDependencies: its fixpoint rolls up once per round, and one audit row
+-- per round per parent would record the walk rather than the change. The scheduler audits the net
+-- before and after itself (ADR-0046 decision 10).
 -- Checks no access itself.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_KeyDeliverable_RollUp
     @ProjectId            INT,
     @ActorUserId          INT,
-    @FromKeyDeliverableId INT = NULL
+    @FromKeyDeliverableId INT = NULL,
+    @Audit                BIT = 1
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -89,6 +94,7 @@ BEGIN
                  AND (c.OldEnd IS NULL OR c.OldEnd >= kd.RequestedDate))
         THROW 50004, N'VALIDATION:A parent would end before its requested date', 1;
 
+    IF @Audit = 1
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     SELECT @ActorUserId, N'RollUp', N'app.KeyDeliverable', CAST(c.KeyDeliverableId AS NVARCHAR(64)),
            (SELECT c.OldStart AS StartDate, c.OldEnd AS Deadline FOR JSON PATH, WITHOUT_ARRAY_WRAPPER),

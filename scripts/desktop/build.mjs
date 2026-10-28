@@ -90,8 +90,11 @@ step("Bundling the Electron main process");
 rmSync(appDir, { recursive: true, force: true });
 mkdirSync(appDir, { recursive: true });
 await esbuild({
-  entryPoints: [join(root, "electron", "main.ts")],
-  outfile: join(appDir, "main.js"),
+  entryPoints: {
+    main: join(root, "electron", "main.ts"),
+    "grammar-worker": join(root, "electron", "grammar-worker.ts"),
+  },
+  outdir: appDir,
   bundle: true,
   platform: "node",
   target: "node22",
@@ -101,6 +104,8 @@ await esbuild({
   logLevel: "warning",
 });
 for (const f of ["splash.html", "splash-logo.png"]) cpSync(join(root, "electron", f), join(appDir, f));
+const grammarWasm = "harper_wasm_slim_bg.wasm";
+cpSync(join(root, "node_modules", "harper.js", "dist", grammarWasm), join(appDir, grammarWasm));
 const commit = git(["rev-parse", "--short", "HEAD"]);
 const dirty = git(["status", "--porcelain"]).length > 0;
 writeFileSync(

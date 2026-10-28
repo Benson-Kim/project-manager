@@ -10,7 +10,7 @@ import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { StoredDates } from "@/components/ui/form/stored-dates";
 import { Combobox, type ComboboxOption } from "@/components/ui/form/combobox";
-import { DatePicker, Input, Select, Textarea } from "@/components/ui/form/inputs";
+import { DatePicker, Input, Select } from "@/components/ui/form/inputs";
 import { SectionHeading } from "@/components/ui/form/section-heading";
 import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
@@ -35,6 +35,7 @@ import { todoItemFormSchema, updateTodoItemFormSchema } from "../schemas/todo-it
 import { todoAlertFormSchema, updateTodoAlertFormSchema } from "../schemas/todo-alert-form";
 import type { DailyActivityOption } from "../repository/daily-activity-options";
 import { ListOptions } from "@/components/ui/lookup-lists";
+import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
 
 /**
  * To-do item detail/edit sheet: URL-synced via
@@ -405,8 +406,11 @@ export function TodoItemSheet({
                   ))}
                 </Select>
               </Field>
+              <Field label={messages.todoItems.assignee} name="assignee">
+                <Input name="assignee" maxLength={255} defaultValue={todoItem?.Assignee ?? ""} />
+              </Field>
               <Field label={messages.todoItems.notes} name="notes">
-                <Textarea name="notes" rows={3} defaultValue={todoItem?.Notes ?? ""} />
+                <RichTextEditor name="notes" defaultValue={todoItem?.Notes} />
               </Field>
             </section>
 

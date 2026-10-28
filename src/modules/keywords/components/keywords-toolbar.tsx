@@ -2,7 +2,6 @@
 
 import { SearchInput } from "@/components/ui/data-view/search-input";
 import { Toolbar } from "@/components/ui/toolbar";
-import { messages } from "@/lib/messages";
 
 /**
  * Keywords toolbar: search + view toggle (passed as children by DataView's

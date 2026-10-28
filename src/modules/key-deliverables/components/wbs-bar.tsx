@@ -63,7 +63,9 @@ interface Drag {
 /**
  * One item's bar (ADR-0027). An item without sub-items is a bar: drag its body
  * to move it, its ends to change its start or end. An item with sub-items is a
- * summary bracket over its branch: dragging it moves the whole branch. Whole
+ * summary bracket over its branch: dragging it moves the whole branch. A
+ * milestone is a diamond on its one day (ADR-0046) and, like a summary, moves
+ * without stretching: no end handles and no Shift+arrows. Whole
  * days only. Keyboard: ← → move a day; Shift+← → move the end; Enter opens the
  * details. The button is at least 40 px each way, so a short or thin bar can
  * still be hit; the bar is drawn in the middle of it.
@@ -82,22 +84,27 @@ export function WbsBar({
   const drag = useRef<Drag | null>(null);
   const id = node.item.id;
   const summary = node.childIds.length > 0;
+  const milestone = node.item.isMilestone;
   const tone = TONE[node.color];
   const { left, width } = barBox(timeline, node.start, node.end);
   const pad = barHitPad(width);
   const name = node.item.name || messages.keyDeliverables.deliverableFallback(id);
-  const label = messages.keyDeliverables.wbs.barName(
-    node.code,
-    name,
-    formatDate(node.start),
-    formatDate(node.end),
-    durationDays(node.start, node.end),
-  );
+  const label = milestone
+    ? messages.keyDeliverables.wbs.milestoneName(node.code, name, formatDate(node.start))
+    : messages.keyDeliverables.wbs.barName(
+        node.code,
+        name,
+        formatDate(node.start),
+        formatDate(node.end),
+        durationDays(node.start, node.end),
+      );
 
   function onPointerDown(event: React.PointerEvent<HTMLButtonElement>) {
     if (!editable || event.button !== 0) return;
     const edge = (event.target as HTMLElement).dataset.edge;
-    const mode: DragMode = summary ? "move" : edge === "start" || edge === "end" ? edge : "move";
+    // A milestone and a summary are moved, never stretched, so every press is a move.
+    const mode: DragMode =
+      summary || milestone ? "move" : edge === "start" || edge === "end" ? edge : "move";
     event.currentTarget.setPointerCapture(event.pointerId);
     drag.current = {
       pointerId: event.pointerId,
@@ -142,7 +149,7 @@ export function WbsBar({
       return;
     }
     if (!editable || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
-    if (event.shiftKey && summary) return;
+    if (event.shiftKey && (summary || milestone)) return;
     event.preventDefault();
     const days = event.key === "ArrowLeft" ? -1 : 1;
     on.nudge(
@@ -175,7 +182,12 @@ export function WbsBar({
         className={`pointer-events-none absolute top-1/2 -translate-y-1/2 rounded-sm outline-offset-2 group-focus-visible:outline-2 group-focus-visible:outline-focus ${summary ? "h-4" : "h-6"}`}
         style={{ left: pad, right: pad }}
       >
-        {summary ? (
+        {milestone ? (
+          // A date, not a span: a diamond on its one day, centred in the hit area.
+          <span
+            className={`absolute top-1/2 left-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-xs ${tone.ink}`}
+          />
+        ) : summary ? (
           <>
             <span className={`absolute inset-x-0 top-0 h-2 rounded-sm ${tone.ink}`} />
             <span
@@ -194,7 +206,7 @@ export function WbsBar({
           </span>
         )}
       </span>
-      {!summary && editable ? (
+      {!summary && !milestone && editable ? (
         <>
           <span
             aria-hidden="true"

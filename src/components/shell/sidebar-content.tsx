@@ -33,7 +33,7 @@ function getCreateAction(
     : null;
 }
 
-const navLinkClass = (current: boolean, href: string) =>
+const navLinkClass = (current: boolean) =>
   `flex items-center gap-3 rounded-xl p-3 text-base leading-6 font-medium
    hover:bg-accent-soft hover:text-accent ${
      current ? "bg-surface text-accent" : "text-ink-muted hover:bg-surface-sunken"
@@ -96,7 +96,7 @@ export function SidebarContent({
               href={item.href}
               onClick={onNavigate}
               aria-current={isCurrent(pathname, item.href) ? "page" : undefined}
-              className={navLinkClass(isCurrent(pathname, item.href), item.href)}
+              className={navLinkClass(isCurrent(pathname, item.href))}
             >
               <SidebarIcon name={item.icon} />
               <span>{item.label}</span>
@@ -110,10 +110,7 @@ export function SidebarContent({
             href={settingsNavItem.href}
             onClick={onNavigate}
             aria-current={isCurrent(pathname, settingsNavItem.href) ? "page" : undefined}
-            className={navLinkClass(
-              isCurrent(pathname, settingsNavItem.href),
-              settingsNavItem.href,
-            )}
+            className={navLinkClass(isCurrent(pathname, settingsNavItem.href))}
           >
             <SidebarIcon name={settingsNavItem.icon} />
             <span>{settingsNavItem.label}</span>

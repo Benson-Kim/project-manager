@@ -67,7 +67,6 @@ const headerFields = {
   endTime: timeInput,
   conclusion: richTextSchema({ max: MEETING_RICH_TEXT_MAX }),
   nextMeeting: dateInput,
-  followupAction: optionalText(255),
 };
 
 /** The end time must come after the start time (the issue sits on endTime). */
@@ -122,7 +121,6 @@ export function meetingFormValues(row: MeetingRow): FormValues {
     endTime: noTimes ? "" : formText(row.EndTime),
     conclusion: formText(row.Conclusion),
     nextMeeting: toDateInput(row.NextMeeting),
-    followupAction: formText(row.FollowupAction),
   };
 }
 
@@ -171,6 +169,13 @@ const actionFields = {
   action: plainText(M.actionRequired),
   /** Person responsible (checklist row 13): a stakeholder of the meeting's project. */
   assignedToStakeholderId: optionalId,
+  /**
+   * ...or a name typed in, for someone with no stakeholder row — a guest, or
+   * somebody outside the organisation (client feedback 2026-10-26). The two
+   * are exclusive: the picker submits one or the other, and
+   * CK_MeetingActionItem_OneAssignee is what actually holds the rule.
+   */
+  assigneeOther: optionalText(255),
   dueDate: dateInput,
   /** ADR-0043; an empty field (a form from before the status existed) is the default. */
   status: z.preprocess(

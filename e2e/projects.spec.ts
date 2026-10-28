@@ -95,6 +95,14 @@ test.describe("project workspace", () => {
     await expect(planningBtn).toBeVisible();
     await expect(planningBtn).toHaveAttribute("aria-expanded", "false");
 
+    // ADR-0046: Requirements is its own group with one section, so it is a pill
+    // link straight to the register — not a disclosure, and no longer under Planning.
+    const requirements = nav.getByRole("link", { name: messages.projects.requirementsSection });
+    await expect(requirements).toHaveAttribute("href", "/projects/2/requirements");
+    await expect(
+      nav.getByRole("button", { name: messages.projects.requirementsSection }),
+    ).toHaveCount(0);
+
     // The page h1 stays the section name (PageHeader), not the project name.
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
       messages.projects.charterSection,

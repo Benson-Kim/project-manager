@@ -21,7 +21,6 @@ try {
 }
 const sql = require("mssql");
 
-const ADMIN = 1;
 const PM = 3;
 const CONTRIB = 4;
 const VIEWER = 5;
@@ -163,7 +162,8 @@ function reqsOf(rows, kdId) {
   const onD1 = reqsOf(g, D1.KeyDeliverableId).find((r) => r.id === fr1.RequirementId);
   const onD2 = reqsOf(g, D2.KeyDeliverableId).find((r) => r.id === fr1.RequirementId);
   ok(onD1 && onD2 && onD1.isMet === true && onD2.isMet === true, "one tick shows under both deliverables");
-  ok(onD1.type === "FR" && onD1.number === 1, "the cascade carries the type and reference");
+  ok(onD1.type === "FR" && onD1.ref === fr1.Ref,
+    `the cascade carries the type and reference (got ${onD1.ref}, register ${fr1.Ref})`);
 
   // An incompatible type change is refused on the resulting state.
   const fr1now = (await exec("usp_Requirement_GetById", { RequirementId: fr1.RequirementId, ActorUserId: PM }))[0][0];
@@ -199,6 +199,103 @@ function reqsOf(rows, kdId) {
   ok(!reqsOf(g, D2.KeyDeliverableId).some((r) => r.id === fr1.RequirementId), "it is gone from the cascade");
   const fr2 = await create({ ProjectId: P, RequirementType: "FR", Requirement: "Second form", ActorUserId: PM });
   ok(fr2.Number === 2, "a reference number is never reused after a delete");
+
+  // ---- Sub-requirements (ADR-0048, migration 048) ----
+  // The tree only exists in SQL: the path is a recursive walk, the numbering is per parent, and the
+  // depth, the type inheritance and both refusals are taken under the project lock. None of it can
+  // be reached from Vitest, so this is the only place it actually runs.
+  const getReq = async (id, actor = PM) =>
+    (await exec("usp_Requirement_GetById", { RequirementId: id, ActorUserId: actor }))[0][0];
+
+  const root = await create({ ProjectId: P, RequirementType: "FR", Requirement: "Intake", ActorUserId: PM });
+  ok(root.Ref === `FR-${root.Number}` && root.Depth === 0 && root.ChildCount === 0,
+    "a root requirement's reference is its own number");
+
+  // A child is numbered under its parent, from 1, whatever numbers the type already has.
+  const kid1 = await create({ ProjectId: P, Requirement: "Validate card", ParentRequirementId: root.RequirementId, ActorUserId: PM });
+  const kid2 = await create({ ProjectId: P, Requirement: "Validate address", ParentRequirementId: root.RequirementId, ActorUserId: PM });
+  ok(kid1.Number === 1 && kid2.Number === 2, "sub-requirements are numbered under their parent, from 1");
+  ok(kid1.Ref === `FR-${root.Number}.1` && kid2.Ref === `FR-${root.Number}.2`,
+    `the reference is the whole path (got ${kid1.Ref}, ${kid2.Ref})`);
+  ok(kid1.Depth === 1 && kid2.Depth === 1, "a child is one level down");
+
+  // The type is the parent's, not the caller's: passing a different one changes nothing.
+  const kid3 = await create({ ProjectId: P, RequirementType: "BR", Requirement: "Ignore my type", ParentRequirementId: root.RequirementId, ActorUserId: PM });
+  ok(kid3.RequirementType === "FR", `a child inherits its parent's type (got ${kid3.RequirementType})`);
+
+  const grand = await create({ ProjectId: P, Requirement: "Luhn check", ParentRequirementId: kid1.RequirementId, ActorUserId: PM });
+  ok(grand.Ref === `FR-${root.Number}.1.1` && grand.Depth === 2,
+    `a grandchild carries both levels (got ${grand.Ref})`);
+
+  // Four levels, then no more — the client said it does not go long, so the limit is the proc's.
+  const great = await create({ ProjectId: P, Requirement: "Mod 10", ParentRequirementId: grand.RequirementId, ActorUserId: PM });
+  ok(great.Depth === 3, "the fourth level is allowed");
+  await expectCode(50004, "a fifth level is refused", () =>
+    create({ ProjectId: P, Requirement: "too deep", ParentRequirementId: great.RequirementId, ActorUserId: PM }));
+
+  // A parent cannot point outside its project, and a missing one is not found.
+  await expectCode(50001, "a parent in another project is not found", () =>
+    create({ ProjectId: Q, Requirement: "cross", ParentRequirementId: root.RequirementId, ActorUserId: PM }));
+  await expectCode(50001, "a parent that does not exist is not found", () =>
+    create({ ProjectId: P, Requirement: "orphan", ParentRequirementId: 2000000000, ActorUserId: PM }));
+
+  // The two refusals the client still has to choose between. Both are reversible; neither guesses.
+  const rootNow = await getReq(root.RequirementId);
+  ok(rootNow.ChildCount === 3, `a parent counts its live children (got ${rootNow.ChildCount})`);
+  await expectCode(50004, "a parent with children cannot be deleted", () =>
+    exec("usp_Requirement_Delete", { RequirementId: root.RequirementId, RowVer: rootNow.RowVer, ActorUserId: PM }));
+  await expectCode(50004, "a parent with children cannot change type", () =>
+    exec("usp_Requirement_Update", { RequirementId: root.RequirementId, RequirementType: "TR",
+      Requirement: rootNow.Requirement, IsMet: 0, RowVer: rootNow.RowVer, ActorUserId: PM }));
+  const kidNow = await getReq(kid3.RequirementId);
+  await expectCode(50004, "a child cannot change its own type", () =>
+    exec("usp_Requirement_Update", { RequirementId: kid3.RequirementId, RequirementType: "TR",
+      Requirement: kidNow.Requirement, IsMet: 0, RowVer: kidNow.RowVer, ActorUserId: PM }));
+
+  // A leaf child deletes normally, and that frees its parent again.
+  await exec("usp_Requirement_Delete", { RequirementId: kid3.RequirementId, RowVer: kidNow.RowVer, ActorUserId: PM });
+  ok((await getReq(root.RequirementId)).ChildCount === 2, "deleting a child lowers the parent's count");
+
+  // The register's order is the path, and '1.2' comes before '1.10' — which it would not as text.
+  const wide = await create({ ProjectId: P, RequirementType: "NFR", Requirement: "Limits", ActorUserId: PM });
+  for (let i = 0; i < 10; i++) {
+    await create({ ProjectId: P, Requirement: `limit ${i + 1}`, ParentRequirementId: wide.RequirementId, ActorUserId: PM });
+  }
+  const [listed] = await exec("usp_Requirement_List", { ProjectId: P, ActorUserId: PM, Type: "NFR", PageSize: 100 });
+  const widePath = listed.filter((r) => r.Ref.startsWith(`NFR-${wide.Number}.`)).map((r) => r.Ref);
+  ok(widePath[0] === `NFR-${wide.Number}.1` && widePath[1] === `NFR-${wide.Number}.2`
+     && widePath[9] === `NFR-${wide.Number}.10`,
+    `the padded path orders 1.2 before 1.10 (got ${widePath.slice(0, 3).join(", ")} ... ${widePath[9]})`);
+  ok(listed.findIndex((r) => r.Ref === `NFR-${wide.Number}`) <
+     listed.findIndex((r) => r.Ref === `NFR-${wide.Number}.1`),
+    "a parent is listed before its children");
+  ok(listed.every((r) => typeof r.Depth === "number" && r.SortPath),
+    "every listed row carries its depth and sort path");
+
+  // A sub-requirement is a need like any other, so the trace picker offers it.
+  const needRoot = await create({ ProjectId: P, RequirementType: "SR", Requirement: "Sign-off", ActorUserId: PM });
+  const needKid = await create({ ProjectId: P, Requirement: "Clerk sign-off", ParentRequirementId: needRoot.RequirementId, ActorUserId: PM });
+  const [opts] = await exec("usp_Requirement_ListOptions", { ProjectId: P, ActorUserId: PM });
+  const offered = opts.find((o) => o.RequirementId === needKid.RequirementId);
+  ok(offered && offered.Ref === `SR-${needRoot.Number}.1`,
+    "the trace picker offers a sub-requirement, by its path");
+
+  // A solution that traces to it must show that path in its chips, not the parent's.
+  const tracer = await create({ ProjectId: P, RequirementType: "FR", Requirement: "Sign-off screen",
+    ValidatesIds: JSON.stringify([needKid.RequirementId]), ActorUserId: PM });
+  ok(links(tracer, "ValidatesJson").some((l) => l.ref === `SR-${needRoot.Number}.1`),
+    "a trace chip carries the sub-requirement's own path");
+
+  // The WBS and the Gantt are a second surface rendering the same reference (LESSONS §38).
+  const subAlloc = await create({ ProjectId: P, Requirement: "Card screen", ParentRequirementId: root.RequirementId,
+    KeyDeliverableIds: JSON.stringify([D2.KeyDeliverableId]), ActorUserId: PM });
+  const gSub = reqsOf(await gantt(P), D2.KeyDeliverableId).find((r) => r.id === subAlloc.RequirementId);
+  ok(gSub && gSub.ref === subAlloc.Ref,
+    `the Gantt names an allocated sub-requirement as the register does (got ${gSub && gSub.ref}, register ${subAlloc.Ref})`);
+
+  // Nothing above moved an existing root's number, which is what makes 048 safe on a live register.
+  ok((await getReq(br1.RequirementId)).Ref === `BR-${br1.Number}`,
+    "a requirement that existed before the tree keeps its reference");
 
   console.log(`${passes} passed, ${failures} failed`);
   await pool.close();

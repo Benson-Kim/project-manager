@@ -482,14 +482,26 @@ export function ActionItemForm({
           name="assignedToStakeholderId"
           errors={errors.assignedToStakeholderId}
         >
+          {/*
+            Pick a stakeholder, or type the name of someone who is not one — a
+            guest, or somebody outside the organisation (client feedback
+            2026-10-26). A stored name with no stakeholder behind it is free
+            text, so it comes back into the box as text.
+          */}
           <StakeholderSelect
             name="assignedToStakeholderId"
             options={people(
-              action
+              action && action.AssignedToStakeholderId !== null
                 ? { id: action.AssignedToStakeholderId, name: action.AssigneeName }
                 : undefined,
             )}
             defaultValue={action?.AssignedToStakeholderId ?? null}
+            freeTextName="assigneeOther"
+            defaultFreeText={
+              action && action.AssignedToStakeholderId === null
+                ? (action.AssigneeName ?? "")
+                : undefined
+            }
             onSelect={changed}
           />
         </Field>

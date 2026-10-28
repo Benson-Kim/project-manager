@@ -246,7 +246,7 @@ instructions — anywhere. Clarity comes from: visible labels, sensible defaults
 logical grouping, empty states that state the one next action, and immediate
 validation feedback. If a screen needs explanation, redesign the screen.
 
-Two documented exceptions, both requested by the client:
+Three documented exceptions, all requested by the client:
 
 - [ADR-0023](adr/ADR-0023-dataview-datasheet-mode.md): the datasheet's empty
   new-entry cells show ghost placeholders ("[New project name…]", from
@@ -255,6 +255,9 @@ Two documented exceptions, both requested by the client:
   shows each control's name and shortcut on hover and keyboard focus ("Bold
   (Ctrl+B)"), built from its `aria-label` and `aria-keyshortcuts`. Names only,
   never instructions, and nowhere else.
+- Client feedback on 1.0.12 (2026-10-26): a requirement on a WBS box keeps to one
+  line, and hovering or focusing it shows its whole wording in a bubble. The
+  bubble repeats the requirement, never explains it.
 
 ### 5.2 Design tokens
 

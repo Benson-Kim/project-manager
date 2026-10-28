@@ -102,7 +102,13 @@ function ActionsTable({ actions, name }: { actions: ActionNode[]; name: string }
         {actions.map((node) => (
           <Fragment key={node.action.MeetingActionItemId}>
             <tr className="border-b border-line align-top">
-              <td className="py-1 pr-3 wrap-anywhere">{node.action.Action}</td>
+              <td
+                className={`py-1 pr-3 wrap-anywhere ${
+                  node.action.Status === "completed" ? "text-ink-muted line-through" : ""
+                }`}
+              >
+                {node.action.Action}
+              </td>
               <td className="py-1 pr-3 wrap-anywhere">{node.action.AssigneeName}</td>
               <td className="py-1 pr-3 whitespace-nowrap tabular-nums">
                 {formatDate(node.action.DueDate)}
@@ -184,10 +190,12 @@ function CarriedOverTable({ rows }: { rows: CarriedOver[] }) {
  * The printed minutes (Access rptMeetingMinutes, with subrptMeetingAttendees
  * and subrptMeetingApologies) — /projects/[id]/meetings/[meetingId]/print,
  * outside the app shell: the header fields, who was present and who sent
- * apologies, the agenda with its discussion points and actions, then the
- * conclusion, follow-up action and next meeting. One workspace read, so the
- * page is one consistent snapshot. "Print minutes" is window.print over the
- * print stylesheet (portrait A4), in the browser and the desktop app alike.
+ * apologies directly under Location, the objective and description, the agenda
+ * with its discussion points and actions, then the conclusion and next
+ * meeting. One workspace read, so the page is one consistent snapshot. It
+ * renders on paper on screen too, so what you see is what prints — "Print
+ * minutes" is window.print over the same stylesheet (portrait A4), in the
+ * browser and the desktop app alike.
  * Access is the workspace's: a meeting of another project, or one the actor
  * can't open, is not found.
  */
@@ -241,13 +249,18 @@ export default async function MeetingMinutesPrintPage({
             [M.dateReceived, formatDate(meeting.DateReceived)],
           ]}
         />
-        <RichBlock title={M.objective} html={meeting.Objective} />
-        <RichBlock title={M.description} html={meeting.Description} />
-
+        {/*
+          Present and apologies directly under Location, the header block's last
+          field, as on the workspace page (client feedback 2026-10-26, M2); the
+          objective and description follow them.
+        */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 print:grid-cols-2">
           <People title={M.present} people={present} testId="print-present" />
           <People title={M.apologies} people={apologies} testId="print-apologies" />
         </div>
+
+        <RichBlock title={M.objective} html={meeting.Objective} />
+        <RichBlock title={M.description} html={meeting.Description} />
 
         <CarriedOverTable rows={carried} />
 
@@ -309,12 +322,7 @@ export default async function MeetingMinutesPrintPage({
         </section>
 
         <RichBlock title={M.conclusion} html={meeting.Conclusion} />
-        <Details
-          items={[
-            [M.followupAction, meeting.FollowupAction],
-            [M.nextMeeting, formatDate(meeting.NextMeeting)],
-          ]}
-        />
+        <Details items={[[M.nextMeeting, formatDate(meeting.NextMeeting)]]} />
       </div>
     </main>
   );

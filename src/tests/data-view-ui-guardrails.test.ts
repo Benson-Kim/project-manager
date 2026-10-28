@@ -65,7 +65,7 @@ describe("the header row sticks to the top of the table's scroll box", () => {
   it("keeps the scroll box that the header sticks to", () => {
     // A horizontal scroller captures vertical stickiness, so the table scrolls
     // in its own box and the header sticks to that, not to the page.
-    expect(source(VIEW)).toContain('className="relative max-h-[calc(100dvh-5rem)]');
+    expect(source(VIEW)).toContain('className="relative max-h-[var(--fit-h,calc(100dvh-5rem))]');
     expect(source(VIEW)).toContain("overflow-auto");
   });
 });

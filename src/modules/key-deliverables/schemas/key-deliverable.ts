@@ -5,6 +5,7 @@ import { OPTION_COLORS, type LookupListKey } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
 import { requirementText } from "@/modules/requirements/schemas/requirement-form";
 import { solutionTypeSchema } from "@/modules/requirements/schemas/requirement-types";
+import { DEPENDENCY_TYPES, LAG_MAX_DAYS, LAG_MIN_DAYS, type WbsLink } from "./wbs-dependencies";
 import { utcDay, type WbsItem, type WbsRequirement } from "./wbs";
 
 /**
@@ -65,7 +66,7 @@ const requirementEntrySchema = z
   .object({
     id: z.number().int().positive(),
     type: solutionTypeSchema,
-    number: z.number().int().positive(),
+    ref: z.string().min(1),
     requirement: z.string(),
     isMet: z.union([z.boolean(), z.literal(0), z.literal(1)]).transform(Boolean),
     sortOrder: z.number().int(),
@@ -75,7 +76,7 @@ const requirementEntrySchema = z
   .transform((r): WbsRequirement => ({
     id: r.id,
     type: r.type,
-    number: r.number,
+    ref: r.ref,
     text: r.requirement,
     isMet: r.isMet,
     sortOrder: r.sortOrder,
@@ -96,6 +97,36 @@ export function parseRequirementsJson(raw: unknown): WbsRequirement[] {
     .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
 }
 
+/** One entry of GanttData's PredecessorsJson (ADR-0046). The successor is the row it came on. */
+const predecessorEntrySchema = z.object({
+  id: z.number().int().positive(),
+  predecessorId: z.number().int().positive(),
+  type: z.enum(DEPENDENCY_TYPES),
+  lagDays: z.number().int(),
+  rowVer: rowVerSchema,
+});
+
+/** NULL is []; malformed JSON throws, as in parseAssigneesJson. */
+export function parsePredecessorsJson(raw: unknown, successorId: number): WbsLink[] {
+  if (raw === null || raw === undefined || raw === "") return [];
+  if (typeof raw !== "string") {
+    throw new Error(`PredecessorsJson must be a string, got ${typeof raw}`);
+  }
+  const arr: unknown = JSON.parse(raw);
+  if (!Array.isArray(arr)) throw new Error("PredecessorsJson must be a JSON array");
+  return arr
+    .map((r) => predecessorEntrySchema.parse(r))
+    .map((r): WbsLink => ({
+      id: r.id,
+      predecessorId: r.predecessorId,
+      successorId,
+      type: r.type,
+      lagDays: r.lagDays,
+      rowVer: r.rowVer,
+    }))
+    .sort((a, b) => a.id - b.id);
+}
+
 /** A bar colour: a palette key (CK_KeyDeliverable_Color); NULL takes the parent's. */
 export const wbsColorSchema = z.enum(OPTION_COLORS).nullable();
 
@@ -112,6 +143,7 @@ export const keyDeliverableRowSchema = z
     Priority: z.string().nullable(),
     Status: z.string().nullable(),
     Color: wbsColorSchema.optional(),
+    IsMilestone: z.boolean().optional(),
     HasChildren: z.boolean().optional(),
     SubItemCount: z.number().int().nonnegative().optional(),
     CreatedAtUtc: z.date(),
@@ -152,9 +184,13 @@ export const wbsRowSchema = z
     Priority: z.string().nullable(),
     Status: z.string().nullable(),
     Color: wbsColorSchema,
+    /** Optional, so a row from a database before migration 043 still parses as a task. */
+    IsMilestone: z.boolean().optional(),
     AssigneeNames: z.string().nullable().optional(),
     AssigneesJson: z.unknown().optional(),
     RequirementsJson: z.unknown().optional(),
+    /** Optional, so a row from a database before migration 044 still parses with no links. */
+    PredecessorsJson: z.unknown().optional(),
     CreatedAtUtc: z.date(),
     RowVer: rowVerSchema,
   })
@@ -169,6 +205,7 @@ export const wbsRowSchema = z
     status: r.Status,
     priority: r.Priority,
     color: r.Color,
+    isMilestone: r.IsMilestone ?? false,
     assigneeNames: r.AssigneeNames?.trim() || null,
     assignees: parseAssigneesJson(r.AssigneesJson),
     requirements: parseRequirementsJson(r.RequirementsJson),
@@ -188,6 +225,11 @@ export const wbsWindowSchema = z.object({
 /** The project's breakdown and its window (for a first item's default dates). */
 export interface WbsData {
   items: WbsItem[];
+  /**
+   * Every dependency in the project, flattened from each row's predecessors (ADR-0046). They stay
+   * out of WbsItem so the tree functions have no reason to change.
+   */
+  links: WbsLink[];
   projectStart: Date | null;
   projectEnd: Date | null;
   /** Orders two reads of the breakdown: the larger one is the newer. */
@@ -228,6 +270,9 @@ export const createKeyDeliverableInput = z.object({
   ...deliverableFields,
   parentId: itemId.nullish(),
   afterId: itemId.nullish(),
+  /** Create it as a date rather than a span (ADR-0046). Deliberately not in `deliverableFields`:
+   *  an update never carries the flag, so a details-sheet save cannot convert an item. */
+  isMilestone: z.boolean().optional(),
 });
 
 export type CreateKeyDeliverableInput = z.input<typeof createKeyDeliverableInput>;
@@ -275,8 +320,14 @@ export const addWbsItemInput = z
     afterId: itemId.nullable(),
     start: wbsDay,
     end: wbsDay,
+    /** A milestone starts out as a date: both ends are the same day (ADR-0046). */
+    isMilestone: z.boolean().optional().default(false),
   })
-  .refine((v) => v.end.getTime() >= v.start.getTime(), endNotBeforeStart);
+  .refine((v) => v.end.getTime() >= v.start.getTime(), endNotBeforeStart)
+  .refine((v) => !v.isMilestone || v.end.getTime() === v.start.getTime(), {
+    path: ["end"],
+    message: messages.keyDeliverables.wbs.milestoneOneDay,
+  });
 
 export type AddWbsItemInput = z.input<typeof addWbsItemInput>;
 
@@ -315,6 +366,46 @@ export const setWbsStatusInput = z.object({
 });
 
 export type SetWbsStatusInput = z.input<typeof setWbsStatusInput>;
+
+/**
+ * Turn one item into a milestone or back into a task (ADR-0046). Nothing else travels with it: the
+ * flag never rides along on a details-sheet save, so this is the one way it changes.
+ */
+export const setWbsMilestoneInput = z.object({
+  id: itemId,
+  isMilestone: z.boolean(),
+  rowVer: rowVerSchema,
+});
+
+export type SetWbsMilestoneInput = z.input<typeof setWbsMilestoneInput>;
+
+/**
+ * Link two items in sequence (ADR-0046). The type and the lag are explicit fields, never spread
+ * from a form, so nothing else can ride along; the proc refuses a self-link, a duplicate pair, an
+ * ancestor pair and a cycle under the project lock.
+ */
+export const linkWbsItemsInput = z.object({
+  predecessorId: itemId,
+  successorId: itemId,
+  type: z.enum(DEPENDENCY_TYPES),
+  lagDays: z.coerce.number().int().min(LAG_MIN_DAYS).max(LAG_MAX_DAYS).default(0),
+});
+
+export type LinkWbsItemsInput = z.input<typeof linkWbsItemsInput>;
+
+/** Change a link's type or lag. Its ends never move: re-pointing one is an unlink and a link. */
+export const relinkWbsItemsInput = z.object({
+  id: itemId,
+  type: z.enum(DEPENDENCY_TYPES),
+  lagDays: z.coerce.number().int().min(LAG_MIN_DAYS).max(LAG_MAX_DAYS),
+  rowVer: rowVerSchema,
+});
+
+export type RelinkWbsItemsInput = z.input<typeof relinkWbsItemsInput>;
+
+export const unlinkWbsItemsInput = z.object({ id: itemId, rowVer: rowVerSchema });
+
+export type UnlinkWbsItemsInput = z.input<typeof unlinkWbsItemsInput>;
 
 /**
  * Cascade requirement edits (ADR-0037). A requirement is a project-level record (the requirements

@@ -94,6 +94,37 @@ async function axeClean(page: Page) {
 
 const GARY = /^Gary Cantrall/;
 
+test("minutes: a typed assignee survives blur, saving and an unrelated edit", async ({ page }) => {
+  await newMeeting(page);
+  await addAgendaItem(page, "External review");
+  await page.getByRole("button", { name: M.addActionTo("External review") }).click();
+  const form = page.getByRole("form", { name: M.addAction });
+  await form.getByLabel(M.action, { exact: true }).fill("Ask the external reviewer");
+  const person = form.getByRole("combobox", { name: M.personResponsible });
+  await person.fill("External reviewer");
+  await person.press("Tab");
+  await expect(person).toHaveAttribute("aria-expanded", "false");
+  await expect(form.locator('input[name="assigneeOther"]')).toHaveValue("External reviewer");
+  await form.getByRole("button", { name: messages.actions.save }).click();
+  await expect(form).toHaveCount(0);
+
+  const item = page.getByTestId("action-item").filter({ hasText: "Ask the external reviewer" });
+  await expect(item).toContainText("External reviewer");
+  await page.reload();
+  await page.getByRole("button", { name: M.editItem("Ask the external reviewer") }).click();
+  const edit = page.getByRole("form", { name: M.editItem(M.actionEntity) });
+  const storedPerson = edit.getByRole("combobox", { name: M.personResponsible });
+  await expect(storedPerson).toHaveValue("External reviewer");
+  await storedPerson.focus();
+  await storedPerson.press("Tab");
+  await expect(storedPerson).toHaveAttribute("aria-expanded", "false");
+  await edit.getByLabel(M.action, { exact: true }).fill("Ask the external reviewer again");
+  await edit.getByRole("button", { name: messages.actions.save }).click();
+  await expect(edit).toHaveCount(0);
+  await page.reload();
+  await expect(item).toContainText("External reviewer");
+});
+
 test("minutes: build the agenda, discussion points and actions, then reorder from the keyboard", async ({
   page,
 }) => {

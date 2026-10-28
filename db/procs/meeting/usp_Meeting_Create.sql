@@ -19,7 +19,6 @@ CREATE OR ALTER PROCEDURE dbo.usp_Meeting_Create
     @EndTime        TIME(0)       = NULL,
     @Conclusion     NVARCHAR(MAX) = NULL,
     @NextMeeting    DATETIME2     = NULL,
-    @FollowupAction NVARCHAR(255) = NULL,
     @ActorUserId    INT
 AS
 BEGIN
@@ -41,10 +40,10 @@ BEGIN
     BEGIN TRAN;
 
     INSERT INTO app.Meeting ([ProjectId], [Subject], [Objective], [DateReceived], [Description], [Location],
-                             [StartDate], [StartTime], [EndTime], [Conclusion], [NextMeeting], [FollowupAction],
+                             [StartDate], [StartTime], [EndTime], [Conclusion], [NextMeeting],
                              CreatedBy)
     VALUES (@ProjectId, @Subject, @Objective, @DateReceived, @Description, @Location,
-            @StartDate, @StartTime, @EndTime, @Conclusion, @NextMeeting, @FollowupAction,
+            @StartDate, @StartTime, @EndTime, @Conclusion, @NextMeeting,
             @ActorUserId);
 
     DECLARE @Id INT = SCOPE_IDENTITY();

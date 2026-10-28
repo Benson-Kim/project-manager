@@ -3,14 +3,18 @@ import type { MultiSelectOption } from "@/components/ui/form/multi-select";
 import {
   coverageLabel,
   coverageOf,
+  parentRefOf,
   refList,
+  type RefLike,
   type TypeChangeContext,
 } from "../schemas/requirement-rules";
 import type { RequirementListRow, RequirementRow } from "../schemas/requirement";
+import { MAX_REQUIREMENT_DEPTH } from "../schemas/requirement";
 import {
   isNeed,
   REQUIREMENT_TYPES,
   SOLUTION_TYPES,
+  typeLabel,
   type RequirementType,
 } from "../schemas/requirement-types";
 
@@ -25,8 +29,43 @@ const M = messages.requirements;
 /** The register's fields, as both the list row and the sheet's row carry them. */
 export type RegisterRow = Pick<
   RequirementRow | RequirementListRow,
-  "RequirementType" | "Number" | "Validates" | "ValidatedBy" | "DeliverableIds"
+  | "RequirementType"
+  | "Ref"
+  | "Depth"
+  | "ChildCount"
+  | "Validates"
+  | "ValidatedBy"
+  | "DeliverableIds"
 >;
+
+/**
+ * The tree, as the register draws it (ADR-0048). The mock-up the client sent is the specification:
+ * a sub-requirement is indented under its parent, its reference is prefixed with an arrow, and its
+ * Type column reads "Sub-Requirement" while the type itself stays visible in the reference's
+ * letters. Depth and Ref both come from the server, because the register is paged and a child can
+ * land on a page its parent is not on.
+ */
+
+/** "FR-1.1", indented by its depth and marked as a child. */
+export function refCell(row: RegisterRow): string {
+  return row.Depth === 0 ? row.Ref : `${"\u00a0".repeat(row.Depth * 2)}\u21b3 ${row.Ref}`;
+}
+
+/** "Functional", or "Sub-Requirement" for a child — the relationship, as the mock-up shows it. */
+export function typeCell(row: RegisterRow): string {
+  return row.Depth > 0 ? M.subRequirement : typeLabel(row.RequirementType);
+}
+
+/** Whether this row may take one more level under it, so the action is offered only where it works. */
+export function canAddSubRequirement(row: RegisterRow): boolean {
+  return row.Depth + 1 < MAX_REQUIREMENT_DEPTH;
+}
+
+/** "Sub-requirement of FR-1", or null for a root. Read-only: nothing re-parents a requirement. */
+export function parentText(row: RegisterRow): string | null {
+  const parent = parentRefOf(row.Ref);
+  return parent === null ? null : M.subRequirementOf(parent);
+}
 
 /** The `?type=` filter: a catalog code, else no filter. */
 export function registerType(raw: string | undefined): RequirementType | null {
@@ -54,8 +93,26 @@ export function typeChangeContext(row: RegisterRow): TypeChangeContext {
  */
 export function typeIsFree(row: RegisterRow): boolean {
   return (
-    row.Validates.length === 0 && row.ValidatedBy.length === 0 && row.DeliverableIds.length === 0
+    row.Validates.length === 0 &&
+    row.ValidatedBy.length === 0 &&
+    row.DeliverableIds.length === 0 &&
+    // A child's type is its parent's, and a parent's is pinned by the references its children
+    // carry; usp_Requirement_Update refuses both, so the cell does not offer them (ADR-0048).
+    row.Depth === 0 &&
+    row.ChildCount === 0
   );
+}
+
+/** Why the type cannot be changed here, or null when it can — named before the attempt (§5.6). */
+export function typeBlockedReason(row: RegisterRow): string | null {
+  if (row.Depth > 0) return M.typeIsParents;
+  if (row.ChildCount > 0) return M.subRequirementsBlockType(row.ChildCount);
+  return null;
+}
+
+/** Why this row cannot be deleted yet, or null when it can. */
+export function deleteBlockedReason(row: RegisterRow): string | null {
+  return row.ChildCount > 0 ? M.subRequirementsBlockDelete(row.ChildCount) : null;
 }
 
 /** A need's state from the solutions that validate it; a solution has none of its own. */
@@ -63,8 +120,8 @@ export function coverageText(row: RegisterRow): string {
   return isNeed(row.RequirementType) ? coverageLabel(coverageOf(row.ValidatedBy)) : M.none;
 }
 
-/** "BR-1, SR-2", or "None". */
-export function refsText(refs: readonly { type: RequirementType; number: number }[]): string {
+/** "BR-1, BR-1.2, SR-2", or "None". */
+export function refsText(refs: readonly RefLike[]): string {
   return refs.length > 0 ? refList(refs) : M.none;
 }
 

@@ -41,9 +41,10 @@ describe("isCurrentSection", () => {
 });
 
 describe("projectSectionGroups", () => {
-  it("has five groups in order: overview, planning, people, financials, activity", () => {
+  it("has six groups in order: overview, requirements, planning, people, financials, activity", () => {
     expect(projectSectionGroups.map((g) => g.key)).toEqual([
       "overview",
+      "requirements",
       "planning",
       "people",
       "financials",
@@ -61,11 +62,22 @@ describe("projectSectionGroups", () => {
     expect(planning.sections.map((s) => s.segment)).toContain("deliverables");
   });
 
-  it("planning group lists requirements right after deliverables (ADR-0037)", () => {
-    const segments = projectSectionGroups
-      .find((g) => g.key === "planning")!
-      .sections.map((s) => s.segment);
-    expect(segments.indexOf("requirements")).toBe(segments.indexOf("deliverables") + 1);
+  it("requirements is its own group, before planning, holding only the register (ADR-0046)", () => {
+    const requirements = projectSectionGroups.find((g) => g.key === "requirements")!;
+    expect(requirements.sections.map((s) => s.segment)).toEqual(["requirements"]);
+    const keys = projectSectionGroups.map((g) => g.key);
+    expect(keys.indexOf("requirements")).toBeLessThan(keys.indexOf("planning"));
+  });
+
+  it("planning no longer lists requirements (ADR-0046)", () => {
+    const planning = projectSectionGroups.find((g) => g.key === "planning")!;
+    expect(planning.sections.map((s) => s.segment)).not.toContain("requirements");
+  });
+
+  it("every group of one section is reachable as a link, so none hides its only entry", () => {
+    for (const group of projectSectionGroups.filter((g) => g.sections.length === 1)) {
+      expect(sectionHref(2, group.sections[0]!)).toMatch(/^\/projects\/2/);
+    }
   });
 
   it("people group contains suppliers", () => {
@@ -124,8 +136,10 @@ describe("projectSectionGroups", () => {
     expect(segments).toContain("deliverables");
     expect(segments).toContain("suppliers");
     expect(segments).toContain("keywords");
-    // ADR-0018 order: charter before deliverables before suppliers before keywords
-    expect(segments.indexOf(".")).toBeLessThan(segments.indexOf("deliverables"));
+    // ADR-0018 order, amended by ADR-0046: charter before requirements before
+    // deliverables before suppliers before keywords
+    expect(segments.indexOf(".")).toBeLessThan(segments.indexOf("requirements"));
+    expect(segments.indexOf("requirements")).toBeLessThan(segments.indexOf("deliverables"));
     expect(segments.indexOf("deliverables")).toBeLessThan(segments.indexOf("suppliers"));
     expect(segments.indexOf("suppliers")).toBeLessThan(segments.indexOf("keywords"));
   });

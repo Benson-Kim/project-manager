@@ -135,7 +135,7 @@ describe("meetings repository: meetings", () => {
       Location: null,
       ActorUserId: ACTOR,
     });
-    expect(Object.keys(params)).toHaveLength(13);
+    expect(Object.keys(params)).toHaveLength(12);
     expect(row).toMatchObject({ MeetingId: 2, StartTime: "09:00", EndTime: "10:30", RowVer: 1001 });
   });
 
@@ -408,6 +408,7 @@ describe("meetings repository: minutes and participants", () => {
         MeetingActionItemId: 1,
         Action: "Do it",
         AssignedToStakeholderId: null,
+        AssigneeOther: null,
         DueDate: null,
         Status: "in-progress",
         OnHoldReason: null,
@@ -470,6 +471,7 @@ describe("meetings repository: minutes and participants", () => {
             agendaItemId: null,
             action: "Do it",
             assignedToStakeholderId: 3,
+            assigneeOther: null,
             dueDate: new Date("2024-12-20"),
             status: "on-hold",
             onHoldReason: "Waiting on the supplier",
@@ -482,6 +484,7 @@ describe("meetings repository: minutes and participants", () => {
         AgendaItemId: null,
         Action: "Do it",
         AssignedToStakeholderId: 3,
+        AssigneeOther: null,
         DueDate: new Date("2024-12-20"),
         Status: "on-hold",
         OnHoldReason: "Waiting on the supplier",

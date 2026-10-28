@@ -17,7 +17,6 @@ CREATE OR ALTER PROCEDURE dbo.usp_AssumptionConstraint_Update
     @Description            NVARCHAR(MAX)  = NULL,
     @IsValidated            BIT,
     @Impact                 NVARCHAR(255)  = NULL,
-    @MitigationPlan         NVARCHAR(MAX)  = NULL,
     @RowVer                 BIGINT,
     @ActorUserId            INT
 AS
@@ -60,7 +59,6 @@ BEGIN
         [Description] = @Description,
         [IsValidated] = @IsValidated,
         [Impact] = @Impact,
-        [MitigationPlan] = @MitigationPlan,
         UpdatedAtUtc = SYSUTCDATETIME(),
         UpdatedBy    = @ActorUserId
     WHERE AssumptionConstraintId = @AssumptionConstraintId AND IsDeleted = 0

@@ -17,7 +17,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_Project_Create
     @CurrentState NVARCHAR(MAX) = NULL,
     @FutureState NVARCHAR(MAX) = NULL,
     @UserImpact NVARCHAR(MAX) = NULL,
-    @Mandate NVARCHAR(255) = NULL,
+    @Mandate NVARCHAR(MAX) = NULL,
     @ProjectStatusCom NVARCHAR(MAX) = NULL,
     @ExistBusMod NVARCHAR(255) = NULL,
     @A1 BIT,

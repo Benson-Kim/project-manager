@@ -2,8 +2,10 @@
 -- Row-level access: the row's project must be accessible (dbo.usp_Project_AssertAccess,
 --   FORBIDDEN_ROW 50003; Admin bypass).
 -- Work breakdown (ADR-0027): deleting an item deletes its whole branch (every sub-item, each
---   audited) and removes the branch's allocations of requirements (ADR-0037) — the requirements
---   themselves stay in the register — then its parents' dates are rolled up. The project row is
+--   audited), removes the branch's allocations of requirements (ADR-0037) — the requirements
+--   themselves stay in the register — and soft-deletes every dependency at either end of the
+--   branch (ADR-0046), then its parents' dates are rolled up. The scheduler is not run: losing a
+--   link only removes a constraint, and the cascade never pulls an item earlier (decision 7). The project row is
 --   locked first so a concurrent move cannot slip an item into the branch while it is being
 --   deleted. Returns the item's ProjectId.
 -- Entity app.KeyDeliverable (source: tblKeyRequirementsDeliverable). Module: database-schema-and-procs (#3).
@@ -96,6 +98,31 @@ BEGIN
            (SELECT a.RequirementId AS requirementId, a.KeyDeliverableId AS keyDeliverableId
             FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
     FROM @Allocations AS a;
+
+    -- Every dependency touching the branch goes with it, at either end, each audited (ADR-0046
+    -- decision 5). Soft-deleted, so the filtered unique index lets the pair be linked again.
+    DECLARE @Links TABLE (DependencyId INT PRIMARY KEY, BeforeJson NVARCHAR(MAX));
+    INSERT INTO @Links (DependencyId, BeforeJson)
+    SELECT d.DependencyId,
+           (SELECT d.PredecessorId AS predecessorId, d.SuccessorId AS successorId,
+                   d.DependencyType AS dependencyType, d.LagDays AS lagDays
+            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+    FROM app.KeyDeliverableDependency AS d
+    WHERE d.IsDeleted = 0
+      AND (   d.PredecessorId IN (SELECT KeyDeliverableId FROM @Branch)
+           OR d.SuccessorId   IN (SELECT KeyDeliverableId FROM @Branch));
+
+    UPDATE d SET
+        IsDeleted    = 1,
+        DeletedAtUtc = SYSUTCDATETIME(),
+        DeletedBy    = @ActorUserId
+    FROM app.KeyDeliverableDependency AS d
+    JOIN @Links AS l ON l.DependencyId = d.DependencyId;
+
+    INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson)
+    SELECT @ActorUserId, N'Delete', N'app.KeyDeliverableDependency',
+           CAST(l.DependencyId AS NVARCHAR(64)), l.BeforeJson
+    FROM @Links AS l;
 
     EXEC dbo.usp_KeyDeliverable_RollUp
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId, @FromKeyDeliverableId = @KeyDeliverableId;

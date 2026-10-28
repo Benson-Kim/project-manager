@@ -11,6 +11,8 @@
 --   @StartDate is required by the app; when it is missing (a caller from before migration 032)
 --   it defaults to where that version started the bar: RequestedDate, else today, never after
 --   the deadline. @Color is a palette key or NULL (take the parent's colour).
+--   @IsMilestone = 1 creates a date rather than a span (ADR-0046): both ends must already be the
+--   same day, so a caller from before migration 043 (which never sends it) is unaffected.
 -- Entity app.KeyDeliverable (source: tblKeyRequirementsDeliverable). Module: key-deliverables (#9).
 USE ProjectManager;
 GO
@@ -26,6 +28,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_KeyDeliverable_Create
     @Color                  VARCHAR(10)   = NULL,
     @ParentKeyDeliverableId INT           = NULL,
     @AfterKeyDeliverableId  INT           = NULL,
+    @IsMilestone            BIT           = 0,
     @ActorUserId            INT
 AS
 BEGIN
@@ -52,6 +55,13 @@ BEGIN
 
     IF @Deadline < @StartDate
         THROW 50004, N'VALIDATION:Deadline cannot be before StartDate', 1;
+
+    -- A milestone is created as the date it already is; this proc never reinterprets the caller's
+    -- dates into one, so a span sent with @IsMilestone = 1 is a mistake worth reporting.
+    IF @IsMilestone = 1
+       AND (@StartDate IS NULL OR @Deadline IS NULL
+            OR CAST(@Deadline AS DATE) <> CAST(@StartDate AS DATE))
+        THROW 50004, N'VALIDATION:A milestone spans one day', 1;
 
     IF @Color IS NOT NULL AND @Color NOT IN ('red', 'orange', 'yellow', 'green', 'blue', 'purple', 'gray')
         THROW 50004, N'VALIDATION:Unknown colour', 1;
@@ -89,10 +99,10 @@ BEGIN
 
     INSERT INTO app.KeyDeliverable
         ([ProjectId], ParentKeyDeliverableId, SortOrder, [KeyRequirement], [RequestedDate], StartDate,
-         [Deadline], [Priority], [Status], Color, CreatedBy)
+         [Deadline], [Priority], [Status], Color, [IsMilestone], CreatedBy)
     VALUES
         (@ProjectId, @ParentKeyDeliverableId, @SortOrder, @KeyRequirement, @RequestedDate, @StartDate,
-         @Deadline, @Priority, @Status, @Color, @ActorUserId);
+         @Deadline, @Priority, @Status, @Color, @IsMilestone, @ActorUserId);
 
     DECLARE @Id INT = SCOPE_IDENTITY();
 
@@ -100,7 +110,9 @@ BEGIN
     IF @AssigneeIds IS NOT NULL AND LEN(@AssigneeIds) > 2
     BEGIN
         INSERT INTO app.KeyDeliverableAssignee (KeyDeliverableId, StakeholderId, CreatedBy)
-        SELECT @Id, CAST(j.[value] AS INT), @ActorUserId
+        -- DISTINCT, not NOT EXISTS: the subquery reads the table as of statement start, so it
+        -- never saw a repeat inside one payload, and @Id is a fresh identity it could never match.
+        SELECT DISTINCT @Id, CAST(j.[value] AS INT), @ActorUserId
         FROM OPENJSON(@AssigneeIds) AS j
         WHERE TRY_CAST(j.[value] AS INT) IS NOT NULL
           AND EXISTS (
@@ -108,17 +120,13 @@ BEGIN
               WHERE s.StakeholderId = CAST(j.[value] AS INT)
                 AND s.ProjectId     = @ProjectId
                 AND s.IsDeleted     = 0
-          )
-          AND NOT EXISTS (
-              SELECT 1 FROM app.KeyDeliverableAssignee
-              WHERE KeyDeliverableId = @Id AND StakeholderId = CAST(j.[value] AS INT)
           );
     END;
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, AfterJson)
     VALUES (@ActorUserId, N'Create', N'app.KeyDeliverable', CAST(@Id AS NVARCHAR(64)),
             (SELECT KeyDeliverableId, [ProjectId], ParentKeyDeliverableId, SortOrder, [KeyRequirement],
-                    [RequestedDate], StartDate, [Deadline], [Priority], [Status], Color,
+                    [RequestedDate], StartDate, [Deadline], [Priority], [Status], Color, [IsMilestone],
                     (SELECT CAST(a.StakeholderId AS NVARCHAR(20)) AS id
                      FROM app.KeyDeliverableAssignee AS a
                      WHERE a.KeyDeliverableId = @Id
@@ -128,6 +136,9 @@ BEGIN
 
     EXEC dbo.usp_KeyDeliverable_RollUp
          @ProjectId = @ProjectId, @ActorUserId = @ActorUserId, @FromKeyDeliverableId = @Id;
+
+    EXEC dbo.usp_KeyDeliverable_CascadeDependencies
+         @ProjectId = @ProjectId, @ActorUserId = @ActorUserId;
 
     COMMIT;
 
@@ -142,6 +153,7 @@ BEGIN
            kd.[Priority],
            kd.[Status],
            kd.Color,
+           kd.[IsMilestone],
            CAST(0 AS BIT) AS HasChildren,
            kd.CreatedAtUtc,
            kd.UpdatedAtUtc,

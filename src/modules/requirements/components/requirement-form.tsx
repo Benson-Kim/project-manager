@@ -20,17 +20,25 @@ import {
   createRequirementFormSchema,
   updateRequirementFormSchema,
 } from "../schemas/requirement-form";
-import { compatibleTypes, requirementRef } from "../schemas/requirement-rules";
+import { compatibleTypes } from "../schemas/requirement-rules";
 import { isSolution, typeLabel, type RequirementType } from "../schemas/requirement-types";
-import { coverageText, deleteConsequence, pickedOptions, refsText } from "./register-model";
+import {
+  coverageText,
+  deleteBlockedReason,
+  deleteConsequence,
+  parentText,
+  pickedOptions,
+  refsText,
+  typeBlockedReason,
+} from "./register-model";
 
 const M = messages.requirements;
 
 type Picked = Dispatch<SetStateAction<MultiSelectOption[]>>;
 
-/** A need as the link picker shows it: "BR-1 The service runs at night". */
+/** A need as the link picker shows it: "BR-1.2 The service runs at night". */
 function needChoice(option: RequirementOption): MultiSelectOption {
-  return { id: option.id, label: `${requirementRef(option.type, option.number)} ${option.text}` };
+  return { id: option.id, label: `${option.ref} ${option.text}` };
 }
 
 const addTo = (set: Picked) => (option: MultiSelectOption) =>
@@ -44,12 +52,18 @@ const removeFrom = (set: Picked) => (id: number) => set((prev) => prev.filter((p
  * "set" flag, so saving here replaces them; a datasheet cell edit never sends them and leaves them
  * alone. The offered types are the ones the picked links and allocations fit (usp_Requirement_Update
  * refuses the others with a message the action wrapper hides).
+ *
+ * A sub-requirement's type is its parent's (ADR-0048), so for one of those the select is replaced
+ * by the type as text and the parent is named above it. There is no parent picker: re-parenting is
+ * a second feature and the client did not ask for it, so parentage is set once, when the row is
+ * created, and the tree can never grow a cycle.
  */
 export function RequirementForm({
   requirement,
   projectId,
   initialType,
   initialValidates,
+  initialParent,
   needOptions,
   deliverableOptions,
   canEdit,
@@ -62,6 +76,8 @@ export function RequirementForm({
   initialType: RequirementType;
   /** A new requirement's starting links: the merge link's selected needs. */
   initialValidates: readonly number[];
+  /** The requirement a new one goes under, from ?parent=; null for a root. */
+  initialParent: RequirementRow | null;
   needOptions: RequirementOption[];
   deliverableOptions: MultiSelectOption[];
   canEdit: boolean;
@@ -112,6 +128,15 @@ export function RequirementForm({
 
   const solution = isSolution(type);
 
+  // A child takes its parent's type and cannot change it: an existing one because Depth says so,
+  // a new one because it is being created under initialParent. Either way the type travels as a
+  // hidden field so the schema still sees it, and usp_Requirement_Create re-reads it from the
+  // parent regardless, so the two cannot disagree.
+  const typeBlocked = requirement ? typeBlockedReason(requirement) : null;
+  const inheritsType = initialParent !== null || (requirement?.Depth ?? 0) > 0;
+  const parentLine = requirement ? parentText(requirement) : null;
+  const deleteBlocked = requirement ? deleteBlockedReason(requirement) : null;
+
   return (
     <form
       noValidate
@@ -129,6 +154,9 @@ export function RequirementForm({
         </div>
       ) : null}
       <input type="hidden" name="projectId" value={requirement?.ProjectId ?? projectId} />
+      {initialParent ? (
+        <input type="hidden" name="parentRequirementId" value={initialParent.RequirementId} />
+      ) : null}
       <input type="hidden" name="validatesSet" value="1" />
       <input type="hidden" name="deliverablesSet" value="1" />
       {requirement ? (
@@ -139,18 +167,39 @@ export function RequirementForm({
       ) : null}
 
       <fieldset disabled={!canEdit} className="flex flex-col gap-5">
+        {initialParent ? (
+          <p className="text-sm text-ink-muted" data-testid="requirement-parent">
+            {M.subRequirementOf(initialParent.Ref)}
+          </p>
+        ) : null}
+        {parentLine ? (
+          <p className="text-sm text-ink-muted" data-testid="requirement-parent">
+            {parentLine}
+          </p>
+        ) : null}
+
         <Field label={M.type} name="requirementType" errors={form.errors.requirementType}>
-          <Select
-            name="requirementType"
-            value={type}
-            onChange={(e) => setType(e.target.value as RequirementType)}
-          >
-            {offeredTypes.map((option) => (
-              <option key={option} value={option}>
-                {M.typeWithCode(typeLabel(option), option)}
-              </option>
-            ))}
-          </Select>
+          {inheritsType || typeBlocked ? (
+            <>
+              <input type="hidden" name="requirementType" value={type} />
+              <p className="text-sm text-ink" data-testid="requirement-type-fixed">
+                {M.typeWithCode(typeLabel(type), type)}
+              </p>
+              <p className="text-sm text-ink-muted">{typeBlocked ?? M.typeIsParents}</p>
+            </>
+          ) : (
+            <Select
+              name="requirementType"
+              value={type}
+              onChange={(e) => setType(e.target.value as RequirementType)}
+            >
+              {offeredTypes.map((option) => (
+                <option key={option} value={option}>
+                  {M.typeWithCode(typeLabel(option), option)}
+                </option>
+              ))}
+            </Select>
+          )}
         </Field>
 
         <Field label={M.requirement} name="requirement" errors={form.errors.requirement}>
@@ -210,7 +259,7 @@ export function RequirementForm({
         <Button type="button" variant="secondary" onClick={onDone}>
           {messages.actions.cancel}
         </Button>
-        {requirement && canDelete ? (
+        {requirement && canDelete && deleteBlocked === null ? (
           <Button
             type="button"
             variant="danger"
@@ -220,13 +269,18 @@ export function RequirementForm({
             {messages.actions.delete}
           </Button>
         ) : null}
+        {requirement && canDelete && deleteBlocked !== null ? (
+          <p className="text-sm text-ink-muted" data-testid="requirement-delete-blocked">
+            {deleteBlocked}
+          </p>
+        ) : null}
       </div>
 
       {requirement ? (
         <ConfirmDialog
           open={confirmDelete}
           onOpenChange={setConfirmDelete}
-          title={M.deleteTitle(requirementRef(requirement.RequirementType, requirement.Number))}
+          title={M.deleteTitle(requirement.Ref)}
           body={deleteConsequence(requirement)}
           confirmLabel={messages.actions.delete}
           onConfirm={onDelete}

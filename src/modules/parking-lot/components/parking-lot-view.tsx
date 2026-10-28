@@ -33,6 +33,9 @@ const columns: DataViewColumn<Row>[] = [
     value: (r) => r.ParkingLotItem,
     placeholder: P.item,
     maxLength: 255,
+    // A parking lot item is prose: it wraps in the sheet's textarea, so it
+    // wraps in the cell too (client feedback 2026-10-26).
+    multiline: true,
     render: (r) => (
       <span
         aria-label={

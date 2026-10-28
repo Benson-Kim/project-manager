@@ -1,4 +1,4 @@
--- usp_TodoItem_List — paged/filtered list per ADR-0016. Search columns: TodoItem. Sort whitelist: DueDate, Priority, Status, StartDate.
+-- usp_TodoItem_List — paged/filtered list per ADR-0016. Search columns: TodoItem, Assignee. Sort whitelist: DueDate, Priority, Status, StartDate.
 -- Filter params: @Status (exact match), @Priority (exact match), @ProjectOrActivity (exact match),
 --   @WithoutProject (1 = only project-less to-dos; the cross-project page's "No project" filter).
 -- Row-level access: a supplied @ProjectId must be readable (dbo.usp_Project_AssertAccess ->
@@ -53,6 +53,7 @@ BEGIN
            [DueDate],
            [Priority],
            [Status],
+           [Assignee],
            [Notes],
            [SortKey],
            CreatedAtUtc,
@@ -68,7 +69,9 @@ BEGIN
     WHERE IsDeleted = 0
       AND (@ProjectId         IS NULL OR ProjectId         = @ProjectId)
       AND (ISNULL(@WithoutProject, 0) = 0 OR ProjectId IS NULL)
-      AND (@Search            IS NULL OR [TodoItem] LIKE N'%' + @Search + N'%' ESCAPE N'\')
+      AND (@Search            IS NULL
+           OR [TodoItem] LIKE N'%' + @Search + N'%' ESCAPE N'\'
+           OR [Assignee] LIKE N'%' + @Search + N'%' ESCAPE N'\')
       AND (@Status            IS NULL OR [Status]           = @Status)
       AND (@Priority          IS NULL OR [Priority]         = @Priority)
       AND (@ProjectOrActivity IS NULL OR [ProjectOrActivity] = @ProjectOrActivity)

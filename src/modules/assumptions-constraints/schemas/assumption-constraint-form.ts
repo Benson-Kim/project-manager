@@ -25,10 +25,6 @@ export const assumptionConstraintFormSchema = z.object({
     .max(4000),
   isValidated: z.preprocess((v) => v === "on" || v === true || v === "true", z.boolean()),
   impact: listChoice,
-  mitigationPlan: z.preprocess(
-    (v) => (v === "" || v == null ? null : String(v).trim() || null),
-    z.string().max(4000).nullable(),
-  ),
 });
 
 export type AssumptionConstraintFormValues = z.output<typeof assumptionConstraintFormSchema>;
@@ -52,6 +48,5 @@ export function assumptionConstraintFormValues(row: AssumptionConstraintRow): Fo
     description: formText(row.Description),
     isValidated: row.IsValidated ? "on" : "",
     impact: formText(row.Impact),
-    mitigationPlan: formText(row.MitigationPlan),
   };
 }

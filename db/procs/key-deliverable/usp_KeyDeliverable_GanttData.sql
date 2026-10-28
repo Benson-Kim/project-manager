@@ -1,7 +1,8 @@
 -- usp_KeyDeliverable_GanttData — the project's work breakdown, which draws the Gantt (checklist
 -- row 67, module #9, ADR-0027). Returns every active deliverable of the project, dated or not, with
 -- its place in the breakdown (ParentKeyDeliverableId, SortOrder), StartDate and Deadline (the bar),
--- Color, assignees, and the project window (StartDate/EndDate) for a new item's default dates.
+-- Color, IsMilestone (a date rather than a span, drawn as a diamond — ADR-0046), assignees, and
+-- the project window (StartDate/EndDate) for a new item's default dates.
 -- Ordered parent by parent; the app builds the tree, numbers it and rolls up nothing itself
 -- (the write procs keep parent dates rolled up).
 -- @WithProjectRow = 1: a project without items still returns one row (KeyDeliverableId NULL) for
@@ -13,10 +14,20 @@
 --   Every write to an item locks app.Project first, so RowVer order is commit order. Equal stamps
 --   mean the same items; a later read with an equal stamp may still bring newer names or project
 --   dates, so the editor takes it.
+-- PredecessorsJson: the live links whose SUCCESSOR is this row, each with its dependencyId,
+--   predecessorId, type, lagDays and rowVer (ADR-0046 decisions 5-10). Every link has exactly one
+--   successor, so the whole graph arrives once rather than twice, and the editor reads a link's
+--   other end from the row it is drawn on. The stamp also covers app.KeyDeliverableDependency by
+--   ProjectId, so linking, retyping or unlinking moves it and a refresh cannot restore stale
+--   arrows.
 -- RequirementsJson: the solution requirements allocated to the item, in allocation order
---   (ADR-0037), each with its type, reference number and the allocation's RowVer. The stamp also
+--   (ADR-0037), each with its type, reference and the allocation's RowVer. The stamp also
 --   covers app.Requirement and app.RequirementDeliverable by ProjectId, so any register edit or
 --   allocation change moves it.
+--   The reference is the whole path from ufn_Requirement_AncestorPath (ADR-0048), not a number:
+--   the WBS and the Gantt are a second surface rendering a register reference, so an allocated
+--   sub-requirement has to read FR-1.2 here exactly as it does in the register. Composing it from
+--   the type and the number is what would have made the two disagree.
 -- Row-level access: the project must be accessible (dbo.usp_Project_AssertAccess,
 --   FORBIDDEN_ROW 50003; Admin bypass).
 USE ProjectManager;
@@ -41,8 +52,11 @@ BEGIN
         ISNULL((SELECT MAX(CAST(RowVer AS BIGINT)) FROM app.Requirement WHERE ProjectId = @ProjectId), 0);
     DECLARE @AllocationStamp BIGINT =
         ISNULL((SELECT MAX(CAST(RowVer AS BIGINT)) FROM app.RequirementDeliverable WHERE ProjectId = @ProjectId), 0);
+    DECLARE @DependencyStamp BIGINT =
+        ISNULL((SELECT MAX(CAST(RowVer AS BIGINT)) FROM app.KeyDeliverableDependency WHERE ProjectId = @ProjectId), 0);
     IF @RequirementStamp > @Stamp SET @Stamp = @RequirementStamp;
     IF @AllocationStamp > @Stamp SET @Stamp = @AllocationStamp;
+    IF @DependencyStamp > @Stamp SET @Stamp = @DependencyStamp;
 
     SELECT kd.KeyDeliverableId,
            kd.ProjectId,
@@ -55,6 +69,7 @@ BEGIN
            kd.[Priority],
            kd.[Status],
            kd.Color,
+           kd.[IsMilestone],
            kd.CreatedAtUtc,
            p.[StartDate] AS ProjectStartDate,
            p.[EndDate]   AS ProjectEndDate,
@@ -82,7 +97,7 @@ BEGIN
            (
                SELECT r.RequirementId          AS id,
                       r.RequirementType         AS [type],
-                      r.Number                  AS [number],
+                      ap.Ref                    AS ref,
                       r.Requirement             AS requirement,
                       r.IsMet                   AS isMet,
                       d.SortOrder               AS sortOrder,
@@ -91,10 +106,23 @@ BEGIN
                FROM app.RequirementDeliverable AS d
                JOIN app.Requirement AS r
                    ON r.RequirementId = d.RequirementId AND r.IsDeleted = 0
+               CROSS APPLY dbo.ufn_Requirement_AncestorPath(r.RequirementId) AS ap
                WHERE d.KeyDeliverableId = kd.KeyDeliverableId
                ORDER BY d.SortOrder, r.RequirementId
                FOR JSON PATH, INCLUDE_NULL_VALUES
-           ) AS RequirementsJson
+           ) AS RequirementsJson,
+           (
+               SELECT dep.DependencyId            AS id,
+                      dep.PredecessorId           AS predecessorId,
+                      dep.DependencyType          AS [type],
+                      dep.LagDays                 AS lagDays,
+                      CAST(dep.RowVer AS BIGINT)  AS rowVer
+               FROM app.KeyDeliverableDependency AS dep
+               WHERE dep.SuccessorId = kd.KeyDeliverableId
+                 AND dep.IsDeleted = 0
+               ORDER BY dep.DependencyId
+               FOR JSON PATH
+           ) AS PredecessorsJson
     FROM app.Project AS p
     LEFT JOIN app.KeyDeliverable AS kd
         ON kd.ProjectId = p.ProjectId AND kd.IsDeleted = 0

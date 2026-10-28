@@ -4,8 +4,8 @@ import {
   compatibleTypes,
   coverageLabel,
   coverageOf,
+  parentRefOf,
   refList,
-  requirementRef,
 } from "../schemas/requirement-rules";
 import {
   isNeed,
@@ -17,6 +17,18 @@ import {
   typeLabel,
   type RequirementType,
 } from "../schemas/requirement-types";
+
+/** A link entry as the server sends it: the printed path plus the padded one it orders by. */
+function link(type: RequirementType, path: string) {
+  return {
+    type,
+    ref: `${type}-${path}`,
+    sortPath: path
+      .split(".")
+      .map((segment) => segment.padStart(10, "0"))
+      .join("."),
+  };
+}
 
 describe("requirement types", () => {
   it("splits the five types into needs and solutions", () => {
@@ -42,21 +54,43 @@ describe("requirement types", () => {
   });
 });
 
-describe("requirementRef and refList", () => {
-  it("formats a reference", () => {
-    expect(requirementRef("NFR", 12)).toBe("NFR-12");
+/**
+ * refList and parentRefOf (ADR-0048). There is no requirementRef any more: a reference is the
+ * server's whole path, so nothing composes one from a type and a number.
+ */
+describe("refList", () => {
+  it("lists references in catalog order, then by the padded path", () => {
+    expect(refList([link("TR", "1"), link("SR", "2"), link("BR", "10"), link("BR", "2")])).toBe(
+      "BR-2, BR-10, SR-2, TR-1",
+    );
+    expect(refList([])).toBe("");
   });
 
-  it("lists references in catalog order, then by number", () => {
-    expect(
-      refList([
-        { type: "TR", number: 1 },
-        { type: "SR", number: 2 },
-        { type: "BR", number: 10 },
-        { type: "BR", number: 2 },
-      ]),
-    ).toBe("BR-2, BR-10, SR-2, TR-1");
-    expect(refList([])).toBe("");
+  it("keeps a sub-requirement under its parent, and 1.2 before 1.10", () => {
+    expect(refList([link("BR", "1.10"), link("BR", "2"), link("BR", "1.2"), link("BR", "1")])).toBe(
+      "BR-1, BR-1.2, BR-1.10, BR-2",
+    );
+  });
+
+  it("orders by the padded path and not by the printed one, which would read 1.10 first", () => {
+    const refs = [link("FR", "1.10"), link("FR", "1.2")];
+    expect(refList(refs)).toBe("FR-1.2, FR-1.10");
+    expect([...refs].sort((a, b) => a.ref.localeCompare(b.ref)).map((r) => r.ref)).toEqual([
+      "FR-1.10",
+      "FR-1.2",
+    ]);
+  });
+});
+
+describe("parentRefOf", () => {
+  it("drops the last segment of a path", () => {
+    expect(parentRefOf("FR-1.1")).toBe("FR-1");
+    expect(parentRefOf("FR-1.2.3")).toBe("FR-1.2");
+  });
+
+  it("has nothing above a root requirement", () => {
+    expect(parentRefOf("FR-1")).toBeNull();
+    expect(parentRefOf("NFR-12")).toBeNull();
   });
 });
 

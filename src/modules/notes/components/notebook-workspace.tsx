@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Field } from "@/components/ui/form/field";
@@ -22,6 +22,29 @@ import {
 import { NOTE_PAGES_MAX, NOTE_TITLE_MAX, type NoteRow, type NoteTabRow } from "../schemas/note";
 
 const M = messages.notes;
+
+/** The page-move arrows beside the tab strip; the button carries the accessible name. */
+function MoveArrow({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      viewBox="0 0 16 16"
+      className="size-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {direction === "left" ? (
+        <path d="M10 3.5L5.5 8l4.5 4.5" />
+      ) : (
+        <path d="M6 3.5L10.5 8 6 12.5" />
+      )}
+    </svg>
+  );
+}
 
 /**
  * The notebook workspace: rename/delete the notebook, an ARIA tablist of its
@@ -51,9 +74,24 @@ export function NotebookWorkspace({
   const [activeId, setActiveId] = useState<number | null>(tabs[0]?.NoteTabId ?? null);
   const [titleDirty, setTitleDirty] = useState(false);
   const [pageDirty, setPageDirty] = useState(false);
-  const [switchTo, setSwitchTo] = useState<number | "new" | null>(null);
+  const [switchTo, setSwitchTo] = useState<number | "new" | "leave" | null>(null);
   const [confirm, setConfirm] = useState<"page" | "note" | null>(null);
-  useUnsavedChangesGuard(titleDirty || pageDirty);
+  const dirty = titleDirty || pageDirty;
+  const leaveRef = useRef<(() => void) | null>(null);
+  useUnsavedChangesGuard(dirty);
+
+  useEffect(() => {
+    function onBeforeNavigate(event: Event) {
+      if (!dirty) return;
+      event.preventDefault();
+      const detail = (event as CustomEvent<{ resume?: unknown }>).detail;
+      leaveRef.current =
+        typeof detail?.resume === "function" ? (detail.resume as () => void) : null;
+      setSwitchTo("leave");
+    }
+    window.addEventListener("before-navigate", onBeforeNavigate);
+    return () => window.removeEventListener("before-navigate", onBeforeNavigate);
+  }, [dirty]);
 
   const full = tabs.length >= NOTE_PAGES_MAX;
   const active = tabs.find((tab) => tab.NoteTabId === activeId) ?? tabs[0] ?? null;
@@ -251,13 +289,45 @@ export function NotebookWorkspace({
             );
           })}
         </div>
+        {/*
+          The page moves sit beside the tabs they reorder, as two arrows rather
+          than two worded buttons at the far end of the editor (client feedback
+          2026-10-26). The name stays on aria-label, so the arrow is still
+          announced as "Move page left".
+        */}
+        {canUpdate ? (
+          <div className="ml-auto flex items-center gap-1">
+            <Button
+              variant="secondary"
+              aria-label={M.moveLeft}
+              title={M.moveLeft}
+              className="min-h-11 px-3"
+              disabled={pending || pageDirty || activeIndex <= 0}
+              onClick={() => move(-1)}
+              data-testid="note-page-move-left"
+            >
+              <MoveArrow direction="left" />
+            </Button>
+            <Button
+              variant="secondary"
+              aria-label={M.moveRight}
+              title={M.moveRight}
+              className="min-h-11 px-3"
+              disabled={pending || pageDirty || activeIndex === tabs.length - 1}
+              onClick={() => move(1)}
+              data-testid="note-page-move-right"
+            >
+              <MoveArrow direction="right" />
+            </Button>
+          </div>
+        ) : null}
         {canCreate ? (
           <Button
             type="button"
             variant="secondary"
             pending={pending}
             disabled={full}
-            className="min-h-11"
+            className={`min-h-11 ${canUpdate ? "" : "ml-auto"}`}
             onClick={addPage}
             data-testid="note-add-page"
           >
@@ -308,26 +378,6 @@ export function NotebookWorkspace({
                 >
                   {M.savePage}
                 </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="min-h-11"
-                  disabled={pending || pageDirty || activeIndex === 0}
-                  onClick={() => move(-1)}
-                  data-testid="note-page-move-left"
-                >
-                  {M.moveLeft}
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="min-h-11"
-                  disabled={pending || pageDirty || activeIndex === tabs.length - 1}
-                  onClick={() => move(1)}
-                  data-testid="note-page-move-right"
-                >
-                  {M.moveRight}
-                </Button>
                 {canDelete ? (
                   <Button
                     type="button"
@@ -372,15 +422,24 @@ export function NotebookWorkspace({
       />
       <ConfirmDialog
         open={switchTo !== null}
-        onOpenChange={(open) => !open && setSwitchTo(null)}
+        onOpenChange={(open) => {
+          if (open) return;
+          setSwitchTo(null);
+          leaveRef.current = null;
+        }}
         title={M.discardTitle}
         body={messages.feedback.unsavedChangesBody}
         confirmLabel={messages.feedback.discard}
         onConfirm={() => {
           setPageDirty(false);
           setSwitchTo(null);
-          if (switchTo === "new") createPage();
-          else setActiveId(switchTo);
+          if (switchTo === "leave") {
+            setTitleDirty(false);
+            const resume = leaveRef.current;
+            leaveRef.current = null;
+            resume?.();
+          } else if (switchTo === "new") createPage();
+          else if (switchTo !== null) setActiveId(switchTo);
         }}
       />
     </div>

@@ -5,6 +5,7 @@ import {
   PAGE_BREAK_VALUE,
   TEXT_COLORS,
   indentLevel,
+  isLegalNumbering,
   listStart,
   nearestColor,
   numberingCss,
@@ -92,7 +93,10 @@ function orderedList(_tagName: string, attribs: sanitizeHtml.Attributes): saniti
   if (start !== null && start !== 1) kept.start = String(start);
   const type = attribs.type?.trim();
   const css = numberingCss(type);
-  if (type && css && type !== "1") {
+  if (isLegalNumbering(type)) {
+    kept.type = type as string;
+    kept["data-numbering"] = "legal";
+  } else if (type && css && type !== "1") {
     kept.type = type;
     kept.style = `list-style-type:${css}`;
   }
@@ -162,7 +166,7 @@ const OPTIONS: sanitizeHtml.IOptions = {
     th: ["colspan", "rowspan", "data-shade"],
     span: ["style", "data-color"],
     mark: ["data-color"],
-    ol: ["start", "type", "style"],
+    ol: ["start", "type", "style", "data-numbering"],
     hr: ["data-page-break"],
     p: ["style", "data-indent"],
     ...Object.fromEntries(HEADINGS.map((h) => [h, ["style", "data-indent"]])),

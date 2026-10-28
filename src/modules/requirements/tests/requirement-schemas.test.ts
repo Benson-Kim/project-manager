@@ -16,12 +16,19 @@ const dbRow = {
   ProjectId: 2,
   RequirementType: "FR",
   Number: 3,
+  // ufn_Requirement_AncestorPath (ADR-0048): a root row, so its path is its own number.
+  Ref: "FR-3",
+  SortPath: "0000000003",
+  Depth: 0,
+  ChildCount: 0,
   Requirement: "Export the register",
   IsMet: true,
   CreatedAtUtc: new Date("2026-10-21T08:00:00Z"),
   UpdatedAtUtc: null,
   RowVer: "2001",
-  ValidatesJson: '[{"id":1,"type":"BR","number":1},{"id":4,"type":"SR","number":2}]',
+  ValidatesJson:
+    '[{"id":1,"type":"BR","ref":"BR-1","sortPath":"0000000001"},' +
+    '{"id":4,"type":"SR","ref":"SR-2","sortPath":"0000000002"}]',
   ValidatedByJson: null,
   DeliverablesJson: '[{"id":11},{"id":12}]',
 };
@@ -30,8 +37,8 @@ describe("requirementRowSchema", () => {
   it("parses the JSON columns into links and allocation ids", () => {
     const row = requirementRowSchema.parse(dbRow);
     expect(row.Validates).toEqual([
-      { id: 1, type: "BR", number: 1 },
-      { id: 4, type: "SR", number: 2 },
+      { id: 1, type: "BR", ref: "BR-1", sortPath: "0000000001" },
+      { id: 4, type: "SR", ref: "SR-2", sortPath: "0000000002" },
     ]);
     expect(row.ValidatedBy).toEqual([]);
     expect(row.DeliverableIds).toEqual([11, 12]);
@@ -46,7 +53,8 @@ describe("requirementRowSchema", () => {
       IsMet: false,
       ValidatesJson: null,
       ValidatedByJson:
-        '[{"id":7,"type":"FR","number":3,"isMet":1},{"id":8,"type":"TR","number":1,"isMet":false}]',
+        '[{"id":7,"type":"FR","ref":"FR-3","sortPath":"0000000003","isMet":1},' +
+        '{"id":8,"type":"TR","ref":"TR-1","sortPath":"0000000001","isMet":false}]',
       DeliverablesJson: null,
     });
     expect(row.ValidatedBy.map((r) => r.isMet)).toEqual([true, false]);
@@ -55,7 +63,10 @@ describe("requirementRowSchema", () => {
   it("refuses an unknown type, in the row or in a link", () => {
     expect(() => requirementRowSchema.parse({ ...dbRow, RequirementType: "XR" })).toThrow();
     expect(() =>
-      requirementRowSchema.parse({ ...dbRow, ValidatesJson: '[{"id":1,"type":"XR","number":1}]' }),
+      requirementRowSchema.parse({
+        ...dbRow,
+        ValidatesJson: '[{"id":1,"type":"XR","ref":"XR-1","sortPath":"0000000001"}]',
+      }),
     ).toThrow();
   });
 
@@ -82,10 +93,10 @@ describe("requirementOptionSchema", () => {
       requirementOptionSchema.parse({
         RequirementId: 1,
         RequirementType: "BR",
-        Number: 1,
+        Ref: "BR-1.2",
         Requirement: "Cut paper use",
       }),
-    ).toEqual({ id: 1, type: "BR", number: 1, text: "Cut paper use" });
+    ).toEqual({ id: 1, type: "BR", ref: "BR-1.2", text: "Cut paper use" });
   });
 });
 
@@ -99,9 +110,25 @@ describe("requirement form", () => {
       type: "FR",
       text: "Export it",
       isMet: false,
+      // Absent means a root requirement; usp_Requirement_Create reads NULL as "no parent".
+      parentRequirementId: null,
       validatesIds: null,
       deliverableIds: null,
     });
+  });
+
+  it("carries the parent a sub-requirement goes under (ADR-0048)", () => {
+    expect(
+      createRequirementFormSchema.parse({ ...create, parentRequirementId: "9" }),
+    ).toMatchObject({ parentRequirementId: 9 });
+  });
+
+  it("refuses a parent that is not a positive id", () => {
+    for (const bad of ["0", "-1", "abc", "1.5", ""]) {
+      expect(() =>
+        createRequirementFormSchema.parse({ ...create, parentRequirementId: bad }),
+      ).toThrow();
+    }
   });
 
   it("reads set lists, one value or several, without duplicates", () => {

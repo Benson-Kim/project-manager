@@ -13,7 +13,6 @@ CREATE OR ALTER PROCEDURE dbo.usp_AssumptionConstraint_Create
     @Description    NVARCHAR(MAX)  = NULL,
     @IsValidated    BIT,
     @Impact         NVARCHAR(255)  = NULL,
-    @MitigationPlan NVARCHAR(MAX)  = NULL,
     @ActorUserId    INT
 AS
 BEGIN
@@ -34,8 +33,8 @@ BEGIN
 
     BEGIN TRAN;
 
-    INSERT INTO app.AssumptionConstraint ([ProjectId], [Type], [Description], [IsValidated], [Impact], [MitigationPlan], CreatedBy)
-    VALUES (@ProjectId, @Type, @Description, @IsValidated, @Impact, @MitigationPlan, @ActorUserId);
+    INSERT INTO app.AssumptionConstraint ([ProjectId], [Type], [Description], [IsValidated], [Impact], CreatedBy)
+    VALUES (@ProjectId, @Type, @Description, @IsValidated, @Impact, @ActorUserId);
 
     DECLARE @Id INT = SCOPE_IDENTITY();
 

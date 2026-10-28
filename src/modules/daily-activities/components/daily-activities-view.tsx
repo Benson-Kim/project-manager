@@ -6,10 +6,12 @@ import {
   dateColumn,
   listColumn,
   projectColumn,
+  richTextColumn,
   textColumn,
 } from "@/components/ui/data-view/columns";
 import { formCellSaver } from "@/components/ui/data-view/datasheet";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
+import type { WithRichViews } from "@/components/ui/rich-text/rich-views";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { EmptyState } from "@/components/ui/states";
 import { rowAllows } from "@/lib/auth/actor-access";
@@ -24,7 +26,8 @@ import { dailyActivityFormValues } from "../schemas/daily-activity-form";
 import { DailyActivitiesToolbar } from "./daily-activities-toolbar";
 import { DAILY_ACTIVITY_SORT } from "../schemas/daily-activity";
 
-type Row = DailyActivityListRow;
+export type DailyActivityListItem = WithRichViews<DailyActivityListRow, "Comments">;
+type Row = DailyActivityListItem;
 
 const M = messages.dailyActivities;
 const P = M.placeholders;
@@ -101,13 +104,14 @@ function buildColumns(projects: ProjectPicker): DataViewColumn<Row>[] {
       currentLabel: (r) => r.ActivityStatus,
       placeholder: P.status,
     }),
-    textColumn({
+    richTextColumn({
       key: "Comments",
       header: M.comments,
       priority: 3,
       field: "comments",
       value: (r) => r.Comments,
       placeholder: P.comments,
+      view: (r) => r.views.Comments,
     }),
     dateColumn({
       key: "CompleteDate",

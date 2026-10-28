@@ -56,16 +56,23 @@ export async function saveViewPreference(rawInput: unknown): Promise<void> {
 /**
  * Datasheet layout (ADR-0023, migration 019) — same exemption as the view
  * mode: a per-user UI preference. Signed-in only (every list route is gated).
+ *
+ * It answers whether the layout was stored. The arrangement already applies on
+ * screen either way, so a refusal is not an error the caller must handle — but
+ * it is not nothing either: a column that springs back on the next load with
+ * nothing said reads as "reordering does not work" (client feedback
+ * 2026-10-26). The caller says so instead of staying quiet.
  */
-export async function saveListLayout(rawInput: unknown): Promise<void> {
+export async function saveListLayout(rawInput: unknown): Promise<boolean> {
   const parsed = layoutInput.safeParse(rawInput);
-  if (!parsed.success) return;
+  if (!parsed.success) return false;
   const session = await auth.getSession();
-  if (!session) return;
+  if (!session) return false;
   try {
     await setListLayout(session.userId, parsed.data.moduleKey, parsed.data.layout);
+    return true;
   } catch {
-    // Best-effort, like the view mode: the arrangement already applies on screen.
+    return false;
   }
 }
 

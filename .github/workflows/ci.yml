@@ -189,6 +189,9 @@ jobs:
           node db/tests/requirements-race.cjs
           node db/tests/notes-procs.cjs
           node db/tests/notes-race.cjs
+          node db/tests/key-deliverable-assignees.cjs
+          node db/tests/key-deliverable-milestone.cjs
+          node db/tests/key-deliverable-dependency.cjs
 
   e2e-tests:
     name: Playwright E2E Smoke Tests

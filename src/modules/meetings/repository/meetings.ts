@@ -72,7 +72,6 @@ function headerParams(input: HeaderValues) {
     EndTime: input.endTime ?? null,
     Conclusion: input.conclusion ?? null,
     NextMeeting: input.nextMeeting ?? null,
-    FollowupAction: input.followupAction ?? null,
   };
 }
 
@@ -343,6 +342,7 @@ export function createActionItem(input: CreateActionItemValues, actorUserId: num
       AgendaItemId: input.agendaItemId,
       Action: input.action,
       AssignedToStakeholderId: input.assignedToStakeholderId,
+      AssigneeOther: input.assigneeOther,
       DueDate: input.dueDate,
       Status: input.status,
       OnHoldReason: input.onHoldReason,
@@ -359,6 +359,7 @@ export function updateActionItem(input: UpdateActionItemValues, actorUserId: num
       MeetingActionItemId: input.meetingActionItemId,
       Action: input.action,
       AssignedToStakeholderId: input.assignedToStakeholderId,
+      AssigneeOther: input.assigneeOther,
       DueDate: input.dueDate,
       Status: input.status,
       OnHoldReason: input.onHoldReason,

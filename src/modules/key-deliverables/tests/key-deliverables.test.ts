@@ -208,6 +208,7 @@ describe("key-deliverables repository", () => {
         status: "In Progress",
         priority: "Important",
         color: null,
+        isMilestone: false,
         assigneeNames: "Maggy Yerlan",
         assignees: [{ id: 3, name: "Maggy Yerlan" }],
         requirements: [],
@@ -219,16 +220,68 @@ describe("key-deliverables repository", () => {
       expect(params).toEqual({ ProjectId: 24, ActorUserId: 7, WithProjectRow: 1 });
     });
 
+    // ADR-0046: the column arrived with migration 043, so a row from a database before it has no
+    // IsMilestone at all and must still read as an ordinary task rather than failing the parse.
+    it("reads a row from before migration 043 as a task, and an explicit flag as a milestone", async () => {
+      execProc.mockResolvedValue([wbsDbRow()]);
+      expect((await getWbs(24, 7)).items[0]).toMatchObject({ isMilestone: false });
+      execProc.mockResolvedValue([
+        wbsDbRow({ IsMilestone: true, Deadline: new Date("2026-12-01") }),
+      ]);
+      expect((await getWbs(24, 7)).items[0]).toMatchObject({
+        isMilestone: true,
+        start: new Date("2026-12-01"),
+        end: new Date("2026-12-01"),
+      });
+    });
+
     it("keeps undated items (they get a bar by drawing or typing dates)", async () => {
       execProc.mockResolvedValue([wbsDbRow({ StartDate: null, Deadline: null })]);
       const { items } = await getWbs(24, 7);
       expect(items[0]).toMatchObject({ start: null, end: null });
     });
 
+    // Dependencies (ADR-0046): every row carries the links it is the successor of, and the
+    // repository flattens them into one graph with the successor filled in.
+    it("flattens each row's predecessors into the project's links", async () => {
+      execProc.mockResolvedValue([
+        wbsDbRow({ KeyDeliverableId: 7, PredecessorsJson: null }),
+        wbsDbRow({
+          KeyDeliverableId: 9,
+          PredecessorsJson: JSON.stringify([
+            { id: 4, predecessorId: 7, type: "FS", lagDays: 0, rowVer: 40 },
+            { id: 5, predecessorId: 8, type: "SS", lagDays: -2, rowVer: 50 },
+          ]),
+        }),
+      ]);
+      const { links } = await getWbs(24, 7);
+      expect(links).toEqual([
+        { id: 4, predecessorId: 7, successorId: 9, type: "FS", lagDays: 0, rowVer: 40 },
+        { id: 5, predecessorId: 8, successorId: 9, type: "SS", lagDays: -2, rowVer: 50 },
+      ]);
+    });
+
+    it("reads a row from before migration 044 as one with no links", async () => {
+      execProc.mockResolvedValue([wbsDbRow()]);
+      expect((await getWbs(24, 7)).links).toEqual([]);
+    });
+
+    it("refuses a link payload the database could not have produced", async () => {
+      execProc.mockResolvedValue([
+        wbsDbRow({
+          PredecessorsJson: JSON.stringify([
+            { id: 4, predecessorId: 7, type: "XX", lagDays: 0, rowVer: 40 },
+          ]),
+        }),
+      ]);
+      await expect(getWbs(24, 7)).rejects.toThrow();
+    });
+
     it("reads the project window from the one row of a project without items", async () => {
       execProc.mockResolvedValue([projectOnlyRow()]);
       expect(await getWbs(24, 7)).toEqual({
         items: [],
+        links: [],
         projectStart: new Date("2026-01-01"),
         projectEnd: null,
         stamp: 90002,
@@ -266,7 +319,7 @@ describe("key-deliverables repository", () => {
             {
               id: 42,
               type: "BR",
-              number: 1,
+              ref: "BR-1",
               requirement: "Fewer delays",
               isMet: false,
               sortOrder: 1,
@@ -286,7 +339,7 @@ describe("key-deliverables repository", () => {
             {
               id: 41,
               type: "NFR",
-              number: 2,
+              ref: "NFR-2",
               requirement: "Soil report",
               isMet: false,
               sortOrder: 2,
@@ -296,7 +349,7 @@ describe("key-deliverables repository", () => {
             {
               id: 40,
               type: "FR",
-              number: 1,
+              ref: "FR-1.2",
               requirement: "Permit",
               isMet: true,
               sortOrder: 1,
@@ -313,7 +366,7 @@ describe("key-deliverables repository", () => {
         {
           id: 40,
           type: "FR",
-          number: 1,
+          ref: "FR-1.2",
           text: "Permit",
           isMet: true,
           sortOrder: 1,
@@ -323,7 +376,7 @@ describe("key-deliverables repository", () => {
         {
           id: 41,
           type: "NFR",
-          number: 2,
+          ref: "NFR-2",
           text: "Soil report",
           isMet: false,
           sortOrder: 2,
@@ -445,6 +498,10 @@ describe("key-deliverables repository", () => {
       ProjectId: 31,
       RequirementType: "FR",
       Number: 1,
+      Ref: "FR-1",
+      SortPath: "0000000001",
+      Depth: 0,
+      ChildCount: 0,
       Requirement: "Permit",
       IsMet: false,
       CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),
@@ -469,6 +526,8 @@ describe("key-deliverables repository", () => {
           RequirementType: "FR",
           Requirement: "Permit",
           IsMet: false,
+          // The cascade allocates to a deliverable; it never creates a sub-requirement (ADR-0048).
+          ParentRequirementId: null,
           ValidatesIds: null,
           KeyDeliverableIds: JSON.stringify([7]),
           ActorUserId: 9,

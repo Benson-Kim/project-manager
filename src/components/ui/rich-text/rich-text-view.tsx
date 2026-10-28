@@ -1,3 +1,4 @@
+import { asRichText } from "@/lib/rich-text/plain-text";
 import { sanitizeRichText } from "@/lib/rich-text/sanitize";
 
 /**
@@ -16,7 +17,7 @@ export function RichTextView({
   className?: string;
   testId?: string;
 }) {
-  const clean = html ? sanitizeRichText(html) : "";
+  const clean = html ? sanitizeRichText(asRichText(html)) : "";
   if (clean === "") return null;
   return (
     <div

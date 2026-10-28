@@ -1,3 +1,4 @@
+import { withRichViews } from "@/components/ui/rich-text/rich-views";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -101,7 +102,7 @@ export default async function QuestionsAnswersPage({
           <QuestionsAnswersView
             projectId={projectId}
             canCreate={canCreate}
-            rows={rows}
+            rows={withRichViews(rows, ["Answer"])}
             totalCount={totalCount}
             page={effectiveParams.page}
             initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}

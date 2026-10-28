@@ -33,6 +33,7 @@ function toProcParams(input: CreateTodoItemParsed) {
     DueDate: input.dueDate ?? null,
     Priority: input.priority ?? null,
     Status: input.status ?? null,
+    Assignee: input.assignee ?? null,
     Notes: input.notes ?? null,
   };
 }

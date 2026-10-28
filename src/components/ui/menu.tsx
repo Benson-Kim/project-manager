@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { usePopoverPlacement } from "./popover-placement";
 
 /**
  * Accessible dropdown menu primitive (shell spec, issue #28): trigger button
@@ -46,6 +47,7 @@ export function Menu({
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const up = usePopoverPlacement(triggerRef, panelRef, open);
 
   // Measured before paint, so a panel near the edge never shows cut off or widens the page.
   useLayoutEffect(() => {
@@ -118,7 +120,7 @@ export function Menu({
         role="menu"
         aria-label={label}
         hidden={!open}
-        className={`absolute ${align === "start" ? "left-0" : "right-0"} z-(--z-dropdown) mt-1 max-w-[calc(100vw-1rem)] min-w-48 rounded-md border border-line bg-surface-raised py-1 shadow-lg`}
+        className={`absolute ${align === "start" ? "left-0" : "right-0"} ${up ? "bottom-full mb-1" : "mt-1"} z-(--z-dropdown) max-w-[calc(100vw-1rem)] min-w-48 rounded-md border border-line bg-surface-raised py-1 shadow-lg`}
         onClickCapture={(event) => {
           const target = event.target as HTMLElement;
           if (!target.closest(ITEM)) return;

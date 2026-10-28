@@ -4,6 +4,7 @@ import { datesInOrder, datesWere, storedDates } from "@/lib/date-range";
 import { toDateInput } from "@/lib/format";
 import { listChoice, type LookupListKey } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
+import { richTextSchema, RICH_TEXT_FIELD_MAX } from "@/lib/rich-text/schema";
 import type { ProjectRow } from "./project";
 
 /**
@@ -59,11 +60,11 @@ const projectFields = z.object({
   projectSponsor: optionalText(255),
   projectDocs: memo,
   dateOfProject: dateInput,
-  problemStatement: memo,
-  currentState: memo,
-  futureState: memo,
-  userImpact: memo,
-  mandate: optionalText(255),
+  problemStatement: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
+  currentState: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
+  futureState: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
+  userImpact: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
+  mandate: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
   projectStatusCom: memo,
   existBusMod: optionalText(255),
   a1: flag,

@@ -35,6 +35,36 @@ export async function listRequirements(
   return rows.map((r) => requirementListRowSchema.parse(r));
 }
 
+/**
+ * Every requirement of one project, for the CSV and PDF exports. The list proc
+ * caps a page at 100 (ADR-0016), so this walks pages rather than asking for
+ * one huge one, and stops at EXPORT_MAX so a runaway project cannot pull an
+ * unbounded result into memory. The cost is the project's own register, not
+ * the tenant's.
+ */
+export const EXPORT_MAX = 5000;
+const EXPORT_PAGE = 100;
+
+export async function listRequirementsForExport(
+  actorUserId: number,
+  projectId: number,
+  type: string | null = null,
+): Promise<RequirementListRow[]> {
+  const all: RequirementListRow[] = [];
+  for (let page = 1; all.length < EXPORT_MAX; page += 1) {
+    const rows = await listRequirements(
+      { page, dir: "asc", q: undefined },
+      actorUserId,
+      projectId,
+      type,
+      EXPORT_PAGE,
+    );
+    all.push(...rows);
+    if (rows.length < EXPORT_PAGE) break;
+  }
+  return all.slice(0, EXPORT_MAX);
+}
+
 export async function getRequirementById(
   requirementId: number,
   actorUserId: number,
@@ -66,6 +96,7 @@ export async function createRequirement(
     RequirementType: input.type,
     Requirement: input.text,
     IsMet: input.isMet,
+    ParentRequirementId: input.parentRequirementId,
     ValidatesIds: jsonIds(input.validatesIds),
     KeyDeliverableIds: jsonIds(input.deliverableIds),
     ActorUserId: actorUserId,
