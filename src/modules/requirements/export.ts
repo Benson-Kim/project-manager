@@ -3,7 +3,7 @@ import { PdfWriter, textWidth, type TableColumn } from "@/lib/pdf";
 import type { CsvCell } from "@/lib/csv";
 import type { RequirementListRow } from "./schemas/requirement";
 import { coverageLabel, coverageOf, refList } from "./schemas/requirement-rules";
-import { typeOrder } from "./schemas/requirement-types";
+import { isNeed, typeOrder } from "./schemas/requirement-types";
 import { refCell, typeCell } from "./components/register-model";
 
 /**
@@ -43,7 +43,7 @@ function inRegisterOrder(rows: readonly RequirementListRow[]): RequirementListRo
 }
 
 function metCell(row: RequirementListRow): string {
-  if (row.ValidatedBy.length > 0) return "";
+  if (isNeed(row.RequirementType)) return "";
   return row.IsMet ? M.yes : M.no;
 }
 
@@ -55,7 +55,7 @@ function cells(row: RequirementListRow): string[] {
     metCell(row),
     refList(row.Validates),
     refList(row.ValidatedBy),
-    row.ValidatedBy.length > 0 ? coverageLabel(coverageOf(row.ValidatedBy)) : "",
+    isNeed(row.RequirementType) ? coverageLabel(coverageOf(row.ValidatedBy)) : "",
   ];
 }
 
