@@ -59,7 +59,6 @@ jobs:
         run: npm run typecheck
 
   unit-tests:
-    if: github.ref != 'refs/heads/feature/boards-ui' && github.head_ref != 'feature/boards-ui'
     name: Vitest Unit Tests
     runs-on: ubuntu-latest
     steps:
@@ -107,7 +106,6 @@ jobs:
           retention-days: 1
 
   db-apply:
-    if: github.ref != 'refs/heads/feature/boards-ui' && github.head_ref != 'feature/boards-ui'
     name: Database Migrations & Verification
     runs-on: ubuntu-latest
     services:

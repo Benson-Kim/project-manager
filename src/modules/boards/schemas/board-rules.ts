@@ -1,3 +1,4 @@
+import type { ListSort } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 
 /**
@@ -18,6 +19,7 @@ export type SprintState = (typeof SPRINT_STATES)[number];
 
 /** The columns usp_Board_List sorts by; any other value falls back to its tiebreak. */
 export const BOARD_SORT_KEYS = ["Name", "ProjectName", "UpdatedAtUtc"] as const;
+export const BOARD_SORT: ListSort = { columns: BOARD_SORT_KEYS, default: "Name" };
 
 /** usp_Board_Create refuses more than this many starting columns. */
 export const MAX_BOARD_COLUMNS = 12;

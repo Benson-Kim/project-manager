@@ -500,8 +500,7 @@ export const messages = {
   },
   boards: {
     ui: {
-      completeBody:
-        "Completed cards stay in this sprint. Unfinished cards move to the selected destination. This sprint cannot be reopened.",
+      completeBody: "Complete this sprint and move unfinished cards to the selected destination?",
       empty: "Create your first board.",
       open: "Open board",
       edit: "Edit board",
@@ -541,8 +540,7 @@ export const messages = {
         "The card will be removed from this board. Its requirement stays in the register.",
       link: "Change project",
       removeForeign: "Remove cards belonging to another project",
-      linkBody:
-        "Changing project changes who can access this board. Foreign requirement cards are kept unless you explicitly confirm removal.",
+      linkBody: "Change this board’s project and who can access it?",
       package: "Add requirements",
       requirementIds: "Requirement IDs",
       loading: "Loading…",

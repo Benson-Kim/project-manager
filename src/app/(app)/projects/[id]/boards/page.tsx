@@ -1,3 +1,4 @@
+import { BOARD_SORT } from "@/modules/boards/schemas/board-rules";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth/provider";
@@ -16,10 +17,8 @@ export default async function Page({
   const session = await auth.requireSession();
   const id = Number((await params).id);
   if (!Number.isSafeInteger(id) || id < 1) notFound();
-  const list = parseListParams(await searchParams, {
-    columns: ["Name", "ProjectName", "UpdatedAtUtc"],
-    default: "Name",
-  });
+  const raw = await searchParams;
+  const list = parseListParams(raw, BOARD_SORT);
   const [rows, projects] = await Promise.all([
     orNotFound(listBoards(list, session.userId, id)),
     listProjectOptions(session.userId),

@@ -132,3 +132,6 @@ export const deleteBoardCardInput = z.object({
 });
 
 export type DeleteBoardCardInput = z.input<typeof deleteBoardCardInput>;
+
+/** Card details are a read intention; no row version or write contract. */
+export const readBoardCardInput = z.object({ boardCardId: z.number().int().positive() });

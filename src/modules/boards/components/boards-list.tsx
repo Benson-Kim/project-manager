@@ -1,4 +1,6 @@
 "use client";
+import { BOARD_SORT, defaultBoardColumns } from "../schemas/board-rules";
+import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -30,6 +32,8 @@ export function BoardsList({
   allowCreate?: boolean;
 }) {
   const router = useRouter();
+  const { searchParams } = useListUrlState();
+  const filtersActive = Boolean(searchParams.get("q") || (!scoped && searchParams.get("project")));
   const [creating, setCreating] = useState(false);
   const add = allowCreate ? (
     <Button onClick={() => setCreating(true)}>{M.newBoard}</Button>
@@ -76,8 +80,8 @@ export function BoardsList({
             render: (r) => r.ProjectName ?? M.noProject,
           },
         ]}
-        sort={{ columns: ["Name", "ProjectName", "UpdatedAtUtc"], default: "Name" }}
-        filtersActive={false}
+        sort={BOARD_SORT}
+        filtersActive={filtersActive}
         renderToolbar={(toggle) => (
           <Toolbar>
             <SearchInput />
@@ -85,7 +89,7 @@ export function BoardsList({
             {toggle}
           </Toolbar>
         )}
-        empty={listEmptyState(false, M.ui.empty, add)}
+        empty={listEmptyState(filtersActive, M.ui.empty, add)}
       />
       {creating ? (
         <BoardForm
@@ -96,11 +100,7 @@ export function BoardsList({
               name: text(data, "name"),
               description: text(data, "description"),
               projectId: optionalNumber(data, "project"),
-              columns: [
-                { name: M.defaultColumns.todo, category: "todo", wipLimit: null },
-                { name: M.defaultColumns.doing, category: "doing", wipLimit: null },
-                { name: M.defaultColumns.done, category: "done", wipLimit: null },
-              ],
+              columns: defaultBoardColumns(),
             });
             if (result.ok) router.push(`/boards/${result.data.BoardId}`);
             return result;

@@ -52,6 +52,7 @@ const VERBS: Record<string, string> = {
   GetById: "read",
   List: "read",
   ListOptions: "read",
+  ListPackagingOptions: "read",
   GanttData: "read",
   // Meetings (ADR-0028): the workspace, the participant panel and the printed minutes' lists.
   GetWorkspace: "read",
@@ -66,6 +67,8 @@ const VERBS: Record<string, string> = {
   GetBoard: "read",
   ListAssignees: "read",
   Create: "create",
+  // Packaging adds board cards, with read access to each source requirement project.
+  Package: "create",
   // Copying a template's documents into a financial adds rows (ADR-0030).
   CreateFromTemplate: "create",
   BuildFromDailyActivity: "create",
@@ -146,6 +149,10 @@ const CROSS_SCOPE: Record<
   string,
   { entity: string; level: string; permission: `${string}:${string}` }[]
 > = {
+  usp_BoardCard_Package: [
+    { entity: "Board", level: "Contributor", permission: "boards:create" },
+    { entity: "Project", level: "Viewer", permission: "requirements:read" },
+  ],
   usp_Board_SetProject: [
     // Taking a board out of a project removes it from everyone who reached it there.
     { entity: "Board", level: "Manager", permission: "boards:delete" },
@@ -288,9 +295,9 @@ describe("a cross-scope proc asks every scope it crosses (ADR-0038 decision 23)"
       expect(call, `${name} call ${i + 1}`).toContain(`@Permission = N'${want.permission}'`);
       // The level the UI computes for that permission, so proc and cog cannot drift apart.
       expect(requiredLevel(want.permission), `${name}: ${want.permission}`).toBe(want.level);
-      // Both permissions stay in the folder's own module: crossing scope is not crossing module.
+      // Packaging also reads the source register; every other check stays in its own module.
       expect(want.permission.split(":")[0], `${name}: ${want.permission}`).toBe(
-        MODULES[proc!.folder],
+        name === "usp_BoardCard_Package" && i === 1 ? "requirements" : MODULES[proc!.folder],
       );
     });
   });

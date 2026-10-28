@@ -1,3 +1,4 @@
+import { BOARD_SORT } from "@/modules/boards/schemas/board-rules";
 import { auth } from "@/lib/auth/provider";
 import { parseListParams } from "@/lib/list-params";
 import { listProjectOptions } from "@/modules/projects/repository/projects";
@@ -10,10 +11,7 @@ export default async function Page({
 }) {
   const session = await auth.requireSession();
   const raw = await searchParams;
-  const params = parseListParams(raw, {
-    columns: ["Name", "ProjectName", "UpdatedAtUtc"],
-    default: "Name",
-  });
+  const params = parseListParams(raw, BOARD_SORT);
   const projects = await listProjectOptions(session.userId);
   const selected = Number(raw.project);
   const projectId = projects.some((p) => p.id === selected) ? selected : null;

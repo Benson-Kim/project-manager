@@ -2,7 +2,14 @@
 import { z } from "zod";
 import { packageRequirementsInput } from "../schemas/board-package";
 import { packageRequirements, listPackagingRequirementOptions } from "../repository/board-package";
-import { getBoard, listBoardOptions } from "../repository/boards";
+import {
+  getBoard,
+  listBoardOptions,
+  setBoardProject,
+  createBoard,
+  deleteBoard,
+  updateBoard,
+} from "../repository/boards";
 
 import {
   getBoardCardById,
@@ -16,6 +23,7 @@ import {
   updateBoardCardInput,
   moveBoardCardInput,
   deleteBoardCardInput,
+  readBoardCardInput,
 } from "../schemas/board-card";
 import {
   createBoardColumn,
@@ -55,12 +63,10 @@ import {
   completeBoardSprintInput,
   deleteBoardSprintInput,
 } from "../schemas/board-sprint";
-import { setBoardProject } from "../repository/boards";
 import { setBoardProjectInput } from "../schemas/board";
 
 import { revalidatePath } from "next/cache";
 import { action } from "@/lib/action";
-import { createBoard, deleteBoard, updateBoard } from "../repository/boards";
 import { createBoardInput, deleteBoardInput, updateBoardInput } from "../schemas/board";
 
 /**
@@ -72,8 +78,7 @@ import { createBoardInput, deleteBoardInput, updateBoardInput } from "../schemas
  */
 
 function revalidateBoards(projectId: number | null | undefined) {
-  refreshBoardViews();
-  revalidatePath("/boards");
+  revalidatePath("/boards", "layout");
   if (projectId) revalidatePath(`/projects/${projectId}/boards`);
 }
 
@@ -108,7 +113,7 @@ export const deleteBoardAction = action({
   permission: "boards:delete",
   handler: async (input, ctx) => {
     await deleteBoard(input.boardId, input.rowVer, ctx.session.userId);
-    refreshBoardViews();
+    revalidatePath("/boards", "layout");
     return { boardId: input.boardId };
   },
 });
@@ -318,7 +323,7 @@ export const setBoardProjectAction = action({
 
 export const readBoardCardAction = action({
   name: "boards.cardDetails",
-  schema: deleteBoardCardInput.pick({ boardCardId: true }),
+  schema: readBoardCardInput,
   permission: "boards:read",
   handler: async (input, ctx) => getBoardCardById(input.boardCardId, ctx.session.userId),
 });

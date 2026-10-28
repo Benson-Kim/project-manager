@@ -273,3 +273,17 @@ returns nothing for it, and the ADR-0024 overrides — which are rows in a proje
   of which project governs the row (decision 4).
 - **Hard-coding the default column names in SQL.** Rejected: it puts interface copy in the database
   and splits it from `messages.ts` (decision 9).
+
+
+### Board requirement packaging (2026-10-28)
+
+`usp_BoardCard_Package` adds at most 200 distinct live requirements atomically.
+The actor needs Contributor access with `boards:create` on the destination board
+and Viewer access to every source project. A project board accepts only its own
+project’s requirements; standalone boards may combine accessible projects.
+Existing live cards are skipped, and the entire addition must fit the column’s
+WIP limit. Authorization, deduplication, rank allocation and audit share the board
+lock and transaction. The packaging picker reads every live type (BR, SR, FR, NFR,
+TR) through `usp_Requirement_ListPackagingOptions`; the BR/SR-only trace-link
+picker keeps its separate contract. Both expose hierarchical references in
+register order.
