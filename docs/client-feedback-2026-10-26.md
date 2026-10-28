@@ -144,7 +144,7 @@ Items on the sheet's last pages that the first pass did not list.
 | Stakeholder matrix: power/interest grid with drag and drop, and the RACI table under it | **Not taken** | The fields are now in the screenshot. A module of its own |
 | "The Issues/Risk page was not created" | **Not taken** | A module of its own |
 | "There should be on all the pages an undo button" | **Not taken** | Needs a decision on what undo covers (unsaved typing, or saved changes too) |
-| "Create Gantt: Every task must have a specific person or team assigned to it" | **ASK** | A deliverable can already have assignees. Should saving one without an assignee be refused? |
+| "Create Gantt: Every task must have a specific person or team assigned to it" | **ALREADY TRUE** | A deliverable can already have assignees. Answered 2026-10-28: saving one without an assignee stays allowed |
 
 ## What has and has not been verified
 
