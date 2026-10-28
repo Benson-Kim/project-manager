@@ -1,3 +1,4 @@
+import { withRichViews } from "@/components/ui/rich-text/rich-views";
 import type { Metadata } from "next";
 import { auth } from "@/lib/auth/provider";
 import { uploadsEnabled } from "@/lib/env";
@@ -107,7 +108,7 @@ export default async function GlobalDailyActivitiesPage({
       <LookupListsScope {...lookup}>
         <div className="mt-3 flex flex-col flex-1">
           <DailyActivitiesView
-            rows={rows}
+            rows={withRichViews(rows, ["Comments"])}
             totalCount={totalCount}
             page={effectiveParams.page}
             initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}

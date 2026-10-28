@@ -47,6 +47,9 @@ export function isEmptyRichText(html: string): boolean {
  * table is about 40 deep), and the editor's HTML is about the size of what the sanitiser keeps.
  */
 export const RICH_TEXT_NESTING_MAX = 100;
+
+/** The stored HTML limit for a long text field that takes formatting (colour, highlight, lists). */
+export const RICH_TEXT_FIELD_MAX = 50_000;
 export const RICH_TEXT_RAW_FACTOR = 2;
 
 const VOID_TAGS = new Set([

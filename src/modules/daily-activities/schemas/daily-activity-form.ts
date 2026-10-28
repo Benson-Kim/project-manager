@@ -4,6 +4,7 @@ import { datesInOrder, datesWere, storedDates } from "@/lib/date-range";
 import { toDateInput } from "@/lib/format";
 import { listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
+import { richTextSchema, RICH_TEXT_FIELD_MAX } from "@/lib/rich-text/schema";
 import type { DailyActivityRow } from "./daily-activity";
 
 /**
@@ -62,7 +63,7 @@ const dailyActivityFields = z.object({
   task: optionalLongText(),
   myActivity: optionalLongText(),
   activityDate: dateInput,
-  comments: optionalLongText(),
+  comments: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
   requestDate: dateInput,
   completeDate: dateInput,
   /** Managed lists (ADR-0022): the proc checks the value against the live options. */

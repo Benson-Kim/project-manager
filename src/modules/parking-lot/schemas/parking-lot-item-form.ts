@@ -2,6 +2,7 @@ import { z } from "zod";
 import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
 import { listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
+import { richTextSchema, RICH_TEXT_FIELD_MAX } from "@/lib/rich-text/schema";
 import type { ParkingLotItemRow } from "./parking-lot-item";
 
 /**
@@ -19,10 +20,7 @@ export const parkingLotItemFormSchema = z.object({
   ),
   /** Managed list (ADR-0022): the proc checks the value against the live options. */
   status: listChoice,
-  followUpActions: z.preprocess(
-    (v) => (v === "" || v == null ? null : String(v).trim()),
-    z.string().max(4000).nullable(),
-  ),
+  followUpActions: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
   owner: z.preprocess(
     (v) => (v === "" || v == null ? null : String(v).trim()),
     z.string().max(255).nullable(),

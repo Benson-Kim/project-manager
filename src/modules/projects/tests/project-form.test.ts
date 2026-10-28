@@ -1,3 +1,4 @@
+import "@/lib/rich-text/sanitize";
 import { describe, expect, it } from "vitest";
 import { projectFormSchema, updateProjectFormSchema } from "../schemas/project-form";
 

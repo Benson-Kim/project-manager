@@ -1,9 +1,10 @@
 "use client";
 
-import { textColumn } from "@/components/ui/data-view/columns";
+import { richTextColumn, textColumn } from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
-import { formCellSaver } from "@/components/ui/data-view/datasheet";
+import { formCellSaver, richContent } from "@/components/ui/data-view/datasheet";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
+import type { WithRichViews } from "@/components/ui/rich-text/rich-views";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { listEmptyState } from "@/components/ui/states";
 import { rowAllows } from "@/lib/auth/actor-access";
@@ -16,7 +17,8 @@ import type { ObjectiveListRow, ObjectiveRow } from "../schemas/objective";
 import { objectiveFormValues } from "../schemas/objective-form";
 import { ObjectivesToolbar } from "./objectives-toolbar";
 
-type Row = ObjectiveListRow;
+export type ObjectiveListItem = WithRichViews<ObjectiveListRow, "QSuccess">;
+type Row = ObjectiveListItem;
 const P = messages.objectives.placeholders;
 
 const columns: DataViewColumn<Row>[] = [
@@ -38,14 +40,14 @@ const columns: DataViewColumn<Row>[] = [
     placeholder: P.qMeasurable,
     maxLength: 255,
   }),
-  textColumn({
+  richTextColumn({
     key: "QSuccess",
     header: messages.objectives.qSuccess,
     priority: 2,
     field: "qSuccess",
     value: (r) => r.QSuccess,
     placeholder: P.qSuccess,
-    maxLength: 2000,
+    view: (r) => r.views.QSuccess,
   }),
   textColumn({
     key: "QAlignmentStrategy",
@@ -80,7 +82,7 @@ export function ObjectivesView({
   canCreate,
   newObjectiveAction,
 }: {
-  rows: ObjectiveListRow[];
+  rows: Row[];
   projectId: number;
   /** Shows the datasheet's new-entry row. */
   canCreate: boolean;
@@ -116,9 +118,9 @@ export function ObjectivesView({
             </p>
           ) : null}
           {row.QSuccess ? (
-            <p className="text-xs text-ink-muted">
-              {messages.objectives.qSuccess}: {row.QSuccess}
-            </p>
+            <div className="text-xs text-ink-muted">
+              {messages.objectives.qSuccess}: {richContent(row.views.QSuccess, row.QSuccess)}
+            </div>
           ) : null}
         </div>
       )}

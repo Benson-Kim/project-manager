@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import { useFieldContext } from "@/components/ui/form/field";
+import { asRichText } from "@/lib/rich-text/plain-text";
 
 /**
  * Word-like rich-text field (ADR-0025). This wrapper is light; the Tiptap
@@ -73,7 +74,7 @@ export function RichTextEditor({
       {bridge ? (
         <EditorSurface
           bridge={bridge}
-          initialHtml={defaultValue ?? ""}
+          initialHtml={asRichText(defaultValue ?? "")}
           readOnly={readOnly}
           inputId={field?.inputId}
           labelId={field?.labelId}

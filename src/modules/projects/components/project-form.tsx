@@ -19,6 +19,7 @@ import { createProjectAction, deleteProjectAction, updateProjectAction } from ".
 import type { ProjectRow } from "../schemas/project";
 import { projectFormSchema, updateProjectFormSchema } from "../schemas/project-form";
 import { ListOptions } from "@/components/ui/lookup-lists";
+import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
 
 /**
  * The charter workspace form  / ADR-0010 full-route exception):
@@ -206,23 +207,23 @@ export function ProjectForm({
             </Field>
           </div>
           <Field label={messages.projects.mandate} name="mandate" errors={form.errors.mandate}>
-            <Textarea name="mandate" defaultValue={project?.Mandate ?? ""} />
+            <RichTextEditor name="mandate" defaultValue={project?.Mandate} />
           </Field>
           <Field
             label={messages.projects.problemStatement}
             name="problemStatement"
             errors={form.errors.problemStatement}
           >
-            <Textarea name="problemStatement" defaultValue={project?.ProblemStatement ?? ""} />
+            <RichTextEditor name="problemStatement" defaultValue={project?.ProblemStatement} />
           </Field>
           <Field label={messages.projects.currentState} name="currentState">
-            <Textarea name="currentState" defaultValue={project?.CurrentState ?? ""} />
+            <RichTextEditor name="currentState" defaultValue={project?.CurrentState} />
           </Field>
           <Field label={messages.projects.futureState} name="futureState">
-            <Textarea name="futureState" defaultValue={project?.FutureState ?? ""} />
+            <RichTextEditor name="futureState" defaultValue={project?.FutureState} />
           </Field>
           <Field label={messages.projects.userImpact} name="userImpact">
-            <Textarea name="userImpact" defaultValue={project?.UserImpact ?? ""} />
+            <RichTextEditor name="userImpact" defaultValue={project?.UserImpact} />
           </Field>
         </Panel>
 

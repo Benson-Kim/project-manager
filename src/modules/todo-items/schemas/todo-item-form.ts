@@ -4,6 +4,7 @@ import { datesInOrder, datesWere, storedDates } from "@/lib/date-range";
 import { toDateInput } from "@/lib/format";
 import { listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
+import { richTextSchema, RICH_TEXT_FIELD_MAX } from "@/lib/rich-text/schema";
 import { PROJECT_OR_ACTIVITY, type TodoItemRow } from "./todo-item";
 import { rowVerSchema } from "./todo-alert";
 
@@ -12,13 +13,6 @@ import { rowVerSchema } from "./todo-alert";
  * form (blur + submit validation over FormData strings) and the server actions.
  * FormData values are strings — coerced to typed values here.
  */
-
-const optionalLongText = () =>
-  z
-    .string()
-    .trim()
-    .optional()
-    .transform((v) => (v ? v : null));
 
 const optionalText = (max: number) =>
   z
@@ -65,7 +59,7 @@ const todoItemFields = z.object({
   /** Managed lists (ADR-0022): the proc checks the value against the live options. */
   priority: listChoice,
   status: listChoice,
-  notes: optionalLongText(),
+  notes: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
 });
 
 const todoDates = datesInOrder({

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
 import { messages } from "@/lib/messages";
+import { richTextSchema, RICH_TEXT_FIELD_MAX } from "@/lib/rich-text/schema";
 import type { ObjectiveRow } from "./objective";
 
 /**
@@ -21,7 +22,7 @@ export const objectiveFormSchema = z.object({
   projectId: z.coerce.number().int().positive(),
   objectiveText: z.string().trim().min(1, messages.objectives.objectiveTextRequired).max(2000),
   qMeasurable: optionalText(255),
-  qSuccess: optionalText(2000),
+  qSuccess: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
   qAlignmentStrategy: optionalText(255),
 });
 

@@ -2,7 +2,7 @@ import { formatDate, toDateInput } from "@/lib/format";
 import type { ListChoice, LookupListKey } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
 import { ListBadge } from "../lookup-lists";
-import { formText, previewText, type RichCellView } from "./datasheet";
+import { formText, richContent, type RichCellView } from "./datasheet";
 import type { DataViewColumn } from "./types";
 
 /**
@@ -70,11 +70,7 @@ export function textColumn<Row>(
 export function richTextColumn<Row>(
   spec: ColumnSpec<Row, string | null> & { view: (row: Row) => RichCellView },
 ): DataViewColumn<Row> {
-  const display = (row: Row) => {
-    const view = spec.view(row);
-    const html = spec.value(row);
-    return view.html === html ? view.node : previewText(html);
-  };
+  const display = (row: Row) => richContent(spec.view(row), spec.value(row));
   return {
     key: spec.key,
     header: spec.header,
