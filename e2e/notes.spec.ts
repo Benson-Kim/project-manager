@@ -142,6 +142,25 @@ test("adding a page with unsaved edits asks before discarding them", async ({ pa
   await expect(tabs(page)).toHaveCount(2);
 });
 
+test("leaving through the side menu with unsaved edits asks first", async ({ page }) => {
+  await newNotebook(page);
+  const here = page.url();
+  await editor(page).click();
+  await page.keyboard.type("Keep me");
+
+  const dashboard = page.getByTestId("nav-primary").getByRole("link", { name: "Dashboard" });
+  await dashboard.click();
+  const dialog = page.getByRole("dialog").filter({ hasText: messages.notes.discardTitle });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: messages.actions.cancel }).click();
+  await expect(page).toHaveURL(here);
+  await expect(editor(page)).toContainText("Keep me");
+
+  await dashboard.click();
+  await dialog.getByRole("button", { name: messages.feedback.discard }).click();
+  await expect(page).not.toHaveURL(here);
+});
+
 test("a notebook without a project lives at /notes, keeps its pages, and only an Admin deletes it", async ({
   page,
 }) => {

@@ -128,6 +128,24 @@ requirements into the Kanban and several boards per project, font colour and hig
 long text field, right-click spelling and a spell-check switch, a whiteboard, and the financials
 calculator placement and currency choice. See `docs/client-feedback-2026-10-23.md`.
 
+## Second read of the sheet, 2026-10-28
+
+Items on the sheet's last pages that the first pass did not list.
+
+| What the client wrote | Status | What was done |
+|---|---|---|
+| "When you are in the notes feature and you write something … then you press on the menu item to the left it never prompts you to save changes" | **DONE** | The notebook asked before switching or adding a page, but nothing on the page answered a click on the side menu, so it left without asking. It now asks "Discard unsaved changes?" there too |
+| WBS/REQ: "If I put more than one requirement in the deliverable this is how it looks … use a context sensitive bubble … to see the full requirement" | **DONE** | Each requirement keeps to one line on the box, cut short with "…". Hovering or focusing it shows the reference and the whole wording in a bubble. Move and remove take no room until the row is hovered |
+| "If the Gantt or the wbs is big they need a floating horizontal bar … You did the same for the 'to do' and 'activity list'" | **DONE** | The same bar as the lists: it stays at the bottom of the window while any part of the chart is on screen |
+| N5 "nothing to do unless you can show me how to be an admin" / D2 "You need to explain this to me as there is no admin" | **ASK** | Explained to the client in the reply; no change |
+| R7 "Could not check that as of yet" | **OPEN** | Nothing to do until it is checked |
+| "Add 2 or 3 customizable headers where people can add a list they can filter etc. It would be good for all headers can have a name change" (requirements register) | **Not taken** | Custom columns and renamed headers are new work, with the dynamic checklist below |
+| Dynamic Checklist: "+Add Column" with date picker, text field, document link, action button | **Not taken** | A module of its own |
+| Stakeholder matrix: power/interest grid with drag and drop, and the RACI table under it | **Not taken** | The fields are now in the screenshot. A module of its own |
+| "The Issues/Risk page was not created" | **Not taken** | A module of its own |
+| "There should be on all the pages an undo button" | **Not taken** | Needs a decision on what undo covers (unsaved typing, or saved changes too) |
+| "Create Gantt: Every task must have a specific person or team assigned to it" | **ASK** | A deliverable can already have assignees. Should saving one without an assignee be refused? |
+
 ## What has and has not been verified
 
 - `tsc`, `eslint`, `prettier` and the unit suite (182 files, 9205 tests) are green here.

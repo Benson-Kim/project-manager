@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ResizeHandle } from "@/components/ui/data-view/datasheet-cells";
+import { StickyScrollbar } from "@/components/ui/data-view/sticky-scrollbar";
 import { TONES } from "@/components/ui/tones";
 import type { OptionColor } from "@/lib/lookup-lists";
 import { formatDate, toDateInput } from "@/lib/format";
@@ -794,75 +795,78 @@ export function WbsDiagram({
         ) : null}
       </div>
 
-      <div
-        ref={scrollRef}
-        data-testid="wbs-diagram"
-        className={`relative max-h-[calc(100dvh-16rem)] min-h-64 overflow-auto rounded-lg border border-line bg-surface print:max-h-none print:overflow-visible print:border-0 ${
-          dragged ? "cursor-grabbing" : ""
-        }`}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={endDrag}
-        onLostPointerCapture={() => {
-          if (press.current?.started) endDrag();
-        }}
-        onKeyDown={onKeyDown}
-      >
+      <div className="flow-root overflow-clip rounded-lg border border-line bg-surface print:overflow-visible print:border-0">
         <div
-          ref={contentRef}
-          className="relative flex w-max flex-col items-center p-4 pt-14 md:p-6 md:pt-14"
-          style={{ zoom: chart.zoom, minWidth: frame ? frame / chart.zoom : "100%" }}
+          ref={scrollRef}
+          data-testid="wbs-diagram"
+          className={`relative mb-[calc(var(--hbar,0px)*-1)] max-h-[calc(100dvh-16rem)] min-h-64 overflow-auto print:mb-0 print:max-h-none print:overflow-visible ${
+            dragged ? "cursor-grabbing" : ""
+          }`}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={endDrag}
+          onLostPointerCapture={() => {
+            if (press.current?.started) endDrag();
+          }}
+          onKeyDown={onKeyDown}
         >
           <div
-            ref={rootRef}
-            data-wbs-drop="root"
-            data-wbs-axis="root"
-            data-testid="wbs-root"
-            className={`max-w-80 rounded-md bg-accent px-5 py-3 text-center text-sm font-semibold break-words text-on-accent outline-offset-4 ${
-              live && live.target === null ? "outline-2 outline-focus outline-dashed" : ""
-            }`}
+            ref={contentRef}
+            className="relative flex w-max flex-col items-center p-4 pt-14 md:p-6 md:pt-14"
+            style={{ zoom: chart.zoom, minWidth: frame ? frame / chart.zoom : "100%" }}
           >
-            {projectName}
-          </div>
-          {wbs.rootIds.length > 0 ? (
-            <span aria-hidden="true" className="h-(--wbs-link) w-px bg-ink-faint" />
-          ) : null}
-          <div role="tree" aria-label={W.diagramLabel} className="flex items-start">
-            {wbs.rootIds.map((id, i) => slot(id, i, wbs.rootIds.length - 1))}
-          </div>
-          {view ? (
             <div
-              className="absolute inset-y-0 right-0 flex print:hidden"
-              title={W.chartWidthHint}
-              onDoubleClick={windowWidth}
+              ref={rootRef}
+              data-wbs-drop="root"
+              data-wbs-axis="root"
+              data-testid="wbs-root"
+              className={`max-w-80 rounded-md bg-accent px-5 py-3 text-center text-sm font-semibold break-words text-on-accent outline-offset-4 ${
+                live && live.target === null ? "outline-2 outline-focus outline-dashed" : ""
+              }`}
             >
-              <ResizeHandle
-                label={W.chartWidth}
-                orientation="vertical"
-                value={chart.width ?? undefined}
-                estimate={view.width}
-                onResize={resizeTo}
-                onCommit={() => onChart((current) => current)}
-                measure={() => contentRef.current?.getBoundingClientRect().width ?? 0}
-                className="h-full w-2 cursor-col-resize border-r-2 border-line"
-              />
+              {projectName}
+            </div>
+            {wbs.rootIds.length > 0 ? (
+              <span aria-hidden="true" className="h-(--wbs-link) w-px bg-ink-faint" />
+            ) : null}
+            <div role="tree" aria-label={W.diagramLabel} className="flex items-start">
+              {wbs.rootIds.map((id, i) => slot(id, i, wbs.rootIds.length - 1))}
+            </div>
+            {view ? (
+              <div
+                className="absolute inset-y-0 right-0 flex print:hidden"
+                title={W.chartWidthHint}
+                onDoubleClick={windowWidth}
+              >
+                <ResizeHandle
+                  label={W.chartWidth}
+                  orientation="vertical"
+                  value={chart.width ?? undefined}
+                  estimate={view.width}
+                  onResize={resizeTo}
+                  onCommit={() => onChart((current) => current)}
+                  measure={() => contentRef.current?.getBoundingClientRect().width ?? 0}
+                  className="h-full w-2 cursor-col-resize border-r-2 border-line"
+                />
+              </div>
+            ) : null}
+          </div>
+
+          {dragged ? (
+            <div
+              ref={ghostRef}
+              aria-hidden="true"
+              className={`pointer-events-none fixed top-0 left-0 z-50 max-w-(--wbs-box) rounded-md border bg-surface-raised px-2.5 py-1.5 text-sm text-ink shadow-lg ${
+                live ? "border-focus" : "border-line opacity-80"
+              }`}
+            >
+              <span className="mr-1.5 text-xs text-ink-muted tabular-nums">{dragged.code}</span>
+              {dragged.item.name || messages.keyDeliverables.deliverableFallback(dragged.item.id)}
             </div>
           ) : null}
         </div>
-
-        {dragged ? (
-          <div
-            ref={ghostRef}
-            aria-hidden="true"
-            className={`pointer-events-none fixed top-0 left-0 z-50 max-w-(--wbs-box) rounded-md border bg-surface-raised px-2.5 py-1.5 text-sm text-ink shadow-lg ${
-              live ? "border-focus" : "border-line opacity-80"
-            }`}
-          >
-            <span className="mr-1.5 text-xs text-ink-muted tabular-nums">{dragged.code}</span>
-            {dragged.item.name || messages.keyDeliverables.deliverableFallback(dragged.item.id)}
-          </div>
-        ) : null}
       </div>
+      <StickyScrollbar targetRef={scrollRef} />
     </div>
   );
 }

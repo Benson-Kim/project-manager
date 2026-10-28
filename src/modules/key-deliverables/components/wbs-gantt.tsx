@@ -104,6 +104,7 @@ import type { QueuedChange } from "./wbs-queue";
 import type { RequirementAccess } from "./wbs-requirements";
 import { WbsToolbar } from "./wbs-toolbar";
 import { useWbsRequirements } from "./use-wbs-requirements";
+import { StickyScrollbar } from "@/components/ui/data-view/sticky-scrollbar";
 
 const W = messages.keyDeliverables.wbs;
 
@@ -1136,139 +1137,149 @@ export function WbsGantt({
           statusColors={statusColors}
         />
       ) : (
-        <div
-          ref={scrollRef}
-          data-testid="gantt-chart"
-          className="relative max-h-[calc(100dvh-16rem)] min-h-64 overflow-auto rounded-lg border border-line bg-surface print:max-h-none print:overflow-visible print:border-0"
-        >
-          <div className="sticky top-0 z-20 flex h-12 w-max min-w-full border-b border-line bg-surface">
+        <>
+          <div className="flow-root overflow-clip rounded-lg border border-line bg-surface print:overflow-visible print:border-0">
             <div
-              ref={nameHeadRef}
-              className={`${headCell} sticky left-0 z-10 w-56 bg-surface px-3 md:w-80`}
+              ref={scrollRef}
+              data-testid="gantt-chart"
+              className="relative mb-[calc(var(--hbar,0px)*-1)] max-h-[calc(100dvh-16rem)] min-h-64 overflow-auto print:mb-0 print:max-h-none print:overflow-visible"
             >
-              {W.itemHeader}
-            </div>
-            <div className={`${headCell} w-32 px-2.5 ${tabClass(tab, "outline")}`}>{W.status}</div>
-            <div className={`${headCell} w-36 px-2.5 ${tabClass(tab, "outline")}`}>
-              {W.startHeader}
-            </div>
-            <div className={`${headCell} w-36 px-2.5 ${tabClass(tab, "outline")}`}>
-              {W.endHeader}
-            </div>
-            <div className={`${headCell} w-20 justify-end px-2.5 ${tabClass(tab, "outline")}`}>
-              {W.daysHeader}
-            </div>
-            <div
-              ref={axisRef}
-              aria-hidden="true"
-              className={`relative shrink-0 ${tabClass(tab, "chart")}`}
-              style={{ width: timeline.width }}
-            >
-              <div className="relative h-6 border-b border-line">
-                {header.top.map((cell) => (
-                  <span
-                    key={cell.key}
-                    className="absolute inset-y-0 flex items-center truncate border-l border-line px-1.5 text-xs font-medium text-ink"
-                    style={{ left: cell.left, width: cell.width }}
-                  >
-                    {cell.label}
-                  </span>
-                ))}
+              <div className="sticky top-0 z-20 flex h-12 w-max min-w-full border-b border-line bg-surface">
+                <div
+                  ref={nameHeadRef}
+                  className={`${headCell} sticky left-0 z-10 w-56 bg-surface px-3 md:w-80`}
+                >
+                  {W.itemHeader}
+                </div>
+                <div className={`${headCell} w-32 px-2.5 ${tabClass(tab, "outline")}`}>
+                  {W.status}
+                </div>
+                <div className={`${headCell} w-36 px-2.5 ${tabClass(tab, "outline")}`}>
+                  {W.startHeader}
+                </div>
+                <div className={`${headCell} w-36 px-2.5 ${tabClass(tab, "outline")}`}>
+                  {W.endHeader}
+                </div>
+                <div className={`${headCell} w-20 justify-end px-2.5 ${tabClass(tab, "outline")}`}>
+                  {W.daysHeader}
+                </div>
+                <div
+                  ref={axisRef}
+                  aria-hidden="true"
+                  className={`relative shrink-0 ${tabClass(tab, "chart")}`}
+                  style={{ width: timeline.width }}
+                >
+                  <div className="relative h-6 border-b border-line">
+                    {header.top.map((cell) => (
+                      <span
+                        key={cell.key}
+                        className="absolute inset-y-0 flex items-center truncate border-l border-line px-1.5 text-xs font-medium text-ink"
+                        style={{ left: cell.left, width: cell.width }}
+                      >
+                        {cell.label}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="relative h-6">
+                    {header.bottom.map((cell) => (
+                      <span
+                        key={cell.key}
+                        className={`absolute inset-y-0 flex items-center justify-center overflow-hidden border-l border-line text-[11px] tabular-nums ${
+                          cell.weekend ? "bg-surface-sunken text-ink-muted" : "text-ink-muted"
+                        }`}
+                        style={{ left: cell.left, width: cell.width }}
+                      >
+                        {cell.label}
+                      </span>
+                    ))}
+                    {todayX !== null ? (
+                      <span
+                        className="absolute inset-y-0 w-0.5 bg-danger"
+                        style={{ left: todayX }}
+                      />
+                    ) : null}
+                  </div>
+                </div>
               </div>
-              <div className="relative h-6">
-                {header.bottom.map((cell) => (
-                  <span
-                    key={cell.key}
-                    className={`absolute inset-y-0 flex items-center justify-center overflow-hidden border-l border-line text-[11px] tabular-nums ${
-                      cell.weekend ? "bg-surface-sunken text-ink-muted" : "text-ink-muted"
-                    }`}
-                    style={{ left: cell.left, width: cell.width }}
-                  >
-                    {cell.label}
-                  </span>
-                ))}
-                {todayX !== null ? (
-                  <span className="absolute inset-y-0 w-0.5 bg-danger" style={{ left: todayX }} />
-                ) : null}
-              </div>
-            </div>
-          </div>
 
-          <ul role="list" className="m-0 list-none p-0">
-            {visible.flatMap((id) => {
-              const node = shown.nodes.get(id)!;
-              const before = wbs.nodes.get(id);
-              const requirements = node.item.requirements;
-              const adding = cascade.adding === id;
-              const listShown = !cascade.hidden.has(id) || adding;
-              const rows = [
-                <WbsRow
-                  key={id}
-                  node={node}
-                  timeline={timeline}
-                  trackStyle={trackStyle}
-                  todayX={todayX}
-                  selected={id === selectedId}
-                  collapsed={collapsed.has(id)}
-                  changed={
-                    preview !== null &&
-                    (!sameDay(before?.start ?? null, node.start) ||
-                      !sameDay(before?.end ?? null, node.end))
-                  }
-                  typing={id === typingId}
-                  tab={tab}
-                  canEdit={canEdit}
-                  on={rowHandlers}
-                  statusColor={
-                    node.item.status ? (statusColors.get(node.item.status) ?? null) : null
-                  }
-                  requirementsHidden={!listShown}
-                  onRequirement={cascade.handlers}
-                />,
-              ];
-              if (listShown) {
-                requirements.forEach((requirement, index) =>
-                  rows.push(
-                    <RequirementRow
-                      key={`r${requirement.id}`}
+              <ul role="list" className="m-0 list-none p-0">
+                {visible.flatMap((id) => {
+                  const node = shown.nodes.get(id)!;
+                  const before = wbs.nodes.get(id);
+                  const requirements = node.item.requirements;
+                  const adding = cascade.adding === id;
+                  const listShown = !cascade.hidden.has(id) || adding;
+                  const rows = [
+                    <WbsRow
+                      key={id}
                       node={node}
-                      requirement={requirement}
-                      index={index}
                       timeline={timeline}
                       trackStyle={trackStyle}
+                      todayX={todayX}
+                      selected={id === selectedId}
+                      collapsed={collapsed.has(id)}
+                      changed={
+                        preview !== null &&
+                        (!sameDay(before?.start ?? null, node.start) ||
+                          !sameDay(before?.end ?? null, node.end))
+                      }
+                      typing={id === typingId}
                       tab={tab}
-                      access={cascade.access}
-                      on={cascade.handlers}
+                      canEdit={canEdit}
+                      on={rowHandlers}
+                      statusColor={
+                        node.item.status ? (statusColors.get(node.item.status) ?? null) : null
+                      }
+                      requirementsHidden={!listShown}
+                      onRequirement={cascade.handlers}
                     />,
-                  ),
-                );
-              }
-              // Only under the selected item, to keep the outline short.
-              if (requirementAccess.canCreate && (adding || (id === selectedId && listShown))) {
-                rows.push(
-                  <AddRequirementRow
-                    key={`add${id}`}
-                    node={node}
-                    adding={adding}
-                    addType={cascade.addType}
-                    timeline={timeline}
-                    trackStyle={trackStyle}
-                    tab={tab}
-                    on={cascade.handlers}
-                  />,
-                );
-              }
-              return rows;
-            })}
-          </ul>
+                  ];
+                  if (listShown) {
+                    requirements.forEach((requirement, index) =>
+                      rows.push(
+                        <RequirementRow
+                          key={`r${requirement.id}`}
+                          node={node}
+                          requirement={requirement}
+                          index={index}
+                          timeline={timeline}
+                          trackStyle={trackStyle}
+                          tab={tab}
+                          access={cascade.access}
+                          on={cascade.handlers}
+                        />,
+                      ),
+                    );
+                  }
+                  // Only under the selected item, to keep the outline short.
+                  if (requirementAccess.canCreate && (adding || (id === selectedId && listShown))) {
+                    rows.push(
+                      <AddRequirementRow
+                        key={`add${id}`}
+                        node={node}
+                        adding={adding}
+                        addType={cascade.addType}
+                        timeline={timeline}
+                        trackStyle={trackStyle}
+                        tab={tab}
+                        on={cascade.handlers}
+                      />,
+                    );
+                  }
+                  return rows;
+                })}
+              </ul>
 
-          <WbsDependencyArrows
-            scrollRef={scrollRef}
-            links={links}
-            wbs={shown}
-            geometryKey={geometryKey}
-          />
-        </div>
+              <WbsDependencyArrows
+                scrollRef={scrollRef}
+                links={links}
+                wbs={shown}
+                geometryKey={geometryKey}
+              />
+            </div>
+          </div>
+          <StickyScrollbar targetRef={scrollRef} />
+        </>
       )}
 
       {moveId !== null && wbs.nodes.has(moveId) ? (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Field } from "@/components/ui/form/field";
@@ -74,9 +74,24 @@ export function NotebookWorkspace({
   const [activeId, setActiveId] = useState<number | null>(tabs[0]?.NoteTabId ?? null);
   const [titleDirty, setTitleDirty] = useState(false);
   const [pageDirty, setPageDirty] = useState(false);
-  const [switchTo, setSwitchTo] = useState<number | "new" | null>(null);
+  const [switchTo, setSwitchTo] = useState<number | "new" | "leave" | null>(null);
   const [confirm, setConfirm] = useState<"page" | "note" | null>(null);
-  useUnsavedChangesGuard(titleDirty || pageDirty);
+  const dirty = titleDirty || pageDirty;
+  const leaveRef = useRef<(() => void) | null>(null);
+  useUnsavedChangesGuard(dirty);
+
+  useEffect(() => {
+    function onBeforeNavigate(event: Event) {
+      if (!dirty) return;
+      event.preventDefault();
+      const detail = (event as CustomEvent<{ resume?: unknown }>).detail;
+      leaveRef.current =
+        typeof detail?.resume === "function" ? (detail.resume as () => void) : null;
+      setSwitchTo("leave");
+    }
+    window.addEventListener("before-navigate", onBeforeNavigate);
+    return () => window.removeEventListener("before-navigate", onBeforeNavigate);
+  }, [dirty]);
 
   const full = tabs.length >= NOTE_PAGES_MAX;
   const active = tabs.find((tab) => tab.NoteTabId === activeId) ?? tabs[0] ?? null;
@@ -407,15 +422,24 @@ export function NotebookWorkspace({
       />
       <ConfirmDialog
         open={switchTo !== null}
-        onOpenChange={(open) => !open && setSwitchTo(null)}
+        onOpenChange={(open) => {
+          if (open) return;
+          setSwitchTo(null);
+          leaveRef.current = null;
+        }}
         title={M.discardTitle}
         body={messages.feedback.unsavedChangesBody}
         confirmLabel={messages.feedback.discard}
         onConfirm={() => {
           setPageDirty(false);
           setSwitchTo(null);
-          if (switchTo === "new") createPage();
-          else setActiveId(switchTo);
+          if (switchTo === "leave") {
+            setTitleDirty(false);
+            const resume = leaveRef.current;
+            leaveRef.current = null;
+            resume?.();
+          } else if (switchTo === "new") createPage();
+          else if (switchTo !== null) setActiveId(switchTo);
         }}
       />
     </div>
