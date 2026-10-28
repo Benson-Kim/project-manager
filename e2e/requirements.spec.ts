@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { messages } from "../src/lib/messages";
+import { closeAlarmToast } from "./support/alarms";
 import { escapeRegExp, expectListed } from "./support/datasheet";
 
 /**
@@ -91,10 +92,14 @@ test("register: two needs merge into a functional requirement that two deliverab
 
   await page.goto(REGISTER);
   await expect(page.getByRole("heading", { name: M.title })).toBeVisible();
+  await closeAlarmToast(page);
   await axe(page);
 
   await addRequirement(page, "BR", br);
   await addRequirement(page, "SR", sr);
+  // Read both saved rows together before selecting them. This also isolates the merge from
+  // unrelated records and in-flight new-entry refreshes on the shared seeded project.
+  await page.goto(`${REGISTER}&q=${stamp}`);
   const brRef = await refOf(page, br);
   const srRef = await refOf(page, sr);
   expect(brRef).toMatch(/^BR-\d+$/);
