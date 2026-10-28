@@ -1,4 +1,9 @@
 "use server";
+import { z } from "zod";
+import { packageRequirementsInput } from "../schemas/board-package";
+import { packageRequirements } from "../repository/board-package";
+import { listRequirementOptions } from "@/modules/requirements/repository/requirements";
+import { getBoard, listBoardOptions } from "../repository/boards";
 
 import {
   getBoardCardById,
@@ -317,4 +322,39 @@ export const readBoardCardAction = action({
   schema: deleteBoardCardInput.pick({ boardCardId: true }),
   permission: "boards:read",
   handler: async (input, ctx) => getBoardCardById(input.boardCardId, ctx.session.userId),
+});
+
+export const packageRequirementsAction = action({
+  name: "boards.package",
+  schema: packageRequirementsInput,
+  permission: "boards:create",
+  handler: async (input, ctx) => {
+    const result = await packageRequirements(input, ctx.session.userId);
+    refreshBoardViews();
+    return result;
+  },
+});
+export const readPackagingOptionsAction = action({
+  name: "boards.packageOptions",
+  schema: z.object({ projectId: z.number().int().positive() }),
+  permission: "boards:read",
+  handler: async (input, ctx) => {
+    const [requirements, boards] = await Promise.all([
+      listRequirementOptions(input.projectId, ctx.session.userId),
+      listBoardOptions(ctx.session.userId),
+    ]);
+    return {
+      requirements,
+      boards: boards.filter((b) => b.ProjectId === null || b.ProjectId === input.projectId),
+    };
+  },
+});
+export const readPackagingBoardAction = action({
+  name: "boards.packageColumns",
+  schema: z.object({ boardId: z.number().int().positive() }),
+  permission: "boards:read",
+  handler: async (input, ctx) => {
+    const board = await getBoard({ boardId: input.boardId, cardsPerList: 1 }, ctx.session.userId);
+    return { columns: board.columns, activeSprintId: board.header.ActiveSprintId };
+  },
 });

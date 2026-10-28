@@ -13,6 +13,7 @@ import type { ActionResult } from "@/lib/action";
 import type { ProjectOption } from "@/modules/projects/project-options";
 import type { BoardView, BoardAssigneeRow } from "../schemas/board-view";
 import type { BoardCardListRow, BoardCardDetailRow } from "../schemas/board-card";
+import { PackageRequirementsButton } from "./package-requirements";
 import { BoardManagement } from "./board-management";
 import { cardLabel } from "../schemas/board-rules";
 import {
@@ -48,7 +49,9 @@ export function BoardWorkspace({
   const busy = Boolean(editing || newColumn || deleting);
   useEffect(() => {
     if (busy || pending) return;
-    const timer = setInterval(() => router.refresh(), 20000);
+    const timer = setInterval(() => {
+      if (!document.querySelector('[role="dialog"]')) router.refresh();
+    }, 20000);
     return () => clearInterval(timer);
   }, [busy, pending, router]);
   function run(operation: () => Promise<ActionResult<unknown>>) {
@@ -131,6 +134,7 @@ export function BoardWorkspace({
             {U.newCard}
           </Button>
         ) : null}
+        {canCreate ? <PackageRequirementsButton board={board} projects={projects} /> : null}
         <BoardManagement board={board} projects={projects} />
       </div>
       {error ? (
@@ -199,7 +203,14 @@ export function BoardWorkspace({
                           Number(e.dataTransfer.getData("application/x-board-card")),
                       );
                       if (moving && moving.BoardCardId !== card.BoardCardId && canEdit && !pending)
-                        move(moving, card.BoardColumnId, card.BoardSprintId, card.BoardCardId);
+                        move(
+                          moving,
+                          planning ? moving.BoardColumnId : card.BoardColumnId,
+                          card.BoardSprintId,
+                          !planning || moving.BoardColumnId === card.BoardColumnId
+                            ? card.BoardCardId
+                            : undefined,
+                        );
                     }}
                     className={`rounded-md border border-line p-3 shadow-sm ${card.Color ? TONES[card.Color].fill : "bg-surface"}`}
                   >
