@@ -140,11 +140,11 @@ export function Combobox({
         onFocus={() => setOpen(true)}
         onClick={() => setOpen(true)}
         onBlur={() => {
-          // Allow option mousedown to win over blur-close; text that picked
-          // nothing goes back to the current choice.
+          // Allow option mousedown to win over blur-close. A pick-only box
+          // returns to its choice; a box accepting typed names keeps its text.
           setTimeout(() => {
             setOpen(false);
-            setQuery(selected?.label ?? "");
+            if (!freeTextName) setQuery(selected?.label ?? "");
           }, 100);
         }}
         onKeyDown={onKeyDown}
