@@ -112,9 +112,12 @@ and between two people reading one sheet.
   rows need no backfill and a redeploy is safe.
 - Currency names in the picker come from the runner's ICU data, so a label can differ between
   platforms. Tests and e2e select **by value**, never by label.
-- `db/tests/financials-procs.cjs` covers the proc and the constraint, including error 547 from a
-  direct write, which the proc path cannot reach. It needs a real database and runs in CI's
-  `db-apply` job only.
+- `db/tests/financials-procs.cjs` covers the proc, the normalisation and the template copy. It
+  **cannot** cover `CK_Financial_CurrencyCode`: it connects as the app's EXECUTE-only login
+  (ADR-0033), so a direct write is refused with 229 before any constraint runs — which
+  `db/verify/app_login.sql` separately asserts must be true of that login. The constraint is
+  verified in `db/verify/currency_check.sql` as the admin login, in the same `db-apply` job: that
+  it exists, that it still carries the binary collation, and that it refuses what it must.
 
 ## Alternatives rejected
 

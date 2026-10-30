@@ -37,15 +37,6 @@ async function exec(proc, params) {
   return (await request(params).execute(proc)).recordsets;
 }
 
-// A statement rather than a proc: the only way to reach a CHECK constraint directly, since every
-// proc upper-cases the value first. Values are bound as parameters, never concatenated.
-async function statement(text, params) {
-  // The app is procs-only; this is a db test, not application code, and a CHECK constraint is
-  // unreachable through a proc because every proc upper-cases the value before the check sees it.
-  // eslint-disable-next-line no-restricted-syntax
-  return (await request(params).query(text)).recordsets;
-}
-
 function ok(cond, label) {
   if (cond) passes++;
   else {
@@ -383,16 +374,10 @@ async function project(name) {
   const [list] = await exec("usp_Financial_List", { ActorUserId: PM, ProjectId: Q, Search: "q" });
   ok(list.length === 1 && list[0].LineCount === 13 && list[0].ActorAccess === "Manager", "list");
   ok(list[0].CurrencyCode === "JPY", "the list row carries the currency");
-  const setCurrency = "UPDATE app.Financial SET CurrencyCode = @c WHERE FinancialId = @id";
-  for (const bad of ["usd", "US1"]) {
-    await expectCode(547, `the CHECK refuses ${bad}`, () =>
-      statement(setCurrency, { c: bad, id: finQ.FinancialId }));
-  }
-  await statement(setCurrency, { c: "USD", id: finQ.FinancialId });
-  ok(
-    (await exec("usp_Financial_GetById", { FinancialId: finQ.FinancialId, ActorUserId: PM }))[0][0].CurrencyCode === "USD",
-    "the CHECK admits a well-shaped code",
-  );
+  // CK_Financial_CurrencyCode is NOT checked here. These tests connect as the app's EXECUTE-only
+  // login (ADR-0033), so a direct write is refused with 229 before any constraint can run, which
+  // db/verify/app_login.sql separately asserts must be true. The constraint is verified as the
+  // admin login in db/verify/currency_check.sql, in this same CI job.
 
   await exec("usp_FinancialTemplate_Delete", { FinancialTemplateId: tpl.FinancialTemplateId, RowVer: (await exec("usp_FinancialTemplate_GetById", { FinancialTemplateId: tpl.FinancialTemplateId, ActorUserId: PM }))[0][0].RowVer, ActorUserId: ADMIN });
   console.log(`${passes} passed, ${failures} failed`);

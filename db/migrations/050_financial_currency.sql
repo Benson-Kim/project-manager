@@ -45,7 +45,7 @@ IF COL_LENGTH(N'app.Financial', N'CurrencyCode') IS NULL
         CONSTRAINT DF_Financial_CurrencyCode DEFAULT N'';
 GO
 
-IF OBJECT_ID(N'dbo.CK_Financial_CurrencyCode', N'C') IS NULL
+IF OBJECT_ID(N'app.CK_Financial_CurrencyCode', N'C') IS NULL
     ALTER TABLE app.Financial ADD CONSTRAINT CK_Financial_CurrencyCode
         CHECK (CurrencyCode = N''
                OR CurrencyCode COLLATE Latin1_General_BIN LIKE N'[A-Z][A-Z][A-Z]');
