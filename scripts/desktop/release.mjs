@@ -43,7 +43,7 @@ export const APP_PATHS = [
   ":(exclude)**/*.md",
 ];
 
-const RELEASE_TAGS = /\s*\[(e2e|skip ci|ci skip|verify|force[- ]update)\]/gi;
+const RELEASE_TAGS = /\s*\[(e2e|skip ci|ci skip|verify|force[- ]update|no[- ]release)\]/gi;
 
 function parseVersion(v) {
   const m = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(String(v).trim());
@@ -69,6 +69,17 @@ export function nextVersion(pkgVersion, latestTag) {
 /** "[force-update]" in a commit message or PR title makes the release required. */
 export function isForced(text) {
   return /\[force[- ]update\]/i.test(text ?? "");
+}
+
+/**
+ * What a push to develop asks of the release. "[no-release]" holds it back: nothing is
+ * published, and the next release ships these changes. A hold beats a force, so a forced
+ * update has to go on the merge that does release.
+ */
+export function releaseIntent(message, forceEnv = false) {
+  const held = /\[no[- ]release\]/i.test(message ?? "");
+  const forced = forceEnv || isForced(message);
+  return { held, force: forced && !held, forceIgnored: forced && held };
 }
 
 export function nextMinimum({ force, version, previousMinimum }) {
@@ -210,14 +221,19 @@ function plan() {
   const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf-8"));
   const previous = latestReleaseTag();
   const version = nextVersion(pkg.version, previous);
-  const force = process.env.FORCE_UPDATE === "true" || isForced(git(["log", "-1", "--format=%B"]));
-  let skip = false;
-  if (previous && !force) {
+  const { held, force, forceIgnored } = releaseIntent(
+    git(["log", "-1", "--format=%B"]),
+    process.env.FORCE_UPDATE === "true",
+  );
+  let skip = held;
+  if (!held && previous && !force) {
     // exit 0 = no differences in app paths since the last release
     skip = sh("git", ["diff", "--quiet", previous, "HEAD", "--", ...APP_PATHS], { allowFail: true }) !== null;
   }
   output({ version, previous, force: String(force), skip: String(skip) });
-  if (skip) console.log(`Nothing that reaches the app changed since ${previous}: no new desktop release.`);
+  if (forceIgnored) console.log("::warning::[force-update] is ignored on a [no-release] merge; nothing was published.");
+  if (held) console.log("[no-release]: no new desktop release; the next release ships these changes.");
+  else if (skip) console.log(`Nothing that reaches the app changed since ${previous}: no new desktop release.`);
 }
 
 function finalize() {

@@ -8,6 +8,7 @@ name: Desktop Release
 #
 # "[force-update]" in the PR title (or the pushed commit message) makes the
 # release required: installed apps warn, then restart to install it.
+# "[no-release]" there publishes nothing; the next release ships the changes.
 
 on:
   workflow_call:
