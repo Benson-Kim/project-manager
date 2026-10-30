@@ -461,14 +461,19 @@ test("WBS item menu: Assignees… opens the details on the picker; the box names
   // Assignees… opens the item's details with the caret already in the picker.
   // The item was created a moment ago, so let its save settle first: a re-render
   // mid-gesture drops the menu and Shift+F10 lands on nothing. Then retry the
-  // gesture itself, as the dependencies test does for the same reason.
+  // gesture itself, as the dependencies test does for the same reason — and retry
+  // the menu item's own click with it, because that click is part of the gesture
+  // rather than a step after it. The menu is positioned by a layout effect once it
+  // has measured itself (wbs-context-menu.tsx), so it jumps once after mounting,
+  // and a refresh or a stray pointerdown drops it outright. Left outside the loop
+  // the click meets an element that is first unstable and then detached, with
+  // nothing left to re-open it: run 41071026771 spent its whole budget there twice.
   await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
   await expect(async () => {
     await item.click();
     await page.keyboard.press("Shift+F10");
-    await expect(page.getByTestId("wbs-menu")).toBeVisible({ timeout: 2_000 });
+    await page.getByTestId("wbs-menu-assignees").click({ timeout: 2_000 });
   }).toPass({ timeout: 20_000 });
-  await page.getByTestId("wbs-menu-assignees").click();
   const form = page.getByTestId("deliverable-form");
   await expect(form).toBeVisible();
   const picker = form.getByLabel(messages.keyDeliverables.assignees);
