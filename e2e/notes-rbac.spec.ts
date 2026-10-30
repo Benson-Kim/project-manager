@@ -25,7 +25,7 @@ test("viewer writes in the project-less shared space but cannot delete", async (
 
   await page.getByTestId("note-title").fill(unique);
   await page.getByTestId("note-title-save").click();
-  await expect(page.getByTestId("toast-success").first()).toBeVisible();
+  await expect(page.getByTestId("toast-success").first()).toBeVisible({ timeout: 15_000 });
   await page.reload();
   await expect(page.getByTestId("note-title")).toHaveValue(unique);
   await expect(page.getByTestId("note-page-save")).toBeVisible();

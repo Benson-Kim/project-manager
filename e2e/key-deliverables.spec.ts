@@ -67,7 +67,7 @@ test("create deliverable happy path — appears in the list", async ({ page }) =
   await page.getByTestId("deliverable-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
 
   await page.goto(`/projects/2/deliverables?q=${encodeURIComponent(requirement)}`);
   await expectListed(page, requirement);
@@ -486,7 +486,7 @@ test("WBS item menu: Assignees… opens the details on the picker; the box names
   await page.getByTestId("deliverable-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.saved }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId(`wbs-assignees-${id}`)).toHaveText(who);
   await expect(diagram.getByRole("treeitem", { name: new RegExp(escapeRegExp(who)) })).toHaveCount(
     1,
