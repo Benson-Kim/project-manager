@@ -15,11 +15,12 @@ import { ID_BOUND_LISTS, LOOKUP_LISTS } from "@/lib/lookup-lists";
 const read = (...path: string[]) => readFileSync(join(...path), "utf8");
 
 // Lists are seeded by 018 and by later migrations that add one (021: team titles; 031: parking
-// lot status).
+// lot status; 049: risks & issues).
 const migration = [
   "018_lookup_list.sql",
   "021_project_permissions.sql",
   "031_parking_lot_status.sql",
+  "049_risk_issue_lists.sql",
 ]
   .map((file) => read("db", "migrations", file))
   .join(String.fromCharCode(10));
@@ -86,6 +87,12 @@ describe("managed dropdown lists stay in step (ADR-0022)", () => {
         // a new parking lot item starts Active; Resolved strikes it through (migration 031)
         "parking-lot-item.status:Active",
         "parking-lot-item.status:Resolved",
+        // the two kinds of record the risks & issues register holds; a new one starts Risk/Open,
+        // and Closed mutes the row (migration 049, ADR-0050)
+        "risk-issue.category:Risk",
+        "risk-issue.category:Issue",
+        "risk-issue.status:Open",
+        "risk-issue.status:Closed",
       ].sort(),
     );
   });

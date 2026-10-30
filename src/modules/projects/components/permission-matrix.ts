@@ -32,6 +32,7 @@ export const SECTION_LABELS: Record<OverridableModule, string> = {
   "parking-lot": P.parkingLotSection,
   "questions-answers": P.questionsAnswersSection,
   requirements: P.requirementsSection,
+  "risks-issues": P.risksIssuesSection,
   stakeholders: P.stakeholdersSection,
   suppliers: P.suppliersSection,
   "todo-alerts": P.permissions.todoAlertsSection,

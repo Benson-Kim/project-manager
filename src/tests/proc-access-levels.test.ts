@@ -24,6 +24,7 @@ const MODULES: Record<string, string> = {
   objective: "objectives",
   requirement: "requirements",
   "question-answer": "questions-answers",
+  "risk-issue": "risks-issues",
   stakeholder: "stakeholders",
   supplier: "suppliers",
   "parking-lot-item": "parking-lot",

@@ -35,6 +35,13 @@ export const LOOKUP_LISTS = [
   "project-assignee.title",
   // Parking lot status (migration 031, client feedback 2026-10-12): Active and Resolved are locked.
   "parking-lot-item.status",
+  // Risks & issues (migration 049, ADR-0050): Risk/Issue are the two kinds of record the register
+  // holds, and a new record starts Risk/Open; Closed mutes the row.
+  "risk-issue.category",
+  "risk-issue.status",
+  "risk-issue.priority",
+  "risk-issue.impact",
+  "risk-issue.probability",
 ] as const;
 
 export type LookupListKey = (typeof LOOKUP_LISTS)[number];

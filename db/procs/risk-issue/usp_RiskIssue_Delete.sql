@@ -1,24 +1,44 @@
 ﻿-- usp_RiskIssue_Delete — soft delete with rowversion concurrency + in-transaction audit.
--- Entity app.RiskIssue (source: tblRisksIssuesTracker). Module: database-schema-and-procs (#3).
+-- Project ownership check: @ActorUserId must reach the record's project at Manager (FORBIDDEN_ROW 50003).
+-- Admin role bypass: an Admin actor (role read from auth.User) skips the ProjectAssignee check.
+-- Entity app.RiskIssue (source: tblRisksIssuesTracker). Module: risks-issues (#14, ADR-0050).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_RiskIssue_Delete
     @RiskIssueId INT,
-    @RowVer BIGINT,
+    @RowVer      BIGINT,
     @ActorUserId INT
 AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    DECLARE @CurrentVer BIGINT =
-        (SELECT CAST(RowVer AS BIGINT) FROM app.RiskIssue WHERE RiskIssueId = @RiskIssueId AND IsDeleted = 0);
-    IF @CurrentVer IS NULL
+    DECLARE @RowProjectId INT;
+    SELECT @RowProjectId = ProjectId FROM app.RiskIssue WHERE RiskIssueId = @RiskIssueId AND IsDeleted = 0;
+    IF @@ROWCOUNT = 0
         THROW 50001, N'NOT_FOUND:RiskIssue not found', 1;
-    IF @CurrentVer <> @RowVer
-        THROW 50002, N'CONFLICT:RiskIssue was modified by someone else', 1;
+
+    EXEC dbo.usp_Project_AssertAccess
+         @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
+         @MinLevel = N'Manager', @Permission = N'risks-issues:delete', @AllowProjectless = 0;
 
     BEGIN TRAN;
+
+    -- RowVer check INSIDE the transaction so the concurrency guard is atomic with the UPDATE
+    -- (prevents a race window between the check and the write).
+    DECLARE @CurrentVer BIGINT =
+        (SELECT CAST(RowVer AS BIGINT) FROM app.RiskIssue
+         WHERE RiskIssueId = @RiskIssueId AND IsDeleted = 0);
+    IF @CurrentVer IS NULL
+    BEGIN
+        ROLLBACK;
+        THROW 50001, N'NOT_FOUND:RiskIssue not found', 1;
+    END
+    IF @CurrentVer <> @RowVer
+    BEGIN
+        ROLLBACK;
+        THROW 50002, N'CONFLICT:RiskIssue was modified by someone else', 1;
+    END
 
     DECLARE @Before NVARCHAR(MAX) =
         (SELECT RiskIssueId, [ProjectId], [Description], [Category], [DateIdentified], [Status], [Priority], [Impact], [Probability], [MitigationPlan], [Owner], [DueDate]
