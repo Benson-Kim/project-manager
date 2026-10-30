@@ -82,6 +82,13 @@ and prints `N passed, M failed`.
   for a migrated inverted date pair is not covered: only migration makes one, and the EXECUTE-only
   login cannot forge one.
 
+- `alert-subscription-procs.cjs` — who may retire whose browser push endpoint. A subscription is
+  an object with an owner, but neither retire proc checked the owner: both were safe only because
+  every caller passed a server-derived id. Covers the checks that close it — only the owner or the
+  dispatch service retires one endpoint, only the user themselves or an Admin retires a user's
+  endpoints, an unknown or already-retired id stays a silent no-op for the dispatch loop, and one
+  endpoint belongs to one user at a time so a shared browser profile transfers rather than shares.
+
 Run one locally with the `.env` of a throwaway database: `node db/tests/financials-procs.cjs`.
 Never run them against a database anyone depends on: they create projects and leave
 soft-deleted rows behind.

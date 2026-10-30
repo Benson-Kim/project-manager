@@ -17,6 +17,18 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM auth.[User] WHERE UserId = @UserId)
         THROW 50004, N'VALIDATION:UserId does not exist', 1;
 
+    -- Function-level authorization (ADR-0021): 0 is the trusted internal caller and a
+    -- user may always retire their own endpoints (logout, password change). Retiring
+    -- SOMEONE ELSE'S is the forced-logout case, which is an Admin's to make — the role
+    -- is read from auth.User, never trusted from the caller.
+    IF @ActorUserId <> 0 AND @ActorUserId <> @UserId
+    BEGIN
+        DECLARE @ActorRole NVARCHAR(50);
+        EXEC dbo.usp_User_GetActorRole @UserId = @ActorUserId, @Role = @ActorRole OUTPUT;
+        IF @ActorRole <> N'Admin'
+            THROW 50003, N'FORBIDDEN_ROW:Only an administrator may retire another user''s subscriptions', 1;
+    END
+
     BEGIN TRAN;
 
     -- Capture all active rows before retiring them (for the audit log).
