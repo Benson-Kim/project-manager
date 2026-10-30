@@ -46,7 +46,7 @@ What #2 and #12 became, in one line each:
 | 11 | A calculator in the financials left-hand menu | ADR-0029 already built a financials calculator; this asks for a different placement, so it needs the client to point at what they mean |
 | 13 | Navigation arrows (`<` `>`) above Daily Activities and the to-do list to scroll horizontally | **DONE**, as a scrollbar rather than arrows — see the follow-up below |
 | 14 | Each WBS deliverable box able to take a different colour | **ADR-0039 is reserved for this** (WBS/Gantt colour mode); it is its own PR by prior decision |
-| 15 | Choose a currency for financials, or no symbol at all | Financials module; needs a per-project or per-financial setting and a rounding/format decision |
+| 15 | Choose a currency for financials, or no symbol at all | **DONE** — ADR-0051, migration 050. Scope is the financial sheet, "No symbol" is the default, the list comes from the runtime's ICU data and the suggestion from the user's time zone. Format decided: the symbol goes in front on screen and in the PDF, CSV headers name the currency and cells stay bare decimals. No rounding change — amounts remain bigint cents under ADR-0029, and a currency is a label, never a conversion |
 
 ## Follow-up asks of the same day — all three closed
 

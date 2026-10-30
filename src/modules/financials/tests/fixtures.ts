@@ -45,6 +45,7 @@ export function financialRow(overrides: Record<string, unknown> = {}) {
     FlagThresholdRate: 0.1,
     CostCategories: '["Acquisition"]',
     FundingSources: "[]",
+    CurrencyCode: "",
     CreatedAtUtc: new Date("2026-10-16T00:00:00Z"),
     UpdatedAtUtc: null,
     RowVer: "77",

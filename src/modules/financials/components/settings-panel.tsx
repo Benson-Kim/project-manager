@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -10,6 +10,7 @@ import { Input, Select, Switch } from "@/components/ui/form/inputs";
 import { LabelListEditor } from "@/components/ui/form/label-list-editor";
 import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { Panel } from "@/components/ui/panel";
+import { NO_CURRENCY, listCurrencies, suggestedCurrency } from "@/lib/currency/currencies";
 import { messages } from "@/lib/messages";
 import { deleteFinancialAction, setTaxProfilesAction, updateFinancialAction } from "../actions";
 import { fiscalYearLabel, horizonYears } from "../calc/fiscal";
@@ -42,7 +43,55 @@ export function breakdownValues(f: SheetDto["financial"]) {
     flagThresholdRate: percentOf(f.flagThresholdRate),
     costCategories: f.costCategories,
     fundingSources: f.fundingSources,
+    currency: f.currency,
   };
+}
+
+/** Nothing to subscribe to: the viewer's zone does not change while the panel is open. */
+const noSubscription = () => () => {};
+
+/**
+ * The currency to offer first, resolved on the client only: it reads the
+ * viewer's time zone, which the server cannot know, so deciding it during
+ * render would differ between the two and drift on hydration. The server
+ * snapshot is "no symbol", and React swaps in the real one after hydrating.
+ */
+function useSuggestedCurrency() {
+  return useSyncExternalStore(noSubscription, suggestedCurrency, () => NO_CURRENCY);
+}
+
+/** The currency figures are shown in (ADR-0051), or no symbol at all. */
+function CurrencyField({
+  value,
+  errors,
+  onChange,
+}: {
+  value: string;
+  errors: string[] | undefined;
+  onChange: (currency: string) => void;
+}) {
+  const suggested = useSuggestedCurrency();
+  const currencies = listCurrencies();
+  const option = (code: string, name: string) => (
+    <option key={code} value={code}>
+      {M.currencyOption(name, code)}
+    </option>
+  );
+  return (
+    <Field label={M.currency} name="currency" errors={errors}>
+      <Select value={value} onChange={(e) => onChange(e.target.value)} data-testid="currency">
+        <option value={NO_CURRENCY}>{M.currencyNone}</option>
+        {suggested === NO_CURRENCY ? null : (
+          <optgroup label={M.currencySuggested}>
+            {option(suggested, currencies.find((c) => c.code === suggested)?.name ?? suggested)}
+          </optgroup>
+        )}
+        <optgroup label={M.currencyAll}>
+          {currencies.map((currency) => option(currency.code, currency.name))}
+        </optgroup>
+      </Select>
+    </Field>
+  );
 }
 
 /**
@@ -84,7 +133,10 @@ function BreakdownForm({ sheet, canEdit }: { sheet: SheetDto; canEdit: boolean }
   const err = action.fieldErrors;
 
   const text = (
-    key: Exclude<keyof typeof state, "budgetIncludesTax" | "costCategories" | "fundingSources">,
+    key: Exclude<
+      keyof typeof state,
+      "budgetIncludesTax" | "costCategories" | "fundingSources" | "currency"
+    >,
     label: string,
     extra: React.InputHTMLAttributes<HTMLInputElement> = {},
   ) => (
@@ -177,6 +229,11 @@ function BreakdownForm({ sheet, canEdit }: { sheet: SheetDto; canEdit: boolean }
                 ))}
               </Select>
             </Field>
+            <CurrencyField
+              value={state.currency}
+              errors={err.currency}
+              onChange={(currency) => change({ currency })}
+            />
             {text("escalationRate", M.escalationRate, { inputMode: "decimal" })}
             {text("flagThresholdRate", M.flagThreshold, { inputMode: "decimal" })}
           </div>

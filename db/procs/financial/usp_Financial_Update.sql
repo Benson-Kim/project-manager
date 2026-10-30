@@ -7,6 +7,12 @@
 --   or live transaction may fall outside the new horizon (move or remove them first).
 --   Changing the start month never re-dates stored transactions.
 -- @BudgetIncludesTax: whether Budget is tax included (1, default) or before tax (0).
+-- @CurrencyCode: the currency figures are shown in, or N'' for no symbol (ADR-0051). Upper-cased
+--   here and checked by shape only, never against a currency list: the list is the runtime's ICU
+--   data and moves. CK_Financial_CurrencyCode is the second gate behind this one and zod.
+--   Declared wider than the three characters it accepts, as @Title is: a parameter sized to the
+--   value truncates an oversized code at binding, before any check here can see it, so N'EURO'
+--   would arrive as a valid N'EUR' and store as a different real currency. Wide, then refused.
 -- Audited in-transaction; returns dbo.ufn_Financial_Row.
 USE ProjectManager;
 GO
@@ -29,6 +35,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_Financial_Update
     @FlagThresholdRate    DECIMAL(9,6),
     @CostCategories       NVARCHAR(MAX)  = N'[]',
     @FundingSources       NVARCHAR(MAX)  = N'[]',
+    @CurrencyCode         NVARCHAR(20)   = N'',
     @RowVer               BIGINT,
     @ActorUserId          INT
 AS
@@ -60,6 +67,11 @@ BEGIN
     SET @FundingSources = ISNULL(@FundingSources, N'[]');
     EXEC dbo.usp_Financial_AssertLabelList @Labels = @CostCategories, @What = N'Cost categories';
     EXEC dbo.usp_Financial_AssertLabelList @Labels = @FundingSources, @What = N'Funding sources';
+
+    SET @CurrencyCode = UPPER(LTRIM(RTRIM(ISNULL(@CurrencyCode, N''))));
+    IF @CurrencyCode <> N''
+       AND @CurrencyCode COLLATE Latin1_General_BIN NOT LIKE N'[A-Z][A-Z][A-Z]'
+        THROW 50004, N'VALIDATION:A currency must be a three-letter code, or no currency at all', 1;
 
     BEGIN TRAN;
 
@@ -105,6 +117,7 @@ BEGIN
         FlagThresholdRate    = @FlagThresholdRate,
         CostCategories       = @CostCategories,
         FundingSources       = @FundingSources,
+        CurrencyCode         = @CurrencyCode,
         UpdatedAtUtc         = SYSUTCDATETIME(),
         UpdatedBy            = @ActorUserId
     WHERE FinancialId = @FinancialId;

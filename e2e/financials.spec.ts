@@ -180,6 +180,36 @@ test("a rate change from 2024-2025 re-prices those years only; invoices keep the
   ).toContainText("21.14");
 });
 
+test("a currency shows its symbol on the figures, and No symbol takes it away", async ({
+  page,
+}) => {
+  await page.goto(view("settings"));
+  const currency = page.getByTestId("currency");
+  await expect(currency).toHaveValue("");
+  // By value, never by label: the suggested code is also listed under All currencies, and the
+  // names come from the platform's ICU data, so a label match breaks on a different runner.
+  await currency.selectOption("USD");
+  await page.getByTestId("save-breakdown").click();
+  // The saved value through a fresh render, not a toast: the toast flake is open, and the lasting
+  // effect is what the client asked for.
+  await expect(async () => {
+    await page.goto(view("settings"));
+    await expect(page.getByTestId("currency")).toHaveValue("USD");
+  }).toPass({ timeout: 20_000 });
+
+  await page.goto(view("budget"));
+  await expect(page.getByTestId("grand-before-tax")).toHaveText(/^\$/);
+  await expect(page.getByTestId("grand-with-tax")).toHaveText(/^\$/);
+
+  await page.goto(view("settings"));
+  await page.getByTestId("currency").selectOption("");
+  await page.getByTestId("save-breakdown").click();
+  await expect(async () => {
+    await page.goto(view("budget"));
+    await expect(page.getByTestId("grand-before-tax")).not.toContainText("$");
+  }).toPass({ timeout: 20_000 });
+});
+
 test("guards: a line with invoices stays, another project's path is not found", async ({
   page,
 }) => {

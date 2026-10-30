@@ -24,6 +24,9 @@ export function financialCsvRows(sheet: SheetDto): CsvCell[][] {
   const f = sheet.financial;
   const { plan, monitor } = calculateSheet(sheet);
   const label = (year: number) => fiscalYearLabel(year, f.startMonth);
+  // The currency names the money columns rather than their cells (ADR-0051): a cell stays the raw
+  // decimal centsToDecimal writes, so the export opens as numbers in a spreadsheet, as it does now.
+  const inCurrency = (header: string) => (f.currency ? `${header} (${f.currency})` : header);
   const profile = (id: number | null) => sheet.profiles.find((p) => p.id === id)?.name ?? M.noTax;
   const lineName = new Map(sheet.lines.map((l) => [l.id, l.description]));
 
@@ -33,7 +36,7 @@ export function financialCsvRows(sheet: SheetDto): CsvCell[][] {
     [M.budgetEnvelope, f.budgetEnvelope],
     [M.glGrandLivre, f.glGrandLivre],
     [
-      `${M.budget} (${(f.budgetIncludesTax ? M.withTax : M.beforeTax).toLowerCase()})`,
+      inCurrency(`${M.budget} (${(f.budgetIncludesTax ? M.withTax : M.beforeTax).toLowerCase()})`),
       f.budget === null ? null : { number: f.budget },
     ],
     [],
@@ -46,9 +49,12 @@ export function financialCsvRows(sheet: SheetDto): CsvCell[][] {
       M.glAccount,
       M.taxProfile,
       M.recurrent,
-      ...plan.years.flatMap((y) => [`${label(y)} ${M.beforeTax}`, `${label(y)} ${M.withTax}`]),
-      M.grandTotalBeforeTax,
-      M.grandTotalWithTax,
+      ...plan.years.flatMap((y) => [
+        inCurrency(`${label(y)} ${M.beforeTax}`),
+        inCurrency(`${label(y)} ${M.withTax}`),
+      ]),
+      inCurrency(M.grandTotalBeforeTax),
+      inCurrency(M.grandTotalWithTax),
       M.comments,
     ],
   ];
@@ -100,8 +106,8 @@ export function financialCsvRows(sheet: SheetDto): CsvCell[][] {
     num(plan.total.withTax),
   ]);
 
-  const pre = (name: string) => `${name} (${M.beforeTax.toLowerCase()})`;
-  const incl = (name: string) => `${name} (${M.withTax.toLowerCase()})`;
+  const pre = (name: string) => inCurrency(`${name} (${M.beforeTax.toLowerCase()})`);
+  const incl = (name: string) => inCurrency(`${name} (${M.withTax.toLowerCase()})`);
   rows.push(
     [],
     [M.monitoringTab],
@@ -131,7 +137,15 @@ export function financialCsvRows(sheet: SheetDto): CsvCell[][] {
   rows.push(
     [],
     [M.transactions],
-    [M.date, M.fiscalYear, M.line, M.reference, M.description, M.amountBeforeTax, M.rate],
+    [
+      M.date,
+      M.fiscalYear,
+      M.line,
+      M.reference,
+      M.description,
+      inCurrency(M.amountBeforeTax),
+      M.rate,
+    ],
   );
   for (const t of sheet.transactions) {
     rows.push([
@@ -169,6 +183,9 @@ function documentCell(required: boolean | null, reason: string | null): string {
  * planned and spent totals, the checklist counts, then one column per document
  * name in the order they first appear. A financial that does not list a
  * document leaves its cell empty.
+ *
+ * Each financial carries its own currency (ADR-0051), so the money headers here
+ * cannot name one: the currency is a column of its own instead.
  */
 export function projectCsvRows(sheets: readonly SheetDto[]): CsvCell[][] {
   const D = M.documents;
@@ -187,6 +204,7 @@ export function projectCsvRows(sheets: readonly SheetDto[]): CsvCell[][] {
       M.glGrandLivre,
       M.budget,
       M.budgetIncludesTax,
+      M.currency,
       M.firstFiscalYear,
       M.horizonYears,
       M.grandTotalBeforeTax,
@@ -212,6 +230,7 @@ export function projectCsvRows(sheets: readonly SheetDto[]): CsvCell[][] {
       f.glGrandLivre,
       f.budget === null ? null : { number: f.budget },
       f.budgetIncludesTax ? M.withTax : M.beforeTax,
+      f.currency || null,
       label(f.firstFiscalYear, f.startMonth),
       { number: String(f.horizonYears) },
       num(plan.total.beforeTax),

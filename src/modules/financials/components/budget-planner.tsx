@@ -9,6 +9,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Panel } from "@/components/ui/panel";
 import type { ActionResult } from "@/lib/action";
+import { NO_CURRENCY } from "@/lib/currency/currencies";
 import { messages } from "@/lib/messages";
 import { createLineAction, moveLineAction, updateLineAction } from "../actions";
 import { SECTIONS, type PlanCell, type Section, type Totals } from "../calc/engine";
@@ -30,26 +31,28 @@ const lineId = (line: LineDto) => line.id;
 function Amounts({
   beforeTax,
   withTax,
+  currency,
   muted,
 }: {
   beforeTax: bigint;
   withTax: bigint;
+  currency: string;
   muted?: boolean;
 }) {
   return (
     <span
       className={`flex flex-col items-end tabular-nums ${muted ? "italic text-ink-muted" : ""}`}
     >
-      <span>{formatMoney(beforeTax)}</span>
-      <span className="text-xs text-ink-muted">{formatMoney(withTax)}</span>
+      <span>{formatMoney(beforeTax, currency)}</span>
+      <span className="text-xs text-ink-muted">{formatMoney(withTax, currency)}</span>
     </span>
   );
 }
 
 /** A year cell's hover note: its tax-included amount, and whether it was escalated. */
-function cellNote(cell: PlanCell | undefined): string | undefined {
+function cellNote(cell: PlanCell | undefined, currency: string): string | undefined {
   if (!cell || cell.source === "none") return undefined;
-  const withTax = `${M.withTax}: ${formatMoney(cell.withTax)}`;
+  const withTax = `${M.withTax}: ${formatMoney(cell.withTax, currency)}`;
   return cell.source === "escalated" ? `${M.escalated} · ${withTax}` : withTax;
 }
 
@@ -57,6 +60,7 @@ function TotalsRow({
   label,
   labelHidden = false,
   totals,
+  currency,
   span,
   testId,
 }: {
@@ -64,6 +68,7 @@ function TotalsRow({
   /** A section's totals read as such under its lines; the label is for screen readers. */
   labelHidden?: boolean;
   totals: Totals;
+  currency: string;
   /** The columns before the years. */
   span: number;
   testId?: string;
@@ -75,11 +80,11 @@ function TotalsRow({
       </th>
       {totals.byYear.map((y) => (
         <td key={y.fiscalYear} className={cellClass}>
-          <Amounts beforeTax={y.beforeTax} withTax={y.withTax} />
+          <Amounts beforeTax={y.beforeTax} withTax={y.withTax} currency={currency} />
         </td>
       ))}
       <td className={cellClass}>
-        <Amounts beforeTax={totals.beforeTax} withTax={totals.withTax} />
+        <Amounts beforeTax={totals.beforeTax} withTax={totals.withTax} currency={currency} />
       </td>
       <td className={cellClass} />
     </tr>
@@ -190,6 +195,7 @@ export function BudgetPlanner({
           <Amounts
             beforeTax={cell.beforeTax}
             withTax={cell.withTax}
+            currency={f.currency}
             muted={cell.source === "escalated"}
           />
         ) : null;
@@ -203,7 +209,9 @@ export function BudgetPlanner({
         maxLength: 24,
         ghost: (line) => {
           const cell = plan.lines.get(line.id)?.cells[i];
-          return cell?.source === "escalated" ? formatMoney(cell.beforeTax) : undefined;
+          return cell?.source === "escalated"
+            ? formatMoney(cell.beforeTax, NO_CURRENCY)
+            : undefined;
         },
       },
     })),
@@ -213,7 +221,9 @@ export function BudgetPlanner({
       priority: 1,
       render: (line) => {
         const total = plan.lines.get(line.id);
-        return total ? <Amounts beforeTax={total.beforeTax} withTax={total.withTax} /> : null;
+        return total ? (
+          <Amounts beforeTax={total.beforeTax} withTax={total.withTax} currency={f.currency} />
+        ) : null;
       },
     },
   ];
@@ -291,7 +301,7 @@ export function BudgetPlanner({
                   cellTitle={(column) => {
                     const i = columns.indexOf(column) - leading;
                     return i >= 0 && i < years.length
-                      ? cellNote(plan.lines.get(line.id)?.cells[i])
+                      ? cellNote(plan.lines.get(line.id)?.cells[i], f.currency)
                       : undefined;
                   }}
                   onSave={(column, value) => saveCell(line, column, value)}
@@ -331,26 +341,33 @@ export function BudgetPlanner({
                 label={M.sectionTotal(M.sections[section])}
                 labelHidden
                 totals={plan.sections[section]}
+                currency={f.currency}
                 span={leading}
               />
             </tbody>
           );
         })}
         <tbody>
-          <TotalsRow label={M.total} totals={plan.total} span={leading} testId="budget-total" />
+          <TotalsRow
+            label={M.total}
+            totals={plan.total}
+            currency={f.currency}
+            span={leading}
+            testId="budget-total"
+          />
         </tbody>
       </DatasheetTable>
       <dl className="grid gap-2 text-sm sm:grid-cols-2">
         <div className="flex justify-between gap-3 rounded-md border border-line bg-surface p-3">
           <dt>{M.grandTotalBeforeTax}</dt>
           <dd className="font-medium tabular-nums" data-testid="grand-before-tax">
-            {formatMoney(plan.total.beforeTax)}
+            {formatMoney(plan.total.beforeTax, f.currency)}
           </dd>
         </div>
         <div className="flex justify-between gap-3 rounded-md border border-line bg-surface p-3">
           <dt>{M.grandTotalWithTax}</dt>
           <dd className="font-medium tabular-nums" data-testid="grand-with-tax">
-            {formatMoney(plan.total.withTax)}
+            {formatMoney(plan.total.withTax, f.currency)}
           </dd>
         </div>
       </dl>
@@ -359,7 +376,7 @@ export function BudgetPlanner({
           role="status"
           className="rounded-md border border-warning bg-warning-soft p-3 text-sm text-ink"
         >
-          {M.overAuthorised(formatMoney(over))}
+          {M.overAuthorised(formatMoney(over, f.currency))}
         </p>
       ) : null}
 

@@ -8,6 +8,7 @@ import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Combobox } from "@/components/ui/form/combobox";
 import { Field } from "@/components/ui/form/field";
 import { Input, Select, Switch, Textarea } from "@/components/ui/form/inputs";
+import { NO_CURRENCY } from "@/lib/currency/currencies";
 import { messages } from "@/lib/messages";
 import { deleteLineAction, updateLineAction } from "../actions";
 import { lineAmounts, rateOf, type Section } from "../calc/engine";
@@ -239,7 +240,7 @@ export function LineSheet({
                     <Input
                       inputMode="decimal"
                       value={state.amounts[year]}
-                      placeholder={escalated ? formatMoney(cell.beforeTax) : ""}
+                      placeholder={escalated ? formatMoney(cell.beforeTax, NO_CURRENCY) : ""}
                       onChange={(e) =>
                         change({ amounts: { ...state.amounts, [year]: e.target.value } })
                       }
@@ -250,7 +251,7 @@ export function LineSheet({
                     aria-live="polite"
                   >
                     {cell && cell.source !== "none"
-                      ? `${M.withTax}: ${formatMoney(cell.withTax)}`
+                      ? `${M.withTax}: ${formatMoney(cell.withTax, f.currency)}`
                       : ""}
                     {escalated ? <span className="block text-xs">{M.escalated}</span> : null}
                   </p>
