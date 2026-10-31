@@ -75,6 +75,18 @@ function openRow(page: Page, text: string): Promise<void> {
     .click();
 }
 
+/** WBS boxes start with their requirement lists folded; this opens every one on the chart. */
+async function openRequirementLists(page: Page): Promise<void> {
+  await expect(page.getByTestId("wbs-diagram")).toBeVisible();
+  const folded = page.locator('[data-testid^="wbs-req-toggle-"][aria-expanded="false"]');
+  // A click before hydration does nothing, so the pass is retried until none is left folded.
+  await expect(async () => {
+    const count = await folded.count();
+    for (let i = 0; i < count; i++) await folded.first().click();
+    await expect(folded).toHaveCount(0, { timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+}
+
 async function axe(page: Page): Promise<void> {
   const results = await new AxeBuilder({ page }).analyze();
   expect(
@@ -90,7 +102,7 @@ test("register: two needs merge into a functional requirement that two deliverab
   const sr = `E2E stakeholder need ${stamp}`;
   const fr = `E2E functional solution ${stamp}`;
 
-  await page.goto(REGISTER);
+  await page.goto(`${REGISTER}&q=${stamp}`);
   await expect(page.getByRole("heading", { name: M.title })).toBeVisible();
   await closeAlarmToast(page);
   await axe(page);
@@ -153,6 +165,7 @@ test("register: two needs merge into a functional requirement that two deliverab
   await expect(page.getByText(messages.datasheet.saved(M.met))).toBeAttached();
 
   await page.goto("/projects/2/deliverables/gantt?view=wbs");
+  await openRequirementLists(page);
   const met = page.getByRole("checkbox", { name: W.requirementMet(fr) });
   await expect(met).toHaveCount(2);
   await expect(met.first()).toBeChecked();
@@ -189,7 +202,7 @@ test("a linked requirement changes type only in the sheet, which offers the type
   const br = `E2E typed need ${stamp}`;
   const fr = `E2E typed solution ${stamp}`;
 
-  await page.goto(REGISTER);
+  await page.goto(`${REGISTER}&q=${stamp}`);
   await addRequirement(page, "BR", br);
   await addRequirement(page, "FR", fr);
 
@@ -226,7 +239,7 @@ test("the type filter lists one kind and starts a new row with it", async ({ pag
   const stamp = Date.now();
   const br = `E2E filtered need ${stamp}`;
 
-  await page.goto(REGISTER);
+  await page.goto(`${REGISTER}&q=${stamp}`);
   await addRequirement(page, "BR", br);
 
   await page.getByTestId("filter-type").selectOption("NFR");
@@ -265,7 +278,7 @@ test("sub-requirements: the register nests them, and the WBS names them the same
   const childB = `E2E second sub-requirement ${stamp}`;
   const grandchild = `E2E nested sub-requirement ${stamp}`;
 
-  await page.goto(REGISTER);
+  await page.goto(`${REGISTER}&q=${stamp}`);
   await expect(page.getByRole("heading", { name: M.title })).toBeVisible();
 
   await addRequirement(page, "FR", parent);
@@ -298,7 +311,7 @@ test("sub-requirements: the register nests them, and the WBS names them the same
   }
 
   await addSub(parent, childA);
-  await page.goto(REGISTER);
+  await page.goto(`${REGISTER}&q=${stamp}`);
   await addSub(parent, childB);
 
   // Both children are numbered under the parent, from 1, and read as sub-requirements.
@@ -339,10 +352,52 @@ test("sub-requirements: the register nests them, and the WBS names them the same
   ).toBeVisible({ timeout: 15_000 });
 
   await page.goto("/projects/2/deliverables/gantt?view=wbs");
-  await expect(page.getByTestId("wbs-diagram")).toBeVisible();
+  await openRequirementLists(page);
   // The box view lists a deliverable's requirements as li[data-testid="wbs-req-<id>"], each a
-  // RefChip beside the text. `li[data-wbs-row]` is the Gantt outline's *item* row, a different
-  // surface, and the text there lives in an input value that hasText cannot see.
+  // RefChip beside the text.
   const chipRow = page.locator('li[data-testid^="wbs-req-"]').filter({ hasText: childA });
   await expect(chipRow.first()).toContainText(`${parentRef}.1`, { timeout: 15_000 });
+});
+
+test("WBS quick add: Meets traces the new requirement to a business need", async ({ page }) => {
+  test.slow();
+  const stamp = Date.now();
+  const br = `E2E need met from the WBS ${stamp}`;
+  const fr = `E2E solution added in the WBS ${stamp}`;
+
+  await page.goto(`${REGISTER}&q=${stamp}`);
+  await expect(page.getByRole("heading", { name: M.title })).toBeVisible();
+  await closeAlarmToast(page);
+  await addRequirement(page, "BR", br);
+  const brRef = await refOf(page, br);
+
+  await page.goto("/projects/2/deliverables/gantt?view=wbs");
+  const diagram = page.getByTestId("wbs-diagram");
+  await expect(diagram).toBeVisible();
+  await page.getByTestId("wbs-add").click();
+  const name = page.locator("input:focus");
+  await expect(name).toHaveValue(W.newItemName, { timeout: 15_000 });
+  await name.fill(`E2E meets ${stamp}`);
+  await name.press("Enter");
+  const item = diagram.getByRole("treeitem", { name: new RegExp(`E2E meets ${stamp}`) });
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+  const id = await item.getAttribute("data-wbs-box");
+
+  await page.getByTestId(`wbs-req-add-${id}`).click();
+  const add = page.getByLabel(W.newRequirementFor(""), { exact: false });
+  await expect(add).toBeFocused({ timeout: 15_000 });
+  await add.fill(fr);
+  await page.getByTestId(`wbs-req-meets-${id}`).selectOption({ label: `${brRef} ${br}` });
+  await add.press("Enter");
+  await add.press("Escape");
+  await expect(
+    page.getByTestId(`wbs-reqs-${id}`).locator("li").filter({ hasText: fr }),
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+
+  await page.goto(`${REGISTER}&q=${encodeURIComponent(fr)}`);
+  await expectListed(page, fr);
+  await expect(rowOf(page, fr)).toContainText(brRef);
+  await page.goto(`${REGISTER}&q=${encodeURIComponent(br)}`);
+  await expect(rowOf(page, br)).toContainText(M.coveragePartial(0, 1));
 });

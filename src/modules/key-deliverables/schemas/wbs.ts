@@ -1,4 +1,5 @@
 import type { OptionColor } from "@/lib/lookup-lists";
+import type { MoSCoW } from "@/modules/requirements/schemas/moscow";
 import type { SolutionType } from "@/modules/requirements/schemas/requirement-types";
 import type { AssigneeEntry } from "./key-deliverable";
 
@@ -40,6 +41,14 @@ export interface WbsRequirement {
   rowVer: number;
   /** The allocation's RowVer — move and remove save against it. */
   placeRowVer: number;
+  /** The register parent, so an allocated sub-requirement nests under an allocated parent. */
+  parentId: number | null;
+  /** Planning (ADR-0052); null is "not set". */
+  moscow: MoSCoW | null;
+  criteria: string | null;
+  estimateDays: number | null;
+  ownerId: number | null;
+  ownerName: string | null;
 }
 
 export interface WbsItem {
@@ -54,13 +63,17 @@ export interface WbsItem {
   end: Date | null;
   status: string | null;
   priority: string | null;
-  /** Legacy stored colour; not drawn. */
+  /** Its own colour (ADR-0052): drawn over the level's on its box; null takes the level's. */
   color: OptionColor | null;
   /** A date rather than a span (ADR-0046): start and end are the same day, and it has no sub-items. */
   isMilestone: boolean;
   assigneeNames: string | null;
   assignees: AssigneeEntry[];
   requirements: WbsRequirement[];
+  /** The item's own planned amount (ADR-0052); a parent shows its sub-items' sum (rolledBudget). */
+  budget: number | null;
+  /** The note pinned to its box (the paperclip). */
+  note: string | null;
   rowVer: number;
 }
 
@@ -455,6 +468,71 @@ export function applyStatus(
   return items.map((i) => (i.id === id ? { ...i, status } : i));
 }
 
+/** A note as usp_KeyDeliverable_SetNote and SetPlanNote store it: trailing spaces off, blank = none. */
+export function storedNote(text: string): string | null {
+  const kept = text.replace(/ +$/, "");
+  return kept === "" ? null : kept;
+}
+
+/** What usp_KeyDeliverable_SetNote does, applied to the rows on screen. */
+export function applyNote(items: readonly WbsItem[], id: number, text: string): WbsItem[] {
+  const note = storedNote(text);
+  return items.map((i) => (i.id === id ? { ...i, note } : i));
+}
+
+/** The status the details panel's Done sets; statusToCompletion counts it as 100 %. */
+export const DONE_STATUS = "Completed";
+
+/** What the details panel changes through usp_KeyDeliverable_Update; a key left out is kept. */
+export interface WbsDetailsPatch {
+  assignees?: AssigneeEntry[];
+  priority?: string | null;
+  color?: OptionColor | null;
+  budget?: number | null;
+}
+
+/** What usp_KeyDeliverable_Update does with a patch, applied to the rows on screen. */
+export function applyDetails(
+  items: readonly WbsItem[],
+  id: number,
+  patch: WbsDetailsPatch,
+): WbsItem[] {
+  return items.map((i) => {
+    if (i.id !== id) return i;
+    const next = { ...i };
+    if (patch.assignees !== undefined) {
+      next.assignees = patch.assignees;
+      next.assigneeNames = patch.assignees.map((a) => a.name).join(", ") || null;
+    }
+    if (patch.priority !== undefined) next.priority = patch.priority;
+    if (patch.color !== undefined) next.color = patch.color;
+    if (patch.budget !== undefined) next.budget = patch.budget;
+    return next;
+  });
+}
+
+/**
+ * The whole update usp_KeyDeliverable_Update takes for an item, built from the item as it is now
+ * with the patch over it. Name, dates and status go back as they are (a parent's dates are its
+ * rolled-up ones, which the proc keeps); colour and budget are sent only when patched.
+ */
+export function detailsInput(item: WbsItem, projectId: number, patch: WbsDetailsPatch) {
+  return {
+    keyDeliverableId: item.id,
+    projectId,
+    keyRequirement: item.name,
+    requestedDate: item.requestedDate,
+    startDate: item.start,
+    deadline: item.end,
+    assigneeIds: (patch.assignees ?? item.assignees).map((a) => a.id),
+    priority: patch.priority !== undefined ? patch.priority : item.priority,
+    status: item.status,
+    ...(patch.color !== undefined ? { color: patch.color } : {}),
+    ...(patch.budget !== undefined ? { budget: patch.budget } : {}),
+    rowVer: item.rowVer,
+  };
+}
+
 /**
  * What usp_KeyDeliverable_SetMilestone does, applied to the rows on screen: turning an item into a
  * milestone collapses its span to its start date; turning it back keeps that one day as both ends,
@@ -538,11 +616,25 @@ export function requirementIn(
   return items.find((i) => i.id === itemId)?.requirements.find((r) => r.id === requirementId);
 }
 
-/** usp_Requirement_Update: new wording or met tick, shared across every item that lists it. */
+/** What one requirement save changes: wording, met tick, MoSCoW or the planning fields. */
+export type RequirementEdit = Partial<
+  Pick<
+    WbsRequirement,
+    "text" | "isMet" | "moscow" | "criteria" | "estimateDays" | "ownerId" | "ownerName"
+  >
+>;
+
+/** Criteria, estimate and owner: usp_Requirement_SetPlanning takes all three together. */
+export type RequirementPlanning = Pick<
+  WbsRequirement,
+  "criteria" | "estimateDays" | "ownerId" | "ownerName"
+>;
+
+/** A requirement save, shared across every item that lists it. */
 export function applyRequirementEdit(
   items: readonly WbsItem[],
   requirementId: number,
-  edit: { text?: string; isMet?: boolean },
+  edit: RequirementEdit,
 ): WbsItem[] {
   return items.map((item) =>
     item.requirements.some((r) => r.id === requirementId)
@@ -581,4 +673,189 @@ export function applyRequirementRemove(
   return withRequirements(items, itemId, (list) =>
     numbered(list.filter((r) => r.id !== requirementId)),
   );
+}
+
+/** A requirement's parent within one item's allocated set: null when its parent is not allocated there. */
+function allocatedParent(requirement: WbsRequirement, ids: ReadonlySet<number>): number | null {
+  return requirement.parentId !== null && ids.has(requirement.parentId)
+    ? requirement.parentId
+    : null;
+}
+
+/**
+ * An item's requirements as an outline: each parent before its sub-requirements, siblings by
+ * sortOrder, depth from 0. A parent loop still lists each requirement once.
+ */
+export function requirementOutline(
+  requirements: readonly WbsRequirement[],
+): { requirement: WbsRequirement; depth: number }[] {
+  const ids = new Set(requirements.map((r) => r.id));
+  const bySort = [...requirements].sort((a, b) => a.sortOrder - b.sortOrder);
+  const out: { requirement: WbsRequirement; depth: number }[] = [];
+  const seen = new Set<number>();
+  const visit = (r: WbsRequirement, depth: number) => {
+    if (seen.has(r.id)) return;
+    seen.add(r.id);
+    out.push({ requirement: r, depth });
+    for (const child of bySort) if (child.parentId === r.id) visit(child, depth + 1);
+  };
+  for (const r of bySort) if (allocatedParent(r, ids) === null) visit(r, 0);
+  for (const r of bySort) visit(r, 0);
+  return out;
+}
+
+/**
+ * Tab in the quick-add: a new requirement at the end of `parentId`'s list nests under the last
+ * saved requirement there. Undefined when there is none to nest under.
+ */
+export function requirementIndent(
+  requirements: readonly WbsRequirement[],
+  parentId: number | null,
+): number | undefined {
+  const ids = new Set(requirements.map((r) => r.id));
+  const siblings = requirementOutline(requirements)
+    .map((e) => e.requirement)
+    .filter((r) => r.id > 0 && allocatedParent(r, ids) === parentId);
+  return siblings.at(-1)?.id;
+}
+
+/** Shift+Tab in the quick-add: one level up. Undefined at the top level. */
+export function requirementOutdent(
+  requirements: readonly WbsRequirement[],
+  parentId: number | null,
+): number | null | undefined {
+  if (parentId === null) return undefined;
+  const ids = new Set(requirements.map((r) => r.id));
+  const parent = requirements.find((r) => r.id === parentId);
+  return parent ? allocatedParent(parent, ids) : null;
+}
+
+/** Map a status string to a completion percentage: an item's progress when it has no requirements. */
+export function statusToCompletion(status: string | null): number {
+  switch (status) {
+    case DONE_STATUS:
+      return 100;
+    case "In Progress":
+      return 50;
+    case "On Hold":
+      return 20;
+    default:
+      return 0;
+  }
+}
+
+function average(values: readonly number[]): number {
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
+/** The sum of the values that are set, rounded to `places` decimals, or null when none is. */
+function sumOrNull(values: readonly (number | null)[], places: number): number | null {
+  const set = values.filter((v): v is number => v !== null);
+  if (set.length === 0) return null;
+  const scale = 10 ** places;
+  return Math.round(set.reduce((s, v) => s + v, 0) * scale) / scale;
+}
+
+/**
+ * Percent done of the requirements allocated to one item, from their met ticks (ADR-0052), or null
+ * when it has none. The allocated set is read as a tree by parentId: a requirement whose parent is
+ * also allocated here nests under it. A leaf of that tree is 100 or 0 by its tick; one with
+ * allocated sub-requirements is the average of them, whatever its own tick says, since the tick on
+ * a parent restates what its children already answer. The item is the average of the tree's tops.
+ */
+export function requirementsProgress(requirements: readonly WbsRequirement[]): number | null {
+  if (requirements.length === 0) return null;
+  const ids = new Set(requirements.map((r) => r.id));
+  const children = new Map<number, WbsRequirement[]>();
+  for (const r of requirements) {
+    if (r.parentId === null || !ids.has(r.parentId)) continue;
+    const list = children.get(r.parentId) ?? [];
+    list.push(r);
+    children.set(r.parentId, list);
+  }
+  const done = (r: WbsRequirement, seen: ReadonlySet<number>): number => {
+    const kids = (children.get(r.id) ?? []).filter((k) => !seen.has(k.id));
+    if (kids.length === 0) return r.isMet ? 100 : 0;
+    const next = new Set(seen).add(r.id);
+    return average(kids.map((k) => done(k, next)));
+  };
+  const tops = requirements.filter((r) => r.parentId === null || !ids.has(r.parentId));
+  return average(tops.map((r) => done(r, new Set())));
+}
+
+/**
+ * Percent done of every item, 0 to 100, unrounded (ADR-0052). A parent is the average of its
+ * sub-items. A leaf with allocated requirements is requirementsProgress; one without falls back to
+ * its status (statusToCompletion), so a plan with no requirements reads as it always has.
+ */
+export function itemProgress(wbs: Wbs): Map<number, number> {
+  const out = new Map<number, number>();
+  const visit = (id: number): number => {
+    const node = wbs.nodes.get(id)!;
+    const value =
+      node.childIds.length > 0
+        ? average(node.childIds.map(visit))
+        : (requirementsProgress(node.item.requirements) ?? statusToCompletion(node.item.status));
+    out.set(id, value);
+    return value;
+  };
+  for (const id of wbs.rootIds) visit(id);
+  return out;
+}
+
+/** The whole plan's percent done: the average of its top-level items, or 0 with none. */
+export function planProgress(wbs: Wbs, progress: ReadonlyMap<number, number>): number {
+  if (wbs.rootIds.length === 0) return 0;
+  return average(wbs.rootIds.map((id) => progress.get(id) ?? 0));
+}
+
+/**
+ * Every item's budget (ADR-0052): a leaf's own, a parent's the sum of its sub-items', as its dates
+ * are rolled up from them. usp_KeyDeliverable_Update refuses a budget on a parent for the same
+ * reason. Null when nothing in the branch has one, so "no budget" never reads as 0.
+ */
+export function rolledBudget(wbs: Wbs): Map<number, number | null> {
+  const out = new Map<number, number | null>();
+  const visit = (id: number): number | null => {
+    const node = wbs.nodes.get(id)!;
+    const value =
+      node.childIds.length === 0 ? node.item.budget : sumOrNull(node.childIds.map(visit), 2);
+    out.set(id, value);
+    return value;
+  };
+  for (const id of wbs.rootIds) visit(id);
+  return out;
+}
+
+/** The plan's budget: the sum of its top-level items', or null when none has one. */
+export function planBudget(wbs: Wbs, budgets: ReadonlyMap<number, number | null>): number | null {
+  return sumOrNull(
+    wbs.rootIds.map((id) => budgets.get(id) ?? null),
+    2,
+  );
+}
+
+/** Effort in days (ADR-0052): the estimates of the requirements allocated to an item, or null. */
+export function itemEffort(requirements: readonly WbsRequirement[]): number | null {
+  return sumOrNull(
+    requirements.map((r) => r.estimateDays),
+    1,
+  );
+}
+
+/**
+ * Every item's effort in days (ADR-0052): its own requirements' estimates (itemEffort) plus its
+ * sub-items' rolled effort. Unlike budget, a parent's own requirements count, since work allocated
+ * at a parent is still work. Null when nothing in the branch has an estimate, so it never reads as 0.
+ */
+export function rolledEffort(wbs: Wbs): Map<number, number | null> {
+  const out = new Map<number, number | null>();
+  const visit = (id: number): number | null => {
+    const node = wbs.nodes.get(id)!;
+    const value = sumOrNull([itemEffort(node.item.requirements), ...node.childIds.map(visit)], 1);
+    out.set(id, value);
+    return value;
+  };
+  for (const id of wbs.rootIds) visit(id);
+  return out;
 }

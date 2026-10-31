@@ -44,12 +44,15 @@ export function WbsDependencyArrows({
   links,
   wbs,
   geometryKey,
+  anchorOf,
 }: {
   scrollRef: RefObject<HTMLDivElement | null>;
   links: readonly WbsLink[];
   wbs: Wbs;
   /** Changes whenever anything that moves a bar changes, so the layer re-measures. */
   geometryKey: string;
+  /** For an item with no bar on screen, the item whose bar stands for it (null: none). */
+  anchorOf?: (id: number) => number | null;
 }) {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
@@ -63,8 +66,13 @@ export function WbsDependencyArrows({
     const box = container.getBoundingClientRect();
     const originX = box.left - container.scrollLeft;
     const originY = box.top - container.scrollTop;
-    const barOf = (id: number) => {
+    const elementOf = (id: number) => {
       const el = container.querySelector(`[data-gantt-bar="${id}"]`);
+      if (el || !anchorOf) return el;
+      const anchor = anchorOf(id);
+      return anchor === null ? null : container.querySelector(`[data-gantt-bar="${anchor}"]`);
+    };
+    const barOf = (el: Element | null) => {
       if (!el) return null;
       const r = el.getBoundingClientRect();
       return {
@@ -76,8 +84,12 @@ export function WbsDependencyArrows({
 
     const next: Segment[] = [];
     for (const link of links) {
-      const from = barOf(link.predecessorId);
-      const to = barOf(link.successorId);
+      const fromEl = elementOf(link.predecessorId);
+      const toEl = elementOf(link.successorId);
+      // Two items drawn in one card have nothing to join on screen.
+      if (fromEl === toEl) continue;
+      const from = barOf(fromEl);
+      const to = barOf(toEl);
       if (!from || !to) continue;
       const edges = EDGES[link.type];
       const x1 = edges.from === "end" ? from.right : from.left;
@@ -100,7 +112,7 @@ export function WbsDependencyArrows({
     }
     setSegments(next);
     setSize({ width: container.scrollWidth, height: container.scrollHeight });
-  }, [scrollRef, links, wbs, geometryKey]);
+  }, [scrollRef, links, wbs, geometryKey, anchorOf]);
 
   if (segments.length === 0 || !size) return null;
 

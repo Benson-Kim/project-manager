@@ -138,6 +138,7 @@ export function DeliverablesView({
   canEdit,
   canCreate,
   canDelete,
+  canPackage = false,
   newAction,
 }: {
   projectId: number;
@@ -156,6 +157,7 @@ export function DeliverablesView({
   /** Shows the datasheet's new-entry row. */
   canCreate: boolean;
   canDelete: boolean;
+  canPackage?: boolean;
   newAction?: React.ReactNode;
 }) {
   const { update } = useListUrlState();
@@ -173,7 +175,11 @@ export function DeliverablesView({
         getRowId={(row) => row.KeyDeliverableId}
         getRowLabel={rowLabel}
         onOpen={(row) => update({ d: String(row.KeyDeliverableId) })}
-        renderToolbar={(viewToggle) => <DeliverablesToolbar>{viewToggle}</DeliverablesToolbar>}
+        renderToolbar={(viewToggle) => (
+          <DeliverablesToolbar projectId={projectId} canPackage={canPackage}>
+            {viewToggle}
+          </DeliverablesToolbar>
+        )}
         renderCard={(row) => (
           <div className="flex flex-col gap-2">
             <p className="line-clamp-2 text-sm font-semibold text-ink">

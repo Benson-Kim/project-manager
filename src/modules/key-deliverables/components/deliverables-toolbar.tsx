@@ -4,6 +4,7 @@ import { ListFilter } from "@/components/ui/data-view/list-filter";
 import { SearchInput } from "@/components/ui/data-view/search-input";
 import { Toolbar } from "@/components/ui/toolbar";
 import { messages } from "@/lib/messages";
+import { PackageRequirementsButton } from "@/modules/boards/components/package-requirements";
 
 /**
  * Deliverables toolbar: search over the requirement text plus status and
@@ -11,7 +12,15 @@ import { messages } from "@/lib/messages";
  * Search uses the shared SearchInput which debounces on change and flushes
  * immediately on blur — covering both "type and wait" and "type then submit".
  */
-export function DeliverablesToolbar({ children }: { children?: React.ReactNode }) {
+export function DeliverablesToolbar({
+  projectId,
+  canPackage,
+  children,
+}: {
+  projectId: number;
+  canPackage: boolean;
+  children?: React.ReactNode;
+}) {
   return (
     <Toolbar>
       <SearchInput testId="deliverables-search" />
@@ -29,7 +38,7 @@ export function DeliverablesToolbar({ children }: { children?: React.ReactNode }
         allLabel={messages.keyDeliverables.allPriorities}
         testId="filter-priority"
       />
-      {/* View toggle — injected by DataView via renderToolbar */}
+      {canPackage ? <PackageRequirementsButton projectId={projectId} /> : null}
       {children}
     </Toolbar>
   );

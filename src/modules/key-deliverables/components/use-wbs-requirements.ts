@@ -1,20 +1,25 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { messages } from "@/lib/messages";
+import type { MoSCoW } from "@/modules/requirements/schemas/moscow";
 import type { SolutionType } from "@/modules/requirements/schemas/requirement-types";
 import {
   addRequirementAction,
   moveRequirementAction,
   removeRequirementAction,
+  setRequirementMoscowAction,
+  setRequirementPlanningAction,
   updateRequirementAction,
 } from "../actions";
+import type { AddMore } from "./wbs-requirements";
 import {
   applyRequirementEdit,
   applyRequirementMove,
   applyRequirementRemove,
   findRequirement,
   requirementIn,
+  type RequirementPlanning,
   type WbsItem,
 } from "../schemas/wbs";
 import { readIdSet, writeIdSet } from "./id-set-storage";
@@ -54,22 +59,27 @@ export function useWbsRequirements({
 }) {
   const { canCreate, canEdit } = access;
 
-  // Folded lists, kept per project in this browser like the collapsed branches.
-  const storageKey = `wbs-req-hidden:${projectId}`;
-  const [hidden, setHidden] = useState<ReadonlySet<number>>(() => new Set());
+  // Lists start folded so the chart stays compact; the ones opened are kept per project in this
+  // browser like the collapsed branches.
+  const storageKey = `wbs-req-open:${projectId}`;
+  const [opened, setOpened] = useState<ReadonlySet<number>>(() => new Set());
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       const saved = readIdSet(storageKey);
-      if (saved) setHidden(saved);
+      if (saved) setOpened(saved);
     });
     return () => cancelAnimationFrame(frame);
   }, [storageKey]);
+  const hidden = useMemo<ReadonlySet<number>>(
+    () => new Set(items.filter((item) => !opened.has(item.id)).map((item) => item.id)),
+    [items, opened],
+  );
   const [adding, setAdding] = useState<number | null>(null);
   // The last kind chosen, so adding several of one kind takes one choice.
   const [addType, setAddType] = useState<SolutionType>(DEFAULT_ADD_TYPE);
 
-  function changeHidden(change: (current: ReadonlySet<number>) => ReadonlySet<number>) {
-    setHidden((current) => {
+  function changeOpened(change: (current: ReadonlySet<number>) => ReadonlySet<number>) {
+    setOpened((current) => {
       const next = change(current);
       writeIdSet(storageKey, next);
       return next;
@@ -77,20 +87,18 @@ export function useWbsRequirements({
   }
 
   function show(itemId: number) {
-    changeHidden((current) => {
-      if (!current.has(itemId)) return current;
-      const next = new Set(current);
-      next.delete(itemId);
-      return next;
-    });
+    changeOpened((current) => (current.has(itemId) ? current : new Set(current).add(itemId)));
   }
 
   /** Negative ids for requirements the server has not answered for yet. */
   const pendingId = useRef(0);
 
-  function add(itemId: number, text: string, type: SolutionType) {
+  function add(itemId: number, text: string, type: SolutionType, more: AddMore = {}) {
     if (!canCreate || !hasItem(itemId)) return;
     const tempId = -++pendingId.current;
+    const moscow = more.moscow ?? null;
+    const parentId = more.parentId ?? null;
+    const meetsId = more.meetsId ?? null;
     show(itemId);
     enqueue({
       apply: (rows) =>
@@ -102,13 +110,20 @@ export function useWbsRequirements({
                   ...i.requirements,
                   {
                     id: tempId,
-                    type,
+                    // A sub-requirement takes its parent's type, as the proc does.
+                    type: i.requirements.find((r) => r.id === parentId)?.type ?? type,
                     ref: "",
                     text,
                     isMet: false,
                     sortOrder: i.requirements.length + 1,
                     rowVer: 0,
                     placeRowVer: 0,
+                    parentId,
+                    moscow,
+                    criteria: null,
+                    estimateDays: null,
+                    ownerId: null,
+                    ownerName: null,
                   },
                 ],
               }
@@ -116,7 +131,15 @@ export function useWbsRequirements({
         ),
       send: (current) =>
         current.some((i) => i.id === itemId)
-          ? addRequirementAction({ projectId, itemId, type, text })
+          ? addRequirementAction({
+              projectId,
+              itemId,
+              type,
+              text,
+              moscow,
+              parentRequirementId: parentId,
+              meetsId,
+            })
           : null,
       done: () => announce(W.requirementAdded),
     });
@@ -159,6 +182,40 @@ export function useWbsRequirements({
     });
   }
 
+  /** Shared by every deliverable that lists it, like the wording. */
+  function setMoscow(id: number, moscow: MoSCoW | null) {
+    if (!canEdit || id < 0 || findRequirement(items, id)?.moscow === moscow) return;
+    enqueue({
+      apply: (rows) => applyRequirementEdit(rows, id, { moscow }),
+      send: (current) => {
+        const saved = findRequirement(current, id);
+        return saved
+          ? setRequirementMoscowAction({ requirementId: id, rowVer: saved.rowVer, moscow })
+          : null;
+      },
+    });
+  }
+
+  function setPlanning(id: number, planning: RequirementPlanning) {
+    if (!canEdit || id < 0) return;
+    enqueue({
+      apply: (rows) => applyRequirementEdit(rows, id, planning),
+      send: (current) => {
+        const saved = findRequirement(current, id);
+        return saved
+          ? setRequirementPlanningAction({
+              requirementId: id,
+              rowVer: saved.rowVer,
+              acceptanceCriteria: planning.criteria,
+              estimateDays: planning.estimateDays,
+              ownerStakeholderId: planning.ownerId,
+            })
+          : null;
+      },
+      done: () => announce(messages.feedback.saved),
+    });
+  }
+
   /** Off this deliverable only: the requirement, its wording and its links stay in the register. */
   function remove(itemId: number, id: number) {
     if (!canEdit || id < 0 || !requirementIn(items, itemId, id)) return;
@@ -178,10 +235,12 @@ export function useWbsRequirements({
       if (findRequirement(items, id)?.text !== text) save(id, { text });
     },
     setMet: (id, isMet) => save(id, { isMet }),
+    setMoscow,
+    setPlanning,
     move,
     remove,
     toggle: (itemId) =>
-      changeHidden((current) => {
+      changeOpened((current) => {
         const next = new Set(current);
         if (!next.delete(itemId)) next.add(itemId);
         return next;

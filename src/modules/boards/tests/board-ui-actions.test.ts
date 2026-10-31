@@ -57,6 +57,24 @@ const row = {
   RequirementText: null,
   RequirementIsMet: null,
   RequirementProjectId: null,
+  RequirementMoSCoW: null,
+  RequirementRowVer: null,
+  DeliverableState: "none",
+  KeyDeliverableId: null,
+  DeliverableProjectId: null,
+  DeliverableTitle: null,
+  DeliverableStatus: null,
+  DeliverablePriority: null,
+  DeliverableColor: null,
+  DeliverableStartDate: null,
+  DeliverableDeadline: null,
+  DeliverableRequirementCount: null,
+  DeliverableMetCount: null,
+  DeliverableMustCount: null,
+  DeliverableMustMetCount: null,
+  DeliverableShouldCount: null,
+  DeliverableCouldCount: null,
+  DeliverableWontCount: null,
   Notes: null,
   AssigneeName: null,
   Category: "todo",
@@ -145,6 +163,13 @@ const cases: Case[] = [
     input: { boardCardId: 11, rowVer: 41 },
     proc: "usp_BoardCard_Delete",
     params: { BoardCardId: 11, RowVer: 41 },
+  },
+  {
+    name: "link requirement",
+    call: actions.linkBoardCardRequirementAction,
+    input: { boardCardId: 11, rowVer: 41, requirementId: 21 },
+    proc: "usp_BoardCard_LinkRequirement",
+    params: { BoardCardId: 11, RowVer: 41, RequirementId: 21 },
   },
   {
     name: "create column",
@@ -258,6 +283,13 @@ const cases: Case[] = [
     proc: "usp_BoardCard_Package",
     params: { BoardId: 3, BoardColumnId: 4, BoardSprintId: null, RequirementIds: "[21,22]" },
   },
+  {
+    name: "package deliverables",
+    call: actions.packageDeliverablesAction,
+    input: { boardId: 3, boardColumnId: 4, keyDeliverableIds: [31, 32] },
+    proc: "usp_BoardCard_PackageDeliverables",
+    params: { BoardId: 3, BoardColumnId: 4, BoardSprintId: null, KeyDeliverableIds: "[31,32]" },
+  },
 ];
 beforeEach(() => {
   session = { userId: 7, username: "pm", role: "User" };
@@ -268,13 +300,14 @@ beforeEach(() => {
 describe.each(cases)("$name action", ({ call, input, proc, params }) => {
   it("pins the exact proc arguments and refreshes both route trees once", async () => {
     const result = await call({
-      ...input,
       createdBy: 999,
       actorUserId: 999,
       sortKey: 999,
       requirementId: 999,
+      keyDeliverableId: 999,
       state: "completed",
       isDeleted: true,
+      ...input,
     });
     expect(result.ok).toBe(true);
     expect(execProc.mock.calls).toEqual([[proc, { ...params, ActorUserId: 7 }]]);
@@ -303,14 +336,37 @@ describe.each(cases)("$name action", ({ call, input, proc, params }) => {
     },
   );
 });
+describe("link requirement action", () => {
+  it("unlinks with an explicit null and refuses a payload that leaves the requirement out", async () => {
+    await actions.linkBoardCardRequirementAction({
+      boardCardId: 11,
+      rowVer: 41,
+      requirementId: null,
+    });
+    expect(execProc.mock.calls).toEqual([
+      [
+        "usp_BoardCard_LinkRequirement",
+        { BoardCardId: 11, RowVer: 41, RequirementId: null, ActorUserId: 7 },
+      ],
+    ]);
+    execProc.mockClear();
+    revalidatePath.mockClear();
+    expect(
+      await actions.linkBoardCardRequirementAction({ boardCardId: 11, rowVer: 41 } as never),
+    ).toMatchObject({ ok: false, error: { code: "VALIDATION" } });
+    expect(execProc).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
 describe("board UI reads", () => {
   it("reads card details with a read schema, without write arguments or revalidation", async () => {
     expect(
       (await actions.readBoardCardAction({ boardCardId: 11, rowVer: 99, createdBy: 1 })).ok,
     ).toBe(true);
-    expect(execProc.mock.calls).toEqual([
+    expect(execProcSets.mock.calls).toEqual([
       ["usp_BoardCard_GetById", { BoardCardId: 11, ActorUserId: 7 }],
     ]);
+    expect(execProc).not.toHaveBeenCalled();
     expect(revalidatePath).not.toHaveBeenCalled();
   });
   it("uses all-type packaging options and filters out boards of other projects", async () => {

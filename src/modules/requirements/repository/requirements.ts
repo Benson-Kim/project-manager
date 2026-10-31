@@ -1,6 +1,7 @@
 import { execProc } from "@/lib/db";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
 import type { CreateRequirementValues, UpdateRequirementValues } from "../schemas/requirement-form";
+import type { SetMoscowInput, SetPlanningInput } from "../schemas/requirement-planning";
 import {
   requirementListRowSchema,
   requirementOptionSchema,
@@ -99,6 +100,40 @@ export async function createRequirement(
     ParentRequirementId: input.parentRequirementId,
     ValidatesIds: jsonIds(input.validatesIds),
     KeyDeliverableIds: jsonIds(input.deliverableIds),
+    MoSCoW: input.moscow,
+    AcceptanceCriteria: input.acceptanceCriteria,
+    EstimateDays: input.estimateDays,
+    OwnerStakeholderId: input.ownerStakeholderId,
+    ActorUserId: actorUserId,
+  });
+  return requirementRowSchema.parse(rows[0]);
+}
+
+/** One MoSCoW chip (ADR-0052); answers with the row and its new RowVer. */
+export async function setRequirementMoscow(
+  input: SetMoscowInput,
+  actorUserId: number,
+): Promise<RequirementRow> {
+  const rows = await execProc<RequirementRow>("usp_Requirement_SetMoSCoW", {
+    RequirementId: input.requirementId,
+    MoSCoW: input.moscow,
+    RowVer: input.rowVer,
+    ActorUserId: actorUserId,
+  });
+  return requirementRowSchema.parse(rows[0]);
+}
+
+/** Criteria, estimate and owner together (ADR-0052); answers with the row. */
+export async function setRequirementPlanning(
+  input: SetPlanningInput,
+  actorUserId: number,
+): Promise<RequirementRow> {
+  const rows = await execProc<RequirementRow>("usp_Requirement_SetPlanning", {
+    RequirementId: input.requirementId,
+    AcceptanceCriteria: input.acceptanceCriteria,
+    EstimateDays: input.estimateDays,
+    OwnerStakeholderId: input.ownerStakeholderId,
+    RowVer: input.rowVer,
     ActorUserId: actorUserId,
   });
   return requirementRowSchema.parse(rows[0]);

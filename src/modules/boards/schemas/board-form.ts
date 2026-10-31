@@ -35,3 +35,8 @@ export function boardFormSchema<T extends z.ZodType>(
     return values;
   }, schema);
 }
+
+/** An issue on a value the form does not draw (an id it was opened with) has no Field to show it. */
+export function hasUnshownIssue(error: z.ZodError, drawn: (name: string) => boolean) {
+  return error.issues.some((issue) => !drawn(String(issue.path[0] ?? "")));
+}

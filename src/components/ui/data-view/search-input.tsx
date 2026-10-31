@@ -8,7 +8,16 @@ import { messages } from "@/lib/messages";
  * Controlled search input — debounces 250 ms, syncs to ?q= URL param.
  * Used inside module toolbars so all modules share the same behaviour.
  */
-export function SearchInput({ testId, placeholder }: { testId?: string; placeholder?: string }) {
+export function SearchInput({
+  testId,
+  placeholder,
+  compact = false,
+}: {
+  testId?: string;
+  placeholder?: string;
+  /** A small, fixed-width box in a 32 px tools row (boards) instead of the full-width one. */
+  compact?: boolean;
+}) {
   const { searchParams, update } = useListUrlState();
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -29,14 +38,14 @@ export function SearchInput({ testId, placeholder }: { testId?: string; placehol
   };
 
   return (
-    <label className="min-w-0 flex-1">
+    <label className={compact ? "w-full min-w-0 sm:w-56" : "min-w-0 flex-1"}>
       <span className="sr-only">{placeholder ?? messages.list.search}</span>
       <input
         type="search"
         autoComplete="off"
         placeholder={placeholder ?? messages.list.search}
         data-testid={testId ?? "search-input"}
-        className="min-h-10 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink"
+        className={`${compact ? "min-h-8" : "min-h-10"} w-full rounded-md border border-line bg-surface px-3 text-sm text-ink`}
         value={query}
         onChange={(e) => onChange(e.target.value)}
       />

@@ -3,13 +3,14 @@ import { PageHeader } from "@/components/ui/page-header";
 import { RichTextView } from "@/components/ui/rich-text/rich-text-view";
 import { messages } from "@/lib/messages";
 import type { ProjectPermissions } from "@/modules/projects/repository/project-access";
-import { notesListHref } from "../note-links";
+import { notePrintHref, notesListHref } from "../note-links";
 import type { NoteWorkspace } from "../schemas/note";
 import { NotebookWorkspace } from "./notebook-workspace";
 
 /**
  * The body of both notebook routes (/projects/[id]/notes/[noteId] and
- * /notes/[noteId]): the way back to its list, the title and the workspace.
+ * /notes/[noteId]): the way back to its list, the title, the print link and the
+ * workspace.
  * `allows` is bound to the notebook's project, or to the shared space.
  * Readers without update get the pages rendered on the server.
  */
@@ -20,7 +21,7 @@ export function NotebookPage({
   workspace: NoteWorkspace;
   allows: ProjectPermissions;
 }) {
-  const { note, tabs } = workspace;
+  const { note, sections, tabs } = workspace;
   const listHref = notesListHref(note.ProjectId);
   const canUpdate = allows("notes:update");
   const views = canUpdate
@@ -38,9 +39,21 @@ export function NotebookPage({
       >
         {messages.notes.backToList}
       </Link>
-      <PageHeader title={note.Title ?? messages.notes.untitled} />
+      <PageHeader
+        title={note.Title ?? messages.notes.untitled}
+        action={
+          <Link
+            href={notePrintHref(note)}
+            data-testid="note-print-link"
+            className="inline-flex min-h-11 items-center text-sm font-medium text-accent"
+          >
+            {messages.notes.print}
+          </Link>
+        }
+      />
       <NotebookWorkspace
         note={note}
+        sections={sections}
         tabs={tabs}
         views={views}
         listHref={listHref}

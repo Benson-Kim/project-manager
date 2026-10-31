@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
+import { moscowSchema } from "./moscow";
 import { requirementTypeSchema, type RequirementType } from "./requirement-types";
 
 /**
@@ -69,6 +70,13 @@ const requirementColumns = z.object({
   Depth: z.number().int().nonnegative(),
   /** Live sub-requirements directly under this row: what a type change or a delete would hit. */
   ChildCount: z.number().int().nonnegative(),
+  ParentRequirementId: z.number().int().nullable(),
+  /** Planning (ADR-0052). NULL MoSCoW is "not prioritised yet"; OwnerName is NULL once deleted. */
+  MoSCoW: moscowSchema.nullable(),
+  AcceptanceCriteria: z.string().nullable(),
+  EstimateDays: z.number().nonnegative().nullable(),
+  OwnerStakeholderId: z.number().int().nullable(),
+  OwnerName: z.string().nullable(),
   Requirement: z.string(),
   IsMet: bit,
   CreatedAtUtc: z.date(),

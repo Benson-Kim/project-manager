@@ -68,7 +68,7 @@ export function Combobox({
     [options, query, selected],
   );
   const filtered = ranked.map((r) => r.option);
-  const up = usePopoverPlacement(inputRef, listRef, open && filtered.length > 0, {
+  usePopoverPlacement(inputRef, listRef, open && filtered.length > 0, {
     fit: true,
     contentKey: filtered.length,
   });
@@ -158,7 +158,7 @@ export function Combobox({
         id={listboxId}
         role="listbox"
         hidden={!open || filtered.length === 0}
-        className={`absolute z-(--z-dropdown) ${up ? "bottom-full mb-1" : "mt-1"} max-h-60 w-full overflow-auto rounded-md border border-line bg-surface-raised shadow-lg`}
+        className="fixed z-(--z-dropdown) max-h-60 overflow-auto rounded-md border border-line bg-surface-raised shadow-lg"
       >
         {ranked.map(({ option, rank }, index) => (
           <li

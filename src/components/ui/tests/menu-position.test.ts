@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shiftIntoView } from "../menu";
+import { shiftIntoView } from "../popover-placement";
 
 describe("shiftIntoView (menu panel on a narrow window)", () => {
   it.each([

@@ -51,6 +51,17 @@
   --color-tone-gray-soft: var(--tone-gray-soft);
   --color-tone-gray-ink: var(--tone-gray-ink);
 
+  /* Plan views (work breakdown, Gantt, kanban): one fill per outline level with
+     --level-ink on top, and coral for today, drop marks and the moving item.
+     Components use them via src/components/ui/tones.ts (planTone) only. */
+  --color-level-1: var(--level-1);
+  --color-level-2: var(--level-2);
+  --color-level-3: var(--level-3);
+  --color-level-3-line: var(--level-3-line);
+  --color-level-ink: var(--level-ink);
+  --color-coral: var(--coral);
+  --color-on-coral: var(--on-coral);
+
   /* Radius */
   --radius-sm: 0.375rem;
   --radius-md: 0.625rem;
@@ -64,6 +75,7 @@
 
   /* Z-index scale — no other z-index values are permitted. */
   --z-nav: 30;
+  --z-fullscreen: 35;
   --z-sheet: 40;
   --z-dialog: 50;
   --z-dropdown: 55;
@@ -115,6 +127,13 @@
   --hl-orange: #fdba74;
   --hl-purple: #d8b4fe;
   --hl-gray: #cbd5e1;
+  --level-1: #e0c0ff;
+  --level-2: #8be9ff;
+  --level-3: #d9f7ff;
+  --level-3-line: #5cc8e6;
+  --level-ink: #1c2340;
+  --coral: #ef6a62;
+  --on-coral: #1c2340;
   color-scheme: light;
 }
 
@@ -160,11 +179,21 @@
   --hl-orange: #7c2d12;
   --hl-purple: #581c87;
   --hl-gray: #334155;
+  --level-1: #51346c;
+  --level-2: #134656;
+  --level-3: #12323c;
+  --level-3-line: #2fa8c9;
+  --level-ink: #eef0f8;
+  --coral: #ef6a62;
+  --on-coral: #1c2340;
   color-scheme: dark;
 }
 
 /* Dark variant for the rare case a component needs an explicit dark: utility. */
 @custom-variant dark ([data-theme="dark"] &);
+
+/* The desktop sidebar collapsed to an icon rail (html[data-sidebar], see sidebar-state.ts). */
+@custom-variant rail ([data-sidebar="collapsed"] &);
 
 body {
   background: var(--surface);
@@ -303,30 +332,30 @@ button:focus-visible {
   padding-left: 1.5rem;
 }
 
+/* Each bullet level has its own marker, as in Word. */
+.rich-text :is(ul, ol) ul {
+  list-style-type: circle;
+}
+
+.rich-text :is(ul, ol) :is(ul, ol) ul {
+  list-style-type: square;
+}
+
 .rich-text ol {
   list-style: decimal;
   padding-left: 1.5rem;
 }
 
-/* Legal numbering (client feedback 2026-10-26, E6): an indented item reads
-   1.1, then 1.1.1, instead of restarting at 1. counters() joins the chain, so
-   the nested lists an indent creates inherit it without carrying the attribute
-   themselves. */
-.rich-text ol[data-numbering="legal"],
-.rich-text ol[data-numbering="legal"] ol {
-  list-style: none;
-  counter-reset: rt-legal;
+/* A numbered item under a numbered item reads 1.1, then 1.1.1, never 1 again
+   (user, 2026-10-31). Lettered and roman lists carry an inline list-style-type,
+   so only plain numbering chains; list-item keeps the start number. A numbered
+   list under a bullet or a lettered list starts its own chain. */
+.rich-text ol:not([style]) > li::marker {
+  content: counters(list-item, ".") ". ";
 }
 
-.rich-text ol[data-numbering="legal"] > li,
-.rich-text ol[data-numbering="legal"] ol > li {
-  counter-increment: rt-legal;
-}
-
-.rich-text ol[data-numbering="legal"] > li::before,
-.rich-text ol[data-numbering="legal"] ol > li::before {
-  content: counters(rt-legal, ".") ". ";
-  margin-inline-end: 0.25rem;
+.rich-text :is(ul, ol[style]) ol:not([style]) > li::marker {
+  content: counter(list-item) ". ";
 }
 
 .rich-text blockquote {
@@ -700,6 +729,11 @@ button:focus-visible {
     --hl-orange: #fdba74;
     --hl-purple: #d8b4fe;
     --hl-gray: #cbd5e1;
+    --level-1: #e0c0ff;
+    --level-2: #8be9ff;
+    --level-3: #d9f7ff;
+    --level-3-line: #5cc8e6;
+    --level-ink: #1c2340;
     color-scheme: light;
   }
 
@@ -731,23 +765,25 @@ button:focus-visible {
     size: A4 landscape;
   }
 
-  /* The WBS and Gantt scroll container: no clipping, no height cap, so every
-     row prints. The Months scale fits the most time on a page. */
-  [data-testid="gantt-chart"] {
+  /* The WBS and Gantt scroll containers: no clipping, no height cap, so every
+     card and box prints, shrunk to the page's width (usePrintFit sets
+     --print-zoom just before printing). */
+  [data-print-fit] {
     overflow: visible !important;
     max-height: none !important;
     border: none !important;
     border-radius: 0 !important;
+    zoom: var(--print-zoom, 1);
   }
 
   /* Sticky positioning does not apply to print; remove it so columns lay out
      normally in the flat flow. */
-  [data-testid="gantt-chart"] .sticky {
+  [data-print-fit] .sticky {
     position: static !important;
   }
 
-  /* Avoid page breaks inside a row. */
-  [data-testid="gantt-chart"] li {
+  /* Avoid page breaks inside a card. */
+  [data-print-fit] li {
     break-inside: avoid;
     page-break-inside: avoid;
   }

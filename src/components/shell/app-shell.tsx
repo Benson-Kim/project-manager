@@ -18,13 +18,17 @@ import { OfflineBanner } from "./offline-banner";
 import { RouteProgress } from "./route-progress";
 import { MenuIcon } from "./shell-icons";
 import { SidebarContent } from "./sidebar-content";
+import { useSidebar } from "./sidebar-toggle";
 import { ProjectHeader, type ProjectOption } from "./project-header";
+
+const SIDEBAR_ID = "app-sidebar";
 
 /**
  * App shell (spec in issue #28): desktop sidebar (logo, New project, nav,
  * Settings + Logout pinned) + header (page title left; bell, theme toggle,
  * avatar menu right). On < md the sidebar collapses into a drawer (the ONE
- * overlay engine — Radix Sheet: focus trap, Escape, focus return).
+ * overlay engine — Radix Sheet: focus trap, Escape, focus return). On md+ the
+ * viewer can collapse it to an icon rail, remembered per viewer.
  */
 export function AppShell({
   username,
@@ -46,6 +50,7 @@ export function AppShell({
   const pathname = usePathname();
   const { announce } = useAnnouncer();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const sidebar = useSidebar();
   const dueAlarms = useAlertPoller();
   const projectMatch = pathname.match(/^\/projects\/(\d+)(\/.*)?$/);
   const projectId = projectMatch ? Number(projectMatch[1]) : null;
@@ -70,14 +75,17 @@ export function AppShell({
 
       {/* Desktop sidebar */}
       <nav
+        id={SIDEBAR_ID}
         aria-label={messages.app.menu}
-        className="sticky top-0 hidden h-dvh w-60 shrink-0 bg-surface-raised p-3 md:block"
+        data-testid="sidebar"
+        className="sticky top-0 hidden h-dvh w-60 shrink-0 overflow-x-clip bg-surface-raised p-3 transition-[width] duration-150 motion-reduce:transition-none md:block rail:w-18"
       >
         <SidebarContent
           canCreateProject={canCreateProject}
           canCreateDailyActivity={canCreateDailyActivity}
           canCreateTodo={canCreateTodo}
           pathname={pathname}
+          rail={{ ...sidebar, controls: SIDEBAR_ID }}
         />
       </nav>
 
@@ -96,7 +104,8 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col bg-surface-raised pt-2 pr-2 pb-2">
         <div className="flex flex-col flex-1 p-3 pb-4 rounded-2xl bg-surface border border-line min-h-[calc(100dvh-1rem)]">
-          <header className="sticky top-0 z-(--z-dialog) flex h-14 items-center gap-1 border border-line bg-surface px-4 py-3 rounded-t-md [background-image:linear-gradient(to_bottom,var(--surface-raised),var(--surface))]">
+          {/* A full-screen view (useFullscreen) covers the page from inside main: the header steps aside. */}
+          <header className="sticky top-0 z-(--z-dialog) flex h-14 items-center gap-1 border border-line bg-surface px-4 py-3 rounded-t-md [background-image:linear-gradient(to_bottom,var(--surface-raised),var(--surface))] [:root:fullscreen_&]:hidden">
             <button
               type="button"
               aria-label={messages.app.menu}
@@ -123,7 +132,10 @@ export function AppShell({
               <AvatarMenu username={username} />
             </div>
           </header>
-          <main id="main" className="relative z-0 flex flex-col flex-1 px-4">
+          <main
+            id="main"
+            className="relative z-0 flex flex-col flex-1 px-4 [--editor-toolbar-top:3.5rem]"
+          >
             {children}
           </main>
         </div>

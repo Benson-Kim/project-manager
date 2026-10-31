@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NOTES_HREF, noteHref, notesListHref } from "../note-links";
+import { NOTES_HREF, noteHref, notePrintHref, notesListHref } from "../note-links";
 
 describe("note links", () => {
   it("puts a project's notebooks under the project", () => {
@@ -10,5 +10,10 @@ describe("note links", () => {
   it("puts project-less notebooks in the shared space at /notes", () => {
     expect(notesListHref(null)).toBe(NOTES_HREF);
     expect(noteHref({ NoteId: 4, ProjectId: null })).toBe("/notes/4");
+  });
+
+  it("prints a notebook from beside it", () => {
+    expect(notePrintHref({ NoteId: 4, ProjectId: 2 })).toBe("/projects/2/notes/4/print");
+    expect(notePrintHref({ NoteId: 4, ProjectId: null })).toBe("/notes/4/print");
   });
 });

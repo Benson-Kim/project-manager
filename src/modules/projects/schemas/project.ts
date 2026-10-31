@@ -47,6 +47,9 @@ export const projectRowSchema = z.object({
   ProjectStatus: z.string().nullable(),
   ProjectPhase: z.string().nullable(),
   RiskLevel: z.string().nullable(),
+  /** The work breakdown's sticky note (ADR-0052). usp_Project_GetById only; written by
+   *  usp_KeyDeliverable_SetPlanNote, never by the project form. */
+  PlanNote: z.string().nullable().optional(),
   CreatedAtUtc: z.date(),
   UpdatedAtUtc: z.date().nullable(),
   RowVer: rowVerSchema,

@@ -116,6 +116,7 @@ export default async function DeliverablesPage({
             canEdit={dParam === "new" ? canCreate : canEdit}
             canCreate={canCreate}
             canDelete={canDelete}
+            canPackage={allows("boards:create")}
             newAction={canCreate ? newDeliverableLink : undefined}
           />
         </LookupListsScope>

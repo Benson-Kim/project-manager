@@ -36,6 +36,10 @@ function tabs(page: Page) {
   return page.getByRole("tablist", { name: "Pages" }).getByTestId("note-tab");
 }
 
+function sections(page: Page) {
+  return page.getByRole("tablist", { name: messages.notes.tabs }).getByTestId("note-section");
+}
+
 async function addPage(page: Page, expected: number) {
   await page.getByTestId("note-add-page").click();
   await expect(tabs(page)).toHaveCount(expected);
@@ -208,6 +212,151 @@ test("/notes lists a project's notebook with its project and opens it under the 
 
   await page.goto(projectUrl.replace(/\/projects\/\d+\/notes\//, "/notes/"));
   await page.waitForURL(projectUrl);
+});
+
+test("groups pages into tabs, moves a page between them, renames, reorders and removes the tabs", async ({
+  page,
+}) => {
+  await newNotebook(page);
+  await rename(page, `Tabbed ${Date.now()}`);
+  await savePage(page, "One");
+  await addPage(page, 2);
+  await tabs(page).nth(1).click();
+  await savePage(page, "Two");
+  await expect(sections(page)).toHaveCount(0);
+
+  await page.getByTestId("note-add-tab").click();
+  await expect(sections(page)).toHaveText([messages.notes.newTabTitle(1)]);
+  await expect(tabs(page)).toHaveText(["One", "Two"]);
+
+  await page.getByTestId("note-add-tab").click();
+  await expect(sections(page)).toHaveCount(2);
+  await expect(sections(page).nth(1)).toHaveAttribute("aria-selected", "true");
+  await expect(tabs(page)).toHaveText([messages.notes.firstPageTitle]);
+  await expect(page.getByTestId("note-page-title")).toHaveValue(messages.notes.firstPageTitle);
+  await expect(page.getByTestId("note-page-delete")).toBeDisabled();
+  await savePage(page, "Three");
+
+  await sections(page).nth(0).click();
+  await page.getByRole("tab", { name: "Two" }).click();
+  await page
+    .getByTestId("note-page-move-to-tab")
+    .selectOption({ label: messages.notes.newTabTitle(2) });
+  await expect(sections(page).nth(1)).toHaveAttribute("aria-selected", "true");
+  await expect(tabs(page)).toHaveText(["Three", "Two"]);
+  await expect(page.getByRole("tab", { name: "Two" })).toHaveAttribute("aria-selected", "true");
+
+  await sections(page).nth(0).click();
+  await expect(tabs(page)).toHaveText(["One"]);
+  await expect(page.getByTestId("note-page-move-to-tab")).toBeDisabled();
+  await expect(page.getByTestId("note-page-delete")).toBeDisabled();
+
+  await sections(page).nth(1).click();
+  await page.getByTestId("note-tab-rename").click();
+  const renaming = page.getByRole("dialog").filter({ hasText: messages.notes.renameTab });
+  await renaming.getByTestId("note-tab-title").fill("Ideas");
+  await renaming.getByTestId("note-tab-save").click();
+  await expect(renaming).toHaveCount(0);
+  await expect(sections(page).nth(1)).toHaveText("Ideas");
+
+  await page.getByTestId("note-section-move-left").click();
+  await expect(sections(page)).toHaveText(["Ideas", messages.notes.newTabTitle(1)]);
+
+  await page.getByTestId("note-add-tab").click();
+  await expect(sections(page)).toHaveCount(3);
+  await page.getByTestId("note-tab-delete").click();
+  const deleting = page.getByRole("dialog").filter({ hasText: messages.notes.deleteTab });
+  await deleting.getByRole("button", { name: messages.actions.delete }).click();
+  await expect(deleting).toHaveCount(0);
+  await expect(sections(page)).toHaveText(["Ideas", messages.notes.newTabTitle(1)]);
+
+  await page.reload();
+  await expect(sections(page)).toHaveText(["Ideas", messages.notes.newTabTitle(1)]);
+  await expect(tabs(page)).toHaveText(["Three", "Two"]);
+  await expect(editor(page)).toBeVisible({ timeout: 15_000 });
+  expect(await axeClean(page)).toEqual([]);
+
+  await page.getByTestId("note-tabs-remove").click();
+  const removing = page.getByRole("dialog").filter({ hasText: messages.notes.removeTabsConfirm });
+  await removing.getByRole("button", { name: messages.notes.removeTabs }).click();
+  await expect(removing).toHaveCount(0);
+  await expect(sections(page)).toHaveCount(0);
+  await expect(tabs(page)).toHaveText(["Three", "Two", "One"]);
+
+  await page.reload();
+  await expect(sections(page)).toHaveCount(0);
+  await expect(tabs(page)).toHaveText(["Three", "Two", "One"]);
+});
+
+test("prints a notebook with each tab and its pages, and leads back to it", async ({ page }) => {
+  const unique = `Printed ${Date.now()}`;
+  await newNotebook(page);
+  await rename(page, unique);
+  await editor(page).click();
+  await page.keyboard.type("First page text");
+  await savePage(page, "Opening");
+  await page.getByTestId("note-add-tab").click();
+  await expect(sections(page)).toHaveCount(1);
+  await page.getByTestId("note-add-tab").click();
+  await expect(sections(page)).toHaveCount(2);
+  await expect(page.getByTestId("note-page-title")).toHaveValue(messages.notes.firstPageTitle);
+  await expect(editor(page)).toBeVisible({ timeout: 15_000 });
+  await editor(page).click();
+  await page.keyboard.type("Second tab text");
+  await savePage(page, "Follow-up");
+  const notebook = page.url();
+
+  await page.getByTestId("note-print-link").click();
+  await page.waitForURL(`${notebook}/print`);
+  const printed = page.getByTestId("printed-note");
+  await expect(printed.getByRole("heading", { level: 1 })).toHaveText(unique);
+  await expect(printed.getByTestId("print-note-tab")).toHaveCount(2);
+  await expect(printed.getByRole("heading", { level: 2 })).toHaveText([
+    messages.notes.newTabTitle(1),
+    messages.notes.newTabTitle(2),
+  ]);
+  await expect(printed.getByTestId("print-note-page")).toHaveText([
+    /Opening\s*First page text/,
+    /Follow-up\s*Second tab text/,
+  ]);
+  await expect(page.getByTestId("note-print")).toBeVisible();
+  await expect(page).toHaveTitle(new RegExp(unique));
+  expect(await axeClean(page)).toEqual([]);
+
+  await page.getByTestId("note-print-back").click();
+  await page.waitForURL(notebook);
+});
+
+test("prints a notebook without tabs as one list of pages", async ({ page }) => {
+  const unique = `Plain print ${Date.now()}`;
+  await newNotebook(page, "/notes");
+  await rename(page, unique);
+  await savePage(page, "Only page");
+  await page.goto(`${page.url()}/print`);
+  const printed = page.getByTestId("printed-note");
+  await expect(printed.getByRole("heading", { level: 1 })).toHaveText(unique);
+  await expect(printed.getByRole("heading", { level: 2 })).toHaveText(["Only page"]);
+  await expect(printed.getByTestId("print-note-page")).toHaveCount(1);
+});
+
+test("keeps the editor toolbar in view, under the header, while a long page scrolls", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await newNotebook(page);
+  await editor(page).click();
+  for (let line = 0; line < 40; line++) await page.keyboard.press("Enter");
+  await page.keyboard.type("Last line");
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+
+  const header = (await page.getByRole("banner").boundingBox())!;
+  const toolbar = page.getByRole("toolbar", { name: "Formatting" });
+  const bar = (await toolbar.boundingBox())!;
+  expect((await editor(page).boundingBox())!.y).toBeLessThan(0);
+  expect(Math.abs(bar.y - (header.y + header.height))).toBeLessThanOrEqual(1);
+  await toolbar.getByRole("button", { name: "Bold" }).click();
+  await page.keyboard.type(" bold");
+  await expect(editor(page).locator("strong")).toHaveText("bold");
 });
 
 test("axe: the shared notes list has no serious or critical violations", async ({ page }) => {

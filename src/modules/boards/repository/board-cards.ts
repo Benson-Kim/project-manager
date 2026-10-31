@@ -1,16 +1,18 @@
-import { execProc } from "@/lib/db";
+import { execProc, execProcSets } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import {
   boardCardDetailRowSchema,
   boardCardRowSchema,
   createBoardCardInput,
   deleteBoardCardInput,
+  linkBoardCardInput,
   moveBoardCardInput,
   updateBoardCardInput,
   type BoardCardDetailRow,
   type BoardCardRow,
   type CreateBoardCardInput,
   type DeleteBoardCardInput,
+  type LinkBoardCardInput,
   type MoveBoardCardInput,
   type UpdateBoardCardInput,
 } from "../schemas/board-card";
@@ -50,12 +52,13 @@ export async function getBoardCardById(
   boardCardId: number,
   actorUserId: number,
 ): Promise<BoardCardDetailRow> {
-  const rows = await execProc<BoardCardDetailRow>("usp_BoardCard_GetById", {
+  const [cards = [], requirements = []] = await execProcSets("usp_BoardCard_GetById", {
     BoardCardId: boardCardId,
     ActorUserId: actorUserId,
   });
-  if (!rows[0]) throw new AppError("NOT_FOUND", "Card not found");
-  return boardCardDetailRowSchema.parse(rows[0]);
+  const card = cards[0];
+  if (!card) throw new AppError("NOT_FOUND", "Card not found");
+  return boardCardDetailRowSchema.parse({ ...card, DeliverableRequirements: requirements });
 }
 
 export async function updateBoardCard(
@@ -106,4 +109,23 @@ export async function deleteBoardCard(
     RowVer: parsed.rowVer,
     ActorUserId: actorUserId,
   });
+}
+
+/**
+ * Attach a requirement to an existing card, or detach it with null (usp_BoardCard_LinkRequirement).
+ * Its own intention, apart from an edit: the proc checks the requirement's project, that no other
+ * live card on the board has it, and that a card left with no requirement still shows something.
+ */
+export async function linkBoardCardRequirement(
+  input: LinkBoardCardInput,
+  actorUserId: number,
+): Promise<BoardCardRow> {
+  const parsed = linkBoardCardInput.parse(input);
+  const rows = await execProc<BoardCardRow>("usp_BoardCard_LinkRequirement", {
+    BoardCardId: parsed.boardCardId,
+    RowVer: parsed.rowVer,
+    RequirementId: parsed.requirementId,
+    ActorUserId: actorUserId,
+  });
+  return boardCardRowSchema.parse(rows[0]);
 }

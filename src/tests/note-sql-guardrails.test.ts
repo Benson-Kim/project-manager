@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { NOTE_PAGES_MAX, NOTE_REORDER_MAX } from "@/modules/notes/schemas/note";
 
-const FOLDERS = ["note", "note-tab"];
+const FOLDERS = ["note", "note-tab", "note-section"];
 
 const PROCS = new Map(
   FOLDERS.flatMap((folder) =>
@@ -43,8 +43,14 @@ describe("note SQL guardrails", () => {
         "usp_NoteTab_Delete",
         "usp_NoteTab_GetById",
         "usp_NoteTab_List",
+        "usp_NoteTab_Move",
         "usp_NoteTab_Reorder",
         "usp_NoteTab_Update",
+        "usp_NoteSection_Create",
+        "usp_NoteSection_Delete",
+        "usp_NoteSection_Reorder",
+        "usp_NoteSection_Ungroup",
+        "usp_NoteSection_Update",
       ].sort(),
     );
   });
@@ -91,9 +97,12 @@ describe("note SQL guardrails", () => {
       const fromNote = / FROM app\.Note WHERE NoteId = @NoteId AND IsDeleted = 0;$/;
       const fromPage =
         / FROM app\.NoteTab AS t JOIN app\.Note AS n ON n\.NoteId = t\.NoteId AND n\.IsDeleted = 0 WHERE t\.NoteTabId = @NoteTabId AND t\.IsDeleted = 0;$/;
-      expect(fromNote.test(statement) || fromPage.test(statement), `${name}: ${statement}`).toBe(
-        true,
-      );
+      const fromSection =
+        / FROM app\.NoteSection AS s JOIN app\.Note AS n ON n\.NoteId = s\.NoteId AND n\.IsDeleted = 0 WHERE s\.NoteSectionId = @NoteSectionId AND s\.IsDeleted = 0;$/;
+      expect(
+        [fromNote, fromPage, fromSection].some((from) => from.test(statement)),
+        `${name}: ${statement}`,
+      ).toBe(true);
       expect(read!.index, name).toBeLessThan(text.indexOf("EXEC dbo.usp_Project_AssertAccess"));
     }
     for (const [name, text] of PROCS) {
@@ -119,12 +128,17 @@ describe("note SQL guardrails", () => {
       "usp_NoteTab_Create",
       "usp_NoteTab_Update",
       "usp_NoteTab_Reorder",
+      "usp_NoteTab_Move",
+      "usp_NoteSection_Create",
+      "usp_NoteSection_Update",
+      "usp_NoteSection_Reorder",
+      "usp_NoteSection_Ungroup",
     ]) {
       const text = sql(name);
       expect(text, name).toMatch(/@MinLevel\s*=\s*N'Contributor'/);
       expect(text, name).toMatch(/@Permission\s*=\s*N'notes:(create|update)'/);
     }
-    for (const name of ["usp_Note_Delete", "usp_NoteTab_Delete"]) {
+    for (const name of ["usp_Note_Delete", "usp_NoteTab_Delete", "usp_NoteSection_Delete"]) {
       const text = sql(name);
       expect(text, name).toMatch(/@MinLevel\s*=\s*N'Manager'/);
       expect(text, name).toContain("@Permission = N'notes:delete'");
@@ -132,10 +146,18 @@ describe("note SQL guardrails", () => {
   });
 
   it("names the permission that matches the verb", () => {
-    for (const name of ["usp_Note_Create", "usp_NoteTab_Create"]) {
+    for (const name of ["usp_Note_Create", "usp_NoteTab_Create", "usp_NoteSection_Create"]) {
       expect(sql(name), name).toContain("@Permission = N'notes:create'");
     }
-    for (const name of ["usp_Note_Update", "usp_NoteTab_Update", "usp_NoteTab_Reorder"]) {
+    for (const name of [
+      "usp_Note_Update",
+      "usp_NoteTab_Update",
+      "usp_NoteTab_Reorder",
+      "usp_NoteTab_Move",
+      "usp_NoteSection_Update",
+      "usp_NoteSection_Reorder",
+      "usp_NoteSection_Ungroup",
+    ]) {
       expect(sql(name), name).toContain("@Permission = N'notes:update'");
     }
   });
@@ -147,16 +169,28 @@ describe("note SQL guardrails", () => {
       "usp_NoteTab_Update",
       "usp_NoteTab_Delete",
       "usp_NoteTab_Reorder",
+      "usp_NoteTab_Move",
+      "usp_NoteSection_Create",
+      "usp_NoteSection_Update",
+      "usp_NoteSection_Delete",
+      "usp_NoteSection_Reorder",
+      "usp_NoteSection_Ungroup",
     ]) {
       expect(sql(name), name).toMatch(/\b(FROM|JOIN) app\.Note\b/);
     }
   });
 
-  it("soft-deletes a note's pages with the note", () => {
+  it("soft-deletes a note's pages and tabs with the note", () => {
     const text = sql("usp_Note_Delete");
-    expect(
-      afterBeginTran("usp_Note_Delete", /UPDATE app\.NoteTab\b[\s\S]*?IsDeleted\s*=\s*1/),
-    ).toBe(true);
+    for (const table of ["NoteTab", "NoteSection"]) {
+      expect(
+        afterBeginTran(
+          "usp_Note_Delete",
+          new RegExp(`UPDATE app\\.${table}\\b[\\s\\S]*?IsDeleted\\s*=\\s*1`),
+        ),
+        table,
+      ).toBe(true);
+    }
     expect(text).toMatch(/UPDATE app\.Note\b[\s\S]*?IsDeleted\s*=\s*1/);
   });
 
@@ -166,6 +200,9 @@ describe("note SQL guardrails", () => {
       "usp_Note_Delete",
       "usp_NoteTab_Update",
       "usp_NoteTab_Delete",
+      "usp_NoteTab_Move",
+      "usp_NoteSection_Update",
+      "usp_NoteSection_Delete",
     ]) {
       expect(afterBeginTran(name, "AND CAST(RowVer AS BIGINT) = @RowVer"), name).toBe(true);
     }
@@ -186,17 +223,23 @@ describe("note SQL guardrails", () => {
   });
 
   it("locks the note row before reordering and validates the order JSON", () => {
-    const text = sql("usp_NoteTab_Reorder");
-    const tran = text.indexOf("BEGIN TRAN");
-    const lock = text.search(NOTE_LOCK);
-    expect(tran).toBeGreaterThanOrEqual(0);
-    expect(lock).toBeGreaterThan(tran);
-    expect(text).toContain("@OrderJson");
-    expect(text).toContain("ISJSON(@OrderJson)");
-    expect(text).toContain("OPENJSON(@OrderJson)");
-    expect(text).toContain("TRY_CAST(");
-    expect(text).toMatch(new RegExp(`> ${NOTE_REORDER_MAX}\\b`));
-    expect(text).toMatch(/THROW 50004, N'VALIDATION:/);
+    for (const name of [
+      "usp_NoteTab_Reorder",
+      "usp_NoteSection_Reorder",
+      "usp_NoteSection_Ungroup",
+    ]) {
+      const text = sql(name);
+      const tran = text.indexOf("BEGIN TRAN");
+      const lock = text.search(NOTE_LOCK);
+      expect(tran, name).toBeGreaterThanOrEqual(0);
+      expect(lock, name).toBeGreaterThan(tran);
+      expect(text, name).toContain("@OrderJson");
+      expect(text, name).toContain("ISJSON(@OrderJson)");
+      expect(text, name).toContain("OPENJSON(@OrderJson)");
+      expect(text, name).toContain("TRY_CAST(");
+      expect(text, name).toMatch(new RegExp(`> ${NOTE_REORDER_MAX}\\b`));
+      expect(text, name).toMatch(/THROW 50004, N'VALIDATION:/);
+    }
   });
 
   it("caps a notebook at the pages a reorder can name, counted under the note lock", () => {
@@ -209,14 +252,55 @@ describe("note SQL guardrails", () => {
         ),
       ),
     ).toBe(true);
-    expect(sql("usp_NoteTab_Create")).toContain(
-      "THROW 50004, N'VALIDATION:A notebook holds at most",
-    );
+    expect(
+      afterBeginTran(
+        "usp_NoteSection_Create",
+        new RegExp(`WITH \\(UPDLOCK, HOLDLOCK\\)[\\s\\S]*@Pages >= ${NOTE_PAGES_MAX}\\b`),
+      ),
+    ).toBe(true);
+    for (const name of ["usp_NoteTab_Create", "usp_NoteSection_Create"]) {
+      expect(sql(name), name).toContain("THROW 50004, N'VALIDATION:A notebook holds at most");
+    }
   });
 
-  it("locks the note before adding or removing one of its pages", () => {
-    for (const name of ["usp_NoteTab_Create", "usp_NoteTab_Delete"]) {
+  it("locks the note before adding, removing or moving a page or a tab", () => {
+    for (const name of [
+      "usp_NoteTab_Create",
+      "usp_NoteTab_Delete",
+      "usp_NoteTab_Move",
+      "usp_NoteSection_Create",
+      "usp_NoteSection_Delete",
+    ]) {
       expect(afterBeginTran(name, NOTE_LOCK), name).toBe(true);
+    }
+  });
+
+  // ADR-0053: a tabbed notebook keeps every page in a tab and every tab holding a page.
+  it("keeps a tab's last page and a notebook's last tab", () => {
+    for (const name of ["usp_NoteTab_Delete", "usp_NoteTab_Move"]) {
+      expect(sql(name), name).toContain("THROW 50004, N'VALIDATION:A tab keeps at least one page'");
+    }
+    expect(sql("usp_NoteSection_Delete")).toContain(
+      "THROW 50004, N'VALIDATION:A note keeps at least one tab'",
+    );
+    for (const name of ["usp_NoteTab_Create", "usp_NoteTab_Move"]) {
+      expect(sql(name), name).toContain("THROW 50004, N'VALIDATION:Pick a tab of this note'");
+    }
+  });
+
+  it("audits every tab write and page move inside its transaction", () => {
+    for (const name of [
+      "usp_NoteTab_Move",
+      "usp_NoteSection_Create",
+      "usp_NoteSection_Update",
+      "usp_NoteSection_Delete",
+      "usp_NoteSection_Reorder",
+      "usp_NoteSection_Ungroup",
+    ]) {
+      const text = sql(name);
+      const audit = text.indexOf("INSERT INTO audit.AuditLog");
+      expect(audit, name).toBeGreaterThan(text.indexOf("BEGIN TRAN"));
+      expect(audit, name).toBeLessThan(text.lastIndexOf("COMMIT;"));
     }
   });
 
@@ -227,9 +311,21 @@ describe("note SQL guardrails", () => {
   });
 
   it("returns the workspace's pages as JSON with null keys kept", () => {
-    expect(sql("usp_Note_GetWithTabs")).toContain(
-      "FOR JSON PATH, INCLUDE_NULL_VALUES) AS TabsJson",
+    const workspace = sql("usp_Note_GetWithTabs");
+    expect(workspace).toContain("FOR JSON PATH, INCLUDE_NULL_VALUES) AS TabsJson");
+    expect(workspace).toContain("FOR JSON PATH, INCLUDE_NULL_VALUES) AS SectionsJson");
+  });
+
+  it("ties a page to a tab of its own notebook in migration 052", () => {
+    const migration = readFileSync("db/migrations/052_note_sections.sql", "utf8").replace(
+      /\s+/g,
+      " ",
     );
+    expect(migration).toContain("CONSTRAINT UQ_NoteSection_Note UNIQUE (NoteSectionId, NoteId)");
+    expect(migration).toContain(
+      "FOREIGN KEY (NoteSectionId, [NoteId]) REFERENCES app.NoteSection (NoteSectionId, [NoteId])",
+    );
+    expect(migration).not.toMatch(/\bON\s+(?:DELETE|UPDATE)\b/i);
   });
 
   it("adds the page search column in migration 026", () => {

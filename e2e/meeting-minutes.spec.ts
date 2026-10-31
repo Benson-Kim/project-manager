@@ -326,7 +326,7 @@ test("print: the printed minutes show the header, the people and the minutes", a
   await expect(row.getByRole("cell")).toHaveText([
     "Send the revised budget",
     "Gary Cantrall",
-    "Nov 2, 2026",
+    "2026-11-02",
     M.actionStatus["in-progress"],
   ]);
 
@@ -374,7 +374,7 @@ test("follow-ups: an action takes many, each with its person and dates (ADR-0043
   await expect(followUps).toHaveCount(2);
   await expect(followUps.first()).toContainText("Chased the finance team");
   await expect(followUps.first()).toContainText("Gary Cantrall");
-  await expect(followUps.first()).toContainText("Oct 20, 2026");
+  await expect(followUps.first()).toContainText("2026-10-20");
 
   // Newest goes last; moving one up reorders them and keeps focus on the button.
   await followUps

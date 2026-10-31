@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import { useMemo, useState } from "react";
 import { Input, DatePicker } from "@/components/ui/form/inputs";
 import { Combobox } from "@/components/ui/form/combobox";
 import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
@@ -15,8 +15,18 @@ import {
 } from "../schemas/board-card";
 import { BOARD_CARD_TITLE_MAX, STORY_POINTS_MAX } from "../schemas/board-rules";
 import { boardFormSchema } from "../schemas/board-form";
-import { createBoardCardAction, updateBoardCardAction, moveBoardCardAction } from "../actions";
+import { packageDeliverablesInput } from "../schemas/board-package";
+import {
+  createBoardCardAction,
+  updateBoardCardAction,
+  moveBoardCardAction,
+  packageDeliverablesAction,
+} from "../actions";
+import type { ProjectOption } from "@/modules/projects/project-options";
 import { BoardForm, BoardField } from "./board-form";
+import { CardDeliverablePanel } from "./card-deliverable-panel";
+import { CardRequirementPanel } from "./card-requirement-panel";
+import { CardSourceSwitch, DeliverablePicker, type CardSource } from "./deliverable-source";
 const M = messages.boards;
 const U = M.ui;
 export function CardDialog({
@@ -24,16 +34,56 @@ export function CardDialog({
   card,
   columnId,
   assignees,
+  projects,
   canEdit,
+  canEditRequirements = false,
+  onCardChange,
+  onChanged,
   close,
 }: {
   board: BoardView;
   card: BoardCardDetailRow | null;
   columnId: number | null;
   assignees: BoardAssigneeRow[];
+  projects: ProjectOption[];
   canEdit: boolean;
+  canEditRequirements?: boolean;
+  /** A section of the sheet wrote and read the card again: the sheet now edits this version. */
+  onCardChange: (card: BoardCardDetailRow) => void;
+  /** Something the board draws changed; it redraws once the sheet closes. */
+  onChanged: () => void;
   close: () => void;
 }) {
+  const [source, setSource] = useState<CardSource>("card");
+  const [deliverables, setDeliverables] = useState<number[]>([]);
+  const takenIds = useMemo(
+    () => board.cards.flatMap((c) => (c.RequirementId === null ? [] : [c.RequirementId])),
+    [board.cards],
+  );
+  if (!card && source === "deliverable")
+    return (
+      <BoardForm
+        sheet
+        title={U.newCard}
+        close={close}
+        submitDisabled={!deliverables.length}
+        schema={boardFormSchema(packageDeliverablesInput, {
+          boardId: board.header.BoardId,
+          boardColumnId: columnId,
+          boardSprintId: board.header.ActiveSprintId,
+          keyDeliverableIds: deliverables,
+        })}
+        save={packageDeliverablesAction}
+      >
+        <CardSourceSwitch value={source} onChange={setSource} />
+        <DeliverablePicker
+          boardProjectId={board.header.ProjectId}
+          projects={projects}
+          selected={deliverables}
+          onSelect={setDeliverables}
+        />
+      </BoardForm>
+    );
   return (
     <BoardForm
       sheet
@@ -54,13 +104,23 @@ export function CardDialog({
         "boardCardId" in input ? updateBoardCardAction(input) : createBoardCardAction(input)
       }
     >
-      {card?.RequirementState === "live" ? (
-        <Link
-          className="text-accent underline"
-          href={`/projects/${card.RequirementProjectId}/requirements?id=${card.RequirementId}`}
-        >
-          {card.RequirementRef}
-        </Link>
+      {!card ? <CardSourceSwitch value={source} onChange={setSource} /> : null}
+      {card ? (
+        <CardRequirementPanel
+          card={card}
+          boardProjectId={board.header.ProjectId}
+          projects={projects}
+          takenIds={takenIds}
+          canLink={canEdit}
+          canEditRequirement={canEditRequirements}
+          onCardChange={(fresh) => {
+            onChanged();
+            onCardChange(fresh);
+          }}
+        />
+      ) : null}
+      {card ? (
+        <CardDeliverablePanel card={card} canEdit={canEditRequirements} onChanged={onChanged} />
       ) : null}
       <BoardField name="title" label={U.cardTitle}>
         <Input
@@ -115,15 +175,18 @@ export function CardMoveDialog({
   board,
   card,
   close,
+  onMoved,
 }: {
   board: BoardView;
   card: BoardCardListRow;
   close: () => void;
+  onMoved: () => void;
 }) {
   return (
     <BoardForm
       title={U.move}
       close={close}
+      onSaved={onMoved}
       submitLabel={U.move}
       schema={boardFormSchema(moveBoardCardInput, {
         boardCardId: card.BoardCardId,

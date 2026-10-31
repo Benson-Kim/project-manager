@@ -21,6 +21,12 @@ const dbRow = {
   SortPath: "0000000003",
   Depth: 0,
   ChildCount: 0,
+  ParentRequirementId: null,
+  MoSCoW: null,
+  AcceptanceCriteria: null,
+  EstimateDays: null,
+  OwnerStakeholderId: null,
+  OwnerName: null,
   Requirement: "Export the register",
   IsMet: true,
   CreatedAtUtc: new Date("2026-10-21T08:00:00Z"),
@@ -114,7 +120,60 @@ describe("requirement form", () => {
       parentRequirementId: null,
       validatesIds: null,
       deliverableIds: null,
+      // Absent planning fields are NULL, not "" or 0 (ADR-0052).
+      moscow: null,
+      acceptanceCriteria: null,
+      estimateDays: null,
+      ownerStakeholderId: null,
     });
+  });
+
+  it("carries the planning fields, treating blanks as none (ADR-0052)", () => {
+    expect(
+      createRequirementFormSchema.parse({
+        ...create,
+        moscow: "M",
+        acceptanceCriteria: "  Signed off  ",
+        estimateDays: "2.5",
+        ownerStakeholderId: "14",
+      }),
+    ).toMatchObject({
+      moscow: "M",
+      acceptanceCriteria: "Signed off",
+      estimateDays: 2.5,
+      ownerStakeholderId: 14,
+    });
+    expect(
+      createRequirementFormSchema.parse({
+        ...create,
+        moscow: "",
+        acceptanceCriteria: "   ",
+        estimateDays: "",
+        ownerStakeholderId: "",
+      }),
+    ).toMatchObject({
+      moscow: null,
+      acceptanceCriteria: null,
+      estimateDays: null,
+      ownerStakeholderId: null,
+    });
+  });
+
+  it("refuses an out-of-range planning field", () => {
+    for (const bad of [
+      { moscow: "X" },
+      { estimateDays: "-1" },
+      { estimateDays: "1.25" },
+      { estimateDays: "100000" },
+      { estimateDays: "abc" },
+      { ownerStakeholderId: "0" },
+      { acceptanceCriteria: "x".repeat(4001) },
+    ]) {
+      expect(
+        () => createRequirementFormSchema.parse({ ...create, ...bad }),
+        JSON.stringify(bad),
+      ).toThrow();
+    }
   });
 
   it("carries the parent a sub-requirement goes under (ADR-0048)", () => {

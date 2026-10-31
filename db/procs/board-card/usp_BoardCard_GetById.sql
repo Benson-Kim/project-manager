@@ -8,6 +8,10 @@
 --   this reader cannot see. Then RequirementState is 'restricted' and every requirement column is
 --   NULL. 'restricted' is decided before 'removed', so a reader without access is not told whether
 --   the requirement still exists. Opening the sheet must not reveal what the board hid.
+--   The card's deliverable (ADR-0052) is redacted the same way, by dbo.ufn_BoardCard_Deliverable,
+--   the function the board read uses. A second result set lists the deliverable's live allocated
+--   requirements for the drawer, empty unless DeliverableState is 'live'. RequirementRowVer lets
+--   the sheet tick a requirement card met or set its MoSCoW without another read.
 -- Entity app.BoardCard. Module: boards (ADR-0038).
 USE ProjectManager;
 GO
@@ -63,12 +67,57 @@ BEGIN
            CASE WHEN ra.AccessLevel IS NOT NULL AND rq.IsDeleted = 0
                 THEN rq.IsMet END AS RequirementIsMet,
            CASE WHEN ra.AccessLevel IS NOT NULL AND rq.IsDeleted = 0
-                THEN rq.ProjectId END AS RequirementProjectId
+                THEN rq.ProjectId END AS RequirementProjectId,
+           CASE WHEN ra.AccessLevel IS NOT NULL AND rq.IsDeleted = 0
+                THEN rq.[MoSCoW] END AS RequirementMoSCoW,
+           CASE WHEN ra.AccessLevel IS NOT NULL AND rq.IsDeleted = 0
+                THEN CAST(rq.RowVer AS BIGINT) END AS RequirementRowVer,
+           dv.DeliverableState,
+           dv.KeyDeliverableId,
+           dv.DeliverableProjectId,
+           dv.DeliverableTitle,
+           dv.DeliverableStatus,
+           dv.DeliverablePriority,
+           dv.DeliverableColor,
+           dv.DeliverableStartDate,
+           dv.DeliverableDeadline,
+           dv.DeliverableRequirementCount,
+           dv.DeliverableMetCount,
+           dv.DeliverableMustCount,
+           dv.DeliverableMustMetCount,
+           dv.DeliverableShouldCount,
+           dv.DeliverableCouldCount,
+           dv.DeliverableWontCount
     FROM app.BoardCard c
     LEFT JOIN app.Requirement rq ON rq.RequirementId = c.RequirementId
     OUTER APPLY dbo.ufn_Requirement_AncestorPath(rq.RequirementId) rp
     OUTER APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, rq.ProjectId, 0) ra
+    CROSS APPLY dbo.ufn_BoardCard_Deliverable(c.KeyDeliverableId, @ActorRole, @ActorUserId) dv
     LEFT JOIN auth.[User] u ON u.UserId = c.AssigneeUserId
     WHERE c.BoardCardId = @BoardCardId AND c.IsDeleted = 0;
+
+    -- The drawer's requirements, only when the first set showed the deliverable as live.
+    SELECT r.RequirementId,
+           r.RequirementType,
+           ap.Ref,
+           ap.SortPath,
+           ap.Depth,
+           r.ParentRequirementId,
+           r.Requirement,
+           r.IsMet,
+           r.[MoSCoW],
+           r.AcceptanceCriteria,
+           r.EstimateDays,
+           r.OwnerStakeholderId,
+           CAST(r.RowVer AS BIGINT) AS RowVer,
+           CAST(d.RowVer AS BIGINT) AS PlaceRowVer
+    FROM app.BoardCard c
+    CROSS APPLY dbo.ufn_BoardCard_Deliverable(c.KeyDeliverableId, @ActorRole, @ActorUserId) dv
+    JOIN app.RequirementDeliverable d ON d.KeyDeliverableId = dv.KeyDeliverableId
+    JOIN app.Requirement r ON r.RequirementId = d.RequirementId AND r.IsDeleted = 0
+    CROSS APPLY dbo.ufn_Requirement_AncestorPath(r.RequirementId) ap
+    WHERE c.BoardCardId = @BoardCardId AND c.IsDeleted = 0
+      AND dv.DeliverableState = 'live'
+    ORDER BY ap.SortPath, r.RequirementId;
 END;
 GO

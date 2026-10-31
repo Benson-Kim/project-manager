@@ -30,7 +30,7 @@ export function PackageRequirementsButton(props: Props) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant="secondary" onClick={() => setOpen(true)}>
+      <Button variant="secondary" size="compact" onClick={() => setOpen(true)}>
         {U.packageTitle}
       </Button>
       {open ? <PackagingDialog {...props} close={() => setOpen(false)} /> : null}

@@ -3,6 +3,7 @@ import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { OPTION_COLORS, type LookupListKey } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
+import { moscowSchema } from "@/modules/requirements/schemas/moscow";
 import { requirementText } from "@/modules/requirements/schemas/requirement-form";
 import { solutionTypeSchema } from "@/modules/requirements/schemas/requirement-types";
 import { DEPENDENCY_TYPES, LAG_MAX_DAYS, LAG_MIN_DAYS, type WbsLink } from "./wbs-dependencies";
@@ -72,6 +73,13 @@ const requirementEntrySchema = z
     sortOrder: z.number().int(),
     rowVer: rowVerSchema,
     placeRowVer: rowVerSchema,
+    /** Migration 051 (ADR-0052). Optional, so an entry from a database before it still parses. */
+    parentId: z.number().int().positive().nullable().optional(),
+    moscow: moscowSchema.nullable().optional(),
+    criteria: z.string().nullable().optional(),
+    estimateDays: z.number().nonnegative().nullable().optional(),
+    ownerId: z.number().int().positive().nullable().optional(),
+    ownerName: z.string().nullable().optional(),
   })
   .transform((r): WbsRequirement => ({
     id: r.id,
@@ -82,6 +90,12 @@ const requirementEntrySchema = z
     sortOrder: r.sortOrder,
     rowVer: r.rowVer,
     placeRowVer: r.placeRowVer,
+    parentId: r.parentId ?? null,
+    moscow: r.moscow ?? null,
+    criteria: r.criteria ?? null,
+    estimateDays: r.estimateDays ?? null,
+    ownerId: r.ownerId ?? null,
+    ownerName: r.ownerName ?? null,
   }));
 
 /** NULL is []; malformed JSON throws, as in parseAssigneesJson. */
@@ -146,6 +160,9 @@ export const keyDeliverableRowSchema = z
     IsMilestone: z.boolean().optional(),
     HasChildren: z.boolean().optional(),
     SubItemCount: z.number().int().nonnegative().optional(),
+    /** Migration 051 (ADR-0052); optional, as the work breakdown columns are. */
+    Budget: z.number().nonnegative().nullable().optional(),
+    Note: z.string().nullable().optional(),
     CreatedAtUtc: z.date(),
     UpdatedAtUtc: z.date().nullable(),
     RowVer: rowVerSchema,
@@ -191,6 +208,9 @@ export const wbsRowSchema = z
     RequirementsJson: z.unknown().optional(),
     /** Optional, so a row from a database before migration 044 still parses with no links. */
     PredecessorsJson: z.unknown().optional(),
+    /** Optional, so a row from a database before migration 051 still parses (ADR-0052). */
+    Budget: z.number().nonnegative().nullable().optional(),
+    Note: z.string().nullable().optional(),
     CreatedAtUtc: z.date(),
     RowVer: rowVerSchema,
   })
@@ -209,6 +229,8 @@ export const wbsRowSchema = z
     assigneeNames: r.AssigneeNames?.trim() || null,
     assignees: parseAssigneesJson(r.AssigneesJson),
     requirements: parseRequirementsJson(r.RequirementsJson),
+    budget: r.Budget ?? null,
+    note: r.Note ?? null,
     rowVer: r.RowVer,
   }));
 
@@ -236,19 +258,29 @@ export interface WbsData {
   stamp: number;
 }
 
-/** Map a status string to a completion percentage for the bar fill. */
-export function statusToCompletion(status: string | null): number {
-  switch (status) {
-    case "Completed":
-      return 100;
-    case "In Progress":
-      return 50;
-    case "On Hold":
-      return 20;
-    default:
-      return 0;
-  }
-}
+/** Lives with the progress rule it feeds (schemas/wbs.ts); re-exported for the list views. */
+export { statusToCompletion } from "./wbs";
+
+/** DECIMAL(19, 2), capped where a JS number still holds every cent exactly. */
+export const MAX_BUDGET = 9_999_999_999_999.99;
+
+const twoDecimals = (n: number) => Math.abs(n * 100 - Math.round(n * 100)) < 1e-6;
+
+/** A blank form value is no budget, never 0. */
+export const budgetSchema = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+  z.coerce
+    .number({ error: messages.keyDeliverables.budgetInvalid })
+    .min(0, messages.keyDeliverables.budgetInvalid)
+    .max(MAX_BUDGET, messages.keyDeliverables.budgetInvalid)
+    .refine(twoDecimals, messages.keyDeliverables.budgetInvalid)
+    .nullable(),
+);
+
+/** usp_KeyDeliverable_SetNote and usp_KeyDeliverable_SetPlanNote refuse more. */
+export const MAX_NOTE_LENGTH = 8000;
+
+const noteText = z.string().max(MAX_NOTE_LENGTH, messages.keyDeliverables.noteTooLong);
 
 const deliverableFields = {
   projectId: z.number().int().positive(),
@@ -261,6 +293,8 @@ const deliverableFields = {
   status: z.string().trim().max(255).nullish(),
   /** Omitted = keep the colour (update); null = the parent's colour. */
   color: wbsColorSchema.optional(),
+  /** Omitted = keep the budget (update) or none (create); null clears it (ADR-0052). */
+  budget: budgetSchema.optional(),
 };
 
 const itemId = z.number().int().positive();
@@ -417,6 +451,11 @@ export const addRequirementInput = z.object({
   itemId,
   type: solutionTypeSchema,
   text: requirementText,
+  /** The quick-add's chips (ADR-0052); a parent makes it a sub-requirement of that one. */
+  moscow: moscowSchema.nullable().optional(),
+  parentRequirementId: itemId.nullable().optional(),
+  /** The business or stakeholder requirement it meets; the proc refuses any other kind or project. */
+  meetsId: itemId.nullable().optional(),
 });
 
 export type AddRequirementInput = z.input<typeof addRequirementInput>;
@@ -443,6 +482,20 @@ export type MoveRequirementInput = z.input<typeof moveRequirementInput>;
 export const removeRequirementInput = z.object({ itemId, id: itemId, rowVer: rowVerSchema });
 
 export type RemoveRequirementInput = z.input<typeof removeRequirementInput>;
+
+/** The paperclip note on one item (ADR-0052). Blank clears it. */
+export const setWbsNoteInput = z.object({ id: itemId, note: noteText, rowVer: rowVerSchema });
+
+export type SetWbsNoteInput = z.input<typeof setWbsNoteInput>;
+
+/** The project's sticky note beside the chart (ADR-0052), saved against the project's RowVer. */
+export const setPlanNoteInput = z.object({
+  projectId: itemId,
+  note: noteText,
+  rowVer: rowVerSchema,
+});
+
+export type SetPlanNoteInput = z.input<typeof setPlanNoteInput>;
 
 /** Module filter params (URL ⇄ usp_KeyDeliverable_List @Status/@Priority). */
 export const keyDeliverableFiltersSchema = z.object({

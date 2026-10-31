@@ -114,6 +114,13 @@ sanitiser's output is a function of the values it recognises, never of what it w
 It is a sixth option rather than a change to the default. Every list already in the product keeps
 the numbering it has; the client picks the new style where they want it.
 
+**Amended 2026-10-31: plain numbering now nests this way, and the `1.1` option is gone.** The user
+asked that a numbered item under item 1 always read 1.1, never 1. Plain `<ol>` markers come from
+`counters(list-item, ".")`, which keeps the start number, so the separate style and its
+`data-numbering` attribute have no job left. The sanitiser saves old `1.1` lists as plain numbering,
+and they look the same. A numbered list under a bullet or a lettered list starts its own chain.
+Bullets change marker at each level (disc, circle, square).
+
 ### 5. Two fields are retired from the UI, and their columns are kept
 
 The meeting header's **Follow-up action** and the assumption's **Mitigation plan** leave the form,

@@ -1,14 +1,19 @@
 "use client";
 
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect } from "react";
 
 const GAP_PX = 8;
+const OFFSET_PX = 4;
+const EDGE_PX = 8;
 const MIN_PANEL_PX = 96;
 
 interface Span {
   top: number;
   bottom: number;
 }
+
+/** Where a panel lines up with its anchor: left edges, right edges, or the anchor's width. */
+export type PanelAlign = "start" | "end" | "stretch";
 
 /** Whether a panel opens above its anchor: it does not fit below, and above has more room. */
 export function opensUp(anchor: Span, panelHeight: number, bounds: Span): boolean {
@@ -23,24 +28,35 @@ export function roomFor(up: boolean, anchor: Span, bounds: Span): number {
   return Math.max(room - GAP_PX, MIN_PANEL_PX);
 }
 
-/** The part of the window a panel can show in: the window, cut by every ancestor that clips. */
-function visibleSpan(element: HTMLElement): Span {
-  let top = 0;
-  let bottom = document.documentElement.clientHeight;
-  for (let node = element.parentElement; node; node = node.parentElement) {
-    if (/auto|scroll|hidden|clip/.test(getComputedStyle(node).overflowY)) {
-      const rect = node.getBoundingClientRect();
-      top = Math.max(top, rect.top);
-      bottom = Math.min(bottom, rect.bottom);
-    }
-  }
-  return { top, bottom };
+/** How far to move a panel sideways so it sits inside the window, EDGE_PX from each side. */
+export function shiftIntoView(left: number, right: number, windowWidth: number): number {
+  if (right > windowWidth - EDGE_PX) return Math.max(windowWidth - EDGE_PX - right, EDGE_PX - left);
+  if (left < EDGE_PX) return EDGE_PX - left;
+  return 0;
+}
+
+/** The panel's left edge in the window: on the anchor's left edge, or its right edge on the anchor's, kept inside the window. */
+export function panelLeft(
+  anchor: { left: number; right: number },
+  width: number,
+  align: PanelAlign,
+  windowWidth: number,
+): number {
+  const left = align === "end" ? anchor.right - width : anchor.left;
+  return left + shiftIntoView(left, left + width, windowWidth);
+}
+
+/** The panel's top edge in the window: just under the anchor, or just above it when it opens up. */
+export function panelTop(anchor: Span, height: number, up: boolean): number {
+  return up ? anchor.top - OFFSET_PX - height : anchor.bottom + OFFSET_PX;
 }
 
 /**
- * Opens a dropdown panel upwards when it would be cut off below and there is more room above,
- * measured before paint each time it opens. With `fit`, the panel's height is also capped to the
- * room on that side, for a scrolling list; a menu keeps its own height.
+ * Places a dropdown panel (`position: fixed`) against its anchor in the window, so no scrolling
+ * form, sheet or dialog it sits in can cut it off or squeeze it: under the anchor, or above it when
+ * it would be cut off below and above has more room. Measured before paint each time it opens, and
+ * again when anything around it scrolls or the window resizes. With `fit`, the panel's height is
+ * capped to the room on its side, for a scrolling list; a menu keeps its own height.
  */
 export function usePopoverPlacement(
   anchorRef: React.RefObject<HTMLElement | null>,
@@ -49,28 +65,48 @@ export function usePopoverPlacement(
   {
     fit = false,
     maxHeight = 240,
+    align = "stretch",
     contentKey,
   }: {
     fit?: boolean;
     maxHeight?: number;
+    align?: PanelAlign;
     /** Changes when the panel's content does, so it is measured again. */
     contentKey?: unknown;
   } = {},
-): boolean {
-  const [up, setUp] = useState(false);
-
+): void {
   useLayoutEffect(() => {
     const anchor = anchorRef.current;
     const panel = panelRef.current;
     if (!open || !anchor || !panel) return;
-    if (fit) panel.style.maxHeight = "";
-    const box = anchor.getBoundingClientRect();
-    const bounds = visibleSpan(anchor);
-    const height = fit ? Math.min(panel.scrollHeight, maxHeight) : panel.offsetHeight;
-    const next = opensUp(box, height, bounds);
-    if (fit) panel.style.maxHeight = `${Math.min(maxHeight, roomFor(next, box, bounds))}px`;
-    setUp(next);
-  }, [anchorRef, panelRef, open, fit, maxHeight, contentKey]);
-
-  return open && up;
+    const place = () => {
+      const box = anchor.getBoundingClientRect();
+      const page = document.documentElement;
+      const bounds = { top: 0, bottom: page.clientHeight };
+      panel.style.top = "0px";
+      panel.style.left = "0px";
+      if (align === "stretch") panel.style.width = `${box.width}px`;
+      if (fit) panel.style.maxHeight = "";
+      // A transformed ancestor (a centred dialog) holds fixed boxes, so offsets start at its corner.
+      const origin = panel.getBoundingClientRect();
+      const height = fit ? Math.min(panel.scrollHeight, maxHeight) : panel.offsetHeight;
+      const up = opensUp(box, height, bounds);
+      if (fit) panel.style.maxHeight = `${Math.min(maxHeight, roomFor(up, box, bounds))}px`;
+      const top = panelTop(box, panel.offsetHeight, up);
+      const left = panelLeft(box, panel.offsetWidth, align, page.clientWidth);
+      panel.style.top = `${top - origin.top}px`;
+      panel.style.left = `${left - origin.left}px`;
+    };
+    place();
+    // The list's own scrolling leaves it where it is.
+    const onScroll = (event: Event) => {
+      if (!panel.contains(event.target as Node)) place();
+    };
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [anchorRef, panelRef, open, fit, maxHeight, align, contentKey]);
 }

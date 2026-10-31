@@ -14,6 +14,8 @@
 --   type is resolved, so a sub-requirement of a business requirement cannot arrive ticked.
 -- @ValidatesIds / @KeyDeliverableIds are JSON arrays, handled by the Replace helpers inside this
 --   transaction; NULL leaves that side empty. A refused id rolls the whole create back.
+-- Planning fields (ADR-0052) are optional, so a caller from before migration 051 still creates a
+--   row; usp_Requirement_AssertPlanning checks them under the project lock.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Requirement_Create
@@ -24,6 +26,10 @@ CREATE OR ALTER PROCEDURE dbo.usp_Requirement_Create
     @ParentRequirementId INT            = NULL,
     @ValidatesIds        NVARCHAR(MAX)  = NULL,
     @KeyDeliverableIds   NVARCHAR(MAX)  = NULL,
+    @MoSCoW              CHAR(1)        = NULL,
+    @AcceptanceCriteria  NVARCHAR(MAX)  = NULL,
+    @EstimateDays        DECIMAL(6, 1)  = NULL,
+    @OwnerStakeholderId  INT            = NULL,
     @ActorUserId         INT
 AS
 BEGIN
@@ -42,6 +48,7 @@ BEGIN
         THROW 50004, N'VALIDATION:A requirement is required', 1;
 
     SET @IsMet = ISNULL(@IsMet, 0);
+    SET @AcceptanceCriteria = NULLIF(LTRIM(RTRIM(@AcceptanceCriteria)), N'');
 
     BEGIN TRAN;
 
@@ -50,6 +57,10 @@ BEGIN
 
     IF NOT EXISTS (SELECT 1 FROM app.Project WHERE ProjectId = @ProjectId AND IsDeleted = 0)
         THROW 50001, N'NOT_FOUND:Project not found', 1;
+
+    EXEC dbo.usp_Requirement_AssertPlanning
+         @ProjectId = @ProjectId, @MoSCoW = @MoSCoW, @AcceptanceCriteria = @AcceptanceCriteria,
+         @EstimateDays = @EstimateDays, @OwnerStakeholderId = @OwnerStakeholderId;
 
     IF @ParentRequirementId IS NOT NULL
     BEGIN
@@ -78,9 +89,11 @@ BEGIN
                        OR ParentRequirementId = @ParentRequirementId)), 0) + 1;
 
     INSERT INTO app.Requirement (ProjectId, RequirementType, Number, ParentRequirementId,
-                                 Requirement, IsMet, CreatedBy)
+                                 Requirement, IsMet, [MoSCoW], AcceptanceCriteria, EstimateDays,
+                                 OwnerStakeholderId, CreatedBy)
     VALUES (@ProjectId, @RequirementType, @Number, @ParentRequirementId,
-            LTRIM(RTRIM(@Requirement)), @IsMet, @ActorUserId);
+            LTRIM(RTRIM(@Requirement)), @IsMet, @MoSCoW, @AcceptanceCriteria, @EstimateDays,
+            @OwnerStakeholderId, @ActorUserId);
 
     DECLARE @Id INT = SCOPE_IDENTITY();
 
@@ -95,7 +108,7 @@ BEGIN
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, AfterJson)
     VALUES (@ActorUserId, N'Create', N'app.Requirement', CAST(@Id AS NVARCHAR(64)),
             (SELECT RequirementId, ProjectId, RequirementType, Number, ParentRequirementId,
-                    Requirement, IsMet
+                    Requirement, IsMet, [MoSCoW], AcceptanceCriteria, EstimateDays, OwnerStakeholderId
              FROM app.Requirement WHERE RequirementId = @Id
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 

@@ -150,6 +150,124 @@ async function list(actor, params = {}) {
   rows = await list(VIEWER, { Search: stamp });
   ok(!rows.some((r) => r.NoteId === shared.NoteId), "a deleted notebook leaves the list");
 
+  // Tabs (ADR-0053): the first tab takes every page, a later tab starts with one new page.
+  const sectionsOf = (w) => JSON.parse(w.SectionsJson || "[]");
+  const tabbed = await notebook(P, `${stamp} tabs`, PM);
+  await one("usp_NoteTab_Create", { NoteId: tabbed.NoteId, Title: "Page 2", ActorUserId: PM });
+  await expectCode(50003, "a project Viewer cannot add a tab", () =>
+    exec("usp_NoteSection_Create", { NoteId: tabbed.NoteId, Title: "A", PageTitle: "Page 1", ActorUserId: VIEWER }));
+  await expectCode(50004, "a tab needs a title", () =>
+    exec("usp_NoteSection_Create", { NoteId: tabbed.NoteId, Title: " ", PageTitle: "Page 1", ActorUserId: PM }));
+  const tabA = await one("usp_NoteSection_Create", {
+    NoteId: tabbed.NoteId, Title: "A", PageTitle: "Page 1", ActorUserId: PM,
+  });
+  ws = await workspace(tabbed.NoteId, PM);
+  ok(pagesOf(ws).length === 2 && pagesOf(ws).every((t) => t.NoteSectionId === tabA.NoteSectionId),
+    "the first tab takes every page");
+  ok(tabA.FirstPageId === pagesOf(ws)[0].NoteTabId, "and opens on the first of them");
+  const tabB = await one("usp_NoteSection_Create", {
+    NoteId: tabbed.NoteId, Title: "B", PageTitle: "B page", ActorUserId: PM,
+  });
+  ws = await workspace(tabbed.NoteId, PM);
+  const bPages = pagesOf(ws).filter((t) => t.NoteSectionId === tabB.NoteSectionId);
+  ok(bPages.length === 1 && bPages[0].NoteTabId === tabB.FirstPageId && bPages[0].Title === "B page",
+    "a later tab starts with one new page");
+  ok(sectionsOf(ws).map((s) => s.Title).join() === "A,B", "tabs read in the order they were added");
+
+  // Every page sits in a tab once a notebook has tabs, and only in a tab of its own notebook.
+  await expectCode(50004, "a page of a tabbed notebook needs a tab", () =>
+    exec("usp_NoteTab_Create", { NoteId: tabbed.NoteId, Title: "Loose", ActorUserId: PM }));
+  await expectCode(50004, "a page cannot join a tab of another notebook", () =>
+    exec("usp_NoteTab_Create", { NoteId: inP.NoteId, Title: "Stray", NoteSectionId: tabA.NoteSectionId, ActorUserId: PM }));
+  const inA = await one("usp_NoteTab_Create", {
+    NoteId: tabbed.NoteId, Title: "Page 3", NoteSectionId: tabA.NoteSectionId, ActorUserId: PM,
+  });
+  ok(inA.NoteSectionId === tabA.NoteSectionId, "a page is added to the tab it names");
+
+  // Moving: to the end of another tab; never out of the tab's last page or into the same tab.
+  await exec("usp_NoteTab_Move", {
+    NoteTabId: inA.NoteTabId, NoteSectionId: tabB.NoteSectionId, RowVer: inA.RowVer, ActorUserId: PM,
+  });
+  ws = await workspace(tabbed.NoteId, PM);
+  let inB = pagesOf(ws).filter((t) => t.NoteSectionId === tabB.NoteSectionId);
+  ok(inB.map((t) => t.NoteTabId).join() === `${tabB.FirstPageId},${inA.NoteTabId}`,
+    "a moved page lands at the end of its new tab");
+  const moved = inB[1];
+  await expectCode(50002, "a stale move conflicts", () =>
+    exec("usp_NoteTab_Move", { NoteTabId: moved.NoteTabId, NoteSectionId: tabA.NoteSectionId, RowVer: inA.RowVer, ActorUserId: PM }));
+  await expectCode(50004, "a page cannot move to the tab it is in", () =>
+    exec("usp_NoteTab_Move", { NoteTabId: moved.NoteTabId, NoteSectionId: tabB.NoteSectionId, RowVer: moved.RowVer, ActorUserId: PM }));
+  await expectCode(50003, "a project Viewer cannot move a page", () =>
+    exec("usp_NoteTab_Move", { NoteTabId: moved.NoteTabId, NoteSectionId: tabA.NoteSectionId, RowVer: moved.RowVer, ActorUserId: VIEWER }));
+  const lonelyTab = await one("usp_NoteSection_Create", {
+    NoteId: tabbed.NoteId, Title: "C", PageTitle: "C page", ActorUserId: PM,
+  });
+  ws = await workspace(tabbed.NoteId, PM);
+  const cPage = pagesOf(ws).find((t) => t.NoteTabId === lonelyTab.FirstPageId);
+  await expectCode(50004, "the last page of a tab cannot move out", () =>
+    exec("usp_NoteTab_Move", { NoteTabId: cPage.NoteTabId, NoteSectionId: tabA.NoteSectionId, RowVer: cPage.RowVer, ActorUserId: PM }));
+  await expectCode(50004, "the last page of a tab cannot be deleted", () =>
+    exec("usp_NoteTab_Delete", { NoteTabId: cPage.NoteTabId, RowVer: cPage.RowVer, ActorUserId: PM }));
+
+  // Renaming and reordering tabs keep the RowVer check.
+  const cRow = sectionsOf(ws).find((s) => s.NoteSectionId === lonelyTab.NoteSectionId);
+  const renamedTab = await one("usp_NoteSection_Update", {
+    NoteSectionId: cRow.NoteSectionId, Title: "Renamed", RowVer: cRow.RowVer, ActorUserId: PM,
+  });
+  ok(renamedTab.Title === "Renamed", "a tab is renamed");
+  await expectCode(50002, "a stale rename conflicts", () =>
+    exec("usp_NoteSection_Update", { NoteSectionId: cRow.NoteSectionId, Title: "Again", RowVer: cRow.RowVer, ActorUserId: PM }));
+  ws = await workspace(tabbed.NoteId, PM);
+  const order = (ids) => {
+    const byId = new Map(sectionsOf(ws).map((s) => [s.NoteSectionId, s]));
+    return JSON.stringify(ids.map((id) => ({ id, rowVer: byId.get(id).RowVer })));
+  };
+  await expectCode(50002, "a reorder that leaves a tab out conflicts", () =>
+    exec("usp_NoteSection_Reorder", {
+      NoteId: tabbed.NoteId, OrderJson: order([tabB.NoteSectionId, tabA.NoteSectionId]), ActorUserId: PM,
+    }));
+  await exec("usp_NoteSection_Reorder", {
+    NoteId: tabbed.NoteId,
+    OrderJson: order([lonelyTab.NoteSectionId, tabB.NoteSectionId, tabA.NoteSectionId]),
+    ActorUserId: PM,
+  });
+  ws = await workspace(tabbed.NoteId, PM);
+  ok(sectionsOf(ws).map((s) => s.Title).join() === "Renamed,B,A", "tabs are reordered");
+
+  // Deleting a tab takes its pages; the last tab stays.
+  const cNow = sectionsOf(ws).find((s) => s.NoteSectionId === lonelyTab.NoteSectionId);
+  await expectCode(50003, "a project Viewer cannot delete a tab", () =>
+    exec("usp_NoteSection_Delete", { NoteSectionId: cNow.NoteSectionId, RowVer: cNow.RowVer, ActorUserId: VIEWER }));
+  await exec("usp_NoteSection_Delete", { NoteSectionId: cNow.NoteSectionId, RowVer: cNow.RowVer, ActorUserId: PM });
+  ws = await workspace(tabbed.NoteId, PM);
+  ok(sectionsOf(ws).length === 2 && !pagesOf(ws).some((t) => t.NoteTabId === cPage.NoteTabId),
+    "deleting a tab deletes its pages");
+
+  // Remove tabs keeps every page, in the order the tabs showed them.
+  const shown = sectionsOf(ws).flatMap((s) =>
+    pagesOf(ws).filter((t) => t.NoteSectionId === s.NoteSectionId).map((t) => t.NoteTabId));
+  await expectCode(50003, "a project Viewer cannot remove the tabs", () =>
+    exec("usp_NoteSection_Ungroup", {
+      NoteId: tabbed.NoteId, OrderJson: order(sectionsOf(ws).map((s) => s.NoteSectionId)), ActorUserId: VIEWER,
+    }));
+  await exec("usp_NoteSection_Ungroup", {
+    NoteId: tabbed.NoteId, OrderJson: order(sectionsOf(ws).map((s) => s.NoteSectionId)), ActorUserId: PM,
+  });
+  ws = await workspace(tabbed.NoteId, PM);
+  ok(sectionsOf(ws).length === 0 && pagesOf(ws).every((t) => t.NoteSectionId === null),
+    "removing the tabs keeps the pages without a tab");
+  ok(pagesOf(ws).map((t) => t.NoteTabId).join() === shown.join(), "in the order the tabs showed them");
+
+  // The last tab: a notebook with tabs keeps one.
+  const only = await one("usp_NoteSection_Create", {
+    NoteId: tabbed.NoteId, Title: "Only", PageTitle: "Page 1", ActorUserId: PM,
+  });
+  await expectCode(50004, "a notebook keeps at least one tab", () =>
+    exec("usp_NoteSection_Delete", { NoteSectionId: only.NoteSectionId, RowVer: only.RowVer, ActorUserId: PM }));
+  ws = await workspace(tabbed.NoteId, PM);
+  await exec("usp_Note_Delete", { NoteId: tabbed.NoteId, RowVer: ws.RowVer, ActorUserId: PM });
+  await expectCode(50001, "a tabbed notebook is deleted with its tabs", () => workspace(tabbed.NoteId, PM));
+
   console.log(`${passes} passed, ${failures} failed`);
   await pool.close();
   process.exit(failures ? 1 : 0);

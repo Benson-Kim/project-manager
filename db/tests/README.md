@@ -44,7 +44,9 @@ and prints `N passed, M failed`.
 - `notes-procs.cjs` — ADR-0035 and its 2026-10-23 amendment: the project-less shared space
   (every user reads, creates and edits notebooks and pages; only an Admin deletes), project
   notebooks that keep their project's levels, and the cross-project list (the actor's projects
-  plus the shared space, the No project filter, each row's project name).
+  plus the shared space, the No project filter, each row's project name); and ADR-0053's tabs
+  (the first tab takes every page, a tab keeps its last page, a tabbed notebook keeps its last
+  tab, a moved page lands at the end of its new tab, and "Remove tabs" keeps the shown order).
 - `notes-race.cjs` — the shared space under concurrency, where any user may write: parallel saves
   of one page (one winner, no lost update), parallel page adds (distinct places), an add or a
   save racing the notebook's delete (the page goes with it), a reorder racing an add, a save

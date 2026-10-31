@@ -1,6 +1,6 @@
 import "@/lib/rich-text/sanitize";
 import { describe, expect, it } from "vitest";
-import { boardFormSchema } from "../schemas/board-form";
+import { boardFormSchema, hasUnshownIssue } from "../schemas/board-form";
 import { createBoardInput, setBoardProjectInput } from "../schemas/board";
 import { createBoardCardInput, updateBoardCardInput } from "../schemas/board-card";
 import { createBoardColumnInput } from "../schemas/board-column";
@@ -61,6 +61,15 @@ describe("board FormData boundary", () => {
       ).toBe(false);
     const sprint = boardFormSchema(createBoardSprintInput, { boardId: 3 });
     expect(sprint.safeParse({ name: "Sprint", startDate: "", endDate: "" }).success).toBe(false);
+  });
+  it("tells a fixable field issue from one on a value the form was opened with", () => {
+    const drawn = (name: string) => ["title", "notes", "storyPoints"].includes(name);
+    const blankTitle = boardFormSchema(createBoardCardInput, { boardId: 3, boardColumnId: 4 });
+    const title = blankTitle.safeParse({ title: "" });
+    expect(title.success || hasUnshownIssue(title.error, drawn)).toBe(false);
+    const noColumn = boardFormSchema(createBoardCardInput, { boardId: 3, boardColumnId: null });
+    const column = noColumn.safeParse({ title: "Task" });
+    expect(!column.success && hasUnshownIssue(column.error, drawn)).toBe(true);
   });
   it("requires explicit confirmation before deleting other-project cards on relink", () => {
     const schema = boardFormSchema(setBoardProjectInput, {

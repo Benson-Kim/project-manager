@@ -74,7 +74,7 @@ restated as an acceptance criterion in its module issue.
 | 64 | Financial tracking spreadsheet equivalent | financials: `Financials Calculated.xlsx` as a calculator (Budget Execution -> Budget tab, Monitoring execution budget -> Monitoring tab, 1-7 years) + CSV export (ADR-0029), project-wide CSV with document columns, print view and PDF (ADR-0030) | #17 | feature/financials-calculator |
 | 65 | Export & import data (backups) | file-storage-and-backup (+ admin) | #22, #23 | feature/file-storage-and-backup |
 | 66 | Calendar with reminders for to-dos | todo-alerts (calendar view) | #20 | feature/todo-alerts |
-| 67 | Gantt from key-deliverable dates (start date required) | key-deliverables (rebuilt 2026-10-13, ADR-0027 — key deliverables are a work breakdown up to 10 levels (codes 1, 1.1, 1.1.1 …, indented) that draws the Gantt at `/projects/[id]/deliverables/gantt`; the WBS is also drawn as the checklist's box diagram (`?view=wbs`, the default: project on top, top-level boxes across, sub-items stacked and indented), where items are added, renamed, deleted and moved by drag and drop, and their dates typed in the box; a WBS \| Gantt switch shares one editor, so a change in either shows in the other at once; add, rename, indent, move and delete in the outline show at once on the chart; start date required, parent dates roll up; bars drag, stretch and draw with the cursor; days / weeks / months scale with the dates in the header and beside each bar; migration 032, seed 031; ADR-0046 decision 4 adds milestones — a one-day leaf drawn as a diamond, added from the toolbar or converted either way from the item menu, moved but never stretched and taking no sub-items, migration 043; ADR-0046 decisions 5-10 add dependencies — one typed, lagged link per ordered pair (`FS`/`SS`/`FF`/`SF`), cycle- and ancestor-free, drawn as arrows and reached by keyboard through **Dependencies…**, and a violated link **pushes its successor forward and cascades** (push-only, so the requested-date floor still holds), migration 044) | #9 | feature/key-deliverables, feature/wbs-gantt, feature/wbs-requirements |
+| 67 | Gantt from key-deliverable dates (start date required) | key-deliverables (rebuilt 2026-10-13, ADR-0027 — key deliverables are a work breakdown up to 10 levels (codes 1, 1.1, 1.1.1 …, indented) that draws the Gantt at `/projects/[id]/deliverables/gantt`; the WBS is also drawn as the checklist's box diagram (`?view=wbs`, the default: project on top, top-level boxes across, sub-items stacked and indented), where items are added, renamed, deleted and moved by drag and drop, and their dates typed in the box; a WBS \| Gantt switch shares one editor, so a change in either shows in the other at once; add, rename, indent, move and delete in the outline show at once on the chart; start date required, parent dates roll up; bars drag, stretch and draw with the cursor; days / weeks / months scale with the dates in the header and beside each bar; migration 032, seed 031; ADR-0046 decision 4 adds milestones — a one-day leaf drawn as a diamond, added from the toolbar or converted either way from the item menu, moved but never stretched and taking no sub-items, migration 043; ADR-0046 decisions 5-10 add dependencies — one typed, lagged link per ordered pair (`FS`/`SS`/`FF`/`SF`), cycle- and ancestor-free, drawn as arrows and reached by keyboard through **Dependencies…**, and a violated link **pushes its successor forward and cascades** (push-only, so the requested-date floor still holds), migration 044; ADR-0052 rebuilds both views — the Gantt becomes lanes of cards (group pills, lanes, cards, sub-item tiles) that drag to reschedule or move lane, stretch at the right edge and undo, with a floating toolbar, a requirements panel and a print that fits the page; the breakdown gains a details panel, quick-add with MoSCoW, notes, a sticky plan note and a Done button; progress comes from met ticks, migration 051) | #9 | feature/key-deliverables, feature/wbs-gantt, feature/wbs-requirements |
 | 68 | "Add ons" (header) | — header | — | — |
 | 69 | Project screen add-ons (priority, est. completion, phase, risk level, status) | projects | #5 | feature/projects |
 | 70 | Stakeholder screen add-ons (email, comm pref, engagement, role description) | stakeholders | #6 | feature/stakeholders |
@@ -126,6 +126,21 @@ collapse to Admin and User (migration 017). This also closes the IDOR finding
   and can be linked or unlinked later ([ADR-0038](adr/ADR-0038-boards.md)). `boards` is a
   per-person overridable section, so it appears in the team cog. Build progress per plan part is
   tracked in [BOARDS-TRACKING.md](BOARDS-TRACKING.md).
+
+**Gantt, work breakdown and Kanban rebuild (`feature/roadmap-wbs-kanban`, migration 051,
+[ADR-0052](adr/ADR-0052-gantt-wbs-and-kanban-rebuild.md)):**
+- **Requirements:** MoSCoW, acceptance criteria, an estimate in days and an owner (a stakeholder
+  of the project) per requirement, set from the breakdown, the Gantt's requirements panel or a
+  board card.
+- **Deliverables:** a budget per item (parents sum their sub-items), a note on each box, the
+  project's sticky note, a colour per box, a Done button, Undo, full screen and YYYY-MM-DD dates
+  (client requests on the 1.0.16 sheet). Progress is derived from met ticks, falling back to
+  status where an item has no requirements.
+- **Boards:** a card may carry a deliverable (its drawer shows the deliverable's requirements,
+  must-have health and readiness); the board gains stats, filters and a board-data copy. The menu
+  reads "Kanban/Scrum Boards".
+- **Not built, by decision:** a table tab on the breakdown, and any replay of progress on the
+  Gantt. Whether a project holds one plan or several is the client's open question.
 
 **Coverage check:** every non-header, non-empty row (3–38, 40–62, 64–67,
 69–76) is owned by exactly one primary module; cross-cutting rows (41, 47, 50)

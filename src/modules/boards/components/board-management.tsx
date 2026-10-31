@@ -132,6 +132,7 @@ export function BoardManagement({
     <>
       <Button
         variant="secondary"
+        size="compact"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((value) => !value)}
@@ -148,7 +149,7 @@ export function BoardManagement({
               <Chevron />
             </>
           }
-          triggerClassName={buttonClass("secondary")}
+          triggerClassName={buttonClass("secondary", "compact")}
         >
           {board.columns.length < MAX_BOARD_COLUMNS ? (
             <MenuButton onClick={() => setMode({ kind: "column" })}>{U.column}</MenuButton>
@@ -161,7 +162,7 @@ export function BoardManagement({
         <Menu
           label={U.boardActions}
           trigger="⋮"
-          triggerClassName={`${ROW_MENU} border border-line`}
+          triggerClassName="min-h-8 min-w-8 rounded-md border border-line text-ink-muted hover:bg-surface-sunken"
         >
           {edit ? (
             <MenuButton onClick={() => setMode({ kind: "board" })}>{U.editBoard}</MenuButton>

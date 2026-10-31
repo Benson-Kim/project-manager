@@ -23,6 +23,9 @@
 --   requirement column, and @Search never matches its text: matching it would reveal that the text
 --   exists, which is the same leak by another route. 'restricted' is decided BEFORE 'removed', so
 --   a reader without access is never told that a requirement was deleted either.
+--   A card's deliverable (ADR-0052) follows the same rule through dbo.ufn_BoardCard_Deliverable,
+--   applied to the page's rows only, and @Search matches its title only when the reader can see
+--   its project.
 -- @Search escapes the LIKE metacharacters (docs/STANDARDS.md 2.3).
 -- Entity app.Board. Module: boards (ADR-0038).
 USE ProjectManager;
@@ -165,13 +168,17 @@ BEGIN
                rp.Ref AS RequirementRef,
                rq.Requirement AS RequirementText,
                rq.IsMet AS RequirementIsMet,
+               rq.[MoSCoW] AS RequirementMoSCoW,
                rq.ProjectId AS RequirementProjectId,
                ra.AccessLevel AS RequirementAccess,
+               c.KeyDeliverableId AS CardDeliverableId,
                CASE WHEN @View = 'plan' THEN ISNULL(c.BoardSprintId, 0) ELSE c.BoardColumnId END AS ListKey
         FROM app.BoardCard c
         LEFT JOIN app.Requirement rq ON rq.RequirementId = c.RequirementId
         OUTER APPLY dbo.ufn_Requirement_AncestorPath(rq.RequirementId) rp
         OUTER APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, rq.ProjectId, 0) ra
+        LEFT JOIN app.KeyDeliverable kd ON kd.KeyDeliverableId = c.KeyDeliverableId
+        OUTER APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, kd.ProjectId, 0) da
         WHERE c.BoardId = @BoardId
           AND c.IsDeleted = 0
           AND (@View = 'plan'
@@ -181,7 +188,9 @@ BEGIN
           AND (@Search IS NULL
                OR c.Title LIKE N'%' + @Search + N'%' ESCAPE N'\'
                OR (rq.RequirementId IS NOT NULL AND rq.IsDeleted = 0 AND ra.AccessLevel IS NOT NULL
-                   AND rq.Requirement LIKE N'%' + @Search + N'%' ESCAPE N'\'))
+                   AND rq.Requirement LIKE N'%' + @Search + N'%' ESCAPE N'\')
+               OR (kd.KeyDeliverableId IS NOT NULL AND kd.IsDeleted = 0 AND da.AccessLevel IS NOT NULL
+                   AND kd.[KeyRequirement] LIKE N'%' + @Search + N'%' ESCAPE N'\'))
     ),
     ranked AS (
         SELECT *, ROW_NUMBER() OVER (PARTITION BY ListKey ORDER BY SortKey ASC, BoardCardId ASC) AS RowInList
@@ -217,8 +226,27 @@ BEGIN
            CASE WHEN RequirementAccess IS NOT NULL AND RequirementIsDeleted = 0
                 THEN RequirementIsMet END AS RequirementIsMet,
            CASE WHEN RequirementAccess IS NOT NULL AND RequirementIsDeleted = 0
-                THEN RequirementProjectId END AS RequirementProjectId
+                THEN RequirementProjectId END AS RequirementProjectId,
+           CASE WHEN RequirementAccess IS NOT NULL AND RequirementIsDeleted = 0
+                THEN RequirementMoSCoW END AS RequirementMoSCoW,
+           dv.DeliverableState,
+           dv.KeyDeliverableId,
+           dv.DeliverableProjectId,
+           dv.DeliverableTitle,
+           dv.DeliverableStatus,
+           dv.DeliverablePriority,
+           dv.DeliverableColor,
+           dv.DeliverableStartDate,
+           dv.DeliverableDeadline,
+           dv.DeliverableRequirementCount,
+           dv.DeliverableMetCount,
+           dv.DeliverableMustCount,
+           dv.DeliverableMustMetCount,
+           dv.DeliverableShouldCount,
+           dv.DeliverableCouldCount,
+           dv.DeliverableWontCount
     FROM ranked
+    CROSS APPLY dbo.ufn_BoardCard_Deliverable(ranked.CardDeliverableId, @ActorRole, @ActorUserId) dv
     WHERE RowInList <= @CardsPerList
     ORDER BY ListKey ASC, SortKey ASC, BoardCardId ASC;
 END;

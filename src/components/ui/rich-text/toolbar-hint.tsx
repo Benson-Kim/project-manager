@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { shiftIntoView } from "@/components/ui/menu";
+import { shiftIntoView } from "@/components/ui/popover-placement";
 import { hintText } from "./toolbar-model";
 
 /**

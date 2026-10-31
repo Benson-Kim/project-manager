@@ -14,9 +14,10 @@ import {
   parseChartSettings,
   serializeChartSettings,
   zoomStep,
+  branchLayout,
   type BranchLayout,
 } from "../components/wbs-diagram-layout";
-import { buildWbs, type WbsItem } from "../schemas/wbs";
+import { buildWbs, type Wbs, type WbsItem } from "../schemas/wbs";
 
 function item(id: number, parentId: number | null, sortOrder: number): WbsItem {
   return {
@@ -34,6 +35,8 @@ function item(id: number, parentId: number | null, sortOrder: number): WbsItem {
     assigneeNames: null,
     assignees: [],
     requirements: [],
+    budget: null,
+    note: null,
     rowVer: 1,
   };
 }
@@ -46,6 +49,11 @@ function kids(parent: number | null, first: number, count: number): WbsItem[] {
 const px = chartPx(16);
 const none = new Set<number>();
 const noChoices = new Map<number, BranchLayout>();
+
+/** Every branch left to the width. */
+function fitted(wbs: Wbs): Map<number, BranchLayout> {
+  return new Map([...wbs.nodes.keys()].map((id) => [id, "auto"]));
+}
 
 /**
  * The client's example: four top-level items with four to six sub-items
@@ -65,27 +73,32 @@ const big = buildWbs([
 const small = buildWbs([...kids(null, 1, 4), ...kids(3, 30, 3), item(300, 31, 1)]);
 
 describe("branchRows", () => {
-  it("puts every branch side by side when the chart has room", () => {
-    expect(branchRows(big, none, noChoices, 100_000, px)).toEqual(new Set([1, 2, 3, 4, 11, 20]));
+  it("lists every branch the viewer has not set, whatever the width", () => {
+    expect(branchLayout(noChoices, 3)).toBe("list");
+    expect(branchRows(big, none, noChoices, 100_000, px)).toEqual(new Set());
+  });
+
+  it("puts every automatic branch side by side when the chart has room", () => {
+    expect(branchRows(big, none, fitted(big), 100_000, px)).toEqual(new Set([1, 2, 3, 4, 11, 20]));
   });
 
   it("lists the big branches and keeps the small ones side by side when it is narrow", () => {
-    // About a 1,920 px window: 1,470 px for the chart.
-    expect(branchRows(big, none, noChoices, 1470, px)).toEqual(new Set([3]));
+    // Room for seven boxes: 3 opens up, and 4, 1 and 2 would not fit after it.
+    expect(branchRows(big, none, fitted(big), 7 * px.slot, px)).toEqual(new Set([3]));
   });
 
   it("keeps a small breakdown side by side at every level on the same window", () => {
-    expect(branchRows(small, none, noChoices, 1470, px)).toEqual(new Set([3, 31]));
+    expect(branchRows(small, none, fitted(small), 7 * px.slot, px)).toEqual(new Set([3, 31]));
   });
 
   it("lists everything below the top level when no branch fits side by side", () => {
-    expect(branchRows(big, none, noChoices, 4 * px.slot, px)).toEqual(new Set());
+    expect(branchRows(big, none, fitted(big), 4 * px.slot, px)).toEqual(new Set());
   });
 
   it("puts a single sub-item under its parent even when the top level overflows", () => {
     // 1 with its one sub-item is narrower side by side than listed.
     const single = buildWbs([...kids(null, 1, 3), item(10, 1, 1)]);
-    expect(branchRows(single, none, noChoices, 0, px)).toEqual(new Set([1]));
+    expect(branchRows(single, none, fitted(single), 0, px)).toEqual(new Set([1]));
   });
 
   it("follows the viewer's choices whatever the width", () => {
@@ -106,7 +119,7 @@ describe("branchRows", () => {
   });
 
   it("does not open collapsed branches", () => {
-    expect(branchRows(big, new Set([1, 2]), noChoices, 100_000, px)).toEqual(new Set([3, 4]));
+    expect(branchRows(big, new Set([1, 2]), fitted(big), 100_000, px)).toEqual(new Set([3, 4]));
   });
 });
 
@@ -152,8 +165,8 @@ describe("chooseBranch", () => {
     ]);
   });
 
-  it("forgets the choice on automatic", () => {
-    expect(chooseBranch(big, new Map([[3, "row"]]), 3, "auto").size).toBe(0);
+  it("keeps automatic as a choice of its own", () => {
+    expect([...chooseBranch(big, new Map([[3, "row"]]), 3, "auto")]).toEqual([[3, "auto"]]);
   });
 });
 
@@ -181,8 +194,34 @@ describe("chart settings", () => {
         [3, "row"],
         [4, "list"],
       ]),
+      people: false,
+      milestones: false,
+      details: true,
     };
     expect(parseChartSettings(JSON.parse(serializeChartSettings(settings)))).toEqual(settings);
+  });
+
+  it("shows only code and name on the boxes until the viewer turns details on, also for older saves", () => {
+    expect(DEFAULT_CHART.details).toBe(false);
+    expect(parseChartSettings({ zoom: 1 }).details).toBe(false);
+    expect(parseChartSettings({ details: "yes" }).details).toBe(false);
+    expect(parseChartSettings({ details: true }).details).toBe(true);
+  });
+
+  it("leaves the people off the boxes until the viewer turns them on, also for older saves", () => {
+    expect(DEFAULT_CHART.people).toBe(false);
+    expect(parseChartSettings({ width: null, zoom: 1, branches: [] }).people).toBe(false);
+    expect(parseChartSettings({ people: "yes" }).people).toBe(false);
+    expect(parseChartSettings({ people: true }).people).toBe(true);
+  });
+
+  it("shows the milestone strip until the viewer hides it, also for older saves", () => {
+    expect(DEFAULT_CHART.milestones).toBe(true);
+    expect(
+      parseChartSettings({ width: null, zoom: 1, branches: [], people: false }).milestones,
+    ).toBe(true);
+    expect(parseChartSettings({ milestones: 0 }).milestones).toBe(true);
+    expect(parseChartSettings({ milestones: false }).milestones).toBe(false);
   });
 
   it("refuses malformed pieces one by one", () => {
@@ -193,11 +232,22 @@ describe("chart settings", () => {
         zoom: 0.33,
         branches: [
           [1, "row"],
+          [3, "auto"],
           ["x", "row"],
           [2, "up"],
         ],
       }),
-    ).toEqual({ width: null, zoom: 1, branches: new Map([[1, "row"]]) });
+    ).toEqual({
+      width: null,
+      zoom: 1,
+      branches: new Map<number, BranchLayout>([
+        [1, "row"],
+        [3, "auto"],
+      ]),
+      people: false,
+      milestones: true,
+      details: false,
+    });
   });
 });
 

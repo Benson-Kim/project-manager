@@ -14,3 +14,8 @@ export function notesListHref(projectId: number | null): string {
 export function noteHref(note: { NoteId: number; ProjectId: number | null }): string {
   return `${notesListHref(note.ProjectId)}/${note.NoteId}`;
 }
+
+/** The printable copy of a notebook. */
+export function notePrintHref(note: { NoteId: number; ProjectId: number | null }): string {
+  return `${noteHref(note)}/print`;
+}
