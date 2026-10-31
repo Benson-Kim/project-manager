@@ -12,7 +12,8 @@
 -- A @Type or @Search filter is applied to rows, not to branches: a sub-requirement that matches is
 --   returned whether or not its parent did. Its Ref is the whole path, so the row still says where
 --   it belongs even when the parent is not on the page.
--- Paged in a CTE first; the links JSON is built for the page's rows only.
+-- Paged in a CTE first; the links JSON and the owner's name are built for the page's rows only.
+-- Planning columns (ADR-0052) as usp_Requirement_GetById.
 -- Row-level access: dbo.usp_Project_AssertAccess on @ProjectId (FORBIDDEN_ROW 50003).
 -- ActorAccess / ActorGrants / ActorRevokes per ADR-0023 and ADR-0024, as usp_Objective_List.
 USE ProjectManager;
@@ -91,6 +92,12 @@ BEGIN
            CAST(r.RowVer AS BIGINT) AS RowVer,
            (SELECT COUNT(*) FROM app.Requirement AS ch
             WHERE ch.ParentRequirementId = r.RequirementId AND ch.IsDeleted = 0) AS ChildCount,
+           r.ParentRequirementId,
+           r.[MoSCoW],
+           r.AcceptanceCriteria,
+           r.EstimateDays,
+           r.OwnerStakeholderId,
+           o.OwnerName,
            l.ValidatesJson,
            l.ValidatedByJson,
            l.DeliverablesJson,
@@ -101,6 +108,9 @@ BEGIN
     FROM page AS p
     JOIN app.Requirement AS r ON r.RequirementId = p.RequirementId
     OUTER APPLY dbo.ufn_Requirement_Links(r.RequirementId) AS l
+    OUTER APPLY (SELECT LTRIM(RTRIM(CONCAT(ISNULL(s.FirstName, N''), N' ', ISNULL(s.LastName, N'')))) AS OwnerName
+                 FROM app.Stakeholder AS s
+                 WHERE s.StakeholderId = r.OwnerStakeholderId AND s.IsDeleted = 0) AS o
     CROSS APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, r.ProjectId, 0) acc
     OUTER APPLY dbo.ufn_Permission_Overrides(@ActorRole, @ActorUserId, r.ProjectId, N'requirements') ov
     WHERE p.RowNum > (@Page - 1) * @PageSize

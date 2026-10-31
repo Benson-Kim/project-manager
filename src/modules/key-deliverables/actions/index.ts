@@ -15,11 +15,20 @@ import {
   rescheduleKeyDeliverable,
   linkWbsItems,
   relinkWbsItems,
+  setCascadeMoscow,
+  setCascadePlanning,
+  setPlanNote,
   setWbsItemMilestone,
+  setWbsItemNote,
   setWbsItemStatus,
   unlinkWbsItems,
   updateCascadeRequirement,
+  updateWbsItem,
 } from "../repository/key-deliverables";
+import {
+  setMoscowInput,
+  setPlanningInput,
+} from "@/modules/requirements/schemas/requirement-planning";
 import {
   keyDeliverableFormSchema,
   updateKeyDeliverableFormSchema,
@@ -36,9 +45,12 @@ import {
   rescheduleWbsItemInput,
   linkWbsItemsInput,
   relinkWbsItemsInput,
+  setPlanNoteInput,
   setWbsMilestoneInput,
+  setWbsNoteInput,
   setWbsStatusInput,
   unlinkWbsItemsInput,
+  updateKeyDeliverableInput,
   updateRequirementInput,
 } from "../schemas/key-deliverable";
 
@@ -124,6 +136,15 @@ export const rescheduleWbsItemAction = action({
   schema: rescheduleWbsItemInput,
   permission: "key-deliverables:update",
   handler: (input, ctx) => rescheduleKeyDeliverable(input, ctx.session.userId),
+});
+
+/** The details panel under the WBS chart (ADR-0052): the sheet's update (same input, same proc, CONFLICT
+ *  on a stale RowVer), answered with the whole breakdown so it saves in the editor's queue. */
+export const updateWbsItemAction = action({
+  name: "key-deliverables.wbs-update",
+  schema: updateKeyDeliverableInput,
+  permission: "key-deliverables:update",
+  handler: (input, ctx) => updateWbsItem(input, ctx.session.userId),
 });
 
 export const renameWbsItemAction = action({
@@ -219,4 +240,37 @@ export const removeRequirementAction = action({
   schema: removeRequirementInput,
   permission: "requirements:update",
   handler: (input, ctx) => removeCascadeRequirement(input, ctx.session.userId),
+});
+
+/** The planning fields of an allocated requirement, set from the work breakdown or the Gantt
+ *  (ADR-0052). Same permission as the register's own edit. */
+export const setRequirementMoscowAction = action({
+  name: "key-deliverables.requirement-moscow",
+  schema: setMoscowInput,
+  permission: "requirements:update",
+  handler: (input, ctx) => setCascadeMoscow(input, ctx.session.userId),
+});
+
+export const setRequirementPlanningAction = action({
+  name: "key-deliverables.requirement-planning",
+  schema: setPlanningInput,
+  permission: "requirements:update",
+  handler: (input, ctx) => setCascadePlanning(input, ctx.session.userId),
+});
+
+/** The paperclip note on one item (ADR-0052). It autosaves, so it is its own intention. */
+export const setWbsNoteAction = action({
+  name: "key-deliverables.wbs-note",
+  schema: setWbsNoteInput,
+  permission: "key-deliverables:update",
+  handler: (input, ctx) => setWbsItemNote(input, ctx.session.userId),
+});
+
+/** The project's sticky note beside the chart (ADR-0052): the plan's permission, the project's
+ *  row version. Answers with the new row version for the next autosave. */
+export const setPlanNoteAction = action({
+  name: "key-deliverables.plan-note",
+  schema: setPlanNoteInput,
+  permission: "key-deliverables:update",
+  handler: (input, ctx) => setPlanNote(input, ctx.session.userId),
 });

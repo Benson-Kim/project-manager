@@ -9,6 +9,8 @@
 -- ChildCount is the live sub-requirements directly under the row, as usp_Requirement_List sends it
 --   (ADR-0048): the sheet withholds the type select and the delete button while it is above zero,
 --   because the procs refuse both and the user should read why before trying.
+-- Planning columns (ADR-0052): MoSCoW, AcceptanceCriteria, EstimateDays and the owner, named from
+--   app.Stakeholder (NULL once that stakeholder is deleted, as assignee names are).
 -- Also the answer of usp_Requirement_{Create,Update}.
 USE ProjectManager;
 GO
@@ -43,12 +45,21 @@ BEGIN
            CAST(r.RowVer AS BIGINT) AS RowVer,
            (SELECT COUNT(*) FROM app.Requirement AS ch
             WHERE ch.ParentRequirementId = r.RequirementId AND ch.IsDeleted = 0) AS ChildCount,
+           r.ParentRequirementId,
+           r.[MoSCoW],
+           r.AcceptanceCriteria,
+           r.EstimateDays,
+           r.OwnerStakeholderId,
+           o.OwnerName,
            l.ValidatesJson,
            l.ValidatedByJson,
            l.DeliverablesJson
     FROM app.Requirement AS r
     CROSS APPLY dbo.ufn_Requirement_AncestorPath(r.RequirementId) AS ap
     OUTER APPLY dbo.ufn_Requirement_Links(r.RequirementId) AS l
+    OUTER APPLY (SELECT LTRIM(RTRIM(CONCAT(ISNULL(s.FirstName, N''), N' ', ISNULL(s.LastName, N'')))) AS OwnerName
+                 FROM app.Stakeholder AS s
+                 WHERE s.StakeholderId = r.OwnerStakeholderId AND s.IsDeleted = 0) AS o
     WHERE r.RequirementId = @RequirementId AND r.IsDeleted = 0;
 END;
 GO

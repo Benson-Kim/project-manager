@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export interface DraftInputProps extends Omit<
   React.InputHTMLAttributes<HTMLInputElement>,
@@ -15,6 +15,11 @@ export interface DraftInputProps extends Omit<
   typing?: boolean;
   /** Enter or Escape: the user is done with the field. */
   onSettle?: () => void;
+  /**
+   * Hand back a changed copy when the field is removed while it has focus. Removing a focused
+   * field fires no blur, so without this the typing is lost.
+   */
+  commitOnUnmount?: boolean;
 }
 
 /**
@@ -32,12 +37,24 @@ export function DraftInput({
   onFocus,
   onBlur,
   onKeyDown,
+  commitOnUnmount = false,
   ...rest
 }: DraftInputProps) {
   const [draft, setDraft] = useState(value);
   const [shown, setShown] = useState(value);
   const [focused, setFocused] = useState(false);
   const [typed, setTyped] = useState(false);
+  const latest = useRef({ draft, value, focused, onCommit });
+  useEffect(() => {
+    latest.current = { draft, value, focused, onCommit };
+  });
+  useEffect(() => {
+    if (!commitOnUnmount) return;
+    return () => {
+      const last = latest.current;
+      if (last.focused && last.draft !== last.value) last.onCommit(last.draft);
+    };
+  }, [commitOnUnmount]);
   if (value !== shown) {
     setShown(value);
     if (!focused) setDraft(value);

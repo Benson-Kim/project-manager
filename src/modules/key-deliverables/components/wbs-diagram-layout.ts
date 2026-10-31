@@ -14,16 +14,22 @@ export function isWbsView(value: unknown): value is WbsView {
   return typeof value === "string" && (WBS_VIEWS as readonly string[]).includes(value);
 }
 
-/** How a parent shows its sub-items: side by side under it, or listed below it. */
-export type BranchLayout = "row" | "list";
+/** How a parent shows its sub-items: side by side under it, listed below it, or as the width fits. */
+export const BRANCH_LAYOUTS = ["row", "list", "auto"] as const;
+export type BranchLayout = (typeof BRANCH_LAYOUTS)[number];
+
+/** A branch the viewer has not set lists its sub-items below it. */
+export function branchLayout(choices: ReadonlyMap<number, BranchLayout>, id: number): BranchLayout {
+  return choices.get(id) ?? "list";
+}
 
 /**
  * The chart's geometry in rem. The markup reads it as CSS variables and the
  * layout below as numbers, so the two cannot drift apart.
  */
 export const CHART_REM = {
-  /** A box's width. */
-  box: 13,
+  /** A box's width: room in the title pill for a name beside the head-row buttons. */
+  box: 15,
   /** A box's least height. */
   boxMin: 3.5,
   /** Each side of a box among others side by side (half the space between two). */
@@ -137,10 +143,10 @@ function ancestorsOf(wbs: Wbs, id: number): number[] {
  * The parents whose sub-items sit side by side; every other branch on screen
  * is listed below its parent. The top-level items always sit side by side
  * under the project. A branch the viewer set to "row" is side by side, and so
- * are the branches above it; one set to "list" is listed. The rest are opened
- * up level by level, the cheapest first, while the chart still fits
- * `available` pixels, so small branches sit side by side and big ones are
- * listed.
+ * are the branches above it unless one of them is set to "list". The ones set
+ * to "auto" are opened up level by level, the cheapest first, while the chart
+ * still fits `available` pixels, so small branches sit side by side and big
+ * ones are listed. Every other branch is listed (see branchLayout).
  */
 export function branchRows(
   wbs: Wbs,
@@ -163,7 +169,7 @@ export function branchRows(
   while (level.length > 0) {
     const cost = new Map<number, number>();
     for (const id of level) {
-      if (rows.has(id) || choices.get(id) === "list") continue;
+      if (rows.has(id) || branchLayout(choices, id) !== "auto") continue;
       const listed = measure.width(id);
       rows.add(id);
       cost.set(id, measure.width(id) - listed);
@@ -195,23 +201,19 @@ export function chartSize(
 /**
  * The choices after the viewer sets a branch: "row" also clears a "list" on
  * the branches above it (they open up for it), "list" also clears a "row"
- * below it (it would reopen this one), and "auto" forgets the choice.
+ * below it (it would reopen this one), and "auto" leaves the width to decide.
  */
 export function chooseBranch(
   wbs: Wbs,
   choices: ReadonlyMap<number, BranchLayout>,
   id: number,
-  layout: BranchLayout | "auto",
+  layout: BranchLayout,
 ): Map<number, BranchLayout> {
   const next = new Map(choices);
-  if (layout === "auto") {
-    next.delete(id);
-    return next;
-  }
   next.set(id, layout);
   if (layout === "row") {
     for (const a of ancestorsOf(wbs, id)) if (next.get(a) === "list") next.delete(a);
-  } else {
+  } else if (layout === "list") {
     for (const [other, choice] of choices) {
       if (choice === "row" && ancestorsOf(wbs, other).includes(id)) next.delete(other);
     }
@@ -238,26 +240,42 @@ export interface ChartSettings {
   /** The width the chart lays itself out in, in screen pixels; null is its view's width. */
   width: number | null;
   zoom: number;
-  /** Branches set side by side or listed; the others follow the width. */
+  /** Branches set side by side, listed or fitted to the width; the others are listed. */
   branches: ReadonlyMap<number, BranchLayout>;
+  /** The boxes name the people on them, or say "Unassigned"; off until the viewer turns it on. */
+  people: boolean;
+  /** The milestones show as a strip above the project box. */
+  milestones: boolean;
+  /** The boxes show dates, status, work, budget and effort; off, just the code and name. */
+  details: boolean;
 }
 
-export const DEFAULT_CHART: ChartSettings = { width: null, zoom: 1, branches: new Map() };
+export const DEFAULT_CHART: ChartSettings = {
+  width: null,
+  zoom: 1,
+  branches: new Map(),
+  people: false,
+  milestones: true,
+  details: false,
+};
 
 /** Saved settings as stored, refusing anything malformed piece by piece. */
 export function parseChartSettings(raw: unknown): ChartSettings {
   if (typeof raw !== "object" || raw === null) return DEFAULT_CHART;
-  const { width, zoom, branches } = raw as Record<string, unknown>;
+  const { width, zoom, branches, people, milestones, details } = raw as Record<string, unknown>;
   const pairs = Array.isArray(branches) ? branches : [];
   return {
     width: typeof width === "number" && Number.isFinite(width) && width > 0 ? width : null,
     zoom: ZOOM_STEPS.find((step) => step === zoom) ?? 1,
+    people: typeof people === "boolean" ? people : DEFAULT_CHART.people,
+    milestones: typeof milestones === "boolean" ? milestones : DEFAULT_CHART.milestones,
+    details: typeof details === "boolean" ? details : DEFAULT_CHART.details,
     branches: new Map(
       pairs.filter(
         (pair): pair is [number, BranchLayout] =>
           Array.isArray(pair) &&
           Number.isInteger(pair[0]) &&
-          (pair[1] === "row" || pair[1] === "list"),
+          (BRANCH_LAYOUTS as readonly unknown[]).includes(pair[1]),
       ),
     ),
   };
@@ -268,6 +286,9 @@ export function serializeChartSettings(settings: ChartSettings): string {
     width: settings.width,
     zoom: settings.zoom,
     branches: [...settings.branches],
+    people: settings.people,
+    milestones: settings.milestones,
+    details: settings.details,
   });
 }
 

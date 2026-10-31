@@ -3,15 +3,23 @@ import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list
 import {
   createRequirement as createRequirementRow,
   moveRequirement as moveRequirementAllocation,
+  setRequirementMoscow,
+  setRequirementPlanning,
   unallocateRequirement,
   updateRequirement as updateRequirementRow,
 } from "@/modules/requirements/repository/requirements";
+import type {
+  SetMoscowInput,
+  SetPlanningInput,
+} from "@/modules/requirements/schemas/requirement-planning";
+import type { MoSCoW } from "@/modules/requirements/schemas/moscow";
 import type { SolutionType } from "@/modules/requirements/schemas/requirement-types";
 import {
   createKeyDeliverableInput,
   keyDeliverableListRowSchema,
   keyDeliverableRowSchema,
   parsePredecessorsJson,
+  rowVerSchema,
   updateKeyDeliverableInput,
   wbsRowSchema,
   wbsWindowSchema,
@@ -54,6 +62,7 @@ export async function createKeyDeliverable(
   const rows = await execProc<KeyDeliverableRow>("usp_KeyDeliverable_Create", {
     ...fieldParams(parsed),
     Color: parsed.color ?? null,
+    Budget: parsed.budget ?? null,
     ParentKeyDeliverableId: parsed.parentId ?? null,
     AfterKeyDeliverableId: parsed.afterId ?? null,
     IsMilestone: parsed.isMilestone ?? false,
@@ -94,16 +103,33 @@ export async function updateKeyDeliverable(
   input: UpdateKeyDeliverableInput,
   actorUserId: number,
 ): Promise<KeyDeliverableRow> {
-  const parsed = updateKeyDeliverableInput.parse(input);
   const rows = await execProc<KeyDeliverableRow>("usp_KeyDeliverable_Update", {
+    ...updateParams(input),
+    ActorUserId: actorUserId,
+  });
+  return keyDeliverableRowSchema.parse(rows[0]);
+}
+
+/** usp_KeyDeliverable_Update's parameters: an omitted colour or budget is kept. */
+function updateParams(input: UpdateKeyDeliverableInput) {
+  const parsed = updateKeyDeliverableInput.parse(input);
+  return {
     KeyDeliverableId: parsed.keyDeliverableId,
     ...fieldParams(parsed),
     Color: parsed.color ?? null,
     ColorSet: parsed.color === undefined ? 0 : 1,
+    Budget: parsed.budget ?? null,
+    BudgetSet: parsed.budget === undefined ? 0 : 1,
     RowVer: parsed.rowVer,
-    ActorUserId: actorUserId,
-  });
-  return keyDeliverableRowSchema.parse(rows[0]);
+  };
+}
+
+/** The WBS details panel's save (ADR-0052): the sheet's update, answered with the breakdown. */
+export function updateWbsItem(
+  input: UpdateKeyDeliverableInput,
+  actorUserId: number,
+): Promise<WbsData> {
+  return wbsAfter("usp_KeyDeliverable_Update", updateParams(input), actorUserId);
 }
 
 export async function deleteKeyDeliverable(
@@ -285,6 +311,32 @@ export function setWbsItemMilestone(
   );
 }
 
+/** Replace the paperclip note on one item (ADR-0052). */
+export function setWbsItemNote(
+  input: { id: number; note: string; rowVer: number },
+  actorUserId: number,
+): Promise<WbsData> {
+  return wbsAfter(
+    "usp_KeyDeliverable_SetNote",
+    { KeyDeliverableId: input.id, Note: input.note, RowVer: input.rowVer },
+    actorUserId,
+  );
+}
+
+/** Replace the project's sticky note (ADR-0052); answers with the project's new RowVer. */
+export async function setPlanNote(
+  input: { projectId: number; note: string; rowVer: number },
+  actorUserId: number,
+): Promise<{ rowVer: number }> {
+  const rows = await execProc<{ RowVer: unknown }>("usp_KeyDeliverable_SetPlanNote", {
+    ProjectId: input.projectId,
+    PlanNote: input.note,
+    RowVer: input.rowVer,
+    ActorUserId: actorUserId,
+  });
+  return { rowVer: rowVerSchema.parse(rows[0]?.RowVer) };
+}
+
 /** An option of the requirement register's deliverable picker: "1.2 Site survey". */
 export interface DeliverableOption {
   id: number;
@@ -316,7 +368,15 @@ export async function listDeliverableOptions(
 
 /** Create a requirement already allocated to one deliverable; answers with its id too. */
 export async function addCascadeRequirement(
-  input: { projectId: number; itemId: number; type: SolutionType; text: string },
+  input: {
+    projectId: number;
+    itemId: number;
+    type: SolutionType;
+    text: string;
+    moscow?: MoSCoW | null;
+    parentRequirementId?: number | null;
+    meetsId?: number | null;
+  },
   actorUserId: number,
 ): Promise<WbsData & { id: number }> {
   const row = await createRequirementRow(
@@ -325,11 +385,15 @@ export async function addCascadeRequirement(
       type: input.type,
       text: input.text,
       isMet: false,
-      // The WBS adds a requirement to a deliverable, never a sub-requirement: the tree is the
-      // register's own shape (ADR-0048) and the cascade has no row to hang one under.
-      parentRequirementId: null,
-      validatesIds: null,
+      // A parent makes it a sub-requirement in the register's own tree (ADR-0048); the proc takes
+      // the parent's type and refuses one from another project or past the depth limit.
+      parentRequirementId: input.parentRequirementId ?? null,
+      validatesIds: input.meetsId ? [input.meetsId] : null,
       deliverableIds: [input.itemId],
+      moscow: input.moscow ?? null,
+      acceptanceCriteria: null,
+      estimateDays: null,
+      ownerStakeholderId: null,
     },
     actorUserId,
   );
@@ -384,4 +448,22 @@ export async function removeCascadeRequirement(
     actorUserId,
   );
   return getWbs(projectId, actorUserId);
+}
+
+/** One MoSCoW chip on the work breakdown or the Gantt (ADR-0052); answers with the breakdown. */
+export async function setCascadeMoscow(
+  input: SetMoscowInput,
+  actorUserId: number,
+): Promise<WbsData> {
+  const row = await setRequirementMoscow(input, actorUserId);
+  return getWbs(row.ProjectId, actorUserId);
+}
+
+/** Criteria, estimate and owner from the work breakdown or the Gantt (ADR-0052). */
+export async function setCascadePlanning(
+  input: SetPlanningInput,
+  actorUserId: number,
+): Promise<WbsData> {
+  const row = await setRequirementPlanning(input, actorUserId);
+  return getWbs(row.ProjectId, actorUserId);
 }

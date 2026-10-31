@@ -88,6 +88,13 @@ describe("projects repository", () => {
     });
   });
 
+  it("getById carries the plan's sticky note, and a row without one still parses (ADR-0052)", async () => {
+    execProc.mockResolvedValue([dbRow({ PlanNote: "Freeze scope in March" })]);
+    expect((await getProjectById(2, 7)).PlanNote).toBe("Freeze scope in March");
+    execProc.mockResolvedValue([dbRow()]);
+    expect((await getProjectById(2, 7)).PlanNote).toBeUndefined();
+  });
+
   it("list forwards the ADR-0016 params 1:1 and parses TotalCount", async () => {
     execProc.mockResolvedValue([dbRow({ TotalCount: 18, ActorAccess: "Manager" })]);
     const params = listParamsSchema.parse({ q: "Upgrade", sort: "ProjectName", dir: "desc" });

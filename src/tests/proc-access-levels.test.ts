@@ -69,6 +69,8 @@ const VERBS: Record<string, string> = {
   Create: "create",
   // Packaging adds board cards, with read access to each source requirement project.
   Package: "create",
+  // The same for deliverables (ADR-0052), with read access to each deliverable's project.
+  PackageDeliverables: "create",
   // Copying a template's documents into a financial adds rows (ADR-0030).
   CreateFromTemplate: "create",
   BuildFromDailyActivity: "create",
@@ -88,6 +90,14 @@ const VERBS: Record<string, string> = {
   SetStatus: "update",
   // Turning an item into a milestone, or back into a task, edits it (ADR-0046).
   SetMilestone: "update",
+  // Planning (ADR-0052): a requirement's MoSCoW chip and its criteria, estimate and owner edit it;
+  // an item's note edits the item, and the plan's sticky note edits the plan.
+  SetMoSCoW: "update",
+  SetPlanning: "update",
+  SetNote: "update",
+  SetPlanNote: "update",
+  // Attaching a requirement to an existing card, or taking it off, edits the card.
+  LinkRequirement: "update",
   // Sequencing two items, retyping the link or taking it away all edit the plan, never the
   // deliverables themselves, so all three are an update (ADR-0046).
   Link: "update",
@@ -133,6 +143,8 @@ const EXEMPT: Record<string, string> = {
     "checks a column's work-in-progress limit inside the card write procs' transaction, after their own access check; it refuses to run outside one",
   usp_BoardCard_AssertAssignee:
     "checks an assignee against the board's project inside the card write procs' transaction, after their own access check; it refuses to run outside one",
+  usp_Requirement_AssertPlanning:
+    "checks the planning fields inside the requirement write procs' transaction, after their own access check; it refuses to run outside one",
 };
 
 /**
@@ -153,12 +165,27 @@ const CROSS_SCOPE: Record<
     { entity: "Board", level: "Contributor", permission: "boards:create" },
     { entity: "Project", level: "Viewer", permission: "requirements:read" },
   ],
+  usp_BoardCard_PackageDeliverables: [
+    { entity: "Board", level: "Contributor", permission: "boards:create" },
+    { entity: "Project", level: "Viewer", permission: "key-deliverables:read" },
+  ],
+  usp_BoardCard_LinkRequirement: [
+    { entity: "Board", level: "Contributor", permission: "boards:update" },
+    { entity: "Project", level: "Viewer", permission: "requirements:read" },
+  ],
   usp_Board_SetProject: [
     // Taking a board out of a project removes it from everyone who reached it there.
     { entity: "Board", level: "Manager", permission: "boards:delete" },
     // Landing it in one is creating a board there, so it asks what usp_Board_Create asks.
     { entity: "Project", level: "Contributor", permission: "boards:create" },
   ],
+};
+
+/** The card procs whose second check reads the card's source, and that source's module. */
+const CARD_SOURCES: Record<string, string> = {
+  usp_BoardCard_Package: "requirements",
+  usp_BoardCard_LinkRequirement: "requirements",
+  usp_BoardCard_PackageDeliverables: "key-deliverables",
 };
 
 /** The access helpers themselves (they take @MinLevel as a parameter). */
@@ -295,9 +322,9 @@ describe("a cross-scope proc asks every scope it crosses (ADR-0038 decision 23)"
       expect(call, `${name} call ${i + 1}`).toContain(`@Permission = N'${want.permission}'`);
       // The level the UI computes for that permission, so proc and cog cannot drift apart.
       expect(requiredLevel(want.permission), `${name}: ${want.permission}`).toBe(want.level);
-      // Packaging also reads the source register; every other check stays in its own module.
+      // A card's source is read in its own module; every other check stays in the proc's module.
       expect(want.permission.split(":")[0], `${name}: ${want.permission}`).toBe(
-        name === "usp_BoardCard_Package" && i === 1 ? "requirements" : MODULES[proc!.folder],
+        i === 1 && name in CARD_SOURCES ? CARD_SOURCES[name] : MODULES[proc!.folder],
       );
     });
   });

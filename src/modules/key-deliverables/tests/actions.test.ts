@@ -41,6 +41,7 @@ import {
   setWbsMilestoneAction,
   unlinkWbsItemsAction,
   updateKeyDeliverableAction,
+  updateWbsItemAction,
 } from "../actions";
 
 function dbRow(overrides: Record<string, unknown> = {}) {
@@ -252,6 +253,48 @@ describe("key-deliverables actions", () => {
           "usp_KeyDeliverable_GanttData",
         ]);
       }
+    });
+
+    it("the details panel's update keeps an omitted colour and budget and answers with the breakdown", async () => {
+      const base = {
+        keyDeliverableId: 7,
+        projectId: 24,
+        keyRequirement: "Walls",
+        startDate: "2026-04-16",
+        deadline: "2026-04-22",
+        assigneeIds: [3],
+        priority: "High",
+        status: null,
+        rowVer: 10,
+      };
+      execProc.mockResolvedValueOnce([{ ProjectId: 24 }]).mockResolvedValueOnce([wbsDbRow()]);
+      const kept = await updateWbsItemAction(base);
+      expect(kept.ok).toBe(true);
+      if (kept.ok) expect(kept.data.items.map((i) => i.id)).toEqual([7]);
+      expect(execProc.mock.calls.map((c) => c[0])).toEqual([
+        "usp_KeyDeliverable_Update",
+        "usp_KeyDeliverable_GanttData",
+      ]);
+      expect(execProc.mock.calls[0]![1]).toMatchObject({
+        KeyDeliverableId: 7,
+        AssigneeIds: "[3]",
+        Priority: "High",
+        ColorSet: 0,
+        BudgetSet: 0,
+        RowVer: 10,
+        ActorUserId: 7,
+      });
+
+      execProc.mockReset();
+      execProc.mockResolvedValueOnce([{ ProjectId: 24 }]).mockResolvedValueOnce([wbsDbRow()]);
+      await updateWbsItemAction({ ...base, color: "blue", budget: 1250.5 });
+      expect(execProc.mock.calls[0]![1]).toMatchObject({
+        Color: "blue",
+        ColorSet: 1,
+        Budget: 1250.5,
+        BudgetSet: 1,
+      });
+      expect(revalidatePath).not.toHaveBeenCalled();
     });
 
     // Dependencies (ADR-0046): each sends exactly its own fields, with no spread from a form.

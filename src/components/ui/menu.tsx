@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { usePopoverPlacement } from "./popover-placement";
 
 /**
@@ -10,19 +10,13 @@ import { usePopoverPlacement } from "./popover-placement";
  * focus, Escape closes and returns focus, outside pointer/focus closes.
  * Compose with <MenuLink> and <MenuButton> (role=menuitem, or menuitemradio
  * with aria-checked when given `checked`). Picking an item closes the menu and
- * puts focus back on the trigger. The panel opens under the trigger,
+ * puts focus back on the trigger; a <MenuCheckbox> (menuitemcheckbox) toggles
+ * and leaves the menu open, so several can be set in one visit. The panel opens under the trigger,
  * its right edge on the trigger's (`align="end"`) or its left edge (`"start"`),
  * moved sideways when that would cross the window's edge (360 px screens).
  */
-const ITEM = '[role="menuitem"], [role="menuitemradio"]';
-const EDGE_PX = 8;
-
-/** How far to move a panel sideways so it sits inside the window, EDGE_PX from each side. */
-export function shiftIntoView(left: number, right: number, windowWidth: number): number {
-  if (right > windowWidth - EDGE_PX) return Math.max(windowWidth - EDGE_PX - right, EDGE_PX - left);
-  if (left < EDGE_PX) return EDGE_PX - left;
-  return 0;
-}
+const ITEM = '[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]';
+const CLOSES = '[role="menuitem"], [role="menuitemradio"]';
 
 export function Menu({
   label,
@@ -47,17 +41,7 @@ export function Menu({
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const up = usePopoverPlacement(triggerRef, panelRef, open);
-
-  // Measured before paint, so a panel near the edge never shows cut off or widens the page.
-  useLayoutEffect(() => {
-    const panel = panelRef.current;
-    if (!open || !panel) return;
-    panel.style.translate = "";
-    const { left, right } = panel.getBoundingClientRect();
-    const shift = shiftIntoView(left, right, document.documentElement.clientWidth);
-    if (shift) panel.style.translate = `${shift}px 0`;
-  }, [open]);
+  usePopoverPlacement(triggerRef, panelRef, open, { align });
 
   const items = useCallback(
     () => Array.from(rootRef.current?.querySelectorAll<HTMLElement>(ITEM) ?? []),
@@ -120,10 +104,10 @@ export function Menu({
         role="menu"
         aria-label={label}
         hidden={!open}
-        className={`absolute ${align === "start" ? "left-0" : "right-0"} ${up ? "bottom-full mb-1" : "mt-1"} z-(--z-dropdown) max-w-[calc(100vw-1rem)] min-w-48 overflow-hidden rounded-md border border-line bg-surface-raised shadow-lg`}
+        className="fixed z-(--z-dropdown) max-w-[calc(100vw-1rem)] min-w-48 overflow-hidden rounded-lg border border-line bg-surface shadow-lg"
         onClickCapture={(event) => {
           const target = event.target as HTMLElement;
-          if (!target.closest(ITEM)) return;
+          if (!target.closest(CLOSES)) return;
           // Before the item's own handler: a dialog it opens returns focus to the trigger,
           // not to a hidden item, and an item that focuses something else still wins.
           triggerRef.current?.focus();
@@ -137,7 +121,7 @@ export function Menu({
 }
 
 const itemClass =
-  "flex min-h-10 w-full items-center px-6 text-left text-sm text-ink first:rounded-t-md last:rounded-b-md hover:bg-surface-sunken";
+  "flex min-h-10 w-full items-center px-4 py-2.5 text-left text-sm text-ink first:rounded-t-lg last:rounded-b-lg transition-colors duration-(--duration-fast) hover:bg-surface-raised";
 
 export function MenuLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
@@ -171,6 +155,39 @@ export function MenuButton({
       data-testid={testId}
       className={`${itemClass} gap-2 aria-checked:font-semibold`}
     >
+      {children}
+    </button>
+  );
+}
+
+/** An on/off setting in a menu: toggling it keeps the menu open. */
+export function MenuCheckbox({
+  checked,
+  onChange,
+  testId,
+  children,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  testId?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      role="menuitemcheckbox"
+      aria-checked={checked}
+      tabIndex={-1}
+      type="button"
+      onClick={() => onChange(!checked)}
+      data-testid={testId}
+      className={`${itemClass} gap-2 pl-2`}
+    >
+      <span
+        aria-hidden="true"
+        className={`flex size-4 shrink-0 items-center justify-center rounded-sm border text-[11px] leading-none ${checked ? "border-accent bg-accent text-on-accent" : "border-ink-faint"}`}
+      >
+        {checked ? "✓" : null}
+      </span>
       {children}
     </button>
   );

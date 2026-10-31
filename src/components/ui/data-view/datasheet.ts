@@ -229,12 +229,13 @@ const PANEL_MIN_BELOW = 320;
 export function panelPosition(
   cell: { left: number; top: number; bottom: number; width: number },
   viewport: { width: number; height: number },
+  { minWidth = PANEL_MIN_WIDTH, minBelow = PANEL_MIN_BELOW } = {},
 ): PanelPosition {
-  const width = Math.min(Math.max(cell.width, PANEL_MIN_WIDTH), viewport.width - 2 * PANEL_MARGIN);
+  const width = Math.min(Math.max(cell.width, minWidth), viewport.width - 2 * PANEL_MARGIN);
   const left = Math.min(Math.max(cell.left, PANEL_MARGIN), viewport.width - PANEL_MARGIN - width);
   const below = viewport.height - cell.bottom - PANEL_MARGIN;
   const above = cell.top - PANEL_MARGIN;
-  return below >= PANEL_MIN_BELOW || below >= above
+  return below >= minBelow || below >= above
     ? { left, width, top: cell.bottom + 4, maxHeight: below - 4 }
     : { left, width, bottom: viewport.height - cell.top + 4, maxHeight: above - 4 };
 }

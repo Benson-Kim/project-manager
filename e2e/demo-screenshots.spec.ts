@@ -166,7 +166,7 @@ test.describe.serial("demo screenshots", () => {
     await expect(
       page.getByRole("heading", { name: messages.keyDeliverables.ganttTitle }),
     ).toBeVisible();
-    await expect(page.getByTestId("gantt-chart")).toBeVisible();
+    await expect(page.getByTestId("gantt-board")).toBeVisible();
     await settle(page);
     await snap(page, "07-gantt-chart");
   });
@@ -185,17 +185,22 @@ test.describe.serial("demo screenshots", () => {
   test("08 — Gantt chart at 390 px (mobile)", async () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/projects/2/deliverables/gantt?view=gantt");
-    await expect(page.getByTestId("gantt-chart")).toBeVisible();
-    await page.getByTestId("wbs-tab-chart").click();
+    await expect(page.getByTestId("gantt-board")).toBeVisible();
     await settle(page);
     await snap(page, "08-gantt-mobile");
   });
 
   // ── 09  Deliverable detail sheet open ────────────────────────────────────
 
-  test("09 — deliverable detail sheet open (?d=1)", async () => {
+  test("09 — deliverable detail sheet open", async () => {
     await page.setViewportSize({ width: 1440, height: 1080 });
-    await page.goto("/projects/2/deliverables?d=1");
+    await page.goto("/projects/2/deliverables");
+    // The first listed deliverable, since the seed's ids differ between databases.
+    await page
+      .getByRole("row")
+      .getByRole("button", { name: new RegExp(`^${messages.datasheet.open("")}`) })
+      .first()
+      .click();
     await expect(
       page.getByRole("heading", { name: messages.keyDeliverables.editTitle }),
     ).toBeVisible();
@@ -287,7 +292,7 @@ test.describe.serial("demo screenshots", () => {
 
   test("18 — Gantt chart in dark mode", async () => {
     await page.goto("/projects/2/deliverables/gantt?view=gantt");
-    await expect(page.getByTestId("gantt-chart")).toBeVisible();
+    await expect(page.getByTestId("gantt-board")).toBeVisible();
     await page.evaluate(() => {
       document.documentElement.setAttribute("data-theme", "dark");
     });

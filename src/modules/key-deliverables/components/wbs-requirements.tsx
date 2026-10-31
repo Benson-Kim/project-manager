@@ -1,24 +1,56 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { TONES } from "@/components/ui/tones";
 import { messages } from "@/lib/messages";
-import { MAX_REQUIREMENT_LENGTH } from "@/modules/requirements/schemas/requirement";
 import {
-  isSolution,
+  MoscowBadge,
+  MoscowButtons,
+  TYPE_TONES,
+} from "@/modules/requirements/components/requirement-chips";
+import type { MoSCoW } from "@/modules/requirements/schemas/moscow";
+import {
+  MAX_REQUIREMENT_LENGTH,
+  type RequirementOption,
+} from "@/modules/requirements/schemas/requirement";
+import {
   SOLUTION_TYPES,
   type SolutionType,
 } from "@/modules/requirements/schemas/requirement-types";
-import { requirementChip, type WbsNode, type WbsRequirement } from "../schemas/wbs";
+import {
+  requirementChip,
+  requirementIndent,
+  requirementOutdent,
+  requirementOutline,
+  type RequirementPlanning,
+  type WbsNode,
+  type WbsRequirement,
+} from "../schemas/wbs";
 import { DraftInput } from "./draft-input";
+import { RequirementMore } from "./wbs-requirement-more";
 
 const W = messages.keyDeliverables.wbs;
+
+/**
+ * The quick-add's extras: a MoSCoW code, a saved requirement of the item to nest under, and the
+ * business or stakeholder requirement it meets.
+ */
+export interface AddMore {
+  moscow?: MoSCoW | null;
+  parentId?: number | null;
+  meetsId?: number | null;
+}
 
 /** What a requirements list asks the editor to do (ADR-0036). */
 export interface RequirementHandlers {
   /** The cascade only adds solution types: a need is never allocated to a deliverable. */
-  add: (itemId: number, text: string, type: SolutionType) => void;
+  add: (itemId: number, text: string, type: SolutionType, more?: AddMore) => void;
   edit: (id: number, text: string) => void;
   setMet: (id: number, met: boolean) => void;
+  /** null clears it. */
+  setMoscow: (id: number, moscow: MoSCoW | null) => void;
+  /** Criteria, estimate and owner, saved together. */
+  setPlanning: (id: number, planning: RequirementPlanning) => void;
   /** -1 up, 1 down, within one deliverable's list. */
   move: (itemId: number, id: number, delta: -1 | 1) => void;
   /** Takes the requirement off this one deliverable; it stays in the register (ADR-0037). */
@@ -95,6 +127,13 @@ export function RequirementControls({
   const text = requirement.text;
   return (
     <span className="flex shrink-0 items-center">
+      <RequirementMore
+        requirement={requirement}
+        canEdit={access.canEdit}
+        className={iconButton}
+        onMoscow={(moscow) => on.setMoscow(requirement.id, moscow)}
+        onPlanning={(planning) => on.setPlanning(requirement.id, planning)}
+      />
       {access.canEdit && count > 1 ? (
         <>
           <button
@@ -157,63 +196,71 @@ export function MetBox({
   );
 }
 
+const pickerClass =
+  "h-7 min-w-0 flex-1 cursor-pointer rounded-sm border border-line bg-surface px-0.5 text-xs text-ink focus:border-focus focus:outline-none";
+
+const pickerLabelClass = "flex items-center gap-1 text-[10px] font-semibold text-ink-muted";
+
 /**
  * The kind and the wording of a new requirement. Enter adds and keeps the field open for the
- * next one; Escape or an empty Enter closes it. The type select offers solution types only.
+ * next one; Escape or an empty Enter closes it. The type select offers solution types only, and
+ * "Meets" traces the new one to a business or stakeholder requirement of the register.
  */
 export function AddRequirementField({
   node,
   type,
+  needs,
   on,
   className,
 }: {
   node: WbsNode;
   type: SolutionType;
+  needs: readonly RequirementOption[];
   on: RequirementHandlers;
   className: string;
 }) {
   const [text, setText] = useState("");
+  const [moscow, setMoscow] = useState<MoSCoW | null>(null);
+  const [parentId, setParentId] = useState<number | null>(null);
+  const [meetsId, setMeetsId] = useState<number | null>(null);
   // Stops the closing blur from adding what Escape dropped.
   const cancelled = useRef(false);
   const id = node.item.id;
+  const requirements = node.item.requirements;
+  const outline = requirementOutline(requirements).filter((e) => e.requirement.id > 0);
+  const parent = requirements.find((r) => r.id === parentId);
+  // A sub-requirement takes its parent's type, so the type chips only choose a top-level one.
+  const shownType = parent?.type ?? type;
 
   function add(): boolean {
     const value = text.trim();
     if (!value || cancelled.current) return false;
-    on.add(id, value, type);
+    on.add(id, value, type, { moscow, parentId: parent ? parentId : null, meetsId });
     setText("");
     return true;
   }
 
   return (
     <span
-      className="flex w-full min-w-0 items-center gap-1"
-      // Picking a type keeps the field open; only leaving the pair closes it.
+      data-testid={`wbs-quick-add-${id}`}
+      className="flex w-full min-w-0 flex-col gap-1 rounded-sm border border-line bg-surface p-1"
+      // Picking a chip keeps the form open; only leaving it closes it.
       onBlur={(event) => {
         if (event.currentTarget.contains(event.relatedTarget)) return;
         add();
         on.openAdd(null);
       }}
+      // A chip pressed with the pointer leaves the caret in the text, ready for the next one.
+      onMouseDown={(event) => {
+        if ((event.target as HTMLElement).closest("button")) event.preventDefault();
+      }}
     >
-      <select
-        aria-label={W.requirementTypeFor(node.code)}
-        value={type}
-        // The guard, not a cast: only a kind the catalog knows reaches the add.
-        onChange={(event) => {
-          if (isSolution(event.target.value)) on.setAddType(event.target.value);
-        }}
-        className="h-7 shrink-0 cursor-pointer rounded-sm border border-focus bg-surface px-0.5 text-xs text-ink focus:outline-none"
-      >
-        {SOLUTION_TYPES.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
       <input
         autoFocus
         data-wbs-req-add={id}
-        aria-label={W.newRequirementFor(node.code)}
+        aria-label={W.newRequirementFor(node.code, parent ? requirementChip(parent) : null)}
+        aria-keyshortcuts="Tab Shift+Tab"
+        placeholder={W.quickAdd.placeholder}
         value={text}
         maxLength={MAX_REQUIREMENT_LENGTH}
         onChange={(event) => setText(event.target.value)}
@@ -226,34 +273,108 @@ export function AddRequirementField({
             cancelled.current = true;
             setText("");
             on.openAdd(null);
+          } else if (event.key === "Tab") {
+            // Nests like the outline's names; with nowhere to go, Tab moves on as usual.
+            const next = event.shiftKey
+              ? requirementOutdent(requirements, parentId)
+              : requirementIndent(requirements, parentId);
+            if (next === undefined) return;
+            event.preventDefault();
+            setParentId(next);
           }
         }}
         className={className}
       />
+      <span
+        role="group"
+        aria-label={W.requirementTypeFor(node.code)}
+        className="flex flex-wrap gap-1"
+      >
+        {SOLUTION_TYPES.map((option) => (
+          <button
+            key={option}
+            type="button"
+            aria-pressed={shownType === option}
+            disabled={parent !== undefined}
+            onClick={() => on.setAddType(option)}
+            className={`min-h-6 cursor-pointer rounded-full border px-1.5 text-[10px] font-semibold disabled:cursor-default ${
+              shownType === option
+                ? TONES[TYPE_TONES[option]].badge
+                : "border-line bg-surface text-ink-muted hover:text-ink"
+            }`}
+          >
+            {option}
+          </button>
+        ))}
+      </span>
+      <MoscowButtons value={moscow} onChange={setMoscow} label={W.quickAdd.moscowFor(node.code)} />
+      <label className={pickerLabelClass}>
+        {W.quickAdd.parent}
+        <select
+          value={parentId ?? ""}
+          onChange={(event) => setParentId(event.target.value ? Number(event.target.value) : null)}
+          className={pickerClass}
+        >
+          <option value="">{W.quickAdd.topLevel}</option>
+          {outline.map(({ requirement, depth }) => (
+            <option key={requirement.id} value={requirement.id}>
+              {`${"  ".repeat(depth)}${requirementChip(requirement)} ${requirement.text}`}
+            </option>
+          ))}
+        </select>
+      </label>
+      {needs.length > 0 ? (
+        <label className={pickerLabelClass}>
+          {W.quickAdd.meets}
+          <select
+            data-testid={`wbs-req-meets-${id}`}
+            value={meetsId ?? ""}
+            onChange={(event) => setMeetsId(event.target.value ? Number(event.target.value) : null)}
+            className={pickerClass}
+          >
+            <option value="">{W.quickAdd.meetsNone}</option>
+            {needs.map((need) => (
+              <option key={need.id} value={need.id}>
+                {`${need.ref} ${need.text}`}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
     </span>
   );
 }
 
-/** "Add requirement" under an item; the field takes its place while open. */
+/**
+ * Opens the add field under an item: "Add requirement" under the Gantt's list, a "+" in a WBS
+ * box's head row.
+ */
 export function AddRequirementButton({
   node,
   on,
   className,
+  tabIndex,
+  children = W.addRequirement,
 }: {
   node: WbsNode;
   on: RequirementHandlers;
   className: string;
+  tabIndex?: number;
+  children?: React.ReactNode;
 }) {
   const name = node.item.name || messages.keyDeliverables.deliverableFallback(node.item.id);
   return (
     <button
       type="button"
+      tabIndex={tabIndex}
       aria-label={W.addRequirementTo(name)}
+      title={W.addRequirementTo(name)}
       data-testid={`wbs-req-add-${node.item.id}`}
       onClick={() => on.openAdd(node.item.id)}
+      onDoubleClick={(event) => event.stopPropagation()}
       className={className}
     >
-      {W.addRequirement}
+      {children}
     </button>
   );
 }
@@ -371,21 +492,35 @@ export function BoxRequirements({
   hidden,
   adding,
   addType,
+  needs,
   access,
   on,
+  only,
+  alwaysOpen = false,
+  addButton = true,
 }: {
   node: WbsNode;
   hidden: boolean;
   adding: boolean;
   /** The kind the add field is set to. */
   addType: SolutionType;
+  /** The project's business and stakeholder requirements, for the add field's "Meets". */
+  needs: readonly RequirementOption[];
   access: RequirementAccess;
   on: RequirementHandlers;
+  /** Under a filter, the requirements that show; the rest keep their place for moves. */
+  only?: ReadonlySet<number>;
+  /** Always listed, with no show/hide toggle (the Gantt's requirements panel). */
+  alwaysOpen?: boolean;
+  /** "Add requirement" under the list; off where the item has its own "+" (a WBS box). */
+  addButton?: boolean;
 }) {
   const requirements = node.item.requirements;
-  if (requirements.length === 0 && !access.canCreate) return null;
+  const field = access.canCreate && (adding || addButton);
+  if (requirements.length === 0 && !field) return null;
   const name = node.item.name || messages.keyDeliverables.deliverableFallback(node.item.id);
-  const open = !hidden || adding;
+  const open = alwaysOpen || !hidden || adding;
+  const listed = only ? requirements.some((r) => only.has(r.id)) : requirements.length > 0;
 
   return (
     <div
@@ -393,7 +528,7 @@ export function BoxRequirements({
       className="mt-1 flex flex-col gap-1 border-t border-line pt-1 font-normal"
       onDoubleClick={(event) => event.stopPropagation()}
     >
-      {requirements.length > 0 ? (
+      {requirements.length > 0 && !alwaysOpen ? (
         <RequirementsToggle
           node={node}
           hidden={!open}
@@ -401,52 +536,54 @@ export function BoxRequirements({
           className="-mx-1 flex min-h-6 cursor-pointer items-center gap-1 self-start rounded-sm px-1 text-xs text-ink-muted hover:bg-surface-raised hover:text-ink print:hidden"
         />
       ) : null}
-      {open && requirements.length > 0 ? (
+      {open && listed ? (
         <ul
           aria-label={W.requirementsOf(name)}
-          className="m-0 flex list-none flex-col gap-0.5 border-l border-line p-0 pl-2"
+          className="m-0 flex list-none flex-col gap-1 border-l-2 border-line p-0 pl-2"
         >
-          {requirements.map((requirement, index) => (
-            <li
-              key={requirement.id}
-              data-testid={`wbs-req-${requirement.id}`}
-              className="group relative flex items-start gap-1.5"
-            >
-              <span className="flex h-5 items-center">
-                <MetBox requirement={requirement} canEdit={access.canEdit} on={on} />
-              </span>
-              <RefChip requirement={requirement} />
-              <RequirementText requirement={requirement} canEdit={access.canEdit} on={on} />
-              <span className="-my-1 hidden group-focus-within:flex group-hover:flex pointer-coarse:flex">
-                <RequirementControls
-                  itemId={node.item.id}
-                  requirement={requirement}
-                  index={index}
-                  count={requirements.length}
-                  access={access}
-                  on={on}
-                />
-              </span>
-            </li>
-          ))}
+          {requirements.map((requirement, index) =>
+            only && !only.has(requirement.id) ? null : (
+              <li
+                key={requirement.id}
+                data-testid={`wbs-req-${requirement.id}`}
+                className={`group relative flex items-start gap-1.5 rounded-sm border bg-surface px-1 py-0.5 ${TONES[TYPE_TONES[requirement.type]].line}`}
+              >
+                <span className="flex h-5 items-center">
+                  <MetBox requirement={requirement} canEdit={access.canEdit} on={on} />
+                </span>
+                <RefChip requirement={requirement} />
+                {requirement.moscow ? <MoscowBadge code={requirement.moscow} /> : null}
+                <RequirementText requirement={requirement} canEdit={access.canEdit} on={on} />
+                <span className="-my-1 hidden group-focus-within:flex group-hover:flex pointer-coarse:flex has-[[aria-expanded=true]]:flex">
+                  <RequirementControls
+                    itemId={node.item.id}
+                    requirement={requirement}
+                    index={index}
+                    count={requirements.length}
+                    access={access}
+                    on={on}
+                  />
+                </span>
+              </li>
+            ),
+          )}
         </ul>
       ) : null}
-      {access.canCreate ? (
-        adding ? (
-          <AddRequirementField
-            node={node}
-            type={addType}
-            on={on}
-            className="h-7 min-w-0 flex-1 rounded-sm border border-focus bg-surface px-1.5 text-xs text-ink select-text focus:outline-none"
-          />
-        ) : (
-          <AddRequirementButton
-            node={node}
-            on={on}
-            className="min-h-6 cursor-pointer self-start rounded-sm border border-dashed border-line px-2 text-xs text-ink-muted hover:bg-surface-raised hover:text-ink print:hidden"
-          />
-        )
-      ) : null}
+      {!field ? null : adding ? (
+        <AddRequirementField
+          node={node}
+          type={addType}
+          needs={needs}
+          on={on}
+          className="h-9 w-full min-w-0 rounded-md border border-focus bg-surface px-2 text-sm text-ink select-text focus:outline-none"
+        />
+      ) : (
+        <AddRequirementButton
+          node={node}
+          on={on}
+          className="min-h-6 cursor-pointer self-start rounded-sm border border-dashed border-line px-2 text-xs text-ink-muted hover:bg-surface-raised hover:text-ink print:hidden"
+        />
+      )}
     </div>
   );
 }

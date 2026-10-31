@@ -19,7 +19,7 @@ test("sidebar renders the specified items in order with Settings and Logout pinn
     "Daily activities",
     "To-do lists",
     "Notes",
-    "Boards",
+    messages.nav.boards,
     "Reports",
   ]);
   const bottom = page.getByTestId("nav-bottom");
@@ -97,6 +97,48 @@ test("mobile drawer opens from the hamburger and closes with Escape", async ({ p
   await page.keyboard.press("Escape");
   await expect(drawer).toBeHidden();
   await expect(page.getByTestId("open-drawer")).toBeFocused();
+});
+
+test("desktop sidebar collapses to an icon rail from the keyboard, stays so after reload, and expands", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const sidebar = page.getByTestId("sidebar");
+  const toggle = sidebar.getByTestId("sidebar-toggle");
+  const width = async () => (await sidebar.boundingBox())?.width ?? 0;
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(toggle).toHaveAttribute("aria-controls", (await sidebar.getAttribute("id"))!);
+  expect(await width()).toBeGreaterThan(200);
+
+  await toggle.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("html")).toHaveAttribute("data-sidebar", "collapsed");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(toggle).toBeFocused();
+  await expect.poll(width).toBeLessThan(100);
+  const projects = sidebar.getByRole("link", { name: messages.nav.projects });
+  await expect(projects).toHaveAttribute("title", messages.nav.projects);
+  const axe = await new AxeBuilder({ page }).include("[data-testid=sidebar]").analyze();
+  expect(axe.violations.filter((v) => v.impact === "serious" || v.impact === "critical")).toEqual(
+    [],
+  );
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  // Set by the pre-paint script, so the rail is drawn before React hydrates.
+  await expect(page.locator("html")).toHaveAttribute("data-sidebar", "collapsed");
+  expect(await width()).toBeLessThan(100);
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect.poll(width).toBeGreaterThan(200);
+  await expect(projects).not.toHaveAttribute("title", /./);
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-sidebar", "expanded");
+
+  await page.setViewportSize({ width: 375, height: 720 });
+  await page.getByTestId("open-drawer").click();
+  await expect(page.getByRole("dialog").getByTestId("sidebar-toggle")).toHaveCount(0);
 });
 
 test("axe scan on the shell (dashboard) has no serious or critical violations in both themes", async ({

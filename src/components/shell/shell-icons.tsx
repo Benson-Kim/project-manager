@@ -162,6 +162,22 @@ export function SidebarIcon({
   );
 }
 
+/** Double chevron pointing left; it turns to point right while the sidebar is a rail. */
+export function CollapseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-5 rail:rotate-180" aria-hidden="true">
+      <path
+        d="m11 17-5-5 5-5M18 17l-5-5 5-5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /** A window with an arrow leaving it: open this page in a window of its own. */
 export function NewWindowIcon() {
   return (

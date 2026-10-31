@@ -4,21 +4,13 @@
  */
 
 /**
- * Format a date for display (e.g. "Mar 15, 2026").
+ * Format a date for display: "2026-03-15", the one format the client agreed
+ * for every screen, the same as a date field's value.
  * Returns an empty string when the value is null, undefined or invalid so
  * callers can render it directly without a separate null-check.
  */
 export function formatDate(value: Date | string | null | undefined): string {
-  if (value == null) return "";
-  const d = value instanceof Date ? value : new Date(value);
-  if (isNaN(d.getTime())) return "";
-  // Use en-US for stable month abbreviations (no trailing period) across all environments.
-  return d.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
+  return toDateInput(value);
 }
 
 /**

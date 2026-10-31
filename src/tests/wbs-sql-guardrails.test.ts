@@ -10,7 +10,7 @@ import {
 } from "@/modules/key-deliverables/schemas/wbs-dependencies";
 
 function sql(path: string): string {
-  return readFileSync(path, "utf8");
+  return readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 }
 
 const PROCS = "db/procs/key-deliverable";

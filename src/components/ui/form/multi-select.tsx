@@ -27,14 +27,14 @@ export function ChipTag({
   onRemove: (id: number) => void;
 }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-line bg-surface-raised px-2.5 py-0.5 text-xs text-ink">
+    <span className="inline-flex h-7 max-w-full items-center gap-0.5 rounded-full border border-line bg-surface-raised pr-0.5 pl-2.5 text-xs text-ink">
       <input type="hidden" name={inputName} value={id} />
-      {label}
+      <span className="truncate">{label}</span>
       {!disabled && (
         <button
           type="button"
           aria-label={removeLabel(label)}
-          className="ml-0.5 inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-ink-muted hover:text-danger focus-visible:outline-2 focus-visible:outline-focus"
+          className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-sm text-ink-muted hover:bg-surface hover:text-danger focus-visible:outline-2 focus-visible:outline-focus"
           onClick={() => onRemove(id)}
         >
           ×
@@ -75,6 +75,7 @@ export function MultiSelect({
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const fieldRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   // Enter takes an option the text does not match only once the arrows chose it.
@@ -101,7 +102,9 @@ export function MultiSelect({
     [options, query, selectedIds],
   );
   const filtered = ranked.map((r) => r.option);
-  const up = usePopoverPlacement(inputRef, listRef, open && filtered.length > 0, {
+  // Placed against the whole field, so a panel that opens upwards sits above the chips and every
+  // chosen item stays in reach of its ×.
+  usePopoverPlacement(fieldRef, listRef, open && filtered.length > 0, {
     fit: true,
     contentKey: filtered.length,
   });
@@ -135,6 +138,8 @@ export function MultiSelect({
         e.preventDefault();
         pick(filtered[activeIndex]);
       }
+    } else if (e.key === "Backspace" && query === "" && selected.length > 0) {
+      onRemove(selected[selected.length - 1].id);
     } else if (e.key === "Escape") {
       if (open) {
         e.stopPropagation();
@@ -144,24 +149,28 @@ export function MultiSelect({
   };
 
   return (
-    <div className="flex flex-col gap-2">
-      {selected.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {selected.map((s) => (
-            <ChipTag
-              key={s.id}
-              id={s.id}
-              label={s.label}
-              inputName={inputName}
-              removeLabel={removeLabel}
-              disabled={disabled}
-              onRemove={onRemove}
-            />
-          ))}
-        </div>
-      )}
-      {!disabled && (
-        <div className="relative">
+    <div ref={fieldRef} className="relative">
+      {/* The chips sit inside the box, before the text, like an e-mail's recipients. */}
+      <div
+        className={`flex min-h-11 flex-wrap items-center gap-1.5 rounded-md border border-line px-2 py-1 ${disabled ? "bg-surface-sunken" : "bg-surface"} focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-focus`}
+        onMouseDown={(e) => {
+          if (e.target !== e.currentTarget) return;
+          e.preventDefault();
+          inputRef.current?.focus();
+        }}
+      >
+        {selected.map((s) => (
+          <ChipTag
+            key={s.id}
+            id={s.id}
+            label={s.label}
+            inputName={inputName}
+            removeLabel={removeLabel}
+            disabled={disabled}
+            onRemove={onRemove}
+          />
+        ))}
+        {!disabled && (
           <input
             ref={inputRef}
             id={fieldCtx?.inputId}
@@ -176,7 +185,10 @@ export function MultiSelect({
             aria-describedby={fieldCtx?.invalid ? fieldCtx.errorId : undefined}
             autoComplete="off"
             placeholder={options.length === 0 ? emptyPlaceholder : ""}
-            className="min-h-11 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink"
+            className="min-h-8 min-w-24 flex-1 bg-transparent px-1 text-sm text-ink"
+            // The box draws the focus ring; the global :focus-visible rule is unlayered, so only an
+            // inline style keeps the input from drawing a second one inside it.
+            style={{ outline: "none" }}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -189,33 +201,35 @@ export function MultiSelect({
             onBlur={() => setTimeout(() => setOpen(false), 100)}
             onKeyDown={onKeyDown}
           />
-          <ul
-            ref={listRef}
-            id={listboxId}
-            role="listbox"
-            hidden={!open || filtered.length === 0}
-            className={`absolute z-(--z-dropdown) ${up ? "bottom-full mb-1" : "mt-1"} max-h-60 w-full overflow-auto rounded-md border border-line bg-surface-raised shadow-lg`}
-          >
-            {ranked.map(({ option, rank }, idx) => (
-              <li
-                key={option.id}
-                id={`${listboxId}-${option.id}`}
-                role="option"
-                aria-selected={false}
-                className={`flex min-h-11 cursor-pointer items-center px-3 text-sm first:rounded-t-md last:rounded-b-md ${
-                  idx === activeIndex ? "bg-accent-soft" : ""
-                } ${rank < NO_MATCH ? "text-ink" : "text-ink-muted"}`}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  pick(option);
-                }}
-                onMouseEnter={() => setActiveIndex(idx)}
-              >
-                {option.label}
-              </li>
-            ))}
-          </ul>
-        </div>
+        )}
+      </div>
+      {!disabled && (
+        <ul
+          ref={listRef}
+          id={listboxId}
+          role="listbox"
+          hidden={!open || filtered.length === 0}
+          className="fixed z-(--z-dropdown) max-h-60 overflow-auto rounded-md border border-line bg-surface-raised shadow-lg"
+        >
+          {ranked.map(({ option, rank }, idx) => (
+            <li
+              key={option.id}
+              id={`${listboxId}-${option.id}`}
+              role="option"
+              aria-selected={false}
+              className={`flex min-h-11 cursor-pointer items-center px-3 text-sm first:rounded-t-md last:rounded-b-md ${
+                idx === activeIndex ? "bg-accent-soft" : ""
+              } ${rank < NO_MATCH ? "text-ink" : "text-ink-muted"}`}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                pick(option);
+              }}
+              onMouseEnter={() => setActiveIndex(idx)}
+            >
+              {option.label}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

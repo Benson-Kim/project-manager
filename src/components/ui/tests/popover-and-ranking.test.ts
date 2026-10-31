@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { matchRank, NO_MATCH, rankByMatch } from "../form/rank-options";
-import { opensUp, roomFor } from "../popover-placement";
+import { opensUp, panelLeft, panelTop, roomFor } from "../popover-placement";
 
 describe("rankByMatch", () => {
   const names = ["Mike Armstrong", "Suganthi", "Armand", "Karma", "Sarah Jenkins"];
@@ -48,5 +48,19 @@ describe("popover placement", () => {
   it("caps the panel to the room on its side", () => {
     expect(roomFor(true, { top: 700, bottom: 740 }, bounds)).toBe(692);
     expect(roomFor(false, { top: 700, bottom: 740 }, bounds)).toBe(96);
+  });
+
+  it("sits just under its anchor, or just above it when it opens up", () => {
+    expect(panelTop({ top: 100, bottom: 140 }, 240, false)).toBe(144);
+    expect(panelTop({ top: 700, bottom: 740 }, 240, true)).toBe(456);
+  });
+
+  it("lines up with the anchor's left or right edge, inside the window", () => {
+    const anchor = { left: 300, right: 340 };
+    expect(panelLeft(anchor, 200, "start", 1440)).toBe(300);
+    expect(panelLeft(anchor, 200, "stretch", 1440)).toBe(300);
+    expect(panelLeft(anchor, 200, "end", 1440)).toBe(140);
+    expect(panelLeft({ left: 20, right: 60 }, 200, "end", 360)).toBe(8);
+    expect(panelLeft({ left: 300, right: 340 }, 200, "start", 360)).toBe(152);
   });
 });

@@ -18,6 +18,10 @@ import {
   moveCascadeRequirement,
   renameKeyDeliverable,
   rescheduleKeyDeliverable,
+  setCascadeMoscow,
+  setCascadePlanning,
+  setPlanNote,
+  setWbsItemNote,
   setWbsItemStatus,
   updateKeyDeliverable,
   updateCascadeRequirement,
@@ -172,6 +176,27 @@ describe("key-deliverables repository", () => {
     expect(params.RowVer).toBe(2001);
   });
 
+  it("update keeps the budget unless one was sent (BudgetSet), so an older form cannot clear it", async () => {
+    execProc.mockResolvedValue([dbRow()]);
+    const base = { keyDeliverableId: 7, projectId: 24, keyRequirement: "R", rowVer: 2001 };
+    await updateKeyDeliverable(base, 7);
+    await updateKeyDeliverable({ ...base, budget: null }, 7);
+    await updateKeyDeliverable({ ...base, budget: 1500.25 }, 7);
+    const sent = execProc.mock.calls.map((c) => c[1] as Record<string, unknown>);
+    expect(sent.map((p) => [p.BudgetSet, p.Budget])).toEqual([
+      [0, null],
+      [1, null],
+      [1, 1500.25],
+    ]);
+  });
+
+  it("refuses a negative budget, or one with fractions of a cent", async () => {
+    const base = { keyDeliverableId: 7, projectId: 24, keyRequirement: "R", rowVer: 2001 };
+    await expect(updateKeyDeliverable({ ...base, budget: -1 }, 7)).rejects.toThrow();
+    await expect(updateKeyDeliverable({ ...base, budget: 10.005 }, 7)).rejects.toThrow();
+    expect(execProc).not.toHaveBeenCalled();
+  });
+
   it("update keeps the colour unless the form sent one (ColorSet), as older app versions do", async () => {
     execProc.mockResolvedValue([dbRow()]);
     const base = { keyDeliverableId: 7, projectId: 24, keyRequirement: "R", rowVer: 2001 };
@@ -212,6 +237,8 @@ describe("key-deliverables repository", () => {
         assigneeNames: "Maggy Yerlan",
         assignees: [{ id: 3, name: "Maggy Yerlan" }],
         requirements: [],
+        budget: null,
+        note: null,
         rowVer: 2001,
       });
       expect(data.items[1]).toMatchObject({ id: 8, parentId: 7, color: "red", rowVer: 2002 });
@@ -355,6 +382,12 @@ describe("key-deliverables repository", () => {
               sortOrder: 1,
               rowVer: "3001",
               placeRowVer: "7001",
+              parentId: 38,
+              moscow: "M",
+              criteria: "Stamped by the council",
+              estimateDays: 2.5,
+              ownerId: 3,
+              ownerName: "Maggy Yerlan",
             },
           ]),
         }),
@@ -372,7 +405,14 @@ describe("key-deliverables repository", () => {
           sortOrder: 1,
           rowVer: 3001,
           placeRowVer: 7001,
+          parentId: 38,
+          moscow: "M",
+          criteria: "Stamped by the council",
+          estimateDays: 2.5,
+          ownerId: 3,
+          ownerName: "Maggy Yerlan",
         },
+        // An entry from before migration 051 carries no planning keys and reads as unset.
         {
           id: 41,
           type: "NFR",
@@ -382,10 +422,47 @@ describe("key-deliverables repository", () => {
           sortOrder: 2,
           rowVer: 3002,
           placeRowVer: 7002,
+          parentId: null,
+          moscow: null,
+          criteria: null,
+          estimateDays: null,
+          ownerId: null,
+          ownerName: null,
         },
       ]);
       expect(items[1].requirements).toEqual([]);
       expect(items[2].requirements).toEqual([]);
+    });
+
+    it("reads an item's budget and note (ADR-0052), and none from before migration 051", async () => {
+      execProc.mockResolvedValue([
+        wbsDbRow({ Budget: 1250.5, Note: "Call the council first" }),
+        wbsDbRow({ KeyDeliverableId: 8 }),
+      ]);
+      const { items } = await getWbs(24, 7);
+      expect(items[0]).toMatchObject({ budget: 1250.5, note: "Call the council first" });
+      expect(items[1]).toMatchObject({ budget: null, note: null });
+    });
+
+    it("refuses a MoSCoW code the database could not have stored", async () => {
+      execProc.mockResolvedValue([
+        wbsDbRow({
+          RequirementsJson: JSON.stringify([
+            {
+              id: 40,
+              type: "FR",
+              ref: "FR-1",
+              requirement: "Permit",
+              isMet: false,
+              sortOrder: 1,
+              rowVer: "3001",
+              placeRowVer: "7001",
+              moscow: "X",
+            },
+          ]),
+        }),
+      ]);
+      await expect(getWbs(24, 7)).rejects.toThrow();
     });
 
     it("refuses malformed requirements rather than drop them", async () => {
@@ -502,6 +579,12 @@ describe("key-deliverables repository", () => {
       SortPath: "0000000001",
       Depth: 0,
       ChildCount: 0,
+      ParentRequirementId: null,
+      MoSCoW: null,
+      AcceptanceCriteria: null,
+      EstimateDays: null,
+      OwnerStakeholderId: null,
+      OwnerName: null,
       Requirement: "Permit",
       IsMet: false,
       CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),
@@ -526,10 +609,14 @@ describe("key-deliverables repository", () => {
           RequirementType: "FR",
           Requirement: "Permit",
           IsMet: false,
-          // The cascade allocates to a deliverable; it never creates a sub-requirement (ADR-0048).
+          // No parent sent: a root requirement, allocated to the deliverable (ADR-0048).
           ParentRequirementId: null,
           ValidatesIds: null,
           KeyDeliverableIds: JSON.stringify([7]),
+          MoSCoW: null,
+          AcceptanceCriteria: null,
+          EstimateDays: null,
+          OwnerStakeholderId: null,
           ActorUserId: 9,
         },
       ]);
@@ -537,6 +624,125 @@ describe("key-deliverables repository", () => {
         "usp_KeyDeliverable_GanttData",
         { ProjectId: 31, ActorUserId: 9, WithProjectRow: 1 },
       ]);
+    });
+
+    it("passes the quick-add's MoSCoW and parent through to the register (ADR-0052)", async () => {
+      execProc.mockResolvedValueOnce([reqRow]).mockResolvedValueOnce([wbsDbRow()]);
+      await addCascadeRequirement(
+        {
+          ...addRequirementInput.parse({
+            projectId: 31,
+            itemId: 7,
+            type: "FR",
+            text: "Permit",
+            moscow: "S",
+            parentRequirementId: 38,
+          }),
+        },
+        9,
+      );
+      expect(execProc.mock.calls[0]![1]).toMatchObject({
+        MoSCoW: "S",
+        ParentRequirementId: 38,
+        KeyDeliverableIds: JSON.stringify([7]),
+      });
+    });
+
+    it("traces the quick-add's Meets choice to that need, and sends no trace without one", async () => {
+      execProc.mockResolvedValueOnce([reqRow]).mockResolvedValueOnce([wbsDbRow()]);
+      await addCascadeRequirement(
+        addRequirementInput.parse({
+          projectId: 31,
+          itemId: 7,
+          type: "NFR",
+          text: "Fast",
+          meetsId: 12,
+        }),
+        9,
+      );
+      expect(execProc.mock.calls[0]![1]).toMatchObject({ ValidatesIds: JSON.stringify([12]) });
+      execProc.mockResolvedValueOnce([reqRow]).mockResolvedValueOnce([wbsDbRow()]);
+      await addCascadeRequirement(
+        addRequirementInput.parse({
+          projectId: 31,
+          itemId: 7,
+          type: "NFR",
+          text: "Fast",
+          meetsId: null,
+        }),
+        9,
+      );
+      expect(execProc.mock.calls[2]![1]).toMatchObject({ ValidatesIds: null });
+      expect(
+        addRequirementInput.safeParse({
+          projectId: 31,
+          itemId: 7,
+          type: "FR",
+          text: "x",
+          meetsId: 0,
+        }).success,
+      ).toBe(false);
+    });
+
+    it("sets MoSCoW and planning from the breakdown, answering with the whole breakdown", async () => {
+      execProc.mockResolvedValueOnce([reqRow]).mockResolvedValueOnce([wbsDbRow()]);
+      await setCascadeMoscow({ requirementId: 40, rowVer: 3001, moscow: "W" }, 9);
+      execProc.mockResolvedValueOnce([reqRow]).mockResolvedValueOnce([wbsDbRow()]);
+      await setCascadePlanning(
+        {
+          requirementId: 40,
+          rowVer: 3002,
+          acceptanceCriteria: "Signed",
+          estimateDays: 1.5,
+          ownerStakeholderId: null,
+        },
+        9,
+      );
+      expect(execProc.mock.calls.map((c) => c[0])).toEqual([
+        "usp_Requirement_SetMoSCoW",
+        "usp_KeyDeliverable_GanttData",
+        "usp_Requirement_SetPlanning",
+        "usp_KeyDeliverable_GanttData",
+      ]);
+      expect(execProc.mock.calls[0]![1]).toEqual({
+        RequirementId: 40,
+        MoSCoW: "W",
+        RowVer: 3001,
+        ActorUserId: 9,
+      });
+      expect(execProc.mock.calls[2]![1]).toEqual({
+        RequirementId: 40,
+        AcceptanceCriteria: "Signed",
+        EstimateDays: 1.5,
+        OwnerStakeholderId: null,
+        RowVer: 3002,
+        ActorUserId: 9,
+      });
+      // The breakdown is read for the project the requirement row reports, never the caller's.
+      expect(execProc.mock.calls[1]![1]).toMatchObject({ ProjectId: reqRow.ProjectId });
+    });
+
+    it("saves an item's note and the project's sticky note with their row versions", async () => {
+      execProc.mockResolvedValueOnce([{ ProjectId: 24 }]).mockResolvedValueOnce([wbsDbRow()]);
+      await setWbsItemNote({ id: 7, note: "Call first", rowVer: 2001 }, 9);
+      expect(execProc.mock.calls[0]).toEqual([
+        "usp_KeyDeliverable_SetNote",
+        { KeyDeliverableId: 7, Note: "Call first", RowVer: 2001, ActorUserId: 9 },
+      ]);
+      execProc.mockReset();
+      execProc.mockResolvedValueOnce([{ RowVer: "88001" }]);
+      expect(await setPlanNote({ projectId: 24, note: "", rowVer: 88000 }, 9)).toEqual({
+        rowVer: 88001,
+      });
+      expect(execProc.mock.calls[0]).toEqual([
+        "usp_KeyDeliverable_SetPlanNote",
+        { ProjectId: 24, PlanNote: "", RowVer: 88000, ActorUserId: 9 },
+      ]);
+    });
+
+    it("fails rather than guess when the plan note save returns no row version", async () => {
+      execProc.mockResolvedValueOnce([]);
+      await expect(setPlanNote({ projectId: 24, note: "x", rowVer: 1 }, 9)).rejects.toThrow();
     });
 
     it("fails rather than guess when creating a requirement returns no row", async () => {

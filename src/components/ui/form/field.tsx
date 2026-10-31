@@ -26,10 +26,12 @@ export interface FieldProps {
   /** Field name — used to look up errors. */
   name: string;
   errors?: string[];
+  /** Replaces the label's default text style (a compact panel's smaller labels). */
+  labelClassName?: string;
   children: React.ReactNode;
 }
 
-export function Field({ label, name, errors, children }: FieldProps) {
+export function Field({ label, name, errors, labelClassName, children }: FieldProps) {
   const id = useId();
   const inputId = `${id}-input`;
   const labelId = `${id}-label`;
@@ -39,7 +41,11 @@ export function Field({ label, name, errors, children }: FieldProps) {
   return (
     <FieldContext.Provider value={{ inputId, labelId, errorId, invalid }}>
       <div className="flex flex-col gap-1" data-field={name}>
-        <label id={labelId} htmlFor={inputId} className="text-sm text-ink leading-6">
+        <label
+          id={labelId}
+          htmlFor={inputId}
+          className={labelClassName ?? "text-sm text-ink leading-6"}
+        >
           {label}
         </label>
         {children}

@@ -3,6 +3,7 @@
 -- Row-level access via dbo.usp_Project_AssertAccess: NOT_FOUND (50001) vs FORBIDDEN_ROW (50003);
 --   Admin bypass; project-less rows are refused for non-Admins.
 -- SubItemCount: how many items below it in the work breakdown (ADR-0027) a delete would also remove.
+-- Budget and Note: the item's own (ADR-0052); a parent's budget is its sub-items' sum, derived in the app.
 -- Entity app.KeyDeliverable (source: tblKeyRequirementsDeliverable). Module: key-deliverables (#9).
 USE ProjectManager;
 GO
@@ -34,6 +35,8 @@ BEGIN
            kd.[Status],
            kd.Color,
            kd.[IsMilestone],
+           kd.Budget,
+           kd.Note,
            CAST(CASE WHEN EXISTS (SELECT 1 FROM app.KeyDeliverable AS ch
                                   WHERE ch.ParentKeyDeliverableId = kd.KeyDeliverableId
                                     AND ch.IsDeleted = 0)

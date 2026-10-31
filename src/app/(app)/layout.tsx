@@ -2,13 +2,11 @@ import { AppShell } from "@/components/shell/app-shell";
 import type { ShellAlert } from "@/components/shell/header-actions";
 import { auth } from "@/lib/auth/provider";
 import { can } from "@/lib/auth/rbac";
+import { formatDate } from "@/lib/format";
 import { messages } from "@/lib/messages";
 import { getUpcomingAlerts, type UpcomingAlert } from "@/lib/repositories/upcoming-alerts";
 import { listProjectOptions } from "@/modules/projects/repository/projects";
 import type { ProjectOption } from "@/components/shell/project-header";
-
-/** Fixed locale — identical output on server and client (no hydration drift). */
-const dateFormat = new Intl.DateTimeFormat("en-CA", { dateStyle: "medium", timeZone: "UTC" });
 
 /**
  * Server shell data (issue #28): session (username, projects:create) and the
@@ -30,7 +28,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const alerts: ShellAlert[] = upcoming.map((alert) => ({
     id: alert.id,
     title: alert.title ?? messages.app.untitled,
-    dueDate: dateFormat.format(alert.dueDate),
+    dueDate: formatDate(alert.dueDate),
   }));
 
   return (

@@ -10,6 +10,16 @@ export interface QueuedChange<T extends WbsData> {
   /** Null when the change no longer applies (its item is gone). */
   send: (current: WbsItem[]) => Promise<ActionResult<T>> | null;
   done?: (data: T, items: WbsItem[]) => void;
+  /** The server refused it, or it no longer applied. */
+  failed?: () => void;
 }
 
 export type Enqueue = <T extends WbsData>(change: QueuedChange<T>) => void;
+
+/** What a refused save says: the first field's reason, else the error's own message. */
+export function firstError(error: {
+  message: string;
+  fieldErrors?: Record<string, string[]>;
+}): string {
+  return (error.fieldErrors && Object.values(error.fieldErrors).flat()[0]) || error.message;
+}

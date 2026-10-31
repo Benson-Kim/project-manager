@@ -7,6 +7,7 @@ import {
   type RequirementListRow,
   type RequirementRow,
 } from "./requirement";
+import { criteriaField, estimateField, moscowField, ownerField } from "./requirement-planning";
 import { isSolution, requirementTypeSchema } from "./requirement-types";
 
 /**
@@ -74,11 +75,19 @@ export const createRequirementFormSchema = requirementFields
   .extend({
     projectId: z.coerce.number().int().positive(),
     parentRequirementId: idEntry.optional(),
+    moscow: moscowField.optional(),
+    acceptanceCriteria: criteriaField.optional(),
+    estimateDays: estimateField.optional(),
+    ownerStakeholderId: ownerField.optional(),
   })
   .transform((raw) => ({
     projectId: raw.projectId,
     parentRequirementId: raw.parentRequirementId ?? null,
     ...toInput(raw),
+    moscow: raw.moscow ?? null,
+    acceptanceCriteria: raw.acceptanceCriteria ?? null,
+    estimateDays: raw.estimateDays ?? null,
+    ownerStakeholderId: raw.ownerStakeholderId ?? null,
   }));
 
 export type CreateRequirementValues = z.output<typeof createRequirementFormSchema>;

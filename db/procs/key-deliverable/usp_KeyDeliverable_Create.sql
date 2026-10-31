@@ -13,6 +13,7 @@
 --   the deadline. @Color is a palette key or NULL (take the parent's colour).
 --   @IsMilestone = 1 creates a date rather than a span (ADR-0046): both ends must already be the
 --   same day, so a caller from before migration 043 (which never sends it) is unaffected.
+--   @Budget (ADR-0052) is optional and >= 0; a new item has no sub-items, so its own budget stands.
 -- Entity app.KeyDeliverable (source: tblKeyRequirementsDeliverable). Module: key-deliverables (#9).
 USE ProjectManager;
 GO
@@ -29,6 +30,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_KeyDeliverable_Create
     @ParentKeyDeliverableId INT           = NULL,
     @AfterKeyDeliverableId  INT           = NULL,
     @IsMilestone            BIT           = 0,
+    @Budget                 DECIMAL(19, 2) = NULL,
     @ActorUserId            INT
 AS
 BEGIN
@@ -66,6 +68,9 @@ BEGIN
     IF @Color IS NOT NULL AND @Color NOT IN ('red', 'orange', 'yellow', 'green', 'blue', 'purple', 'gray')
         THROW 50004, N'VALIDATION:Unknown colour', 1;
 
+    IF @Budget < 0
+        THROW 50004, N'VALIDATION:A budget cannot be negative', 1;
+
     BEGIN TRAN;
 
     DECLARE @Locked INT;
@@ -99,10 +104,10 @@ BEGIN
 
     INSERT INTO app.KeyDeliverable
         ([ProjectId], ParentKeyDeliverableId, SortOrder, [KeyRequirement], [RequestedDate], StartDate,
-         [Deadline], [Priority], [Status], Color, [IsMilestone], CreatedBy)
+         [Deadline], [Priority], [Status], Color, [IsMilestone], Budget, CreatedBy)
     VALUES
         (@ProjectId, @ParentKeyDeliverableId, @SortOrder, @KeyRequirement, @RequestedDate, @StartDate,
-         @Deadline, @Priority, @Status, @Color, @IsMilestone, @ActorUserId);
+         @Deadline, @Priority, @Status, @Color, @IsMilestone, @Budget, @ActorUserId);
 
     DECLARE @Id INT = SCOPE_IDENTITY();
 
@@ -127,6 +132,7 @@ BEGIN
     VALUES (@ActorUserId, N'Create', N'app.KeyDeliverable', CAST(@Id AS NVARCHAR(64)),
             (SELECT KeyDeliverableId, [ProjectId], ParentKeyDeliverableId, SortOrder, [KeyRequirement],
                     [RequestedDate], StartDate, [Deadline], [Priority], [Status], Color, [IsMilestone],
+                    Budget,
                     (SELECT CAST(a.StakeholderId AS NVARCHAR(20)) AS id
                      FROM app.KeyDeliverableAssignee AS a
                      WHERE a.KeyDeliverableId = @Id
@@ -154,6 +160,8 @@ BEGIN
            kd.[Status],
            kd.Color,
            kd.[IsMilestone],
+           kd.Budget,
+           kd.Note,
            CAST(0 AS BIT) AS HasChildren,
            kd.CreatedAtUtc,
            kd.UpdatedAtUtc,

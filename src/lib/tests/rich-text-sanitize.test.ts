@@ -258,15 +258,12 @@ describe("sanitizeRichText — ADR-0041 formats", () => {
     );
   });
 
-  // Legal numbering is the one style no list-style-type can draw, so it travels
-  // as data-numbering and never as an inline style (client feedback, E6).
-  it("carries legal numbering as data-numbering, not a list-style-type", () => {
-    expect(sanitizeRichText('<ol type="1.1"><li>x</li></ol>')).toBe(
-      '<ol type="1.1" data-numbering="legal"><li>x</li></ol>',
-    );
-    expect(sanitizeRichText('<ol data-numbering="evil"><li>x</li></ol>')).toBe(
-      "<ol><li>x</li></ol>",
-    );
+  // Plain numbering now nests as 1.1 on its own, so the old outline style is
+  // saved as plain numbering and renders the same.
+  it("saves the old 1.1 outline style as plain numbering", () => {
+    expect(
+      sanitizeRichText('<ol type="1.1" data-numbering="legal"><li>x<ol><li>y</li></ol></li></ol>'),
+    ).toBe("<ol><li>x<ol><li>y</li></ol></li></ol>");
   });
 
   it.each([

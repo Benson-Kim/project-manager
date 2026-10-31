@@ -203,8 +203,13 @@ test.describe("rich-text editor (ADR-0025)", () => {
     await page.keyboard.press("Control+M");
     await page.keyboard.type("inner");
     await expect(editor.locator("ol ol li")).toHaveText("inner");
+    // Plain numbering nests as 1.1; a lettered list keeps its letters.
+    const marker = () =>
+      editor.locator("ol ol li").evaluate((li) => getComputedStyle(li, "::marker").content);
+    expect(await marker()).toContain("counters(list-item");
 
     await pickFrom(page, "Numbering style", "A, B, C");
+    expect(await marker()).toBe("normal");
     await toolbar.getByRole("button", { name: "Numbering style", exact: true }).click();
     await page.getByRole("menuitem", { name: "Start numbering at" }).click();
     const dialog = page.getByRole("dialog", { name: "Start numbering at" });
@@ -218,6 +223,28 @@ test.describe("rich-text editor (ADR-0025)", () => {
     await expect(inner).toHaveAttribute("start", "3");
     await expect(outer).not.toHaveAttribute("type");
     await expect(outer).not.toHaveAttribute("start");
+  });
+
+  test("nested bullets change marker at each level", async ({ page }) => {
+    const editor = await openEditor(page);
+    await editor.click();
+    await clear(page);
+    await page
+      .getByRole("toolbar", { name: "Formatting" })
+      .getByRole("button", { name: "Bulleted list", exact: true })
+      .click();
+    for (const [i, text] of ["one", "two", "three"].entries()) {
+      if (i) {
+        await page.keyboard.press("Enter");
+        await page.keyboard.press("Control+M");
+      }
+      await page.keyboard.type(text);
+    }
+    await expect(editor.locator("ul ul ul li")).toHaveText("three");
+    const styles = await editor
+      .locator("ul")
+      .evaluateAll((lists) => lists.map((ul) => getComputedStyle(ul).listStyleType));
+    expect(styles).toEqual(["disc", "circle", "square"]);
   });
 
   test("Start numbering at returns focus to the numbering menu (keyboard only)", async ({

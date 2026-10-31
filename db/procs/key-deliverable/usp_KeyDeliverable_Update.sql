@@ -15,6 +15,10 @@
 -- A milestone (ADR-0046) is one day: this proc derives its end from its start rather than taking
 --   one, and whether it is a milestone changes only through usp_KeyDeliverable_SetMilestone — this
 --   proc neither accepts nor alters the flag, so the details sheet cannot turn an item into one.
+-- Budget (ADR-0052) follows the @ColorSet pattern: @BudgetSet = 0 keeps it, so a caller from before
+--   migration 051 cannot clear it. An item with sub-items takes its budget from them, as it does its
+--   dates, so a different budget for it is VALIDATION. The note has its own proc
+--   (usp_KeyDeliverable_SetNote) because it autosaves while the rest of the form is open.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_KeyDeliverable_Update
@@ -29,6 +33,8 @@ CREATE OR ALTER PROCEDURE dbo.usp_KeyDeliverable_Update
     @Status           NVARCHAR(255) = NULL,
     @Color            VARCHAR(10)   = NULL,
     @ColorSet         BIT           = 0,
+    @Budget           DECIMAL(19, 2) = NULL,
+    @BudgetSet        BIT           = 0,
     @RowVer           BIGINT,
     @ActorUserId      INT
 AS
@@ -39,11 +45,11 @@ BEGIN
     DECLARE @CurrentVer BIGINT, @RowProjectId INT,
             @CurrentPriority NVARCHAR(255), @CurrentStatus NVARCHAR(255),
             @CurrentStart DATETIME2, @CurrentEnd DATETIME2, @CurrentColor VARCHAR(10),
-            @CurrentRequested DATETIME2, @IsMilestone BIT;
+            @CurrentRequested DATETIME2, @IsMilestone BIT, @CurrentBudget DECIMAL(19, 2);
     SELECT @CurrentVer = CAST(RowVer AS BIGINT), @RowProjectId = ProjectId,
            @CurrentPriority = [Priority], @CurrentStatus = [Status],
            @CurrentStart = StartDate, @CurrentEnd = [Deadline], @CurrentColor = Color,
-           @CurrentRequested = [RequestedDate], @IsMilestone = [IsMilestone]
+           @CurrentRequested = [RequestedDate], @IsMilestone = [IsMilestone], @CurrentBudget = Budget
     FROM app.KeyDeliverable WHERE KeyDeliverableId = @KeyDeliverableId AND IsDeleted = 0;
     IF @CurrentVer IS NULL
         THROW 50001, N'NOT_FOUND:KeyDeliverable not found', 1;
@@ -74,6 +80,11 @@ BEGIN
     ELSE IF @Color IS NOT NULL AND @Color NOT IN ('red', 'orange', 'yellow', 'green', 'blue', 'purple', 'gray')
         THROW 50004, N'VALIDATION:Unknown colour', 1;
 
+    IF @BudgetSet = 0
+        SET @Budget = @CurrentBudget;
+    ELSE IF @Budget < 0
+        THROW 50004, N'VALIDATION:A budget cannot be negative', 1;
+
     BEGIN TRAN;
 
     DECLARE @Locked INT;
@@ -86,6 +97,8 @@ BEGIN
                 AND (@CurrentStart IS NULL OR CAST(@StartDate AS DATE) <> CAST(@CurrentStart AS DATE)))
            OR ISNULL(CAST(@Deadline AS DATE), '00010101') <> ISNULL(CAST(@CurrentEnd AS DATE), '00010101')
             THROW 50004, N'VALIDATION:The dates of an item with sub-items come from its sub-items', 1;
+        IF ISNULL(@Budget, -1) <> ISNULL(@CurrentBudget, -1)
+            THROW 50004, N'VALIDATION:The budget of an item with sub-items comes from its sub-items', 1;
         SET @StartDate = @CurrentStart;
         SET @Deadline = @CurrentEnd;
     END
@@ -116,7 +129,7 @@ BEGIN
 
     DECLARE @Before NVARCHAR(MAX) =
         (SELECT KeyDeliverableId, [ProjectId], [KeyRequirement], [RequestedDate], StartDate, [Deadline],
-                [Priority], [Status], Color, [IsMilestone],
+                [Priority], [Status], Color, [IsMilestone], Budget,
                 (SELECT CAST(a.StakeholderId AS NVARCHAR(20)) AS id
                  FROM app.KeyDeliverableAssignee AS a
                  WHERE a.KeyDeliverableId = @KeyDeliverableId
@@ -133,6 +146,7 @@ BEGIN
         [Priority]      = @Priority,
         [Status]        = @Status,
         Color           = @Color,
+        Budget          = @Budget,
         UpdatedAtUtc    = SYSUTCDATETIME(),
         UpdatedBy       = @ActorUserId
     WHERE KeyDeliverableId = @KeyDeliverableId AND IsDeleted = 0
@@ -166,7 +180,7 @@ BEGIN
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.KeyDeliverable', CAST(@KeyDeliverableId AS NVARCHAR(64)), @Before,
             (SELECT KeyDeliverableId, [ProjectId], [KeyRequirement], [RequestedDate], StartDate, [Deadline],
-                    [Priority], [Status], Color, [IsMilestone],
+                    [Priority], [Status], Color, [IsMilestone], Budget,
                     (SELECT CAST(a.StakeholderId AS NVARCHAR(20)) AS id
                      FROM app.KeyDeliverableAssignee AS a
                      WHERE a.KeyDeliverableId = @KeyDeliverableId
@@ -194,6 +208,8 @@ BEGIN
            kd.[Status],
            kd.Color,
            kd.[IsMilestone],
+           kd.Budget,
+           kd.Note,
            CAST(CASE WHEN EXISTS (SELECT 1 FROM app.KeyDeliverable AS ch
                                   WHERE ch.ParentKeyDeliverableId = kd.KeyDeliverableId
                                     AND ch.IsDeleted = 0)

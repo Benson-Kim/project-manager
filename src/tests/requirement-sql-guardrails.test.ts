@@ -7,6 +7,7 @@ import {
   SOLUTION_TYPES,
   type RequirementType,
 } from "@/modules/requirements/schemas/requirement-types";
+import { MOSCOW } from "@/modules/requirements/schemas/moscow";
 
 /**
  * Guardrail (ADR-0037): the requirement procs and migration 036 enforce the traceability rules
@@ -14,13 +15,22 @@ import {
  * TypeScript type catalog, when a write checks other rows before taking the project lock, when a
  * parsed JSON column could drop a null, or when application code names an internal helper proc.
  */
+/** LF whatever the checkout: Windows with core.autocrlf writes the procs with CRLF. */
 function sql(path: string): string {
-  return readFileSync(path, "utf8");
+  return readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 }
 
 const DIR = "db/procs/requirement";
 const MIGRATION = "db/migrations/036_requirement_traceability.sql";
-const WRITES = ["Create", "Update", "Move", "Unallocate", "Delete"] as const;
+const WRITES = [
+  "Create",
+  "Update",
+  "Move",
+  "Unallocate",
+  "Delete",
+  "SetMoSCoW",
+  "SetPlanning",
+] as const;
 
 const procFiles = readdirSync(DIR)
   .filter((f) => f.endsWith(".sql"))
@@ -45,6 +55,40 @@ describe("requirement type lists match the TypeScript catalog (ADR-0037)", () =>
   });
 });
 
+/** CK_Requirement_MoSCoW and the chips offer the same four codes (ADR-0052). */
+describe("the MoSCoW check lists the TypeScript codes (ADR-0052)", () => {
+  const m = sql("db/migrations/051_plan_views.sql");
+
+  it("CK_Requirement_MoSCoW allows exactly MOSCOW, and NULL", () => {
+    const check = m.match(/CK_Requirement_MoSCoW\s+CHECK\s*\(([^;]*)\);/);
+    expect(check).not.toBeNull();
+    const body = check![1]!;
+    expect(body).toContain("[MoSCoW] IS NULL OR");
+    const codes = [...body.matchAll(/'(\w)'/g)].map((c) => c[1]!);
+    expect(codes.sort()).toEqual([...MOSCOW].sort());
+  });
+
+  it("every write that takes a planning field checks it under the lock (ADR-0052)", () => {
+    for (const name of ["Create", "SetMoSCoW", "SetPlanning"]) {
+      const text = sql(join(DIR, `usp_Requirement_${name}.sql`));
+      const lock = text.indexOf("WITH (UPDLOCK, HOLDLOCK)");
+      const check = text.indexOf("EXEC dbo.usp_Requirement_AssertPlanning");
+      expect(lock, name).toBeGreaterThan(0);
+      expect(check, name).toBeGreaterThan(lock);
+    }
+  });
+
+  it("every proc that writes MoSCoW checks it against the same codes", () => {
+    for (const file of procFiles) {
+      const text = sql(file);
+      for (const [, body] of text.matchAll(/@MoSCoW\s+(?:NOT\s+)?IN\s*\(([^)]*)\)/g)) {
+        const codes = [...body.matchAll(/'(\w)'/g)].map((c) => c[1]!);
+        expect(codes.sort(), file).toEqual([...MOSCOW].sort());
+      }
+    }
+  });
+});
+
 /** A write cannot read another row for a check that could go stale before it writes. */
 describe("requirement writes lock the project before their checks (ADR-0037)", () => {
   it.each(WRITES)("usp_Requirement_%s locks before its first INSERT/UPDATE/DELETE", (name) => {
@@ -55,7 +99,7 @@ describe("requirement writes lock the project before their checks (ADR-0037)", (
     expect(firstDml, name).toBeGreaterThan(lock);
   });
 
-  it.each(["ReplaceTraces", "ReplaceAllocations"])(
+  it.each(["ReplaceTraces", "ReplaceAllocations", "AssertPlanning"])(
     "helper usp_Requirement_%s refuses to run outside a transaction",
     (name) => {
       const text = sql(join(DIR, `usp_Requirement_${name}.sql`));
@@ -127,7 +171,20 @@ const ROW_PROCS = ["usp_Requirement_List", "usp_Requirement_GetById"] as const;
 describe("every proc answering a requirement row answers with every column (ADR-0048)", () => {
   // requirementRowSchema requires these and they are selected by name. Create and Update are not
   // listed: both answer by EXEC-ing GetById, so they cannot drift from it.
-  const REQUIRED = ["Ref", "SortPath", "Depth", "ChildCount", "Number", "RequirementType"] as const;
+  const REQUIRED = [
+    "Ref",
+    "SortPath",
+    "Depth",
+    "ChildCount",
+    "Number",
+    "RequirementType",
+    "ParentRequirementId",
+    "[MoSCoW]",
+    "AcceptanceCriteria",
+    "EstimateDays",
+    "OwnerStakeholderId",
+    "OwnerName",
+  ] as const;
 
   it.each(ROW_PROCS)("%s names every column the row schema requires", (name) => {
     const text = sql(join(DIR, `${name}.sql`));

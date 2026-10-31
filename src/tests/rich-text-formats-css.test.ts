@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { messages } from "@/lib/messages";
+import { contrast, css, tokenValue as readToken } from "./css-tokens";
 import {
   CELL_SHADES,
   HIGHLIGHT_COLORS,
@@ -16,8 +16,6 @@ import {
  * toolbar swatch, a light and a dark token, a print reset and a label. Adding a colour to
  * formats.ts without the CSS would store a name nothing paints.
  */
-const css = readFileSync("src/app/globals.css", "utf8");
-
 function block(selector: string): string {
   const start = css.indexOf(`${selector} {`);
   expect(start, `no rule for ${selector}`).toBeGreaterThanOrEqual(0);
@@ -30,24 +28,9 @@ const tokenIn = (scope: string, token: string) => {
 };
 
 function tokenValue(scope: string, token: string): string {
-  const start = css.indexOf(`${scope} {`);
-  const body = css.slice(start, css.indexOf("}", start));
-  const value = new RegExp(`${token}:\\s*(#[0-9a-f]{6});`, "i").exec(body)?.[1];
+  const value = readToken(scope, token);
   expect(value, `${token} in ${scope}`).toBeTruthy();
   return value as string;
-}
-
-/** WCAG 2.2 contrast ratio of two #rrggbb colours. */
-function contrast(a: string, b: string): number {
-  const luminance = (hex: string) => {
-    const [r, g, bl] = [1, 3, 5].map((i) => {
-      const c = parseInt(hex.slice(i, i + 2), 16) / 255;
-      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-    });
-    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
-  };
-  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-  return (hi + 0.05) / (lo + 0.05);
 }
 
 describe("rich-text formats have their styles", () => {

@@ -308,6 +308,12 @@ stored HTML through `sanitizeRichText` before it reaches a sheet, so legacy Acce
 fields are spell-checked; identifiers (usernames, codes, phone, e-mail) pass
 `spellCheck={false}`.
 
+Dates: every date on screen, in print, PDF and export MUST read `YYYY-MM-DD` (the client's
+agreed format), through `formatDate` (`src/lib/format.ts`); times read 24-hour `HH:mm`. No
+locale date formatter elsewhere (guardrail `src/tests/date-display.test.ts`); month names
+used as labels (Gantt month header, financial month columns) are not dates. Date entry boxes
+are the native `<input type="date">` and follow the PC's Windows date format.
+
 ### 5.5 Detail/edit ([ADR-0010](adr/ADR-0010-detail-edit-pattern.md))
 
 Record open = `Sheet` (bottom sheet < md, right panel ≥ md), URL-synced (`?id=`),

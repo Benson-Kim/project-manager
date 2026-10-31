@@ -2,8 +2,14 @@ import { describe, it, expect } from "vitest";
 import { formatDate, formatFileSize, toDateInput } from "../format";
 
 describe("formatDate", () => {
-  it("formats a Date as medium en-CA", () => {
-    expect(formatDate(new Date("2026-03-15T00:00:00Z"))).toBe("Mar 15, 2026");
+  it("formats a Date as YYYY-MM-DD", () => {
+    expect(formatDate(new Date("2026-03-15T00:00:00Z"))).toBe("2026-03-15");
+  });
+  it("formats an ISO string as YYYY-MM-DD in UTC", () => {
+    expect(formatDate("2026-10-28T23:30:00.000Z")).toBe("2026-10-28");
+  });
+  it("returns an empty string for an invalid date", () => {
+    expect(formatDate("not a date")).toBe("");
   });
   it("returns an empty string for null", () => {
     expect(formatDate(null)).toBe("");

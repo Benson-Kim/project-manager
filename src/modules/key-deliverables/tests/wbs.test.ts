@@ -25,12 +25,16 @@ import {
   applyRequirementEdit,
   applyRequirementMove,
   applyRequirementRemove,
+  applyDetails,
+  applyNote,
   applyStatus,
+  detailsInput,
   branchRequirementCount,
   findRequirement,
   requirementChip,
   requirementIn,
   statusColor,
+  storedNote,
   type WbsItem,
 } from "../schemas/wbs";
 
@@ -52,6 +56,8 @@ function item(id: number, parentId: number | null, sortOrder: number, more: Part
     assigneeNames: null,
     assignees: [],
     requirements: [],
+    budget: null,
+    note: null,
     rowVer: id * 100,
     ...more,
   } satisfies WbsItem;
@@ -432,6 +438,12 @@ describe("requirements and status on screen (ADR-0037)", () => {
     sortOrder,
     rowVer: id * 10,
     placeRowVer: id * 100,
+    parentId: null,
+    moscow: null,
+    criteria: null,
+    estimateDays: null,
+    ownerId: null,
+    ownerName: null,
   });
   const rows = () => [
     item(1, null, 1, { requirements: [req(11, 1), req(12, 2), req(13, 3)] }),
@@ -484,6 +496,26 @@ describe("requirements and status on screen (ADR-0037)", () => {
     expect(next[1]!.requirements[1]).toEqual(req(21, 2));
   });
 
+  it("sets MoSCoW and the planning fields on every deliverable that lists the requirement", () => {
+    const planning = { criteria: "Signed off", estimateDays: 2.5, ownerId: 7, ownerName: "Ann" };
+    const next = applyRequirementEdit(
+      applyRequirementEdit(shared(), 11, { moscow: "M" }),
+      11,
+      planning,
+    );
+    for (const row of next) {
+      expect(row.requirements[0]).toMatchObject({ id: 11, moscow: "M", ...planning });
+    }
+    const cleared = applyRequirementEdit(next, 11, {
+      moscow: null,
+      criteria: null,
+      estimateDays: null,
+      ownerId: null,
+      ownerName: null,
+    });
+    expect(cleared[0]!.requirements[0]).toEqual(shared()[0]!.requirements[0]);
+  });
+
   it("moves a requirement within one deliverable's list, renumbering and clamping", () => {
     const ids = (items: WbsItem[]) => items[0]!.requirements.map((r) => [r.id, r.sortOrder]);
     expect(ids(applyRequirementMove(rows(), 1, 13, 1))).toEqual([
@@ -509,6 +541,77 @@ describe("requirements and status on screen (ADR-0037)", () => {
   it("sets one item's status", () => {
     const next = applyStatus(rows(), 2, "Completed");
     expect(next.map((i) => i.status)).toEqual([null, "Completed"]);
+  });
+
+  it("stores a note as the proc does: trailing spaces off, blank clears", () => {
+    expect(storedNote("Call the supplier  ")).toBe("Call the supplier");
+    expect(storedNote("   ")).toBeNull();
+    expect(storedNote("")).toBeNull();
+    expect(storedNote("  keep leading\nlines")).toBe("  keep leading\nlines");
+  });
+
+  it("applies a details patch to one item, keeping what it leaves out", () => {
+    const people = [
+      { id: 3, name: "Ann Lee" },
+      { id: 4, name: "Bo Diaz" },
+    ];
+    const next = applyDetails(rows(), 2, { assignees: people, budget: 500 });
+    expect(next[0]).toEqual(rows()[0]);
+    expect(next[1]).toMatchObject({
+      assignees: people,
+      assigneeNames: "Ann Lee, Bo Diaz",
+      budget: 500,
+      priority: null,
+      color: null,
+    });
+    const cleared = applyDetails(next, 2, { assignees: [], color: "blue", priority: "High" });
+    expect(cleared[1]).toMatchObject({
+      assignees: [],
+      assigneeNames: null,
+      color: "blue",
+      priority: "High",
+      budget: 500,
+    });
+  });
+
+  it("builds the whole update from the item, sending colour and budget only when patched", () => {
+    const start = d("2026-04-16");
+    const end = d("2026-04-22");
+    const walls = item(7, null, 1, {
+      name: "Walls",
+      start,
+      end,
+      status: "In Progress",
+      priority: "Low",
+      assignees: [{ id: 3, name: "Ann Lee" }],
+      color: "red",
+      budget: 90,
+    });
+    const kept = detailsInput(walls, 24, { priority: "High" });
+    expect(kept).toEqual({
+      keyDeliverableId: 7,
+      projectId: 24,
+      keyRequirement: "Walls",
+      requestedDate: null,
+      startDate: start,
+      deadline: end,
+      assigneeIds: [3],
+      priority: "High",
+      status: "In Progress",
+      rowVer: 700,
+    });
+    expect(detailsInput(walls, 24, { color: null, budget: null, assignees: [] })).toMatchObject({
+      assigneeIds: [],
+      priority: "Low",
+      color: null,
+      budget: null,
+    });
+  });
+
+  it("sets one item's note", () => {
+    const next = applyNote(rows(), 2, "Ring first ");
+    expect(next.map((i) => i.note)).toEqual([null, "Ring first"]);
+    expect(applyNote(next, 2, " ").map((i) => i.note)).toEqual([null, null]);
   });
 
   it("reads a status's colour, falling back to grey", () => {

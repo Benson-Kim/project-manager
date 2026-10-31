@@ -115,8 +115,8 @@ describe("every list view hands the DataView its module's sort contract", () => 
   });
 
   it.each(views)("%s", (path) => {
-    const source = readFileSync(path, "utf8");
-    if (NO_SORTABLE_COLUMN.includes(path)) {
+    const source = readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+    if (NO_SORTABLE_COLUMN.includes(path.replaceAll("\\", "/"))) {
       expect(source).not.toContain("sort={");
     } else {
       expect(source).toMatch(/\n\s+sort=\{[A-Z_]+\}\n/);

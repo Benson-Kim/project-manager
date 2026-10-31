@@ -38,6 +38,8 @@ function item(id: number, parentId: number | null, sortOrder: number, more: Part
     assigneeNames: null,
     assignees: [],
     requirements: [],
+    budget: null,
+    note: null,
     rowVer: id * 100,
     ...more,
   } satisfies WbsItem;

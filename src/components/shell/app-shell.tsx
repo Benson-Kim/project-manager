@@ -18,13 +18,17 @@ import { OfflineBanner } from "./offline-banner";
 import { RouteProgress } from "./route-progress";
 import { MenuIcon } from "./shell-icons";
 import { SidebarContent } from "./sidebar-content";
+import { useSidebar } from "./sidebar-toggle";
 import { ProjectHeader, type ProjectOption } from "./project-header";
+
+const SIDEBAR_ID = "app-sidebar";
 
 /**
  * App shell (spec in issue #28): desktop sidebar (logo, New project, nav,
  * Settings + Logout pinned) + header (page title left; bell, theme toggle,
  * avatar menu right). On < md the sidebar collapses into a drawer (the ONE
- * overlay engine — Radix Sheet: focus trap, Escape, focus return).
+ * overlay engine — Radix Sheet: focus trap, Escape, focus return). On md+ the
+ * viewer can collapse it to an icon rail, remembered per viewer.
  */
 export function AppShell({
   username,
@@ -46,6 +50,7 @@ export function AppShell({
   const pathname = usePathname();
   const { announce } = useAnnouncer();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const sidebar = useSidebar();
   const dueAlarms = useAlertPoller();
   const projectMatch = pathname.match(/^\/projects\/(\d+)(\/.*)?$/);
   const projectId = projectMatch ? Number(projectMatch[1]) : null;
@@ -70,14 +75,17 @@ export function AppShell({
 
       {/* Desktop sidebar */}
       <nav
+        id={SIDEBAR_ID}
         aria-label={messages.app.menu}
-        className="sticky top-0 hidden h-dvh w-60 shrink-0 bg-surface-raised p-3 md:block"
+        data-testid="sidebar"
+        className="sticky top-0 hidden h-dvh w-60 shrink-0 overflow-x-clip bg-surface-raised p-3 transition-[width] duration-150 motion-reduce:transition-none md:block rail:w-18"
       >
         <SidebarContent
           canCreateProject={canCreateProject}
           canCreateDailyActivity={canCreateDailyActivity}
           canCreateTodo={canCreateTodo}
           pathname={pathname}
+          rail={{ ...sidebar, controls: SIDEBAR_ID }}
         />
       </nav>
 

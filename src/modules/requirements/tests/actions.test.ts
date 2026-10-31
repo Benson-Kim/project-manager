@@ -31,6 +31,8 @@ import { AppError } from "@/lib/errors";
 import {
   createRequirementAction,
   deleteRequirementAction,
+  setRequirementMoscowAction,
+  setRequirementPlanningAction,
   updateRequirementAction,
 } from "../actions";
 
@@ -45,6 +47,12 @@ function dbRow(overrides: Record<string, unknown> = {}) {
     SortPath: "0000000001",
     Depth: 0,
     ChildCount: 0,
+    ParentRequirementId: null,
+    MoSCoW: null,
+    AcceptanceCriteria: null,
+    EstimateDays: null,
+    OwnerStakeholderId: null,
+    OwnerName: null,
     Requirement: "The system sends a receipt",
     IsMet: false,
     CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),
@@ -206,6 +214,100 @@ describe("requirements actions (ADR-0037)", () => {
       RequirementId: 3,
       RowVer: 99,
       ActorUserId: 7,
+    });
+  });
+
+  describe("planning (ADR-0052)", () => {
+    it("a MoSCoW chip sends only the code and the row version", async () => {
+      execProc.mockResolvedValue([dbRow({ MoSCoW: "M" })]);
+      const result = await setRequirementMoscowAction({
+        requirementId: 3,
+        rowVer: 99,
+        moscow: "M",
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.data.MoSCoW).toBe("M");
+      expect(execProc).toHaveBeenCalledWith("usp_Requirement_SetMoSCoW", {
+        RequirementId: 3,
+        MoSCoW: "M",
+        RowVer: 99,
+        ActorUserId: 7,
+      });
+    });
+
+    it("clears MoSCoW with null, but refuses a chip that sent no code at all", async () => {
+      execProc.mockResolvedValue([dbRow()]);
+      expect(
+        (await setRequirementMoscowAction({ requirementId: 3, rowVer: 99, moscow: null })).ok,
+      ).toBe(true);
+      const missing = await setRequirementMoscowAction({ requirementId: 3, rowVer: 99 });
+      expect(missing.ok).toBe(false);
+      if (!missing.ok) expect(missing.error.code).toBe("VALIDATION");
+      const unknown = await setRequirementMoscowAction({
+        requirementId: 3,
+        rowVer: 99,
+        moscow: "X",
+      });
+      expect(unknown.ok).toBe(false);
+      expect(execProc).toHaveBeenCalledTimes(1);
+    });
+
+    it("planning sends all three fields, blanks as NULL", async () => {
+      execProc.mockResolvedValue([dbRow()]);
+      const result = await setRequirementPlanningAction({
+        requirementId: 3,
+        rowVer: 99,
+        acceptanceCriteria: "  ",
+        estimateDays: "3",
+        ownerStakeholderId: "",
+      });
+      expect(result.ok).toBe(true);
+      expect(execProc).toHaveBeenCalledWith("usp_Requirement_SetPlanning", {
+        RequirementId: 3,
+        AcceptanceCriteria: null,
+        EstimateDays: 3,
+        OwnerStakeholderId: null,
+        RowVer: 99,
+        ActorUserId: 7,
+      });
+    });
+
+    it("planning refuses a payload missing a field, so nothing clears by omission", async () => {
+      for (const partial of [
+        { estimateDays: 1, ownerStakeholderId: null },
+        { acceptanceCriteria: null, ownerStakeholderId: null },
+        { acceptanceCriteria: null, estimateDays: 1 },
+      ]) {
+        const result = await setRequirementPlanningAction({
+          requirementId: 3,
+          rowVer: 99,
+          ...partial,
+        });
+        expect(result.ok, JSON.stringify(partial)).toBe(false);
+      }
+      expect(execProc).not.toHaveBeenCalled();
+    });
+
+    it("refreshes the boards too, since a card shows a requirement's MoSCoW", async () => {
+      execProc.mockResolvedValue([dbRow()]);
+      await setRequirementMoscowAction({ requirementId: 3, rowVer: 99, moscow: "S" });
+      const paths = revalidatePath.mock.calls.map((c) => c[0]);
+      expect(paths).toEqual(
+        expect.arrayContaining(["/boards/[boardId]", "/projects/[id]/boards/[boardId]"]),
+      );
+    });
+
+    it("maps a stale row version to CONFLICT", async () => {
+      execProc.mockRejectedValue(
+        new AppError("CONFLICT", "Requirement was modified by someone else"),
+      );
+      const result = await setRequirementMoscowAction({
+        requirementId: 3,
+        rowVer: 98,
+        moscow: "C",
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("CONFLICT");
     });
   });
 });
