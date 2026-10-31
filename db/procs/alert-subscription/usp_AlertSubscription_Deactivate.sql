@@ -11,13 +11,23 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
+    DECLARE @OwnerUserId INT;
+    SELECT @OwnerUserId = UserId FROM app.AlertSubscription
+    WHERE AlertSubscriptionId = @AlertSubscriptionId AND IsDeleted = 0;
+    IF @OwnerUserId IS NULL RETURN;
+
+    -- Object-level authorization (ADR-0021): @ActorUserId = 0 is the trusted dispatch
+    -- service, which retires an endpoint Web Push has rejected. A real user may retire
+    -- only their own endpoint, so the "future UI" this proc was written for cannot
+    -- silence another user's notifications by passing their subscription id.
+    IF @ActorUserId <> 0 AND @ActorUserId <> @OwnerUserId
+        THROW 50003, N'FORBIDDEN_ROW:Not your subscription', 1;
+
     DECLARE @Before NVARCHAR(MAX) =
         (SELECT AlertSubscriptionId, UserId, EndpointHash, IsDeleted
          FROM app.AlertSubscription
          WHERE AlertSubscriptionId = @AlertSubscriptionId AND IsDeleted = 0
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
-
-    IF @Before IS NULL RETURN;
 
     BEGIN TRAN;
     UPDATE app.AlertSubscription

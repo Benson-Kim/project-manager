@@ -37,6 +37,10 @@ import {
   updateQuestionAnswerFormSchema,
 } from "@/modules/questions-answers/schemas/question-answer-form";
 import {
+  riskIssueFormValues,
+  updateRiskIssueFormSchema,
+} from "@/modules/risks-issues/schemas/risk-issue-form";
+import {
   stakeholderFormValues,
   updateStakeholderFormSchema,
 } from "@/modules/stakeholders/schemas/stakeholder-form";
@@ -240,6 +244,42 @@ describe("datasheet form values round-trip through each update form schema", () 
         assumptionConstraintFormValues({ ...row, IsValidated: false }),
       ).isValidated,
     ).toBe(false);
+  });
+
+  it("risks and issues keep both rich fields, the five list values and the dates", () => {
+    const description = "<p>The vendor may be late</p>";
+    const mitigationPlan = "<p>Hold a two-week buffer</p>";
+    const parsed = updateRiskIssueFormSchema.parse(
+      riskIssueFormValues({
+        RiskIssueId: 3,
+        ProjectId: 2,
+        Description: description,
+        Category: "Risk",
+        DateIdentified: day("2026-03-01"),
+        Status: "Open",
+        Priority: "High",
+        Impact: "Low",
+        Probability: "High",
+        MitigationPlan: mitigationPlan,
+        Owner: "Dana",
+        DueDate: day("2026-04-01"),
+        ...audit,
+      }),
+    );
+    expect(parsed).toMatchObject({
+      riskIssueId: 3,
+      rowVer: 42,
+      description,
+      mitigationPlan,
+      category: "Risk",
+      status: "Open",
+      priority: "High",
+      impact: "Low",
+      probability: "High",
+      owner: "Dana",
+      dateIdentified: day("2026-03-01"),
+      dueDate: day("2026-04-01"),
+    });
   });
 
   it("objectives, keywords and parking-lot items keep their fields", () => {

@@ -24,6 +24,7 @@ import {
   DEFAULT_ROW_HEIGHT,
   failureMessage,
   isEditableTarget,
+  RICH_TEXT_CLIP,
 } from "./datasheet";
 import {
   DatasheetAddRow,
@@ -610,9 +611,7 @@ export function DataView<Row>({
                                 >
                                   {col.edit?.kind === "rich" ? (
                                     // Rich text keeps to the row height, as in the editable cell.
-                                    <div className="max-h-[calc(var(--row-h)-1rem)] overflow-hidden">
-                                      {col.render(row)}
-                                    </div>
+                                    <div className={RICH_TEXT_CLIP}>{col.render(row)}</div>
                                   ) : (
                                     col.render(row)
                                   )}

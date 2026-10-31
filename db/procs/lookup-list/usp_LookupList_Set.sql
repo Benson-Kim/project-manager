@@ -198,6 +198,21 @@ BEGIN
         ELSE IF @ListKey = N'parking-lot-item.status'
             UPDATE t SET [Status] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
             FROM app.ParkingLotItem t JOIN @Renamed r ON t.[Status] = r.OldLabel;
+        ELSE IF @ListKey = N'risk-issue.category'
+            UPDATE t SET [Category] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
+            FROM app.RiskIssue t JOIN @Renamed r ON t.[Category] = r.OldLabel;
+        ELSE IF @ListKey = N'risk-issue.status'
+            UPDATE t SET [Status] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
+            FROM app.RiskIssue t JOIN @Renamed r ON t.[Status] = r.OldLabel;
+        ELSE IF @ListKey = N'risk-issue.priority'
+            UPDATE t SET [Priority] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
+            FROM app.RiskIssue t JOIN @Renamed r ON t.[Priority] = r.OldLabel;
+        ELSE IF @ListKey = N'risk-issue.impact'
+            UPDATE t SET [Impact] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
+            FROM app.RiskIssue t JOIN @Renamed r ON t.[Impact] = r.OldLabel;
+        ELSE IF @ListKey = N'risk-issue.probability'
+            UPDATE t SET [Probability] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
+            FROM app.RiskIssue t JOIN @Renamed r ON t.[Probability] = r.OldLabel;
     END;
 
     -- 5. Move the list's RowVer so a stale editor gets CONFLICT (and set row colouring).
