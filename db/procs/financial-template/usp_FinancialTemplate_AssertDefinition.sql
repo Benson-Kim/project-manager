@@ -1,6 +1,7 @@
 -- usp_FinancialTemplate_AssertDefinition - checks a template document (ADR-0029) before it is
 -- stored or copied, so a bad document is a VALIDATION 50004, never a constraint error:
 --   horizonYears 1-7, fiscalYearStartMonth 1-12, escalationRate and flagThresholdRate 0-1;
+--   currency absent, empty, or a three-letter code by shape (ADR-0051);
 --   taxProfiles: at most 20, key 1-20 characters and unique, name 1-100 and unique, rate 0-1;
 --   costCategories / fundingSources: usp_Financial_AssertLabelList;
 --   lines: at most 300, section operating / capital / other, description 1-255, category and
@@ -31,6 +32,10 @@ BEGIN
         THROW 50004, N'VALIDATION:The escalation rate must be 0 to 100 %', 1;
     IF ISNULL(TRY_CAST(JSON_VALUE(@Definition, N'$.flagThresholdRate') AS DECIMAL(9,6)), -1) NOT BETWEEN 0 AND 1
         THROW 50004, N'VALIDATION:The flag threshold must be 0 to 100 %', 1;
+
+    IF ISNULL(JSON_VALUE(@Definition, N'$.currency'), N'') <> N''
+       AND JSON_VALUE(@Definition, N'$.currency') COLLATE Latin1_General_BIN NOT LIKE N'[A-Z][A-Z][A-Z]'
+        THROW 50004, N'VALIDATION:The currency must be a three-letter code, or no currency at all', 1;
 
     IF JSON_QUERY(@Definition, N'$.taxProfiles') IS NULL OR LEFT(JSON_QUERY(@Definition, N'$.taxProfiles'), 1) <> N'['
         THROW 50004, N'VALIDATION:Tax profiles must be a list', 1;

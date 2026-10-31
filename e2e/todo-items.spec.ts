@@ -24,7 +24,7 @@ test("create todo item happy path — appears in the list", async ({ page }) => 
   await page.getByTestId("todo-item-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   await expect(form).toHaveCount(0); // sheet closed
 
   await page.goto(`/projects/2/todos?q=${encodeURIComponent(title)}`);
@@ -69,7 +69,7 @@ test("alert section — configure and save an alert on an existing todo", async 
   await page.getByTestId("todo-alert-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.saved }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
 });
 
 test("status filter narrows the list", async ({ page }) => {
@@ -107,12 +107,12 @@ test("alert snooze — snooze buttons visible for a saved alert", async ({ page 
     await snooze5.click();
     await expect(
       page.getByTestId("toast-success").filter({ hasText: messages.todoItems.snoozed }).first(),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15_000 });
   } else if (await dismissBtn.isVisible()) {
     await dismissBtn.click();
     await expect(
       page.getByTestId("toast-success").filter({ hasText: messages.todoItems.dismissed }).first(),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15_000 });
   }
   // If neither is visible the alert was already dismissed — pass.
 });

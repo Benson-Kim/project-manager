@@ -1,7 +1,8 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { OVERRIDABLE_MODULES, requiredLevel } from "@/lib/auth/rbac";
+import { sourceFiles } from "./import-graph";
 
 /**
  * Guardrail (ADR-0021): the stored procedures enforce per-project access with a
@@ -24,6 +25,7 @@ const MODULES: Record<string, string> = {
   objective: "objectives",
   requirement: "requirements",
   "question-answer": "questions-answers",
+  "risk-issue": "risks-issues",
   stakeholder: "stakeholders",
   supplier: "suppliers",
   "parking-lot-item": "parking-lot",
@@ -338,4 +340,93 @@ describe("a cross-scope proc asks every scope it crosses (ADR-0038 decision 23)"
       .map((p) => p.name);
     expect(disagreeing.sort()).toEqual(Object.keys(CROSS_SCOPE).sort());
   });
+});
+
+/**
+ * Folder coverage. Everything above iterates `Object.keys(MODULES)`, so a folder in
+ * no map is not passing the access checks — it is never read by them at all. That is
+ * how app.RiskIssue's five procs reached ADR-0050 from module #3 having never checked
+ * access, with every guardrail green. 14 of 48 folders were unclassified when this was
+ * written; these two maps account for them.
+ */
+
+/** Folders with no project scope of their own, and the reason each needs no check. */
+const UNSCOPED: Record<string, string> = {
+  "access-level": "the access helpers themselves — they resolve the rule every other proc calls",
+  "alert-subscription": "per-user push endpoints, keyed by the authenticated actor",
+  audit: "the append-only audit writer, the sanctioned helper for app-layer events",
+  "file-attachment": "owner-scoped (ADR-0026): its own helper asserts the owner's access",
+  "financial-template": "global templates, not any project's rows",
+  "login-attempt": "pre-authentication lockout counters keyed by IP; there is no actor yet",
+  "lookup-list": "global dropdown lists; usp_LookupList_Set is Admin-only in-proc",
+  "project-permission": "per-person overrides; it asserts the project itself",
+  role: "the reference list of roles, holding no project's rows",
+  user: "identity; gated by the global role in src/lib/action.ts, not per project",
+  "view-preference": "per-user UI preference, keyed by the session's own user id",
+};
+
+/**
+ * Module #3 scaffold whose procs check NO access at all and which NOTHING calls.
+ * app.RiskIssue sat here until ADR-0050 gave its five procs the checks they never
+ * had; this is what is left of that generation. They are safe today only because no
+ * repository reaches them, so the tripwire below asserts exactly that — wire one up
+ * and it fails until the ADR-0021 check is in place.
+ */
+const UNCALLED_SCAFFOLD: Record<string, string> = {
+  "existing-system-interface":
+    "app.ExistingSystemInterface carries a ProjectId and not one of its procs checks it",
+  "it-resource-category": "a global catalogue, but with no authorization of any kind",
+  "it-resource-item": "a global catalogue, but with no authorization of any kind",
+};
+
+const procFolders = readdirSync(join("db", "procs")).filter((f) =>
+  statSync(join("db", "procs", f)).isDirectory(),
+);
+const procNamesOf = (folder: string) =>
+  readdirSync(join("db", "procs", folder))
+    .filter((f) => f.startsWith("usp_") && f.endsWith(".sql"))
+    .map((f) => basename(f, ".sql"));
+
+describe("every db/procs folder is classified", () => {
+  it.each(procFolders)("%s is in exactly one of MODULES, UNSCOPED, UNCALLED_SCAFFOLD", (folder) => {
+    const maps = [folder in MODULES, folder in UNSCOPED, folder in UNCALLED_SCAFFOLD];
+    expect(
+      maps.filter(Boolean).length,
+      `db/procs/${folder} is in no map, so none of the access checks above ever reads it`,
+    ).toBe(1);
+  });
+
+  it.each([...Object.keys(UNSCOPED), ...Object.keys(UNCALLED_SCAFFOLD)])(
+    "%s still exists, so a classification cannot outlive its folder",
+    (folder) => {
+      expect(procFolders).toContain(folder);
+    },
+  );
+});
+
+describe("the unprotected scaffold stays uncalled (ADR-0050's lesson)", () => {
+  const texts = sourceFiles.map((file) => readFileSync(file, "utf8"));
+
+  it.each(Object.keys(UNCALLED_SCAFFOLD))("nothing under src/ names a %s proc", (folder) => {
+    const names = procNamesOf(folder);
+    expect(names.length).toBeGreaterThan(0);
+    const called = names.filter((name) => texts.some((text) => text.includes(name)));
+    expect(
+      called,
+      `${folder}: these procs check no access at all. Give them the ADR-0021 check and move the folder into MODULES before anything calls them`,
+    ).toEqual([]);
+  });
+
+  it.each(Object.keys(UNCALLED_SCAFFOLD))(
+    "%s really does check no access, so the classification stays honest",
+    (folder) => {
+      for (const name of procNamesOf(folder)) {
+        const source = readFileSync(join("db", "procs", folder, `${name}.sql`), "utf8");
+        expect(
+          /AssertAccess|AccessLevel_Resolve|GetActorRole/.test(source),
+          `${name} now checks access — move ${folder} into MODULES so its level is verified`,
+        ).toBe(false);
+      }
+    },
+  );
 });

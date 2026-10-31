@@ -87,6 +87,7 @@ describe("financials repository", () => {
         FirstFiscalYear: 2023,
         HorizonYears: 5,
         FiscalYearStartMonth: 4,
+        CurrencyCode: "",
         LineCount: 3,
         DocumentCount: 9,
         DocumentsRequired: 4,
@@ -150,6 +151,7 @@ describe("financials repository", () => {
         flagThresholdRate: "10",
         costCategories: ["A"],
         fundingSources: [],
+        currency: "eur",
         rowVer: 77,
       }),
       7,
@@ -162,6 +164,7 @@ describe("financials repository", () => {
         EscalationRate: "0.050000",
         CostCategories: '["A"]',
         ProjectNumber: null,
+        CurrencyCode: "EUR",
         RowVer: 77,
       }),
     );

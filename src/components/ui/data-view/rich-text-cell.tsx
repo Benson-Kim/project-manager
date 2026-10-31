@@ -5,7 +5,7 @@ import { messages } from "@/lib/messages";
 import { Button } from "../button";
 import { AnchoredPanel, Dialog } from "../dialog";
 import { RichTextEditor } from "../rich-text/rich-text-editor";
-import { panelPosition, previewText, type PanelPosition } from "./datasheet";
+import { panelPosition, previewText, RICH_TEXT_CLIP, type PanelPosition } from "./datasheet";
 
 type Mode = "closed" | "panel" | "zoom";
 
@@ -161,7 +161,7 @@ export function RichTextCell({
       >
         {preview ? (
           // Inert: links in the text are not separate stops inside the cell's button.
-          <span inert aria-hidden="true" className="block max-h-full overflow-hidden">
+          <span inert aria-hidden="true" className={RICH_TEXT_CLIP}>
             {display}
           </span>
         ) : placeholder ? (

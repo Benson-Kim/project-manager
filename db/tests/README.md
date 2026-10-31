@@ -73,6 +73,24 @@ and prints `N passed, M failed`.
   phase. The packaging and board-relink races wait for those procs (slices B4-B5); the file
   lists them so the gap is visible.
 
+- `risk-issue-procs.cjs` — #14 / ADR-0050: the project access the five risks & issues procs gained,
+  which is the module's whole substance (they checked none since module #3). The level each write
+  needs and the Viewer that may only read, object-level access across projects for read, update,
+  delete and the project list, the Admin bypass, `@ProjectId` ignored on update so a forged payload
+  cannot move a record between projects, the five managed lists refusing a value outside them, the
+  date order rule on create and update, a stale RowVer conflicting on both writes, the
+  cross-project list filtered to the actor's projects with their level on each row, a LIKE
+  metacharacter searched for literally, and a delete that leaves every read. The Update carve-out
+  for a migrated inverted date pair is not covered: only migration makes one, and the EXECUTE-only
+  login cannot forge one.
+
+- `alert-subscription-procs.cjs` — who may retire whose browser push endpoint. A subscription is
+  an object with an owner, but neither retire proc checked the owner: both were safe only because
+  every caller passed a server-derived id. Covers the checks that close it — only the owner or the
+  dispatch service retires one endpoint, only the user themselves or an Admin retires a user's
+  endpoints, an unknown or already-retired id stays a silent no-op for the dispatch loop, and one
+  endpoint belongs to one user at a time so a shared browser profile transfers rather than shares.
+
 Run one locally with the `.env` of a throwaway database: `node db/tests/financials-procs.cjs`.
 Never run them against a database anyone depends on: they create projects and leave
 soft-deleted rows behind.

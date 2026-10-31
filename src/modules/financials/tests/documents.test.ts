@@ -205,6 +205,7 @@ describe("advisory suggestions (never enforced)", () => {
       budget: { cents: 20_000_000n, source: "authorised" as const },
       plannedBeforeTax: 1n,
       capitalBeforeTax: 1n,
+      currency: "",
     };
     expect(matchSuggestion(rule, ctx)).toBeNull();
     expect(
@@ -215,7 +216,7 @@ describe("advisory suggestions (never enforced)", () => {
 
   it("calls a cost non-capitalizable only when something is planned and none of it is capital", () => {
     const rule = { kind: "noCapital" as const, reason: "Non-cap" };
-    const base = { budget: null, plannedBeforeTax: 0n, capitalBeforeTax: 0n };
+    const base = { budget: null, plannedBeforeTax: 0n, capitalBeforeTax: 0n, currency: "" };
     expect(matchSuggestion(rule, base)).toBeNull();
     expect(matchSuggestion(rule, { ...base, plannedBeforeTax: 100n })?.reason).toBe("Non-cap");
     expect(
@@ -234,6 +235,7 @@ describe("advisory suggestions (never enforced)", () => {
       budget: { cents: 50n, source: "planned" as const },
       plannedBeforeTax: 50n,
       capitalBeforeTax: 0n,
+      currency: "",
     };
     expect(documentSuggestion(doc, ctx)?.reason).toBe("first");
     expect(documentSuggestion(doc, { ...ctx, capitalBeforeTax: 5n })?.reason).toBe("second");

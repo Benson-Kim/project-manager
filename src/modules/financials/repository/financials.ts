@@ -90,6 +90,7 @@ export async function updateFinancial(
     FlagThresholdRate: p.flagThresholdRate,
     CostCategories: JSON.stringify(p.costCategories),
     FundingSources: JSON.stringify(p.fundingSources),
+    CurrencyCode: p.currency,
     RowVer: p.rowVer,
     ActorUserId: actorUserId,
   });

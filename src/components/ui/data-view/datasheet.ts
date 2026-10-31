@@ -243,6 +243,14 @@ export function panelPosition(
 /** Row height until the user drags a row edge (client feedback §2: spacious rows). */
 export const DEFAULT_ROW_HEIGHT = 48;
 
+/**
+ * Rich text in a cell shows whole lines only: the room the row leaves inside
+ * its padding, rounded down to the rich-text line (1.5rem, globals.css). The
+ * smallest row (ROW_HEIGHT_MIN) still fits one line.
+ */
+export const RICH_TEXT_CLIP =
+  "block max-h-[round(down,var(--row-h)_-_1rem,1.5rem)] overflow-hidden";
+
 /** Minimum width per kind so cells stay readable (client feedback §2: spacious cells). */
 export const CELL_WIDTH: Record<CellKind, string> = {
   text: "min-w-56",

@@ -4,6 +4,7 @@
  * figure ever passes through a binary float. Rounding is Excel's ROUND: half
  * away from zero, which the source workbook used on every tax-included cell.
  */
+import { NO_CURRENCY, currencySymbol } from "@/lib/currency/currencies";
 
 /** Largest amount one cell or invoice may hold: 999,999,999.99. */
 export const MONEY_MAX_CENTS = 99_999_999_999n;
@@ -59,19 +60,32 @@ export function centsToDecimal(cents: bigint): string {
   return `${sign}${abs / 100n}.${(abs % 100n).toString().padStart(2, "0")}`;
 }
 
-/** Cents for display: "1,234.56", negatives in parentheses as finance reads them. */
-export function formatMoney(cents: bigint): string {
+/**
+ * Cents for display: "$1,234.56", negatives in parentheses as finance reads
+ * them. `currency` is the code the sheet carries (ADR-0051), "" or absent for
+ * no symbol.
+ *
+ * The number is still assembled from the bigint here — Intl supplies the symbol
+ * and never the figure, so no amount passes through a float (ADR-0029). Every
+ * call site inside the module must pass a currency; `formatMoneyGuardrail`
+ * fails the build when one forgets, because a forgotten symbol is invisible.
+ */
+export function formatMoney(cents: bigint, currency?: string): string {
   const abs = cents < 0n ? -cents : cents;
   const whole = (abs / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  const text = `${whole}.${(abs % 100n).toString().padStart(2, "0")}`;
+  const text = `${currencySymbol(currency)}${whole}.${(abs % 100n).toString().padStart(2, "0")}`;
   return cents < 0n ? `(${text})` : text;
 }
 
-/** An amount as an input shows it ("-1,234.50", which parseMoney reads back); other text as it is. */
+/**
+ * An amount as an input shows it ("-1,234.50", which parseMoney reads back);
+ * other text as it is. Deliberately bare: a symbol in the field would not parse
+ * back, so this is one of the two places that format money without a currency.
+ */
 export function formatMoneyField(text: string): string {
   const cents = parseMoney(text);
   if (cents === null) return text;
-  return cents < 0n ? `-${formatMoney(-cents)}` : formatMoney(cents);
+  return cents < 0n ? `-${formatMoney(-cents, NO_CURRENCY)}` : formatMoney(cents, NO_CURRENCY);
 }
 
 const PERCENT_TEXT = /^(\d{1,3})(?:\.(\d{1,4}))?$/;

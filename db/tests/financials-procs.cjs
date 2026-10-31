@@ -17,6 +17,7 @@ try {
   // No .env: the environment must carry the DB_* values (CI).
 }
 const sql = require("mssql");
+const currencyVectors = require("../../src/modules/financials/tests/currency-vectors.json");
 
 const ADMIN = 1;
 const PM = 3;
@@ -26,11 +27,14 @@ let pool;
 let failures = 0;
 let passes = 0;
 
-async function exec(proc, params) {
+function request(params) {
   const req = pool.request();
   for (const [k, v] of Object.entries(params)) req.input(k, v);
-  const res = await req.execute(proc);
-  return res.recordsets;
+  return req;
+}
+
+async function exec(proc, params) {
+  return (await request(params).execute(proc)).recordsets;
 }
 
 function ok(cond, label) {
@@ -93,12 +97,14 @@ async function project(name) {
     ["category too long", { ...def, costCategories: ["x".repeat(151)] }],
     ["duplicate category", { ...def, costCategories: ["a", "a"] }],
     ["bad section", { ...def, lines: [{ ...def.lines[0], section: "admin" }] }],
+    ["lower-case currency", { ...def, currency: "usd" }],
+    ["currency too long", { ...def, currency: "EURO" }],
     ["not an object", [1, 2]],
   ]) {
     await expectCode(50004, `template ${label}`, () =>
       exec("usp_FinancialTemplate_Save", { Name: `t-${stamp}`, Definition: JSON.stringify(bad), ActorUserId: ADMIN }));
   }
-  const withAmount = { ...def, lines: [{ ...def.lines[0], amount: "350.00", isRecurrent: true }] };
+  const withAmount = { ...def, currency: "EUR", lines: [{ ...def.lines[0], amount: "350.00", isRecurrent: true }] };
   const [[tpl]] = await exec("usp_FinancialTemplate_Save", {
     Name: `t-${stamp}`, Definition: JSON.stringify(withAmount), IsDefault: 0, ActorUserId: ADMIN,
   });
@@ -125,8 +131,10 @@ async function project(name) {
   });
   ok(fin.HorizonYears === 5 && fin.FirstFiscalYear === 2023 && fin.TemplateName === `t-${stamp}`, "created from template");
   ok(JSON.parse(fin.CostCategories).length === 8, "categories copied");
+  ok(fin.CurrencyCode === "EUR", "template currency copied");
   const [[finQ]] = await exec("usp_Financial_Create", { ProjectId: Q, Title: "Q", FirstFiscalYear: 2023, ActorUserId: PM });
   ok(JSON.parse(finQ.CostCategories).length === 0 && finQ.HorizonYears === 5, "blank financial");
+  ok(finQ.CurrencyCode === "", "a blank financial shows no currency symbol");
 
   // Snapshot: template edits never reach the financial
   await exec("usp_FinancialTemplate_Save", {
@@ -311,12 +319,23 @@ async function project(name) {
       FinancialId: fin.FinancialId, Title: "Budget 2023", FirstFiscalYear: 2023, HorizonYears: 5, FiscalYearStartMonth: 4,
       EscalationRate: "0.05", FlagThresholdRate: "0.1", CostCategories: "{\"a\":1}", RowVer: afterSet.RowVer, ActorUserId: PM,
     }));
+  // The shared refused set (src/modules/financials/tests/currency-vectors.json), the same list the
+  // zod test reads. "EURO" is the vector that proves @CurrencyCode is declared wider than it
+  // accepts: sized to the value it would have bound as "EUR", a different real currency, silently.
+  for (const bad of currencyVectors.refused) {
+    await expectCode(50004, `malformed currency ${bad}`, () =>
+      exec("usp_Financial_Update", {
+        FinancialId: fin.FinancialId, Title: "Budget 2023", FirstFiscalYear: 2023, HorizonYears: 5, FiscalYearStartMonth: 4,
+        EscalationRate: "0.05", FlagThresholdRate: "0.1", CurrencyCode: bad, RowVer: afterSet.RowVer, ActorUserId: PM,
+      }));
+  }
   const [[updated]] = await exec("usp_Financial_Update", {
     FinancialId: fin.FinancialId, Title: "Budget 2023-24", ProjectNumber: 1021995, GlGrandLivre: "9300867-70560", Budget: "100000.00",
     FirstFiscalYear: 2023, HorizonYears: 7, FiscalYearStartMonth: 4, EscalationRate: "0.05", FlagThresholdRate: "0.1",
-    CostCategories: JSON.stringify(["Acquisition"]), BudgetIncludesTax: 0, RowVer: afterSet.RowVer, ActorUserId: PM,
+    CostCategories: JSON.stringify(["Acquisition"]), BudgetIncludesTax: 0, CurrencyCode: "eur", RowVer: afterSet.RowVer, ActorUserId: PM,
   });
   ok(updated.HorizonYears === 7 && Number(updated.Budget) === 100000 && updated.BudgetIncludesTax === false, "update settings");
+  ok(updated.CurrencyCode === "EUR", "update trims and upper-cases the currency code");
 
   // Deletes
   await expectCode(50004, "delete a line with transactions", () =>
@@ -335,8 +354,30 @@ async function project(name) {
   const orders = qLines.filter((l) => l.Section === "capital").map((l) => l.SortOrder);
   ok(new Set(orders).size === 12, `parallel creates keep distinct sort orders (${orders})`);
 
+  // The list row carries the currency (the project card formats money from it, not from a sheet),
+  // and CK_Financial_CurrencyCode refuses what the proc's UPPER() would have fixed up.
+  const [[qRow]] = await exec("usp_Financial_GetById", { FinancialId: finQ.FinancialId, ActorUserId: PM });
+  // The shared accepted set, normalise-then-shape. Each write consumes a RowVer, so thread it on.
+  let qVer = qRow.RowVer;
+  for (const { input, stored } of currencyVectors.accepted) {
+    const [[r]] = await exec("usp_Financial_Update", {
+      FinancialId: finQ.FinancialId, Title: "Q", FirstFiscalYear: 2023, HorizonYears: 5, FiscalYearStartMonth: 4,
+      EscalationRate: "0.05", FlagThresholdRate: "0.1", CurrencyCode: input, RowVer: qVer, ActorUserId: PM,
+    });
+    ok(r.CurrencyCode === stored, `the proc stores ${JSON.stringify(input)} as ${JSON.stringify(stored)}`);
+    qVer = r.RowVer;
+  }
+  await exec("usp_Financial_Update", {
+    FinancialId: finQ.FinancialId, Title: "Q", FirstFiscalYear: 2023, HorizonYears: 5, FiscalYearStartMonth: 4,
+    EscalationRate: "0.05", FlagThresholdRate: "0.1", CurrencyCode: "jpy", RowVer: qVer, ActorUserId: PM,
+  });
   const [list] = await exec("usp_Financial_List", { ActorUserId: PM, ProjectId: Q, Search: "q" });
   ok(list.length === 1 && list[0].LineCount === 13 && list[0].ActorAccess === "Manager", "list");
+  ok(list[0].CurrencyCode === "JPY", "the list row carries the currency");
+  // CK_Financial_CurrencyCode is NOT checked here. These tests connect as the app's EXECUTE-only
+  // login (ADR-0033), so a direct write is refused with 229 before any constraint can run, which
+  // db/verify/app_login.sql separately asserts must be true. The constraint is verified as the
+  // admin login in db/verify/currency_check.sql, in this same CI job.
 
   await exec("usp_FinancialTemplate_Delete", { FinancialTemplateId: tpl.FinancialTemplateId, RowVer: (await exec("usp_FinancialTemplate_GetById", { FinancialTemplateId: tpl.FinancialTemplateId, ActorUserId: PM }))[0][0].RowVer, ActorUserId: ADMIN });
   console.log(`${passes} passed, ${failures} failed`);

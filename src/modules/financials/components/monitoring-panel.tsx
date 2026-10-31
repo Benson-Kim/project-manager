@@ -45,14 +45,20 @@ function StatusBadge({ status }: { status: MonitorStatus }) {
   return <Badge value={M.status[status]} tone={STATUS_TONE[status]} />;
 }
 
-function Figures({ figures }: { figures: MonitorFigures }) {
+function Figures({ figures, currency }: { figures: MonitorFigures; currency: string }) {
   return (
     <>
-      <td className="px-3 py-2 text-right tabular-nums">{formatMoney(figures.budgetBeforeTax)}</td>
-      <td className="px-3 py-2 text-right tabular-nums">{formatMoney(figures.spentBeforeTax)}</td>
       <td className="px-3 py-2 text-right tabular-nums">
-        {formatMoney(figures.balanceBeforeTax)}
-        <span className="block text-xs text-ink-muted">{formatMoney(figures.balance)}</span>
+        {formatMoney(figures.budgetBeforeTax, currency)}
+      </td>
+      <td className="px-3 py-2 text-right tabular-nums">
+        {formatMoney(figures.spentBeforeTax, currency)}
+      </td>
+      <td className="px-3 py-2 text-right tabular-nums">
+        {formatMoney(figures.balanceBeforeTax, currency)}
+        <span className="block text-xs text-ink-muted">
+          {formatMoney(figures.balance, currency)}
+        </span>
       </td>
       <td className="px-3 py-2">
         <StatusBadge status={figures.status} />
@@ -152,7 +158,7 @@ export function MonitoringPanel({
       priority: 1,
       render: (t) => (
         <span className="block text-right tabular-nums">
-          {formatMoney(parseMoney(t.amount) ?? 0n)}
+          {formatMoney(parseMoney(t.amount) ?? 0n, f.currency)}
         </span>
       ),
       edit: {
@@ -175,7 +181,7 @@ export function MonitoringPanel({
             className="block text-right tabular-nums"
             title={`${M.capturedRate}: ${formatPercent(rate)} %`}
           >
-            {formatMoney(applyRate(parseMoney(t.amount) ?? 0n, rate))}
+            {formatMoney(applyRate(parseMoney(t.amount) ?? 0n, rate), f.currency)}
           </span>
         );
       },
@@ -272,14 +278,17 @@ export function MonitoringPanel({
                         <th scope="row" className="px-3 py-2 text-left font-normal">
                           {line.description}
                         </th>
-                        <Figures figures={pick(monitor.lines.get(line.id)!)} />
+                        <Figures
+                          figures={pick(monitor.lines.get(line.id)!)}
+                          currency={f.currency}
+                        />
                       </tr>
                     ))}
                   <tr className="border-t border-line bg-surface-raised font-medium">
                     <th scope="row" className="px-3 py-2 text-left">
                       <span className="sr-only">{M.sectionTotal(M.sections[section])}</span>
                     </th>
-                    <Figures figures={pick(monitor.sections[section])} />
+                    <Figures figures={pick(monitor.sections[section])} currency={f.currency} />
                   </tr>
                 </SectionRows>
               ))}
@@ -290,7 +299,7 @@ export function MonitoringPanel({
                 <th scope="row" className="px-3 py-2 text-left">
                   {M.total}
                 </th>
-                <Figures figures={pick(monitor.total)} />
+                <Figures figures={pick(monitor.total)} currency={f.currency} />
               </tr>
             </tbody>
           </table>

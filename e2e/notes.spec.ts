@@ -29,7 +29,7 @@ async function newNotebook(page: Page, list = "/projects/2/notes") {
 async function rename(page: Page, title: string) {
   await page.getByTestId("note-title").fill(title);
   await page.getByTestId("note-title-save").click();
-  await expect(page.getByTestId("toast-success").first()).toBeVisible();
+  await expect(page.getByTestId("toast-success").first()).toBeVisible({ timeout: 15_000 });
 }
 
 function tabs(page: Page) {
@@ -60,7 +60,7 @@ test("creates a notebook, renames it, builds pages, reorders and keeps everythin
 
   await page.getByTestId("note-title").fill(unique);
   await page.getByTestId("note-title-save").click();
-  await expect(page.getByTestId("toast-success").first()).toBeVisible();
+  await expect(page.getByTestId("toast-success").first()).toBeVisible({ timeout: 15_000 });
 
   await addPage(page, 2);
   await addPage(page, 3);

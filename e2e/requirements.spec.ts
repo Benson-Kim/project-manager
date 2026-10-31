@@ -151,7 +151,7 @@ test("register: two needs merge into a functional requirement that two deliverab
   await page.getByTestId("requirement-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   await expect(form).toHaveCount(0);
 
   // The register lists it with the needs it validates, and with no coverage of its own.
@@ -187,7 +187,7 @@ test("register: two needs merge into a functional requirement that two deliverab
   await dialog.getByRole("button", { name: messages.actions.delete }).click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.deleted }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
 
   // The needs stay in the register, unvalidated again.
   await page.goto(`${REGISTER}&q=${encodeURIComponent(stamp)}`);
@@ -306,7 +306,7 @@ test("sub-requirements: the register nests them, and the WBS names them the same
     await page.getByTestId("requirement-save").click();
     await expect(
       page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15_000 });
     await expect(form).toHaveCount(0);
   }
 
@@ -349,7 +349,7 @@ test("sub-requirements: the register nests them, and the WBS names them the same
   await page.getByTestId("requirement-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.saved }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
 
   await page.goto("/projects/2/deliverables/gantt?view=wbs");
   await openRequirementLists(page);

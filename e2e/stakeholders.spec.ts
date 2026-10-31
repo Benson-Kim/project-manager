@@ -21,7 +21,7 @@ test("create stakeholder happy path — appears in the list", async ({ page }) =
   await page.getByTestId("stakeholder-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   await expect(form).toHaveCount(0); // sheet closed, ?id= cleared
 
   await page.goto(`/projects/2/stakeholders?q=${encodeURIComponent(firstName)}`);

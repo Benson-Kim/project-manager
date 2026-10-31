@@ -13,6 +13,7 @@ import { PARKING_LOT_SORT } from "@/modules/parking-lot/schemas/parking-lot-item
 import { PROJECT_SORT } from "@/modules/projects/schemas/project";
 import { QUESTION_ANSWER_SORT } from "@/modules/questions-answers/schemas/question-answer";
 import { REQUIREMENT_SORT } from "@/modules/requirements/schemas/requirement";
+import { RISK_ISSUE_SORT } from "@/modules/risks-issues/schemas/risk-issue";
 import { STAKEHOLDER_SORT } from "@/modules/stakeholders/schemas/stakeholder";
 import { SUPPLIER_SORT } from "@/modules/suppliers/schemas/supplier";
 import { TODO_ITEM_SORT } from "@/modules/todo-items/schemas/todo-item";
@@ -51,6 +52,7 @@ const MODULES: Array<[string, ListSort, string]> = [
     "db/procs/question-answer/usp_QuestionAnswer_List.sql",
   ],
   ["requirements", REQUIREMENT_SORT, "db/procs/requirement/usp_Requirement_List.sql"],
+  ["risks-issues", RISK_ISSUE_SORT, "db/procs/risk-issue/usp_RiskIssue_List.sql"],
   ["stakeholders", STAKEHOLDER_SORT, "db/procs/stakeholder/usp_Stakeholder_List.sql"],
   ["suppliers", SUPPLIER_SORT, "db/procs/supplier/usp_Supplier_List.sql"],
   ["todo-items", TODO_ITEM_SORT, "db/procs/todo-item/usp_TodoItem_List.sql"],
@@ -73,9 +75,9 @@ function sortTokens(path: string): string[] {
 
 describe("a module's sortable columns are exactly the ones its list proc applies", () => {
   it("reads every module that offers sorting", () => {
-    // Fourteen sortable modules. Objectives declares no ListSort
+    // Fifteen sortable modules. Objectives declares no ListSort
     // because its proc orders by ObjectiveId alone; adding one adds a row here.
-    expect(MODULES.length).toBe(14);
+    expect(MODULES.length).toBe(15);
     for (const [, , path] of MODULES) expect(sortTokens(path).length).toBeGreaterThan(0);
   });
 
