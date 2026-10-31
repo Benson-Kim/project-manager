@@ -169,6 +169,7 @@ jobs:
           sqlcmd -S tcp:localhost,1433 -U sa -P "Ci-Ephemeral!Passw0rd1" -C -b -I -v E2E_SEED=1 -i db/verify/seed_counts.sql
           sqlcmd -S tcp:localhost,1433 -U sa -P "Ci-Ephemeral!Passw0rd1" -C -b -I -v DB_APP_USER=pm_web -i db/verify/app_login.sql
           sqlcmd -S tcp:localhost,1433 -U sa -P "Ci-Ephemeral!Passw0rd1" -C -b -I -i db/verify/read_committed_snapshot.sql
+          sqlcmd -S tcp:localhost,1433 -U sa -P "Ci-Ephemeral!Passw0rd1" -C -b -I -i db/verify/currency_check.sql
 
       # Behaviour checks that run the procs against the seeded database (db/tests/README.md):
       # access across projects and owners, quotas, money rules, parallel writes. They connect

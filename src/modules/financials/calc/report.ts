@@ -46,10 +46,9 @@ export interface FinancialReport {
   documentSummary: DocumentSummary;
 }
 
-const money = (cents: bigint) => formatMoney(cents);
-
 export function financialReport(sheet: SheetDto): FinancialReport {
   const f = sheet.financial;
+  const money = (cents: bigint) => formatMoney(cents, f.currency);
   const { plan, monitor } = calculateSheet(sheet);
   const label = (year: number) => fiscalYearLabel(year, f.startMonth);
   const authorised = f.budget === null ? null : parseMoney(f.budget);

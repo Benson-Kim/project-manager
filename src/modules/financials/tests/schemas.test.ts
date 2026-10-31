@@ -24,6 +24,7 @@ import {
   templateRowSchema,
 } from "../schemas/template";
 import { migrationTemplateDefinition, templateRow, workbookSheetSets } from "./fixtures";
+import currencyVectors from "./currency-vectors.json";
 
 describe("field schemas", () => {
   it("canonicalises typed amounts and rates", () => {
@@ -211,7 +212,7 @@ describe("financial inputs", () => {
     expect(
       createFinancialInput.safeParse({ projectId: 2, title: "B", firstFiscalYear: 1999 }).success,
     ).toBe(false);
-    const update = updateFinancialInput.parse({
+    const updateRaw = {
       financialId: 4,
       title: "Budget",
       projectNumber: "",
@@ -224,14 +225,31 @@ describe("financial inputs", () => {
       flagThresholdRate: "10",
       costCategories: [],
       fundingSources: [],
+      currency: "USD",
       rowVer: 3,
-    });
+    };
+    const update = updateFinancialInput.parse(updateRaw);
     expect(update).toMatchObject({
       projectNumber: null,
       budget: "100000.00",
       recurrentFees: null,
       escalationRate: "0.050000",
+      currency: "USD",
     });
+    // The sheet's update is a full replacement, so an omitted currency must fail rather than
+    // quietly reset a configured one to no symbol.
+    expect(updateFinancialInput.safeParse({ ...updateRaw, currency: undefined }).success).toBe(
+      false,
+    );
+    // Normalised then validated, in the proc's order. These vectors are the shared spec for the
+    // rule: db/tests/financials-procs.cjs reads the same file, so the zod implementation and the
+    // T-SQL one cannot drift apart.
+    for (const { input, stored } of currencyVectors.accepted) {
+      expect(updateFinancialInput.parse({ ...updateRaw, currency: input }).currency).toBe(stored);
+    }
+    for (const bad of currencyVectors.refused) {
+      expect(updateFinancialInput.safeParse({ ...updateRaw, currency: bad }).success).toBe(false);
+    }
     expect(updateFinancialInput.safeParse({ ...update, horizonYears: 8 }).success).toBe(false);
     expect(
       setTaxProfilesInput.safeParse({

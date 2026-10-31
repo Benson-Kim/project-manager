@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -10,6 +10,12 @@ import { Input, Select, Switch } from "@/components/ui/form/inputs";
 import { LabelListEditor } from "@/components/ui/form/label-list-editor";
 import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { Panel } from "@/components/ui/panel";
+import {
+  NO_CURRENCY,
+  type Currency,
+  listCurrencies,
+  suggestedCurrency,
+} from "@/lib/currency/currencies";
 import { messages } from "@/lib/messages";
 import { deleteFinancialAction, setTaxProfilesAction, updateFinancialAction } from "../actions";
 import { fiscalYearLabel, horizonYears } from "../calc/fiscal";
@@ -42,7 +48,74 @@ export function breakdownValues(f: SheetDto["financial"]) {
     flagThresholdRate: percentOf(f.flagThresholdRate),
     costCategories: f.costCategories,
     fundingSources: f.fundingSources,
+    currency: f.currency,
   };
+}
+
+/** Nothing to subscribe to: neither the zone nor the runtime's list changes while this is open. */
+const noSubscription = () => () => {};
+
+/**
+ * The currency to offer first, resolved on the client only: it reads the
+ * viewer's time zone, which the server cannot know, so deciding it during
+ * render would differ between the two and drift on hydration. The server
+ * snapshot is "no symbol", and React swaps in the real one after hydrating.
+ */
+function useSuggestedCurrency() {
+  return useSyncExternalStore(noSubscription, suggestedCurrency, () => NO_CURRENCY);
+}
+
+const NO_CURRENCIES: Currency[] = [];
+
+/**
+ * The list resolves on the client only, for the reason the suggestion does.
+ * Intl's currencies come from the runtime's own ICU build and the builds
+ * disagree: Node 22 lists 162, Chrome 139 lists 159, and they name ZWL
+ * differently. A list rendered on the server therefore cannot be hydrated, and
+ * React answers a mismatch by discarding this form and rendering it again,
+ * which loses a currency already chosen in it. The server renders the stored
+ * code as its own label; the names arrive with hydration.
+ */
+function useCurrencies() {
+  return useSyncExternalStore(noSubscription, listCurrencies, () => NO_CURRENCIES);
+}
+
+/** The currency figures are shown in (ADR-0051), or no symbol at all. */
+function CurrencyField({
+  value,
+  errors,
+  onChange,
+}: {
+  value: string;
+  errors: string[] | undefined;
+  onChange: (currency: string) => void;
+}) {
+  const suggested = useSuggestedCurrency();
+  const currencies = useCurrencies();
+  const option = (code: string, name: string) => (
+    <option key={code} value={code}>
+      {M.currencyOption(name, code)}
+    </option>
+  );
+  // Until the names arrive the stored code stands for itself, outside the catalogue it is not yet
+  // part of, so the field never reads as unset on a sheet that has a currency.
+  const stored = value === NO_CURRENCY ? null : <option value={value}>{value}</option>;
+  return (
+    <Field label={M.currency} name="currency" errors={errors}>
+      <Select value={value} onChange={(e) => onChange(e.target.value)} data-testid="currency">
+        <option value={NO_CURRENCY}>{M.currencyNone}</option>
+        {currencies.length === 0 ? stored : null}
+        {suggested === NO_CURRENCY ? null : (
+          <optgroup label={M.currencySuggested}>
+            {option(suggested, currencies.find((c) => c.code === suggested)?.name ?? suggested)}
+          </optgroup>
+        )}
+        <optgroup label={M.currencyAll}>
+          {currencies.map((currency) => option(currency.code, currency.name))}
+        </optgroup>
+      </Select>
+    </Field>
+  );
 }
 
 /**
@@ -84,7 +157,10 @@ function BreakdownForm({ sheet, canEdit }: { sheet: SheetDto; canEdit: boolean }
   const err = action.fieldErrors;
 
   const text = (
-    key: Exclude<keyof typeof state, "budgetIncludesTax" | "costCategories" | "fundingSources">,
+    key: Exclude<
+      keyof typeof state,
+      "budgetIncludesTax" | "costCategories" | "fundingSources" | "currency"
+    >,
     label: string,
     extra: React.InputHTMLAttributes<HTMLInputElement> = {},
   ) => (
@@ -177,6 +253,11 @@ function BreakdownForm({ sheet, canEdit }: { sheet: SheetDto; canEdit: boolean }
                 ))}
               </Select>
             </Field>
+            <CurrencyField
+              value={state.currency}
+              errors={err.currency}
+              onChange={(currency) => change({ currency })}
+            />
             {text("escalationRate", M.escalationRate, { inputMode: "decimal" })}
             {text("flagThresholdRate", M.flagThreshold, { inputMode: "decimal" })}
           </div>

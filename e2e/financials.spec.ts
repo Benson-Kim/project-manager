@@ -30,6 +30,20 @@ async function toast(page: Page, title: string) {
   });
 }
 
+/**
+ * The picker's names come from the runtime's ICU data, which the server and the browser disagree
+ * about, so the list is client-only (ADR-0051). Waiting for it waits for the form to be able to
+ * hear the choice: a select changed before React attaches is set in the DOM alone and lost on the
+ * next render.
+ */
+async function chooseCurrency(page: Page, code: string) {
+  const currency = page.getByTestId("currency");
+  await expect(
+    currency.locator(`optgroup[label="${M.currencyAll}"] option`).first(),
+  ).toBeAttached();
+  await currency.selectOption(code);
+}
+
 /** A budget line's cell input, by column header and the line's description. */
 function lineCell(page: Page, column: string, name: string) {
   return page.getByLabel(messages.datasheet.cellLabel(column, name), { exact: true });
@@ -180,6 +194,36 @@ test("a rate change from 2024-2025 re-prices those years only; invoices keep the
   await expect(
     page.getByTestId("monitor-line").filter({ hasText: "Project management" }),
   ).toContainText("21.14");
+});
+
+test("a currency shows its symbol on the figures, and No symbol takes it away", async ({
+  page,
+}) => {
+  await page.goto(view("settings"));
+  const currency = page.getByTestId("currency");
+  await expect(currency).toHaveValue("");
+  // By value, never by label: the suggested code is also listed under All currencies, and the
+  // names come from the platform's ICU data, so a label match breaks on a different runner.
+  await chooseCurrency(page, "USD");
+  await page.getByTestId("save-breakdown").click();
+  // The saved value through a fresh render, not a toast: the toast flake is open, and the lasting
+  // effect is what the client asked for.
+  await expect(async () => {
+    await page.goto(view("settings"));
+    await expect(page.getByTestId("currency")).toHaveValue("USD");
+  }).toPass({ timeout: 20_000 });
+
+  await page.goto(view("budget"));
+  await expect(page.getByTestId("grand-before-tax")).toHaveText(/^\$/);
+  await expect(page.getByTestId("grand-with-tax")).toHaveText(/^\$/);
+
+  await page.goto(view("settings"));
+  await chooseCurrency(page, "");
+  await page.getByTestId("save-breakdown").click();
+  await expect(async () => {
+    await page.goto(view("budget"));
+    await expect(page.getByTestId("grand-before-tax")).not.toContainText("$");
+  }).toPass({ timeout: 20_000 });
 });
 
 test("guards: a line with invoices stays, another project's path is not found", async ({

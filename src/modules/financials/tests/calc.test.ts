@@ -102,9 +102,23 @@ describe("money", () => {
     expect(centsFromDb("0.1")).toBe(10n);
     expect(centsToDecimal(-123450n)).toBe("-1234.50");
     expect(centsToDecimal(5n)).toBe("0.05");
-    expect(formatMoney(123456789n)).toBe("1,234,567.89");
-    expect(formatMoney(-150n)).toBe("(1.50)");
-    expect(formatMoney(0n)).toBe("0.00");
+    expect(formatMoney(123456789n, "")).toBe("1,234,567.89");
+    expect(formatMoney(-150n, "")).toBe("(1.50)");
+    expect(formatMoney(0n, "")).toBe("0.00");
+  });
+
+  it("puts the currency symbol in front of the figure, inside the brackets", () => {
+    expect(formatMoney(123456789n, "USD")).toBe("$1,234,567.89");
+    expect(formatMoney(-150n, "EUR")).toBe("(€1.50)");
+    // ICU has no narrow symbol for every currency; the code itself reads correctly in front.
+    expect(formatMoney(100n, "KES")).toBe("KES1.00");
+    // A code that is not well shaped renders as no symbol rather than failing.
+    expect(formatMoney(100n, "usd")).toBe("1.00");
+    expect(formatMoney(100n, "")).toBe("1.00");
+  });
+
+  it("leaves the field and its placeholder bare, so what is typed parses back", () => {
+    expect(formatMoneyField("1234.5")).toBe("1,234.50");
   });
 
   it("shows an amount in its field with separators that parse back", () => {

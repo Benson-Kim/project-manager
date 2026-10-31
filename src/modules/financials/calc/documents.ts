@@ -25,6 +25,8 @@ export interface SuggestionContext {
   budget: BudgetBasis | null;
   plannedBeforeTax: bigint;
   capitalBeforeTax: bigint;
+  /** The sheet's currency (ADR-0051), so a matched rule reads its amounts the way the sheet does. */
+  currency: string;
 }
 
 export interface SuggestionMatch {
@@ -48,6 +50,7 @@ export function suggestionContext(sheet: SheetDto, plan: Plan): SuggestionContex
     budget,
     plannedBeforeTax: plan.total.beforeTax,
     capitalBeforeTax: plan.sections.capital.beforeTax,
+    currency: f.currency,
   };
 }
 
@@ -58,7 +61,10 @@ export function matchSuggestion(rule: Suggestion, ctx: SuggestionContext): Sugge
     return {
       kind: rule.kind,
       reason: rule.reason,
-      detail: M.matchBudgetBelow(formatMoney(ctx.budget.cents), formatMoney(limit)),
+      detail: M.matchBudgetBelow(
+        formatMoney(ctx.budget.cents, ctx.currency),
+        formatMoney(limit, ctx.currency),
+      ),
     };
   }
   if (ctx.plannedBeforeTax <= 0n || ctx.capitalBeforeTax !== 0n) return null;

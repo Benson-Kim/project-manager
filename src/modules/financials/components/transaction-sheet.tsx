@@ -171,7 +171,9 @@ export function TransactionSheet({
         </fieldset>
         <p className="text-sm text-ink-muted tabular-nums" aria-live="polite">
           {M.capturedRate}: {formatPercent(rate)} %
-          {cents !== null ? ` · ${M.withTax}: ${formatMoney(applyRate(cents, rate))}` : ""}
+          {cents !== null
+            ? ` · ${M.withTax}: ${formatMoney(applyRate(cents, rate), f.currency)}`
+            : ""}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {canEdit ? (

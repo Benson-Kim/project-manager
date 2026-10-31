@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { NO_CURRENCY, currencyOrNone, isCurrencyCode } from "@/lib/currency/currencies";
 import { messages } from "@/lib/messages";
 import { FISCAL_YEAR_MAX, FISCAL_YEAR_MIN, HORIZON_MAX, HORIZON_MIN } from "../calc/fiscal";
 import {
@@ -78,6 +79,45 @@ export const storedAmountText = z.string().regex(/^\d{1,9}(\.\d{1,2})?$/, M.amou
 export const fiscalYearSchema = z.coerce.number().int().min(FISCAL_YEAR_MIN).max(FISCAL_YEAR_MAX);
 export const horizonSchema = z.coerce.number().int().min(HORIZON_MIN).max(HORIZON_MAX);
 export const startMonthSchema = z.coerce.number().int().min(1).max(12);
+
+/**
+ * The currency figures are shown in, or "" for no symbol (ADR-0051). Trimmed
+ * and upper-cased first and then checked by shape, in that order and with that
+ * one rule, exactly as usp_Financial_Update does it — were the two to disagree,
+ * a value this layer discarded would be one the proc would have accepted.
+ */
+const normaliseCurrency = (value: string | null | undefined) => (value ?? "").trim().toUpperCase();
+
+/**
+ * A currency someone is choosing. A misshapen code is refused rather than read
+ * as no symbol: blanking it would reset a configured currency exactly as an
+ * omitted field would, and both procs throw on one rather than blank it.
+ */
+function toChosenCurrency(value: string | undefined, ctx: z.RefinementCtx): string {
+  const code = normaliseCurrency(value);
+  if (code !== NO_CURRENCY && !isCurrencyCode(code)) {
+    ctx.addIssue({ code: "custom", message: M.currencyInvalid });
+    return z.NEVER;
+  }
+  return code;
+}
+
+/**
+ * Required, because the sheet's update is a full replacement: were it optional,
+ * a payload that left it out would parse clean and silently reset a configured
+ * currency to no symbol.
+ */
+export const currencySchema = z.string().transform(toChosenCurrency);
+
+/**
+ * A stored template document, which may predate the field and is nobody's
+ * choice at this point: anything misshapen reads as no symbol, and
+ * usp_FinancialTemplate_AssertDefinition is the gate on what may be written.
+ */
+export const storedCurrencySchema = z
+  .string()
+  .optional()
+  .transform((value) => currencyOrNone(normaliseCurrency(value)));
 
 /** A list of labels (cost categories, funding sources): trimmed, no blanks, no repeats. */
 export const labelListSchema = z
