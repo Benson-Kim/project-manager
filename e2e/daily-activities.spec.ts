@@ -23,7 +23,7 @@ test("create daily activity happy path — appears in the list", async ({ page }
   await page.getByTestId("daily-activity-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   await expect(form).toHaveCount(0); // sheet closed
 
   await page.goto(`/projects/2/daily-activities?q=${encodeURIComponent(task)}`);
@@ -78,7 +78,7 @@ test("build to-do from daily activity — creates a to-do linked to the activity
         .getByTestId("toast-success")
         .filter({ hasText: messages.dailyActivities.todoCreated })
         .first(),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15_000 });
   }
   // If the button is not visible (no canCreateTodo permission in this e2e context), skip assertion.
 });

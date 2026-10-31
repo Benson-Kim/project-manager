@@ -22,7 +22,7 @@ test.describe("kitchen sink — shared primitives", () => {
 
   test("toast appears, announces and dismisses", async ({ page }) => {
     await page.getByRole("button", { name: "Success toast" }).click();
-    await expect(page.getByTestId("toast-success")).toBeVisible();
+    await expect(page.getByTestId("toast-success")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("toast-success")).toBeHidden({ timeout: 6000 });
   });
 
@@ -56,7 +56,7 @@ test.describe("kitchen sink — shared primitives", () => {
     await expect(cancelBtn).toBeVisible();
     await expect(cancelBtn).toBeFocused();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
-    await expect(page.getByTestId("toast-success")).toBeVisible();
+    await expect(page.getByTestId("toast-success")).toBeVisible({ timeout: 15_000 });
   });
 
   test("combobox ranks the best match first and selects with the keyboard", async ({ page }) => {

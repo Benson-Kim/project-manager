@@ -126,6 +126,7 @@ describe("financials actions", () => {
       escalationRate: "5",
       flagThresholdRate: "10",
       costCategories: [],
+      currency: "GBP",
       fundingSources: [],
       rowVer: 77,
     });

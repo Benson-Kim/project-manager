@@ -3,6 +3,7 @@ import { actorAccessFields } from "@/lib/auth/actor-access";
 import { messages } from "@/lib/messages";
 import type { AttachmentRow } from "@/modules/file-storage/schemas/attachment";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
+import { currencyOrNone } from "@/lib/currency/currencies";
 import { centsFromDb, centsToDecimal, microsFromDb, microsToFraction } from "../calc/money";
 import { toDocumentDto, toDocumentFiles, type DocumentDto } from "./documents";
 import {
@@ -13,6 +14,7 @@ import {
   optionalBudgetAmountText,
   optionalText,
   percentText,
+  currencySchema,
   sectionSchema,
   startMonthSchema,
   transactionAmountText,
@@ -56,6 +58,7 @@ export const financialRowSchema = z.object({
   FlagThresholdRate: decimal,
   CostCategories: labelsJson,
   FundingSources: labelsJson,
+  CurrencyCode: z.string(),
   CreatedAtUtc: z.date(),
   UpdatedAtUtc: z.date().nullable(),
   RowVer: rowVerSchema,
@@ -85,6 +88,8 @@ export interface FinancialDto {
   flagThresholdRate: string;
   costCategories: string[];
   fundingSources: string[];
+  /** The currency figures are shown in, or "" for no symbol (ADR-0051). */
+  currency: string;
   rowVer: number;
 }
 
@@ -110,6 +115,7 @@ export function toFinancialDto(row: FinancialRow): FinancialDto {
     flagThresholdRate: fraction(row.FlagThresholdRate),
     costCategories: row.CostCategories,
     fundingSources: row.FundingSources,
+    currency: currencyOrNone(row.CurrencyCode),
     rowVer: row.RowVer,
   };
 }
@@ -127,6 +133,7 @@ export const financialListRowSchema = z.object({
   FirstFiscalYear: z.number().int(),
   HorizonYears: z.number().int(),
   FiscalYearStartMonth: z.number().int(),
+  CurrencyCode: z.string(),
   LineCount: z.number().int(),
   DocumentCount: z.number().int(),
   DocumentsRequired: z.number().int(),
@@ -346,6 +353,7 @@ export const updateFinancialInput = z.object({
   flagThresholdRate: percentText,
   costCategories: labelListSchema,
   fundingSources: labelListSchema,
+  currency: currencySchema,
   rowVer: rowVerSchema,
 });
 

@@ -12,6 +12,7 @@ import {
   sectionSchema,
   startMonthSchema,
   storedAmountText,
+  storedCurrencySchema,
 } from "./fields";
 
 /**
@@ -62,6 +63,7 @@ export const templateDefinitionSchema = z
     fiscalYearStartMonth: startMonthSchema,
     escalationRate: fractionText,
     flagThresholdRate: fractionText,
+    currency: storedCurrencySchema,
     taxProfiles: z
       .array(
         z.object({
@@ -103,6 +105,7 @@ export const templateDefinitionInput = z
     fiscalYearStartMonth: startMonthSchema,
     escalationRate: percentText,
     flagThresholdRate: percentText,
+    currency: storedCurrencySchema,
     taxProfiles: z
       .array(
         z.object({

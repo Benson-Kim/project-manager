@@ -58,7 +58,7 @@ BEGIN
 
     INSERT INTO app.Financial (ProjectId, Title, TemplateName, FirstFiscalYear, HorizonYears,
                                FiscalYearStartMonth, EscalationRate, FlagThresholdRate,
-                               CostCategories, FundingSources, CreatedBy)
+                               CostCategories, FundingSources, CurrencyCode, CreatedBy)
     VALUES (@ProjectId, @Title, @TemplateName, @FirstFiscalYear,
             ISNULL(TRY_CAST(JSON_VALUE(@Definition, N'$.horizonYears') AS TINYINT), 5),
             @StartMonth,
@@ -66,6 +66,7 @@ BEGIN
             ISNULL(TRY_CAST(JSON_VALUE(@Definition, N'$.flagThresholdRate') AS DECIMAL(9,6)), 0.1),
             ISNULL(JSON_QUERY(@Definition, N'$.costCategories'), N'[]'),
             ISNULL(JSON_QUERY(@Definition, N'$.fundingSources'), N'[]'),
+            ISNULL(UPPER(LTRIM(RTRIM(JSON_VALUE(@Definition, N'$.currency')))), N''),
             @ActorUserId);
     DECLARE @FinancialId INT = SCOPE_IDENTITY();
 

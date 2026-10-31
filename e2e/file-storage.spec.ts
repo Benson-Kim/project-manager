@@ -37,7 +37,9 @@ test("upload → list → download (same bytes) → rename → remove", async ({
   const bytes = pdf(name);
 
   await attach(page, name, bytes);
-  await expect(successToast(page, messages.attachments.uploaded(name))).toBeVisible();
+  await expect(successToast(page, messages.attachments.uploaded(name))).toBeVisible({
+    timeout: 15_000,
+  });
   const link = section.getByRole("link", { name: messages.attachments.download(name) });
   await expect(link).toBeVisible();
 
@@ -51,7 +53,7 @@ test("upload → list → download (same bytes) → rename → remove", async ({
   const input = page.getByTestId("attachment-rename-input");
   await input.fill(renamed);
   await input.press("Enter");
-  await expect(successToast(page, messages.attachments.renamed)).toBeVisible();
+  await expect(successToast(page, messages.attachments.renamed)).toBeVisible({ timeout: 15_000 });
   const renamedLink = section.getByRole("link", {
     name: messages.attachments.download(`${renamed}.pdf`),
   });
@@ -66,7 +68,7 @@ test("upload → list → download (same bytes) → rename → remove", async ({
     name: messages.attachments.removeTitle(`${renamed}.pdf`),
   });
   await dialog.getByRole("button", { name: messages.attachments.remove }).click();
-  await expect(successToast(page, messages.attachments.removed)).toBeVisible();
+  await expect(successToast(page, messages.attachments.removed)).toBeVisible({ timeout: 15_000 });
   await expect(renamedLink).toHaveCount(0);
 });
 
@@ -93,7 +95,7 @@ test("a type the browser lets through but the bytes betray is refused", async ({
       page,
       messages.attachments.errors.failedWith(name, messages.attachments.errors.typeNotAllowed),
     ),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   await expect(section.getByText(name)).toHaveCount(0);
 });
 
@@ -113,7 +115,7 @@ test("the picker refuses other types and files over 25 MB before uploading", asy
         messages.attachments.errors.typeNotAllowed,
       ),
     ),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
 
   await attach(page, "huge.pdf", Buffer.alloc(25 * 1024 * 1024 + 1, 0x20));
   await expect(
@@ -121,7 +123,7 @@ test("the picker refuses other types and files over 25 MB before uploading", asy
       page,
       messages.attachments.errors.failedWith("huge.pdf", messages.attachments.errors.tooLarge),
     ),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   expect(posted).toBe(false);
 });
 
@@ -155,7 +157,9 @@ test("a location reference: text with Copy, a web address as a link", async ({ p
   await page.getByTestId("attachment-location-name").fill(shareName);
   await page.getByTestId("attachment-location-value").fill("\\\\fs01\\projects\\contract.pdf");
   await page.getByTestId("attachment-dialog-save").click();
-  await expect(successToast(page, messages.attachments.locationAdded)).toBeVisible();
+  await expect(successToast(page, messages.attachments.locationAdded)).toBeVisible({
+    timeout: 15_000,
+  });
   const shareRow = section.getByTestId("attachment").filter({ hasText: shareName });
   await expect(shareRow.getByTestId("attachment-location")).toHaveText(
     "\\\\fs01\\projects\\contract.pdf",

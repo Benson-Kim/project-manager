@@ -127,7 +127,7 @@ export async function FinancialView({
                       ) : null}
                       {row.Budget !== null ? (
                         <span className="text-sm text-ink tabular-nums sm:ml-auto">
-                          {M.budget}: {formatMoney(centsFromDb(row.Budget))}
+                          {M.budget}: {formatMoney(centsFromDb(row.Budget), row.CurrencyCode)}
                         </span>
                       ) : null}
                     </Link>

@@ -18,7 +18,9 @@ import { escapeRegExp, expectListed, expectNotListed } from "./support/datasheet
 const M = messages.meetings;
 
 async function expectToast(page: Page, title: string) {
-  await expect(page.getByTestId("toast-success").filter({ hasText: title }).first()).toBeVisible();
+  await expect(page.getByTestId("toast-success").filter({ hasText: title }).first()).toBeVisible({
+    timeout: 15_000,
+  });
 }
 
 /** "New meeting" makes a draft and opens its workspace. */

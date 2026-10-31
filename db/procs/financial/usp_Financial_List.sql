@@ -48,6 +48,7 @@ BEGIN
            f.FirstFiscalYear,
            f.HorizonYears,
            f.FiscalYearStartMonth,
+           f.CurrencyCode,
            (SELECT COUNT(*) FROM app.FinancialLine AS l
             WHERE l.FinancialId = f.FinancialId AND l.IsDeleted = 0) AS LineCount,
            ISNULL(doc.DocumentCount, 0) AS DocumentCount,

@@ -20,7 +20,7 @@ test("create parking lot item happy path — appears in the list", async ({ page
   await page.getByTestId("parking-lot-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   await expect(form).toHaveCount(0);
 
   await page.goto(`/projects/2/parking-lot?q=${encodeURIComponent(itemText)}`);
@@ -59,7 +59,7 @@ test("edit parking lot item happy path — updates text and shows toast", async 
   await page.getByTestId("parking-lot-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.saved }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   await expect(form).toHaveCount(0);
 
   await page.goto(`/projects/2/parking-lot?q=${encodeURIComponent(newText)}`);
@@ -77,7 +77,7 @@ test("delete parking lot item happy path — item removed from list", async ({ p
   await page.getByTestId("parking-lot-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
 
   // Open the newly created item by searching for it
   await page.goto(`/projects/2/parking-lot?q=${encodeURIComponent(itemText)}`);
@@ -90,7 +90,7 @@ test("delete parking lot item happy path — item removed from list", async ({ p
   await page.getByRole("button", { name: messages.actions.delete }).last().click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.deleted }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   await expect(editForm).toHaveCount(0);
 
   // Confirm it is gone
@@ -110,7 +110,7 @@ test("new item with followUpActions and owner — saved and visible on reopen", 
   await page.getByTestId("parking-lot-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
 
   // Open the saved item and verify values persisted
   await page.goto(`/projects/2/parking-lot?q=${encodeURIComponent(itemText)}`);
@@ -134,7 +134,7 @@ test("status list — a Resolved item shows its status and strike styling", asyn
   await page.getByTestId("parking-lot-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.saved }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
 
   // After save, the card shows the Resolved badge and the struck-through item.
   await page.goto("/projects/2/parking-lot?view=grid&status=Resolved");

@@ -1,0 +1,10 @@
+{
+  "rule": "ADR-0051 decision 7: trim and upper-case, then accept only three capitals or the empty string. currencySchema in src/modules/financials/schemas/fields.ts and usp_Financial_Update both implement this one rule, so both read these vectors instead of keeping two hand-written lists that can drift. CK_Financial_CurrencyCode and storedCurrencySchema implement different rules and keep their own vectors.",
+  "accepted": [
+    { "input": "USD", "stored": "USD" },
+    { "input": "usd", "stored": "USD" },
+    { "input": " eur ", "stored": "EUR" },
+    { "input": "", "stored": "" }
+  ],
+  "refused": ["EU", "EURO", "EUROS", "US1", "U$D", "US D", "nonsense"]
+}

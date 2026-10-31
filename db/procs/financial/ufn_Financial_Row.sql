@@ -26,6 +26,7 @@ RETURN
            FlagThresholdRate,
            CostCategories,
            FundingSources,
+           CurrencyCode,
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer
