@@ -34,6 +34,15 @@ and between two people reading one sheet.
    It is never hand-maintained, so it updates when the runtime does. Only the two tables Intl does
    not expose — region-to-currency and IANA-zone-to-region — are generated, by
    `scripts/generate-currency-data.mjs`.
+   **It is read on the client only**, through `useSyncExternalStore` with an empty server snapshot,
+   for the same reason the suggestion is (decision 5): the runtimes' ICU builds disagree — Node 22
+   lists 162 currencies, Chrome 139 lists 159, and the two name `ZWL` differently — so a
+   server-rendered list cannot be hydrated, and React answers a mismatch by discarding the whole
+   form and rendering it again, which loses a currency already chosen in it. Until the names arrive
+   the select shows the stored code as its own label, so the field never reads as unset on a sheet
+   that has one. The narrow **symbols do not drift** (measured: no difference on any shared code),
+   which is why the figures stay server-rendered and only the picker is client-only.
+   `src/tests/currency-hydration-guardrails.test.ts` keeps the list out of a server render.
 4. **Symbols and names resolve under a fixed locale** (`SYMBOL_LOCALE = "en"`), like
    `src/lib/format.ts` and the layout's date format. The viewer's locale decides nothing: a figure
    must read the same everywhere, and the narrow symbol is what goes in front of the amount.
@@ -110,8 +119,10 @@ and between two people reading one sheet.
   Adding the control later is a one-component change and needs no migration.
 - `migration 050` is idempotent (`COL_LENGTH`) and the column is `NOT NULL DEFAULT N''`, so existing
   rows need no backfill and a redeploy is safe.
-- Currency names in the picker come from the runner's ICU data, so a label can differ between
-  platforms. Tests and e2e select **by value**, never by label.
+- Currency names in the picker come from the **viewer's own** browser, so one label can differ
+  between two people's machines; the codes and the symbols cannot. Tests and e2e select **by
+  value**, never by label, and the e2e spec waits for the client list before choosing: a select
+  changed before React attaches is set in the DOM alone and lost on the next render.
 - `db/tests/financials-procs.cjs` covers the proc, the normalisation and the template copy. It
   **cannot** cover `CK_Financial_CurrencyCode`: it connects as the app's EXECUTE-only login
   (ADR-0033), so a direct write is refused with 229 before any constraint runs — which

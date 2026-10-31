@@ -10,7 +10,12 @@ import { Input, Select, Switch } from "@/components/ui/form/inputs";
 import { LabelListEditor } from "@/components/ui/form/label-list-editor";
 import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { Panel } from "@/components/ui/panel";
-import { NO_CURRENCY, listCurrencies, suggestedCurrency } from "@/lib/currency/currencies";
+import {
+  NO_CURRENCY,
+  type Currency,
+  listCurrencies,
+  suggestedCurrency,
+} from "@/lib/currency/currencies";
 import { messages } from "@/lib/messages";
 import { deleteFinancialAction, setTaxProfilesAction, updateFinancialAction } from "../actions";
 import { fiscalYearLabel, horizonYears } from "../calc/fiscal";
@@ -47,7 +52,7 @@ export function breakdownValues(f: SheetDto["financial"]) {
   };
 }
 
-/** Nothing to subscribe to: the viewer's zone does not change while the panel is open. */
+/** Nothing to subscribe to: neither the zone nor the runtime's list changes while this is open. */
 const noSubscription = () => () => {};
 
 /**
@@ -58,6 +63,21 @@ const noSubscription = () => () => {};
  */
 function useSuggestedCurrency() {
   return useSyncExternalStore(noSubscription, suggestedCurrency, () => NO_CURRENCY);
+}
+
+const NO_CURRENCIES: Currency[] = [];
+
+/**
+ * The list resolves on the client only, for the reason the suggestion does.
+ * Intl's currencies come from the runtime's own ICU build and the builds
+ * disagree: Node 22 lists 162, Chrome 139 lists 159, and they name ZWL
+ * differently. A list rendered on the server therefore cannot be hydrated, and
+ * React answers a mismatch by discarding this form and rendering it again,
+ * which loses a currency already chosen in it. The server renders the stored
+ * code as its own label; the names arrive with hydration.
+ */
+function useCurrencies() {
+  return useSyncExternalStore(noSubscription, listCurrencies, () => NO_CURRENCIES);
 }
 
 /** The currency figures are shown in (ADR-0051), or no symbol at all. */
@@ -71,16 +91,20 @@ function CurrencyField({
   onChange: (currency: string) => void;
 }) {
   const suggested = useSuggestedCurrency();
-  const currencies = listCurrencies();
+  const currencies = useCurrencies();
   const option = (code: string, name: string) => (
     <option key={code} value={code}>
       {M.currencyOption(name, code)}
     </option>
   );
+  // Until the names arrive the stored code stands for itself, outside the catalogue it is not yet
+  // part of, so the field never reads as unset on a sheet that has a currency.
+  const stored = value === NO_CURRENCY ? null : <option value={value}>{value}</option>;
   return (
     <Field label={M.currency} name="currency" errors={errors}>
       <Select value={value} onChange={(e) => onChange(e.target.value)} data-testid="currency">
         <option value={NO_CURRENCY}>{M.currencyNone}</option>
+        {currencies.length === 0 ? stored : null}
         {suggested === NO_CURRENCY ? null : (
           <optgroup label={M.currencySuggested}>
             {option(suggested, currencies.find((c) => c.code === suggested)?.name ?? suggested)}
