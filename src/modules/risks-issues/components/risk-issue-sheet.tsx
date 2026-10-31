@@ -18,14 +18,14 @@ import { useToast } from "@/components/ui/toast";
 import { toDateInput } from "@/lib/format";
 import { messages } from "@/lib/messages";
 import { richTextToPlain } from "@/lib/rich-text/plain-text";
-import type { RiskIssueRow } from "../schemas/risk-issue";
+import { RISK_ISSUE_CATEGORY, RISK_ISSUE_STATUS, type RiskIssueRow } from "../schemas/risk-issue";
 import { riskIssueFormSchema, updateRiskIssueFormSchema } from "../schemas/risk-issue-form";
 import { createRiskIssueAction, deleteRiskIssueAction, updateRiskIssueAction } from "../actions";
 
 /** The record's own words, cut to fit a title or a confirmation. */
 function label(item: RiskIssueRow | null, max: number): string {
   const text = richTextToPlain(item?.Description) || messages.app.untitled;
-  return text.length > max ? `${text.slice(0, max - 3)}…` : text;
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
 }
 
 /**
@@ -207,14 +207,20 @@ export function RiskIssueSheet({
               name="category"
               errors={form.errors.category}
             >
-              <Select name="category" defaultValue={item?.Category ?? ""}>
+              <Select
+                name="category"
+                defaultValue={item ? (item.Category ?? "") : RISK_ISSUE_CATEGORY.risk}
+              >
                 <option value="">{messages.risksIssues.categoryNone}</option>
                 <ListOptions list="risk-issue.category" current={item?.Category} />
               </Select>
             </Field>
 
             <Field label={messages.risksIssues.status} name="status" errors={form.errors.status}>
-              <Select name="status" defaultValue={item?.Status ?? ""}>
+              <Select
+                name="status"
+                defaultValue={item ? (item.Status ?? "") : RISK_ISSUE_STATUS.open}
+              >
                 <option value="">{messages.risksIssues.statusNone}</option>
                 <ListOptions list="risk-issue.status" current={item?.Status} />
               </Select>

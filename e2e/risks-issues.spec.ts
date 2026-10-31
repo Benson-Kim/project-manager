@@ -30,8 +30,9 @@ test("create a risk happy path — it appears in the list", async ({ page }) => 
   const form = page.getByTestId("risk-issue-form");
   await expect(form).toBeVisible();
   await fillDescription(form, description);
-  await form.getByLabel(messages.risksIssues.category, { exact: true }).selectOption("Risk");
-  await form.getByLabel(messages.risksIssues.status, { exact: true }).selectOption("Open");
+  // A new record starts as an open risk.
+  await expect(form.getByLabel(messages.risksIssues.category, { exact: true })).toHaveValue("Risk");
+  await expect(form.getByLabel(messages.risksIssues.status, { exact: true })).toHaveValue("Open");
   await page.getByTestId("risk-issue-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),

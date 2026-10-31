@@ -15,6 +15,7 @@ import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { listEmptyState } from "@/components/ui/states";
 import { rowAllows } from "@/lib/auth/actor-access";
 import type { ListLayout } from "@/lib/list-layout";
+import type { OptionColor } from "@/lib/lookup-lists";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { richTextToPlain } from "@/lib/rich-text/plain-text";
@@ -136,6 +137,9 @@ const columns: DataViewColumn<Row>[] = [
 const saveCell = formCellSaver<Row, RiskIssueRow>(riskIssueFormValues, updateRiskIssueAction);
 const canEditRow = rowAllows("risks-issues:update");
 
+/** A closed record is muted in the list as on its card (ADR-0050). */
+const closedTone = (row: Row): OptionColor | null => (isClosed(row.Status) ? "gray" : null);
+
 /**
  * Risks & issues register (module #14, ADR-0050): DataView grid + list;
  * opening a row syncs ?id= (Sheet). List view is a datasheet (ADR-0023):
@@ -175,6 +179,7 @@ export function RisksIssuesView({
       page={page}
       initialView={initialView}
       initialLayout={layout}
+      rowTone={closedTone}
       getRowId={(row) => row.RiskIssueId}
       getRowLabel={riskIssueLabel}
       filtersActive={filtersActive}
