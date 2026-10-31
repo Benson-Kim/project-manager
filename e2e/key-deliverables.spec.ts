@@ -57,19 +57,10 @@ async function selectCard(page: Page, id: string): Promise<void> {
   await expect(page.locator(`[data-wbs-details-name="${id}"]`)).toBeVisible();
 }
 
-/** Opens an item's menu from the keyboard; a background refresh can eat the first press. */
-async function ganttMenu(page: Page, handle: Locator, entry: string): Promise<void> {
-  await expect(async () => {
-    await handle.focus();
-    await page.keyboard.press("Shift+F10");
-    await expect(page.getByTestId(entry)).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 20_000 });
-}
-
 /**
- * Picks an entry from a card's menu and waits for what it opens. The refresh after a save can
- * move the card and close its menu before the pick lands, so the pick is retried until `opens`
- * shows; `label` checks what the entry reads first.
+ * Picks an entry from a card's menu, opened from the keyboard, and waits for what it opens. The
+ * refresh after a save can eat the menu key or move the card and close its menu before the pick
+ * lands, so the pick is retried until `opens` shows; `label` checks what the entry reads first.
  */
 async function pickFromGanttMenu(
   page: Page,
@@ -1455,9 +1446,14 @@ test("WBS item menu: whole name, status colour; requirements cascade in both vie
   // Deleting the item counts the requirement it unallocates and says it stays in the register.
   // Shift+F10 is the card's own menu key (isMenuKey, wbs-context-menu.tsx); the keyboard path
   // does not depend on where the pointer lands.
-  await ganttMenu(page, page.getByTestId(`gantt-card-${id}-name`), "wbs-menu-delete");
-  await page.getByTestId("wbs-menu-delete").click();
-  await expect(page.getByRole("dialog")).toContainText(W.deleteUnallocates(1));
+  const confirm = page.getByRole("dialog").filter({ hasText: W.deleteBody });
+  await pickFromGanttMenu(
+    page,
+    page.getByTestId(`gantt-card-${id}-name`),
+    "wbs-menu-delete",
+    confirm,
+  );
+  await expect(confirm).toContainText(W.deleteUnallocates(1));
   await page.getByRole("button", { name: W.delete, exact: true }).last().click();
   await expect(page.getByTestId(`gantt-card-${id}`)).toHaveCount(0);
   await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
@@ -1542,8 +1538,13 @@ test("WBS: two items are linked, the successor is pushed, and the link goes with
   await page.keyboard.press("Escape");
 
   // Deleting the predecessor takes the link with it, so no arrow is left pointing at nothing.
-  await ganttMenu(page, page.getByTestId(`gantt-card-${firstId}-name`), "wbs-menu-delete");
-  await page.getByTestId("wbs-menu-delete").click();
+  const confirm = page.getByRole("dialog").filter({ hasText: W.deleteBody });
+  await pickFromGanttMenu(
+    page,
+    page.getByTestId(`gantt-card-${firstId}-name`),
+    "wbs-menu-delete",
+    confirm,
+  );
   await page.getByRole("button", { name: W.delete, exact: true }).last().click();
   await expect(page.getByTestId(`gantt-card-${firstId}`)).toHaveCount(0);
   await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
@@ -1554,8 +1555,7 @@ test("WBS: two items are linked, the successor is pushed, and the link goes with
   ).toHaveCount(0);
 
   // Clean up the successor so the seeded project does not grow an item per run.
-  await ganttMenu(page, secondName, "wbs-menu-delete");
-  await page.getByTestId("wbs-menu-delete").click();
+  await pickFromGanttMenu(page, secondName, "wbs-menu-delete", confirm);
   await page.getByRole("button", { name: W.delete, exact: true }).last().click();
   await expect(page.getByTestId(`gantt-card-${secondId}`)).toHaveCount(0);
   await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
