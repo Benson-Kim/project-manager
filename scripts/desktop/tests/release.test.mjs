@@ -6,6 +6,7 @@ import {
   nextMinimum,
   nextVersion,
   notesFromLog,
+  releaseIntent,
   releasesToPrune,
   withPolicy,
 } from "../release.mjs";
@@ -54,6 +55,38 @@ describe("isForced", () => {
   it("is false without the marker", () => {
     expect(isForced("feat: new report [e2e]")).toBe(false);
     expect(isForced(undefined)).toBe(false);
+  });
+});
+
+describe("releaseIntent", () => {
+  it("holds a merge that says [no-release]", () => {
+    expect(
+      releaseIntent("Merge pull request #45 from x/y\n\nRisks register [no-release]\n\nRelease note: none"),
+    ).toEqual({ held: true, force: false, forceIgnored: false });
+    expect(releaseIntent("chore: pins [No Release]").held).toBe(true);
+  });
+
+  it("lets a hold beat a force from the message or the environment", () => {
+    expect(releaseIntent("fix(db): repair [force-update] [no-release]")).toEqual({
+      held: true,
+      force: false,
+      forceIgnored: true,
+    });
+    expect(releaseIntent("chore: pins [no-release]", true)).toEqual({
+      held: true,
+      force: false,
+      forceIgnored: true,
+    });
+  });
+
+  it("forces without a hold, and releases normally with neither", () => {
+    expect(releaseIntent("fix(db): repair [force-update]")).toEqual({
+      held: false,
+      force: true,
+      forceIgnored: false,
+    });
+    expect(releaseIntent("feat: new report [e2e]", true).force).toBe(true);
+    expect(releaseIntent(undefined)).toEqual({ held: false, force: false, forceIgnored: false });
   });
 });
 
@@ -154,6 +187,7 @@ describe("notesFromLog", () => {
     const notes = notesFromLog([
       merge(1, "Release note: Faster lists (ADR-0016, PM-6), see #12 and PR-3\n"),
       merge(2, "docs(adr): ADR-0045 read committed snapshot (#38)\n"),
+      merge(3, "Risks register [no-release]\n"),
     ]);
     expect(notes).not.toMatch(/ADR|PM-\d|PR-?\d|#\d|\[/);
   });

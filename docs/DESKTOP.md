@@ -115,6 +115,7 @@ around:
 
 ```
 PR merged → CI green on develop → desktop-release.yml (Windows runner)
+  ├─ skipped if the merge says [no-release] (see Merging without a release)
   ├─ skipped if nothing that reaches the app changed (docs, CI, tests only)
   ├─ version = latest release + 1 patch (or package.json's version if higher)
   ├─ npm run electron:build (PM_VERSION, feed = this repo's GitHub Releases)
@@ -176,6 +177,18 @@ Release note: Notes is in the main menu.
 type, decision-record, plan and PR numbers and CI tags (`scripts/desktop/release.mjs`,
 `userFacing`); write a release note instead of relying on that. Never put ADR, plan or
 PR numbers, file paths or developer terms in a release note.
+
+### Merging without a release
+
+Put `[no-release]` in the merge commit's message to land work on `develop`
+without publishing a version: in the PR title when GitHub's default merge body is
+used, or in the body given to `gh pr merge --merge --body`. CI still runs; only the release job stops. The next merge that releases
+ships everything since the last version, with the held PRs' `Release note:` lines
+in its "What's new", so keep writing them.
+
+Every merge after a held one sees the held changes as new, so even a docs- or
+test-only PR then releases unless it also says `[no-release]`. A hold beats
+`[force-update]`: put the force on the merge that releases.
 
 ### Making an update required (the "force" command)
 
