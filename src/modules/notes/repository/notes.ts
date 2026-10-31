@@ -5,14 +5,20 @@ import { htmlToPlainText, sanitizeRichText } from "@/lib/rich-text/sanitize";
 import {
   noteListRowSchema,
   noteRowSchema,
+  noteSectionCreatedSchema,
+  noteSectionRowSchema,
   noteTabRowSchema,
+  type CreateNoteSectionValues,
   type CreateNoteTabValues,
   type CreateNoteValues,
+  type MoveNoteTabValues,
   type NoteListRow,
   type NoteRow,
+  type NoteSectionRow,
   type NoteTabRow,
   type NoteWorkspace,
   type ReorderNoteTabsValues,
+  type UpdateNoteSectionValues,
   type UpdateNoteTabValues,
   type UpdateNoteValues,
 } from "../schemas/note";
@@ -26,6 +32,7 @@ import {
 
 interface WorkspaceRow extends NoteRow {
   TabsJson: string | null;
+  SectionsJson: string | null;
 }
 
 /** FOR JSON writes DATETIME2 without a zone; the columns are UTC. */
@@ -35,6 +42,15 @@ const utc = (v: unknown) => (typeof v === "string" && !/(Z|[+-]\d\d:\d\d)$/.test
 function toTab(raw: unknown): NoteTabRow {
   const tab = noteTabRowSchema.parse(raw);
   return { ...tab, Content: tab.Content ? sanitizeRichText(tab.Content) || null : null };
+}
+
+function parseSections(json: string | null): NoteSectionRow[] {
+  if (!json) return [];
+  return (JSON.parse(json) as unknown[]).map((s) => noteSectionRowSchema.parse(s));
+}
+
+function orderJson(order: { id: number; rowVer: number }[]): string {
+  return JSON.stringify(order.map((o) => ({ id: o.id, rowVer: o.rowVer })));
 }
 
 function parseTabs(json: string | null): NoteTabRow[] {
@@ -83,7 +99,11 @@ export async function getNoteWorkspace(
     ActorUserId: actorUserId,
   });
   const row = rows[0];
-  return { note: noteRowSchema.parse(row), tabs: parseTabs(row?.TabsJson ?? null) };
+  return {
+    note: noteRowSchema.parse(row),
+    tabs: parseTabs(row?.TabsJson ?? null),
+    sections: parseSections(row?.SectionsJson ?? null),
+  };
 }
 
 export async function createNote(input: CreateNoteValues, actorUserId: number): Promise<NoteRow> {
@@ -121,6 +141,7 @@ export async function createNoteTab(
   const rows = await execProc<NoteTabRow>("usp_NoteTab_Create", {
     NoteId: input.noteId,
     Title: input.title,
+    NoteSectionId: input.sectionId,
     ActorUserId: actorUserId,
   });
   return toTab(rows[0]);
@@ -160,8 +181,84 @@ export async function reorderNoteTabs(
 ): Promise<NoteTabRow[]> {
   const rows = await execProc<NoteTabRow>("usp_NoteTab_Reorder", {
     NoteId: input.noteId,
-    OrderJson: JSON.stringify(input.order.map((o) => ({ id: o.id, rowVer: o.rowVer }))),
+    OrderJson: orderJson(input.order),
     ActorUserId: actorUserId,
   });
   return rows.map(toTab);
+}
+
+export async function moveNoteTab(
+  input: MoveNoteTabValues,
+  actorUserId: number,
+): Promise<NoteTabRow> {
+  const rows = await execProc<NoteTabRow>("usp_NoteTab_Move", {
+    NoteTabId: input.noteTabId,
+    NoteSectionId: input.sectionId,
+    RowVer: input.rowVer,
+    ActorUserId: actorUserId,
+  });
+  return toTab(rows[0]);
+}
+
+/** The note's first tab takes every page it already has; a later tab starts with one new page. */
+export async function createNoteSection(
+  input: CreateNoteSectionValues,
+  actorUserId: number,
+): Promise<NoteSectionRow & { FirstPageId: number }> {
+  const rows = await execProc<unknown>("usp_NoteSection_Create", {
+    NoteId: input.noteId,
+    Title: input.title,
+    PageTitle: input.pageTitle,
+    ActorUserId: actorUserId,
+  });
+  return noteSectionCreatedSchema.parse(rows[0]);
+}
+
+export async function updateNoteSection(
+  input: UpdateNoteSectionValues,
+  actorUserId: number,
+): Promise<NoteSectionRow> {
+  const rows = await execProc<unknown>("usp_NoteSection_Update", {
+    NoteSectionId: input.sectionId,
+    Title: input.title,
+    RowVer: input.rowVer,
+    ActorUserId: actorUserId,
+  });
+  return noteSectionRowSchema.parse(rows[0]);
+}
+
+export async function deleteNoteSection(
+  sectionId: number,
+  rowVer: number,
+  actorUserId: number,
+): Promise<void> {
+  await execProc("usp_NoteSection_Delete", {
+    NoteSectionId: sectionId,
+    RowVer: rowVer,
+    ActorUserId: actorUserId,
+  });
+}
+
+export async function reorderNoteSections(
+  input: ReorderNoteTabsValues,
+  actorUserId: number,
+): Promise<NoteSectionRow[]> {
+  const rows = await execProc<unknown>("usp_NoteSection_Reorder", {
+    NoteId: input.noteId,
+    OrderJson: orderJson(input.order),
+    ActorUserId: actorUserId,
+  });
+  return rows.map((r) => noteSectionRowSchema.parse(r));
+}
+
+/** Removes every tab and keeps every page, in the order the tabs showed them. */
+export async function ungroupNoteSections(
+  input: ReorderNoteTabsValues,
+  actorUserId: number,
+): Promise<void> {
+  await execProc("usp_NoteSection_Ungroup", {
+    NoteId: input.noteId,
+    OrderJson: orderJson(input.order),
+    ActorUserId: actorUserId,
+  });
 }

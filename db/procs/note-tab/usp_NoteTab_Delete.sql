@@ -1,4 +1,6 @@
 -- usp_NoteTab_Delete — soft-delete one page, with rowversion concurrency + in-transaction audit.
+-- The last page of a tab is refused (VALIDATION 50004, under the note's lock): a tab keeps at
+-- least one page (ADR-0053); delete the tab instead.
 -- Access: Manager on the notebook's project, or a per-person grant (notes:delete, ADR-0024).
 -- Entity app.NoteTab (titled pages per checklist rows 17-20). Module: notes (#14).
 USE ProjectManager;
@@ -32,8 +34,14 @@ BEGIN
     IF @Locked IS NULL
         THROW 50001, N'NOT_FOUND:Note not found', 1;
 
+    DECLARE @Section INT = (SELECT NoteSectionId FROM app.NoteTab WHERE NoteTabId = @NoteTabId);
+    IF @Section IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM app.NoteTab
+                       WHERE NoteSectionId = @Section AND IsDeleted = 0 AND NoteTabId <> @NoteTabId)
+        THROW 50004, N'VALIDATION:A tab keeps at least one page', 1;
+
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT NoteTabId, [NoteId], [Title], [Content], [SortOrder]
+        (SELECT NoteTabId, [NoteId], NoteSectionId, [Title], [Content], [SortOrder]
          FROM app.NoteTab WHERE NoteTabId = @NoteTabId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 

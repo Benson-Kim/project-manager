@@ -173,7 +173,7 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
       ref={toolbarRef}
       role="toolbar"
       aria-label={t.toolbar}
-      className="relative flex flex-wrap items-center gap-1 border-b border-line p-1"
+      className="sticky top-[var(--editor-toolbar-top,0px)] z-10 flex flex-wrap items-center gap-1 rounded-t-md border-b border-line bg-surface p-1"
       onKeyDown={onKeyDown}
       onFocus={onFocus}
     >

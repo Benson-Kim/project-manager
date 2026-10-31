@@ -24,6 +24,7 @@ BEGIN
 
     SELECT NoteTabId,
            [NoteId],
+           NoteSectionId,
            @RowProjectId AS ProjectId,
            [Title],
            [Content],

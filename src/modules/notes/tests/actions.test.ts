@@ -30,11 +30,17 @@ vi.mock("@/lib/db", () => ({
 import { AppError } from "@/lib/errors";
 import {
   createNoteAction,
+  createNoteSectionAction,
   createNoteTabAction,
   deleteNoteAction,
+  deleteNoteSectionAction,
   deleteNoteTabAction,
+  moveNoteTabAction,
+  reorderNoteSectionsAction,
   reorderNoteTabsAction,
+  ungroupNoteSectionsAction,
   updateNoteAction,
+  updateNoteSectionAction,
   updateNoteTabAction,
 } from "../actions";
 
@@ -54,6 +60,7 @@ function tabRow(overrides: Record<string, unknown> = {}) {
   return {
     NoteTabId: 9,
     NoteId: 4,
+    NoteSectionId: null,
     ProjectId: 2,
     Title: "Page one",
     Content: null,
@@ -63,6 +70,10 @@ function tabRow(overrides: Record<string, unknown> = {}) {
     RowVer: "7",
     ...overrides,
   };
+}
+
+function sectionRow(overrides: Record<string, unknown> = {}) {
+  return { NoteSectionId: 3, NoteId: 4, Title: "Design", SortOrder: 1, RowVer: "5", ...overrides };
 }
 
 function form(fields: Record<string, string>) {
@@ -228,6 +239,102 @@ describe("notes actions", () => {
     const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
     expect(proc).toBe("usp_NoteTab_Reorder");
     expect(JSON.parse(params.OrderJson as string)).toHaveLength(2);
+  });
+
+  it("createNoteTab passes the tab it names", async () => {
+    execProc.mockResolvedValue([tabRow({ NoteSectionId: 3 })]);
+    const result = await createNoteTabAction({ noteId: 4, title: "Page two", sectionId: 3 });
+    expect(result.ok).toBe(true);
+    expect((execProc.mock.calls[0] as [string, Record<string, unknown>])[1].NoteSectionId).toBe(3);
+  });
+
+  it("moveNoteTab moves a page to another tab", async () => {
+    execProc.mockResolvedValue([tabRow({ NoteSectionId: 6 })]);
+    const result = await moveNoteTabAction({ noteTabId: 9, sectionId: 6, rowVer: 7 });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data.NoteSectionId).toBe(6);
+    expect(execProc).toHaveBeenCalledWith("usp_NoteTab_Move", {
+      NoteTabId: 9,
+      NoteSectionId: 6,
+      RowVer: 7,
+      ActorUserId: 7,
+    });
+  });
+
+  it("moveNoteTab surfaces the proc's refusal of a tab's last page", async () => {
+    execProc.mockRejectedValue(new AppError("VALIDATION", "A tab keeps at least one page"));
+    const result = await moveNoteTabAction({ noteTabId: 9, sectionId: 6, rowVer: 7 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("VALIDATION");
+  });
+
+  it("createNoteSection returns the tab and its first page", async () => {
+    execProc.mockResolvedValue([sectionRow({ FirstPageId: 9 })]);
+    const result = await createNoteSectionAction({
+      noteId: 4,
+      title: "Design",
+      pageTitle: "Page 1",
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data).toMatchObject({ NoteSectionId: 3, FirstPageId: 9 });
+    expect(execProc.mock.calls[0][0]).toBe("usp_NoteSection_Create");
+  });
+
+  it("createNoteSection rejects an empty title without calling the database", async () => {
+    const result = await createNoteSectionAction({ noteId: 4, title: " ", pageTitle: "Page 1" });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("VALIDATION");
+    expect(execProc).not.toHaveBeenCalled();
+  });
+
+  it("updateNoteSection renames a tab and maps a stale RowVer to CONFLICT", async () => {
+    execProc.mockResolvedValue([sectionRow({ Title: "Build" })]);
+    const renamed = await updateNoteSectionAction(
+      form({ sectionId: "3", title: "Build", rowVer: "5" }),
+    );
+    expect(renamed.ok).toBe(true);
+    execProc.mockRejectedValue(
+      new AppError("CONFLICT", "NoteSection was modified by someone else"),
+    );
+    const stale = await updateNoteSectionAction({ sectionId: 3, title: "Build", rowVer: 1 });
+    expect(stale.ok).toBe(false);
+    if (!stale.ok) expect(stale.error.code).toBe("CONFLICT");
+  });
+
+  it("deleteNoteSection returns the tab id", async () => {
+    execProc.mockResolvedValue([]);
+    const result = await deleteNoteSectionAction({ sectionId: 3, rowVer: 5 });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data).toEqual({ sectionId: 3 });
+    expect(execProc).toHaveBeenCalledWith("usp_NoteSection_Delete", {
+      NoteSectionId: 3,
+      RowVer: 5,
+      ActorUserId: 7,
+    });
+  });
+
+  it("reorderNoteSections and ungroupNoteSections send the tab order as JSON", async () => {
+    const order = [
+      { id: 6, rowVer: 8 },
+      { id: 3, rowVer: 5 },
+    ];
+    execProc.mockResolvedValue([sectionRow({ NoteSectionId: 6 }), sectionRow()]);
+    expect((await reorderNoteSectionsAction({ noteId: 4, order })).ok).toBe(true);
+    expect(execProc.mock.calls[0][0]).toBe("usp_NoteSection_Reorder");
+    execProc.mockReset();
+    execProc.mockResolvedValue([]);
+    const removed = await ungroupNoteSectionsAction({ noteId: 4, order });
+    expect(removed.ok).toBe(true);
+    if (removed.ok) expect(removed.data).toEqual({ noteId: 4 });
+    const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(proc).toBe("usp_NoteSection_Ungroup");
+    expect(JSON.parse(params.OrderJson as string)).toEqual(order);
+  });
+
+  it("ungroupNoteSections needs at least one tab", async () => {
+    const result = await ungroupNoteSectionsAction({ noteId: 4, order: [] });
+    expect(result.ok).toBe(false);
+    expect(execProc).not.toHaveBeenCalled();
   });
 
   it("reorder rejects duplicate ids without calling the database", async () => {

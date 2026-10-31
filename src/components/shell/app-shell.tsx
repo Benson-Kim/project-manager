@@ -131,7 +131,10 @@ export function AppShell({
               <AvatarMenu username={username} />
             </div>
           </header>
-          <main id="main" className="relative z-0 flex flex-col flex-1 px-4">
+          <main
+            id="main"
+            className="relative z-0 flex flex-col flex-1 px-4 [--editor-toolbar-top:3.5rem]"
+          >
             {children}
           </main>
         </div>

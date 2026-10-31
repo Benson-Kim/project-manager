@@ -454,9 +454,11 @@ test.describe("rich-text editor (ADR-0025)", () => {
       name: "Bold",
     });
     const hint = page.getByTestId("rich-text-hint");
-    // Bold 100 px from the top, with room to scroll back up 120 px.
+    // Bold 100 px from the top, with room to scroll back up 120 px. The toolbar sticks under the
+    // header once scrolled, so it is measured from the top of the page.
     const scrolled = await bold.evaluate((el) => {
-      window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 100);
+      window.scrollTo(0, 0);
+      window.scrollTo(0, el.getBoundingClientRect().top - 100);
       return window.scrollY;
     });
     expect(scrolled).toBeGreaterThanOrEqual(120);

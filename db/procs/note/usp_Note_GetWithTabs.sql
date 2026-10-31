@@ -1,5 +1,6 @@
 -- usp_Note_GetWithTabs — the notebook workspace (ADR-0035): one row, the notebook's columns plus
--- TabsJson, its live pages in SortOrder (FOR JSON PATH, INCLUDE_NULL_VALUES; NULL when it has none).
+-- TabsJson, its live pages in SortOrder, and SectionsJson, its tabs in SortOrder (ADR-0053); each
+-- FOR JSON PATH, INCLUDE_NULL_VALUES, NULL when empty.
 -- Access: Viewer on the notebook's project (FORBIDDEN_ROW 50003); THROW 50001 when absent.
 -- Entity app.Note (source: tblNotes). Module: notes (#14).
 USE ProjectManager;
@@ -28,6 +29,7 @@ BEGIN
            CAST(n.RowVer AS BIGINT) AS RowVer,
            (SELECT t.NoteTabId,
                    t.[NoteId],
+                   t.NoteSectionId,
                    n.[ProjectId] AS ProjectId,
                    t.[Title],
                    t.[Content],
@@ -38,7 +40,16 @@ BEGIN
             FROM app.NoteTab AS t
             WHERE t.NoteId = n.NoteId AND t.IsDeleted = 0
             ORDER BY t.[SortOrder], t.NoteTabId
-            FOR JSON PATH, INCLUDE_NULL_VALUES) AS TabsJson
+            FOR JSON PATH, INCLUDE_NULL_VALUES) AS TabsJson,
+           (SELECT s.NoteSectionId,
+                   s.[NoteId],
+                   s.[Title],
+                   s.[SortOrder],
+                   CAST(s.RowVer AS BIGINT) AS RowVer
+            FROM app.NoteSection AS s
+            WHERE s.NoteId = n.NoteId AND s.IsDeleted = 0
+            ORDER BY s.[SortOrder], s.NoteSectionId
+            FOR JSON PATH, INCLUDE_NULL_VALUES) AS SectionsJson
     FROM app.Note AS n
     WHERE n.NoteId = @NoteId AND n.IsDeleted = 0;
 END;

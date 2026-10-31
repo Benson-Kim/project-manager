@@ -4,15 +4,44 @@ import {
   NOTE_REORDER_MAX,
   NOTE_TITLE_MAX,
   createNoteSchema,
+  createNoteSectionSchema,
   createNoteTabSchema,
   deleteNoteSchema,
   deleteNoteTabSchema,
+  moveNoteTabSchema,
   reorderNoteTabsSchema,
+  ungroupNoteSectionsSchema,
   updateNoteSchema,
+  updateNoteSectionSchema,
   updateNoteTabSchema,
 } from "../schemas/note";
 
 describe("note schemas", () => {
+  it("tabs need a title, a page title and their RowVer", () => {
+    expect(
+      createNoteSectionSchema.parse({ noteId: "4", title: " Design ", pageTitle: "Page 1" }),
+    ).toEqual({ noteId: 4, title: "Design", pageTitle: "Page 1" });
+    expect(
+      createNoteSectionSchema.safeParse({ noteId: 4, title: " ", pageTitle: "P" }).success,
+    ).toBe(false);
+    expect(updateNoteSectionSchema.safeParse({ sectionId: 3, title: "Design" }).success).toBe(
+      false,
+    );
+    expect(moveNoteTabSchema.safeParse({ noteTabId: 9, rowVer: 7 }).success).toBe(false);
+    expect(moveNoteTabSchema.parse({ noteTabId: "9", sectionId: "3", rowVer: "7" })).toEqual({
+      noteTabId: 9,
+      sectionId: 3,
+      rowVer: 7,
+    });
+  });
+
+  it("removing tabs names at least one", () => {
+    expect(ungroupNoteSectionsSchema.safeParse({ noteId: 4, order: [] }).success).toBe(false);
+    expect(
+      ungroupNoteSectionsSchema.safeParse({ noteId: 4, order: [{ id: 3, rowVer: 5 }] }).success,
+    ).toBe(true);
+  });
+
   it("createNote trims the title and coerces the project id from a string", () => {
     expect(createNoteSchema.parse({ projectId: "2", title: "  Plan  " })).toEqual({
       projectId: 2,
@@ -60,7 +89,11 @@ describe("note schemas", () => {
     expect(createNoteTabSchema.parse({ noteId: "4", title: " Page " })).toEqual({
       noteId: 4,
       title: "Page",
+      sectionId: null,
     });
+    expect(
+      createNoteTabSchema.parse({ noteId: "4", title: "Page", sectionId: "3" }).sectionId,
+    ).toBe(3);
     expect(createNoteTabSchema.safeParse({ noteId: "4", title: " " }).success).toBe(false);
     expect(
       createNoteTabSchema.safeParse({ noteId: "4", title: "a".repeat(NOTE_TITLE_MAX + 1) }).success,

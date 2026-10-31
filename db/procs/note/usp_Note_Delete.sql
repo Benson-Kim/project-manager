@@ -1,5 +1,5 @@
--- usp_Note_Delete — soft-delete a notebook and its live pages, with rowversion concurrency +
--- in-transaction audit (ADR-0035).
+-- usp_Note_Delete — soft-delete a notebook, its live pages and its tabs (ADR-0053), with
+-- rowversion concurrency + in-transaction audit (ADR-0035).
 -- Access: Manager on the notebook's project, or a per-person grant (notes:delete, ADR-0024).
 -- Entity app.Note (source: tblNotes). Module: notes (#14).
 USE ProjectManager;
@@ -43,6 +43,12 @@ BEGIN
     END
 
     UPDATE app.NoteTab SET
+        IsDeleted    = 1,
+        DeletedAtUtc = SYSUTCDATETIME(),
+        DeletedBy    = @ActorUserId
+    WHERE NoteId = @NoteId AND IsDeleted = 0;
+
+    UPDATE app.NoteSection SET
         IsDeleted    = 1,
         DeletedAtUtc = SYSUTCDATETIME(),
         DeletedBy    = @ActorUserId
