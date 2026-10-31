@@ -58,7 +58,7 @@ export function compareVersions(a, b) {
   return 0;
 }
 
-/** Next release: one patch above the latest release, or package.json's version when that is higher. */
+/** Next release: one patch above the last version shipped, or package.json's version when that is higher. */
 export function nextVersion(pkgVersion, latestTag) {
   if (!latestTag || !TAG_RE.test(latestTag)) return pkgVersion;
   const [M, m, p] = parseVersion(latestTag);
@@ -160,12 +160,20 @@ export function notesFromLog(entries, max = 25) {
   return lines.join("\n");
 }
 
+const newestFirst = (tags) => tags.filter((t) => TAG_RE.test(t)).sort((a, b) => compareVersions(b, a));
+
+/**
+ * The last version shipped: the newest version tag, or "" when there is none. Releases are
+ * deleted by hand to free storage and their tags stay, so the newest release alone can be
+ * far behind (or missing) and would reuse a version number.
+ */
+export function lastShippedTag(tags) {
+  return newestFirst(tags)[0] ?? "";
+}
+
 /** Release tags beyond the newest `keep`, oldest last. Non-version tags are never touched. */
 export function releasesToPrune(tags, keep) {
-  return tags
-    .filter((t) => TAG_RE.test(t))
-    .sort((a, b) => compareVersions(b, a))
-    .slice(keep);
+  return newestFirst(tags).slice(keep);
 }
 
 // ---------------------------------------------------------------------------
@@ -219,7 +227,8 @@ function releaseYml(tag) {
 
 function plan() {
   const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf-8"));
-  const previous = latestReleaseTag();
+  const latestRelease = latestReleaseTag();
+  const previous = lastShippedTag([latestRelease, ...git(["tag", "--list", "v*"]).split("\n")]);
   const version = nextVersion(pkg.version, previous);
   const { held, force, forceIgnored } = releaseIntent(
     git(["log", "-1", "--format=%B"]),
@@ -230,7 +239,14 @@ function plan() {
     // exit 0 = no differences in app paths since the last release
     skip = sh("git", ["diff", "--quiet", previous, "HEAD", "--", ...APP_PATHS], { allowFail: true }) !== null;
   }
-  output({ version, previous, force: String(force), skip: String(skip) });
+  output({ version, previous, latest_release: latestRelease, force: String(force), skip: String(skip) });
+  if (previous !== latestRelease) {
+    console.log(
+      latestRelease
+        ? `::notice::${previous} has no release any more; the update policy is carried from ${latestRelease}.`
+        : `::notice::No release is left to carry an update policy from; ${version} starts without one.`,
+    );
+  }
   if (forceIgnored) console.log("::warning::[force-update] is ignored on a [no-release] merge; nothing was published.");
   if (held) console.log("[no-release]: no new desktop release; the next release ships these changes.");
   else if (skip) console.log(`Nothing that reaches the app changed since ${previous}: no new desktop release.`);
@@ -239,13 +255,14 @@ function plan() {
 function finalize() {
   const version = process.env.VERSION;
   const previous = process.env.PREVIOUS || "";
+  const latestRelease = process.env.LATEST_RELEASE || "";
   const force = process.env.FORCE === "true";
   if (!version) throw new Error("VERSION is required");
   const ymlPath = join(dist, "latest.yml");
   const yml = readFileSync(ymlPath, "utf-8");
   if (!yml.includes(`version: ${version}`)) throw new Error(`latest.yml is not for ${version}`);
 
-  const previousMinimum = previous ? minimumFromYml(releaseYml(previous)) : null;
+  const previousMinimum = latestRelease ? minimumFromYml(releaseYml(latestRelease)) : null;
   const minimumVersion = nextMinimum({ force, version, previousMinimum });
   const range = previous ? [`${previous}..HEAD`] : ["-1"];
   const log = git(["log", "--first-parent", "--format=%s%x1f%b%x1e", ...range]);

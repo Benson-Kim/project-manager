@@ -117,7 +117,7 @@ around:
 PR merged → CI green on develop → desktop-release.yml (Windows runner)
   ├─ skipped if the merge says [no-release] (see Merging without a release)
   ├─ skipped if nothing that reaches the app changed (docs, CI, tests only)
-  ├─ version = latest release + 1 patch (or package.json's version if higher)
+  ├─ version = newest vX.Y.Z tag + 1 patch (or package.json's version if higher)
   ├─ npm run electron:build (PM_VERSION, feed = this repo's GitHub Releases)
   ├─ GitHub Release vX.Y.Z: installer, .sha256, .blockmap, latest.yml, "What's new" (see Release notes)
   └─ keeps the newest 10 releases
@@ -204,6 +204,14 @@ later release, so a PC that skipped a required version is still made to
 update. When the previous release or its `latest.yml` cannot be read, the
 release job fails instead of publishing without the rule; re-run it. Logic: `scripts/desktop/release.mjs` and `electron/update-policy.ts`
 (both unit-tested).
+
+Old releases can be deleted by hand to free storage; keep their `vX.Y.Z` tags.
+The version number, the change check and the release notes follow the newest
+tag, so a deleted release never makes a version number repeat. The rule is
+carried from the newest release still published; with none left, the next
+release starts without one (the job says so in a notice). Deleting the newest
+tag as well makes its number come round again, and PCs already on that
+version would ignore the release.
 
 ### Notes
 - PCs installed from a build without a feed (before 1.0.0, or built with
