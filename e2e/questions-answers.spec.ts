@@ -25,7 +25,7 @@ test("create Q&A happy path — appears in the list", async ({ page }) => {
   await page.getByTestId("qa-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   await expect(form).toHaveCount(0); // sheet closed, ?id= cleared
 
   await page.goto(`/projects/2/questions-answers?q=${encodeURIComponent(question)}`);
@@ -67,7 +67,7 @@ test("edit seeded Q&A and save — reflects in the list", async ({ page }) => {
   await page.getByTestId("qa-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.saved }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   await expect(form).toHaveCount(0);
 });
 

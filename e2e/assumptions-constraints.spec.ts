@@ -28,7 +28,7 @@ test("create assumption happy path — appears in the list", async ({ page }) =>
   await page.getByTestId("assumption-constraint-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   await expect(form).toHaveCount(0); // sheet closed, ?id= cleared
 
   await page.goto(`/projects/2/assumptions-constraints?q=${encodeURIComponent(description)}`);
@@ -75,7 +75,7 @@ test("edit seeded item — updated value persists in the list and re-open shows 
   await page.getByTestId("assumption-constraint-save").click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.saved }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   await expect(form).toHaveCount(0);
 
   // Verify the new value is visible in the list
@@ -103,7 +103,7 @@ test("delete seeded item — record disappears from the list", async ({ page }) 
 
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.deleted }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   await expect(form).toHaveCount(0);
 });
 

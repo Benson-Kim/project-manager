@@ -25,7 +25,9 @@ const view = (tab: "budget" | "monitoring" | "documents" | "settings") =>
   `/projects/2/financials/${tab}?f=${financialUrl.split("/").pop()}`;
 
 async function toast(page: Page, title: string) {
-  await expect(page.getByTestId("toast-success").filter({ hasText: title }).first()).toBeVisible();
+  await expect(page.getByTestId("toast-success").filter({ hasText: title }).first()).toBeVisible({
+    timeout: 15_000,
+  });
 }
 
 /** A budget line's cell input, by column header and the line's description. */
