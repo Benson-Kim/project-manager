@@ -79,6 +79,9 @@ const NO_LISTS: LookupListsValue = {
   save: async () => ({ ok: false, error: { code: "FORBIDDEN", message: "" } }),
 };
 
+/** The select choice that opens the list editor instead of picking a value. */
+export const EDIT_LIST = "__edit-list__";
+
 /**
  * The <option>s of a list-bound select: live options plus the record's current
  * value when it has been retired (see listChoices). The caller renders its own

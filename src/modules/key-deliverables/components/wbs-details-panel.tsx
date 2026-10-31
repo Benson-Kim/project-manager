@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/form/field";
-import { ListOptions } from "@/components/ui/lookup-lists";
+import { ListSelect } from "@/components/ui/form/list-select";
 import { TONES } from "@/components/ui/tones";
 import { formatDate, toDateInput } from "@/lib/format";
 import { OPTION_COLORS, type OptionColor } from "@/lib/lookup-lists";
@@ -153,15 +153,18 @@ export function WbsDetailsPanel({
 
         {canEdit ? (
           <Labelled label={K.priority}>
-            <select
+            <ListSelect
+              bare
+              list="key-deliverable.priority"
+              column={K.priority}
+              current={item.priority}
               data-testid="wbs-details-priority"
               value={item.priority ?? ""}
               onChange={(event) => on.update({ priority: event.target.value || null })}
               className={field}
             >
               <option value="">{messages.projects.none}</option>
-              <ListOptions list="key-deliverable.priority" current={item.priority} />
-            </select>
+            </ListSelect>
           </Labelled>
         ) : (
           <ReadOnly label={K.priority} value={item.priority ?? messages.projects.none} />

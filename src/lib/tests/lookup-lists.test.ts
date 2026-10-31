@@ -5,6 +5,7 @@ import {
   listChoices,
   listValue,
   optionColor,
+  renamedValue,
   saveLookupListInput,
   type LookupList,
   type LookupOptionRow,
@@ -165,6 +166,34 @@ describe("lookup lists (ADR-0022)", () => {
     };
     expect(optionColor(byId, "10")).toBe("green");
     expect(optionColor(byId, "Completed")).toBeNull();
+  });
+
+  it("keeps a select on the option it showed when that option is renamed", () => {
+    const renamed: LookupList = {
+      ...status,
+      rowVer: 42,
+      options: [
+        { id: 3, label: "Blocked", locked: false, color: null },
+        { id: 1, label: "Not started", locked: false, color: null },
+        { id: 2, label: "Completed", locked: true, color: null },
+      ],
+    };
+    expect(renamedValue(status, renamed, "Pending")).toBe("Not started");
+    expect(renamedValue(status, renamed, "Completed")).toBe("Completed");
+    expect(renamedValue(status, renamed, "")).toBe("");
+    expect(renamedValue(status, renamed, "Retired")).toBe("Retired");
+    expect(renamedValue(status, { ...status, options: [status.options[1]] }, "Pending")).toBe(
+      "Pending",
+    );
+    expect(renamedValue(undefined, renamed, "Pending")).toBe("Pending");
+    const byId: LookupList = {
+      key: "daily-activity.status",
+      rowVer: 1,
+      tintRows: false,
+      options: [{ id: 10, label: "Completed", locked: false, color: null }],
+    };
+    const byIdRenamed = { ...byId, options: [{ ...byId.options[0], label: "Done" }] };
+    expect(renamedValue(byId, byIdRenamed, "10")).toBe("10");
   });
 
   it("groups each option's colour and the list's row colouring", () => {

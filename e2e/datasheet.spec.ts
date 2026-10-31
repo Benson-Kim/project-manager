@@ -133,6 +133,27 @@ test("option colours tint cells and rows; 'Edit list…' in a cell opens the edi
   await expect(table.locator('tbody tr[data-tone="red"]')).toHaveCount(1);
 });
 
+test("'Edit list…' in a form's dropdown edits the list and keeps the choice (kitchen sink)", async ({
+  page,
+}) => {
+  await page.goto("/kitchen-sink?view=list");
+  const status = page.getByRole("combobox", { name: "Status", exact: true });
+  await expect(status).toHaveValue("In progress");
+
+  await status.selectOption({ label: messages.lookupLists.editInline });
+  const dialog = page.getByRole("dialog", { name: messages.lookupLists.edit("Status") });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel(messages.lookupLists.newOption).fill("On hold");
+  await dialog.getByLabel(messages.lookupLists.newOption).press("Enter");
+  await dialog.getByRole("button", { name: messages.actions.save }).click();
+  await expect(dialog).toBeHidden();
+
+  await expect(status).toHaveValue("In progress");
+  await expect(status.getByRole("option", { name: "On hold" })).toBeAttached();
+  await status.selectOption({ label: "On hold" });
+  await expect(status).toHaveValue("On hold");
+});
+
 test("daily activities: the client's column order, and a project filter on the cross-project page", async ({
   page,
 }) => {

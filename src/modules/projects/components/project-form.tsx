@@ -8,7 +8,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { StoredDates } from "@/components/ui/form/stored-dates";
-import { DatePicker, Input, Select, Switch, Textarea } from "@/components/ui/form/inputs";
+import { DatePicker, Input, Switch, Textarea } from "@/components/ui/form/inputs";
+import { ListSelect } from "@/components/ui/form/list-select";
 import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useToast } from "@/components/ui/toast";
@@ -18,7 +19,6 @@ import { Panel } from "@/components/ui/panel";
 import { createProjectAction, deleteProjectAction, updateProjectAction } from "../actions";
 import type { ProjectRow } from "../schemas/project";
 import { projectFormSchema, updateProjectFormSchema } from "../schemas/project-form";
-import { ListOptions } from "@/components/ui/lookup-lists";
 import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
 
 /**
@@ -234,40 +234,56 @@ export function ProjectForm({
               name="projectStatus"
               errors={form.errors.projectStatus}
             >
-              <Select name="projectStatus" defaultValue={project?.ProjectStatus ?? ""}>
+              <ListSelect
+                list="project.status"
+                current={project?.ProjectStatus}
+                name="projectStatus"
+                defaultValue={project?.ProjectStatus ?? ""}
+              >
                 <option value="">{messages.projects.none}</option>
-                <ListOptions list="project.status" current={project?.ProjectStatus} />
-              </Select>
+              </ListSelect>
             </Field>
             <Field
               label={messages.projects.phase}
               name="projectPhase"
               errors={form.errors.projectPhase}
             >
-              <Select name="projectPhase" defaultValue={project?.ProjectPhase ?? ""}>
+              <ListSelect
+                list="project.phase"
+                current={project?.ProjectPhase}
+                name="projectPhase"
+                defaultValue={project?.ProjectPhase ?? ""}
+              >
                 <option value="">{messages.projects.none}</option>
-                <ListOptions list="project.phase" current={project?.ProjectPhase} />
-              </Select>
+              </ListSelect>
             </Field>
             <Field
               label={messages.projects.priority}
               name="projectPriority"
               errors={form.errors.projectPriority}
             >
-              <Select name="projectPriority" defaultValue={project?.ProjectPriority ?? ""}>
+              <ListSelect
+                list="project.priority"
+                current={project?.ProjectPriority}
+                name="projectPriority"
+                defaultValue={project?.ProjectPriority ?? ""}
+              >
                 <option value="">{messages.projects.none}</option>
-                <ListOptions list="project.priority" current={project?.ProjectPriority} />
-              </Select>
+              </ListSelect>
             </Field>
             <Field
               label={messages.projects.riskLevel}
               name="riskLevel"
               errors={form.errors.riskLevel}
             >
-              <Select name="riskLevel" defaultValue={project?.RiskLevel ?? ""}>
+              <ListSelect
+                list="project.risk-level"
+                current={project?.RiskLevel}
+                name="riskLevel"
+                defaultValue={project?.RiskLevel ?? ""}
+              >
                 <option value="">{messages.projects.none}</option>
-                <ListOptions list="project.risk-level" current={project?.RiskLevel} />
-              </Select>
+              </ListSelect>
             </Field>
             <Field
               label={messages.projects.startDate}

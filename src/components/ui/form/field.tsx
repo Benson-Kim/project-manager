@@ -8,6 +8,7 @@ import { createContext, useContext, useId } from "react";
  * the label carries the meaning.
  */
 interface FieldContextValue {
+  label: string;
   inputId: string;
   /** For controls a <label for> cannot name (the rich-text editor's surface). */
   labelId: string;
@@ -39,7 +40,7 @@ export function Field({ label, name, errors, labelClassName, children }: FieldPr
   const invalid = Boolean(errors && errors.length > 0);
 
   return (
-    <FieldContext.Provider value={{ inputId, labelId, errorId, invalid }}>
+    <FieldContext.Provider value={{ label, inputId, labelId, errorId, invalid }}>
       <div className="flex flex-col gap-1" data-field={name}>
         <label
           id={labelId}

@@ -46,6 +46,7 @@ test("validation failure — bad email shows inline error and focuses the summar
   await page.getByTestId("supplier-save").click();
   const summary = page.getByRole("alert").filter({ hasText: messages.errors.summaryTitle });
   await expect(summary).toBeVisible();
+  await expect(summary).toHaveText(messages.errors.summaryTitle);
   await expect(summary).toBeFocused();
 });
 

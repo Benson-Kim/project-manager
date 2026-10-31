@@ -521,6 +521,8 @@ export function BoxRequirements({
   const name = node.item.name || messages.keyDeliverables.deliverableFallback(node.item.id);
   const open = alwaysOpen || !hidden || adding;
   const listed = only ? requirements.some((r) => only.has(r.id)) : requirements.length > 0;
+  // The toggle counts them all, so say how many the filter leaves out.
+  const filteredOut = only ? requirements.filter((r) => !only.has(r.id)).length : 0;
 
   return (
     <div
@@ -568,6 +570,14 @@ export function BoxRequirements({
             ),
           )}
         </ul>
+      ) : null}
+      {open && filteredOut > 0 ? (
+        <p
+          data-testid={`wbs-reqs-filtered-${node.item.id}`}
+          className="m-0 text-xs text-ink-muted italic"
+        >
+          {W.filter.hiddenRequirements(filteredOut)}
+        </p>
       ) : null}
       {!field ? null : adding ? (
         <AddRequirementField

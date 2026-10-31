@@ -6,10 +6,10 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { StoredDates } from "@/components/ui/form/stored-dates";
-import { DatePicker, Select, Textarea } from "@/components/ui/form/inputs";
+import { DatePicker, Textarea } from "@/components/ui/form/inputs";
+import { ListSelect } from "@/components/ui/form/list-select";
 import { useSheetFormActions } from "@/components/ui/form/use-sheet-form-actions";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
-import { ListOptions } from "@/components/ui/lookup-lists";
 import { messages } from "@/lib/messages";
 import { toDateInput } from "@/lib/format";
 import {
@@ -184,20 +184,28 @@ export function DeliverableForm({
             />
           </Field>
           <Field label={messages.keyDeliverables.status} name="status" errors={form.errors.status}>
-            <Select name="status" defaultValue={deliverable?.Status ?? ""}>
+            <ListSelect
+              list="key-deliverable.status"
+              current={deliverable?.Status}
+              name="status"
+              defaultValue={deliverable?.Status ?? ""}
+            >
               <option value="">{messages.projects.none}</option>
-              <ListOptions list="key-deliverable.status" current={deliverable?.Status} />
-            </Select>
+            </ListSelect>
           </Field>
           <Field
             label={messages.keyDeliverables.priority}
             name="priority"
             errors={form.errors.priority}
           >
-            <Select name="priority" defaultValue={deliverable?.Priority ?? ""}>
+            <ListSelect
+              list="key-deliverable.priority"
+              current={deliverable?.Priority}
+              name="priority"
+              defaultValue={deliverable?.Priority ?? ""}
+            >
               <option value="">{messages.projects.none}</option>
-              <ListOptions list="key-deliverable.priority" current={deliverable?.Priority} />
-            </Select>
+            </ListSelect>
           </Field>
         </div>
 
