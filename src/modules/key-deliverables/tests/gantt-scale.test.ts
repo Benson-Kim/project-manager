@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
-  BAR_HIT_PX,
   barBox,
-  barHitPad,
+  dayCentre,
   dayAt,
   defaultScale,
-  headerRows,
   isGanttScale,
   makeTimeline,
-  shortDate,
+  periodCells,
+  todayLeft,
   xOf,
 } from "../components/gantt-scale";
 
@@ -45,11 +44,14 @@ describe("makeTimeline", () => {
     expect(t.days).toBe(63);
   });
 
-  it("fits a year in about a thousand pixels at the month scale", () => {
+  it("fits fifteen months in under a thousand pixels at the month scale", () => {
     const t = makeTimeline("month", { min: d("2024-04-16"), max: d("2025-02-10") }, today);
     expect(t.start).toEqual(d("2024-04-01"));
-    expect(t.days).toBe(365);
-    expect(t.width).toBe(1095);
+    expect(t.days).toBe(334);
+    expect(t.width).toBe(668);
+    const prototype = makeTimeline("month", { min: d("2026-01-05"), max: d("2027-02-20") }, today);
+    expect(prototype.days).toBe(455);
+    expect(prototype.width).toBeLessThan(1000);
   });
 
   it("shows the current month when nothing has dates", () => {
@@ -72,13 +74,6 @@ describe("geometry", () => {
     expect(barBox(months, d("2024-04-16"), d("2024-04-16")).width).toBe(4);
   });
 
-  it("pads a short bar out to a box a finger can hit, and leaves a long one as drawn", () => {
-    expect(barHitPad(4)).toBe(18);
-    expect(4 + 2 * barHitPad(4)).toBe(BAR_HIT_PX);
-    expect(barHitPad(BAR_HIT_PX)).toBe(0);
-    expect(barHitPad(128)).toBe(0);
-  });
-
   it("finds the day under the pointer, for snapping to whole days", () => {
     expect(dayAt(t, 480)).toEqual(d("2024-04-16"));
     expect(dayAt(t, 511)).toEqual(d("2024-04-16"));
@@ -86,61 +81,29 @@ describe("geometry", () => {
   });
 });
 
-describe("headerRows: the dates stay visible at every scale", () => {
-  it("day: month and year over each day's number, weekends marked", () => {
-    const { top, bottom } = headerRows(
-      makeTimeline("day", { min: d("2024-04-16"), max: d("2024-05-31") }, today),
-    );
-    expect(top.map((c) => [c.label, c.left, c.width])).toEqual([
-      ["April 2024", 0, 960],
-      ["May 2024", 960, 992],
-      ["June 2024", 1952, 960],
-    ]);
-    expect(bottom).toHaveLength(91);
-    expect(bottom.slice(0, 7).map((c) => [c.label, c.weekend])).toEqual([
-      ["1", false],
-      ["2", false],
-      ["3", false],
-      ["4", false],
-      ["5", false],
-      ["6", true],
-      ["7", true],
-    ]);
+describe("periodCells", () => {
+  it("splits week and month scales into quarters, cut at the timeline's ends", () => {
+    const timeline = makeTimeline("week", { min: d("2026-02-10"), max: d("2026-08-01") }, today);
+    const cells = periodCells(timeline);
+    expect(cells.map((c) => c.label)).toEqual(["2026 Q1", "2026 Q2", "2026 Q3"]);
+    expect(cells[0].left).toBe(0);
+    expect(cells[1].left).toBe(xOf(timeline, d("2026-04-01")));
+    const last = cells[cells.length - 1];
+    expect(last.left + last.width).toBe(timeline.width);
   });
 
-  it("week: month and year over the date of each Monday", () => {
-    const { top, bottom } = headerRows(
-      makeTimeline("week", { min: d("2024-05-10"), max: d("2024-05-20") }, today),
-    );
-    expect(top.map((c) => [c.label, c.left, c.width])).toEqual([
-      ["Apr 2024", 0, 24],
-      ["May 2024", 24, 372],
-      ["Jun 2024", 396, 360],
-    ]);
-    expect(bottom.map((c) => c.label)).toEqual([
-      "29",
-      "6",
-      "13",
-      "20",
-      "27",
-      "3",
-      "10",
-      "17",
-      "24",
-    ]);
-    expect(bottom[1]).toMatchObject({ left: 84, width: 84 });
+  it("names months at the day scale", () => {
+    const timeline = makeTimeline("day", { min: d("2026-03-05"), max: d("2026-04-02") }, today);
+    expect(periodCells(timeline).map((c) => c.label)).toEqual(["March 2026", "April 2026"]);
   });
+});
 
-  it("month: the year over each month's name", () => {
-    const { top, bottom } = headerRows(
-      makeTimeline("month", { min: d("2024-11-16"), max: d("2025-01-10") }, today),
-    );
-    expect(top.map((c) => c.label)).toEqual(["2024", "2025"]);
-    expect(top[0]).toMatchObject({ left: 0, width: 61 * 3 });
-    expect(bottom.map((c) => c.label)).toEqual(["Nov", "Dec", "Jan", "Feb"]);
-  });
-
-  it("labels a bar's dates short", () => {
-    expect(shortDate(d("2024-04-16"))).toBe("Apr 16");
+describe("todayLeft", () => {
+  it("puts the line in the middle of today, and nowhere outside the timeline", () => {
+    const timeline = makeTimeline("day", { min: d("2026-10-01"), max: d("2026-10-20") }, today);
+    expect(todayLeft(timeline, today)).toBe(dayCentre(timeline, today));
+    expect(dayCentre(timeline, today)).toBe(xOf(timeline, today) + 16);
+    expect(todayLeft(timeline, d("2025-01-01"))).toBeNull();
+    expect(todayLeft(timeline, d("2030-01-01"))).toBeNull();
   });
 });

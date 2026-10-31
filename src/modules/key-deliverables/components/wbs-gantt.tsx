@@ -23,8 +23,11 @@ import {
   rescheduleWbsItemAction,
   setWbsMilestoneAction,
   unlinkWbsItemsAction,
+  setWbsNoteAction,
   setWbsStatusAction,
+  updateWbsItemAction,
 } from "../actions";
+import type { RequirementOption } from "@/modules/requirements/schemas/requirement";
 import type { StakeholderOption } from "@/modules/stakeholders/repository/stakeholder-options";
 import type { KeyDeliverableRow, WbsData } from "../schemas/key-deliverable";
 import {
@@ -32,38 +35,42 @@ import {
   NEW_ITEM_DAYS,
   addDays,
   applyMilestone,
+  DONE_STATUS,
+  applyDetails,
   applyMove,
+  applyNote,
   applyReschedule,
   applyStatus,
   branchRequirementCount,
   buildWbs,
   dayDiff,
   descendantIds,
+  detailsInput,
   durationDays,
   indentTarget,
+  itemProgress,
   milestoneRefusal,
   moveDownTarget,
   moveUpTarget,
   newItemDates,
   outdentTarget,
   requestedDateClash,
+  rolledBudget,
   visibleIds,
   wbsBounds,
   type Placement,
+  type WbsDetailsPatch,
   type WbsItem,
 } from "../schemas/wbs";
 import { DeliverableForm } from "./deliverable-form";
 import { readIdSet, writeIdSet } from "./id-set-storage";
-import {
-  dayAt,
-  defaultScale,
-  headerRows,
-  makeTimeline,
-  xOf,
-  type GanttScale,
-  type Timeline,
-} from "./gantt-scale";
-import type { Span } from "./wbs-bar";
+import { dayAt, defaultScale, makeTimeline, xOf, type GanttScale } from "./gantt-scale";
+import { GanttBoard, type GanttBoardHandlers } from "./gantt-board";
+import { GanttRequirementsPanel } from "./gantt-requirements-panel";
+import { ganttSummary } from "./gantt-summary";
+import { GanttTools } from "./gantt-tools";
+import { useGanttDisplay } from "./use-gantt-display";
+import type { Span } from "./gantt-span";
 import {
   WbsContextMenu,
   type MenuCommand,
@@ -73,10 +80,13 @@ import {
 } from "./wbs-context-menu";
 import { WbsDiagram, type DiagramHandlers } from "./wbs-diagram";
 import {
+  BRANCH_LAYOUTS,
   DEFAULT_CHART,
+  branchLayout,
   chooseBranch,
   parseChartSettings,
   serializeChartSettings,
+  type BranchLayout,
   type ChartSettings,
   type WbsView,
 } from "./wbs-diagram-layout";
@@ -90,20 +100,29 @@ import {
   type WbsLink,
 } from "../schemas/wbs-dependencies";
 import { WbsDependenciesDialog } from "./wbs-dependencies-dialog";
-import { WbsDependencyArrows } from "./wbs-dependency-arrows";
 import { WbsMoveDialog } from "./wbs-move-dialog";
+import { WbsDetailsPanel } from "./wbs-details-panel";
+import { PlanNote } from "./wbs-plan-note";
+import { firstError, type QueuedChange } from "./wbs-queue";
+import { wbsCsv } from "./wbs-csv";
+import { useFullscreen } from "./use-fullscreen";
 import {
-  AddRequirementRow,
-  RequirementRow,
-  tabClass,
-  WbsRow,
-  type RowHandlers,
-  type WbsTab,
-} from "./wbs-row";
-import type { QueuedChange } from "./wbs-queue";
+  canUndo,
+  dropUndo,
+  moveBack,
+  pushUndo,
+  rescheduleBack,
+  takeUndo,
+  type UndoStep,
+} from "../schemas/wbs-undo";
+import { NO_FILTER, shownWbs, wbsShown, type WbsFilter } from "../schemas/wbs-filter";
+import { milestoneStrip } from "../schemas/wbs-milestones";
+import { WbsFilterBar } from "./wbs-filter-bar";
+import { isEditableTarget } from "@/components/ui/data-view/datasheet";
 import type { RequirementAccess } from "./wbs-requirements";
 import { WbsToolbar } from "./wbs-toolbar";
 import { useWbsRequirements } from "./use-wbs-requirements";
+import { RequirementOwnersContext } from "./wbs-requirement-more";
 import { StickyScrollbar } from "@/components/ui/data-view/sticky-scrollbar";
 
 const W = messages.keyDeliverables.wbs;
@@ -118,6 +137,8 @@ const LINK_REFUSALS: Record<LinkRefusal, string> = {
 
 /** How long arrow-key nudges wait for the next key before saving. */
 const NUDGE_SAVE_MS = 600;
+
+const NOTHING: ReadonlySet<number> = new Set();
 
 interface PendingOp {
   key: number;
@@ -147,10 +168,6 @@ function parseDay(value: string): Date | null {
   return Number.isNaN(day.getTime()) || year < 1900 || year > 2200 ? null : day;
 }
 
-function firstError(error: { message: string; fieldErrors?: Record<string, string[]> }): string {
-  return (error.fieldErrors && Object.values(error.fieldErrors).flat()[0]) || error.message;
-}
-
 function readChart(key: string): ChartSettings | null {
   try {
     const raw = window.localStorage.getItem(key);
@@ -158,21 +175,6 @@ function readChart(key: string): ChartSettings | null {
   } catch {
     return null;
   }
-}
-
-/** Weekend shading and day (or week) lines on every track, without a node per day. */
-function trackBackground(timeline: Timeline): React.CSSProperties {
-  if (timeline.scale === "month") return {};
-  const px = timeline.pxPerDay;
-  const week = 7 * px;
-  const saturday = (6 - timeline.start.getUTCDay() + 7) % 7;
-  return {
-    backgroundImage:
-      "linear-gradient(to right, var(--line) 0 1px, transparent 1px), " +
-      `linear-gradient(to right, var(--surface-sunken) 0 ${2 * px}px, transparent ${2 * px}px)`,
-    backgroundSize: `${timeline.scale === "day" ? px : week}px 100%, ${week}px 100%`,
-    backgroundPosition: `0 0, ${saturday * px}px 0`,
-  };
 }
 
 /**
@@ -199,10 +201,14 @@ export function WbsGantt({
   openDeliverable,
   sheetOpen,
   assigneeOptions,
+  needOptions,
+  planNote,
 }: {
   projectId: number;
   /** The top box of the diagram. */
   projectName: string;
+  /** The project's sticky note and the project row version it saves against. */
+  planNote: { text: string | null; rowVer: number };
   data: WbsData;
   /** Today on the server's calendar, so the server and the browser draw the same chart. */
   today: Date;
@@ -220,6 +226,8 @@ export function WbsGantt({
   openDeliverable?: KeyDeliverableRow;
   sheetOpen: boolean;
   assigneeOptions: StakeholderOption[];
+  /** The project's business and stakeholder requirements a new requirement can meet. */
+  needOptions: RequirementOption[];
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -278,6 +286,8 @@ export function WbsGantt({
     [statuses],
   );
   const wbs = useMemo(() => buildWbs(items, statusColors), [items, statusColors]);
+  const budgets = useMemo(() => rolledBudget(wbs), [wbs]);
+  const milestoneChips = useMemo(() => milestoneStrip(wbs, today), [wbs, today]);
 
   // Links are server state: a link write answers with the whole breakdown, so the arrows follow the
   // confirmed graph while the bars follow the optimistic rows.
@@ -310,13 +320,10 @@ export function WbsGantt({
     return own.min ? own : { min: data.projectStart, max: data.projectEnd };
   }, [wbs, data.projectStart, data.projectEnd]);
   const timeline = useMemo(() => makeTimeline(scale, bounds, today), [scale, bounds, today]);
-  const header = useMemo(() => headerRows(timeline), [timeline]);
-  const trackStyle = useMemo(() => trackBackground(timeline), [timeline]);
-  const todayOffset = dayDiff(timeline.start, today);
-  const todayX =
-    todayOffset >= 0 && todayOffset < timeline.days
-      ? xOf(timeline, today) + Math.floor(timeline.pxPerDay / 2)
-      : null;
+  const progress = useMemo(() => itemProgress(shown), [shown]);
+  const [display, changeDisplay] = useGanttDisplay();
+  /** The card whose requirements show in the panel under the Gantt. */
+  const [listingId, setListingId] = useState<number | null>(null);
 
   const storageKey = `wbs-collapsed:${projectId}`;
   const [collapsed, setCollapsed] = useState<ReadonlySet<number>>(() => new Set());
@@ -327,7 +334,6 @@ export function WbsGantt({
     });
     return () => cancelAnimationFrame(frame);
   }, [storageKey]);
-  const visible = useMemo(() => visibleIds(shown, collapsed), [shown, collapsed]);
 
   const [menu, setMenu] = useState<WbsMenuState | null>(null);
 
@@ -343,20 +349,35 @@ export function WbsGantt({
   }, [chartKey]);
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  // An item hidden in a collapsed branch is not what the toolbar acts on.
-  const selected =
-    selectedId !== null && visible.includes(selectedId)
-      ? (wbs.nodes.get(selectedId) ?? null)
-      : null;
-  const [typingId, setTypingId] = useState<number | null>(null);
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [view, setView] = useState<WbsView>(initialView);
+
+  // The WBS diagram's search and chips, for this visit only. A search opens every branch and list
+  // on the way to a match and folds on its own while it lasts; chips alone keep the viewer's folds.
+  const [filter, setFilter] = useState<WbsFilter>(NO_FILTER);
+  const filtered = useMemo(
+    () => (view === "wbs" ? wbsShown(wbs, filter) : null),
+    [view, wbs, filter],
+  );
+  const searching = filtered !== null && filter.text.trim() !== "";
+  const [searchFolds, setSearchFolds] = useState<ReadonlySet<number>>(NOTHING);
+  const folds = searching ? searchFolds : collapsed;
+  const visible = useMemo(
+    () => visibleIds(filtered ? shownWbs(shown, filtered.items) : shown, folds),
+    [shown, filtered, folds],
+  );
+  // An item hidden in a collapsed branch, or by the filter, is not what the toolbar acts on. The
+  // Gantt folds nothing away.
+  const selected =
+    selectedId !== null && (view === "gantt" || visible.includes(selectedId))
+      ? (wbs.nodes.get(selectedId) ?? null)
+      : null;
+  const listed = listingId !== null ? (wbs.nodes.get(listingId) ?? null) : null;
   // An add answers after the user may have switched views; its name opens in the current one.
   const viewRef = useRef(view);
   useEffect(() => {
     viewRef.current = view;
   }, [view]);
-  const [tab, setTab] = useState<WbsTab>("outline");
   const [confirmId, setConfirmId] = useState<number | null>(null);
   /** The item a "Turn into milestone" is waiting on: the span it drops is named first. */
   const [milestoneId, setMilestoneId] = useState<number | null>(null);
@@ -365,15 +386,14 @@ export function WbsGantt({
   /** The field the details form opens on: the Assignees… command, else nothing. */
   const [detailsFocus, setDetailsFocus] = useState<"assignees" | null>(null);
 
+  const editorRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const nameHeadRef = useRef<HTMLDivElement>(null);
-  const axisRef = useRef<HTMLDivElement>(null);
 
   const [focusRequest, setFocusRequest] = useState<{ id: number; select: boolean } | null>(null);
   useEffect(() => {
     if (!focusRequest) return;
-    const input = scrollRef.current?.querySelector<HTMLInputElement>(
-      `[data-wbs-name="${focusRequest.id}"]`,
+    const input = editorRef.current?.querySelector<HTMLInputElement>(
+      `[data-wbs-details-name="${focusRequest.id}"]`,
     );
     if (!input) return;
     input.focus();
@@ -383,17 +403,26 @@ export function WbsGantt({
   const [scrollAnchor, setScrollAnchor] = useState<{ x: number } | null>(null);
   useEffect(() => {
     const el = scrollRef.current;
-    const axis = axisRef.current;
-    const nameHead = nameHeadRef.current;
-    if (!scrollAnchor || !el || !axis || !nameHead || axis.offsetWidth === 0) return;
-    el.scrollLeft +=
-      axis.getBoundingClientRect().left + scrollAnchor.x - nameHead.getBoundingClientRect().right;
+    if (scrollAnchor && el) el.scrollLeft = scrollAnchor.x;
   }, [scrollAnchor]);
 
   // ---- saving: one change at a time, in the order they were made ----------
 
   const queue = useRef<Promise<void>>(Promise.resolve());
   const opKey = useRef(0);
+
+  const fullscreen = useFullscreen();
+
+  // Moves and reschedules can be taken back, newest first; each step back is a change of its own.
+  const [undoStack, setUndoStack] = useState<UndoStep[]>([]);
+  const undoKey = useRef(0);
+
+  /** Remembers a step back; a refused change forgets it again. */
+  function remember(step: UndoStep | null): (() => void) | undefined {
+    if (!step) return undefined;
+    setUndoStack((current) => pushUndo(current, step));
+    return () => setUndoStack((current) => dropUndo(current, step.key));
+  }
 
   function enqueue<T extends WbsData>(op: QueuedChange<T>) {
     const key = ++opKey.current;
@@ -425,9 +454,12 @@ export function WbsGantt({
               setConfirmed(next);
             }
             op.done?.(result.data, rows);
-          } else if (result) {
-            toast({ variant: "error", title: firstError(result.error) });
-            router.refresh();
+          } else {
+            if (result) {
+              toast({ variant: "error", title: firstError(result.error) });
+              router.refresh();
+            }
+            op.failed?.();
           }
         } finally {
           setOps((current) => current.filter((pending) => pending.key !== key));
@@ -454,6 +486,17 @@ export function WbsGantt({
       writeIdSet(storageKey, next);
       return next;
     });
+  }
+
+  /** The folds on screen: while searching, the search's own, which the viewer's never see. */
+  function changeFolds(change: (current: ReadonlySet<number>) => ReadonlySet<number>) {
+    if (searching) setSearchFolds(change);
+    else changeCollapsed(change);
+  }
+
+  function changeFilter(next: WbsFilter) {
+    if (next.text.trim() && !filter.text.trim()) setSearchFolds(NOTHING);
+    setFilter(next);
   }
 
   function changeChart(change: (current: ChartSettings) => ChartSettings, save = true) {
@@ -490,12 +533,14 @@ export function WbsGantt({
     });
   }
 
-  function move(id: number, placement: Placement | null) {
+  function move(id: number, placement: Placement | null, undoable = true) {
     if (!canEdit || !placement) return;
     const code = buildWbs(applyMove(items, id, placement)).nodes.get(id)?.code;
     if (placement.parentId !== null) expand(placement.parentId);
+    const forget = undoable ? remember(moveBack(wbs, id, placement, ++undoKey.current)) : undefined;
     enqueue({
       apply: (rows) => applyMove(rows, id, placement),
+      failed: forget,
       send: (current) =>
         withRowVer(current, id, (rowVer) =>
           moveWbsItemAction({
@@ -509,7 +554,7 @@ export function WbsGantt({
     if (code) announce(W.moved(code));
   }
 
-  function reschedule(id: number, { start, end }: Span) {
+  function reschedule(id: number, { start, end }: Span, undoable = true) {
     const node = wbs.nodes.get(id);
     if (!canEdit || !node || (sameDay(node.start, start) && sameDay(node.end, end))) return;
     if (dayDiff(start, end) < 0) {
@@ -539,8 +584,10 @@ export function WbsGantt({
       return;
     }
     const carried = cascadeEffect(applyReschedule(items, wbs, id, start, end), links);
+    const forget = undoable ? remember(rescheduleBack(wbs, id, ++undoKey.current)) : undefined;
     enqueue({
       apply: (rows) => applyReschedule(rows, buildWbs(rows), id, start, end),
+      failed: forget,
       send: (current) =>
         withRowVer(current, id, (rowVer) =>
           rescheduleWbsItemAction({
@@ -558,6 +605,55 @@ export function WbsGantt({
         ? W.rescheduled(formatDate(start), formatDate(end))
         : `${W.rescheduled(formatDate(start), formatDate(end))}. ${W.alsoMoved(carried.length)}`,
     );
+  }
+
+  /** Takes back the newest move or reschedule that still applies, through the queue like any change. */
+  function undo() {
+    if (!canEdit) return;
+    // A nudge still waiting to save is the newest move: dropping it takes it back.
+    if (stopNudge()) {
+      showPreview(0, null);
+      announce(W.moveUndone);
+      return;
+    }
+    const { step, rest } = takeUndo(undoStack, wbs);
+    setUndoStack(rest);
+    if (!step) return;
+    if (step.kind === "move") move(step.id, step.placement, false);
+    else reschedule(step.id, step, false);
+    setSelectedId(step.id);
+    announce(W.moveUndone);
+  }
+
+  async function copyText(text: string, copied: string, failed: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ variant: "success", title: copied });
+    } catch {
+      toast({ variant: "error", title: failed });
+    }
+  }
+
+  // The byte-order mark is for files a spreadsheet opens, not for pasted text.
+  const copyCsv = () => copyText(wbsCsv(wbs).replace(/^﻿/, ""), W.csv.copied, W.csv.copyFailed);
+  const copySummary = () =>
+    copyText(ganttSummary(projectName, wbs), W.board.summaryCopied, W.board.summaryCopyFailed);
+
+  /** Ctrl+Z (Cmd+Z) belongs to the field being typed in; anywhere else in the editor it is Undo move. */
+  function undoKeys(event: React.KeyboardEvent<HTMLElement>) {
+    const target = event.target as HTMLElement;
+    if (
+      !(event.ctrlKey || event.metaKey) ||
+      event.shiftKey ||
+      event.altKey ||
+      event.key.toLowerCase() !== "z" ||
+      (isEditableTarget(target) && target.tagName !== "BUTTON") ||
+      !event.currentTarget.contains(target)
+    ) {
+      return;
+    }
+    event.preventDefault();
+    undo();
   }
 
   /**
@@ -634,6 +730,33 @@ export function WbsGantt({
     announce(status ? W.statusChanged(status) : W.statusCleared);
   }
 
+  /** A change from the details panel (ADR-0052). The whole update is built from the item as the
+   *  server last answered when it is sent, so changes queued one after another all land. */
+  function updateDetails(id: number, patch: WbsDetailsPatch) {
+    if (!canEdit || !wbs.nodes.has(id)) return;
+    enqueue({
+      apply: (rows) => applyDetails(rows, id, patch),
+      send: (current) => {
+        const item = current.find((i) => i.id === id);
+        return item ? updateWbsItemAction(detailsInput(item, projectId, patch)) : null;
+      },
+    });
+  }
+
+  /** The paperclip note (ADR-0052), saved in the queue so it carries the item's current RowVer. */
+  function setNote(id: number, text: string): Promise<boolean> {
+    if (!canEdit || !wbs.nodes.has(id)) return Promise.resolve(false);
+    return new Promise((resolve) =>
+      enqueue({
+        apply: (rows) => applyNote(rows, id, text),
+        send: (current) =>
+          withRowVer(current, id, (rowVer) => setWbsNoteAction({ id, note: text, rowVer })),
+        done: () => resolve(true),
+        failed: () => resolve(false),
+      }),
+    );
+  }
+
   /**
    * Turn an item into a milestone or back into a task (ADR-0046). Turning one on drops the span,
    * so the caller confirms it first; the refusals the proc would raise are answered here with the
@@ -696,37 +819,11 @@ export function WbsGantt({
     select: setSelectedId,
   });
 
-  /**
-   * Everything that can move a bar: which rows are on screen and where each one's span sits, plus
-   * the timeline's own geometry. The arrow layer measures the bars again whenever this changes.
-   * Requirement rows and the add row sit between the bars, so their heights are part of it too —
-   * which is why the layer measures the DOM instead of computing y from the breakdown.
-   */
-  const geometryKey = useMemo(
-    () =>
-      [
-        timeline.width,
-        timeline.pxPerDay,
-        tab,
-        visible
-          .map((id) => {
-            const node = shown.nodes.get(id);
-            return `${id}:${node?.start?.getTime() ?? ""}:${node?.end?.getTime() ?? ""}`;
-          })
-          .join(","),
-        cascade.hidden.size,
-        cascade.adding ?? "",
-        selectedId ?? "",
-      ].join("|"),
-    [timeline, tab, visible, shown, cascade.hidden, cascade.adding, selectedId],
-  );
-
   // ---- the context menu (ADR-0036) -----------------------------------------------
 
   function openMenu(id: number, at: MenuRequest) {
     if (!wbs.nodes.has(id)) return;
     setSelectedId(id);
-    setTypingId(null);
     setMenu({ id, ...at });
   }
 
@@ -769,13 +866,9 @@ export function WbsGantt({
 
   function changeScale(next: GanttScale) {
     if (next === scale) return;
-    const axis = axisRef.current;
-    const nameHead = nameHeadRef.current;
-    if (axis && nameHead && axis.offsetWidth > 0) {
-      // Only once the timeline is scrolled under the names; before that the dates stay in view.
-      const x = nameHead.getBoundingClientRect().right - axis.getBoundingClientRect().left;
-      if (x > 0) setScrollAnchor({ x: xOf(makeTimeline(next, bounds, today), dayAt(timeline, x)) });
-    }
+    // The day at the chart's left edge stays there.
+    const x = scrollRef.current?.scrollLeft ?? 0;
+    if (x > 0) setScrollAnchor({ x: xOf(makeTimeline(next, bounds, today), dayAt(timeline, x)) });
     setScale(next);
     rememberInUrl("scale", next);
   }
@@ -838,65 +931,45 @@ export function WbsGantt({
     reschedule(id, { start: node.start ?? addDays(end, -(NEW_ITEM_DAYS - 1)), end });
   }
 
-  function setDays(id: number, value: string) {
-    const node = wbs.nodes.get(id);
-    const days = Number(value);
-    if (!node?.start || node.item.isMilestone) return;
-    if (!Number.isInteger(days) || days < 1 || days > 36500) return;
-    reschedule(id, { start: node.start, end: addDays(node.start, days - 1) });
+  function setPriority(id: number, priority: string | null) {
+    if (wbs.nodes.get(id)?.item.priority !== priority) updateDetails(id, { priority });
   }
 
-  function tabKey(id: number, shift: boolean): boolean {
-    if (!canEdit) return false;
-    const node = wbs.nodes.get(id);
-    const target = shift ? outdentTarget(wbs, id) : indentTarget(wbs, id);
-    if (!target) {
-      if (shift || !node || node.index === 0) return false;
-      toast({ variant: "info", title: W.maxDepth });
-      return true;
-    }
-    move(id, target);
-    setTypingId(id);
-    setFocusRequest({ id, select: false });
-    return true;
-  }
+  const boardHandlers: GanttBoardHandlers = {
+    select: setSelectedId,
+    requirements: (id) => setListingId((current) => (current === id ? null : id)),
+    priority: canEdit ? setPriority : undefined,
+    menu: openMenu,
+    open: openDetails,
+    nudge: canEdit
+      ? (id, span) => {
+          showPreview(id, span);
+          stopNudge();
+          nudge.current.timer = setTimeout(flushNudge, NUDGE_SAVE_MS);
+        }
+      : undefined,
+    flush: flushNudge,
+    drag: canEdit
+      ? {
+          preview: (id, span) => {
+            // A nudge still waiting is saved first: the drag started from its dates.
+            if (nudge.current.timer !== undefined) flushNudge();
+            showPreview(id, span);
+          },
+          commit: commitBar,
+          move: (id, placement) => move(id, placement),
+        }
+      : undefined,
+  };
 
-  const rowHandlers: RowHandlers = {
-    select: (id) => {
-      if (id === selectedId) return;
-      setSelectedId(id);
-      setTypingId(null);
-    },
+  const diagramHandlers: DiagramHandlers = {
+    select: setSelectedId,
     toggle: (id) =>
-      changeCollapsed((current) => {
+      changeFolds((current) => {
         const next = new Set(current);
         if (!next.delete(id)) next.add(id);
         return next;
       }),
-    rename,
-    tab: tabKey,
-    settle: () => setTypingId(null),
-    setStart,
-    setEnd,
-    setDays,
-    preview: (id, span) => {
-      stopNudge();
-      showPreview(id, span);
-    },
-    nudge: (id, span) => {
-      showPreview(id, span);
-      stopNudge();
-      nudge.current.timer = setTimeout(flushNudge, NUDGE_SAVE_MS);
-    },
-    flush: flushNudge,
-    commit: commitBar,
-    open: openDetails,
-    menu: openMenu,
-  };
-
-  const diagramHandlers: DiagramHandlers = {
-    select: rowHandlers.select,
-    toggle: rowHandlers.toggle,
     renameStart: (id) => (id === null ? setRenamingId(null) : startRename(id)),
     rename,
     setStart,
@@ -906,6 +979,8 @@ export function WbsGantt({
     remove: (id) => setConfirmId(id),
     tooDeep: () => toast({ variant: "info", title: W.maxDepth }),
     menu: openMenu,
+    note: setNote,
+    priority: canEdit ? setPriority : undefined,
   };
 
   // ---- toolbar -------------------------------------------------------------------
@@ -922,9 +997,25 @@ export function WbsGantt({
 
   const milestoneNode = milestoneId !== null ? wbs.nodes.get(milestoneId) : undefined;
   const menuNode = menu ? wbs.nodes.get(menu.id) : undefined;
+  function setBranchLayout(id: number, layout: BranchLayout) {
+    changeChart((current) => ({
+      ...current,
+      branches: chooseBranch(wbs, current.branches, id, layout),
+    }));
+  }
   const menuGroups = ((): MenuCommand[][] => {
     if (!menuNode) return [];
     const id = menuNode.item.id;
+    const layout = branchLayout(chart.branches, id);
+    const layoutCommands: MenuCommand[] =
+      view === "wbs" && menuNode.childIds.length > 0
+        ? BRANCH_LAYOUTS.map((choice) => ({
+            label: W.showSubItems[choice],
+            testId: `wbs-menu-layout-${choice}`,
+            run: () => setBranchLayout(id, choice),
+            disabled: layout === choice,
+          }))
+        : [];
     return [
       [
         {
@@ -1010,26 +1101,27 @@ export function WbsGantt({
           danger: true,
         },
       ],
+      ...(layoutCommands.length > 0 ? [layoutCommands] : []),
     ];
   })();
 
+  const adding = ops.some((op) => op.kind === "add");
+  const addItemCommand = { run: () => addItem(false), hidden: !canCreate, pending: adding };
+  const addMilestoneCommand = {
+    run: () => addItem(false, selId, true),
+    hidden: !canCreate,
+    pending: adding,
+  };
+
   const toolbar = (
     <WbsToolbar
-      addItem={{
-        run: () => addItem(false),
-        hidden: !canCreate,
-        pending: ops.some((op) => op.kind === "add"),
-      }}
+      addItem={addItemCommand}
       addSubItem={{
         run: () => addItem(true),
         hidden: !canCreate,
         disabled: !selected || selected.depth >= MAX_WBS_DEPTH || selected.item.isMilestone,
       }}
-      addMilestone={{
-        run: () => addItem(false, selId, true),
-        hidden: !canCreate,
-        pending: ops.some((op) => op.kind === "add"),
-      }}
+      addMilestone={addMilestoneCommand}
       indent={{
         run: () => selId !== null && move(selId, indentTarget(wbs, selId)),
         hidden: !canEdit,
@@ -1055,18 +1147,11 @@ export function WbsGantt({
         hidden: !canEdit,
         disabled: selId === null,
       }}
-      subItems={
-        view === "wbs" && selected && selected.childIds.length > 0
-          ? {
-              value: chart.branches.get(selected.item.id) ?? "auto",
-              onChange: (layout) =>
-                changeChart((current) => ({
-                  ...current,
-                  branches: chooseBranch(wbs, current.branches, selected.item.id, layout),
-                })),
-            }
-          : null
-      }
+      undo={{
+        run: undo,
+        hidden: !canEdit,
+        disabled: preview === null && !canUndo(undoStack, wbs),
+      }}
       rename={{
         run: () => selId !== null && startRename(selId),
         hidden: !canEdit,
@@ -1081,314 +1166,292 @@ export function WbsGantt({
         hidden: !canDelete,
         disabled: selId === null,
       }}
-      expandAll={{ run: () => changeCollapsed(() => new Set()), disabled: collapsed.size === 0 }}
+      expandAll={{ run: () => changeFolds(() => new Set()), disabled: folds.size === 0 }}
       collapseAll={{
-        run: () => changeCollapsed(() => new Set(parents.map((n) => n.item.id))),
+        run: () => changeFolds(() => new Set(parents.map((n) => n.item.id))),
         disabled: parents.length === 0,
       }}
+      copyCsv={{ run: () => void copyCsv(), disabled: items.length === 0 }}
+      fullscreen={
+        fullscreen.supported
+          ? { value: fullscreen.active, onChange: () => void fullscreen.toggle() }
+          : null
+      }
+      people={
+        view === "wbs"
+          ? {
+              value: chart.people,
+              onChange: (people) => changeChart((current) => ({ ...current, people })),
+            }
+          : { value: display.assignees, onChange: (assignees) => changeDisplay({ assignees }) }
+      }
+      boxDetails={
+        view === "wbs"
+          ? {
+              value: chart.details,
+              onChange: (details) => changeChart((current) => ({ ...current, details })),
+            }
+          : null
+      }
+      milestones={
+        view === "wbs"
+          ? {
+              value: chart.milestones,
+              onChange: (milestones) => changeChart((current) => ({ ...current, milestones })),
+            }
+          : { value: display.milestones, onChange: (milestones) => changeDisplay({ milestones }) }
+      }
       view={view}
       onView={changeView}
       scale={scale}
       onScale={changeScale}
-      tab={tab}
-      onTab={setTab}
       unmet={unmet}
       saving={saving}
+      planNote={
+        <PlanNote
+          projectId={projectId}
+          note={planNote.text}
+          rowVer={planNote.rowVer}
+          canEdit={canEdit}
+        />
+      }
+      filter={
+        view === "wbs" && items.length > 0 ? (
+          <WbsFilterBar
+            filter={filter}
+            onChange={changeFilter}
+            noMatch={filtered !== null && filtered.items.size === 0}
+          />
+        ) : null
+      }
     />
   );
 
-  const headCell =
-    "flex shrink-0 items-end border-r border-line pb-1.5 text-xs font-medium text-ink-muted";
-
   return (
-    <div className="flex flex-col gap-3">
-      {toolbar}
-
-      {items.length === 0 ? (
-        <EmptyState
-          title={messages.list.emptyTitle}
-          body={W.emptyBody}
-          action={
-            canCreate ? (
-              <Button onClick={() => addItem(false)} pending={ops.some((op) => op.kind === "add")}>
-                {W.addItem}
-              </Button>
-            ) : undefined
-          }
-        />
-      ) : view === "wbs" ? (
-        <WbsDiagram
-          projectName={projectName}
-          wbs={wbs}
-          visible={visible}
-          collapsed={collapsed}
-          selectedId={selectedId}
-          renamingId={renamingId}
-          canEdit={canEdit}
-          canDelete={canDelete}
-          chart={chart}
-          onChart={changeChart}
-          on={diagramHandlers}
-          requirementsHidden={cascade.hidden}
-          addingRequirement={cascade.adding}
-          addRequirementType={cascade.addType}
-          requirementAccess={cascade.access}
-          onRequirement={cascade.handlers}
-          statusColors={statusColors}
-        />
-      ) : (
-        <>
-          <div className="flow-root overflow-clip rounded-lg border border-line bg-surface print:overflow-visible print:border-0">
-            <div
-              ref={scrollRef}
-              data-testid="gantt-chart"
-              className="relative mb-[calc(var(--hbar,0px)*-1)] max-h-[var(--fit-h,calc(100dvh-16rem))] min-h-64 overflow-auto print:mb-0 print:max-h-none print:overflow-visible"
-            >
-              <div className="sticky top-0 z-20 flex h-12 w-max min-w-full border-b border-line bg-surface">
-                <div
-                  ref={nameHeadRef}
-                  className={`${headCell} sticky left-0 z-10 w-56 bg-surface px-3 md:w-80`}
-                >
-                  {W.itemHeader}
-                </div>
-                <div className={`${headCell} w-32 px-2.5 ${tabClass(tab, "outline")}`}>
-                  {W.status}
-                </div>
-                <div className={`${headCell} w-36 px-2.5 ${tabClass(tab, "outline")}`}>
-                  {W.startHeader}
-                </div>
-                <div className={`${headCell} w-36 px-2.5 ${tabClass(tab, "outline")}`}>
-                  {W.endHeader}
-                </div>
-                <div className={`${headCell} w-20 justify-end px-2.5 ${tabClass(tab, "outline")}`}>
-                  {W.daysHeader}
-                </div>
-                <div
-                  ref={axisRef}
-                  aria-hidden="true"
-                  className={`relative shrink-0 ${tabClass(tab, "chart")}`}
-                  style={{ width: timeline.width }}
-                >
-                  <div className="relative h-6 border-b border-line">
-                    {header.top.map((cell) => (
-                      <span
-                        key={cell.key}
-                        className="absolute inset-y-0 flex items-center truncate border-l border-line px-1.5 text-xs font-medium text-ink"
-                        style={{ left: cell.left, width: cell.width }}
-                      >
-                        {cell.label}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="relative h-6">
-                    {header.bottom.map((cell) => (
-                      <span
-                        key={cell.key}
-                        className={`absolute inset-y-0 flex items-center justify-center overflow-hidden border-l border-line text-[11px] tabular-nums ${
-                          cell.weekend ? "bg-surface-sunken text-ink-muted" : "text-ink-muted"
-                        }`}
-                        style={{ left: cell.left, width: cell.width }}
-                      >
-                        {cell.label}
-                      </span>
-                    ))}
-                    {todayX !== null ? (
-                      <span
-                        className="absolute inset-y-0 w-0.5 bg-danger"
-                        style={{ left: todayX }}
-                      />
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-
-              <ul role="list" className="m-0 list-none p-0">
-                {visible.flatMap((id) => {
-                  const node = shown.nodes.get(id)!;
-                  const before = wbs.nodes.get(id);
-                  const requirements = node.item.requirements;
-                  const adding = cascade.adding === id;
-                  const listShown = !cascade.hidden.has(id) || adding;
-                  const rows = [
-                    <WbsRow
-                      key={id}
-                      node={node}
-                      timeline={timeline}
-                      trackStyle={trackStyle}
-                      todayX={todayX}
-                      selected={id === selectedId}
-                      collapsed={collapsed.has(id)}
-                      changed={
-                        preview !== null &&
-                        (!sameDay(before?.start ?? null, node.start) ||
-                          !sameDay(before?.end ?? null, node.end))
-                      }
-                      typing={id === typingId}
-                      tab={tab}
-                      canEdit={canEdit}
-                      on={rowHandlers}
-                      statusColor={
-                        node.item.status ? (statusColors.get(node.item.status) ?? null) : null
-                      }
-                      requirementsHidden={!listShown}
-                      onRequirement={cascade.handlers}
-                    />,
-                  ];
-                  if (listShown) {
-                    requirements.forEach((requirement, index) =>
-                      rows.push(
-                        <RequirementRow
-                          key={`r${requirement.id}`}
-                          node={node}
-                          requirement={requirement}
-                          index={index}
-                          timeline={timeline}
-                          trackStyle={trackStyle}
-                          tab={tab}
-                          access={cascade.access}
-                          on={cascade.handlers}
-                        />,
-                      ),
-                    );
-                  }
-                  // Only under the selected item, to keep the outline short.
-                  if (requirementAccess.canCreate && (adding || (id === selectedId && listShown))) {
-                    rows.push(
-                      <AddRequirementRow
-                        key={`add${id}`}
-                        node={node}
-                        adding={adding}
-                        addType={cascade.addType}
-                        timeline={timeline}
-                        trackStyle={trackStyle}
-                        tab={tab}
-                        on={cascade.handlers}
-                      />,
-                    );
-                  }
-                  return rows;
-                })}
-              </ul>
-
-              <WbsDependencyArrows
-                scrollRef={scrollRef}
-                links={links}
-                wbs={shown}
-                geometryKey={geometryKey}
-              />
-            </div>
-          </div>
-          <StickyScrollbar targetRef={scrollRef} />
-        </>
-      )}
-
-      {moveId !== null && wbs.nodes.has(moveId) ? (
-        <WbsMoveDialog
-          key={moveId}
-          wbs={wbs}
-          id={moveId}
-          projectName={projectName}
-          onClose={() => setMoveId(null)}
-          onMove={(placement) => move(moveId, placement)}
-        />
-      ) : null}
-
-      {dependenciesId !== null && wbs.nodes.has(dependenciesId) ? (
-        <WbsDependenciesDialog
-          key={dependenciesId}
-          wbs={wbs}
-          links={links}
-          id={dependenciesId}
-          canEdit={canEdit}
-          onClose={() => setDependenciesId(null)}
-          onLink={link}
-          onUnlink={unlink}
-        />
-      ) : null}
-
-      {menu && menuNode ? (
-        <WbsContextMenu
-          key={`${menu.id}:${menu.x}:${menu.y}:${menu.status}`}
-          state={menu}
-          node={menuNode}
-          groups={menuGroups}
-          statuses={statuses}
-          canSetStatus={canEdit}
-          onStatus={(status) => setStatus(menuNode.item.id, status)}
-          onClose={closeMenu}
-        />
-      ) : null}
-
-      <ConfirmDialog
-        open={confirmNode !== undefined}
-        onOpenChange={(open) => {
-          if (!open) setConfirmId(null);
-        }}
-        title={
-          confirmNode
-            ? W.deleteTitle(
-                confirmNode.item.name ||
-                  messages.keyDeliverables.deliverableFallback(confirmNode.item.id),
-                descendantIds(wbs, confirmNode.item.id).length,
-              )
-            : ""
-        }
-        body={
-          unallocates > 0 ? `${W.deleteBody} ${W.deleteUnallocates(unallocates)}` : W.deleteBody
-        }
-        confirmLabel={W.delete}
-        onConfirm={remove}
-      />
-
-      <ConfirmDialog
-        open={milestoneNode !== undefined}
-        onOpenChange={(open) => {
-          if (!open) setMilestoneId(null);
-        }}
-        title={
-          milestoneNode
-            ? W.milestoneTitle(
-                milestoneNode.item.name ||
-                  messages.keyDeliverables.deliverableFallback(milestoneNode.item.id),
-              )
-            : ""
-        }
-        body={
-          milestoneNode?.start
-            ? W.milestoneBody(
-                formatDate(milestoneNode.start),
-                milestoneNode.end ? durationDays(milestoneNode.start, milestoneNode.end) : 1,
-              )
-            : W.milestoneNeedsDate
-        }
-        confirmLabel={W.turnIntoMilestone}
-        onConfirm={() => {
-          const id = milestoneId;
-          setMilestoneId(null);
-          if (id !== null) setMilestone(id, true);
-        }}
-      />
-
-      <Sheet
-        open={sheetOpen}
-        onOpenChange={(open) => {
-          if (!open) closeDetails();
-        }}
-        title={messages.keyDeliverables.editTitle}
+    <RequirementOwnersContext value={assigneeOptions}>
+      <div
+        ref={editorRef}
+        data-testid="wbs-editor"
+        className={`flex flex-col gap-3 ${
+          fullscreen.active ? "fixed inset-0 z-(--z-fullscreen) overflow-auto bg-surface p-4" : ""
+        }`}
+        onKeyDown={undoKeys}
       >
-        {openDeliverable ? (
-          <DeliverableForm
-            key={openDeliverable.KeyDeliverableId}
-            projectId={projectId}
-            deliverable={openDeliverable}
-            assigneeOptions={assigneeOptions}
+        {toolbar}
+
+        {items.length === 0 ? (
+          <EmptyState
+            title={messages.list.emptyTitle}
+            body={W.emptyBody}
+            action={
+              canCreate ? (
+                <Button onClick={() => addItem(false)} pending={adding}>
+                  {W.addItem}
+                </Button>
+              ) : undefined
+            }
+          />
+        ) : view === "wbs" ? (
+          <WbsDiagram
+            projectName={projectName}
+            wbs={wbs}
+            filtered={filtered}
+            visible={visible}
+            collapsed={folds}
+            selectedId={selectedId}
+            renamingId={renamingId}
             canEdit={canEdit}
             canDelete={canDelete}
-            focusField={detailsFocus}
-            onDone={closeDetails}
+            chart={chart}
+            onChart={changeChart}
+            on={diagramHandlers}
+            requirementsHidden={searching ? NOTHING : cascade.hidden}
+            addingRequirement={cascade.adding}
+            addRequirementType={cascade.addType}
+            requirementNeeds={needOptions}
+            requirementAccess={cascade.access}
+            onRequirement={cascade.handlers}
+            statusColors={statusColors}
+            people={chart.people}
+            details={chart.details}
+            milestones={chart.milestones ? milestoneChips : undefined}
+          />
+        ) : (
+          <>
+            <GanttBoard
+              scrollRef={scrollRef}
+              wbs={shown}
+              links={links}
+              timeline={timeline}
+              today={today}
+              display={display}
+              progress={progress}
+              milestones={milestoneChips}
+              selectedId={selectedId}
+              listingId={listingId}
+              on={boardHandlers}
+              tools={
+                <GanttTools
+                  addItem={addItemCommand}
+                  addMilestone={addMilestoneCommand}
+                  onCopySummary={() => void copySummary()}
+                  display={display}
+                  onDisplay={changeDisplay}
+                />
+              }
+            />
+            <StickyScrollbar targetRef={scrollRef} />
+            {listed ? (
+              <GanttRequirementsPanel
+                key={listed.item.id}
+                node={listed}
+                adding={cascade.adding === listed.item.id}
+                addType={cascade.addType}
+                needs={needOptions}
+                access={cascade.access}
+                on={cascade.handlers}
+                onClose={() => setListingId(null)}
+              />
+            ) : null}
+          </>
+        )}
+        {/* A card selects on pointerdown, before focus leaves the panel: one panel per item keeps
+            a field's typing on the item it was typed for. */}
+        {selected ? (
+          <WbsDetailsPanel
+            key={selected.item.id}
+            node={selected}
+            canEdit={canEdit}
+            canDone={statuses.some((s) => s.label === DONE_STATUS)}
+            assigneeOptions={assigneeOptions}
+            rolledBudget={budgets.get(selected.item.id) ?? null}
+            subItems={
+              view === "wbs" && selected.childIds.length > 0
+                ? {
+                    value: branchLayout(chart.branches, selected.item.id),
+                    onChange: (layout) => setBranchLayout(selected.item.id, layout),
+                  }
+                : null
+            }
+            on={{
+              rename: (name) => rename(selected.item.id, name),
+              setStart: (value) => setStart(selected.item.id, value),
+              setEnd: (value) => setEnd(selected.item.id, value),
+              update: (patch) => updateDetails(selected.item.id, patch),
+              note: (text) => setNote(selected.item.id, text),
+              done: () => setStatus(selected.item.id, DONE_STATUS),
+              close: () => setSelectedId(null),
+            }}
           />
         ) : null}
-      </Sheet>
-    </div>
+        {moveId !== null && wbs.nodes.has(moveId) ? (
+          <WbsMoveDialog
+            key={moveId}
+            wbs={wbs}
+            id={moveId}
+            projectName={projectName}
+            onClose={() => setMoveId(null)}
+            onMove={(placement) => move(moveId, placement)}
+          />
+        ) : null}
+
+        {dependenciesId !== null && wbs.nodes.has(dependenciesId) ? (
+          <WbsDependenciesDialog
+            key={dependenciesId}
+            wbs={wbs}
+            links={links}
+            id={dependenciesId}
+            canEdit={canEdit}
+            onClose={() => setDependenciesId(null)}
+            onLink={link}
+            onUnlink={unlink}
+          />
+        ) : null}
+
+        {menu && menuNode ? (
+          <WbsContextMenu
+            key={`${menu.id}:${menu.x}:${menu.y}:${menu.status}`}
+            state={menu}
+            node={menuNode}
+            groups={menuGroups}
+            statuses={statuses}
+            canSetStatus={canEdit}
+            onStatus={(status) => setStatus(menuNode.item.id, status)}
+            onClose={closeMenu}
+          />
+        ) : null}
+
+        <ConfirmDialog
+          open={confirmNode !== undefined}
+          onOpenChange={(open) => {
+            if (!open) setConfirmId(null);
+          }}
+          title={
+            confirmNode
+              ? W.deleteTitle(
+                  confirmNode.item.name ||
+                    messages.keyDeliverables.deliverableFallback(confirmNode.item.id),
+                  descendantIds(wbs, confirmNode.item.id).length,
+                )
+              : ""
+          }
+          body={
+            unallocates > 0 ? `${W.deleteBody} ${W.deleteUnallocates(unallocates)}` : W.deleteBody
+          }
+          confirmLabel={W.delete}
+          onConfirm={remove}
+        />
+
+        <ConfirmDialog
+          open={milestoneNode !== undefined}
+          onOpenChange={(open) => {
+            if (!open) setMilestoneId(null);
+          }}
+          title={
+            milestoneNode
+              ? W.milestoneTitle(
+                  milestoneNode.item.name ||
+                    messages.keyDeliverables.deliverableFallback(milestoneNode.item.id),
+                )
+              : ""
+          }
+          body={
+            milestoneNode?.start
+              ? W.milestoneBody(
+                  formatDate(milestoneNode.start),
+                  milestoneNode.end ? durationDays(milestoneNode.start, milestoneNode.end) : 1,
+                )
+              : W.milestoneNeedsDate
+          }
+          confirmLabel={W.turnIntoMilestone}
+          onConfirm={() => {
+            const id = milestoneId;
+            setMilestoneId(null);
+            if (id !== null) setMilestone(id, true);
+          }}
+        />
+
+        <Sheet
+          open={sheetOpen}
+          onOpenChange={(open) => {
+            if (!open) closeDetails();
+          }}
+          title={messages.keyDeliverables.editTitle}
+        >
+          {openDeliverable ? (
+            <DeliverableForm
+              key={openDeliverable.KeyDeliverableId}
+              projectId={projectId}
+              deliverable={openDeliverable}
+              assigneeOptions={assigneeOptions}
+              canEdit={canEdit}
+              canDelete={canDelete}
+              focusField={detailsFocus}
+              onDone={closeDetails}
+            />
+          ) : null}
+        </Sheet>
+      </div>
+    </RequirementOwnersContext>
   );
 }

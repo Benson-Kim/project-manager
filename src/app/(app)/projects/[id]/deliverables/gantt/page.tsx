@@ -18,6 +18,7 @@ import {
   getKeyDeliverableById,
   getWbs,
 } from "@/modules/key-deliverables/repository/key-deliverables";
+import { listRequirementOptions } from "@/modules/requirements/repository/requirements";
 import { listStakeholderOptions } from "@/modules/stakeholders/repository/stakeholder-options";
 import { KEY_DELIVERABLE_LISTS } from "@/modules/key-deliverables/schemas/key-deliverable";
 import { todayUtc } from "@/modules/key-deliverables/schemas/wbs";
@@ -50,11 +51,12 @@ export default async function DeliverablesGanttPage({
   const raw = flattenSearchParams(await searchParams);
   const openId = raw.d && /^\d+$/.test(raw.d) ? Number(raw.d) : null;
 
-  const [project, data, allows, assigneeOptions, openRaw, lookup] = await Promise.all([
+  const [project, data, allows, assigneeOptions, needOptions, openRaw, lookup] = await Promise.all([
     orNotFound(getProjectCached(projectId, session.userId)),
     orNotFound(getWbs(projectId, session.userId)),
     getProjectPermissions(projectId, session.userId),
     listStakeholderOptions(projectId, session.userId),
+    listRequirementOptions(projectId, session.userId),
     openId ? orNull(getKeyDeliverableById(openId, session.userId)) : null,
     loadLookupLists(KEY_DELIVERABLE_LISTS, session),
   ]);
@@ -83,6 +85,7 @@ export default async function DeliverablesGanttPage({
           <WbsGantt
             projectId={projectId}
             projectName={project.ProjectName}
+            planNote={{ text: project.PlanNote ?? null, rowVer: project.RowVer }}
             data={data}
             today={todayUtc()}
             initialView={isWbsView(raw.view) ? raw.view : "wbs"}
@@ -97,6 +100,7 @@ export default async function DeliverablesGanttPage({
             openDeliverable={openDeliverable}
             sheetOpen={Boolean(openDeliverable)}
             assigneeOptions={assigneeOptions}
+            needOptions={needOptions}
           />
         </LookupListsScope>
       </div>

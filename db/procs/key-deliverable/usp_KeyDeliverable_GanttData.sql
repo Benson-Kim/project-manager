@@ -28,6 +28,11 @@
 --   the WBS and the Gantt are a second surface rendering a register reference, so an allocated
 --   sub-requirement has to read FR-1.2 here exactly as it does in the register. Composing it from
 --   the type and the number is what would have made the two disagree.
+--   Each also carries its parentId, so the views nest allocated sub-requirements under an
+--   allocated parent and derive progress from the met ticks, and its planning fields (ADR-0052):
+--   moscow, criteria, estimateDays, ownerId, ownerName.
+-- Budget and Note (ADR-0052): the item's own; a parent's budget is its sub-items' sum, derived in
+--   the app (schemas/wbs.ts) as the dates are rolled up here.
 -- Row-level access: the project must be accessible (dbo.usp_Project_AssertAccess,
 --   FORBIDDEN_ROW 50003; Admin bypass).
 USE ProjectManager;
@@ -70,6 +75,8 @@ BEGIN
            kd.[Status],
            kd.Color,
            kd.[IsMilestone],
+           kd.Budget,
+           kd.Note,
            kd.CreatedAtUtc,
            p.[StartDate] AS ProjectStartDate,
            p.[EndDate]   AS ProjectEndDate,
@@ -100,6 +107,13 @@ BEGIN
                       ap.Ref                    AS ref,
                       r.Requirement             AS requirement,
                       r.IsMet                   AS isMet,
+                      r.ParentRequirementId     AS parentId,
+                      r.[MoSCoW]                AS moscow,
+                      r.AcceptanceCriteria      AS criteria,
+                      r.EstimateDays            AS estimateDays,
+                      r.OwnerStakeholderId      AS ownerId,
+                      NULLIF(LTRIM(RTRIM(CONCAT(ISNULL(os.FirstName, N''), N' ', ISNULL(os.LastName, N'')))), N'')
+                                                AS ownerName,
                       d.SortOrder               AS sortOrder,
                       CAST(r.RowVer AS BIGINT)  AS rowVer,
                       CAST(d.RowVer AS BIGINT)  AS placeRowVer
@@ -107,6 +121,8 @@ BEGIN
                JOIN app.Requirement AS r
                    ON r.RequirementId = d.RequirementId AND r.IsDeleted = 0
                CROSS APPLY dbo.ufn_Requirement_AncestorPath(r.RequirementId) AS ap
+               LEFT JOIN app.Stakeholder AS os
+                   ON os.StakeholderId = r.OwnerStakeholderId AND os.IsDeleted = 0
                WHERE d.KeyDeliverableId = kd.KeyDeliverableId
                ORDER BY d.SortOrder, r.RequirementId
                FOR JSON PATH, INCLUDE_NULL_VALUES

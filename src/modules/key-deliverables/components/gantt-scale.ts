@@ -2,7 +2,7 @@ import { addDays, dayDiff, utcDay } from "../schemas/wbs";
 
 /**
  * Gantt timeline geometry (ADR-0027): which days the chart shows, how wide a
- * day is at each scale, and the two header rows that keep the dates visible.
+ * day is at each scale, and the period header (quarters or months) over it.
  * Dates are UTC-midnight days, like every stored date; x is in pixels from the
  * timeline's first day.
  */
@@ -10,10 +10,10 @@ import { addDays, dayDiff, utcDay } from "../schemas/wbs";
 export const GANTT_SCALES = ["day", "week", "month"] as const;
 export type GanttScale = (typeof GANTT_SCALES)[number];
 
-export const PX_PER_DAY: Record<GanttScale, number> = { day: 32, week: 12, month: 3 };
+export const PX_PER_DAY: Record<GanttScale, number> = { day: 32, week: 12, month: 2 };
 
 /** Room after the last bar for its date label, in days. */
-const TRAILING_DAYS: Record<GanttScale, number> = { day: 5, week: 14, month: 45 };
+const TRAILING_DAYS: Record<GanttScale, number> = { day: 5, week: 14, month: 14 };
 
 export interface Timeline {
   scale: GanttScale;
@@ -29,7 +29,6 @@ export interface HeaderCell {
   label: string;
   left: number;
   width: number;
-  weekend?: boolean;
 }
 
 export function isGanttScale(value: unknown): value is GanttScale {
@@ -103,12 +102,15 @@ export function barBox(
   return { left, width: Math.max((dayDiff(start, end) + 1) * timeline.pxPerDay, 4) };
 }
 
-/** The smallest box a pointer or a finger has to hit, however short a bar is drawn. */
-export const BAR_HIT_PX = 40;
+/** The middle of a day: where a milestone's diamond and the Today line sit. */
+export function dayCentre(timeline: Timeline, date: Date): number {
+  return xOf(timeline, date) + Math.floor(timeline.pxPerDay / 2);
+}
 
-/** Pixels added on each side of a bar narrower than BAR_HIT_PX to reach it. */
-export function barHitPad(width: number): number {
-  return Math.max(0, (BAR_HIT_PX - width) / 2);
+/** Today's line, or null when today is outside the timeline. */
+export function todayLeft(timeline: Timeline, today: Date): number | null {
+  const offset = dayDiff(timeline.start, today);
+  return offset >= 0 && offset < timeline.days ? dayCentre(timeline, today) : null;
 }
 
 /** The day under an x position. */
@@ -121,12 +123,6 @@ const MONTH_LONG = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
   timeZone: "UTC",
 });
-const MONTH_SHORT = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  year: "numeric",
-  timeZone: "UTC",
-});
-const MONTH_NAME = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" });
 
 function months(timeline: Timeline, format: (d: Date) => string): HeaderCell[] {
   const cells: HeaderCell[] = [];
@@ -148,17 +144,22 @@ function months(timeline: Timeline, format: (d: Date) => string): HeaderCell[] {
   return cells;
 }
 
-function years(timeline: Timeline): HeaderCell[] {
+function quarters(timeline: Timeline): HeaderCell[] {
   const cells: HeaderCell[] = [];
   const last = addDays(timeline.start, timeline.days - 1);
-  for (let y = timeline.start.getUTCFullYear(); y <= last.getUTCFullYear(); y++) {
-    const yearStart = new Date(Date.UTC(y, 0, 1));
-    const yearEnd = new Date(Date.UTC(y, 11, 31));
-    const from = later(yearStart, timeline.start);
-    const to = earlier(yearEnd, last);
+  const first = timeline.start;
+  for (
+    let q = new Date(
+      Date.UTC(first.getUTCFullYear(), first.getUTCMonth() - (first.getUTCMonth() % 3), 1),
+    );
+    q.getTime() <= last.getTime();
+    q = new Date(Date.UTC(q.getUTCFullYear(), q.getUTCMonth() + 3, 1))
+  ) {
+    const from = later(q, timeline.start);
+    const to = earlier(new Date(Date.UTC(q.getUTCFullYear(), q.getUTCMonth() + 3, 0)), last);
     cells.push({
-      key: `y${y}`,
-      label: String(y),
+      key: `q${q.toISOString()}`,
+      label: `${q.getUTCFullYear()} Q${q.getUTCMonth() / 3 + 1}`,
       left: xOf(timeline, from),
       width: (dayDiff(from, to) + 1) * timeline.pxPerDay,
     });
@@ -166,51 +167,9 @@ function years(timeline: Timeline): HeaderCell[] {
   return cells;
 }
 
-/**
- * The two header rows:
- * - day:   month and year over each day's number (weekends marked);
- * - week:  month and year over the date of each week's Monday;
- * - month: the year over each month's name.
- */
-export function headerRows(timeline: Timeline): { top: HeaderCell[]; bottom: HeaderCell[] } {
-  if (timeline.scale === "month") {
-    return { top: years(timeline), bottom: months(timeline, (d) => MONTH_NAME.format(d)) };
-  }
-  if (timeline.scale === "week") {
-    const bottom: HeaderCell[] = [];
-    for (let i = 0; i < timeline.days; i += 7) {
-      const monday = addDays(timeline.start, i);
-      bottom.push({
-        key: `w${i}`,
-        label: String(monday.getUTCDate()),
-        left: i * timeline.pxPerDay,
-        width: 7 * timeline.pxPerDay,
-      });
-    }
-    return { top: months(timeline, (d) => MONTH_SHORT.format(d)), bottom };
-  }
-  const bottom: HeaderCell[] = [];
-  for (let i = 0; i < timeline.days; i++) {
-    const day = addDays(timeline.start, i);
-    const dow = day.getUTCDay();
-    bottom.push({
-      key: `d${i}`,
-      label: String(day.getUTCDate()),
-      left: i * timeline.pxPerDay,
-      width: timeline.pxPerDay,
-      weekend: dow === 0 || dow === 6,
-    });
-  }
-  return { top: months(timeline, (d) => MONTH_LONG.format(d)), bottom };
-}
-
-const SHORT_DATE = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  timeZone: "UTC",
-});
-
-/** "Apr 16" — the dates printed beside a bar. */
-export function shortDate(date: Date): string {
-  return SHORT_DATE.format(date);
+/** The Gantt's period header: quarters, or months at the day scale. */
+export function periodCells(timeline: Timeline): HeaderCell[] {
+  return timeline.scale === "day"
+    ? months(timeline, (d) => MONTH_LONG.format(d))
+    : quarters(timeline);
 }
