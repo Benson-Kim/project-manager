@@ -104,7 +104,8 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col bg-surface-raised pt-2 pr-2 pb-2">
         <div className="flex flex-col flex-1 p-3 pb-4 rounded-2xl bg-surface border border-line min-h-[calc(100dvh-1rem)]">
-          <header className="sticky top-0 z-(--z-dialog) flex h-14 items-center gap-1 border border-line bg-surface px-4 py-3 rounded-t-md [background-image:linear-gradient(to_bottom,var(--surface-raised),var(--surface))]">
+          {/* A full-screen view (useFullscreen) covers the page from inside main: the header steps aside. */}
+          <header className="sticky top-0 z-(--z-dialog) flex h-14 items-center gap-1 border border-line bg-surface px-4 py-3 rounded-t-md [background-image:linear-gradient(to_bottom,var(--surface-raised),var(--surface))] [:root:fullscreen_&]:hidden">
             <button
               type="button"
               aria-label={messages.app.menu}

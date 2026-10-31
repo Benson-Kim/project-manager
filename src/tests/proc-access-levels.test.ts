@@ -31,6 +31,7 @@ const MODULES: Record<string, string> = {
   "parking-lot-item": "parking-lot",
   note: "notes",
   "note-tab": "notes",
+  "note-section": "notes",
   "assumption-constraint": "assumptions-constraints",
   "todo-item": "todo-items",
   "todo-alert": "todo-alerts",
@@ -84,6 +85,8 @@ const VERBS: Record<string, string> = {
   Rename: "update",
   // Requirements (ADR-0037): taking a requirement off one deliverable is an update of it.
   Unallocate: "update",
+  // Notebook tabs (ADR-0053): removing them keeps every page, so it edits the notebook.
+  Ungroup: "update",
   // Boards (ADR-0038): running a sprint is editing the board's work, not administering it, so
   // both lifecycle steps are Contributor verbs — the same level as moving a card.
   Start: "update",

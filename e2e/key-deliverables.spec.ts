@@ -66,6 +66,30 @@ async function ganttMenu(page: Page, handle: Locator, entry: string): Promise<vo
   }).toPass({ timeout: 20_000 });
 }
 
+/**
+ * Picks an entry from a card's menu and waits for what it opens. The refresh after a save can
+ * move the card and close its menu before the pick lands, so the pick is retried until `opens`
+ * shows; `label` checks what the entry reads first.
+ */
+async function pickFromGanttMenu(
+  page: Page,
+  handle: Locator,
+  entry: string,
+  opens: Locator,
+  label?: string,
+): Promise<void> {
+  await expect(async () => {
+    if (!(await opens.isVisible())) {
+      await handle.focus();
+      await page.keyboard.press("Shift+F10");
+      const item = page.getByTestId(entry);
+      if (label) await expect(item).toHaveText(label, { timeout: 2_000 });
+      await item.click({ timeout: 2_000 });
+    }
+    await expect(opens).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+}
+
 /** Drags a point sideways by the given pixels, in steps, as a person would. */
 async function dragBy(page: Page, target: Locator, dx: number): Promise<void> {
   await target.scrollIntoViewIfNeeded();
@@ -691,7 +715,11 @@ test("WBS: Undo move takes back a move and a reschedule, from the button or Ctrl
   await page.reload();
   await expect.poll(startsOn).toBe(day0);
 
-  await page.getByTestId("wbs-view-wbs").click();
+  // The reloaded page shows its dates before it answers clicks: switch until the boxes show.
+  await expect(async () => {
+    await page.getByTestId("wbs-view-wbs").click();
+    await expect(page.getByTestId(`wbs-box-${id}`)).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   for (const boxId of [id, leadId]) {
     await selectBox(page.getByTestId(`wbs-box-${boxId}`));
     await page.getByTestId("wbs-delete").click();
@@ -875,11 +903,14 @@ test("WBS: a milestone is added as one day, converted either way, moved but not 
   const taskId = await addInGantt(page, `E2E span ${stamp}`);
   await expect(page.locator(`[data-wbs-details-name="${taskId}"]`)).toBeVisible();
   const taskDay0 = await startField.inputValue();
-  await ganttMenu(page, page.getByTestId(`gantt-card-${taskId}-name`), "wbs-menu-milestone");
-  await expect(page.getByTestId("wbs-menu-milestone")).toHaveText(W.turnIntoMilestone);
-  await page.getByTestId("wbs-menu-milestone").click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog).toContainText(new RegExp(escapeRegExp("span is dropped")));
+  const dialog = page.getByRole("dialog").filter({ hasText: "span is dropped" });
+  await pickFromGanttMenu(
+    page,
+    page.getByTestId(`gantt-card-${taskId}-name`),
+    "wbs-menu-milestone",
+    dialog,
+    W.turnIntoMilestone,
+  );
   await dialog.getByRole("button", { name: W.turnIntoMilestone }).click();
 
   // It keeps its start and loses the span: a diamond now, with no end to set.
@@ -889,9 +920,7 @@ test("WBS: a milestone is added as one day, converted either way, moved but not 
   await expect(endField).toHaveCount(0);
 
   // Turning it back keeps the one day, and then it can be stretched again.
-  await ganttMenu(page, converted, "wbs-menu-milestone");
-  await expect(page.getByTestId("wbs-menu-milestone")).toHaveText(W.turnIntoTask);
-  await page.getByTestId("wbs-menu-milestone").click();
+  await pickFromGanttMenu(page, converted, "wbs-menu-milestone", endField, W.turnIntoTask);
   await expect(endField).toHaveValue(taskDay0);
   await endField.fill(plusDays(taskDay0, 4));
   await endField.press("Enter");
@@ -1485,11 +1514,8 @@ test("WBS: two items are linked, the successor is pushed, and the link goes with
 
   // Links are made in the Dependencies panel, opened from the card's menu.
   const secondName = page.getByTestId(`gantt-card-${secondId}-name`);
-  await ganttMenu(page, secondName, "wbs-menu-dependencies");
-  await page.getByTestId("wbs-menu-dependencies").click();
-
   const panel = page.getByTestId("wbs-dependencies");
-  await expect(panel).toBeVisible();
+  await pickFromGanttMenu(page, secondName, "wbs-menu-dependencies", panel);
   await expect(panel).toContainText(W.noDependencies);
   await panel.getByRole("combobox", { name: W.dependencyPredecessor }).fill(`E2E pour ${stamp}`);
   await page.getByRole("option", { name: new RegExp(escapeRegExp(`E2E pour ${stamp}`)) }).click();
@@ -1511,9 +1537,8 @@ test("WBS: two items are linked, the successor is pushed, and the link goes with
     `[data-gantt-dependency-from="${firstId}"][data-gantt-dependency-to="${secondId}"]`,
   );
   await expect(dependency.locator("path").first()).toBeVisible();
-  await ganttMenu(page, secondName, "wbs-menu-dependencies");
-  await page.getByTestId("wbs-menu-dependencies").click();
-  await expect(page.getByTestId("wbs-dependencies")).toContainText(`E2E pour ${stamp}`);
+  await pickFromGanttMenu(page, secondName, "wbs-menu-dependencies", panel);
+  await expect(panel).toContainText(`E2E pour ${stamp}`);
   await page.keyboard.press("Escape");
 
   // Deleting the predecessor takes the link with it, so no arrow is left pointing at nothing.
