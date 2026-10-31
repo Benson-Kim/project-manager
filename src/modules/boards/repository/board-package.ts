@@ -1,7 +1,14 @@
 import { z } from "zod";
 import { requirementOptionSchema } from "@/modules/requirements/schemas/requirement";
 import { execProc } from "@/lib/db";
-import { packageRequirementsInput, type PackageRequirementsInput } from "../schemas/board-package";
+import {
+  packageDeliverablesInput,
+  packageRequirementsInput,
+  type PackageDeliverablesInput,
+  type PackageRequirementsInput,
+} from "../schemas/board-package";
+
+const packagedSchema = z.object({ AddedCards: z.number().int(), SkippedCards: z.number().int() });
 export async function packageRequirements(input: PackageRequirementsInput, actorUserId: number) {
   const parsed = packageRequirementsInput.parse(input);
   const rows = await execProc("usp_BoardCard_Package", {
@@ -11,7 +18,20 @@ export async function packageRequirements(input: PackageRequirementsInput, actor
     RequirementIds: JSON.stringify(parsed.requirementIds),
     ActorUserId: actorUserId,
   });
-  return z.object({ AddedCards: z.number().int(), SkippedCards: z.number().int() }).parse(rows[0]);
+  return packagedSchema.parse(rows[0]);
+}
+
+/** Deliverables as cards (ADR-0052): the twin of packageRequirements, one atomic call. */
+export async function packageDeliverables(input: PackageDeliverablesInput, actorUserId: number) {
+  const parsed = packageDeliverablesInput.parse(input);
+  const rows = await execProc("usp_BoardCard_PackageDeliverables", {
+    BoardId: parsed.boardId,
+    BoardColumnId: parsed.boardColumnId,
+    BoardSprintId: parsed.boardSprintId ?? null,
+    KeyDeliverableIds: JSON.stringify(parsed.keyDeliverableIds),
+    ActorUserId: actorUserId,
+  });
+  return packagedSchema.parse(rows[0]);
 }
 
 /** Board imports include solutions as well as needs; trace-link options deliberately do not. */

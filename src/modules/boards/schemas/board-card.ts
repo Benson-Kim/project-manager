@@ -2,6 +2,7 @@ import { z } from "zod";
 import { OPTION_COLORS } from "@/lib/lookup-lists";
 import { richTextSchema } from "@/lib/rich-text/schema";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
+import { moscowSchema } from "@/modules/requirements/schemas/moscow";
 import { REQUIREMENT_TYPES } from "@/modules/requirements/schemas/requirement-types";
 import {
   BOARD_CARD_TITLE_MAX,
@@ -39,6 +40,31 @@ const requirementFields = {
   RequirementText: z.string().nullable(),
   RequirementIsMet: z.boolean().nullable(),
   RequirementProjectId: z.number().int().nullable(),
+  RequirementMoSCoW: moscowSchema.nullable(),
+};
+
+/**
+ * The deliverable columns every card read carries (ADR-0052), from dbo.ufn_BoardCard_Deliverable:
+ * NULL on a redacted or removed card, the same four states as a requirement. The counts are over
+ * the deliverable's allocated requirements, sub-requirements included.
+ */
+const deliverableFields = {
+  DeliverableState: z.enum(REQUIREMENT_STATES),
+  KeyDeliverableId: z.number().int().nullable(),
+  DeliverableProjectId: z.number().int().nullable(),
+  DeliverableTitle: z.string().nullable(),
+  DeliverableStatus: z.string().nullable(),
+  DeliverablePriority: z.string().nullable(),
+  DeliverableColor: z.enum(OPTION_COLORS).nullable(),
+  DeliverableStartDate: z.date().nullable(),
+  DeliverableDeadline: z.date().nullable(),
+  DeliverableRequirementCount: z.number().int().nonnegative().nullable(),
+  DeliverableMetCount: z.number().int().nonnegative().nullable(),
+  DeliverableMustCount: z.number().int().nonnegative().nullable(),
+  DeliverableMustMetCount: z.number().int().nonnegative().nullable(),
+  DeliverableShouldCount: z.number().int().nonnegative().nullable(),
+  DeliverableCouldCount: z.number().int().nonnegative().nullable(),
+  DeliverableWontCount: z.number().int().nonnegative().nullable(),
 };
 
 /** What the card write procs return. */
@@ -48,6 +74,7 @@ export const boardCardRowSchema = z.object({
   BoardColumnId: z.number().int(),
   BoardSprintId: z.number().int().nullable(),
   RequirementId: z.number().int().nullable(),
+  KeyDeliverableId: z.number().int().nullable(),
   Title: z.string().nullable(),
   AssigneeUserId: z.number().int().nullable(),
   DueDate: z.date().nullable(),
@@ -60,11 +87,31 @@ export const boardCardRowSchema = z.object({
 export type BoardCardRow = z.infer<typeof boardCardRowSchema>;
 
 /** usp_Board_GetBoard set 5: a card as the board and planning views draw it. */
-export const boardCardListRowSchema = boardCardRowSchema.omit({ RequirementId: true }).extend({
-  ...requirementFields,
-});
+export const boardCardListRowSchema = boardCardRowSchema
+  .omit({ RequirementId: true, KeyDeliverableId: true })
+  .extend({ ...requirementFields, ...deliverableFields });
 
 export type BoardCardListRow = z.infer<typeof boardCardListRowSchema>;
+
+/** usp_BoardCard_GetById set 2: the carried deliverable's requirements, for the drawer (ADR-0052). */
+export const cardDeliverableRequirementSchema = z.object({
+  RequirementId: z.number().int(),
+  RequirementType: z.enum(REQUIREMENT_TYPES),
+  Ref: z.string().min(1),
+  SortPath: z.string().min(1),
+  Depth: z.number().int().nonnegative(),
+  ParentRequirementId: z.number().int().nullable(),
+  Requirement: z.string(),
+  IsMet: z.boolean(),
+  MoSCoW: moscowSchema.nullable(),
+  AcceptanceCriteria: z.string().nullable(),
+  EstimateDays: z.number().nonnegative().nullable(),
+  OwnerStakeholderId: z.number().int().nullable(),
+  RowVer: rowVerSchema,
+  PlaceRowVer: rowVerSchema,
+});
+
+export type CardDeliverableRequirement = z.infer<typeof cardDeliverableRequirementSchema>;
 
 /** usp_BoardCard_GetById: the card sheet, which is the only read that loads Notes. */
 export const boardCardDetailRowSchema = boardCardListRowSchema.extend({
@@ -73,6 +120,10 @@ export const boardCardDetailRowSchema = boardCardListRowSchema.extend({
   CreatedBy: z.number().int(),
   CreatedAtUtc: z.date(),
   UpdatedAtUtc: z.date().nullable(),
+  /** The carried requirement's version, NULL unless it is live: the sheet's met tick and MoSCoW. */
+  RequirementRowVer: rowVerSchema.nullable(),
+  /** Set 2, attached by the repository; empty unless the deliverable is live. */
+  DeliverableRequirements: z.array(cardDeliverableRequirementSchema),
 });
 
 export type BoardCardDetailRow = z.infer<typeof boardCardDetailRowSchema>;
@@ -132,6 +183,19 @@ export const deleteBoardCardInput = z.object({
 });
 
 export type DeleteBoardCardInput = z.input<typeof deleteBoardCardInput>;
+
+/**
+ * Linking a requirement to an existing card is its own intention, not a field on
+ * an edit. NULL requirementId unlinks; a positive id links. The proc checks the
+ * requirement's project, the unique constraint, and CK_BoardCard_Content.
+ */
+export const linkBoardCardInput = z.object({
+  boardCardId: z.number().int().positive(),
+  rowVer: rowVerSchema,
+  requirementId: z.number().int().positive().nullable(),
+});
+
+export type LinkBoardCardInput = z.input<typeof linkBoardCardInput>;
 
 /** Card details are a read intention; no row version or write contract. */
 export const readBoardCardInput = z.object({ boardCardId: z.number().int().positive() });

@@ -96,6 +96,7 @@ BEGIN
            BoardColumnId,
            BoardSprintId,
            RequirementId,
+           KeyDeliverableId,
            Title,
            AssigneeUserId,
            DueDate,

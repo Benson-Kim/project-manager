@@ -12,6 +12,7 @@ import {
   createBoardCard,
   deleteBoardCard,
   getBoardCardById,
+  linkBoardCardRequirement,
   moveBoardCard,
   updateBoardCard,
 } from "../repository/board-cards";
@@ -31,6 +32,7 @@ const cardDbRow = {
   BoardColumnId: 4,
   BoardSprintId: null,
   RequirementId: null,
+  KeyDeliverableId: null,
   Title: "Write the migration",
   AssigneeUserId: null,
   DueDate: null,
@@ -38,6 +40,26 @@ const cardDbRow = {
   Color: "blue",
   SortKey: "2097152",
   RowVer: "9",
+};
+
+/** The deliverable columns of a card read with no deliverable (ADR-0052). */
+const noDeliverable = {
+  DeliverableState: "none",
+  KeyDeliverableId: null,
+  DeliverableProjectId: null,
+  DeliverableTitle: null,
+  DeliverableStatus: null,
+  DeliverablePriority: null,
+  DeliverableColor: null,
+  DeliverableStartDate: null,
+  DeliverableDeadline: null,
+  DeliverableRequirementCount: null,
+  DeliverableMetCount: null,
+  DeliverableMustCount: null,
+  DeliverableMustMetCount: null,
+  DeliverableShouldCount: null,
+  DeliverableCouldCount: null,
+  DeliverableWontCount: null,
 };
 
 const lastParams = () => Object.keys(execProc.mock.calls.at(-1)![1] as object).sort();
@@ -212,10 +234,70 @@ describe("board card repository sends exactly the parameters each proc declares"
   });
 
   it("usp_BoardCard_GetById, and it refuses a card the proc did not return", async () => {
-    execProc.mockResolvedValue([]);
+    execProcSets.mockResolvedValue([[], []]);
     await expect(getBoardCardById(11, ACTOR)).rejects.toThrow();
-    expect(execProc.mock.calls[0][0]).toBe("usp_BoardCard_GetById");
-    expect(lastParams()).toEqual(["ActorUserId", "BoardCardId"]);
+    expect(execProcSets.mock.calls[0][0]).toBe("usp_BoardCard_GetById");
+    expect(Object.keys(execProcSets.mock.calls[0][1] as object).sort()).toEqual([
+      "ActorUserId",
+      "BoardCardId",
+    ]);
+  });
+
+  it("attaches the deliverable's requirements from the sheet's second set (ADR-0052)", async () => {
+    const detail = {
+      ...cardDbRow,
+      Title: null,
+      Notes: null,
+      AssigneeName: null,
+      CreatedBy: 1,
+      CreatedAtUtc: new Date(),
+      UpdatedAtUtc: null,
+      RequirementState: "none",
+      RequirementType: null,
+      RequirementNumber: null,
+      RequirementText: null,
+      RequirementIsMet: null,
+      RequirementProjectId: null,
+      RequirementMoSCoW: null,
+      RequirementRowVer: null,
+      ...noDeliverable,
+      DeliverableState: "live",
+      KeyDeliverableId: 31,
+    };
+    const requirement = {
+      RequirementId: 40,
+      RequirementType: "FR",
+      Ref: "FR-1.1",
+      SortPath: "0000000001.0000000001",
+      Depth: 1,
+      ParentRequirementId: 39,
+      Requirement: "Stamp",
+      IsMet: false,
+      MoSCoW: "M",
+      AcceptanceCriteria: null,
+      EstimateDays: 0.5,
+      OwnerStakeholderId: null,
+      RowVer: "3001",
+      PlaceRowVer: "7001",
+    };
+    execProcSets.mockResolvedValue([[detail], [requirement]]);
+    const card = await getBoardCardById(11, ACTOR);
+    expect(card.DeliverableRequirements).toEqual([
+      { ...requirement, RowVer: 3001, PlaceRowVer: 7001 },
+    ]);
+    execProcSets.mockResolvedValue([[detail]]);
+    expect((await getBoardCardById(11, ACTOR)).DeliverableRequirements).toEqual([]);
+  });
+
+  it("usp_BoardCard_LinkRequirement sends the card, its row version and the requirement only", async () => {
+    await linkBoardCardRequirement(
+      { boardCardId: 11, rowVer: 9, requirementId: 40, boardId: 8, title: "x" } as never,
+      ACTOR,
+    );
+    expect(execProc.mock.calls[0][0]).toBe("usp_BoardCard_LinkRequirement");
+    expect(lastParams()).toEqual(["ActorUserId", "BoardCardId", "RequirementId", "RowVer"]);
+    await linkBoardCardRequirement({ boardCardId: 11, rowVer: 9, requirementId: null }, ACTOR);
+    expect((execProc.mock.calls.at(-1)![1] as { RequirementId: unknown }).RequirementId).toBeNull();
   });
 
   it("usp_Board_ListAssignees returns names and nothing else about a person", async () => {
@@ -275,6 +357,8 @@ describe("the board read", () => {
           RequirementText: null,
           RequirementIsMet: null,
           RequirementProjectId: null,
+          RequirementMoSCoW: null,
+          ...noDeliverable,
         },
       ],
     ]);
@@ -316,9 +400,67 @@ describe("the board read", () => {
       RequirementText: null,
       RequirementIsMet: null,
       RequirementProjectId: null,
+      RequirementMoSCoW: null,
+      ...noDeliverable,
     });
     expect(row.RequirementState).toBe("restricted");
     expect(row.RequirementText).toBeNull();
+  });
+
+  it("accepts a restricted deliverable card, whose deliverable columns are all null (ADR-0052)", () => {
+    const row = boardCardListRowSchema.parse({
+      ...cardDbRow,
+      Title: null,
+      RequirementState: "none",
+      RequirementType: null,
+      RequirementNumber: null,
+      RequirementText: null,
+      RequirementIsMet: null,
+      RequirementProjectId: null,
+      RequirementMoSCoW: null,
+      ...noDeliverable,
+      DeliverableState: "restricted",
+    });
+    expect(row.DeliverableState).toBe("restricted");
+    expect(row.DeliverableTitle).toBeNull();
+  });
+
+  it("reads a live deliverable card's counts and refuses a negative MoSCoW count", () => {
+    const live = {
+      ...cardDbRow,
+      Title: null,
+      RequirementState: "none",
+      RequirementType: null,
+      RequirementNumber: null,
+      RequirementText: null,
+      RequirementIsMet: null,
+      RequirementProjectId: null,
+      RequirementMoSCoW: null,
+      ...noDeliverable,
+      DeliverableState: "live",
+      KeyDeliverableId: 31,
+      DeliverableProjectId: 2,
+      DeliverableTitle: "Permits",
+      DeliverableColor: "purple",
+      DeliverableRequirementCount: 4,
+      DeliverableMetCount: 1,
+      DeliverableMustCount: 2,
+      DeliverableMustMetCount: 1,
+      DeliverableShouldCount: 0,
+      DeliverableCouldCount: 1,
+      DeliverableWontCount: 0,
+    };
+    expect(boardCardListRowSchema.parse(live)).toMatchObject({
+      KeyDeliverableId: 31,
+      DeliverableMustCount: 2,
+      DeliverableCouldCount: 1,
+    });
+    expect(boardCardListRowSchema.safeParse({ ...live, DeliverableShouldCount: -1 }).success).toBe(
+      false,
+    );
+    expect(boardCardListRowSchema.safeParse({ ...live, DeliverableColor: "#fff" }).success).toBe(
+      false,
+    );
   });
 });
 

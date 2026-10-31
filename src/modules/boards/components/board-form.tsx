@@ -10,6 +10,7 @@ import { UnsavedChangesScope, useUnsavedPart } from "@/components/ui/form/unsave
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { messages } from "@/lib/messages";
+import { hasUnshownIssue } from "../schemas/board-form";
 export { toDateInput as isoDate } from "@/lib/format";
 
 const Errors = createContext<Record<string, string[]>>({});
@@ -17,6 +18,10 @@ const Errors = createContext<Record<string, string[]>>({});
 export function BoardField(props: Omit<FieldProps, "errors">) {
   const errors = useContext(Errors);
   return <Field {...props} errors={errors[props.name]} />;
+}
+/** The card sheet carries the requirement and deliverable panels beside its fields. */
+function WideSheet(props: React.ComponentProps<typeof Dialog>) {
+  return <Sheet {...props} wide />;
 }
 interface Props<T extends z.ZodType, R> {
   title: string;
@@ -55,7 +60,7 @@ function FormContent<T extends z.ZodType, R>({
   const [dirty, setDirty] = useState(false);
   const [pending, start] = useTransition();
   const unsaved = useUnsavedPart("board-form", dirty);
-  const Overlay = sheet ? Sheet : Dialog;
+  const Overlay = sheet ? WideSheet : Dialog;
   const requestClose = () => {
     if (!pending) unsaved.leave(close);
   };
@@ -74,9 +79,17 @@ function FormContent<T extends z.ZodType, R>({
         onBlur={form.onBlur}
         onSubmit={(event) => {
           event.preventDefault();
-          if (pending || readOnly || submitDisabled || !form.validate(event.currentTarget)) return;
-          const parsed = schema.safeParse(Object.fromEntries(new FormData(event.currentTarget)));
-          if (!parsed.success) return;
+          const target = event.currentTarget;
+          if (pending || readOnly || submitDisabled) return;
+          const parsed = schema.safeParse(Object.fromEntries(new FormData(target)));
+          if (!parsed.success) {
+            form.validate(target);
+            const unshown = hasUnshownIssue(parsed.error, (name) =>
+              Boolean(target.elements.namedItem(name)),
+            );
+            setError(unshown ? messages.errors.INTERNAL : null);
+            return;
+          }
           setError(null);
           start(async () => {
             try {
@@ -100,7 +113,8 @@ function FormContent<T extends z.ZodType, R>({
             {children}
           </fieldset>
         </Errors.Provider>
-        <div className="flex justify-end gap-2">
+        {/* Pinned: a late-loading editor above cannot move Save out from under a click. */}
+        <div className="sticky bottom-0 flex justify-end gap-2 bg-surface pt-2">
           <Button variant="secondary" disabled={pending} onClick={requestClose}>
             {messages.actions.cancel}
           </Button>

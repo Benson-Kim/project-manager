@@ -14,6 +14,7 @@ import {
   createBoardCard,
   deleteBoardCard,
   getBoardCardById,
+  linkBoardCardRequirement,
   moveBoardCard,
   updateBoardCard,
 } from "../repository/board-cards";
@@ -23,7 +24,12 @@ import {
   moveBoardColumn,
   updateBoardColumn,
 } from "../repository/board-columns";
-import { listPackagingRequirementOptions, packageRequirements } from "../repository/board-package";
+import {
+  listPackagingRequirementOptions,
+  packageDeliverables,
+  packageRequirements,
+} from "../repository/board-package";
+import { listDeliverableOptions } from "@/modules/key-deliverables/repository/key-deliverables";
 import {
   createBoardPhase,
   deleteBoardPhase,
@@ -46,6 +52,7 @@ import {
 import {
   createBoardCardInput,
   deleteBoardCardInput,
+  linkBoardCardInput,
   moveBoardCardInput,
   readBoardCardInput,
   updateBoardCardInput,
@@ -56,7 +63,7 @@ import {
   moveBoardColumnInput,
   updateBoardColumnInput,
 } from "../schemas/board-column";
-import { packageRequirementsInput } from "../schemas/board-package";
+import { packageDeliverablesInput, packageRequirementsInput } from "../schemas/board-package";
 import {
   createBoardPhaseInput,
   deleteBoardPhaseInput,
@@ -147,6 +154,15 @@ export const deleteBoardCardAction = boardMutation({
   schema: deleteBoardCardInput,
   permission: "boards:delete",
   mutate: deleteBoardCard,
+});
+
+/** Attach a requirement to an existing card, or detach it with null. The proc also asserts the
+ *  actor can read the requirement's project. */
+export const linkBoardCardRequirementAction = boardMutation({
+  name: "boards.linkRequirement",
+  schema: linkBoardCardInput,
+  permission: "boards:update",
+  mutate: linkBoardCardRequirement,
 });
 
 export const createBoardColumnAction = boardMutation({
@@ -260,6 +276,23 @@ export const packageRequirementsAction = boardMutation({
   permission: "boards:create",
   mutate: packageRequirements,
 });
+/** Deliverables as cards (ADR-0052): the card dialog's "Deliverable" source. */
+export const packageDeliverablesAction = boardMutation({
+  name: "boards.packageDeliverables",
+  schema: packageDeliverablesInput,
+  permission: "boards:create",
+  mutate: packageDeliverables,
+});
+
+/** The project's deliverables, numbered as the work breakdown numbers them. The read proc asserts
+ *  the actor can see the project; packaging asserts it again on write. */
+export const readDeliverableOptionsAction = action({
+  name: "boards.deliverableOptions",
+  schema: z.object({ projectId: z.number().int().positive() }),
+  permission: "boards:read",
+  handler: (input, ctx) => listDeliverableOptions(input.projectId, ctx.session.userId),
+});
+
 export const readPackagingOptionsAction = action({
   name: "boards.packageOptions",
   schema: z.object({ projectId: z.number().int().positive() }),

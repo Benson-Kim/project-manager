@@ -14,7 +14,8 @@ const PROCS = join("db", "procs", "board");
 const MIGRATION = join("db", "migrations", "037_boards.sql");
 const CARD_MIGRATION = join("db", "migrations", "038_board_cards.sql");
 
-const sql = (path: string) => readFileSync(path, "utf8");
+/** LF whatever the checkout: Windows with core.autocrlf writes the procs with CRLF. */
+const sql = (path: string) => readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 
 /**
  * The write sets of a folder, read out of the folder itself so a new proc joins them by
@@ -296,6 +297,8 @@ const cardRowVerWrites = procsTakingRowVer(PROCS_CARD);
 const cardWrites = [
   "usp_BoardCard_Create.sql",
   "usp_BoardCard_Package.sql",
+  "usp_BoardCard_PackageDeliverables.sql",
+  "usp_BoardCard_LinkRequirement.sql",
   "usp_BoardCard_Update.sql",
   "usp_BoardCard_Move.sql",
   "usp_BoardCard_Delete.sql",
@@ -350,6 +353,17 @@ describe("board card schema guardrails", () => {
   it("points the requirement at the register's table, which is why this is migration 038", () => {
     expect(sql(CARD_MIGRATION)).toContain("REFERENCES app.Requirement (RequirementId)");
   });
+
+  it("keeps one deliverable per board and widens the content rule to it (migration 051)", () => {
+    const migration = sql(join("db", "migrations", "051_plan_views.sql"));
+    expect(migration).toMatch(
+      /CREATE UNIQUE INDEX UQ_BoardCard_Deliverable ON app\.BoardCard \(BoardId, KeyDeliverableId\)\s+WHERE KeyDeliverableId IS NOT NULL AND IsDeleted = 0/,
+    );
+    expect(migration).toContain(
+      "CHECK (Title IS NOT NULL OR RequirementId IS NOT NULL OR KeyDeliverableId IS NOT NULL)",
+    );
+    expect(migration).toContain("REFERENCES app.KeyDeliverable (KeyDeliverableId)");
+  });
 });
 
 describe("board card SQL guardrails", () => {
@@ -359,8 +373,10 @@ describe("board card SQL guardrails", () => {
       "usp_BoardCard_Create.sql",
       "usp_BoardCard_Delete.sql",
       "usp_BoardCard_GetById.sql",
+      "usp_BoardCard_LinkRequirement.sql",
       "usp_BoardCard_Move.sql",
       "usp_BoardCard_Package.sql",
+      "usp_BoardCard_PackageDeliverables.sql",
       "usp_BoardCard_Update.sql",
     ]);
   });
@@ -436,6 +452,7 @@ describe("board card SQL guardrails", () => {
       "@BoardColumnId",
       "@BoardSprintId",
       "@RequirementId",
+      "@KeyDeliverableId",
       "@SortKey",
       "@CreatedBy",
     ]) {
@@ -482,6 +499,71 @@ describe("board card SQL guardrails", () => {
     const search = text.slice(text.indexOf("AND (@Search IS NULL"));
     // The requirement half of the search is gated on the reader's access to its project.
     expect(search).toContain("ra.AccessLevel IS NOT NULL");
+  });
+
+  it("never matches a restricted deliverable's title in a search (ADR-0052)", () => {
+    const text = sql(join(PROCS, "usp_Board_GetBoard.sql"));
+    const search = text.slice(text.indexOf("AND (@Search IS NULL"), text.indexOf("ranked AS"));
+    expect(search).toMatch(
+      /da\.AccessLevel IS NOT NULL\s+AND kd\.\[KeyRequirement\] LIKE N'%' \+ @Search \+ N'%' ESCAPE N'\\'/,
+    );
+  });
+
+  it("redacts a card's deliverable through one function, restricted before removed (ADR-0052)", () => {
+    const fn = sql(join(PROCS_CARD, "ufn_BoardCard_Deliverable.sql"));
+    const restricted = fn.indexOf("THEN 'restricted'");
+    expect(restricted).toBeGreaterThan(0);
+    expect(restricted).toBeLessThan(fn.indexOf("THEN 'removed'"));
+    // Every column but the state is gated on the reader seeing a live deliverable.
+    const state = "END AS DeliverableState";
+    const select = fn.slice(fn.indexOf(state) + state.length, fn.indexOf("FROM (SELECT"));
+    const gated = select.match(/CASE WHEN v\.Visible = 1 THEN/g) ?? [];
+    const columns = select.match(/ AS Deliverable\w+|AS KeyDeliverableId/g) ?? [];
+    expect(gated.length).toBe(columns.length);
+    for (const path of [
+      join(PROCS, "usp_Board_GetBoard.sql"),
+      join(PROCS_CARD, "usp_BoardCard_GetById.sql"),
+    ]) {
+      expect(sql(path), path).toContain("dbo.ufn_BoardCard_Deliverable(");
+    }
+  });
+
+  it("lists a deliverable's requirements in the card sheet only when it is live (ADR-0052)", () => {
+    const text = sql(join(PROCS_CARD, "usp_BoardCard_GetById.sql"));
+    const second = text.slice(text.lastIndexOf("SELECT r.RequirementId"));
+    expect(second).toContain("AND dv.DeliverableState = 'live'");
+  });
+
+  it("puts deliverables on a board only from its own project, and skips ones already there", () => {
+    const text = sql(join(PROCS_CARD, "usp_BoardCard_PackageDeliverables.sql"));
+    expect(text).toContain("IF @ProjectId IS NOT NULL AND @ProjectId <> @DeliverableProject");
+    expect(text).toContain("@Permission = N'key-deliverables:read'");
+    expect(text).toContain("c.KeyDeliverableId = i.Id AND c.IsDeleted = 0");
+    const room = text.indexOf("EXEC dbo.usp_Board_AssertRoom");
+    expect(room).toBeGreaterThan(text.indexOf("DELETE i FROM @Ids"));
+  });
+
+  it("lets a card keep no title only while it carries a requirement or a deliverable", () => {
+    expect(sql(join(PROCS_CARD, "usp_BoardCard_Update.sql"))).toContain(
+      "IF @Title IS NULL AND @RequirementId IS NULL AND @KeyDeliverableId IS NULL",
+    );
+    expect(sql(join(PROCS_CARD, "usp_BoardCard_LinkRequirement.sql"))).toContain(
+      "IF @RequirementId IS NULL AND @Title IS NULL AND @KeyDeliverableId IS NULL",
+    );
+  });
+
+  it("never links a requirement to a card that carries a deliverable (ADR-0052)", () => {
+    const text = sql(join(PROCS_CARD, "usp_BoardCard_LinkRequirement.sql"));
+    const refusal = text.indexOf("IF @RequirementId IS NOT NULL AND @KeyDeliverableId IS NOT NULL");
+    expect(refusal).toBeGreaterThan(text.indexOf("CAST(RowVer AS BIGINT) = @RowVer"));
+    expect(refusal).toBeLessThan(text.indexOf("UPDATE app.BoardCard SET"));
+  });
+
+  it("gives the card sheet the requirement's row version only when it shows the requirement", () => {
+    const text = sql(join(PROCS_CARD, "usp_BoardCard_GetById.sql"));
+    expect(text).toMatch(
+      /CASE WHEN ra\.AccessLevel IS NOT NULL AND rq\.IsDeleted = 0\s+THEN CAST\(rq\.RowVer AS BIGINT\) END AS RequirementRowVer/,
+    );
   });
 });
 

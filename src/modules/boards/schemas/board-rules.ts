@@ -140,16 +140,21 @@ export interface CardLabelSource {
   RequirementType: string | null;
   RequirementNumber: number | null;
   RequirementText: string | null;
+  DeliverableState?: RequirementState;
+  DeliverableTitle?: string | null;
 }
 
 /**
- * What to show on a card. A card always has a title or a requirement
+ * What to show on a card. A card always has a title, a requirement or a deliverable
  * (CK_BoardCard_Content), but a reader who cannot see the requirement's project
  * gets neither, so a restricted card without a title still needs a label — and
  * that label must not hint at what it is hiding.
  */
 export function cardLabel(card: CardLabelSource): string {
   if (card.Title) return card.Title;
+  if (card.DeliverableState === "restricted") return messages.boards.restrictedCard;
+  if (card.DeliverableState === "removed") return messages.boards.removedDeliverable;
+  if (card.DeliverableTitle) return card.DeliverableTitle;
   if (card.RequirementState === "restricted") return messages.boards.restrictedCard;
   if (card.RequirementState === "removed") return messages.boards.removedCard;
   if (card.RequirementText) return card.RequirementText;
