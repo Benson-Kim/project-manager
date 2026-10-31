@@ -81,6 +81,7 @@ jobs:
         env:
           VERSION: ${{ steps.plan.outputs.version }}
           PREVIOUS: ${{ steps.plan.outputs.previous }}
+          LATEST_RELEASE: ${{ steps.plan.outputs.latest_release }}
           FORCE: ${{ steps.plan.outputs.force }}
         run: node scripts/desktop/release.mjs finalize
 

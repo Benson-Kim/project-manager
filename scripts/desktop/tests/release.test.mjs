@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isForced,
   isNoReleaseError,
+  lastShippedTag,
   minimumFromYml,
   nextMinimum,
   nextVersion,
@@ -41,6 +42,23 @@ describe("nextVersion", () => {
 
   it("ignores tags that are not desktop versions", () => {
     expect(nextVersion("1.0.0", "docs-2026")).toBe("1.0.0");
+  });
+});
+
+describe("lastShippedTag", () => {
+  it("follows the newest version tag when releases were deleted but their tags stay", () => {
+    const tags = ["", "v1.0.9", "v1.0.16", "v1.0.10", "backup-2026"];
+    expect(lastShippedTag(tags)).toBe("v1.0.16");
+    expect(nextVersion("1.0.0", lastShippedTag(tags))).toBe("1.0.17");
+  });
+
+  it("counts the latest release even when its tag was not fetched", () => {
+    expect(lastShippedTag(["v1.0.12", "v1.0.11"])).toBe("v1.0.12");
+  });
+
+  it("is empty when nothing was ever shipped", () => {
+    expect(lastShippedTag(["", "docs-2026"])).toBe("");
+    expect(nextVersion("1.0.0", lastShippedTag([""]))).toBe("1.0.0");
   });
 });
 
