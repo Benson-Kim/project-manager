@@ -9,12 +9,12 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Sheet } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
-import { Input, Select, Textarea } from "@/components/ui/form/inputs";
+import { Input, Textarea } from "@/components/ui/form/inputs";
+import { ListSelect } from "@/components/ui/form/list-select";
 import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { useToast } from "@/components/ui/toast";
-import { ListOptions } from "@/components/ui/lookup-lists";
 import { messages } from "@/lib/messages";
 import { PARKING_LOT_STATUS, type ParkingLotItemRow } from "../schemas/parking-lot-item";
 import {
@@ -245,9 +245,12 @@ export function ParkingLotItemSheet({
             </Field>
 
             <Field label={messages.parkingLot.status} name="status" errors={form.errors.status}>
-              <Select name="status" defaultValue={item?.Status ?? PARKING_LOT_STATUS.active}>
-                <ListOptions list="parking-lot-item.status" current={item?.Status} />
-              </Select>
+              <ListSelect
+                list="parking-lot-item.status"
+                current={item?.Status}
+                name="status"
+                defaultValue={item?.Status ?? PARKING_LOT_STATUS.active}
+              ></ListSelect>
             </Field>
           </fieldset>
 

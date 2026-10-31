@@ -11,6 +11,7 @@ import { Field } from "@/components/ui/form/field";
 import { StoredDates } from "@/components/ui/form/stored-dates";
 import { Combobox, type ComboboxOption } from "@/components/ui/form/combobox";
 import { DatePicker, Input, Select } from "@/components/ui/form/inputs";
+import { ListSelect } from "@/components/ui/form/list-select";
 import { SectionHeading } from "@/components/ui/form/section-heading";
 import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
@@ -34,7 +35,6 @@ import { REPEAT_UNITS, type TodoAlertRow } from "../schemas/todo-alert";
 import { todoItemFormSchema, updateTodoItemFormSchema } from "../schemas/todo-item-form";
 import { todoAlertFormSchema, updateTodoAlertFormSchema } from "../schemas/todo-alert-form";
 import type { DailyActivityOption } from "../repository/daily-activity-options";
-import { ListOptions } from "@/components/ui/lookup-lists";
 import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
 
 /**
@@ -368,16 +368,24 @@ export function TodoItemSheet({
               </Field>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label={messages.todoItems.status} name="status">
-                  <Select name="status" defaultValue={todoItem?.Status ?? ""}>
+                  <ListSelect
+                    list="todo-item.status"
+                    current={todoItem?.Status}
+                    name="status"
+                    defaultValue={todoItem?.Status ?? ""}
+                  >
                     <option value="">{messages.todoItems.allStatuses}</option>
-                    <ListOptions list="todo-item.status" current={todoItem?.Status} />
-                  </Select>
+                  </ListSelect>
                 </Field>
                 <Field label={messages.todoItems.priority} name="priority">
-                  <Select name="priority" defaultValue={todoItem?.Priority ?? ""}>
+                  <ListSelect
+                    list="todo-item.priority"
+                    current={todoItem?.Priority}
+                    name="priority"
+                    defaultValue={todoItem?.Priority ?? ""}
+                  >
                     <option value="">{messages.todoItems.allPriorities}</option>
-                    <ListOptions list="todo-item.priority" current={todoItem?.Priority} />
-                  </Select>
+                  </ListSelect>
                 </Field>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

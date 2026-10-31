@@ -859,6 +859,8 @@ export const messages = {
         none: "None",
         clear: "Clear filter",
         noMatch: "No items match.",
+        hiddenRequirements: (count: number) =>
+          count === 1 ? "1 more hidden by the filter" : `${count} more hidden by the filter`,
       },
       milestoneStrip: {
         label: "Milestones",

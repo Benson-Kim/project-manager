@@ -9,13 +9,13 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Sheet } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
-import { Input, Select, Textarea } from "@/components/ui/form/inputs";
+import { Input, Textarea } from "@/components/ui/form/inputs";
+import { ListSelect } from "@/components/ui/form/list-select";
 import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
-import { ListOptions } from "@/components/ui/lookup-lists";
 import type { QuestionAnswerRow } from "../schemas/question-answer";
 import {
   questionAnswerFormSchema,
@@ -228,10 +228,14 @@ export function QuestionAnswerSheet({
               name="category"
               errors={form.errors.category}
             >
-              <Select name="category" defaultValue={questionAnswer?.Category ?? ""}>
+              <ListSelect
+                list="question-answer.category"
+                current={questionAnswer?.Category}
+                name="category"
+                defaultValue={questionAnswer?.Category ?? ""}
+              >
                 <option value="">—</option>
-                <ListOptions list="question-answer.category" current={questionAnswer?.Category} />
-              </Select>
+              </ListSelect>
             </Field>
 
             <Field
@@ -239,10 +243,14 @@ export function QuestionAnswerSheet({
               name="priority"
               errors={form.errors.priority}
             >
-              <Select name="priority" defaultValue={questionAnswer?.Priority ?? ""}>
+              <ListSelect
+                list="question-answer.priority"
+                current={questionAnswer?.Priority}
+                name="priority"
+                defaultValue={questionAnswer?.Priority ?? ""}
+              >
                 <option value="">—</option>
-                <ListOptions list="question-answer.priority" current={questionAnswer?.Priority} />
-              </Select>
+              </ListSelect>
             </Field>
 
             <Field

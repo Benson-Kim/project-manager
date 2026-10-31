@@ -1220,6 +1220,7 @@ test("WBS filter: search finds a requirement, a type chip hides it, clearing bri
   test.slow();
   const stamp = Date.now();
   const needle = `E2E needle ${stamp}`;
+  const other = `E2E other ${stamp}`;
   await page.goto("/projects/2/deliverables/gantt?view=wbs");
   const diagram = page.getByTestId("wbs-diagram");
   await expect(diagram).toBeVisible();
@@ -1243,9 +1244,15 @@ test("WBS filter: search finds a requirement, a type chip hides it, clearing bri
   await expect(add).toBeFocused({ timeout: 15_000 });
   await add.fill(needle);
   await add.press("Enter");
+  await add.fill(other);
+  await add.press("Enter");
   await add.press("Escape");
   const row = page.getByTestId(`wbs-reqs-${withReq}`).locator("li").filter({ hasText: needle });
+  const otherRow = page.getByTestId(`wbs-reqs-${withReq}`).locator("li").filter({ hasText: other });
   await expect(row).toBeVisible({ timeout: 15_000 });
+  await expect(otherRow).toBeVisible({ timeout: 15_000 });
+  const filteredOut = page.getByTestId(`wbs-reqs-filtered-${withReq}`);
+  await expect(filteredOut).toHaveCount(0);
   await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
 
   const boxA = page.getByTestId(`wbs-box-${withReq}`);
@@ -1260,10 +1267,14 @@ test("WBS filter: search finds a requirement, a type chip hides it, clearing bri
   await expect(tip).toContainText(/\d{4}-\d{2}-\d{2}/);
   await expect(tip).toContainText(messages.keyDeliverables.unassigned);
 
-  // The search keeps the item whose requirement holds it, and drops the one without.
+  // The search keeps the item whose requirement holds it, and drops the one without; the box
+  // still counts both requirements and says the filter leaves one out.
   await page.getByTestId("wbs-search").fill(needle.toUpperCase());
   await expect(boxA).toBeVisible();
   await expect(row).toBeVisible();
+  await expect(otherRow).toHaveCount(0);
+  await expect(page.getByTestId(`wbs-req-toggle-${withReq}`)).toHaveText(W.requirementCount(0, 2));
+  await expect(filteredOut).toHaveText(W.filter.hiddenRequirements(1));
   await expect(boxB).toHaveCount(0);
   await expect(page.getByTestId("wbs-filter-clear")).toBeVisible();
 
@@ -1276,6 +1287,8 @@ test("WBS filter: search finds a requirement, a type chip hides it, clearing bri
   await expect(page.getByTestId("wbs-no-match")).toHaveText("");
   await expect(boxA).toBeVisible();
   await expect(boxB).toBeVisible();
+  await expect(otherRow).toBeVisible();
+  await expect(filteredOut).toHaveCount(0);
 
   // Turning FR off hides the item whose only requirement is FR; the bare item stays.
   const fr = page.getByTestId("wbs-chip-FR");

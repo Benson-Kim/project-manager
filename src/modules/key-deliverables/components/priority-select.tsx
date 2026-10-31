@@ -1,6 +1,7 @@
 "use client";
 
-import { ListOptions, useLookupLists } from "@/components/ui/lookup-lists";
+import { ListSelect } from "@/components/ui/form/list-select";
+import { useLookupLists } from "@/components/ui/lookup-lists";
 import { TONES } from "@/components/ui/tones";
 import { optionColor } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
@@ -34,7 +35,11 @@ export function PrioritySelect({
   const { lists } = useLookupLists();
   const tone = compact ? optionColor(lists["key-deliverable.priority"], value) : null;
   return (
-    <select
+    <ListSelect
+      bare
+      list="key-deliverable.priority"
+      column={messages.keyDeliverables.priority}
+      current={value}
       aria-label={C.priorityOf(name)}
       data-testid={testId}
       tabIndex={tabIndex}
@@ -48,8 +53,7 @@ export function PrioritySelect({
       }
     >
       <option value="">{C.noPriority}</option>
-      <ListOptions list="key-deliverable.priority" current={value} />
-    </select>
+    </ListSelect>
   );
 }
 

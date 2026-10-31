@@ -25,7 +25,7 @@ export function ErrorSummary({ message }: { message: string | null }) {
       className="rounded-md border border-danger bg-danger-soft p-3 text-sm text-ink"
     >
       <p className="font-medium">{messages.errors.summaryTitle}</p>
-      <p className="mt-1">{message}</p>
+      {message !== messages.errors.summaryTitle && <p className="mt-1">{message}</p>}
     </div>
   );
 }

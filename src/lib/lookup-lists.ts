@@ -140,6 +140,21 @@ export function optionColor(
   return option?.color ?? null;
 }
 
+/**
+ * A select's value once its list was saved: the option it showed, found by id,
+ * under its new label. Values of id-bound lists, options that were not renamed
+ * and options that were removed come back unchanged.
+ */
+export function renamedValue(
+  before: LookupList | undefined,
+  after: LookupList | undefined,
+  value: string,
+): string {
+  if (!before || !after || ID_BOUND_LISTS.includes(after.key)) return value;
+  const shown = before.options.find((o) => o.label === value);
+  return after.options.find((o) => o.id === shown?.id)?.label ?? value;
+}
+
 /** Saving one list from the editor: the whole list in display order (null id = new option). */
 export const saveLookupListInput = z
   .object({

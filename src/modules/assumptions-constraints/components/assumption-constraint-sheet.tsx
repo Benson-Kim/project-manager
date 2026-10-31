@@ -8,11 +8,11 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Sheet } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
-import { Select, Switch, Textarea } from "@/components/ui/form/inputs";
+import { Switch, Textarea } from "@/components/ui/form/inputs";
+import { ListSelect } from "@/components/ui/form/list-select";
 import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
-import { ListOptions } from "@/components/ui/lookup-lists";
 import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
 import type { AssumptionConstraintRow } from "../schemas/assumption-constraint";
@@ -215,10 +215,14 @@ export function AssumptionConstraintSheet({
               name="type"
               errors={form.errors.type}
             >
-              <Select name="type" defaultValue={item?.Type ?? ""}>
+              <ListSelect
+                list="assumption-constraint.type"
+                current={item?.Type}
+                name="type"
+                defaultValue={item?.Type ?? ""}
+              >
                 <option value="">{messages.assumptionsConstraints.typeNone}</option>
-                <ListOptions list="assumption-constraint.type" current={item?.Type} />
-              </Select>
+              </ListSelect>
             </Field>
 
             <Field
@@ -226,10 +230,14 @@ export function AssumptionConstraintSheet({
               name="impact"
               errors={form.errors.impact}
             >
-              <Select name="impact" defaultValue={item?.Impact ?? ""}>
+              <ListSelect
+                list="assumption-constraint.impact"
+                current={item?.Impact}
+                name="impact"
+                defaultValue={item?.Impact ?? ""}
+              >
                 <option value="">{messages.assumptionsConstraints.impactNone}</option>
-                <ListOptions list="assumption-constraint.impact" current={item?.Impact} />
-              </Select>
+              </ListSelect>
             </Field>
 
             <Switch

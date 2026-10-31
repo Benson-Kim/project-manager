@@ -1,5 +1,6 @@
 "use client";
 
+import { ListEditorHost } from "@/components/ui/form/list-select";
 import { LookupListsProvider } from "@/components/ui/lookup-lists";
 import type { LookupLists } from "@/lib/lookup-lists";
 import { saveLookupListAction } from "../actions";
@@ -20,7 +21,7 @@ export function LookupListsScope({
 }) {
   return (
     <LookupListsProvider lists={lists} canEdit={canEdit} onSave={saveLookupListAction}>
-      {children}
+      <ListEditorHost>{children}</ListEditorHost>
     </LookupListsProvider>
   );
 }

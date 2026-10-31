@@ -8,12 +8,12 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Sheet } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
-import { Input, Select } from "@/components/ui/form/inputs";
+import { Input } from "@/components/ui/form/inputs";
+import { ListSelect } from "@/components/ui/form/list-select";
 import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
 import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
-import { ListOptions } from "@/components/ui/lookup-lists";
 import { useToast } from "@/components/ui/toast";
 import { toDateInput } from "@/lib/format";
 import { messages } from "@/lib/messages";
@@ -207,23 +207,25 @@ export function RiskIssueSheet({
               name="category"
               errors={form.errors.category}
             >
-              <Select
+              <ListSelect
+                list="risk-issue.category"
+                current={item?.Category}
                 name="category"
                 defaultValue={item ? (item.Category ?? "") : RISK_ISSUE_CATEGORY.risk}
               >
                 <option value="">{messages.risksIssues.categoryNone}</option>
-                <ListOptions list="risk-issue.category" current={item?.Category} />
-              </Select>
+              </ListSelect>
             </Field>
 
             <Field label={messages.risksIssues.status} name="status" errors={form.errors.status}>
-              <Select
+              <ListSelect
+                list="risk-issue.status"
+                current={item?.Status}
                 name="status"
                 defaultValue={item ? (item.Status ?? "") : RISK_ISSUE_STATUS.open}
               >
                 <option value="">{messages.risksIssues.statusNone}</option>
-                <ListOptions list="risk-issue.status" current={item?.Status} />
-              </Select>
+              </ListSelect>
             </Field>
 
             <Field
@@ -231,17 +233,25 @@ export function RiskIssueSheet({
               name="priority"
               errors={form.errors.priority}
             >
-              <Select name="priority" defaultValue={item?.Priority ?? ""}>
+              <ListSelect
+                list="risk-issue.priority"
+                current={item?.Priority}
+                name="priority"
+                defaultValue={item?.Priority ?? ""}
+              >
                 <option value="">{messages.risksIssues.priorityNone}</option>
-                <ListOptions list="risk-issue.priority" current={item?.Priority} />
-              </Select>
+              </ListSelect>
             </Field>
 
             <Field label={messages.risksIssues.impact} name="impact" errors={form.errors.impact}>
-              <Select name="impact" defaultValue={item?.Impact ?? ""}>
+              <ListSelect
+                list="risk-issue.impact"
+                current={item?.Impact}
+                name="impact"
+                defaultValue={item?.Impact ?? ""}
+              >
                 <option value="">{messages.risksIssues.impactNone}</option>
-                <ListOptions list="risk-issue.impact" current={item?.Impact} />
-              </Select>
+              </ListSelect>
             </Field>
 
             <Field
@@ -249,10 +259,14 @@ export function RiskIssueSheet({
               name="probability"
               errors={form.errors.probability}
             >
-              <Select name="probability" defaultValue={item?.Probability ?? ""}>
+              <ListSelect
+                list="risk-issue.probability"
+                current={item?.Probability}
+                name="probability"
+                defaultValue={item?.Probability ?? ""}
+              >
                 <option value="">{messages.risksIssues.probabilityNone}</option>
-                <ListOptions list="risk-issue.probability" current={item?.Probability} />
-              </Select>
+              </ListSelect>
             </Field>
 
             <Field label={messages.risksIssues.owner} name="owner" errors={form.errors.owner}>

@@ -9,11 +9,11 @@ import { Sheet } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { StoredDates } from "@/components/ui/form/stored-dates";
-import { DatePicker, Input, Select, Textarea } from "@/components/ui/form/inputs";
+import { DatePicker, Input, Textarea } from "@/components/ui/form/inputs";
+import { ListSelect } from "@/components/ui/form/list-select";
 import { SectionHeading } from "@/components/ui/form/section-heading";
 import { useSheetFormActions } from "@/components/ui/form/use-sheet-form-actions";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
-import { ListOptions } from "@/components/ui/lookup-lists";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { useToast } from "@/components/ui/toast";
 import { toDateInput } from "@/lib/format";
@@ -189,17 +189,15 @@ export function DailyActivitySheet({
               name="activityStatusId"
               errors={form.errors.activityStatusId}
             >
-              <Select
+              <ListSelect
+                list="daily-activity.status"
+                current={activity?.ActivityStatusId}
+                currentLabel={activity?.ActivityStatus}
                 name="activityStatusId"
                 defaultValue={activity?.ActivityStatusId ? String(activity.ActivityStatusId) : ""}
               >
                 <option value="">{messages.dailyActivities.noStatus}</option>
-                <ListOptions
-                  list="daily-activity.status"
-                  current={activity?.ActivityStatusId}
-                  currentLabel={activity?.ActivityStatus}
-                />
-              </Select>
+              </ListSelect>
             </Field>
           </section>
 
@@ -230,23 +228,28 @@ export function DailyActivitySheet({
                 name="contactMethod"
                 errors={form.errors.contactMethod}
               >
-                <Select name="contactMethod" defaultValue={activity?.ContactMethod ?? ""}>
+                <ListSelect
+                  list="daily-activity.contact-method"
+                  current={activity?.ContactMethod}
+                  name="contactMethod"
+                  defaultValue={activity?.ContactMethod ?? ""}
+                >
                   <option value="">{messages.dailyActivities.noStatus}</option>
-                  <ListOptions
-                    list="daily-activity.contact-method"
-                    current={activity?.ContactMethod}
-                  />
-                </Select>
+                </ListSelect>
               </Field>
               <Field
                 label={messages.dailyActivities.taskType}
                 name="taskType"
                 errors={form.errors.taskType}
               >
-                <Select name="taskType" defaultValue={activity?.TaskType ?? ""}>
+                <ListSelect
+                  list="daily-activity.task-type"
+                  current={activity?.TaskType}
+                  name="taskType"
+                  defaultValue={activity?.TaskType ?? ""}
+                >
                   <option value="">{messages.dailyActivities.allTaskTypes}</option>
-                  <ListOptions list="daily-activity.task-type" current={activity?.TaskType} />
-                </Select>
+                </ListSelect>
               </Field>
             </div>
           </section>

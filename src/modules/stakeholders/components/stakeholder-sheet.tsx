@@ -9,7 +9,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Sheet } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
-import { Input, Select, Textarea } from "@/components/ui/form/inputs";
+import { Input, Textarea } from "@/components/ui/form/inputs";
+import { ListSelect } from "@/components/ui/form/list-select";
 import { SectionHeading } from "@/components/ui/form/section-heading";
 import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
@@ -24,7 +25,6 @@ import {
 import type { StakeholderRow } from "../schemas/stakeholder";
 import { stakeholderFormSchema, updateStakeholderFormSchema } from "../schemas/stakeholder-form";
 import { fullName } from "./stakeholders-view";
-import { ListOptions } from "@/components/ui/lookup-lists";
 
 /**
  * Stakeholder detail/edit sheet (default pattern): edit is the
@@ -316,29 +316,28 @@ export function StakeholderSheet({
                   name="communicationPreference"
                   errors={form.errors.communicationPreference}
                 >
-                  <Select
+                  <ListSelect
+                    list="stakeholder.communication-preference"
+                    current={stakeholder?.CommunicationPreference}
                     name="communicationPreference"
                     defaultValue={stakeholder?.CommunicationPreference ?? ""}
                   >
                     <option value="">{messages.stakeholders.none}</option>
-                    <ListOptions
-                      list="stakeholder.communication-preference"
-                      current={stakeholder?.CommunicationPreference}
-                    />
-                  </Select>
+                  </ListSelect>
                 </Field>
                 <Field
                   label={messages.stakeholders.engagementLevel}
                   name="engagementLevel"
                   errors={form.errors.engagementLevel}
                 >
-                  <Select name="engagementLevel" defaultValue={stakeholder?.EngagementLevel ?? ""}>
+                  <ListSelect
+                    list="stakeholder.engagement-level"
+                    current={stakeholder?.EngagementLevel}
+                    name="engagementLevel"
+                    defaultValue={stakeholder?.EngagementLevel ?? ""}
+                  >
                     <option value="">{messages.stakeholders.none}</option>
-                    <ListOptions
-                      list="stakeholder.engagement-level"
-                      current={stakeholder?.EngagementLevel}
-                    />
-                  </Select>
+                  </ListSelect>
                 </Field>
               </div>
               <Field

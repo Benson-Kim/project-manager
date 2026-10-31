@@ -38,6 +38,7 @@ test("validation failure — empty first name shows inline error and focuses the
   await expect(page.getByText(messages.stakeholders.firstNameRequired).first()).toBeVisible();
   const summary = page.getByRole("alert").filter({ hasText: messages.errors.summaryTitle });
   await expect(summary).toBeVisible();
+  await expect(summary).toHaveText(messages.errors.summaryTitle);
   await expect(summary).toBeFocused();
 });
 

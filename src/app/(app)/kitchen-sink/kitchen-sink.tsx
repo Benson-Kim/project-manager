@@ -10,6 +10,7 @@ import { Dialog, Sheet } from "@/components/ui/dialog";
 import { Combobox } from "@/components/ui/form/combobox";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
+import { ListEditorHost, ListSelect } from "@/components/ui/form/list-select";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/form/multi-select";
 import { DatePicker, Input, Select, Switch, Textarea } from "@/components/ui/form/inputs";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
@@ -316,57 +317,66 @@ export function KitchenSink({ richText }: { richText?: React.ReactNode }) {
           </Toolbar>
           <div className="mt-3">
             <LookupListsProvider lists={lists} canEdit onSave={saveDemoList}>
-              <DataView
-                moduleKey="kitchen-sink"
-                rows={rows}
-                totalCount={rows.length}
-                page={1}
-                initialView="grid"
-                getRowId={(row) => row.id}
-                getRowLabel={(row) => row.name}
-                renderCard={(row) => (
-                  <div>
-                    <p className="text-sm font-semibold text-ink">{row.name}</p>
-                    <p className="mt-1 text-xs text-ink-muted">{row.status}</p>
-                  </div>
-                )}
-                columns={demoColumns}
-                datasheet={{
-                  canEditRow: () => true,
-                  saveCell: async (row, field, value) => {
-                    const next = { ...row, [demoField[field]]: value };
-                    setRows((all) => all.map((r) => (r.id === row.id ? next : r)));
-                    return { ok: true, data: next };
-                  },
-                  addRow: {
-                    add: async (values) => {
-                      setRows((all) => [
-                        ...all,
-                        {
-                          id: all.length + 1,
-                          name: values.name ?? "",
-                          status: values.status ?? "",
-                          owner: values.owner ?? "",
-                        },
-                      ]);
-                      return { ok: true, data: null };
+              <ListEditorHost>
+                <div className="mb-3 max-w-xs">
+                  <Field label="Status" name="ks-status">
+                    <ListSelect list="project.status" name="ks-status" defaultValue="In progress">
+                      <option value="">{messages.projects.none}</option>
+                    </ListSelect>
+                  </Field>
+                </div>
+                <DataView
+                  moduleKey="kitchen-sink"
+                  rows={rows}
+                  totalCount={rows.length}
+                  page={1}
+                  initialView="grid"
+                  getRowId={(row) => row.id}
+                  getRowLabel={(row) => row.name}
+                  renderCard={(row) => (
+                    <div>
+                      <p className="text-sm font-semibold text-ink">{row.name}</p>
+                      <p className="mt-1 text-xs text-ink-muted">{row.status}</p>
+                    </div>
+                  )}
+                  columns={demoColumns}
+                  datasheet={{
+                    canEditRow: () => true,
+                    saveCell: async (row, field, value) => {
+                      const next = { ...row, [demoField[field]]: value };
+                      setRows((all) => all.map((r) => (r.id === row.id ? next : r)));
+                      return { ok: true, data: next };
                     },
-                  },
-                }}
-                onOpen={(row) => toast({ variant: "info", title: row.name })}
-                bulkActions={(ids, clear) => (
-                  <Button
-                    variant="danger"
-                    onClick={() => {
-                      toast({ variant: "success", title: messages.feedback.deleted });
-                      clear();
-                    }}
-                  >
-                    {messages.actions.delete} ({ids.length})
-                  </Button>
-                )}
-                empty={<EmptyState title={messages.list.emptyTitle} />}
-              />
+                    addRow: {
+                      add: async (values) => {
+                        setRows((all) => [
+                          ...all,
+                          {
+                            id: all.length + 1,
+                            name: values.name ?? "",
+                            status: values.status ?? "",
+                            owner: values.owner ?? "",
+                          },
+                        ]);
+                        return { ok: true, data: null };
+                      },
+                    },
+                  }}
+                  onOpen={(row) => toast({ variant: "info", title: row.name })}
+                  bulkActions={(ids, clear) => (
+                    <Button
+                      variant="danger"
+                      onClick={() => {
+                        toast({ variant: "success", title: messages.feedback.deleted });
+                        clear();
+                      }}
+                    >
+                      {messages.actions.delete} ({ids.length})
+                    </Button>
+                  )}
+                  empty={<EmptyState title={messages.list.emptyTitle} />}
+                />
+              </ListEditorHost>
             </LookupListsProvider>
           </div>
         </section>

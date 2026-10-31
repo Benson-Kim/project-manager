@@ -5,7 +5,7 @@ import type { ActionResult } from "@/lib/action";
 import { clampWidth, COLUMN_WIDTH_MIN, RESIZE_STEP } from "@/lib/list-layout";
 import { optionColor, type LookupListKey } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
-import { useLookupLists } from "../lookup-lists";
+import { EDIT_LIST, useLookupLists } from "../lookup-lists";
 import { TONES } from "../tones";
 import {
   CELL_WIDTH,
@@ -67,9 +67,6 @@ const controlClass = `h-(--row-h) ${controlLook}`;
 const textControlClass =
   "block min-h-(--row-h) resize-none py-[min(0.875rem,calc((var(--row-h)_-_1.25rem)/2))] " +
   `leading-5 field-sizing-content wrap-anywhere ${controlLook}`;
-
-/** The select choice that opens the list editor instead of picking a value. */
-const EDIT_LIST = "__edit-list__";
 
 interface CellControlProps<Row> {
   editor: CellEditor<Row>;

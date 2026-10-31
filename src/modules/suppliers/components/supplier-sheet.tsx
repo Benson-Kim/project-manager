@@ -5,7 +5,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Sheet } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
-import { DatePicker, Input, Select } from "@/components/ui/form/inputs";
+import { DatePicker, Input } from "@/components/ui/form/inputs";
+import { ListSelect } from "@/components/ui/form/list-select";
 import { SectionHeading } from "@/components/ui/form/section-heading";
 import { StoredDates } from "@/components/ui/form/stored-dates";
 import { useSheetFormActions } from "@/components/ui/form/use-sheet-form-actions";
@@ -16,7 +17,6 @@ import { toDateInput } from "@/lib/format";
 import { createSupplierAction, deleteSupplierAction, updateSupplierAction } from "../actions";
 import type { SupplierRow } from "../schemas/supplier";
 import { supplierFormSchema, updateSupplierFormSchema } from "../schemas/supplier-form";
-import { ListOptions } from "@/components/ui/lookup-lists";
 
 /**
  * Supplier detail/edit sheet: edit is the default
@@ -155,10 +155,14 @@ export function SupplierSheet({
               </Field>
             </div>
             <Field label={messages.suppliers.rating} name="rating" errors={form.errors.rating}>
-              <Select name="rating" defaultValue={supplier?.Rating ?? ""}>
+              <ListSelect
+                list="supplier.rating"
+                current={supplier?.Rating}
+                name="rating"
+                defaultValue={supplier?.Rating ?? ""}
+              >
                 <option value="">{messages.suppliers.none}</option>
-                <ListOptions list="supplier.rating" current={supplier?.Rating} />
-              </Select>
+              </ListSelect>
             </Field>
           </section>
 

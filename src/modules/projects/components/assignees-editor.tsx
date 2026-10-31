@@ -8,7 +8,7 @@ import { IconButton } from "@/components/ui/data-view/datasheet-cells";
 import { ListEditorDialog } from "@/components/ui/data-view/list-editor-dialog";
 import { Combobox } from "@/components/ui/form/combobox";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
-import { ListOptions, useLookupLists } from "@/components/ui/lookup-lists";
+import { EDIT_LIST, ListOptions, useLookupLists } from "@/components/ui/lookup-lists";
 import { useToast } from "@/components/ui/toast";
 
 import type { PermissionOverride } from "@/lib/auth/rbac";
@@ -176,7 +176,7 @@ export function AssigneesEditor({
       value={value}
       disabled={pending}
       onChange={(e) => {
-        if (e.target.value === "__edit-list__") {
+        if (e.target.value === EDIT_LIST) {
           setEditingTitles(true);
           return;
         }
@@ -185,9 +185,7 @@ export function AssigneesEditor({
       className={control}
     >
       <ListOptions list={TITLES} current={value} />
-      {canEditLists ? (
-        <option value="__edit-list__">{messages.lookupLists.editInline}</option>
-      ) : null}
+      {canEditLists ? <option value={EDIT_LIST}>{messages.lookupLists.editInline}</option> : null}
     </select>
   );
 
