@@ -38,3 +38,27 @@ describe("long text fields take rich text", () => {
     expect(source).not.toMatch(new RegExp(`<Textarea[^>]*name="${field}"`));
   });
 });
+
+/**
+ * The writing area grows between a floor and a ceiling and scrolls inside, so one
+ * long field cannot push the rest of a form away ("the box extends too far").
+ */
+describe("the editor surface bounds its own height", () => {
+  const SURFACE = readFileSync("src/components/ui/rich-text/editor-surface.tsx", "utf-8");
+  const attributes = SURFACE.match(/class: `rich-text [^`]*`/)?.[0] ?? "";
+
+  it("sets a maximum height for both sizes, not only a minimum", () => {
+    expect(attributes).toMatch(/min-h-48[^"]*max-h-\[min\(24rem,60dvh\)\]/);
+    expect(attributes).toMatch(/min-h-\[min\(24rem,50dvh\)\][^"]*max-h-\[min\(32rem,70dvh\)\]/);
+  });
+
+  it("scrolls the overflow instead of clipping it", () => {
+    expect(attributes).toContain("overflow-y-auto");
+    expect(attributes).not.toContain("overflow-y-hidden");
+  });
+
+  it("lifts the ceiling for print so a long field is not cut off on paper", () => {
+    expect(attributes).toContain("print:max-h-none");
+    expect(attributes).toContain("print:overflow-visible");
+  });
+});

@@ -169,3 +169,51 @@ describe("a wide table's horizontal scrollbar stays in reach", () => {
     expect(css).toContain("scrollbar-width: thin");
   });
 });
+
+/**
+ * Every sideways scroller in the app reaches for the same bar. The datasheet got it first (client
+ * feedback 2026-10-23), then the WBS and the Gantt, and the Kanban board was asked for separately
+ * because it had been missed (client feedback 2026-10-31) — so what is held here is the list, not
+ * one consumer: a new wide view that mounts the bar without the clip, or hangs the clip without
+ * the bar, shows two scrollbars or none.
+ */
+const SCROLLERS = [
+  { what: "the datasheet", mount: VIEW, scroller: VIEW, ref: "scrollerRef" },
+  {
+    what: "the WBS chart",
+    mount: "src/modules/key-deliverables/components/wbs-diagram.tsx",
+    scroller: "src/modules/key-deliverables/components/wbs-diagram.tsx",
+    ref: "scrollRef",
+  },
+  {
+    what: "the Gantt",
+    mount: "src/modules/key-deliverables/components/wbs-gantt.tsx",
+    scroller: "src/modules/key-deliverables/components/gantt-board.tsx",
+    ref: "scrollRef",
+  },
+  {
+    what: "the Kanban board",
+    mount: "src/modules/boards/components/board-workspace.tsx",
+    scroller: "src/modules/boards/components/board-workspace.tsx",
+    ref: "laneRef",
+  },
+] as const;
+
+describe.each(SCROLLERS)("$what keeps its horizontal scrollbar in reach", (scroller) => {
+  it("mounts the shared bar on the box that scrolls", () => {
+    const mount = source(scroller.mount);
+    expect(mount).toContain("StickyScrollbar");
+    expect(mount).toContain(`<StickyScrollbar targetRef={${scroller.ref}} />`);
+    expect(source(scroller.scroller)).toContain(`ref={${scroller.ref}}`);
+  });
+
+  it("hangs the box's own bar below a clip, so only one is shown", () => {
+    const box = source(scroller.scroller);
+    expect(box).toContain("mb-[calc(var(--hbar,0px)*-1)]");
+    expect(box).toContain("print:mb-0");
+    // `overflow: hidden` would make the clip a scroll container and the sticky bar below it would
+    // stick to the clip; without `flow-root` the negative margin collapses through the clip.
+    expect(box).toContain("flow-root overflow-clip");
+    expect(box).not.toMatch(/flow-root overflow-hidden/);
+  });
+});

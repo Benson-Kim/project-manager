@@ -8,7 +8,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Sheet } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
-import { Switch, Textarea } from "@/components/ui/form/inputs";
+import { Textarea } from "@/components/ui/form/inputs";
 import { ListSelect } from "@/components/ui/form/list-select";
 import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
@@ -240,11 +240,20 @@ export function AssumptionConstraintSheet({
               </ListSelect>
             </Field>
 
-            <Switch
-              name="isValidated"
-              label={messages.assumptionsConstraints.isValidated}
-              defaultChecked={item?.IsValidated ?? false}
-            />
+            <Field
+              label={messages.assumptionsConstraints.validated}
+              name="validated"
+              errors={form.errors.validated}
+            >
+              <ListSelect
+                list="assumption-constraint.validated"
+                current={item?.Validated}
+                name="validated"
+                defaultValue={item?.Validated ?? ""}
+              >
+                <option value="">{messages.assumptionsConstraints.validatedNone}</option>
+              </ListSelect>
+            </Field>
           </fieldset>
 
           <div className="flex flex-wrap items-center gap-2 px-4 py-2">

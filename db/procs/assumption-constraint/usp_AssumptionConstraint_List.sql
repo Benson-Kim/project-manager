@@ -42,7 +42,7 @@ BEGIN
            ac.[ProjectId],
            ac.[Type],
            ac.[Description],
-           ac.[IsValidated],
+           ac.[Validated],
            ac.[Impact],
            ac.[MitigationPlan],
            ac.CreatedAtUtc,

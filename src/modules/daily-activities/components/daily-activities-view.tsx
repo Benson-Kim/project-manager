@@ -13,6 +13,7 @@ import { formCellSaver } from "@/components/ui/data-view/datasheet";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
 import type { WithRichViews } from "@/components/ui/rich-text/rich-views";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
+import { ProjectLink } from "@/components/ui/project-link";
 import { EmptyState } from "@/components/ui/states";
 import { rowAllows } from "@/lib/auth/actor-access";
 import { formatDate } from "@/lib/format";
@@ -185,7 +186,13 @@ export function DailyActivitiesView({
             <Badge value={row.ActivityStatus} />
             {row.TaskType ? <Badge value={row.TaskType} /> : null}
           </div>
-          {row.ProjectName ? <p className="text-xs text-ink-muted">{row.ProjectName}</p> : null}
+          {row.ProjectName ? (
+            <p className="text-xs text-ink-muted">
+              <ProjectLink projectId={row.ProjectId} className="underline">
+                {row.ProjectName}
+              </ProjectLink>
+            </p>
+          ) : null}
           {row.Requester ? <p className="text-xs text-ink-muted">{row.Requester}</p> : null}
           {row.RequestDate ? (
             <p className="text-xs text-ink-muted">{formatDate(row.RequestDate)}</p>

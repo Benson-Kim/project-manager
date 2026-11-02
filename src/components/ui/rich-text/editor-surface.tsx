@@ -82,7 +82,9 @@ export function EditorSurface({
         ...(invalid ? { "aria-invalid": "true" } : {}),
         ...(editable ? {} : { "aria-readonly": "true" }),
         spellcheck: "true",
-        class: `rich-text ${tall ? "min-h-[min(24rem,50dvh)]" : "min-h-48"} px-3 py-2`,
+        // A ceiling as well as a floor: a field that keeps growing used to push the
+        // rest of the form off the page. Print lifts it so nothing is cut off on paper.
+        class: `rich-text ${tall ? "min-h-[min(24rem,50dvh)] max-h-[min(32rem,70dvh)]" : "min-h-48 max-h-[min(24rem,60dvh)]"} overflow-y-auto px-3 py-2 print:max-h-none print:overflow-visible`,
       },
       handleKeyDown: (_view: unknown, event: KeyboardEvent) => {
         if (!isLinkShortcut(event)) return false;

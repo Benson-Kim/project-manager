@@ -9,8 +9,8 @@ import { messages } from "./messages";
  * app.DailyActivity.ActivityStatusId, which stores the option id.
  *
  * This registry names every list the app reads; src/tests/lookup-lists.test.ts
- * keeps it equal to the lists the migrations seed (018, 021, 031) and to the
- * rename cascade in dbo.usp_LookupList_Set.
+ * keeps it equal to the lists the migrations seed (018, 021, 031, 049, 053) and
+ * to the rename cascade in dbo.usp_LookupList_Set.
  */
 export const LOOKUP_LISTS = [
   "project.status",
@@ -26,6 +26,9 @@ export const LOOKUP_LISTS = [
   "question-answer.priority",
   "assumption-constraint.type",
   "assumption-constraint.impact",
+  // Validated was a checkbox until migration 053 (ADR-0054, BL20): Yes and No are locked, since
+  // the derived app.AssumptionConstraint.IsValidated reads them by name.
+  "assumption-constraint.validated",
   "daily-activity.status",
   "daily-activity.contact-method",
   "daily-activity.task-type",

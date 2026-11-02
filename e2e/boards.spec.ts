@@ -43,6 +43,12 @@ async function importRequirements(page: Page, stamp: number): Promise<void> {
   await page.getByRole("button", { name: B.ui.packageTitle }).click();
   const dialog = page.getByRole("dialog");
   const picker: Locator = dialog.getByRole("combobox", { name: B.ui.requirements, exact: true });
+  // Select all takes the whole register in one press; Clear selection puts it back to none.
+  await dialog.getByRole("button", { name: messages.actions.selectAll }).click();
+  await expect(dialog.getByRole("button", { name: /^Remove / }).first()).toBeVisible();
+  await dialog.getByRole("button", { name: messages.actions.clearSelection }).click();
+  await expect(dialog.getByRole("button", { name: /^Remove / })).toHaveCount(0);
+  await expect(dialog.getByText(messages.list.selectedCount(0))).toBeVisible();
   for (const wording of [`E2E board functional ${stamp}`, `E2E board quality ${stamp}`]) {
     await picker.fill(wording);
     await dialog.getByRole("option").filter({ hasText: wording }).click();

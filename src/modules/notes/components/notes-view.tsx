@@ -6,6 +6,7 @@ import { DataView } from "@/components/ui/data-view/data-view";
 import { ProjectFilter } from "@/components/ui/data-view/project-filter";
 import { SearchInput } from "@/components/ui/data-view/search-input";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
+import { ProjectLink } from "@/components/ui/project-link";
 import { listEmptyState } from "@/components/ui/states";
 import { Toolbar } from "@/components/ui/toolbar";
 import { formatDate } from "@/lib/format";
@@ -64,7 +65,11 @@ export function NotesView({
             key: "ProjectName",
             header: messages.projectPicker.header,
             priority: 2 as const,
-            render: (r: NoteListRow) => r.ProjectName ?? messages.projectPicker.none,
+            render: (r: NoteListRow) => (
+              <ProjectLink projectId={r.ProjectId}>
+                {r.ProjectName ?? messages.projectPicker.none}
+              </ProjectLink>
+            ),
           },
         ]
       : []),
@@ -94,7 +99,9 @@ export function NotesView({
           <p className="line-clamp-2 text-sm font-semibold text-ink">{label(row)}</p>
           {projectFilterOptions ? (
             <p className="text-xs text-ink-muted">
-              {row.ProjectName ?? messages.projectPicker.none}
+              <ProjectLink projectId={row.ProjectId} className="underline">
+                {row.ProjectName ?? messages.projectPicker.none}
+              </ProjectLink>
             </p>
           ) : null}
           <p className="text-sm text-ink-muted">
