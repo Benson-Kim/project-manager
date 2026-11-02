@@ -413,6 +413,7 @@ export function NotebookWorkspace({
                   name="content"
                   defaultValue={active.Content}
                   onChange={() => setPageDirty(true)}
+                  height="page"
                 />
               </Field>
               <div className="flex flex-wrap items-center gap-2">

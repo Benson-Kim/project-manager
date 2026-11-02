@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useState } from "react";
 import { useFieldContext } from "@/components/ui/form/field";
 import { asRichText } from "@/lib/rich-text/plain-text";
+import type { EditorHeight } from "./editor-surface";
 
 /**
  * Word-like rich-text field (ADR-0025). This wrapper is light; the Tiptap
@@ -38,8 +39,8 @@ export interface RichTextEditorProps {
   label?: string;
   /** Takes focus, cursor at the end, when it loads. */
   autoFocus?: boolean;
-  /** A taller writing area (the datasheet's larger editor). */
-  tall?: boolean;
+  /** How tall the writing area may grow; a field has a ceiling, a page does not. */
+  height?: EditorHeight;
   /** Test hook on the wrapper. */
   testId?: string;
 }
@@ -52,7 +53,7 @@ export function RichTextEditor({
   onChange,
   label,
   autoFocus = false,
-  tall = false,
+  height = "field",
   testId,
 }: RichTextEditorProps) {
   const field = useFieldContext();
@@ -83,7 +84,7 @@ export function RichTextEditor({
           onChange={onChange}
           label={field?.labelId ? undefined : label}
           autoFocus={autoFocus}
-          tall={tall}
+          height={height}
         />
       ) : (
         <EditorPlaceholder />
