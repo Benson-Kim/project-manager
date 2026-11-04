@@ -19,7 +19,7 @@ import {
 
 /**
  * User/auth repository — stored procedures only , zod row parsing,
- * list params forwarded 1:1 . PasswordHash never leaves this module 
+ * list params forwarded 1:1 . PasswordHash never leaves this module
  * except inside CredentialsRow for authorize().
  */
 
