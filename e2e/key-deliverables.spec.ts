@@ -991,7 +991,6 @@ test("WBS: the day a milestone was reached is recorded, shows the slip, and clea
   // A fresh load of the WBS: the proc wrote the column and the read reports it back.
   await page.goto("/projects/2/deliverables/gantt?view=wbs");
   await expect(page.getByTestId("wbs-diagram")).toBeVisible();
-  await closeAlarmToast(page);
   const toggle = page.getByTestId("wbs-milestones");
   await turnOn(toggle);
   const chip = page.getByTestId(`wbs-milestone-chip-${gateId}`);
