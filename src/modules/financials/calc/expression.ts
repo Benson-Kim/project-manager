@@ -9,6 +9,25 @@ export type ExpressionError = "empty" | "invalid" | "divideByZero";
 export type ExpressionResult = { ok: true; value: number } | { ok: false; error: ExpressionError };
 
 export const MAX_EXPRESSION_LENGTH = 200;
+/** The calculator's keypad, in its four-column order; every key is one the parser reads. */
+export const KEYPAD = [
+  "7",
+  "8",
+  "9",
+  "÷",
+  "4",
+  "5",
+  "6",
+  "×",
+  "1",
+  "2",
+  "3",
+  "-",
+  "0",
+  ".",
+  "%",
+  "+",
+];
 
 const NUMBER = /^(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d*)?|^\.\d+/;
 const SYMBOLS: Record<string, string> = { "×": "*", "÷": "/", "−": "-" };

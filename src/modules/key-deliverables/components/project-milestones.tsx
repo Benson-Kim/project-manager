@@ -57,7 +57,7 @@ export function ProjectMilestones({
               {chips.map((chip) => (
                 <tr key={chip.id}>
                   <th scope="row" className={`${CELL} font-normal`}>
-                    <Link href={`${base}?id=${chip.id}`} className="text-accent underline">
+                    <Link href={`${base}?d=${chip.id}`} className="text-accent underline">
                       {chip.code} {chip.name || K.deliverableFallback(chip.id)}
                     </Link>
                   </th>

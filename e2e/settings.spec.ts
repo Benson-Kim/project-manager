@@ -6,7 +6,6 @@ import { closeAlarmToast } from "./support/alarms";
 
 async function openSettings(page: Page) {
   await page.goto("/settings");
-  await page.waitForLoadState("networkidle");
   await closeAlarmToast(page);
   return page.getByTestId("idle-timeout-setting").getByLabel(messages.settings.signIn.idleTimeout);
 }

@@ -959,9 +959,13 @@ test("WBS: a milestone is added as one day, converted either way, moved but not 
   await expect(gateRow).toContainText(plusDays(day0, 1));
   await expect(gateRow.getByRole("link")).toHaveAttribute(
     "href",
-    `/projects/2/deliverables?id=${gateId}`,
+    `/projects/2/deliverables?d=${gateId}`,
   );
   await expect(overview.getByText(`E2E span ${stamp}`)).toHaveCount(0);
+  await gateRow.getByRole("link").click();
+  await expect(
+    page.getByTestId("deliverable-form").getByLabel(messages.keyDeliverables.deliverable),
+  ).toHaveValue(`E2E gate ${stamp}`);
   await page.goto("/projects/2/deliverables/gantt?view=wbs");
   await expect(page.getByTestId(`wbs-box-${gateId}`)).toBeVisible({ timeout: 15_000 });
 

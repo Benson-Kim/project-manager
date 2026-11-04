@@ -9,6 +9,7 @@ import { buildWbs } from "@/modules/key-deliverables/schemas/wbs";
 import { milestoneStrip } from "@/modules/key-deliverables/schemas/wbs-milestones";
 import { AssigneesEditor } from "@/modules/projects/components/assignees-editor";
 import { ProjectForm } from "@/modules/projects/components/project-form";
+import { PROJECT_LISTS } from "@/modules/projects/schemas/project-form";
 import { listAssigneeOptions } from "@/modules/projects/repository/assignee-options";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { listProjectAssignees } from "@/modules/projects/repository/project-assignees";
@@ -32,12 +33,13 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const projectId = parseProjectId(id);
   if (projectId === null) notFound();
 
-  const [project, assignees, allows, titles] = await Promise.all([
+  const [project, assignees, allows, titles, lists] = await Promise.all([
     orNotFound(getProjectCached(projectId, session.userId)),
     orNotFound(listProjectAssignees(projectId, session.userId)),
     getProjectPermissions(projectId, session.userId),
     // Team titles are a managed list (migration 021, ADR-0024).
     loadLookupLists(["project-assignee.title"], session),
+    loadLookupLists(PROJECT_LISTS, session),
   ]);
 
   const canEdit = allows("projects:update");
@@ -61,14 +63,16 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       <PageHeader title={messages.projects.charterSection} />
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_30rem]">
         <main className="min-w-0">
-          <ProjectForm
-            project={project}
-            canEdit={canEdit}
-            canDelete={canDelete}
-            milestones={
-              milestones ? <ProjectMilestones projectId={projectId} chips={milestones} /> : null
-            }
-          />
+          <LookupListsScope {...lists}>
+            <ProjectForm
+              project={project}
+              canEdit={canEdit}
+              canDelete={canDelete}
+              milestones={
+                milestones ? <ProjectMilestones projectId={projectId} chips={milestones} /> : null
+              }
+            />
+          </LookupListsScope>
         </main>
 
         <aside className="min-w-0 xl:sticky xl:top-6 xl:self-start">

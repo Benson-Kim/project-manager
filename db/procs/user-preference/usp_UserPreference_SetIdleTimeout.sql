@@ -12,7 +12,7 @@ BEGIN
        OR (@IdleTimeoutMinutes <> 0 AND @IdleTimeoutMinutes NOT BETWEEN 5 AND 1440)
         THROW 50004, N'VALIDATION:Idle sign-out must be Never or between 5 minutes and 24 hours', 1;
 
-    MERGE app.UserPreference AS target
+    MERGE app.UserPreference WITH (HOLDLOCK) AS target
     USING (SELECT @ActorUserId AS UserId) AS source
         ON target.UserId = source.UserId
     WHEN MATCHED THEN

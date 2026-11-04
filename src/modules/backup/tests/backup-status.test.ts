@@ -85,6 +85,16 @@ describe("copyOverdue", () => {
     expect(copyOverdue(status, after(BACKUP_COPY_OVERDUE_DAYS))).toBe(false);
     expect(copyOverdue(status, after(BACKUP_COPY_OVERDUE_DAYS + 0.01))).toBe(true);
   });
+
+  it("is overdue when a new copy folder has failed and never received a copy", () => {
+    const error = { at: day1.toISOString(), message: "Access is denied" };
+    expect(copyOverdue({ ...status, lastCopyError: { ...error, copyDir: "E:\\New" } }, day1)).toBe(
+      true,
+    );
+    expect(
+      copyOverdue({ ...status, lastCopyError: { ...error, copyDir: "D:\\Copies" } }, day1),
+    ).toBe(false);
+  });
 });
 
 describe("knownCopyOverdue", () => {

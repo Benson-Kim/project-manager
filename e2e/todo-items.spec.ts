@@ -80,7 +80,6 @@ test("Due soon follows the window the user picks in Settings", async ({ page }) 
 
   async function chooseWindow(days: number) {
     await page.goto("/settings");
-    await page.waitForLoadState("networkidle");
     await closeAlarmToast(page);
     const setting = page.getByTestId("due-soon-setting");
     await setting.getByLabel(messages.settings.todos.dueSoon).selectOption(String(days));
@@ -93,7 +92,7 @@ test("Due soon follows the window the user picks in Settings", async ({ page }) 
   }
 
   await page.goto("/projects/2/todos");
-  await page.waitForLoadState("networkidle");
+  await closeAlarmToast(page);
   await page.getByTestId("new-todo-item").click();
   const form = page.getByTestId("todo-item-form");
   await form.getByLabel(messages.todoItems.todoItem).fill(title);

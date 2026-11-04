@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { messages } from "../src/lib/messages";
+import { closeAlarmToast } from "./support/alarms";
 import { escapeRegExp, openListed } from "./support/datasheet";
 
 /**
@@ -29,7 +30,7 @@ async function pick(form: Locator, field: string, option: string): Promise<void>
 
 async function create(page: Page, title: string): Promise<Locator> {
   await page.goto(`${LIST}?id=new`);
-  await page.waitForLoadState("networkidle");
+  await closeAlarmToast(page);
   const form = page.getByTestId("decision-form");
   await expect(form).toBeVisible();
   await form.getByLabel(M.decisionTitle, { exact: true }).fill(title);
@@ -40,7 +41,6 @@ async function create(page: Page, title: string): Promise<Locator> {
 async function open(page: Page, title: string): Promise<{ form: Locator; id: string }> {
   await page.goto(`${LIST}?view=grid&q=${encodeURIComponent(title)}`);
   await openListed(page, title);
-  await page.waitForLoadState("networkidle");
   const form = page.getByTestId("decision-form");
   await expect(form).toBeVisible();
   await expect(form.getByLabel(M.decisionTitle, { exact: true })).toHaveValue(title);

@@ -5,11 +5,10 @@ import { buttonClass } from "@/components/ui/button-styles";
 import { AnchoredPanel } from "@/components/ui/dialog";
 import { panelPosition, type PanelPosition } from "@/components/ui/data-view/datasheet";
 import { messages } from "@/lib/messages";
-import { evaluateExpression, MAX_EXPRESSION_LENGTH, toSumText } from "../calc/expression";
+import { evaluateExpression, KEYPAD, MAX_EXPRESSION_LENGTH, toSumText } from "../calc/expression";
 
 const M = messages.financials.quickCalculator;
 const SIZE = { minWidth: 288, minBelow: 360 };
-const KEYS = ["7", "8", "9", "÷", "4", "5", "6", "x", "1", "2", "3", "-", "0", ".", "%", "+"];
 const shown = new Intl.NumberFormat("en-US", { maximumFractionDigits: 10 });
 
 /**
@@ -104,7 +103,7 @@ export function QuickCalculator() {
                 : M[result.error]}
           </p>
           <div className="grid grid-cols-4 gap-1.5">
-            {KEYS.map((key) => (
+            {KEYPAD.map((key) => (
               <button
                 key={key}
                 type="button"

@@ -5,10 +5,16 @@ export const BACKUP_COPY_OVERDUE_DAYS = 7;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** True when nothing has been copied off this PC, or not for BACKUP_COPY_OVERDUE_DAYS. */
+/**
+ * True when nothing has been copied off this PC, not for BACKUP_COPY_OVERDUE_DAYS, or the copy
+ * folder was changed and copying to the new one failed before it ever received a copy.
+ */
 export function copyOverdue(status: BackupStatus | null, now: Date): boolean {
   const last = status?.lastCopy ? Date.parse(status.lastCopy.at) : NaN;
   if (Number.isNaN(last)) return true;
+  if (status?.lastCopyError && status.lastCopyError.copyDir !== status.lastCopy?.copyDir) {
+    return true;
+  }
   return now.getTime() - last > BACKUP_COPY_OVERDUE_DAYS * DAY_MS;
 }
 

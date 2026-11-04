@@ -11,7 +11,7 @@ BEGIN
     IF @DueSoonDays IS NULL OR @DueSoonDays NOT BETWEEN 1 AND 30
         THROW 50004, N'VALIDATION:Due soon must be between 1 and 30 days', 1;
 
-    MERGE app.UserPreference AS target
+    MERGE app.UserPreference WITH (HOLDLOCK) AS target
     USING (SELECT @ActorUserId AS UserId) AS source
         ON target.UserId = source.UserId
     WHEN MATCHED THEN

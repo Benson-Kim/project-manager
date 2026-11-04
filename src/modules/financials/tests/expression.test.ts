@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateExpression, MAX_EXPRESSION_LENGTH, toSumText } from "../calc/expression";
+import { evaluateExpression, KEYPAD, MAX_EXPRESSION_LENGTH, toSumText } from "../calc/expression";
 
 const value = (text: string) => {
   const result = evaluateExpression(text);
@@ -31,6 +31,14 @@ describe("evaluateExpression", () => {
     expect(value(".5 + 1.25")).toBe(1.75);
     expect(value("6 × 7 ÷ 2 − 1")).toBe(20);
     expect(value("1,200.50 * 2")).toBe(2401);
+  });
+
+  it("reads every keypad key: 4 key 5 is a sum, or 45 for a digit", () => {
+    const sums = { "÷": 0.8, "×": 20, "-": -1, "+": 9, ".": 4.5, "%": 0.2 };
+    for (const key of KEYPAD) {
+      const want = key in sums ? sums[key as keyof typeof sums] : Number(`4${key}5`);
+      expect(value(key === "%" ? "4% × 5" : `4${key}5`), key).toBe(want);
+    }
   });
 
   it("treats % like a pocket calculator", () => {

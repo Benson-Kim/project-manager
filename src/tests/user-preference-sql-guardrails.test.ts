@@ -82,3 +82,14 @@ describe("Idle sign-out time", () => {
     expect(setter).not.toMatch(/@UserId\b/);
   });
 });
+
+describe("preference setters", () => {
+  // The Due soon and Idle sign-out controls save separately, so a user's first two saves can
+  // race to create the same row; the key-range lock makes the second one update it instead.
+  it.each([
+    "db/procs/user-preference/usp_UserPreference_SetDueSoonDays.sql",
+    "db/procs/user-preference/usp_UserPreference_SetIdleTimeout.sql",
+  ])("%s holds a key-range lock while it upserts", (path) => {
+    expect(sql(path)).toMatch(/MERGE app\.UserPreference WITH \(HOLDLOCK\) AS target/);
+  });
+});

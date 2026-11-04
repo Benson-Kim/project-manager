@@ -114,4 +114,29 @@ describe("copyOverdue", () => {
     expect(copyOverdue(copied, after(BACKUP_COPY_OVERDUE_DAYS))).toBe(false);
     expect(copyOverdue(copied, after(BACKUP_COPY_OVERDUE_DAYS + 0.01))).toBe(true);
   });
+
+  it("is overdue when a new copy folder has failed and never received a copy", () => {
+    const failed = { ...ok, copy: undefined, copyError: "Access is denied" };
+    const elsewhere = nextBackupStatus(
+      copied,
+      "daily",
+      { result: failed, copyDir: "E:\\New" },
+      day2,
+    );
+    expect(copyOverdue(elsewhere, day2)).toBe(true);
+    const sameFolder = nextBackupStatus(
+      copied,
+      "daily",
+      { result: failed, copyDir: "D:\\Copies" },
+      day2,
+    );
+    expect(copyOverdue(sameFolder, day2)).toBe(false);
+    const recovered = nextBackupStatus(
+      elsewhere,
+      "daily",
+      { result: ok, copyDir: "E:\\New" },
+      day2,
+    );
+    expect(copyOverdue(recovered, day2)).toBe(false);
+  });
 });
