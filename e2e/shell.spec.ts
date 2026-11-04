@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { messages } from "@/lib/messages";
+import { closeAlarmToast } from "./support/alarms";
 
 /**
  * App shell (issue #28): sidebar order, header actions (bell, theme toggle,
@@ -64,6 +65,24 @@ test("notifications bell is filled with a dot for the seeded overdue to-dos and 
   ).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(bell).toBeFocused();
+});
+
+test("alarm toasts can be closed again after a reload without a duplicate announcement", async ({
+  page,
+}) => {
+  const alarms = page.getByTestId("toast-warning").filter({
+    hasText: messages.todoItems.alarmDue(""),
+  });
+  await page.goto("/");
+  await closeAlarmToast(page);
+  await expect(alarms).toHaveCount(0);
+
+  await page.reload();
+  await expect(
+    page.getByTestId("due-alarms").getByText("E2E overdue alert", { exact: true }),
+  ).toBeAttached();
+  await expect(alarms).toHaveCount(0);
+  await closeAlarmToast(page);
 });
 
 test("avatar menu opens with keyboard support and signs out", async ({ page }) => {
