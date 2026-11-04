@@ -71,6 +71,7 @@ BEGIN
            kd.[RequestedDate],
            kd.StartDate,
            kd.[Deadline],
+           kd.[ActualDate],
            kd.[Priority],
            kd.[Status],
            kd.Color,

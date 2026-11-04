@@ -9,6 +9,7 @@ import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { StoredDates } from "@/components/ui/form/stored-dates";
 import { DatePicker, Input, Switch, Textarea } from "@/components/ui/form/inputs";
+import { LabelMultiSelect } from "@/components/ui/form/label-multi-select";
 import { ListSelect } from "@/components/ui/form/list-select";
 import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
@@ -41,6 +42,16 @@ export function ProjectForm({
   const { toast } = useToast();
   const { announce } = useAnnouncer();
   const schema = project ? updateProjectFormSchema : projectFormSchema;
+  // A folded section hides what it holds, so one that already has something written starts open:
+  // the client asked for sections that expand to write more, not for filled-in prose to disappear.
+  const hasBusinessCase = Boolean(
+    project?.AlternativeSolutions ||
+    project?.ExpectedBenefits ||
+    project?.SuccessMetrics ||
+    project?.EstimatedRoi ||
+    project?.ObjectiveAlignment?.length,
+  );
+  const hasScope = Boolean(project?.ProjectScope || project?.KeyDependencies);
   const form = useZodForm(schema);
   const [pending, startTransition] = useTransition();
   const [summary, setSummary] = useState<string | null>(null);
@@ -224,6 +235,91 @@ export function ProjectForm({
           </Field>
           <Field label={messages.projects.userImpact} name="userImpact">
             <RichTextEditor name="userImpact" defaultValue={project?.UserImpact} />
+          </Field>
+        </Panel>
+
+        <Panel
+          id="business-case-heading"
+          title={messages.projects.businessCaseSection}
+          testId="project-business-case"
+          collapsible
+          defaultOpen={hasBusinessCase}
+        >
+          {/* Tells the proc the field was on screen: without it a datasheet cell edit, which saves
+              the whole row, would reach the same proc and read as "no objectives". */}
+          <input type="hidden" name="objectiveAlignmentSet" value="on" />
+          <Field
+            label={messages.projects.objectiveAlignment}
+            name="objectiveAlignment[]"
+            errors={form.errors["objectiveAlignment[]"]}
+          >
+            <LabelMultiSelect
+              list="project.objective-alignment"
+              name="objectiveAlignment[]"
+              defaultValue={project?.ObjectiveAlignment ?? []}
+              disabled={!canEdit}
+              removeLabel={messages.projects.removeObjective}
+              emptyPlaceholder={messages.projects.objectiveAlignmentEmpty}
+              onChange={() => setIsDirty(true)}
+            />
+          </Field>
+          <Field
+            label={messages.projects.alternativeSolutions}
+            name="alternativeSolutions"
+            errors={form.errors.alternativeSolutions}
+          >
+            <RichTextEditor
+              name="alternativeSolutions"
+              defaultValue={project?.AlternativeSolutions}
+            />
+          </Field>
+          <Field
+            label={messages.projects.expectedBenefits}
+            name="expectedBenefits"
+            errors={form.errors.expectedBenefits}
+          >
+            <RichTextEditor name="expectedBenefits" defaultValue={project?.ExpectedBenefits} />
+          </Field>
+          <Field
+            label={messages.projects.successMetrics}
+            name="successMetrics"
+            errors={form.errors.successMetrics}
+          >
+            <RichTextEditor name="successMetrics" defaultValue={project?.SuccessMetrics} />
+          </Field>
+          <Field
+            label={messages.projects.estimatedRoi}
+            name="estimatedRoi"
+            errors={form.errors.estimatedRoi}
+          >
+            <Input
+              name="estimatedRoi"
+              defaultValue={project?.EstimatedRoi ?? ""}
+              placeholder={messages.projects.estimatedRoiPlaceholder}
+            />
+          </Field>
+        </Panel>
+
+        <Panel
+          id="project-scope-heading"
+          title={messages.projects.scopeSection}
+          testId="project-scope"
+          collapsible
+          defaultOpen={hasScope}
+        >
+          <Field
+            label={messages.projects.projectScope}
+            name="projectScope"
+            errors={form.errors.projectScope}
+          >
+            <RichTextEditor name="projectScope" defaultValue={project?.ProjectScope} />
+          </Field>
+          <Field
+            label={messages.projects.keyDependencies}
+            name="keyDependencies"
+            errors={form.errors.keyDependencies}
+          >
+            <RichTextEditor name="keyDependencies" defaultValue={project?.KeyDependencies} />
           </Field>
         </Panel>
 

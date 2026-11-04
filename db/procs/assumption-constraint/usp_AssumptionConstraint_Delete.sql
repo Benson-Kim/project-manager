@@ -41,7 +41,7 @@ BEGIN
     END
 
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT AssumptionConstraintId, [ProjectId], [Type], [Description], [IsValidated], [Impact], [MitigationPlan]
+        (SELECT AssumptionConstraintId, [ProjectId], [Type], [Description], [Validated], [IsValidated], [Impact], [MitigationPlan]
          FROM app.AssumptionConstraint WHERE AssumptionConstraintId = @AssumptionConstraintId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 

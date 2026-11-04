@@ -47,6 +47,7 @@ function fieldParams(input: CreateKeyDeliverableParsed | UpdateKeyDeliverablePar
     RequestedDate: input.requestedDate ?? null,
     StartDate: input.startDate ?? null,
     Deadline: input.deadline ?? null,
+    ActualDate: input.actualDate ?? null,
     AssigneeIds:
       input.assigneeIds && input.assigneeIds.length > 0 ? JSON.stringify(input.assigneeIds) : null,
     Priority: input.priority ?? null,

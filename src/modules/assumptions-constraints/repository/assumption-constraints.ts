@@ -26,7 +26,7 @@ function toProcParams(input: CreateAssumptionConstraintParsed) {
   return {
     Type: input.type ?? null,
     Description: input.description,
-    IsValidated: input.isValidated,
+    Validated: input.validated ?? null,
     Impact: input.impact ?? null,
   };
 }

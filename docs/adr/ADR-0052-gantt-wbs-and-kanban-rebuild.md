@@ -145,3 +145,26 @@ print rule serves both.
 - `e2e/key-deliverables.spec.ts`, `e2e/boards.spec.ts`, `e2e/requirements.spec.ts`: the Gantt
   tools, drag and undo, the details panel, deliverable cards, linking a requirement and ticking it
   met.
+
+## Amendment 2026-11-02: the work-breakdown boxes read by status again (client feedback)
+
+The rebuilt box filled itself with its **level's** colour and sat the code and name on a white pill
+over that fill. The client asked for the boxes they had before — *"I want the old wbs with the
+colour… If I put it to completed or anything else it was really nice"* — so a box carries its
+**status's** colour once more: a soft fill with a matching border at the top level, the colour as a
+left stripe on a surface box below it, and the name written straight on the box. An item's own
+colour still overrides the status (the 1.0.16 request), and no status reads as gray.
+
+Only the boxes change. The budgets, the note, the owners and Work % strip, the priority chip, the
+requirement list under a box, the details panel, the filters, the milestone strip, undo, CSV and
+print-to-fit all stay as decision 2 and 5 set them, and the Gantt's cards keep their level colours.
+Every soft tone now carries `--ink` and `--ink-muted` text, so `plan-level-contrast.test.ts` holds
+those pairs to AA as well as the level fills.
+
+**Full screen gives the chart both scrollbars.** The overlay was one scrolling box with the chart
+laid out at its full height inside it, so a chart taller than the screen pushed the Gantt's date row
+out of view and put the horizontal bar a screen down. The chart now takes the room the window
+leaves and scrolls both ways inside itself: `sticky top-0` on the date row holds, and the extra
+`--hbar` of height keeps the box's own horizontal bar under the clip so the floating one stays the
+only one. Nothing changes outside full screen, where `--fit-h` already sized the Gantt and the page
+scrolled the breakdown.

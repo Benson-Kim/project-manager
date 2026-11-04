@@ -56,6 +56,15 @@ function toProcParams(input: CreateProjectParsed) {
     ProjectStatus: input.projectStatus ?? null,
     ProjectPhase: input.projectPhase ?? null,
     RiskLevel: input.riskLevel ?? null,
+    AlternativeSolutions: input.alternativeSolutions ?? null,
+    ExpectedBenefits: input.expectedBenefits ?? null,
+    SuccessMetrics: input.successMetrics ?? null,
+    EstimatedRoi: input.estimatedRoi ?? null,
+    ProjectScope: input.projectScope ?? null,
+    KeyDependencies: input.keyDependencies ?? null,
+    /** The objectives travel as a JSON array of labels; null is "the form did not show it". */
+    ObjectiveAlignment:
+      input.objectiveAlignment == null ? null : JSON.stringify(input.objectiveAlignment),
   };
 }
 
@@ -118,6 +127,9 @@ export async function updateProject(
   const rows = await execProc<ProjectRow>("usp_Project_Update", {
     ProjectId: parsed.projectId,
     ...toProcParams(parsed),
+    /** Create replaces the set whenever it is sent; a full-row update needs telling apart
+     *  "the field was shown and emptied" from "the field was never shown". */
+    ObjectiveAlignmentSet: parsed.objectiveAlignment == null ? 0 : 1,
     RowVer: parsed.rowVer,
     ActorUserId: actorUserId,
   });

@@ -17,13 +17,20 @@ function walk(dir: string): string[] {
 }
 
 const INLINE_SQL =
-  /\b(SELECT\s+.+\s+FROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|CREATE\s+TABLE|ALTER\s+TABLE|EXEC(UTE)?\s*\()/i;
+  /\b(SELECT\s+.+\s+FROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|CREATE\s+TABLE|ALTER\s+TABLE|(?<!\.)EXEC(UTE)?\s*\()/i;
 
 describe("stored-procedure-only guarantee", () => {
   const files = walk("src");
 
   it("finds source files to scan", () => {
     expect(files.length).toBeGreaterThan(0);
+  });
+
+  it("the SQL verbs ignore JavaScript .exec( and the db layer's own request.execute(", () => {
+    expect("/^(\\d{4})-(\\d{2})$/.exec(value)").not.toMatch(INLINE_SQL);
+    expect("await request.execute(procName)").not.toMatch(INLINE_SQL);
+    expect("EXEC (dbo.usp_Thing)").toMatch(INLINE_SQL);
+    expect("EXECUTE(@sql)").toMatch(INLINE_SQL);
   });
 
   it.each(files)("%s contains no .query( call", (file) => {

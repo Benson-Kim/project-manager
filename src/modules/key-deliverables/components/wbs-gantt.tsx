@@ -54,6 +54,7 @@ import {
   moveUpTarget,
   newItemDates,
   outdentTarget,
+  parseDay,
   requestedDateClash,
   rolledBudget,
   visibleIds,
@@ -157,15 +158,6 @@ interface Confirmed {
 
 function sameDay(a: Date | null, b: Date | null): boolean {
   return a === b || (a !== null && b !== null && a.getTime() === b.getTime());
-}
-
-/** A yyyy-mm-dd from a date field, as a UTC-midnight day; null when not a usable date. */
-function parseDay(value: string): Date | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return null;
-  const day = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-  const year = day.getUTCFullYear();
-  return Number.isNaN(day.getTime()) || year < 1900 || year > 2200 ? null : day;
 }
 
 function readChart(key: string): ChartSettings | null {
@@ -1253,6 +1245,7 @@ export function WbsGantt({
           />
         ) : view === "wbs" ? (
           <WbsDiagram
+            fullscreen={fullscreen.active}
             projectName={projectName}
             wbs={wbs}
             filtered={filtered}
@@ -1279,6 +1272,7 @@ export function WbsGantt({
         ) : (
           <>
             <GanttBoard
+              fullscreen={fullscreen.active}
               scrollRef={scrollRef}
               wbs={shown}
               links={links}

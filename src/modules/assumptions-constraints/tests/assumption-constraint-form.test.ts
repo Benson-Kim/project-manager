@@ -18,7 +18,7 @@ describe("assumptionConstraintFormSchema", () => {
     expect(parsed.projectId).toBe(2);
     expect(parsed.description).toBe("An assumption about scope");
     expect(parsed.type).toBeNull();
-    expect(parsed.isValidated).toBe(false);
+    expect(parsed.validated).toBeNull();
     expect(parsed.impact).toBeNull();
   });
 
@@ -64,17 +64,24 @@ describe("assumptionConstraintFormSchema", () => {
     ).toBe(false);
   });
 
-  it("coerces checkbox 'on' to true for isValidated", () => {
-    const parsed = assumptionConstraintFormSchema.parse({
-      ...minimal,
-      isValidated: "on",
-    });
-    expect(parsed.isValidated).toBe(true);
+  // Validated is a managed list since migration 053 (ADR-0054), so it takes any label the live
+  // list offers — not only Yes and No — and the proc, not this schema, is what checks it.
+  it("keeps a validated label the list offers", () => {
+    expect(assumptionConstraintFormSchema.parse({ ...minimal, validated: "Yes" }).validated).toBe(
+      "Yes",
+    );
+    expect(
+      assumptionConstraintFormSchema.parse({ ...minimal, validated: "Partly" }).validated,
+    ).toBe("Partly");
   });
 
-  it("coerces absent checkbox to false for isValidated", () => {
-    const parsed = assumptionConstraintFormSchema.parse({ ...minimal });
-    expect(parsed.isValidated).toBe(false);
+  it("coerces an empty-string validated to null and refuses one past the label length", () => {
+    expect(
+      assumptionConstraintFormSchema.parse({ ...minimal, validated: "" }).validated,
+    ).toBeNull();
+    expect(
+      assumptionConstraintFormSchema.safeParse({ ...minimal, validated: "x".repeat(51) }).success,
+    ).toBe(false);
   });
 
   it("coerces empty-string impact to null", () => {

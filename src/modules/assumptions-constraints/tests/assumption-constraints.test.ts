@@ -20,7 +20,7 @@ function dbRow(overrides: Record<string, unknown> = {}) {
     ProjectId: 2,
     Type: "Assumption",
     Description: "An assumption about scope",
-    IsValidated: false,
+    Validated: null,
     Impact: null,
     MitigationPlan: null,
     CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),
@@ -37,7 +37,7 @@ describe("assumption-constraints repository", () => {
 
   it("create requires a non-empty description", async () => {
     await expect(
-      createAssumptionConstraint({ projectId: 2, description: "  ", isValidated: false }, 7),
+      createAssumptionConstraint({ projectId: 2, description: "  " }, 7),
     ).rejects.toThrow();
     expect(execProc).not.toHaveBeenCalled();
   });
@@ -56,7 +56,7 @@ describe("assumption-constraints repository", () => {
     expect(params.Description).toBe("An assumption about scope");
     expect(params.ActorUserId).toBe(7);
     expect(params.Type).toBeNull();
-    expect(params.IsValidated).toBe(false);
+    expect(params.Validated).toBeNull();
   });
 
   it("create forwards type=Constraint", async () => {
@@ -89,14 +89,15 @@ describe("assumption-constraints repository", () => {
     expect(params.Impact).toBe("Low");
   });
 
-  it("create forwards isValidated=true", async () => {
-    execProc.mockResolvedValue([dbRow({ IsValidated: true })]);
-    await createAssumptionConstraint(
-      { projectId: 2, description: "Verified assumption", isValidated: true },
+  it("create forwards the validated label the list holds", async () => {
+    execProc.mockResolvedValue([dbRow({ Validated: "Yes" })]);
+    const row = await createAssumptionConstraint(
+      { projectId: 2, description: "Verified assumption", validated: "Yes" },
       7,
     );
     const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
-    expect(params.IsValidated).toBe(true);
+    expect(params.Validated).toBe("Yes");
+    expect(row.Validated).toBe("Yes");
   });
 
   it("create throws INTERNAL when proc returns empty result", async () => {
@@ -198,7 +199,7 @@ describe("assumption-constraints repository", () => {
         rowVer: 42,
         projectId: 2,
         description: "Updated description",
-        isValidated: true,
+        validated: "Yes",
       },
       7,
     );
@@ -206,7 +207,7 @@ describe("assumption-constraints repository", () => {
     expect(proc).toBe("usp_AssumptionConstraint_Update");
     expect(params.RowVer).toBe(42);
     expect(params.AssumptionConstraintId).toBe(1);
-    expect(params.IsValidated).toBe(true);
+    expect(params.Validated).toBe("Yes");
   });
 
   it("update throws INTERNAL when proc returns empty", async () => {
@@ -218,7 +219,6 @@ describe("assumption-constraints repository", () => {
           rowVer: 42,
           projectId: 2,
           description: "Test",
-          isValidated: false,
         },
         7,
       ),

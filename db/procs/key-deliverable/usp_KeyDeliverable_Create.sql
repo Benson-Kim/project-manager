@@ -23,6 +23,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_KeyDeliverable_Create
     @RequestedDate          DATETIME2     = NULL,
     @StartDate              DATETIME2     = NULL,
     @Deadline               DATETIME2     = NULL,
+    @ActualDate             DATETIME2     = NULL,
     @AssigneeIds            NVARCHAR(MAX) = NULL,   -- JSON array e.g. '[1,2,3]' or NULL
     @Priority               NVARCHAR(255) = NULL,
     @Status                 NVARCHAR(255) = NULL,
@@ -104,10 +105,12 @@ BEGIN
 
     INSERT INTO app.KeyDeliverable
         ([ProjectId], ParentKeyDeliverableId, SortOrder, [KeyRequirement], [RequestedDate], StartDate,
-         [Deadline], [Priority], [Status], Color, [IsMilestone], Budget, CreatedBy)
+         [Deadline], [ActualDate], [Priority], [Status], Color, [IsMilestone], Budget,
+         CreatedBy)
     VALUES
         (@ProjectId, @ParentKeyDeliverableId, @SortOrder, @KeyRequirement, @RequestedDate, @StartDate,
-         @Deadline, @Priority, @Status, @Color, @IsMilestone, @Budget, @ActorUserId);
+         @Deadline, @ActualDate, @Priority, @Status, @Color, @IsMilestone, @Budget,
+         @ActorUserId);
 
     DECLARE @Id INT = SCOPE_IDENTITY();
 
@@ -131,7 +134,8 @@ BEGIN
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, AfterJson)
     VALUES (@ActorUserId, N'Create', N'app.KeyDeliverable', CAST(@Id AS NVARCHAR(64)),
             (SELECT KeyDeliverableId, [ProjectId], ParentKeyDeliverableId, SortOrder, [KeyRequirement],
-                    [RequestedDate], StartDate, [Deadline], [Priority], [Status], Color, [IsMilestone],
+                    [RequestedDate], StartDate, [Deadline], [ActualDate], [Priority], [Status], Color,
+                    [IsMilestone],
                     Budget,
                     (SELECT CAST(a.StakeholderId AS NVARCHAR(20)) AS id
                      FROM app.KeyDeliverableAssignee AS a
@@ -156,6 +160,7 @@ BEGIN
            kd.[RequestedDate],
            kd.StartDate,
            kd.[Deadline],
+           kd.[ActualDate],
            kd.[Priority],
            kd.[Status],
            kd.Color,

@@ -9,16 +9,24 @@ import { messages } from "./messages";
  * app.DailyActivity.ActivityStatusId, which stores the option id.
  *
  * This registry names every list the app reads; src/tests/lookup-lists.test.ts
- * keeps it equal to the lists the migrations seed (018, 021, 031) and to the
- * rename cascade in dbo.usp_LookupList_Set.
+ * keeps it equal to the lists the migrations seed (018, 021, 031, 049, 053, 054, 056, 057)
+ * and
+ * to the rename cascade in dbo.usp_LookupList_Set.
  */
 export const LOOKUP_LISTS = [
   "project.status",
   "project.priority",
   "project.phase",
   "project.risk-level",
+  // The business case (migration 056, client updates 2026-11-03): a project is aligned to
+  // several objectives at once, held as labels in app.ProjectObjectiveAlignment.
+  "project.objective-alignment",
   "stakeholder.communication-preference",
   "stakeholder.engagement-level",
+  // The communication plan (migration 054, BL34): the client gave examples, not a closed set,
+  // so Purpose and Frequency are managed lists from day one.
+  "stakeholder.communication-purpose",
+  "stakeholder.communication-frequency",
   "supplier.rating",
   "key-deliverable.status",
   "key-deliverable.priority",
@@ -26,6 +34,9 @@ export const LOOKUP_LISTS = [
   "question-answer.priority",
   "assumption-constraint.type",
   "assumption-constraint.impact",
+  // Validated was a checkbox until migration 053 (ADR-0054, BL20): Yes and No are locked, since
+  // the derived app.AssumptionConstraint.IsValidated reads them by name.
+  "assumption-constraint.validated",
   "daily-activity.status",
   "daily-activity.contact-method",
   "daily-activity.task-type",
@@ -42,6 +53,10 @@ export const LOOKUP_LISTS = [
   "risk-issue.priority",
   "risk-issue.impact",
   "risk-issue.probability",
+  // The decision log (migration 057, ADR-0055). A decision's impacted areas are a set, held as
+  // labels in app.DecisionImpactedArea the way every other list-bound value is held.
+  "decision.status",
+  "decision.impacted-area",
 ] as const;
 
 export type LookupListKey = (typeof LOOKUP_LISTS)[number];
@@ -202,6 +217,21 @@ export const listValue = z.string().trim().max(LOOKUP_LABEL_MAX);
 
 /** A form field bound to a label-stored list: FormData sends "" for "no choice" (→ null). */
 export const listChoice = listValue.optional().transform((value) => value || null);
+
+/**
+ * A form field bound to a label-stored list that holds several values, as the
+ * repeated `name[]` entries a chip picker submits: FormData gives one entry as a
+ * string and several as an array. Nothing picked is the empty set, so a field
+ * the form did show and the user emptied still reaches the proc as a set; a
+ * field the form never sent is told apart by its own Set flag, not by this.
+ */
+export const listChoiceSet = z
+  .union([listValue, z.array(listValue)])
+  .optional()
+  .transform((value) => {
+    const values = value === undefined ? [] : Array.isArray(value) ? value : [value];
+    return [...new Set(values.filter((label) => label.length > 0))];
+  });
 
 export interface ListChoice {
   value: string;

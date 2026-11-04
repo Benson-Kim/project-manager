@@ -5,7 +5,8 @@
 -- Row-level access: the actor needs Manager on the row's project (dbo.usp_Project_AssertAccess,
 --   ADR-0021; FORBIDDEN_ROW 50003). Admins hold Manager everywhere.
 -- The project key is immutable: @ProjectId is accepted but ignored (DB standard).
--- Dropdown values (ADR-0022): CommunicationPreference and EngagementLevel must be live options of their lists, or unchanged (VALIDATION 50004),
+-- Dropdown values (ADR-0022): CommunicationPreference, EngagementLevel, CommunicationPurpose and
+--   CommunicationFrequency must be live options of their lists, or unchanged (VALIDATION 50004),
 --   and are stored as listed.
 -- Entity app.Stakeholder (source: tblStakeholders). Module: stakeholders (#6).
 USE ProjectManager;
@@ -26,6 +27,9 @@ CREATE OR ALTER PROCEDURE dbo.usp_Stakeholder_Update
     @OrgTitle NVARCHAR(255) = NULL,
     @CommunicationPreference NVARCHAR(255) = NULL,
     @EngagementLevel NVARCHAR(255) = NULL,
+    @CommunicationPurpose NVARCHAR(50) = NULL,
+    @KeyMessageStrategy NVARCHAR(MAX) = NULL,
+    @CommunicationFrequency NVARCHAR(50) = NULL,
     @AdditionalNotes NVARCHAR(MAX) = NULL,
     @RowVer BIGINT,
     @ActorUserId INT
@@ -36,9 +40,11 @@ BEGIN
 
     -- Verify the row exists (NOT_FOUND) before entering the transaction so we
     -- give a useful error even when RowVer is stale.
-    DECLARE @RowProjectId INT, @CurrentCommunication NVARCHAR(255), @CurrentEngagement NVARCHAR(255);
+    DECLARE @RowProjectId INT, @CurrentCommunication NVARCHAR(255), @CurrentEngagement NVARCHAR(255),
+            @CurrentPurpose NVARCHAR(50), @CurrentFrequency NVARCHAR(50);
     SELECT @RowProjectId = ProjectId, @CurrentCommunication = CommunicationPreference,
-           @CurrentEngagement = EngagementLevel
+           @CurrentEngagement = EngagementLevel, @CurrentPurpose = CommunicationPurpose,
+           @CurrentFrequency = CommunicationFrequency
     FROM app.Stakeholder WHERE StakeholderId = @StakeholderId AND IsDeleted = 0;
     IF @@ROWCOUNT = 0
         THROW 50001, N'NOT_FOUND:Stakeholder not found', 1;
@@ -54,11 +60,17 @@ BEGIN
     EXEC dbo.usp_LookupList_AssertLabel
          @ListKey = N'stakeholder.engagement-level', @Label = @EngagementLevel OUTPUT,
          @CurrentLabel = @CurrentEngagement;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'stakeholder.communication-purpose', @Label = @CommunicationPurpose OUTPUT,
+         @CurrentLabel = @CurrentPurpose;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'stakeholder.communication-frequency', @Label = @CommunicationFrequency OUTPUT,
+         @CurrentLabel = @CurrentFrequency;
 
     BEGIN TRAN;
 
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT StakeholderId, [ProjectId], [FirstName], [LastName], [DepartmentOrganization], [ProjectRole], [RoleDescription], [PhoneNumber], [PhoneExt], [Mobile], [EmailAddress], [PhysicalLocation], [OrgTitle], [CommunicationPreference], [EngagementLevel], [AdditionalNotes]
+        (SELECT StakeholderId, [ProjectId], [FirstName], [LastName], [DepartmentOrganization], [ProjectRole], [RoleDescription], [PhoneNumber], [PhoneExt], [Mobile], [EmailAddress], [PhysicalLocation], [OrgTitle], [CommunicationPreference], [EngagementLevel], [CommunicationPurpose], [KeyMessageStrategy], [CommunicationFrequency], [AdditionalNotes]
          FROM app.Stakeholder WHERE StakeholderId = @StakeholderId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 
@@ -79,6 +91,9 @@ BEGIN
         [OrgTitle] = @OrgTitle,
         [CommunicationPreference] = @CommunicationPreference,
         [EngagementLevel] = @EngagementLevel,
+        [CommunicationPurpose] = @CommunicationPurpose,
+        [KeyMessageStrategy] = @KeyMessageStrategy,
+        [CommunicationFrequency] = @CommunicationFrequency,
         [AdditionalNotes] = @AdditionalNotes,
         UpdatedAtUtc = SYSUTCDATETIME(),
         UpdatedBy    = @ActorUserId
@@ -91,7 +106,7 @@ BEGIN
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.Stakeholder', CAST(@StakeholderId AS NVARCHAR(64)), @Before,
-            (SELECT StakeholderId, [ProjectId], [FirstName], [LastName], [DepartmentOrganization], [ProjectRole], [RoleDescription], [PhoneNumber], [PhoneExt], [Mobile], [EmailAddress], [PhysicalLocation], [OrgTitle], [CommunicationPreference], [EngagementLevel], [AdditionalNotes]
+            (SELECT StakeholderId, [ProjectId], [FirstName], [LastName], [DepartmentOrganization], [ProjectRole], [RoleDescription], [PhoneNumber], [PhoneExt], [Mobile], [EmailAddress], [PhysicalLocation], [OrgTitle], [CommunicationPreference], [EngagementLevel], [CommunicationPurpose], [KeyMessageStrategy], [CommunicationFrequency], [AdditionalNotes]
              FROM app.Stakeholder WHERE StakeholderId = @StakeholderId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
@@ -112,6 +127,9 @@ BEGIN
            [OrgTitle],
            [CommunicationPreference],
            [EngagementLevel],
+           [CommunicationPurpose],
+           [KeyMessageStrategy],
+           [CommunicationFrequency],
            [AdditionalNotes],
            CreatedAtUtc,
            UpdatedAtUtc,

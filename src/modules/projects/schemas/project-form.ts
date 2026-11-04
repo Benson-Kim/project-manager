@@ -2,7 +2,7 @@ import { z } from "zod";
 import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
 import { datesInOrder, datesWere, storedDates } from "@/lib/date-range";
 import { toDateInput } from "@/lib/format";
-import { listChoice, type LookupListKey } from "@/lib/lookup-lists";
+import { listChoice, listChoiceSet, type LookupListKey } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
 import { richTextSchema, RICH_TEXT_FIELD_MAX } from "@/lib/rich-text/schema";
 import type { ProjectRow } from "./project";
@@ -20,6 +20,7 @@ export const PROJECT_LISTS = [
   "project.priority",
   "project.phase",
   "project.risk-level",
+  "project.objective-alignment",
 ] as const satisfies readonly LookupListKey[];
 
 const optionalText = (max: number) =>
@@ -87,7 +88,27 @@ const projectFields = z.object({
   projectStatus: listChoice,
   projectPhase: listChoice,
   riskLevel: listChoice,
+  /** The business case and the scope (client updates 2026-11-03). */
+  alternativeSolutions: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
+  expectedBenefits: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
+  successMetrics: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
+  estimatedRoi: optionalText(255),
+  projectScope: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
+  keyDependencies: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
+  objectiveAlignmentSet: flag,
+  "objectiveAlignment[]": listChoiceSet,
 });
+
+/**
+ * The strategic objectives leave the form as one set, and only when the form showed the
+ * field: `objectiveAlignmentSet` is the hidden flag the full form renders. A datasheet cell
+ * edit saves a whole row without that flag, sends null, and the proc leaves the project's
+ * own objectives exactly as they are.
+ */
+function withAlignment<T extends z.output<typeof projectFields>>(raw: T) {
+  const { objectiveAlignmentSet, "objectiveAlignment[]": labels, ...rest } = raw;
+  return { ...rest, objectiveAlignment: objectiveAlignmentSet ? labels : null };
+}
 
 const projectDates = datesInOrder(
   {
@@ -105,7 +126,7 @@ const projectDates = datesInOrder(
   },
 );
 
-export const projectFormSchema = projectFields.superRefine(projectDates);
+export const projectFormSchema = projectFields.superRefine(projectDates).transform(withAlignment);
 
 export type ProjectFormValues = z.output<typeof projectFormSchema>;
 
@@ -115,7 +136,8 @@ export const updateProjectFormSchema = projectFields
     rowVer: z.coerce.number().int().nonnegative(),
     ...datesWere("startDate", "endDate", "estimatedCompletionDate"),
   })
-  .superRefine(projectDates);
+  .superRefine(projectDates)
+  .transform(withAlignment);
 
 export type UpdateProjectFormValues = z.output<typeof updateProjectFormSchema>;
 
@@ -163,5 +185,11 @@ export function projectFormValues(row: ProjectRow): FormValues {
     projectStatus: formText(row.ProjectStatus),
     projectPhase: formText(row.ProjectPhase),
     riskLevel: formText(row.RiskLevel),
+    alternativeSolutions: formText(row.AlternativeSolutions),
+    expectedBenefits: formText(row.ExpectedBenefits),
+    successMetrics: formText(row.SuccessMetrics),
+    estimatedRoi: formText(row.EstimatedRoi),
+    projectScope: formText(row.ProjectScope),
+    keyDependencies: formText(row.KeyDependencies),
   };
 }

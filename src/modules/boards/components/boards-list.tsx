@@ -11,6 +11,7 @@ import { Toolbar } from "@/components/ui/toolbar";
 import { Button } from "@/components/ui/button";
 import { messages } from "@/lib/messages";
 import { listEmptyState } from "@/components/ui/states";
+import { ProjectLink } from "@/components/ui/project-link";
 import type { BoardListRow } from "../schemas/board";
 import type { ProjectOption } from "@/modules/projects/project-options";
 import { createBoardAction } from "../actions";
@@ -62,7 +63,11 @@ export function BoardsList({
             <Link className="text-lg font-semibold text-accent" href={boardHref(r.BoardId)}>
               {r.Name}
             </Link>
-            <p className="text-sm text-ink-muted">{r.ProjectName ?? M.noProject}</p>
+            <p className="text-sm text-ink-muted">
+              <ProjectLink projectId={r.ProjectId} className="underline">
+                {r.ProjectName ?? M.noProject}
+              </ProjectLink>
+            </p>
             <p className="mt-2 line-clamp-3">{r.Description}</p>
           </div>
         )}
@@ -81,7 +86,9 @@ export function BoardsList({
             key: "ProjectName",
             header: M.project,
             priority: 2,
-            render: (r) => r.ProjectName ?? M.noProject,
+            render: (r) => (
+              <ProjectLink projectId={r.ProjectId}>{r.ProjectName ?? M.noProject}</ProjectLink>
+            ),
           },
         ]}
         sort={BOARD_SORT}

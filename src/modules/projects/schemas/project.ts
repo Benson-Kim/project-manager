@@ -13,6 +13,19 @@ import { ACCESS_LEVELS } from "@/lib/auth/types";
  */
 export const rowVerSchema = z.coerce.number().int().nonnegative();
 
+/**
+ * The labels a project is aligned to, as usp_Project_{Create,GetById,Update} return them:
+ * one FOR JSON column, NULL when the project is aligned to none. List rows leave the column
+ * out — the datasheet does not show the set — and come back undefined, which is how a caller
+ * tells "none" from "not read".
+ */
+const objectiveAlignmentColumn = z
+  .preprocess(
+    (raw) => (typeof raw === "string" && raw !== "" ? (JSON.parse(raw) as unknown) : raw),
+    z.array(z.object({ label: z.string() })).nullish(),
+  )
+  .transform((rows) => (rows === undefined ? undefined : (rows ?? []).map((row) => row.label)));
+
 export const projectRowSchema = z.object({
   ProjectId: z.number().int(),
   ProjectName: z.string(),
@@ -47,6 +60,15 @@ export const projectRowSchema = z.object({
   ProjectStatus: z.string().nullable(),
   ProjectPhase: z.string().nullable(),
   RiskLevel: z.string().nullable(),
+  /** The business case and the scope (client updates 2026-11-03): rich text, as written. */
+  AlternativeSolutions: z.string().nullable(),
+  ExpectedBenefits: z.string().nullable(),
+  SuccessMetrics: z.string().nullable(),
+  /** Prose in practice ("18 months", "1.4x by the next financial year"), so text, not a number. */
+  EstimatedRoi: z.string().nullable(),
+  ProjectScope: z.string().nullable(),
+  KeyDependencies: z.string().nullable(),
+  ObjectiveAlignment: objectiveAlignmentColumn,
   /** The work breakdown's sticky note (ADR-0052). usp_Project_GetById only; written by
    *  usp_KeyDeliverable_SetPlanNote, never by the project form. */
   PlanNote: z.string().nullable().optional(),
@@ -106,6 +128,15 @@ export const createProjectInput = z.object({
   projectStatus: z.string().trim().max(50).nullish(),
   projectPhase: z.string().trim().max(50).nullish(),
   riskLevel: z.string().trim().max(50).nullish(),
+  alternativeSolutions: z.string().nullish(),
+  expectedBenefits: z.string().nullish(),
+  successMetrics: z.string().nullish(),
+  estimatedRoi: z.string().trim().max(255).nullish(),
+  projectScope: z.string().nullish(),
+  keyDependencies: z.string().nullish(),
+  /** The strategic objectives, replaced as a set. null leaves the project's own set alone:
+   *  a write that never showed the field (a datasheet cell edit) must not clear it. */
+  objectiveAlignment: z.array(z.string().trim().max(LOOKUP_LABEL_MAX)).nullish(),
 });
 
 /** What callers may pass (defaults still optional). */

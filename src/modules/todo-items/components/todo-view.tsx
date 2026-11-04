@@ -13,6 +13,7 @@ import { DataView } from "@/components/ui/data-view/data-view";
 import { formCellSaver } from "@/components/ui/data-view/datasheet";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
+import { ProjectLink } from "@/components/ui/project-link";
 import { EmptyState } from "@/components/ui/states";
 import { rowAllows } from "@/lib/auth/actor-access";
 import type { ListLayout } from "@/lib/list-layout";
@@ -266,7 +267,11 @@ export function TodoView({
             <Badge value={row.Priority} />
           </div>
           {projects && row.ProjectName ? (
-            <p className="text-xs text-ink-muted">{row.ProjectName}</p>
+            <p className="text-xs text-ink-muted">
+              <ProjectLink projectId={row.ProjectId} className="underline">
+                {row.ProjectName}
+              </ProjectLink>
+            </p>
           ) : null}
           {row.DueDate ? (
             <p className={`text-xs ${dueTone(row) ?? "text-ink-muted"}`}>

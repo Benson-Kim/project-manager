@@ -50,6 +50,14 @@ function dbRow(overrides: Record<string, unknown> = {}) {
     ProjectStatus: "Completed",
     ProjectPhase: null,
     RiskLevel: null,
+    AlternativeSolutions: null,
+    ExpectedBenefits: null,
+    SuccessMetrics: null,
+    EstimatedRoi: null,
+    ProjectScope: null,
+    KeyDependencies: null,
+    // FOR JSON PATH arrives as a string, like the CAST rowversion below
+    ObjectiveAlignment: '[{"label":"Growth"},{"label":"Sustainability"}]',
     CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),
     UpdatedAtUtc: null,
     RowVer: "2001", // driver returns CAST(RowVer AS BIGINT) as a string
@@ -71,6 +79,7 @@ describe("projects repository", () => {
     expect(params.ProjectManager).toBeNull();
     expect(params.A1).toBe(false);
     expect(params.ActorUserId).toBe(7);
+    expect(row.ObjectiveAlignment).toEqual(["Growth", "Sustainability"]);
   });
 
   it("create rejects an empty project name before touching the database", async () => {
@@ -129,6 +138,47 @@ describe("projects repository", () => {
     expect(params.ProjectId).toBe(2);
     expect(params.RowVer).toBe(2001);
     expect(params.ProjectName).toBe("Renamed");
+  });
+
+  it("sends the objectives as a JSON array, and the Set flag only when they were sent", async () => {
+    execProc.mockResolvedValue([dbRow()]);
+    await updateProject(
+      { projectId: 2, rowVer: 2001, projectName: "X", objectiveAlignment: ["Growth", "Cost"] },
+      7,
+    );
+    const [, sent] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(sent.ObjectiveAlignment).toBe('["Growth","Cost"]');
+    expect(sent.ObjectiveAlignmentSet).toBe(1);
+
+    execProc.mockReset();
+    execProc.mockResolvedValue([dbRow()]);
+    await updateProject({ projectId: 2, rowVer: 2001, projectName: "X" }, 7);
+    const [, untouched] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    // A write that never showed the field: the proc leaves the project's own objectives alone.
+    expect(untouched.ObjectiveAlignment).toBeNull();
+    expect(untouched.ObjectiveAlignmentSet).toBe(0);
+  });
+
+  it("sends the empty set as an empty array, which clears the objectives", async () => {
+    execProc.mockResolvedValue([dbRow()]);
+    await updateProject(
+      { projectId: 2, rowVer: 2001, projectName: "X", objectiveAlignment: [] },
+      7,
+    );
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params.ObjectiveAlignment).toBe("[]");
+    expect(params.ObjectiveAlignmentSet).toBe(1);
+  });
+
+  it("list leaves the objectives unread, which is not the same as none", async () => {
+    execProc.mockResolvedValue([
+      { ...dbRow({ ObjectiveAlignment: undefined }), TotalCount: 1, ActorAccess: "Manager" },
+    ]);
+    const rows = await listProjects(
+      { q: undefined, sort: "ProjectName", dir: "asc", view: undefined, page: 1 },
+      7,
+    );
+    expect(rows[0].ObjectiveAlignment).toBeUndefined();
   });
 
   it("delete forwards id, rowVer and actor", async () => {

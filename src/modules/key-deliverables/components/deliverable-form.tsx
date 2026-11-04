@@ -183,6 +183,15 @@ export function DeliverableForm({
               defaultValue={toDateInput(deliverable?.RequestedDate)}
             />
           </Field>
+          {/* No stored-date pair: an actual date may fall either side of the one it was
+              aimed at, so there is no order for the form to check. */}
+          <Field
+            label={messages.keyDeliverables.actualDate}
+            name="actualDate"
+            errors={form.errors.actualDate}
+          >
+            <DatePicker name="actualDate" defaultValue={toDateInput(deliverable?.ActualDate)} />
+          </Field>
           <Field label={messages.keyDeliverables.status} name="status" errors={form.errors.status}>
             <ListSelect
               list="key-deliverable.status"

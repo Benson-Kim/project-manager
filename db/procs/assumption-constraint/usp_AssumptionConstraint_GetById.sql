@@ -24,7 +24,7 @@ BEGIN
            [ProjectId],
            [Type],
            [Description],
-           [IsValidated],
+           [Validated],
            [Impact],
            [MitigationPlan],
            CreatedAtUtc,

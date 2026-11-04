@@ -67,6 +67,14 @@ BEGIN
            [ProjectStatus],
            [ProjectPhase],
            [RiskLevel],
+           -- The narrative columns travel with the list because the datasheet saves a whole row
+           -- (formCellSaver): a column it cannot read back is a column one cell edit would clear.
+           [AlternativeSolutions],
+           [ExpectedBenefits],
+           [SuccessMetrics],
+           [EstimatedRoi],
+           [ProjectScope],
+           [KeyDependencies],
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer,

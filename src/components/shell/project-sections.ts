@@ -1,4 +1,5 @@
 import { messages } from "@/lib/messages";
+import { projectOverviewHref } from "@/modules/projects/project-links";
 
 /**
  * Project section registry (ADR-0018): mirrors nav-items.ts for the project
@@ -47,6 +48,7 @@ export const projectSections: ProjectSection[] = [
     match: "prefix",
   },
   { segment: "risks-issues", label: messages.projects.risksIssuesSection, match: "prefix" },
+  { segment: "decisions", label: messages.projects.decisionsSection, match: "prefix" },
   { segment: "meetings", label: messages.projects.meetingsSection, match: "prefix" },
   { segment: "boards", label: messages.projects.boardsSection, match: "prefix" },
   { segment: "notes", label: messages.projects.notesSection, match: "prefix" },
@@ -85,6 +87,7 @@ export const projectSectionGroups: ProjectSectionGroup[] = [
         "parking-lot",
         "assumptions-constraints",
         "risks-issues",
+        "decisions",
       ].includes(s.segment),
     ),
   },
@@ -109,8 +112,8 @@ export const projectSectionGroups: ProjectSectionGroup[] = [
 
 export function sectionHref(projectId: number, section: ProjectSection): string {
   return section.segment === "."
-    ? `/projects/${projectId}`
-    : `/projects/${projectId}/${section.segment}`;
+    ? projectOverviewHref(projectId)
+    : `${projectOverviewHref(projectId)}/${section.segment}`;
 }
 
 /** The nav link: a Financials view keeps the open financial (?f=<id>) when switching views. */

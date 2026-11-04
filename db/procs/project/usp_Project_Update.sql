@@ -3,6 +3,12 @@
 --   ADR-0021; FORBIDDEN_ROW 50003).
 -- Dropdown values (ADR-0022): ProjectStatus, ProjectPriority, ProjectPhase and RiskLevel must be live options of their lists, or unchanged (VALIDATION 50004),
 --   and are stored as listed.
+-- Business case and scope (client updates 2026-11-03): the narrative columns are stored as written.
+--   @ObjectiveAlignment is a JSON array of 'project.objective-alignment' labels, replaced inside this
+--   transaction by dbo.usp_Project_ReplaceObjectiveAlignment, which checks each one against the list.
+--   @ObjectiveAlignmentSet tells an edit of the set apart from a write that never showed the field:
+--   the datasheet saves whole rows, and a cell edit must not clear a project's objectives. With the
+--   flag set the array is required; without it the set is left exactly as it is.
 -- Entity app.Project (source: tblProjectFramework). Module: database-schema-and-procs (#3).
 -- Dates in order (VALIDATION 50004) only when one of the pair changes: a record saved with them
 --   inverted before the rule existed can still be edited without rewriting its history.
@@ -42,6 +48,14 @@ CREATE OR ALTER PROCEDURE dbo.usp_Project_Update
     @ProjectStatus NVARCHAR(50) = NULL,
     @ProjectPhase NVARCHAR(50) = NULL,
     @RiskLevel NVARCHAR(50) = NULL,
+    @AlternativeSolutions NVARCHAR(MAX) = NULL,
+    @ExpectedBenefits NVARCHAR(MAX) = NULL,
+    @SuccessMetrics NVARCHAR(MAX) = NULL,
+    @EstimatedRoi NVARCHAR(255) = NULL,
+    @ProjectScope NVARCHAR(MAX) = NULL,
+    @KeyDependencies NVARCHAR(MAX) = NULL,
+    @ObjectiveAlignment NVARCHAR(MAX) = NULL,
+    @ObjectiveAlignmentSet BIT = 0,
     @RowVer BIGINT,
     @ActorUserId INT
 AS
@@ -91,7 +105,7 @@ BEGIN
     BEGIN TRAN;
 
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT ProjectId, [ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel]
+        (SELECT ProjectId, [ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel], [AlternativeSolutions], [ExpectedBenefits], [SuccessMetrics], [EstimatedRoi], [ProjectScope], [KeyDependencies]
          FROM app.Project WHERE ProjectId = @ProjectId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 
@@ -128,6 +142,12 @@ BEGIN
         [ProjectStatus] = @ProjectStatus,
         [ProjectPhase] = @ProjectPhase,
         [RiskLevel] = @RiskLevel,
+        [AlternativeSolutions] = @AlternativeSolutions,
+        [ExpectedBenefits] = @ExpectedBenefits,
+        [SuccessMetrics] = @SuccessMetrics,
+        [EstimatedRoi] = @EstimatedRoi,
+        [ProjectScope] = @ProjectScope,
+        [KeyDependencies] = @KeyDependencies,
         UpdatedAtUtc = SYSUTCDATETIME(),
         UpdatedBy    = @ActorUserId
     WHERE ProjectId = @ProjectId AND IsDeleted = 0
@@ -139,9 +159,13 @@ BEGIN
         THROW 50002, N'CONFLICT:Project was modified by someone else', 1;
     END
 
+    IF @ObjectiveAlignmentSet = 1
+        EXEC dbo.usp_Project_ReplaceObjectiveAlignment
+             @ProjectId = @ProjectId, @Labels = @ObjectiveAlignment, @ActorUserId = @ActorUserId;
+
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.Project', CAST(@ProjectId AS NVARCHAR(64)), @Before,
-            (SELECT ProjectId, [ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel]
+            (SELECT ProjectId, [ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel], [AlternativeSolutions], [ExpectedBenefits], [SuccessMetrics], [EstimatedRoi], [ProjectScope], [KeyDependencies]
              FROM app.Project WHERE ProjectId = @ProjectId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
@@ -180,6 +204,17 @@ BEGIN
            [ProjectStatus],
            [ProjectPhase],
            [RiskLevel],
+           [AlternativeSolutions],
+           [ExpectedBenefits],
+           [SuccessMetrics],
+           [EstimatedRoi],
+           [ProjectScope],
+           [KeyDependencies],
+           ObjectiveAlignment = (SELECT a.Label AS label
+                                 FROM app.ProjectObjectiveAlignment AS a
+                                 WHERE a.ProjectId = @ProjectId
+                                 ORDER BY a.Label
+                                 FOR JSON PATH),
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer

@@ -7,12 +7,11 @@ import type { AssumptionConstraintRow } from "./assumption-constraint";
 /**
  * AssumptionConstraint form contract — ONE schema shared by the client Sheet
  * form (blur + submit validation over FormData strings) and the server actions.
- * FormData values are strings — "" → null for optional fields;
- * checkbox "on"/absent → boolean.
+ * FormData values are strings — "" → null for optional fields.
  *
- * type and impact are managed lists (ADR-0022): "" → null here; the procs check
- * the value against the live list, so forged payloads still can't persist an
- * unrecognised value (review comments #3/#8).
+ * type, impact and validated are managed lists (ADR-0022): "" → null here; the
+ * procs check the value against the live list, so forged payloads still can't
+ * persist an unrecognised value (review comments #3/#8).
  */
 
 export const assumptionConstraintFormSchema = z.object({
@@ -23,7 +22,7 @@ export const assumptionConstraintFormSchema = z.object({
     .trim()
     .min(1, messages.assumptionsConstraints.descriptionRequired)
     .max(4000),
-  isValidated: z.preprocess((v) => v === "on" || v === true || v === "true", z.boolean()),
+  validated: listChoice,
   impact: listChoice,
 });
 
@@ -46,7 +45,7 @@ export function assumptionConstraintFormValues(row: AssumptionConstraintRow): Fo
     projectId: String(row.ProjectId),
     type: formText(row.Type),
     description: formText(row.Description),
-    isValidated: row.IsValidated ? "on" : "",
+    validated: formText(row.Validated),
     impact: formText(row.Impact),
   };
 }

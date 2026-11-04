@@ -351,6 +351,55 @@ export function StakeholderSheet({
                 />
               </Field>
             </section>
+
+            <section
+              aria-labelledby="stakeholder-communication-heading"
+              className="flex flex-col gap-4"
+            >
+              <SectionHeading id="stakeholder-communication-heading">
+                {messages.stakeholders.communicationSection}
+              </SectionHeading>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field
+                  label={messages.stakeholders.communicationPurpose}
+                  name="communicationPurpose"
+                  errors={form.errors.communicationPurpose}
+                >
+                  <ListSelect
+                    list="stakeholder.communication-purpose"
+                    current={stakeholder?.CommunicationPurpose}
+                    name="communicationPurpose"
+                    defaultValue={stakeholder?.CommunicationPurpose ?? ""}
+                  >
+                    <option value="">{messages.stakeholders.none}</option>
+                  </ListSelect>
+                </Field>
+                <Field
+                  label={messages.stakeholders.communicationFrequency}
+                  name="communicationFrequency"
+                  errors={form.errors.communicationFrequency}
+                >
+                  <ListSelect
+                    list="stakeholder.communication-frequency"
+                    current={stakeholder?.CommunicationFrequency}
+                    name="communicationFrequency"
+                    defaultValue={stakeholder?.CommunicationFrequency ?? ""}
+                  >
+                    <option value="">{messages.stakeholders.none}</option>
+                  </ListSelect>
+                </Field>
+              </div>
+              <Field
+                label={messages.stakeholders.keyMessageStrategy}
+                name="keyMessageStrategy"
+                errors={form.errors.keyMessageStrategy}
+              >
+                <Textarea
+                  name="keyMessageStrategy"
+                  defaultValue={stakeholder?.KeyMessageStrategy ?? ""}
+                />
+              </Field>
+            </section>
           </fieldset>
 
           <div className="flex flex-wrap items-center gap-2 px-4 py-2">

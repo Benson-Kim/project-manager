@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ResizeHandle } from "@/components/ui/data-view/datasheet-cells";
 import { StickyScrollbar } from "@/components/ui/data-view/sticky-scrollbar";
-import { planTone, TONES } from "@/components/ui/tones";
+import { TONES } from "@/components/ui/tones";
 import type { OptionColor } from "@/lib/lookup-lists";
 import { formatDate, toDateInput } from "@/lib/format";
 import { messages } from "@/lib/messages";
@@ -17,6 +17,7 @@ import {
   itemProgress,
   moveDownTarget,
   moveUpTarget,
+  NO_STATUS_COLOR,
   outdentTarget,
   planBudget,
   planProgress,
@@ -112,16 +113,12 @@ export interface DiagramHandlers {
   priority?: (id: number, priority: string | null) => void;
 }
 
-/** A name's size and weight by level: the top levels read as headings, deeper ones as entries. */
-const LEVEL_TEXT = ["text-[15px] font-semibold", "text-sm font-semibold", "text-sm"] as const;
-
-function nameText(depth: number): string {
-  return LEVEL_TEXT[Math.min(depth, LEVEL_TEXT.length) - 1];
-}
-
-/** A box: its level's fill, or the item's own colour when it has one. */
-function boxShape(node: WbsNode): string {
-  return `border-2 ${planTone(node.depth, node.item.color)}`;
+/** A box in its status's colour, its own overriding it: filled at the top level, a stripe below. */
+function boxShape(node: WbsNode, status: OptionColor | null): string {
+  const tone = TONES[node.item.color ?? status ?? NO_STATUS_COLOR];
+  return node.depth === 1
+    ? `border-2 font-semibold ${tone.swatch}`
+    : `border border-line border-l-4 bg-surface ${tone.bar}`;
 }
 
 /** A small button on a box's coloured band, beside its title pill. */
@@ -191,6 +188,7 @@ function boxElement(root: HTMLElement | null, id: number): HTMLElement | null {
  * change shows in both.
  */
 export function WbsDiagram({
+  fullscreen = false,
   projectName,
   wbs,
   visible,
@@ -214,6 +212,8 @@ export function WbsDiagram({
   filtered = null,
   milestones = [],
 }: {
+  /** Full screen: the chart fills what is left of the window and scrolls both ways inside it. */
+  fullscreen?: boolean;
   projectName: string;
   wbs: Wbs;
   /**
@@ -703,7 +703,7 @@ export function WbsDiagram({
               node={node}
               on={onRequirement}
               tabIndex={id === tabbableId ? 0 : -1}
-              className={`${HEAD_BUTTON} rounded-full bg-surface text-ink ${
+              className={`${HEAD_BUTTON} rounded-full border border-line bg-surface text-ink ${
                 id === selectedId || addingRequirement === id
                   ? ""
                   : "opacity-0 group-hover/box:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
@@ -848,7 +848,10 @@ export function WbsDiagram({
     "min-h-8 min-w-8 cursor-pointer px-2 text-sm font-medium text-ink-muted tabular-nums first:rounded-l-md last:rounded-r-md hover:bg-surface-raised hover:text-ink disabled:cursor-default disabled:opacity-50";
 
   return (
-    <div className="relative" style={CHART_VARIABLES}>
+    <div
+      className={`relative ${fullscreen ? "flex min-h-90 flex-1 flex-col" : ""}`}
+      style={CHART_VARIABLES}
+    >
       <div
         role="group"
         aria-label={W.zoom}
@@ -905,14 +908,22 @@ export function WbsDiagram({
         ) : null}
       </div>
 
-      <div className="flow-root overflow-clip rounded-lg border border-line bg-surface print:overflow-visible print:border-0">
+      <div
+        className={`flow-root overflow-clip rounded-lg border border-line bg-surface print:overflow-visible print:border-0 ${
+          fullscreen ? "min-h-0 flex-1" : ""
+        }`}
+      >
+        {/* In full screen the chart scrolls both ways inside the room left over; the extra --hbar
+            of height hides its own horizontal bar under the clip. */}
         <div
           ref={scrollRef}
           data-testid="wbs-diagram"
           data-print-fit=""
-          className={`relative mb-[calc(var(--hbar,0px)*-1)] min-h-90 overflow-x-auto overflow-y-hidden print:mb-0 print:max-h-none print:overflow-visible ${
-            dragged ? "cursor-grabbing" : ""
-          }`}
+          className={`relative mb-[calc(var(--hbar,0px)*-1)] print:mb-0 print:max-h-none print:overflow-visible ${
+            fullscreen
+              ? "h-[calc(100%+var(--hbar,0px))] overflow-auto"
+              : "min-h-90 overflow-x-auto overflow-y-hidden"
+          } ${dragged ? "cursor-grabbing" : ""}`}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={endDrag}
@@ -934,8 +945,8 @@ export function WbsDiagram({
               data-wbs-drop="root"
               data-wbs-axis="root"
               data-testid="wbs-root"
-              className={`max-w-96 rounded-lg bg-ink px-8 py-3 text-center text-lg font-bold break-words text-surface outline-offset-4 print:[print-color-adjust:exact] ${
-                live && live.target === null ? "outline-[3px] outline-coral outline-dashed" : ""
+              className={`max-w-80 rounded-md bg-accent px-5 py-3 text-center text-sm font-semibold break-words text-on-accent outline-offset-4 print:[print-color-adjust:exact] ${
+                live && live.target === null ? "outline-2 outline-focus outline-dashed" : ""
               }`}
             >
               {projectName}
@@ -1037,8 +1048,8 @@ const dateField =
   "h-7 w-full min-w-0 rounded-sm border border-line bg-surface px-1 text-xs font-normal text-ink tabular-nums focus:border-focus focus:outline-none";
 
 /**
- * One box: a coloured band whose head row holds the grip, the show/hide toggle, a white pill with
- * the code and name (or its field while renaming), "+", ⇄ and the paperclip; then the dates.
+ * One box: a head row holding the grip, the show/hide toggle, the code and name (or its field
+ * while renaming), "+", ⇄ and the paperclip; then the dates.
  */
 function ItemBox({
   node,
@@ -1155,9 +1166,9 @@ function ItemBox({
       aria-selected={selected}
       aria-label={W.boxLabel(node.code, name, spokenDates, node.item.assigneeNames)}
       aria-keyshortcuts={canEdit ? MOVE_SHORTCUTS : undefined}
-      className={`group/box relative flex min-h-(--wbs-box-min) w-(--wbs-box) flex-col gap-0.5 rounded-lg px-2.5 py-1.5 text-left select-none focus-visible:outline-2 focus-visible:outline-focus print:break-inside-avoid print:[print-color-adjust:exact] ${boxShape(node)} ${
-        selected ? "ring-[3px] ring-coral ring-offset-1 ring-offset-surface" : ""
-      } ${zone === "into" ? "outline-[3px] outline-offset-4 outline-coral outline-dashed" : "outline-offset-2"} ${
+      className={`group/box relative flex min-h-(--wbs-box-min) w-(--wbs-box) flex-col gap-0.5 rounded-md px-2.5 py-1.5 text-left select-none focus-visible:outline-2 focus-visible:outline-focus print:break-inside-avoid print:[print-color-adjust:exact] ${boxShape(node, statusColor)} ${
+        selected ? "ring-2 ring-accent-strong ring-offset-1 ring-offset-surface" : ""
+      } ${zone === "into" ? "outline-2 outline-offset-4 outline-focus outline-dashed" : "outline-offset-2"} ${
         faded ? "opacity-40" : ""
       } ${canEdit && !renaming ? "cursor-grab" : ""}`}
       onPointerDown={onPointerDown}
@@ -1171,10 +1182,10 @@ function ItemBox({
       {zone === "before" || zone === "after" ? (
         <span
           aria-hidden="true"
-          className={`pointer-events-none absolute rounded-full bg-coral ${DROP_LINE[axis][zone]}`}
+          className={`pointer-events-none absolute rounded-full bg-focus ${DROP_LINE[axis][zone]}`}
         />
       ) : null}
-      <div className="group/head relative flex min-h-6 items-center gap-1">
+      <div className="group/head relative flex min-h-6 items-start gap-1.5">
         {tooltip}
         {canEdit ? (
           <span
@@ -1215,50 +1226,48 @@ function ItemBox({
             )}
           </button>
         ) : null}
-        <div className="flex min-w-0 flex-1 items-start gap-1.5 rounded-lg bg-surface p-2 text-ink">
-          {milestone ? (
-            <span
-              aria-hidden="true"
-              data-testid={`wbs-milestone-${id}`}
-              className="mt-1.5 size-2.5 shrink-0 rotate-45 rounded-xs bg-ink-muted"
-            />
-          ) : null}
-          <span className="shrink-0 pt-0.5 text-xs font-normal text-ink-muted tabular-nums">
-            {node.code}
+        {milestone ? (
+          <span
+            aria-hidden="true"
+            data-testid={`wbs-milestone-${id}`}
+            className="mt-1.5 size-2.5 shrink-0 rotate-45 rounded-xs bg-ink-muted"
+          />
+        ) : null}
+        <span className="shrink-0 pt-0.5 text-xs font-normal text-ink-muted tabular-nums">
+          {node.code}
+        </span>
+        {renaming ? (
+          <DraftInput
+            autoFocus
+            data-wbs-name={id}
+            aria-label={W.nameOf(node.code)}
+            value={node.item.name}
+            maxLength={4000}
+            onFocus={(event) => event.currentTarget.select()}
+            onKeyDown={(event) => {
+              if (event.key !== "Escape") return;
+              event.preventDefault();
+              cancelled.current = true;
+              onRenameEnd(true);
+            }}
+            onCommit={(next) => {
+              if (cancelled.current || sent.current === next) return;
+              sent.current = next;
+              onRename(next);
+            }}
+            onSettle={() => onRenameEnd(true)}
+            onBlur={() => onRenameEnd(false)}
+            className="h-7 min-w-0 flex-1 rounded-sm border border-focus bg-surface px-1.5 text-sm font-normal text-ink select-text focus:outline-none"
+          />
+        ) : (
+          <span
+            data-testid={`wbs-name-${id}`}
+            onClick={onNameClick}
+            className="line-clamp-2 min-w-0 flex-1 cursor-pointer text-sm leading-5 break-words text-ink"
+          >
+            {name}
           </span>
-          {renaming ? (
-            <DraftInput
-              autoFocus
-              data-wbs-name={id}
-              aria-label={W.nameOf(node.code)}
-              value={node.item.name}
-              maxLength={4000}
-              onFocus={(event) => event.currentTarget.select()}
-              onKeyDown={(event) => {
-                if (event.key !== "Escape") return;
-                event.preventDefault();
-                cancelled.current = true;
-                onRenameEnd(true);
-              }}
-              onCommit={(next) => {
-                if (cancelled.current || sent.current === next) return;
-                sent.current = next;
-                onRename(next);
-              }}
-              onSettle={() => onRenameEnd(true)}
-              onBlur={() => onRenameEnd(false)}
-              className="h-7 min-w-0 flex-1 rounded-sm border border-focus bg-surface px-1.5 text-sm font-normal text-ink select-text focus:outline-none"
-            />
-          ) : (
-            <span
-              data-testid={`wbs-name-${id}`}
-              onClick={onNameClick}
-              className={`line-clamp-2 min-w-0 flex-1 cursor-pointer leading-5 break-words text-ink ${nameText(node.depth)}`}
-            >
-              {name}
-            </span>
-          )}
-        </div>
+        )}
         {addRequirement}
         {branch}
         {note}
