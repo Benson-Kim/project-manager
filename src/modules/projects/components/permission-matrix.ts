@@ -22,6 +22,7 @@ export const SECTION_LABELS: Record<OverridableModule, string> = {
   "assumptions-constraints": P.assumptionsConstraintsSection,
   boards: P.boardsSection,
   "daily-activities": P.dailyActivitiesSection,
+  decisions: P.decisionsSection,
   "financial-tax-invoices": P.financialTaxInvoicesSection,
   financials: P.financialsSection,
   "key-deliverables": P.deliverablesSection,

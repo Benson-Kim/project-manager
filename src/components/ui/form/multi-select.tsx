@@ -5,13 +5,23 @@ import { usePopoverPlacement } from "../popover-placement";
 import { useFieldContext } from "./field";
 import { NO_MATCH, rankByMatch } from "./rank-options";
 
+/** A row of a lookup the record links to by id (requirements ⇄ deliverables, stakeholders). */
 export interface MultiSelectOption {
   id: number;
   label: string;
 }
 
-/** A picked option; its hidden input carries the id in the form's data. */
-export function ChipTag({
+/**
+ * What the picker itself works in: an opaque `value` and the text shown for it.
+ * An id-bound set uses the id as its value, a managed list's set uses the label.
+ */
+export interface MultiSelectItem {
+  value: string;
+  label: string;
+}
+
+/** A picked option; its hidden input carries the value in the form's data. */
+export function ChipTag<T extends string | number>({
   id,
   label,
   inputName,
@@ -19,12 +29,12 @@ export function ChipTag({
   disabled,
   onRemove,
 }: {
-  id: number;
+  id: T;
   label: string;
   inputName: string;
   removeLabel: (label: string) => string;
   disabled: boolean;
-  onRemove: (id: number) => void;
+  onRemove: (id: T) => void;
 }) {
   return (
     <span className="inline-flex h-7 max-w-full items-center gap-0.5 rounded-full border border-line bg-surface-raised pr-0.5 pl-2.5 text-xs text-ink">
@@ -47,8 +57,12 @@ export function ChipTag({
 /**
  * Type to filter, pick to add a chip; each chip submits a hidden `inputName`
  * entry. The ARIA combobox pattern of the shared single-select Combobox.
+ *
+ * One picker for every kind of set: the id-bound MultiSelect and the managed
+ * list's LabelMultiSelect are both this component with their values mapped,
+ * so the chips, the panel and the keyboard contract are the same everywhere.
  */
-export function MultiSelect({
+export function MultiSelectField({
   options,
   selected,
   disabled,
@@ -59,8 +73,8 @@ export function MultiSelect({
   onAdd,
   onRemove,
 }: {
-  options: readonly MultiSelectOption[];
-  selected: readonly MultiSelectOption[];
+  options: readonly MultiSelectItem[];
+  selected: readonly MultiSelectItem[];
   disabled: boolean;
   inputName: string;
   removeLabel: (label: string) => string;
@@ -68,8 +82,8 @@ export function MultiSelect({
   emptyPlaceholder: string;
   /** Put the caret in the field once it is on screen (a command that opens a form on it). */
   autoFocus?: boolean;
-  onAdd: (option: MultiSelectOption) => void;
-  onRemove: (id: number) => void;
+  onAdd: (item: MultiSelectItem) => void;
+  onRemove: (value: string) => void;
 }) {
   const listboxId = useId();
   const [query, setQuery] = useState("");
@@ -82,7 +96,7 @@ export function MultiSelect({
   const keyedRef = useRef(false);
   const fieldCtx = useFieldContext();
 
-  const selectedIds = useMemo(() => new Set(selected.map((s) => s.id)), [selected]);
+  const selectedValues = useMemo(() => new Set(selected.map((s) => s.value)), [selected]);
 
   // A frame later, not on mount: a dialog focuses its first field as it opens,
   // which would otherwise land after this and take the caret away.
@@ -95,11 +109,11 @@ export function MultiSelect({
   const ranked = useMemo(
     () =>
       rankByMatch(
-        options.filter((o) => !selectedIds.has(o.id)),
+        options.filter((o) => !selectedValues.has(o.value)),
         query,
         (o) => o.label,
       ),
-    [options, query, selectedIds],
+    [options, query, selectedValues],
   );
   const filtered = ranked.map((r) => r.option);
   // Placed against the whole field, so a panel that opens upwards sits above the chips and every
@@ -112,8 +126,8 @@ export function MultiSelect({
   // The panel closes on each pick: its options take mousedown, so left open it swallows a click
   // aimed at whatever sits under the field (a sheet's Save). Click, typing or ↓ brings it back.
   const pick = useCallback(
-    (option: MultiSelectOption) => {
-      onAdd(option);
+    (item: MultiSelectItem) => {
+      onAdd(item);
       setQuery("");
       setActiveIndex(0);
       setOpen(false);
@@ -139,7 +153,7 @@ export function MultiSelect({
         pick(filtered[activeIndex]);
       }
     } else if (e.key === "Backspace" && query === "" && selected.length > 0) {
-      onRemove(selected[selected.length - 1].id);
+      onRemove(selected[selected.length - 1].value);
     } else if (e.key === "Escape") {
       if (open) {
         e.stopPropagation();
@@ -161,8 +175,8 @@ export function MultiSelect({
       >
         {selected.map((s) => (
           <ChipTag
-            key={s.id}
-            id={s.id}
+            key={s.value}
+            id={s.value}
             label={s.label}
             inputName={inputName}
             removeLabel={removeLabel}
@@ -179,7 +193,9 @@ export function MultiSelect({
             aria-controls={listboxId}
             aria-autocomplete="list"
             aria-activedescendant={
-              open && filtered[activeIndex] ? `${listboxId}-${filtered[activeIndex].id}` : undefined
+              open && filtered[activeIndex]
+                ? `${listboxId}-${filtered[activeIndex].value}`
+                : undefined
             }
             aria-invalid={fieldCtx?.invalid || undefined}
             aria-describedby={fieldCtx?.invalid ? fieldCtx.errorId : undefined}
@@ -213,8 +229,8 @@ export function MultiSelect({
         >
           {ranked.map(({ option, rank }, idx) => (
             <li
-              key={option.id}
-              id={`${listboxId}-${option.id}`}
+              key={option.value}
+              id={`${listboxId}-${option.value}`}
               role="option"
               aria-selected={false}
               className={`flex min-h-11 cursor-pointer items-center px-3 text-sm first:rounded-t-md last:rounded-b-md ${
@@ -232,5 +248,48 @@ export function MultiSelect({
         </ul>
       )}
     </div>
+  );
+}
+
+const asItem = (option: MultiSelectOption): MultiSelectItem => ({
+  value: String(option.id),
+  label: option.label,
+});
+
+/** The picker over rows the record links to by id; chips submit the id. */
+export function MultiSelect({
+  options,
+  selected,
+  onAdd,
+  onRemove,
+  ...rest
+}: {
+  options: readonly MultiSelectOption[];
+  selected: readonly MultiSelectOption[];
+  disabled: boolean;
+  inputName: string;
+  removeLabel: (label: string) => string;
+  emptyPlaceholder: string;
+  autoFocus?: boolean;
+  onAdd: (option: MultiSelectOption) => void;
+  onRemove: (id: number) => void;
+}) {
+  const items = useMemo(() => options.map(asItem), [options]);
+  const chips = useMemo(() => selected.map(asItem), [selected]);
+  const byValue = useMemo(
+    () => new Map(options.map((option) => [String(option.id), option])),
+    [options],
+  );
+  const add = useCallback(
+    (item: MultiSelectItem) => {
+      const option = byValue.get(item.value);
+      if (option) onAdd(option);
+    },
+    [byValue, onAdd],
+  );
+  const remove = useCallback((value: string) => onRemove(Number(value)), [onRemove]);
+
+  return (
+    <MultiSelectField {...rest} options={items} selected={chips} onAdd={add} onRemove={remove} />
   );
 }

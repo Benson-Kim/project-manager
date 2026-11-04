@@ -36,6 +36,7 @@ export function wbsCsv(wbs: Wbs): string {
       decimal(effort.get(id) ?? null, 1),
       toDateInput(start),
       toDateInput(end),
+      toDateInput(item.actualDate),
       Math.round(progress.get(id) ?? 0),
       decimal(budget, 2),
     ]);
@@ -47,6 +48,7 @@ export function wbsCsv(wbs: Wbs): string {
         requirement.moscow,
         requirement.ownerName,
         decimal(requirement.estimateDays, 1),
+        null,
         null,
         null,
         Math.round(requirementsProgress(subtree(item.requirements, requirement.id)) ?? 0),

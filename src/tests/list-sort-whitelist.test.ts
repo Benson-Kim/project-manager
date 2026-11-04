@@ -5,6 +5,7 @@ import { BOARD_SORT } from "@/modules/boards/schemas/board-rules";
 import type { ListSort } from "@/lib/list-params";
 import { ASSUMPTION_CONSTRAINT_SORT } from "@/modules/assumptions-constraints/schemas/assumption-constraint";
 import { DAILY_ACTIVITY_SORT } from "@/modules/daily-activities/schemas/daily-activity";
+import { DECISION_SORT } from "@/modules/decisions/schemas/decision";
 import { KEY_DELIVERABLE_SORT } from "@/modules/key-deliverables/schemas/key-deliverable";
 import { KEYWORD_SORT } from "@/modules/keywords/schemas/keyword";
 import { MEETING_SORT } from "@/modules/meetings/schemas/meeting";
@@ -36,6 +37,7 @@ const MODULES: Array<[string, ListSort, string]> = [
     "db/procs/assumption-constraint/usp_AssumptionConstraint_List.sql",
   ],
   ["daily-activities", DAILY_ACTIVITY_SORT, "db/procs/daily-activity/usp_DailyActivity_List.sql"],
+  ["decisions", DECISION_SORT, "db/procs/decision/usp_Decision_List.sql"],
   [
     "key-deliverables",
     KEY_DELIVERABLE_SORT,
@@ -75,9 +77,9 @@ function sortTokens(path: string): string[] {
 
 describe("a module's sortable columns are exactly the ones its list proc applies", () => {
   it("reads every module that offers sorting", () => {
-    // Fifteen sortable modules. Objectives declares no ListSort
+    // Sixteen sortable modules. Objectives declares no ListSort
     // because its proc orders by ObjectiveId alone; adding one adds a row here.
-    expect(MODULES.length).toBe(15);
+    expect(MODULES.length).toBe(16);
     for (const [, , path] of MODULES) expect(sortTokens(path).length).toBeGreaterThan(0);
   });
 

@@ -155,6 +155,9 @@ describe("datasheet form values round-trip through each update form schema", () 
         OrgTitle: null,
         CommunicationPreference: "Meetings",
         EngagementLevel: "High",
+        CommunicationPurpose: "Secure Approvals",
+        KeyMessageStrategy: "Lead with the schedule risk, then the ask",
+        CommunicationFrequency: "Milestone-Driven",
         AdditionalNotes: "Notes",
         ...audit,
       }),
@@ -166,6 +169,9 @@ describe("datasheet form values round-trip through each update form schema", () 
       emailAddress: "gary@example.com",
       communicationPreference: "Meetings",
       engagementLevel: "High",
+      communicationPurpose: "Secure Approvals",
+      keyMessageStrategy: "Lead with the schedule risk, then the ask",
+      communicationFrequency: "Milestone-Driven",
       additionalNotes: "Notes",
     });
   });
@@ -404,6 +410,13 @@ describe("datasheet form values round-trip through each update form schema", () 
         ProjectStatus: "In progress",
         ProjectPhase: "Planning",
         RiskLevel: "Low",
+        AlternativeSolutions: "<p>Buy, build, do nothing</p>",
+        ExpectedBenefits: "<p>Two days a month back</p>",
+        SuccessMetrics: "<p>Orders closed within a week</p>",
+        EstimatedRoi: "18 months",
+        ProjectScope: "<p>In: ordering. Out: payroll</p>",
+        KeyDependencies: "<p>Waiting on the finance upgrade</p>",
+        ObjectiveAlignment: ["Growth", "Sustainability"],
         ...audit,
       }),
     );
@@ -422,6 +435,15 @@ describe("datasheet form values round-trip through each update form schema", () 
       projectStatus: "In progress",
       projectPhase: "Planning",
       riskLevel: "Low",
+      alternativeSolutions: "<p>Buy, build, do nothing</p>",
+      expectedBenefits: "<p>Two days a month back</p>",
+      successMetrics: "<p>Orders closed within a week</p>",
+      estimatedRoi: "18 months",
+      projectScope: "<p>In: ordering. Out: payroll</p>",
+      keyDependencies: "<p>Waiting on the finance upgrade</p>",
+      // The datasheet never shows the objectives, so it sends no set flag and the update
+      // reaches the proc with null — which leaves the project's own objectives untouched.
+      objectiveAlignment: null,
     });
   });
   it("meetings keep every rich field whole, and the times, when another cell is edited", () => {

@@ -11,6 +11,7 @@ function item(id: number, parentId: number | null, more: Partial<WbsItem> = {}):
     requestedDate: null,
     start: null,
     end: null,
+    actualDate: null,
     status: null,
     priority: null,
     color: null,
@@ -74,11 +75,13 @@ describe("wbsCsv", () => {
         end: new Date(Date.UTC(2026, 2, 1)),
       }),
     ]);
-    expect(rows[0]).toBe("WBS,Name,Type,MoSCoW,Assignee,Est. days,Start,End,Progress %,Budget");
+    expect(rows[0]).toBe(
+      "WBS,Name,Type,MoSCoW,Assignee,Est. days,Start,End,Actual,Progress %,Budget",
+    );
     expect(rows.slice(1)).toEqual([
-      "1,Item 1,Item,,,,2026-01-05,2026-02-20,100,",
-      "1.1,Item 2,Item,,Ana; Bo,,2026-01-05,2026-02-20,100,",
-      "2,Item 3,Milestone,,,,2026-03-01,2026-03-01,0,",
+      "1,Item 1,Item,,,,2026-01-05,2026-02-20,,100,",
+      "1.1,Item 2,Item,,Ana; Bo,,2026-01-05,2026-02-20,,100,",
+      "2,Item 3,Milestone,,,,2026-03-01,2026-03-01,,0,",
     ]);
   });
 
@@ -94,11 +97,11 @@ describe("wbsCsv", () => {
       }),
     ]);
     expect(rows.slice(1)).toEqual([
-      "1,Item 1,Item,,,3.5,,,75,",
-      "FR-11,R11,FR,M,Ana,2.0,,,50,",
-      "FR-13,R13,FR,,,,,,0,",
-      "FR-12,R12,FR,,,1.5,,,100,",
-      "NFR-1,R14,NFR,W,,,,,100,",
+      "1,Item 1,Item,,,3.5,,,,75,",
+      "FR-11,R11,FR,M,Ana,2.0,,,,50,",
+      "FR-13,R13,FR,,,,,,,0,",
+      "FR-12,R12,FR,,,1.5,,,,100,",
+      "NFR-1,R14,NFR,W,,,,,,100,",
     ]);
   });
 
@@ -128,8 +131,22 @@ describe("wbsCsv", () => {
       item(1, null, { name: '=HYPERLINK("x")' }),
       item(2, null, { name: "Design, build" }),
     ]);
-    expect(rows[1]).toBe(`1,"'=HYPERLINK(""x"")",Item,,,,,,0,`);
-    expect(rows[2]).toBe(`2,"Design, build",Item,,,,,,0,`);
+    expect(rows[1]).toBe(`1,"'=HYPERLINK(""x"")",Item,,,,,,,0,`);
+    expect(rows[2]).toBe(`2,"Design, build",Item,,,,,,,0,`);
+  });
+
+  it("writes the day an item was actually reached, blank until one is recorded", () => {
+    const rows = lines([
+      item(1, null, {
+        isMilestone: true,
+        start: new Date(Date.UTC(2026, 2, 1)),
+        end: new Date(Date.UTC(2026, 2, 1)),
+        actualDate: new Date(Date.UTC(2026, 2, 4)),
+      }),
+      item(2, null, { start: new Date(Date.UTC(2026, 2, 1)) }),
+    ]);
+    expect(rows[1]!.split(",")[8]).toBe("2026-03-04");
+    expect(rows[2]!.split(",")[8]).toBe("");
   });
 
   it("still lists every requirement once when their parents form a loop", () => {

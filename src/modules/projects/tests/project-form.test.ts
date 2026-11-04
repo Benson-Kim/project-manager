@@ -121,3 +121,76 @@ describe("project dates in order", () => {
     expect(projectFormSchema.safeParse({ ...base, endDate: "2020-01-01" }).success).toBe(true);
   });
 });
+
+describe("the business case and the scope", () => {
+  const update = { projectName: "X", projectId: "1", rowVer: "1" };
+
+  it("keeps the prose as written and the payback period as text", () => {
+    const parsed = projectFormSchema.parse({
+      projectName: "X",
+      alternativeSolutions: "<p>Buy, build, do nothing</p>",
+      expectedBenefits: "<p>Two days a month back</p>",
+      successMetrics: "<p>Orders closed within a week</p>",
+      estimatedRoi: "1.4x by the next financial year",
+      projectScope: "<p>In: ordering. Out: payroll</p>",
+      keyDependencies: "<p>Waiting on the finance upgrade</p>",
+    });
+    expect(parsed.alternativeSolutions).toBe("<p>Buy, build, do nothing</p>");
+    expect(parsed.estimatedRoi).toBe("1.4x by the next financial year");
+    expect(parsed.projectScope).toBe("<p>In: ordering. Out: payroll</p>");
+    expect(parsed.keyDependencies).toBe("<p>Waiting on the finance upgrade</p>");
+  });
+
+  it("rejects a payback period longer than the column", () => {
+    const result = projectFormSchema.safeParse({ projectName: "X", estimatedRoi: "x".repeat(256) });
+    expect(result.success).toBe(false);
+  });
+
+  it("sends the objectives the chips submitted, one or many", () => {
+    const many = projectFormSchema.parse({
+      projectName: "X",
+      objectiveAlignmentSet: "on",
+      "objectiveAlignment[]": ["Growth", "Cost efficiency"],
+    });
+    expect(many.objectiveAlignment).toEqual(["Growth", "Cost efficiency"]);
+    const one = projectFormSchema.parse({
+      projectName: "X",
+      objectiveAlignmentSet: "on",
+      "objectiveAlignment[]": "Growth",
+    });
+    expect(one.objectiveAlignment).toEqual(["Growth"]);
+  });
+
+  it("sends the empty set when the form showed the field and nothing is picked", () => {
+    const parsed = updateProjectFormSchema.parse({ ...update, objectiveAlignmentSet: "on" });
+    expect(parsed.objectiveAlignment).toEqual([]);
+  });
+
+  it("sends null when the form never showed the field, so nothing is replaced", () => {
+    const parsed = updateProjectFormSchema.parse(update);
+    expect(parsed.objectiveAlignment).toBeNull();
+    const cellEdit = updateProjectFormSchema.parse({
+      ...update,
+      "objectiveAlignment[]": ["Growth"],
+    });
+    expect(cellEdit.objectiveAlignment).toBeNull();
+  });
+
+  it("drops a repeated objective and an empty entry", () => {
+    const parsed = projectFormSchema.parse({
+      projectName: "X",
+      objectiveAlignmentSet: "on",
+      "objectiveAlignment[]": ["Growth", "Growth", ""],
+    });
+    expect(parsed.objectiveAlignment).toEqual(["Growth"]);
+  });
+
+  it("rejects an objective longer than a list option can be", () => {
+    const result = projectFormSchema.safeParse({
+      projectName: "X",
+      objectiveAlignmentSet: "on",
+      "objectiveAlignment[]": ["G".repeat(51)],
+    });
+    expect(result.success).toBe(false);
+  });
+});

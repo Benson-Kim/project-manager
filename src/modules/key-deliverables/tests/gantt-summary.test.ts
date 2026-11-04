@@ -13,6 +13,7 @@ function item(id: number, parentId: number | null, more: Partial<WbsItem> = {}):
     requestedDate: null,
     start: null,
     end: null,
+    actualDate: null,
     status: null,
     priority: null,
     color: null,

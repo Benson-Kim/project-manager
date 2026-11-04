@@ -28,6 +28,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_KeyDeliverable_Update
     @RequestedDate    DATETIME2     = NULL,
     @StartDate        DATETIME2     = NULL,
     @Deadline         DATETIME2     = NULL,
+    @ActualDate       DATETIME2     = NULL,
     @AssigneeIds      NVARCHAR(MAX) = NULL,   -- JSON array e.g. '[1,2,3]' or NULL = clear all
     @Priority         NVARCHAR(255) = NULL,
     @Status           NVARCHAR(255) = NULL,
@@ -129,7 +130,7 @@ BEGIN
 
     DECLARE @Before NVARCHAR(MAX) =
         (SELECT KeyDeliverableId, [ProjectId], [KeyRequirement], [RequestedDate], StartDate, [Deadline],
-                [Priority], [Status], Color, [IsMilestone], Budget,
+                [ActualDate], [Priority], [Status], Color, [IsMilestone], Budget,
                 (SELECT CAST(a.StakeholderId AS NVARCHAR(20)) AS id
                  FROM app.KeyDeliverableAssignee AS a
                  WHERE a.KeyDeliverableId = @KeyDeliverableId
@@ -143,6 +144,7 @@ BEGIN
         [RequestedDate] = @RequestedDate,
         StartDate       = @StartDate,
         [Deadline]      = @Deadline,
+        [ActualDate]    = @ActualDate,
         [Priority]      = @Priority,
         [Status]        = @Status,
         Color           = @Color,
@@ -180,7 +182,7 @@ BEGIN
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.KeyDeliverable', CAST(@KeyDeliverableId AS NVARCHAR(64)), @Before,
             (SELECT KeyDeliverableId, [ProjectId], [KeyRequirement], [RequestedDate], StartDate, [Deadline],
-                    [Priority], [Status], Color, [IsMilestone], Budget,
+                    [ActualDate], [Priority], [Status], Color, [IsMilestone], Budget,
                     (SELECT CAST(a.StakeholderId AS NVARCHAR(20)) AS id
                      FROM app.KeyDeliverableAssignee AS a
                      WHERE a.KeyDeliverableId = @KeyDeliverableId
@@ -204,6 +206,7 @@ BEGIN
            kd.[RequestedDate],
            kd.StartDate,
            kd.[Deadline],
+           kd.[ActualDate],
            kd.[Priority],
            kd.[Status],
            kd.Color,

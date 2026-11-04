@@ -15,13 +15,18 @@ import { ID_BOUND_LISTS, LOOKUP_LISTS } from "@/lib/lookup-lists";
 const read = (...path: string[]) => readFileSync(join(...path), "utf8");
 
 // Lists are seeded by 018 and by later migrations that add one (021: team titles; 031: parking
-// lot status; 049: risks & issues; 053: the assumptions & constraints Validated list).
+// lot status; 049: risks & issues; 053: the assumptions & constraints Validated list;
+// 054: the stakeholder communication plan; 056: the project business case;
+// 057: the decision log).
 const migration = [
   "018_lookup_list.sql",
   "021_project_permissions.sql",
   "031_parking_lot_status.sql",
   "049_risk_issue_lists.sql",
   "053_assumption_constraint_validated.sql",
+  "054_stakeholder_communication_plan.sql",
+  "056_project_business_case.sql",
+  "057_decision_log.sql",
 ]
   .map((file) => read("db", "migrations", file))
   .join(String.fromCharCode(10));

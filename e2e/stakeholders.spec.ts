@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
-import { expectListed } from "./support/datasheet";
+import { expectListed, openListed } from "./support/datasheet";
 
 /**
  * Stakeholders module (#6) — project-scoped route /projects/2/stakeholders.
@@ -71,4 +71,61 @@ test("axe scan on the stakeholder sheet has no serious or critical violations", 
     ["serious", "critical"].includes(v.impact ?? ""),
   );
   expect(serious).toEqual([]);
+});
+
+test("communication plan — purpose, strategy and frequency are saved and visible on reopen", async ({
+  page,
+}) => {
+  const firstName = `E2E comms plan ${Date.now()}`;
+  await page.goto("/projects/2/stakeholders");
+  await page.getByTestId("new-stakeholder").click();
+  const form = page.getByTestId("stakeholder-form");
+  await expect(form).toBeVisible();
+  await form.getByLabel(messages.stakeholders.firstName).fill(firstName);
+  await form
+    .getByLabel(messages.stakeholders.communicationPurpose)
+    .selectOption("Secure Approvals");
+  await form
+    .getByLabel(messages.stakeholders.communicationFrequency)
+    .selectOption("Milestone-Driven");
+  await form
+    .getByLabel(messages.stakeholders.keyMessageStrategy)
+    .fill("Lead with the schedule risk, then the ask");
+  await page.getByTestId("stakeholder-save").click();
+  await expect(
+    page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
+  ).toBeVisible({ timeout: 15_000 });
+
+  await page.goto(`/projects/2/stakeholders?q=${encodeURIComponent(firstName)}`);
+  await openListed(page, firstName);
+  const editForm = page.getByTestId("stakeholder-form");
+  await expect(editForm).toBeVisible();
+  await expect(editForm.getByLabel(messages.stakeholders.communicationPurpose)).toHaveValue(
+    "Secure Approvals",
+  );
+  await expect(editForm.getByLabel(messages.stakeholders.communicationFrequency)).toHaveValue(
+    "Milestone-Driven",
+  );
+  await expect(editForm.getByLabel(messages.stakeholders.keyMessageStrategy)).toHaveValue(
+    "Lead with the schedule risk, then the ask",
+  );
+});
+
+test("the communication plan dropdowns offer the seeded options, not a fixed set", async ({
+  page,
+}) => {
+  await page.goto("/projects/2/stakeholders?id=new");
+  const form = page.getByTestId("stakeholder-form");
+  await expect(form).toBeVisible();
+
+  // Migration 054 seeds these; they are managed-list options, so an Admin can add to
+  // them from "Edit list…" — the assertion is that each one reaches the dropdown.
+  const purpose = form.getByLabel(messages.stakeholders.communicationPurpose).locator("option");
+  for (const label of ["Gather Requirements", "Provide Status", "Secure Approvals"]) {
+    await expect(purpose.filter({ hasText: label })).toHaveCount(1);
+  }
+  const frequency = form.getByLabel(messages.stakeholders.communicationFrequency).locator("option");
+  for (const label of ["Daily", "Weekly", "Monthly", "Milestone-Driven", "Ad-Hoc"]) {
+    await expect(frequency.filter({ hasText: label })).toHaveCount(1);
+  }
 });

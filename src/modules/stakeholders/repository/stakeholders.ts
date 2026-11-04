@@ -35,6 +35,9 @@ function toProcParams(input: CreateStakeholderParsed) {
     OrgTitle: input.orgTitle ?? null,
     CommunicationPreference: input.communicationPreference ?? null,
     EngagementLevel: input.engagementLevel ?? null,
+    CommunicationPurpose: input.communicationPurpose ?? null,
+    KeyMessageStrategy: input.keyMessageStrategy ?? null,
+    CommunicationFrequency: input.communicationFrequency ?? null,
     AdditionalNotes: input.additionalNotes ?? null,
   };
 }

@@ -10,6 +10,9 @@ describe("stakeholderFormSchema", () => {
     expect(parsed.lastName).toBeNull();
     expect(parsed.communicationPreference).toBeNull();
     expect(parsed.engagementLevel).toBeNull();
+    expect(parsed.communicationPurpose).toBeNull();
+    expect(parsed.keyMessageStrategy).toBeNull();
+    expect(parsed.communicationFrequency).toBeNull();
   });
 
   it("keeps vocabulary values and normalises empty selects to null", () => {
@@ -23,6 +26,19 @@ describe("stakeholderFormSchema", () => {
     expect(parsed.communicationPreference).toBe("Email");
     expect(parsed.engagementLevel).toBe("Medium");
     expect(parsed.emailAddress).toBe("gary@example.com");
+  });
+
+  it("keeps the communication plan, and trims the strategy (BL34)", () => {
+    const parsed = stakeholderFormSchema.parse({
+      projectId: "2",
+      firstName: "Gary",
+      communicationPurpose: "Gather Requirements",
+      keyMessageStrategy: "  Lead with the schedule risk, then the ask  ",
+      communicationFrequency: "Milestone-Driven",
+    });
+    expect(parsed.communicationPurpose).toBe("Gather Requirements");
+    expect(parsed.keyMessageStrategy).toBe("Lead with the schedule risk, then the ask");
+    expect(parsed.communicationFrequency).toBe("Milestone-Driven");
   });
 
   it("rejects an empty first name", () => {

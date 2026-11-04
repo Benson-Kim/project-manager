@@ -22,6 +22,9 @@ import { utcDay, type WbsItem, type WbsRequirement } from "./wbs";
  * - AssigneeNames: comma-separated display string from junction table.
  * - AssigneesJson: JSON array [{id, name}] from junction table.
  *
+ * Actual date (migration 055): ActualDate, the day the item was really reached, against
+ * StartDate, the day it is aimed at. Optional, so a row from an older database still parses.
+ *
  * Work breakdown (migration 032, ADR-0027): ParentKeyDeliverableId, SortOrder,
  * StartDate (the bar's first day; Deadline is its last), Color, HasChildren
  * (a parent's dates are rolled up from its sub-items) and, from GetById only,
@@ -154,6 +157,7 @@ export const keyDeliverableRowSchema = z
     RequestedDate: z.date().nullable().optional(),
     StartDate: z.date().nullable().optional(),
     Deadline: z.date().nullable(),
+    ActualDate: z.date().nullable().optional(),
     Priority: z.string().nullable(),
     Status: z.string().nullable(),
     Color: wbsColorSchema.optional(),
@@ -198,6 +202,8 @@ export const wbsRowSchema = z
     RequestedDate: z.date().nullable(),
     StartDate: z.date().nullable(),
     Deadline: z.date().nullable(),
+    /** Optional, so a row from a database before migration 055 still parses as unrecorded. */
+    ActualDate: z.date().nullable().optional(),
     Priority: z.string().nullable(),
     Status: z.string().nullable(),
     Color: wbsColorSchema,
@@ -222,6 +228,7 @@ export const wbsRowSchema = z
     requestedDate: r.RequestedDate,
     start: r.StartDate,
     end: r.Deadline,
+    actualDate: r.ActualDate ?? null,
     status: r.Status,
     priority: r.Priority,
     color: r.Color,
@@ -288,6 +295,8 @@ const deliverableFields = {
   requestedDate: z.coerce.date().nullish(),
   startDate: z.coerce.date().nullish(),
   deadline: z.coerce.date().nullish(),
+  /** The day it was really reached (migration 055); blank is nobody having said yet. */
+  actualDate: z.coerce.date().nullish(),
   assigneeIds: z.array(z.number().int().positive()).nullish(),
   priority: z.string().trim().max(255).nullish(),
   status: z.string().trim().max(255).nullish(),
