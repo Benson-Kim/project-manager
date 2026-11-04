@@ -55,6 +55,7 @@ const MODULES: Record<string, string> = {
 const VERBS: Record<string, string> = {
   GetById: "read",
   List: "read",
+  ListCalendar: "read",
   ListOptions: "read",
   ListPackagingOptions: "read",
   GanttData: "read",
@@ -111,6 +112,8 @@ const VERBS: Record<string, string> = {
   Unlink: "update",
   Dismiss: "update",
   Snooze: "update",
+  // Stopping a to-do repeating edits the to-do.
+  Clear: "update",
   Set: "update",
   Delete: "delete",
   // Attachments (ADR-0026): reading them is reading the record; adding, renaming or removing one
@@ -364,15 +367,17 @@ describe("a cross-scope proc asks every scope it crosses (ADR-0038 decision 23)"
 const UNSCOPED: Record<string, string> = {
   "access-level": "the access helpers themselves — they resolve the rule every other proc calls",
   "alert-subscription": "per-user push endpoints, keyed by the authenticated actor",
-  audit: "the append-only audit writer, the sanctioned helper for app-layer events",
+  audit:
+    "the append-only audit writer for app-layer events, and the audit log reads, Admin only in the procs",
   "file-attachment": "owner-scoped (ADR-0026): its own helper asserts the owner's access",
   "financial-template": "global templates, not any project's rows",
   "login-attempt": "pre-authentication lockout counters keyed by IP; there is no actor yet",
   "lookup-list": "global dropdown lists; usp_LookupList_Set is Admin-only in-proc",
   "project-permission": "per-person overrides; it asserts the project itself",
   role: "the reference list of roles, holding no project's rows",
-  user: "identity; gated by the global role in src/lib/action.ts, not per project",
+  user: "identity; Admin only at the action gate and in the procs (user-sql-guardrails), not per project",
   "view-preference": "per-user UI preference, keyed by the session's own user id",
+  "user-preference": "the user's own settings, keyed by the session's own user id",
 };
 
 /**

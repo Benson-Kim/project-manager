@@ -8,6 +8,7 @@ import {
   type RequirementType,
 } from "@/modules/requirements/schemas/requirement-types";
 import { MOSCOW } from "@/modules/requirements/schemas/moscow";
+import { MAX_REQUIREMENT_DEPTH } from "@/modules/requirements/schemas/requirement";
 
 /**
  * Guardrail (ADR-0037): the requirement procs and migration 036 enforce the traceability rules
@@ -277,9 +278,27 @@ describe("the write procs own the invariants a constraint cannot express (ADR-00
   it("caps the depth under the project lock, since depth spans rows", () => {
     const create = sql(join(DIR, "usp_Requirement_Create.sql"));
     const lock = create.indexOf("WITH (UPDLOCK, HOLDLOCK)");
-    const depth = create.indexOf("@ParentDepth >= 3");
+    const depth = create.indexOf("@ParentDepth >= @MaxDepth - 1");
     expect(lock).toBeGreaterThan(0);
     expect(depth).toBeGreaterThan(lock);
+  });
+
+  it("caps the depth at the UI's number, which the path walk and its widths can hold", () => {
+    expect(sql(join(DIR, "usp_Requirement_Create.sql"))).toContain(
+      `DECLARE @MaxDepth INT = ${MAX_REQUIREMENT_DEPTH};`,
+    );
+    const walk = sql(join(DIR, "ufn_Requirement_AncestorPath.sql"));
+    const bound = Number(walk.match(/WHERE c\.Distance < (\d+)/)?.[1]);
+    expect(bound).toBeGreaterThanOrEqual(MAX_REQUIREMENT_DEPTH - 1);
+    const width = (name: string) =>
+      Number(
+        walk.match(
+          new RegExp(`${name} = CAST\\([\\s\\S]*?Distance DESC\\)\\)? AS N?VARCHAR\\((\\d+)\\)`),
+        )?.[1],
+      );
+    const longest = MAX_REQUIREMENT_DEPTH * 10 + (MAX_REQUIREMENT_DEPTH - 1);
+    expect(width("SortPath")).toBeGreaterThanOrEqual(longest);
+    expect(width("Ref")).toBeGreaterThanOrEqual("NFR-".length + longest);
   });
 
   it("refuses to delete a requirement that still has children, under the lock", () => {
@@ -296,10 +315,29 @@ describe("the write procs own the invariants a constraint cannot express (ADR-00
     expect(update).toMatch(/THROW 50004, N'VALIDATION:Remove the sub-requirements/);
   });
 
-  it("re-parents nowhere: only Create ever writes ParentRequirementId", () => {
+  it("re-parents only one way: Delete moves a deleted row's children up to its own parent", () => {
     for (const file of procFiles) {
-      if (file.endsWith("usp_Requirement_Create.sql")) continue;
+      if (/usp_Requirement_(Create|Delete)\.sql$/.test(file)) continue;
       expect(sql(file), file).not.toMatch(/SET\s+[\s\S]{0,400}?ParentRequirementId\s*=/);
     }
+    const del = sql(join(DIR, "usp_Requirement_Delete.sql"));
+    const writes = [...del.matchAll(/ParentRequirementId\s*=\s*(@\w+)\s*,/g)].map((m) => m[1]);
+    expect(writes).toEqual(["@ParentId"]);
+    const lock = del.indexOf("WITH (UPDLOCK, HOLDLOCK)");
+    const read = del.indexOf("SELECT @ParentId = ParentRequirementId");
+    const softDelete = del.indexOf("IsDeleted    = 1");
+    const move = del.indexOf("ParentRequirementId = @ParentId,");
+    expect(read).toBeGreaterThan(lock);
+    expect(softDelete).toBeGreaterThan(read);
+    expect(move).toBeGreaterThan(softDelete);
+  });
+
+  it("moves sub-requirements up only when asked, and refuses otherwise", () => {
+    const del = sql(join(DIR, "usp_Requirement_Delete.sql"));
+    expect(del).toContain("@PromoteChildren BIT = 0");
+    expect(del).toContain("IF ISNULL(@PromoteChildren, 0) = 0");
+    expect(del).toContain(
+      "INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)",
+    );
   });
 });

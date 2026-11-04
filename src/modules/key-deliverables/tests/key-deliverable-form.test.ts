@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { isOverdue } from "../schemas/key-deliverable";
+import { isOverdue, type KeyDeliverableRow } from "../schemas/key-deliverable";
 import {
+  deliverableFormValues,
   keyDeliverableFormSchema,
   updateKeyDeliverableFormSchema,
 } from "../schemas/key-deliverable-form";
@@ -115,6 +116,27 @@ describe("keyDeliverableFormSchema", () => {
     const base = { projectId: "2", keyRequirement: "R", startDate: "2026-09-01" };
     expect(keyDeliverableFormSchema.parse(base)).not.toHaveProperty("color");
     expect(keyDeliverableFormSchema.parse({ ...base, color: "green" })).not.toHaveProperty("color");
+  });
+
+  it("keeps the actual date through a save, so editing another field never blanks it", () => {
+    const row = {
+      KeyDeliverableId: 7,
+      RowVer: 3,
+      ProjectId: 2,
+      KeyRequirement: "Pilot",
+      RequestedDate: null,
+      StartDate: new Date("2026-09-01"),
+      Deadline: new Date("2026-09-30"),
+      ActualDate: new Date("2026-09-28"),
+      Assignees: [],
+      Priority: null,
+      Status: "Completed",
+    } as unknown as KeyDeliverableRow;
+    const values = deliverableFormValues(row);
+    expect(values.actualDate).toBe("2026-09-28");
+    const parsed = updateKeyDeliverableFormSchema.parse({ ...values, keyRequirement: "Pilot run" });
+    expect(parsed.actualDate).toEqual(new Date("2026-09-28"));
+    expect(keyDeliverableFormSchema.parse({ ...values, actualDate: "" }).actualDate).toBeNull();
   });
 
   it("update variant requires id and rowVer", () => {

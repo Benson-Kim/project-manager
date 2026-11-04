@@ -1,6 +1,7 @@
 -- usp_User_Deactivate — set IsActive = 0 and bump SessionVersion (revokes live
 -- JWT sessions immediately). Users are deactivated, not soft-deleted: their
--- identity must survive for audit attribution. CONFLICT on @RowVer mismatch.
+-- identity must survive for audit attribution. CONFLICT on @RowVer mismatch. Admin only, never
+-- the actor themselves nor the last active Admin (usp_User_AssertAdminChange).
 -- Module: auth-and-rbac (#4).
 USE ProjectManager;
 GO
@@ -13,6 +14,11 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
+    BEGIN TRAN;
+
+    EXEC dbo.usp_User_AssertAdminChange
+        @UserId = @UserId, @ActorUserId = @ActorUserId, @NewIsActive = 0;
+
     DECLARE @Before NVARCHAR(MAX);
     SELECT @Before = (SELECT UserId, Username, IsActive, SessionVersion
                       FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
@@ -20,9 +26,10 @@ BEGIN
     WHERE UserId = @UserId AND IsDeleted = 0;
 
     IF @Before IS NULL
+    BEGIN
+        ROLLBACK;
         THROW 50001, N'NOT_FOUND:User not found', 1;
-
-    BEGIN TRAN;
+    END;
 
     UPDATE auth.[User]
     SET IsActive = 0,

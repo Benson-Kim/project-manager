@@ -1,7 +1,9 @@
 -- usp_User_Update — profile/role/state update (NOT password — usp_User_SetPassword).
 -- CONFLICT on @RowVer mismatch (ADR-0012); bumps SessionVersion when RoleId,
 -- IsActive, or MustChangePassword changes so live JWT sessions are revoked.
--- Audits before/after in-transaction. Module: auth-and-rbac (#4).
+-- Admin only, and never the actor's own role or active state, nor the last active Admin
+-- (usp_User_AssertAdminChange, inside the transaction). Audits before/after in-transaction.
+-- Module: auth-and-rbac (#4).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_User_Update
@@ -22,17 +24,23 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM auth.Role WHERE RoleId = @RoleId)
         THROW 50004, N'VALIDATION:Unknown role', 1;
 
-    DECLARE @Before NVARCHAR(MAX), @OldRoleId INT, @OldIsActive BIT;
+    BEGIN TRAN;
+
+    EXEC dbo.usp_User_AssertAdminChange
+        @UserId = @UserId, @ActorUserId = @ActorUserId,
+        @NewRoleId = @RoleId, @NewIsActive = @IsActive;
+
+    DECLARE @Before NVARCHAR(MAX);
     SELECT @Before = (SELECT UserId, Username, DisplayName, Email, RoleId, IsActive, MustChangePassword
-                      FOR JSON PATH, WITHOUT_ARRAY_WRAPPER),
-           @OldRoleId = RoleId, @OldIsActive = IsActive
+                      FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
     FROM auth.[User]
     WHERE UserId = @UserId AND IsDeleted = 0;
 
     IF @Before IS NULL
+    BEGIN
+        ROLLBACK;
         THROW 50001, N'NOT_FOUND:User not found', 1;
-
-    BEGIN TRAN;
+    END;
 
     UPDATE auth.[User]
     SET DisplayName = @DisplayName,

@@ -1,6 +1,7 @@
 -- usp_User_List — paged/filtered list per ADR-0016. Search columns: Username,
 -- DisplayName, Email. Sort whitelist: Username, DisplayName, Email.
--- Never returns PasswordHash. Module: auth-and-rbac (#4).
+-- Never returns PasswordHash. Admin only (FORBIDDEN_ROW): it shows lockouts and session state;
+-- pickers use usp_User_ListOptions. Module: auth-and-rbac (#4).
 
 -- @ProjectId is accepted for contract uniformity but ignored (entity is not project-scoped).
 USE ProjectManager;
@@ -16,6 +17,12 @@ CREATE OR ALTER PROCEDURE dbo.usp_User_List
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    DECLARE @ActorRole NVARCHAR(50);
+    EXEC dbo.usp_User_GetActorRole @UserId = @ActorUserId, @Role = @ActorRole OUTPUT;
+    IF @ActorRole <> N'Admin'
+        THROW 50003, N'FORBIDDEN_ROW:Only administrators can manage users', 1;
+
     SET @Page     = CASE WHEN @Page IS NULL OR @Page < 1 THEN 1 ELSE @Page END;
     SET @PageSize = CASE WHEN @PageSize IS NULL OR @PageSize < 1 THEN 1
                          WHEN @PageSize > 100 THEN 100 ELSE @PageSize END;

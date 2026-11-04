@@ -18,8 +18,10 @@ and prints `N passed, M failed`.
 - `requirements-procs.cjs` — ADR-0037: roles and overrides, object-level access across projects,
   the trace and allocation rules (need vs solution, same project, no self-link), per-project
   reference numbers never reused, the shared met tick across deliverables, a deliverable delete
-  that keeps the requirements, a requirement delete that removes its links and allocations, and a
-  create whose links fail after the insert leaving nothing behind.
+  that keeps the requirements, a requirement delete that removes its links and allocations, a
+  create whose links fail after the insert leaving nothing behind, and (ADR-0048) sub-requirements
+  50 levels deep, a parent's delete refused unless asked to move its children up a level, and that
+  move's numbering, audit and stale-version refusal.
 - `key-deliverable-assignees.cjs` — migration 015: none, one and many assignees on a deliverable,
   clearing the set, a repeated id landing once, and a stakeholder of another project being dropped
   rather than refused.
@@ -90,6 +92,23 @@ and prints `N passed, M failed`.
   dispatch service retires one endpoint, only the user themselves or an Admin retires a user's
   endpoints, an unknown or already-retired id stays a silent no-op for the dispatch loop, and one
   endpoint belongs to one user at a time so a shared browser profile transfers rather than shares.
+
+- `users-procs.cjs` — Settings > Users: every user proc refuses a non-Admin, a NULL actor and a
+  deactivated Admin; an unknown id tells a non-Admin nothing; a User reads only their own account
+  and sets only their own password; an Admin never demotes or deactivates themselves; deactivate
+  and a role change end live sessions; a stale RowVer conflicts; and two Admins demoting each
+  other at once leave exactly one change.
+
+- `audit-procs.cjs` — Settings > Audit log: both audit procs refuse a User, a NULL actor and a
+  deactivated Admin, and an unknown id tells them nothing; an Admin's list is paged with its
+  TotalCount, newest first (oldest on request), carries no JSON and searches `%` and `_`
+  literally; an entry returns what it recorded without a password hash; an unknown id is NOT_FOUND.
+- `todo-recurrence-procs.cjs` — recurring to-dos: a rule is refused field by field per unit, and
+  without a start date; rule writes check and move the to-do's RowVer, occurrence writes check
+  their own and leave the series' alone; clearing an occurrence's changes deletes its row; a
+  pattern change deletes only future rows (into the audit), an ending change keeps them; the rule
+  reads back to the to-do's readers only; a series keeps its start date, and moving it deletes only
+  future rows; the calendar refuses 63 days, shows moved occurrences, and hides another user's to-do.
 
 Run one locally with the `.env` of a throwaway database: `node db/tests/financials-procs.cjs`.
 Never run them against a database anyone depends on: they create projects and leave

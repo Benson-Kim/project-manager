@@ -18,6 +18,7 @@ import { BudgetPlanner } from "@/modules/financials/components/budget-planner";
 import { DocumentsPanel } from "@/modules/financials/components/documents-panel";
 import { MonitoringPanel } from "@/modules/financials/components/monitoring-panel";
 import { NewFinancialDialog } from "@/modules/financials/components/new-financial-dialog";
+import { QuickCalculator } from "@/modules/financials/components/quick-calculator";
 import { SettingsPanel } from "@/modules/financials/components/settings-panel";
 import { getFinancialSheet, listFinancials } from "@/modules/financials/repository/financials";
 import { listTemplates } from "@/modules/financials/repository/templates";
@@ -80,7 +81,15 @@ export async function FinancialView({
   if (chosen === null) {
     return (
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 pb-8 sm:px-6">
-        <PageHeader title={M.title} action={newFinancial} />
+        <PageHeader
+          title={M.title}
+          action={
+            <div className="flex flex-wrap items-center gap-2">
+              <QuickCalculator />
+              {newFinancial}
+            </div>
+          }
+        />
         {rows.length === 0 ? (
           <EmptyState title={M.title} body={M.emptyBody} />
         ) : (
@@ -185,6 +194,7 @@ export async function FinancialView({
                 ))}
               </Menu>
             ) : null}
+            <QuickCalculator />
             {newFinancial}
           </div>
         }

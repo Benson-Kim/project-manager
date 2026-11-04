@@ -22,6 +22,14 @@ describe("nextServerEnv: the attachments folder (ADR-0026 §9)", () => {
     expect(env.UPLOADS_DIR).toBe("");
   });
 
+  it("passes this PC's backup status file, and none from the surrounding environment", () => {
+    expect(
+      nextServerEnv({ ...opts, backupStatusFile: "C:\\AD\\backup-status.json" }, 3001, {})
+        .BACKUP_STATUS_FILE,
+    ).toBe("C:\\AD\\backup-status.json");
+    expect(nextServerEnv(opts, 3001, { BACKUP_STATUS_FILE: "C:\\x" }).BACKUP_STATUS_FILE).toBe("");
+  });
+
   it("binds to loopback with the machine's database", () => {
     const env = nextServerEnv(opts, 3001, {});
     expect(env).toMatchObject({

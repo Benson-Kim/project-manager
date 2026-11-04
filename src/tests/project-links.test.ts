@@ -9,12 +9,12 @@ import { projectOverviewHref } from "@/modules/projects/project-links";
  *
  * The navigation itself cannot be proven here — nothing browser-shaped runs in
  * this workspace — so what is held is the construction it depends on. Two ways
- * this breaks read as working code. An anchor is not one of the controls the
- * sheet counts as an edit target, so a link dropped into a clickable row also
- * fires the row's own `onOpen` and the two race to different pages. And a name
- * left as plain text in a column with no `edit` is a dead end that looks fine,
- * because a cell the actor may edit renders the editor instead of `render` —
- * the link only ever shows on the rows that have no editor.
+ * this breaks read as working code. A link dropped into a clickable row also
+ * fires the row's own `onOpen` unless the click stops at the link, and the two
+ * race to different pages; inside a card's button it is not a link at all to a
+ * screen reader. And a name left as plain text in a column with no `edit` is a
+ * dead end that looks fine, because a cell the actor may edit renders the editor
+ * instead of `render` — the link only ever shows on the rows that have no editor.
  */
 
 const LINK = "src/components/ui/project-link.tsx";
@@ -49,6 +49,20 @@ describe("the project link survives a clickable row", () => {
 
   it("falls back to plain text when the record has no project", () => {
     expect(source(LINK)).toContain("projectId === null");
+  });
+
+  it("is never nested in a card's button: the card's button sits behind its content", () => {
+    const shell = source("src/components/ui/data-view/data-view.tsx").replace(/\r\n/g, "\n");
+    const body = shell.slice(shell.indexOf("function DataRowShell("));
+    expect(body).not.toMatch(/Tag = onOpen \? "button"/);
+    expect(body).toMatch(/<button\s+type="button"\s+aria-labelledby=\{contentId\}[^>]*\/>/);
+    expect(body).toMatch(/<div id=\{contentId\} className="relative">\s*\{children\}/);
+    expect(body).toContain('closest("a")');
+  });
+
+  it("keeps Enter on the link from also opening the row", async () => {
+    const { isEditableTarget } = await import("@/components/ui/data-view/datasheet");
+    expect(isEditableTarget({ tagName: "A" })).toBe(true);
   });
 });
 

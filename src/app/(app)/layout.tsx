@@ -1,10 +1,13 @@
 import { AppShell } from "@/components/shell/app-shell";
 import type { ShellAlert } from "@/components/shell/header-actions";
+import { DEFAULT_IDLE_TIMEOUT_MINUTES } from "@/lib/auth/idle-timeout";
 import { auth } from "@/lib/auth/provider";
 import { can } from "@/lib/auth/rbac";
 import { formatDate } from "@/lib/format";
 import { messages } from "@/lib/messages";
 import { getUpcomingAlerts, type UpcomingAlert } from "@/lib/repositories/upcoming-alerts";
+import { getUserPreference, type UserPreference } from "@/lib/repositories/user-preference";
+import { IdleSignOut } from "@/modules/auth/components/idle-sign-out";
 import { listProjectOptions } from "@/modules/projects/repository/projects";
 import type { ProjectOption } from "@/components/shell/project-header";
 
@@ -19,11 +22,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const canCreateTodo = session ? can(session.role, "todo-items:create") : false;
   let upcoming: UpcomingAlert[] = [];
   let projectOptions: ProjectOption[] = [];
+  let idleTimeoutMinutes = DEFAULT_IDLE_TIMEOUT_MINUTES;
   if (session) {
-    [upcoming, projectOptions] = await Promise.all([
+    let preference: UserPreference | null;
+    [upcoming, projectOptions, preference] = await Promise.all([
       getUpcomingAlerts(session.userId).catch(() => []),
       listProjectOptions(session.userId).catch(() => []),
+      getUserPreference(session.userId).catch(() => null),
     ]);
+    idleTimeoutMinutes = preference?.idleTimeoutMinutes ?? DEFAULT_IDLE_TIMEOUT_MINUTES;
   }
   const alerts: ShellAlert[] = upcoming.map((alert) => ({
     id: alert.id,
@@ -40,6 +47,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       projectOptions={projectOptions}
       alerts={alerts}
     >
+      {session ? <IdleSignOut idleTimeoutMinutes={idleTimeoutMinutes} /> : null}
       {children}
     </AppShell>
   );

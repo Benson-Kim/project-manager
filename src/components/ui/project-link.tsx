@@ -7,9 +7,9 @@ import { projectOverviewHref } from "@/modules/projects/project-links";
 /**
  * A project's name, linked to that project's Overview.
  *
- * Datasheet rows and cards are themselves clickable, and an anchor is not one of
- * the controls the sheet treats as an edit target, so the click would also open
- * the record the name sits on and race it to a different page. It stops here.
+ * Datasheet rows and cards are themselves clickable, so a click on the name would
+ * also open the record the name sits on and race it to a different page. It stops
+ * here; Enter on the link is left to the link by the list's own key handling.
  *
  * A record with no project keeps its caller's wording as plain text.
  */

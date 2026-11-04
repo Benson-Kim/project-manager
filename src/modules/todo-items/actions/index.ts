@@ -5,6 +5,7 @@ import { action } from "@/lib/action";
 import { auth } from "@/lib/auth/provider";
 import { getPushConfig } from "@/lib/push/config";
 import { messages } from "@/lib/messages";
+import { setDueSoonDays } from "@/lib/repositories/user-preference";
 import {
   buildTodoFromDailyActivity,
   createTodoItem,
@@ -21,10 +22,20 @@ import {
   updateTodoAlert,
 } from "../repository/todo-alerts";
 import { upsertAlertSubscription } from "../repository/alert-subscriptions";
+import {
+  clearTodoRecurrence,
+  setTodoOccurrence,
+  setTodoRecurrence,
+} from "../repository/todo-recurrence";
+import {
+  clearTodoRecurrenceInput,
+  setTodoOccurrenceInput,
+  setTodoRecurrenceInput,
+} from "../schemas/todo-recurrence";
 import { todoItemFormSchema, updateTodoItemFormSchema } from "../schemas/todo-item-form";
 import { todoAlertFormSchema, updateTodoAlertFormSchema } from "../schemas/todo-alert-form";
 import { pushSubscriptionInput } from "../schemas/alert-subscription";
-import { deleteTodoItemInput, reorderTodoItemInput } from "../schemas/todo-item";
+import { deleteTodoItemInput, dueSoonDaysInput, reorderTodoItemInput } from "../schemas/todo-item";
 import { deleteTodoAlertInput, rowVerSchema } from "../schemas/todo-alert";
 
 /**
@@ -68,6 +79,33 @@ export const reorderTodoItemAction = action({
   schema: reorderTodoItemInput,
   permission: "todo-items:update",
   handler: (input, ctx) => reorderTodoItem(input, ctx.session.userId),
+});
+
+/**
+ * Set how a to-do repeats (RBAC todo-items:update — project level checked in-proc, ADR-0021;
+ * CONFLICT on the series' stale RowVer). A pattern change deletes future occurrence rows.
+ */
+export const setTodoRecurrenceAction = action({
+  name: "todo-items.setRecurrence",
+  schema: setTodoRecurrenceInput,
+  permission: "todo-items:update",
+  handler: (input, ctx) => setTodoRecurrence(input, ctx.session.userId),
+});
+
+/** Stop a to-do repeating (RBAC todo-items:update); its occurrence rows go with the rule. */
+export const clearTodoRecurrenceAction = action({
+  name: "todo-items.clearRecurrence",
+  schema: clearTodoRecurrenceInput,
+  permission: "todo-items:update",
+  handler: (input, ctx) => clearTodoRecurrence(input, ctx.session.userId),
+});
+
+/** Mark, move or skip one occurrence of a series (RBAC todo-items:update). */
+export const setTodoOccurrenceAction = action({
+  name: "todo-items.setOccurrence",
+  schema: setTodoOccurrenceInput,
+  permission: "todo-items:update",
+  handler: (input, ctx) => setTodoOccurrence(input, ctx.session.userId),
 });
 
 /**
@@ -180,5 +218,21 @@ export const registerPushSubscriptionAction = action({
     }
     await upsertAlertSubscription(input, ctx.session.userId);
     return null;
+  },
+});
+
+/**
+ * The signed-in user's "Due soon" window (migration 059). RBAC todo-items:read:
+ * every account that sees to-dos. It writes the user's own preference row only
+ * (the id comes from the session), so like the view preferences it is not
+ * audited: a per-user display setting, not project data.
+ */
+export const setDueSoonDaysAction = action({
+  name: "todo-items.setDueSoonDays",
+  schema: dueSoonDaysInput,
+  permission: "todo-items:read",
+  handler: async (input, ctx) => {
+    await setDueSoonDays(ctx.session.userId, input.dueSoonDays);
+    return { dueSoonDays: input.dueSoonDays };
   },
 });

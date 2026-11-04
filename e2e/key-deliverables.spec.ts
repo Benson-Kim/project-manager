@@ -949,6 +949,22 @@ test("WBS: a milestone is added as one day, converted either way, moved but not 
   await expect(toggle).toHaveAttribute("aria-pressed", "false");
   await expect(strip).toHaveCount(0);
 
+  // The Overview lists the same milestone with its target date, linked to its deliverable; the
+  // task is not a milestone, so it is not there.
+  await page.goto("/projects/2");
+  const overview = page.getByTestId("project-milestones");
+  const gateRow = overview.getByRole("row", {
+    name: new RegExp(escapeRegExp(`E2E gate ${stamp}`)),
+  });
+  await expect(gateRow).toContainText(plusDays(day0, 1));
+  await expect(gateRow.getByRole("link")).toHaveAttribute(
+    "href",
+    `/projects/2/deliverables?id=${gateId}`,
+  );
+  await expect(overview.getByText(`E2E span ${stamp}`)).toHaveCount(0);
+  await page.goto("/projects/2/deliverables/gantt?view=wbs");
+  await expect(page.getByTestId(`wbs-box-${gateId}`)).toBeVisible({ timeout: 15_000 });
+
   // Clean up both items so the seeded project does not grow a milestone per run, then show the
   // strip again.
   for (const id of [gateId, taskId]) {

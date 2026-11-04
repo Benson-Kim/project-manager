@@ -92,7 +92,7 @@ export default async function KeywordsPage({
         keyword={selected}
         isNew={isNew && canCreate}
         projectId={projectId}
-        canEdit={canEdit}
+        canEdit={isNew ? canCreate : canEdit}
         canDelete={canDelete}
       />
     </>

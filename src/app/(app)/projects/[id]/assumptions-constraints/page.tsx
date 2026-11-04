@@ -109,7 +109,7 @@ export default async function AssumptionsConstraintsPage({
           item={selected}
           isNew={isNew && canCreate}
           projectId={projectId}
-          canEdit={canEdit}
+          canEdit={isNew ? canCreate : canEdit}
           canDelete={canDelete}
         />
       </LookupListsScope>

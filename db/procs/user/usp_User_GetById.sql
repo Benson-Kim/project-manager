@@ -1,5 +1,7 @@
 -- usp_User_GetById — one auth.User row by id; NOT_FOUND when missing/deleted.
--- Never returns PasswordHash. Module: auth-and-rbac (#4).
+-- Never returns PasswordHash. A user reads their own row (the per-request session check, also
+-- for a deactivated user so it can sign them out); only an Admin reads another's (FORBIDDEN_ROW).
+-- Module: auth-and-rbac (#4).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_User_GetById
@@ -8,6 +10,14 @@ CREATE OR ALTER PROCEDURE dbo.usp_User_GetById
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    IF @ActorUserId IS NULL OR @UserId <> @ActorUserId
+    BEGIN
+        DECLARE @ActorRole NVARCHAR(50);
+        EXEC dbo.usp_User_GetActorRole @UserId = @ActorUserId, @Role = @ActorRole OUTPUT;
+        IF @ActorRole <> N'Admin'
+            THROW 50003, N'FORBIDDEN_ROW:Only administrators can manage users', 1;
+    END;
 
     IF NOT EXISTS (SELECT 1 FROM auth.[User] WHERE UserId = @UserId AND IsDeleted = 0)
         THROW 50001, N'NOT_FOUND:User not found', 1;

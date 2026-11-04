@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 import { expectListed, expectNotListed, openListed } from "./support/datasheet";
 
@@ -7,11 +7,11 @@ import { expectListed, expectNotListed, openListed } from "./support/datasheet";
  * Parking lot module (#18) — project-scoped route /projects/2/parking-lot.
  * Create happy path in the URL-synced sheet, validation failure, axe scans on
  * list + sheet form. Runs as e2e-pm (storage state from auth.setup.ts — no
- * extra logins, LESSONS §12). Seeded parking lot item 3 = "1- Per Mustapha of IT…" on project 2.
+ * extra logins, LESSONS §12). Seeded parking lot item 3 = "1- Per Mustapha of IT…" on project 2;
+ * the edit and delete tests work on items they create, so a rerun on the same DB still finds it.
  */
 
-test("create parking lot item happy path — appears in the list", async ({ page }) => {
-  const itemText = `E2E parking lot item ${Date.now()}`;
+async function createItem(page: Page, itemText: string) {
   await page.goto("/projects/2/parking-lot");
   await page.getByTestId("new-parking-lot-item").click();
   const form = page.getByTestId("parking-lot-form");
@@ -21,7 +21,20 @@ test("create parking lot item happy path — appears in the list", async ({ page
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
   ).toBeVisible({ timeout: 15_000 });
-  await expect(form).toHaveCount(0);
+}
+
+async function openItem(page: Page, itemText: string) {
+  await page.goto(`/projects/2/parking-lot?q=${encodeURIComponent(itemText)}`);
+  await openListed(page, itemText);
+  const form = page.getByTestId("parking-lot-form");
+  await expect(form).toBeVisible();
+  return form;
+}
+
+test("create parking lot item happy path — appears in the list", async ({ page }) => {
+  const itemText = `E2E parking lot item ${Date.now()}`;
+  await createItem(page, itemText);
+  await expect(page.getByTestId("parking-lot-form")).toHaveCount(0);
 
   await page.goto(`/projects/2/parking-lot?q=${encodeURIComponent(itemText)}`);
   await expectListed(page, itemText);
@@ -51,9 +64,9 @@ test("sheet is URL-synced — deep link ?id= opens the seeded item", async ({ pa
 });
 
 test("edit parking lot item happy path — updates text and shows toast", async ({ page }) => {
-  await page.goto("/projects/2/parking-lot?id=3");
-  const form = page.getByTestId("parking-lot-form");
-  await expect(form).toBeVisible();
+  const itemText = `E2E edit target ${Date.now()}`;
+  await createItem(page, itemText);
+  const form = await openItem(page, itemText);
   const newText = `E2E updated item ${Date.now()}`;
   await form.getByLabel(messages.parkingLot.item).fill(newText);
   await page.getByTestId("parking-lot-save").click();
@@ -67,23 +80,9 @@ test("edit parking lot item happy path — updates text and shows toast", async 
 });
 
 test("delete parking lot item happy path — item removed from list", async ({ page }) => {
-  // Create a disposable item first
   const itemText = `E2E delete target ${Date.now()}`;
-  await page.goto("/projects/2/parking-lot");
-  await page.getByTestId("new-parking-lot-item").click();
-  const form = page.getByTestId("parking-lot-form");
-  await expect(form).toBeVisible();
-  await form.getByLabel(messages.parkingLot.item).fill(itemText);
-  await page.getByTestId("parking-lot-save").click();
-  await expect(
-    page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
-  ).toBeVisible({ timeout: 15_000 });
-
-  // Open the newly created item by searching for it
-  await page.goto(`/projects/2/parking-lot?q=${encodeURIComponent(itemText)}`);
-  await openListed(page, itemText);
-  const editForm = page.getByTestId("parking-lot-form");
-  await expect(editForm).toBeVisible();
+  await createItem(page, itemText);
+  const editForm = await openItem(page, itemText);
 
   // Delete it
   await page.getByTestId("parking-lot-delete").click();

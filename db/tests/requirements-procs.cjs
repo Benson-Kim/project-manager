@@ -21,6 +21,7 @@ try {
 }
 const sql = require("mssql");
 
+const ADMIN = 1;
 const PM = 3;
 const CONTRIB = 4;
 const VIEWER = 5;
@@ -227,11 +228,19 @@ function reqsOf(rows, kdId) {
   ok(grand.Ref === `FR-${root.Number}.1.1` && grand.Depth === 2,
     `a grandchild carries both levels (got ${grand.Ref})`);
 
-  // Four levels, then no more — the client said it does not go long, so the limit is the proc's.
+  // The client asked for no limit, so the only cap is the 50 levels a reference can carry.
   const great = await create({ ProjectId: P, Requirement: "Mod 10", ParentRequirementId: grand.RequirementId, ActorUserId: PM });
   ok(great.Depth === 3, "the fourth level is allowed");
-  await expectCode(50004, "a fifth level is refused", () =>
-    create({ ProjectId: P, Requirement: "too deep", ParentRequirementId: great.RequirementId, ActorUserId: PM }));
+  let deepest = await create({ ProjectId: P, Requirement: "Level 5", ParentRequirementId: great.RequirementId, ActorUserId: PM });
+  ok(deepest.Depth === 4, "a fifth level is allowed now");
+  while (deepest.Depth < 49) {
+    deepest = await create({ ProjectId: P, Requirement: `Level ${deepest.Depth + 2}`,
+      ParentRequirementId: deepest.RequirementId, ActorUserId: PM });
+  }
+  ok(deepest.Ref === `FR-${root.Number}.1.1.1${".1".repeat(46)}`,
+    `the 50th level carries its whole path untruncated (got ${deepest.Ref.length} characters)`);
+  await expectCode(50004, "a 51st level is refused", () =>
+    create({ ProjectId: P, Requirement: "too deep", ParentRequirementId: deepest.RequirementId, ActorUserId: PM }));
 
   // A parent cannot point outside its project, and a missing one is not found.
   await expectCode(50001, "a parent in another project is not found", () =>
@@ -239,7 +248,7 @@ function reqsOf(rows, kdId) {
   await expectCode(50001, "a parent that does not exist is not found", () =>
     create({ ProjectId: P, Requirement: "orphan", ParentRequirementId: 2000000000, ActorUserId: PM }));
 
-  // The two refusals the client still has to choose between. Both are reversible; neither guesses.
+  // Both refusals stay the default (the client's choice); the delete one can move the children up instead.
   const rootNow = await getReq(root.RequirementId);
   ok(rootNow.ChildCount === 3, `a parent counts its live children (got ${rootNow.ChildCount})`);
   await expectCode(50004, "a parent with children cannot be deleted", () =>
@@ -255,6 +264,46 @@ function reqsOf(rows, kdId) {
   // A leaf child deletes normally, and that frees its parent again.
   await exec("usp_Requirement_Delete", { RequirementId: kid3.RequirementId, RowVer: kidNow.RowVer, ActorUserId: PM });
   ok((await getReq(root.RequirementId)).ChildCount === 2, "deleting a child lowers the parent's count");
+
+  // Asked to, a delete moves the children up one level, numbered after every number used there
+  // (kid3's deleted 3 and the deleted parent's own 4 included), with their own children in tow.
+  const mid = await create({ ProjectId: P, Requirement: "Payment rules", ParentRequirementId: root.RequirementId, ActorUserId: PM });
+  const midA = await create({ ProjectId: P, Requirement: "Rule A", ParentRequirementId: mid.RequirementId, ActorUserId: PM });
+  const midB = await create({ ProjectId: P, Requirement: "Rule B", ParentRequirementId: mid.RequirementId, ActorUserId: PM });
+  const midA1 = await create({ ProjectId: P, Requirement: "Rule A detail", ParentRequirementId: midA.RequirementId, ActorUserId: PM });
+  ok(mid.Number === 4, `the next child number counts the deleted one (got ${mid.Number})`);
+  const midNow = await getReq(mid.RequirementId);
+  await expectCode(50004, "without the flag a parent is still refused", () =>
+    exec("usp_Requirement_Delete", { RequirementId: mid.RequirementId, RowVer: midNow.RowVer, ActorUserId: PM }));
+  await expectCode(50002, "a stale version moves nothing", () =>
+    exec("usp_Requirement_Delete", { RequirementId: mid.RequirementId, RowVer: midNow.RowVer - 1,
+      ActorUserId: PM, PromoteChildren: 1 }));
+  ok((await getReq(midA.RequirementId)).Ref === `FR-${root.Number}.4.1`, "a refused move leaves the children where they were");
+  await exec("usp_Requirement_Delete", { RequirementId: mid.RequirementId, RowVer: midNow.RowVer,
+    ActorUserId: PM, PromoteChildren: 1 });
+  const [upA, upB, upA1] = [await getReq(midA.RequirementId), await getReq(midB.RequirementId), await getReq(midA1.RequirementId)];
+  ok(upA.Ref === `FR-${root.Number}.5` && upB.Ref === `FR-${root.Number}.6` && upA.Depth === 1,
+    `the children move under the grandparent in their old order (got ${upA.Ref}, ${upB.Ref})`);
+  ok(upA1.Ref === `FR-${root.Number}.5.1` && upA1.Depth === 2, `a grandchild travels with its parent (got ${upA1.Ref})`);
+  ok(upA.ChildCount === 1 && (await getReq(root.RequirementId)).ChildCount === 4,
+    "the grandparent counts the moved children as its own");
+  const [auditPage] = await exec("usp_Audit_List", { ActorUserId: ADMIN, Search: "app.Requirement", PageSize: 100 });
+  const movedRow = auditPage.find((r) => r.EntityName === "app.Requirement" && r.Action === "Update"
+    && String(r.EntityId) === String(midA.RequirementId));
+  const moved = (await exec("usp_Audit_GetById", { AuditLogId: movedRow.AuditLogId, ActorUserId: ADMIN }))[0][0];
+  const was = JSON.parse(moved.BeforeJson), now = JSON.parse(moved.AfterJson);
+  ok(was.ParentRequirementId === mid.RequirementId && was.Number === 1
+     && now.ParentRequirementId === root.RequirementId && now.Number === 5,
+    "each move is audited with its old and new place");
+
+  // A root's children move to the top level and keep the type their references carry.
+  const top = await create({ ProjectId: P, RequirementType: "TR", Requirement: "Hosting", ActorUserId: PM });
+  const topKid = await create({ ProjectId: P, Requirement: "Backups", ParentRequirementId: top.RequirementId, ActorUserId: PM });
+  await exec("usp_Requirement_Delete", { RequirementId: top.RequirementId, RowVer: (await getReq(top.RequirementId)).RowVer,
+    ActorUserId: PM, PromoteChildren: 1 });
+  const upTop = await getReq(topKid.RequirementId);
+  ok(upTop.Ref === `TR-${top.Number + 1}` && upTop.Depth === 0 && upTop.RequirementType === "TR",
+    `a root's child becomes a root after every used number (got ${upTop.Ref})`);
 
   // The register's order is the path, and '1.2' comes before '1.10' — which it would not as text.
   const wide = await create({ ProjectId: P, RequirementType: "NFR", Requirement: "Limits", ActorUserId: PM });

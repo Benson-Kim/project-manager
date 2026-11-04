@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import { BOARD_SORT } from "@/modules/boards/schemas/board-rules";
 import type { ListSort } from "@/lib/list-params";
 import { ASSUMPTION_CONSTRAINT_SORT } from "@/modules/assumptions-constraints/schemas/assumption-constraint";
+import { AUDIT_SORT } from "@/modules/audit/schemas/audit-log";
+import { USER_SORT } from "@/modules/auth/schemas/user";
 import { DAILY_ACTIVITY_SORT } from "@/modules/daily-activities/schemas/daily-activity";
 import { DECISION_SORT } from "@/modules/decisions/schemas/decision";
 import { KEY_DELIVERABLE_SORT } from "@/modules/key-deliverables/schemas/key-deliverable";
@@ -60,6 +62,13 @@ const MODULES: Array<[string, ListSort, string]> = [
   ["todo-items", TODO_ITEM_SORT, "db/procs/todo-item/usp_TodoItem_List.sql"],
 ];
 
+/** Settings lists drawn as a plain table, so they have no DataView sort prop to check. */
+const TABLE_LISTS: Array<[string, ListSort, string]> = [
+  ["audit", AUDIT_SORT, "db/procs/audit/usp_Audit_List.sql"],
+  ["users", USER_SORT, "db/procs/user/usp_User_List.sql"],
+];
+const ALL_SORTED = [...MODULES, ...TABLE_LISTS];
+
 /** The SQL with its line comments removed, so prose cannot satisfy an assertion. */
 function statements(path: string): string {
   return readFileSync(path, "utf8")
@@ -83,16 +92,16 @@ describe("a module's sortable columns are exactly the ones its list proc applies
     for (const [, , path] of MODULES) expect(sortTokens(path).length).toBeGreaterThan(0);
   });
 
-  it.each(MODULES)("%s matches %o against its proc", (_name, sort, path) => {
+  it.each(ALL_SORTED)("%s matches %o against its proc", (_name, sort, path) => {
     expect([...sort.columns].sort()).toEqual(sortTokens(path));
   });
 
-  it.each(MODULES)("%s names a default its proc applies", (_name, sort, path) => {
+  it.each(ALL_SORTED)("%s names a default its proc applies", (_name, sort, path) => {
     if (sort.default === null) return;
     expect(sortTokens(path)).toContain(sort.default);
   });
 
-  it.each(MODULES)("%s lists each column once", (_name, sort) => {
+  it.each(ALL_SORTED)("%s lists each column once", (_name, sort) => {
     expect(new Set(sort.columns).size).toBe(sort.columns.length);
   });
 });

@@ -22,12 +22,13 @@ describe("todo alert UI review guardrails", () => {
     }
   });
 
-  it("guards both forms against accidental close and confirms alert removal", () => {
+  it("guards every form against accidental close and confirms alert removal", () => {
     const sheet = source("src/modules/todo-items/components/todo-item-sheet.tsx");
 
-    expect(sheet).toContain("useUnsavedChangesGuard(itemDirty || alertDirty)");
+    expect(sheet).toContain("useUnsavedChangesGuard(itemDirty || alertDirty || repeatDirty)");
     expect(sheet).toContain("onChange={canEdit ? markItemFormDirty : undefined}");
     expect(sheet).toContain("onChange={markAlertFormDirty}");
+    expect(sheet).toContain("onDirtyChange={onRepeatDirtyChange}");
     expect(sheet).toContain("if (!next) requestClose()");
     expect(sheet).toContain("onClick={() => setConfirmRemoveAlert(true)}");
     expect(sheet).toContain("open={confirmRemoveAlert}");

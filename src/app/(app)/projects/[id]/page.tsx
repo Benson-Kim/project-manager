@@ -3,6 +3,10 @@ import { auth } from "@/lib/auth/provider";
 import { messages } from "@/lib/messages";
 import { orNotFound } from "@/lib/row-access";
 import { PageHeader } from "@/components/ui/page-header";
+import { ProjectMilestones } from "@/modules/key-deliverables/components/project-milestones";
+import { getWbs } from "@/modules/key-deliverables/repository/key-deliverables";
+import { buildWbs } from "@/modules/key-deliverables/schemas/wbs";
+import { milestoneStrip } from "@/modules/key-deliverables/schemas/wbs-milestones";
 import { AssigneesEditor } from "@/modules/projects/components/assignees-editor";
 import { ProjectForm } from "@/modules/projects/components/project-form";
 import { listAssigneeOptions } from "@/modules/projects/repository/assignee-options";
@@ -17,7 +21,7 @@ import { parseProjectId } from "./project-id";
 
 /**
  * Charter workspace — full route  exception): sections Charter,
- * Framework, Financing (ONE form) + the project team (req 0.3, ADR-0021).
+ * Schedule/phase/progress, Details, Financing (ONE form) + the project team (req 0.3, ADR-0021).
  * Deep-linkable so several projects can be open side by side (req 0.1). The
  * project header and section nav come from the nested layout ; the project
  * fetch is shared with the layout via React cache (no double fetch).
@@ -37,6 +41,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   ]);
 
   const canEdit = allows("projects:update");
+  const milestones = allows("key-deliverables:read")
+    ? milestoneStrip(buildWbs((await getWbs(projectId, session.userId)).items), new Date())
+    : null;
   const canDelete = allows("projects:delete");
 
   // People to add and the permission overrides are only needed by managers editing the team.
@@ -54,7 +61,14 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       <PageHeader title={messages.projects.charterSection} />
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_30rem]">
         <main className="min-w-0">
-          <ProjectForm project={project} canEdit={canEdit} canDelete={canDelete} />
+          <ProjectForm
+            project={project}
+            canEdit={canEdit}
+            canDelete={canDelete}
+            milestones={
+              milestones ? <ProjectMilestones projectId={projectId} chips={milestones} /> : null
+            }
+          />
         </main>
 
         <aside className="min-w-0 xl:sticky xl:top-6 xl:self-start">

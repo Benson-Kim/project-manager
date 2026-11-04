@@ -79,6 +79,21 @@ const columns: DataViewColumn<Row>[] = [
     render: (r) => <StatusBadge value={r.ProjectStatus} />,
   }),
   listColumn({
+    key: "ProjectPhase",
+    header: messages.projects.phase,
+    priority: 2,
+    field: "projectPhase",
+    list: "project.phase",
+    value: (r) => r.ProjectPhase,
+    placeholder: P.phase,
+    render: (r) =>
+      r.ProjectPhase ? (
+        <span className="text-ink">{r.ProjectPhase}</span>
+      ) : (
+        <span className="text-ink-faint">—</span>
+      ),
+  }),
+  listColumn({
     key: "ProjectPriority",
     header: messages.projects.priority,
     priority: 2,
@@ -171,6 +186,7 @@ export function ProjectsView({
           <p className="text-sm font-semibold text-ink">{row.ProjectName}</p>
           <div className="flex flex-wrap gap-1.5">
             <Badge value={row.ProjectStatus} />
+            <Badge value={row.ProjectPhase} />
             <Badge value={row.ProjectPriority} />
           </div>
           {row.ProjectManager ? (

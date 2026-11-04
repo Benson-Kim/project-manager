@@ -23,7 +23,11 @@ export interface TrayState {
   version: string;
   /** A downloaded update waiting to be installed. */
   readyVersion: string | null;
+  /** Nothing has been copied to the backup copy folder for too long. */
+  copyOverdue: boolean;
 }
+
+export const COPY_NOW_LABEL = "Back up and copy now";
 
 export function trayMenuTemplate(a: TrayActions, s: TrayState): MenuItemConstructorOptions[] {
   const update: MenuItemConstructorOptions[] =
@@ -33,8 +37,12 @@ export function trayMenuTemplate(a: TrayActions, s: TrayState): MenuItemConstruc
           { type: "separator" },
         ]
       : [];
+  const copyNow: MenuItemConstructorOptions[] = s.copyOverdue
+    ? [{ label: COPY_NOW_LABEL, click: a.backupNow }, { type: "separator" }]
+    : [];
   return [
     ...update,
+    ...copyNow,
     { label: "Open Project Manager", click: a.open },
     { type: "separator" },
     { label: "Back up now", click: a.backupNow },

@@ -54,6 +54,13 @@ boolean column, because that is the part that is hard to reverse.
    fails if a write proc stores one of the pair without the other, or takes `@IsValidated`
    back as a parameter.
 
+   That covers the way back to the previous code, not the way forward again: the previous
+   procs write the BIT alone, so a record ticked or unticked while they ran would return with
+   its old label. Migration 058 adds `TR_AssumptionConstraint_ValidatedSync`, which corrects
+   only a row whose two columns disagree (a ticked BIT means Yes; an unticked one takes Yes
+   back to No). The current procs never write such a row, so the trigger changes nothing they
+   write, their `RowVer` included.
+
 5. **Row tinting is not switched on by seed.** The capability is what BL20 was missing; the
    switch is in the list editor ("Colour whole rows by this value"), one click for an Admin,
    and migration 020's precedent seeds it only for the priority lists. Turning it on here

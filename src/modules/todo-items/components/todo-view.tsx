@@ -24,6 +24,7 @@ import { formatDate } from "@/lib/format";
 import type { ProjectPicker } from "@/modules/projects/project-options";
 import {
   TODO_ITEM_SORT,
+  DEFAULT_DUE_SOON_DAYS,
   isApproachingDeadline,
   isOverdue,
   type TodoItemListRow,
@@ -37,9 +38,9 @@ type Row = TodoItemListRow;
 const P = messages.todoItems.placeholders;
 
 /** Due-date emphasis: overdue (danger) or approaching (warning) — design tokens only. */
-function dueTone(row: Row): string | undefined {
+function dueTone(row: Row, dueSoonDays: number): string | undefined {
   if (isOverdue(row)) return "font-semibold text-danger";
-  if (isApproachingDeadline(row)) return "font-semibold text-warning";
+  if (isApproachingDeadline(row, dueSoonDays)) return "font-semibold text-warning";
   return undefined;
 }
 
@@ -104,10 +105,23 @@ function ReorderControls({
   );
 }
 
+/** A series (ADR-0059): the list shows it once, marked so it is not taken for a one-off. */
+function RepeatsBadge({ className = "" }: { className?: string }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border border-line bg-surface-sunken px-1.5 py-0.5 text-xs font-medium text-ink-muted ${className}`}
+      data-testid="todo-repeats-badge"
+    >
+      {messages.todoItems.repeats}
+    </span>
+  );
+}
+
 function buildColumns(
   rows: Row[],
   canReorder: boolean,
   projects: ProjectPicker | undefined,
+  dueSoonDays: number,
 ): DataViewColumn<Row>[] {
   return [
     // /todo only: which project each to-do belongs to, editable like the other cells.
@@ -120,6 +134,12 @@ function buildColumns(
       value: (r) => r.TodoItem,
       placeholder: P.todoItem,
       maxLength: 255,
+      render: (r) => (
+        <>
+          {r.TodoItem}
+          {r.Repeats ? <RepeatsBadge className="ml-1.5" /> : null}
+        </>
+      ),
     }),
     listColumn({
       key: "Status",
@@ -156,13 +176,13 @@ function buildColumns(
       value: (r) => r.DueDate,
       placeholder: P.dueDate,
       render: (r) => (
-        <span className={dueTone(r)}>
+        <span className={dueTone(r, dueSoonDays)}>
           {formatDate(r.DueDate) || messages.todoItems.noDueDate}
           {isOverdue(r) ? (
             <span className="ml-1.5 inline-flex items-center rounded-full border border-danger bg-danger-soft px-1.5 py-0.5 text-xs font-medium text-danger">
               {messages.todoItems.overdue}
             </span>
-          ) : isApproachingDeadline(r) ? (
+          ) : isApproachingDeadline(r, dueSoonDays) ? (
             <span className="ml-1.5 inline-flex items-center rounded-full border border-warning bg-warning-soft px-1.5 py-0.5 text-xs font-medium text-warning">
               {messages.todoItems.approachingDeadline}
             </span>
@@ -220,6 +240,7 @@ export function TodoView({
   projectFilterOptions,
   canCreate,
   canReorder = false,
+  dueSoonDays = DEFAULT_DUE_SOON_DAYS,
   newTodoAction,
   emptyBody,
 }: {
@@ -238,11 +259,13 @@ export function TodoView({
   projectFilterOptions?: readonly { id: number; name: string }[];
   canCreate: boolean;
   canReorder?: boolean;
+  /** The user's "Due soon" window in days (Settings). */
+  dueSoonDays?: number;
   newTodoAction?: React.ReactNode;
   emptyBody?: string;
 }) {
   const { update } = useListUrlState();
-  const columns = buildColumns(rows, canReorder, projects);
+  const columns = buildColumns(rows, canReorder, projects, dueSoonDays);
 
   return (
     <DataView
@@ -265,6 +288,7 @@ export function TodoView({
           <div className="flex flex-wrap gap-1.5">
             <Badge value={row.Status} />
             <Badge value={row.Priority} />
+            {row.Repeats ? <RepeatsBadge /> : null}
           </div>
           {projects && row.ProjectName ? (
             <p className="text-xs text-ink-muted">
@@ -274,11 +298,11 @@ export function TodoView({
             </p>
           ) : null}
           {row.DueDate ? (
-            <p className={`text-xs ${dueTone(row) ?? "text-ink-muted"}`}>
+            <p className={`text-xs ${dueTone(row, dueSoonDays) ?? "text-ink-muted"}`}>
               {formatDate(row.DueDate)}
               {isOverdue(row)
                 ? ` — ${messages.todoItems.overdue}`
-                : isApproachingDeadline(row)
+                : isApproachingDeadline(row, dueSoonDays)
                   ? ` — ${messages.todoItems.approachingDeadline}`
                   : ""}
             </p>

@@ -61,7 +61,7 @@ export function canAddSubRequirement(row: RegisterRow): boolean {
   return row.Depth + 1 < MAX_REQUIREMENT_DEPTH;
 }
 
-/** "Sub-requirement of FR-1", or null for a root. Read-only: nothing re-parents a requirement. */
+/** "Sub-requirement of FR-1", or null for a root. Read-only: no edit picks a new parent. */
 export function parentText(row: RegisterRow): string | null {
   const parent = parentRefOf(row.Ref);
   return parent === null ? null : M.subRequirementOf(parent);
@@ -156,11 +156,24 @@ export function mergeSelection(
   return { type: SOLUTION_TYPES[0]!, validates: selected.map((r) => r.RequirementId).join(",") };
 }
 
-/** What deleting a requirement costs, named before it runs (STANDARDS §5.6). */
-export function deleteConsequence(row: RegisterRow): string {
+function linkCosts(row: RegisterRow): string[] {
   const parts: string[] = [];
   if (row.DeliverableIds.length > 0) parts.push(M.deleteLeaves(row.DeliverableIds.length));
   const refs = refList([...row.Validates, ...row.ValidatedBy]);
   if (refs) parts.push(M.deleteUnlinks(refs));
+  return parts;
+}
+
+/** What deleting a requirement costs, named before it runs (STANDARDS §5.6). */
+export function deleteConsequence(row: RegisterRow): string {
+  const parts = linkCosts(row);
   return parts.length > 0 ? parts.join(" ") : M.deleteBody;
+}
+
+/**
+ * What deleting a parent and moving its sub-requirements up costs (ADR-0048): where they go, that
+ * their references change, then the links the parent itself loses.
+ */
+export function promoteConsequence(row: RegisterRow): string {
+  return [M.promoteBody(row.ChildCount, parentRefOf(row.Ref)), ...linkCosts(row)].join(" ");
 }

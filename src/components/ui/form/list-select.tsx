@@ -16,6 +16,7 @@ import { ListEditorDialog } from "../data-view/list-editor-dialog";
 import { EDIT_LIST, ListOptions, useLookupLists } from "../lookup-lists";
 import { useFieldContext } from "./field";
 import { Select } from "./inputs";
+import { shownOption } from "./list-select-state";
 
 type OpenListEditor = (list: LookupListKey, column: string) => void;
 
@@ -88,7 +89,7 @@ export const ListSelect = forwardRef<HTMLSelectElement, ListSelectProps>(functio
       const next = renamedValue(before, options, shown.current);
       if (next !== shown.current) el.value = next;
     }
-    shown.current = el.value;
+    shown.current = shownOption(el);
   }, [options, controlled]);
 
   return (
@@ -96,7 +97,7 @@ export const ListSelect = forwardRef<HTMLSelectElement, ListSelectProps>(functio
       ref={select}
       {...props}
       onFocus={(e) => {
-        shown.current = e.currentTarget.value;
+        shown.current = shownOption(e.currentTarget);
         onFocus?.(e);
       }}
       onChange={(e) => {

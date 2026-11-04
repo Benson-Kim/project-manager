@@ -22,6 +22,7 @@ import {
   recordIpLoginAttempt,
   recordLoginAttempt,
   setPassword,
+  updateUser,
 } from "../repository/users";
 
 function dbUserRow(overrides: Record<string, unknown> = {}) {
@@ -73,6 +74,49 @@ describe("users repository", () => {
       "usp_User_List",
       expect.objectContaining({ ActorUserId: 9, Search: "pm", SortBy: "Username", Page: 2 }),
     );
+  });
+
+  it("listUsers returns the page's rows and the proc's TotalCount", async () => {
+    execProc.mockResolvedValue([
+      { ...dbUserRow(), TotalCount: "31" },
+      { ...dbUserRow({ UserId: 8, Username: "pm2" }), TotalCount: "31" },
+    ]);
+    const { rows, totalCount } = await listUsers(listParamsSchema.parse({}), 1);
+    expect(totalCount).toBe(31);
+    expect(rows.map((r) => r.UserId)).toEqual([7, 8]);
+    expect(rows[0]).not.toHaveProperty("TotalCount");
+  });
+
+  it("listUsers reports 0 for an empty page", async () => {
+    execProc.mockResolvedValue([]);
+    expect(await listUsers(listParamsSchema.parse({}), 1)).toEqual({ rows: [], totalCount: 0 });
+  });
+
+  it("updateUser forwards every column, RowVer and the actor", async () => {
+    execProc.mockResolvedValue([dbUserRow({ RowVer: "43" })]);
+    const user = await updateUser(
+      {
+        userId: 7,
+        displayName: "PM",
+        email: null,
+        roleId: 1,
+        isActive: false,
+        mustChangePassword: true,
+        rowVer: 42,
+      },
+      1,
+    );
+    expect(user.RowVer).toBe(43);
+    expect(execProc).toHaveBeenCalledWith("usp_User_Update", {
+      UserId: 7,
+      DisplayName: "PM",
+      Email: null,
+      RoleId: 1,
+      IsActive: false,
+      MustChangePassword: true,
+      RowVer: 42,
+      ActorUserId: 1,
+    });
   });
 
   it("createUser hashes the password — the plaintext never reaches execProc", async () => {

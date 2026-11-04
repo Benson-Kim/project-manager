@@ -6,7 +6,8 @@
 --   LIKE wildcards in @Search are escaped.
 -- ActorAccess (ADR-0023): the actor's level on each to-do under that rule; the datasheet uses it to
 --   decide per row whether cells are editable, and a row is listed when the actor has a level on it.
---   ProjectName feeds the cross-project grid's Project column.
+--   ProjectName feeds the cross-project grid's Project column. Repeats: the to-do has a repeat rule
+--   (app.TodoRecurrence, ADR-0059), which the list shows as a badge.
 -- Entity app.TodoItem (source: tblTodoList (core; alert columns → TodoAlert)). Module: todo-items (#20).
 -- ActorGrants / ActorRevokes (ADR-0024): the actor's per-person overrides of 'todo-items' in the
 --   row's project (dbo.ufn_Permission_Overrides), so the datasheet gates cells as the procs do.
@@ -56,6 +57,8 @@ BEGIN
            [Assignee],
            [Notes],
            [SortKey],
+           CAST(CASE WHEN EXISTS (SELECT 1 FROM app.TodoRecurrence r WHERE r.TodoItemId = TodoItem.TodoItemId)
+                     THEN 1 ELSE 0 END AS BIT) AS Repeats,
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer,

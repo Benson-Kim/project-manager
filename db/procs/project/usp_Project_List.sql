@@ -1,4 +1,4 @@
--- usp_Project_List — paged/filtered list per ADR-0016. Search columns: ProjectName, ProjectManager, ProjectSponsor, Mandate. Sort whitelist: ProjectName, DateOfProject, StartDate, EndDate, ProjectStatus, ProjectPriority, ProjectManager. Filters: @Status, @Priority.
+-- usp_Project_List — paged/filtered list per ADR-0016. Search columns: ProjectName, ProjectManager, ProjectSponsor, Mandate. Sort whitelist: ProjectName, DateOfProject, StartDate, EndDate, ProjectStatus, ProjectPhase, ProjectPriority, ProjectManager. Filters: @Status, @Priority.
 -- Row-level access (ADR-0021): non-Admins see only the projects they are assigned to.
 --   LIKE wildcards in @Search are escaped.
 -- ActorAccess (ADR-0023): the actor's access level on each row's project (dbo.ufn_AccessLevel_Resolve);
@@ -102,6 +102,8 @@ BEGIN
         CASE WHEN @SortBy = N'EndDate' AND @SortDir = 'desc' THEN [EndDate] END DESC,
         CASE WHEN @SortBy = N'ProjectStatus' AND @SortDir = 'asc'  THEN [ProjectStatus] END ASC,
         CASE WHEN @SortBy = N'ProjectStatus' AND @SortDir = 'desc' THEN [ProjectStatus] END DESC,
+        CASE WHEN @SortBy = N'ProjectPhase' AND @SortDir = 'asc'  THEN [ProjectPhase] END ASC,
+        CASE WHEN @SortBy = N'ProjectPhase' AND @SortDir = 'desc' THEN [ProjectPhase] END DESC,
         CASE WHEN @SortBy = N'ProjectPriority' AND @SortDir = 'asc'  THEN [ProjectPriority] END ASC,
         CASE WHEN @SortBy = N'ProjectPriority' AND @SortDir = 'desc' THEN [ProjectPriority] END DESC,
         CASE WHEN @SortBy = N'ProjectManager' AND @SortDir = 'asc'  THEN [ProjectManager] END ASC,

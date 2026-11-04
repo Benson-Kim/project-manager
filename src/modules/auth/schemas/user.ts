@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { ROLES } from "@/lib/auth/types";
 import { passwordSchema } from "@/lib/auth/password-policy";
+import type { ListSort } from "@/lib/list-params";
+import { messages } from "@/lib/messages";
+
+/** The columns usp_User_List sorts by; with none it lists users in the order they were added. */
+export const USER_SORT: ListSort = { columns: ["Username", "DisplayName", "Email"], default: null };
 
 /** tedious returns CAST(RowVer AS BIGINT) as a string — coerce (LESSONS §10). */
 const rowVerSchema = z.coerce.number().int().nonnegative();
@@ -72,6 +77,60 @@ export const changePasswordInput = z
     message: "Passwords do not match",
   });
 export type ChangePasswordInput = z.input<typeof changePasswordInput>;
+
+const U = messages.settings.users;
+
+const userIdField = z.number().int().positive();
+const displayNameField = z.string().trim().min(1, U.displayNameRequired).max(255);
+const emailField = z
+  .string()
+  .trim()
+  .max(255)
+  .refine((v) => v === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), U.emailInvalid)
+  .transform((v) => v || null);
+
+/**
+ * Admin user management (Settings > Users). Every shape is strict: a client can never set a
+ * hash, SessionVersion, lockout counters, MustChangePassword or IsDeleted. The server sets
+ * MustChangePassword (always true for a new account or a reset) and resolves role -> RoleId.
+ */
+export const adminCreateUserInput = z
+  .object({
+    username: z
+      .string()
+      .trim()
+      .min(1, U.usernameRequired)
+      .max(100)
+      .regex(/^\S+$/, U.usernameNoSpaces),
+    displayName: displayNameField,
+    email: emailField,
+    role: z.enum(ROLES),
+    temporaryPassword: passwordSchema,
+  })
+  .strict();
+export type AdminCreateUserInput = z.input<typeof adminCreateUserInput>;
+
+export const adminUpdateUserInput = z
+  .object({
+    userId: userIdField,
+    displayName: displayNameField,
+    email: emailField,
+    role: z.enum(ROLES),
+    isActive: z.boolean(),
+    rowVer: rowVerSchema,
+  })
+  .strict();
+export type AdminUpdateUserInput = z.input<typeof adminUpdateUserInput>;
+
+export const adminDeactivateUserInput = z
+  .object({ userId: userIdField, rowVer: rowVerSchema })
+  .strict();
+export type AdminDeactivateUserInput = z.input<typeof adminDeactivateUserInput>;
+
+export const adminResetPasswordInput = z
+  .object({ userId: userIdField, temporaryPassword: passwordSchema })
+  .strict();
+export type AdminResetPasswordInput = z.input<typeof adminResetPasswordInput>;
 
 /** usp_User_Create input (admin module #23 calls this through the repository). */
 export const createUserInput = z.object({

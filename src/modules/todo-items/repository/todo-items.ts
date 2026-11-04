@@ -1,5 +1,6 @@
 import { execProc } from "@/lib/db";
 import { AppError } from "@/lib/errors";
+import { parseLocalWallClock } from "@/lib/local-time";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
 import {
   createTodoItemInput,
@@ -102,6 +103,7 @@ export async function updateTodoItem(
     ...toProcParams(parsed),
     RowVer: parsed.rowVer,
     ActorUserId: actorUserId,
+    LocalNow: parseLocalWallClock(parsed.localNow),
   });
   return todoItemRowSchema.parse(rows[0]);
 }

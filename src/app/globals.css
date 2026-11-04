@@ -200,6 +200,14 @@ body {
   color: var(--ink);
 }
 
+/* A fieldset is never narrower than its content by default, so one long unbroken word in a form
+   pushed the whole form past its column. Utilities still override it. */
+@layer base {
+  fieldset {
+    min-inline-size: 0;
+  }
+}
+
 /* Keep the focus state purely visual and non-layout-affecting. The outline sits
    inside the border so the element keeps the same measured size while indicating
    focus. */
@@ -299,6 +307,12 @@ button:focus-visible {
   font-size: 0.875rem;
   line-height: 1.5rem;
   color: var(--ink);
+}
+
+/* Tiptap appends `.ProseMirror { word-wrap: break-word }` after this sheet, which at equal weight
+   wins on the editor; break-word still counts a long word whole in the box's minimum width. */
+.rich-text.ProseMirror {
+  overflow-wrap: anywhere;
 }
 
 .rich-text > * + * {

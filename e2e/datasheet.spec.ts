@@ -29,6 +29,17 @@ const layoutDialog = (page: Page) =>
   page.getByRole("dialog", { name: messages.datasheet.tableLayout });
 
 /**
+ * The answer to the layout save (a server action, the only POST these pages send then). The
+ * save does not hold the dialog open, so a reload sent before it is answered can read the
+ * order from before it on a slow server.
+ */
+const layoutSaved = (page: Page) =>
+  page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" && !!response.request().headers()["next-action"],
+  );
+
+/**
  * Moves the third column up one place through the "Table layout" dialog, and
  * answers the order before the move and the order it leaves. The third is the
  * one moved because the first cannot move up at all.
@@ -48,8 +59,10 @@ async function moveThirdColumnUp(page: Page): Promise<{ before: string[]; after:
   const dialog = layoutDialog(page);
   await expect(dialog.getByTestId("column-order-list")).toBeVisible();
   await dialog.getByRole("button", { name: messages.datasheet.moveColumnUp(before[2]!) }).click();
+  const saved = layoutSaved(page);
   await dialog.getByRole("button", { name: messages.actions.save }).click();
   await expect(dialog).toBeHidden();
+  await saved;
   return { before, after };
 }
 
@@ -57,9 +70,11 @@ async function moveThirdColumnUp(page: Page): Promise<{ before: string[]; after:
 async function restoreDefaultLayout(page: Page, before: readonly string[]): Promise<void> {
   await page.getByTestId("table-layout").click();
   const dialog = layoutDialog(page);
+  const saved = layoutSaved(page);
   await dialog.getByRole("button", { name: messages.datasheet.resetLayout }).click();
   await expect(dialog).toBeHidden();
   await expect(headerCells(page)).toHaveText([...before]);
+  await saved;
   await page.reload();
   await expect(headerCells(page)).toHaveText([...before]);
 }

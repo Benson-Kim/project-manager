@@ -1,11 +1,13 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
+import { closeAlarmToast } from "./support/alarms";
 import { expectListed } from "./support/datasheet";
 
 /**
- * Projects module (#5) — create happy path, validation failure, type-ahead
- * jump, axe scans. Runs as e2e-pm (storage state from auth.setup.ts).
+ * Projects module (#5) — create happy path, validation failure, the schedule,
+ * phase & progress section, type-ahead jump, axe scans. Runs as e2e-pm
+ * (storage state from auth.setup.ts).
  */
 
 test("create project happy path — appears in the list", async ({ page }) => {
@@ -33,6 +35,56 @@ test("validation failure — empty name shows inline error and focuses the summa
   const summary = page.getByRole("alert").filter({ hasText: messages.errors.summaryTitle });
   await expect(summary).toBeVisible();
   await expect(summary).toBeFocused();
+});
+
+test("schedule, phase & progress: a chosen phase and status save, reload and show in the list", async ({
+  page,
+}) => {
+  const P = messages.projects;
+  const name = `E2E phase ${Date.now()}`;
+  await page.goto("/projects/new");
+  const schedule = page.getByRole("region", { name: P.scheduleSection });
+  const details = page.getByRole("region", { name: P.detailsSection });
+  await expect(schedule).toBeVisible();
+  for (const label of [
+    P.phase,
+    P.status,
+    P.startDate,
+    P.endDate,
+    P.estimatedCompletion,
+    P.statusComments,
+  ]) {
+    await expect(schedule.getByText(label, { exact: true })).toBeVisible();
+  }
+  await expect(details.getByText(P.priority, { exact: true })).toBeVisible();
+  await expect(details.getByText(P.phase, { exact: true })).toHaveCount(0);
+
+  // "None" is the empty choice, then the client's phases.
+  const phase = schedule.getByLabel(P.phase, { exact: true });
+  await expect(phase).toHaveValue("");
+  for (const option of [P.none, "Initiation", "Planning", "Execution", "Closure"]) {
+    await expect(phase.getByRole("option", { name: option, exact: true })).toBeAttached();
+  }
+
+  await page.getByLabel(P.name).fill(name);
+  await phase.selectOption("Planning");
+  await schedule.getByLabel(P.status, { exact: true }).selectOption("In progress");
+  await page.getByTestId("project-save").click();
+  await page.waitForURL(/\/projects\/\d+/);
+  await page.reload();
+  const saved = page.getByRole("region", { name: P.scheduleSection });
+  await expect(saved.getByLabel(P.phase, { exact: true })).toHaveValue("Planning");
+  await expect(saved.getByLabel(P.status, { exact: true })).toHaveValue("In progress");
+
+  await page.goto(`/projects?view=list&q=${encodeURIComponent(name)}`);
+  await expect(
+    page.getByTestId("data-view-table").locator('thead th[data-column="ProjectPhase"]'),
+  ).toContainText(P.phase);
+  await expect(
+    page.getByRole("combobox", { name: messages.datasheet.cellLabel(P.phase, name), exact: true }),
+  ).toHaveValue("Planning");
+  await page.getByRole("button", { name: messages.list.sortBy(P.phase) }).click();
+  await expect(page).toHaveURL(/sort=ProjectPhase/);
 });
 
 test("type-ahead suggests seeded projects from the first characters and jumps", async ({
@@ -134,6 +186,7 @@ test.describe("project workspace", () => {
     page,
   }) => {
     await page.goto("/projects/2");
+    await closeAlarmToast(page);
     const team = page.getByTestId("assignee-list");
     const P = messages.projects.permissions;
     const open = async () => {

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
 import { datesInOrder, datesWere, storedDates } from "@/lib/date-range";
 import { toDateInput } from "@/lib/format";
+import { LOCAL_WALL_CLOCK } from "@/lib/local-time";
 import { listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
 import { richTextSchema, RICH_TEXT_FIELD_MAX } from "@/lib/rich-text/schema";
@@ -77,6 +78,8 @@ export const updateTodoItemFormSchema = todoItemFields
     todoItemId: z.coerce.number().int().positive(),
     rowVer: rowVerSchema,
     ...datesWere("startDate", "dueDate"),
+    /** Appended at submit, not a field; a datasheet cell save leaves it out (the proc uses UTC). */
+    localNow: z.string().regex(LOCAL_WALL_CLOCK).optional(),
   })
   .superRefine(todoDates);
 

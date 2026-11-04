@@ -38,12 +38,16 @@ vi.mock("@/lib/push/config", () => ({
 import { AppError } from "@/lib/errors";
 import {
   buildTodoFromDailyActivityAction,
+  clearTodoRecurrenceAction,
   createTodoAlertAction,
   createTodoItemAction,
   deleteTodoItemAction,
   dismissTodoAlertAction,
   registerPushSubscriptionAction,
   reorderTodoItemAction,
+  setDueSoonDaysAction,
+  setTodoOccurrenceAction,
+  setTodoRecurrenceAction,
   snoozeTodoAlertAction,
   updateTodoAlertAction,
   updateTodoItemAction,
@@ -156,6 +160,31 @@ describe("todo-items actions", () => {
     const result = await updateTodoItemAction(fd);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("CONFLICT");
+  });
+
+  it("update passes the user's wall clock to the proc, and UTC's fallback when it is left out", async () => {
+    execProc.mockResolvedValue([todoRow()]);
+    const fd = new FormData();
+    fd.set("projectId", "3");
+    fd.set("todoItem", "Review deliverables");
+    fd.set("todoItemId", "4");
+    fd.set("rowVer", "19");
+    fd.set("localNow", "2026-11-04T09:30:00");
+    expect((await updateTodoItemAction(fd)).ok).toBe(true);
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect((params.LocalNow as Date).toISOString()).toBe("2026-11-04T09:30:00.000Z");
+
+    execProc.mockClear();
+    fd.delete("localNow");
+    expect((await updateTodoItemAction(fd)).ok).toBe(true);
+    expect((execProc.mock.calls[0] as [string, Record<string, unknown>])[1].LocalNow).toBeNull();
+
+    execProc.mockClear();
+    fd.set("localNow", "2026-11-04 09:30");
+    const refused = await updateTodoItemAction(fd);
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.code).toBe("VALIDATION");
+    expect(execProc).not.toHaveBeenCalled();
   });
 
   it("delete succeeds and does not call revalidatePath", async () => {
@@ -400,5 +429,185 @@ describe("registerPushSubscriptionAction — endpoint ownership transfer", () =>
     for (const call of execProc.mock.calls as [string, Record<string, unknown>][]) {
       expect(call[1].ActorUserId).toBe(7);
     }
+  });
+});
+
+describe("setDueSoonDaysAction", () => {
+  beforeEach(() => {
+    session = { userId: 7, username: "pm", role: "User" };
+    execProc.mockReset();
+  });
+
+  it("saves the window for the signed-in user only", async () => {
+    execProc.mockResolvedValue([]);
+    const result = await setDueSoonDaysAction({ dueSoonDays: 7, userId: 99, ActorUserId: 99 });
+    expect(result).toEqual({ ok: true, data: { dueSoonDays: 7 } });
+    expect(execProc).toHaveBeenCalledWith("usp_UserPreference_SetDueSoonDays", {
+      ActorUserId: 7,
+      DueSoonDays: 7,
+    });
+  });
+
+  it("refuses a window that is not one of the offered options", async () => {
+    for (const dueSoonDays of [0, 4, 31, "x", null]) {
+      const result = await setDueSoonDaysAction({ dueSoonDays });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("VALIDATION");
+    }
+    expect(execProc).not.toHaveBeenCalled();
+  });
+
+  it("asks a signed-out caller to sign in", async () => {
+    session = null;
+    const result = await setDueSoonDaysAction({ dueSoonDays: 3 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("UNAUTHENTICATED");
+    expect(execProc).not.toHaveBeenCalled();
+  });
+});
+
+describe("to-do recurrence actions", () => {
+  const weekly = {
+    unit: "Week",
+    every: 2,
+    startTime: null,
+    weekdays: 1 | 8,
+    monthMode: null,
+    ordinal: null,
+    weekday: null,
+    endsOn: null,
+    endsAfter: 10,
+  };
+  const recurrenceRow = {
+    TodoItemId: 4,
+    RepeatUnit: "Week",
+    RepeatEvery: 2,
+    StartTime: null,
+    Weekdays: 9,
+    MonthMode: null,
+    Ordinal: null,
+    Weekday: null,
+    EndsOn: null,
+    EndsAfter: 10,
+    RowVer: "21",
+  };
+  const occurrence = {
+    todoItemId: 4,
+    occursAt: "2026-11-09T00:00:00",
+    status: "Completed",
+    movedTo: null,
+    isSkipped: false,
+    rowVer: null,
+  };
+
+  beforeEach(() => {
+    session = { userId: 7, username: "pm", role: "User" };
+    execProc.mockReset();
+  });
+
+  it("sets a rule on the series' RowVer and the user's wall clock", async () => {
+    execProc.mockResolvedValue([recurrenceRow]);
+    const result = await setTodoRecurrenceAction({
+      todoItemId: 4,
+      rowVer: "20",
+      rule: weekly,
+      localNow: "2026-11-04T10:15:00",
+    });
+    expect(result).toEqual({ ok: true, data: { todoItemId: 4, rowVer: 21, rule: weekly } });
+    const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(proc).toBe("usp_TodoRecurrence_Set");
+    expect(params).toMatchObject({
+      TodoItemId: 4,
+      RepeatUnit: "Week",
+      RepeatEvery: 2,
+      Weekdays: 9,
+      EndsAfter: 10,
+      RowVer: 20,
+      ActorUserId: 7,
+    });
+    expect((params.LocalNow as Date).toISOString()).toBe("2026-11-04T10:15:00.000Z");
+  });
+
+  it("refuses a rule the proc would refuse, before calling it", async () => {
+    for (const rule of [
+      { ...weekly, weekdays: null },
+      { ...weekly, unit: "Day" },
+      { ...weekly, endsOn: "2027-01-01" },
+      { ...weekly, actorUserId: 1 },
+    ]) {
+      const result = await setTodoRecurrenceAction({ todoItemId: 4, rowVer: 20, rule });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("VALIDATION");
+    }
+    expect(
+      await setTodoRecurrenceAction({ todoItemId: 4, rowVer: 20, rule: weekly, ActorUserId: 1 }),
+    ).toMatchObject({ ok: false, error: { code: "VALIDATION" } });
+    expect(execProc).not.toHaveBeenCalled();
+  });
+
+  it("surfaces the proc's FORBIDDEN_ROW and CONFLICT", async () => {
+    execProc.mockRejectedValueOnce(
+      new AppError("FORBIDDEN_ROW", "Your access to this project does not allow this"),
+    );
+    execProc.mockRejectedValueOnce(new AppError("CONFLICT", "TodoItem was modified"));
+    for (const code of ["FORBIDDEN_ROW", "CONFLICT"]) {
+      const result = await setTodoRecurrenceAction({ todoItemId: 4, rowVer: 20, rule: weekly });
+      expect(result).toMatchObject({ ok: false, error: { code } });
+    }
+  });
+
+  it("clears a rule and returns the series' new RowVer", async () => {
+    execProc.mockResolvedValue([{ TodoItemId: 4, RowVer: "22" }]);
+    const result = await clearTodoRecurrenceAction({ todoItemId: 4, rowVer: 21 });
+    expect(result).toEqual({ ok: true, data: { todoItemId: 4, rowVer: 22 } });
+    expect(execProc).toHaveBeenCalledWith("usp_TodoRecurrence_Clear", {
+      TodoItemId: 4,
+      RowVer: 21,
+      ActorUserId: 7,
+    });
+  });
+
+  it("marks one occurrence by its wall-clock key", async () => {
+    execProc.mockResolvedValue([
+      {
+        TodoOccurrenceId: 11,
+        TodoItemId: 4,
+        OccursAt: new Date("2026-11-09T00:00:00Z"),
+        Status: "Completed",
+        MovedTo: null,
+        IsSkipped: false,
+        RowVer: "3",
+      },
+    ]);
+    const result = await setTodoOccurrenceAction(occurrence);
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        todoOccurrenceId: 11,
+        todoItemId: 4,
+        occursAt: "2026-11-09T00:00:00",
+        status: "Completed",
+        movedTo: null,
+        isSkipped: false,
+        rowVer: 3,
+      },
+    });
+    const [proc, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(proc).toBe("usp_TodoOccurrence_Set");
+    expect((params.OccursAt as Date).toISOString()).toBe("2026-11-09T00:00:00.000Z");
+    expect(params).toMatchObject({ Status: "Completed", MovedTo: null, IsSkipped: false });
+  });
+
+  it("returns null once an occurrence is back to plain", async () => {
+    execProc.mockResolvedValue([]);
+    const result = await setTodoOccurrenceAction({ ...occurrence, status: null, rowVer: 3 });
+    expect(result).toEqual({ ok: true, data: null });
+  });
+
+  it("refuses a skipped occurrence that is also marked or moved", async () => {
+    const result = await setTodoOccurrenceAction({ ...occurrence, isSkipped: true });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.fieldErrors?.isSkipped).toBeDefined();
+    expect(execProc).not.toHaveBeenCalled();
   });
 });

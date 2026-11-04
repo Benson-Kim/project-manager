@@ -249,16 +249,36 @@ export class PdfWriter {
       columns.map((c) => c.header),
       true,
     );
+    const bottom = this.margin + 14;
+    const linesOf = (wrapped: string[][]) => Math.max(1, ...wrapped.map((l) => l.length));
+    const roomFor = () => Math.floor((this.y - bottom - 2 * pad) / leading);
+    const freshRoom = Math.floor(
+      (this.height - this.margin - heightOf(header) - bottom - 2 * pad) / leading,
+    );
+    const breakPage = () => {
+      this.newPage();
+      draw(header, true, true);
+    };
+
     this.ensure(heightOf(header) + leading + 2 * pad);
     draw(header, true, true);
     rows.forEach((row, index) => {
       const bold = strong.has(index);
-      const wrapped = layout(row, bold);
-      if (this.y - heightOf(wrapped) < this.margin + 14) {
-        this.newPage();
-        draw(header, true, true);
+      let rest = layout(row, bold);
+      if (linesOf(rest) > roomFor() && (linesOf(rest) <= freshRoom || roomFor() < 1)) breakPage();
+      // A row taller than a whole page runs on over the next ones, a page of lines at a time,
+      // instead of being drawn past the bottom edge.
+      while (linesOf(rest) > roomFor()) {
+        const room = Math.max(1, roomFor());
+        draw(
+          rest.map((lines) => lines.slice(0, room)),
+          bold,
+          false,
+        );
+        rest = rest.map((lines) => lines.slice(room));
+        breakPage();
       }
-      draw(wrapped, bold, false);
+      draw(rest, bold, false);
     });
     this.y -= 8;
   }

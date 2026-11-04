@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   clampRowHeight,
   moveKey,
@@ -37,6 +37,7 @@ import {
   headerCellClass,
 } from "./datasheet-cells";
 import { ListEditorDialog } from "./list-editor-dialog";
+import { ListPager } from "./list-pager";
 import { saveListLayout, saveViewPreference } from "./save-view-preference";
 import { headerSort, sortTokenOf } from "./sorting";
 import { StickyScrollbar } from "./sticky-scrollbar";
@@ -653,30 +654,7 @@ export function DataView<Row>({
         </div>
       )}
 
-      {pages > 1 ? (
-        <nav
-          aria-label={messages.list.page(page, pages)}
-          className="flex items-center justify-between"
-        >
-          <button
-            type="button"
-            disabled={page <= 1}
-            onClick={() => update({ page: String(page - 1) }, { push: true })}
-            className="min-h-11 rounded-md border border-line px-4 text-sm font-medium text-ink disabled:opacity-50"
-          >
-            {messages.list.previousPage}
-          </button>
-          <p className="text-sm text-ink-muted">{messages.list.page(page, pages)}</p>
-          <button
-            type="button"
-            disabled={page >= pages}
-            onClick={() => update({ page: String(page + 1) }, { push: true })}
-            className="min-h-11 rounded-md border border-line px-4 text-sm font-medium text-ink disabled:opacity-50"
-          >
-            {messages.list.nextPage}
-          </button>
-        </nav>
-      ) : null}
+      <ListPager page={page} pages={pages} />
 
       <TableLayoutDialog
         columns={shownColumns}
@@ -734,21 +712,36 @@ function DataRowShell({
   className: string;
   children: React.ReactNode;
 }) {
-  // When the card is openable, use a <button> so keyboard users can activate
-  // it with Enter/Space without any extra event handler (WCAG 2.1 SC 2.1.1).
-  // When not openable, a plain <div> is sufficient (no interaction contract).
-  const Tag = onOpen ? "button" : "div";
-  const card = (
-    <Tag
-      // "button" needs type to avoid submitting parent forms accidentally.
-      {...(onOpen ? { type: "button" as const } : {})}
-      tabIndex={index === activeIndex ? 0 : -1}
-      onFocus={onFocus}
-      onClick={onOpen}
-      className={`relative w-full text-left ${onOpen ? "cursor-pointer" : ""} ${selected ? "ring-2 ring-accent" : ""} ${className}`}
+  const contentId = useId();
+  const box = `relative w-full text-left ${selected ? "ring-2 ring-accent" : ""} ${className}`;
+  // An openable card is a box with a full-size <button> behind its content, named by that
+  // content. Keyboard users still open it with Enter/Space (WCAG 2.1 SC 2.1.1), and a link in
+  // the card (a project's name) stays a real link rather than a control nested in a button
+  // (axe nested-interactive). A click on the link follows the link, not the card.
+  const card = onOpen ? (
+    <div
+      onClick={(event) => {
+        if ((event.target as HTMLElement).closest("a")) return;
+        onFocus();
+        onOpen();
+      }}
+      className={`cursor-pointer ${box}`}
     >
+      <button
+        type="button"
+        aria-labelledby={contentId}
+        tabIndex={index === activeIndex ? 0 : -1}
+        onFocus={onFocus}
+        className="absolute inset-0 cursor-pointer rounded-[inherit]"
+      />
+      <div id={contentId} className="relative">
+        {children}
+      </div>
+    </div>
+  ) : (
+    <div tabIndex={index === activeIndex ? 0 : -1} onFocus={onFocus} className={box}>
       {children}
-    </Tag>
+    </div>
   );
   if (!selectable) return card;
   // The checkbox sits over the card as a sibling: a control nested inside the

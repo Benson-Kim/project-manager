@@ -22,6 +22,10 @@ vi.mock("../password", async (importOriginal) => ({
 // getEnv() requires real DB_PASSWORD etc which are absent in unit tests.
 // Mock it to return a controlled TRUSTED_PROXY_COUNT; the DB fields are unused
 // in authorizeCredentials so their values don't matter here.
+let storedIdleTimeout: () => Promise<{ dueSoonDays: number; idleTimeoutMinutes: number }>;
+vi.mock("@/lib/repositories/user-preference", () => ({
+  getUserPreference: () => storedIdleTimeout(),
+}));
 vi.mock("@/lib/env", () => ({
   getEnv: vi.fn(),
 }));
@@ -127,6 +131,7 @@ describe("authorizeCredentials (issue #4 required cases)", () => {
     mockGetEnv.mockReturnValue({ TRUSTED_PROXY_COUNT: 1 } as ReturnType<typeof getEnv>);
     mockIpAttempt.mockResolvedValue({ Allowed: true, AttemptCount: 1, RetryAfterSeconds: 0 });
     mockUserAttempt.mockResolvedValue({ FailedLoginCount: 0, LockedUntilUtc: null });
+    storedIdleTimeout = () => Promise.resolve({ dueSoonDays: 2, idleTimeoutMinutes: 30 });
   });
 
   // XFF="10.0.0.1, 127.0.0.1": proxy appended 127.0.0.1 (its own loop address);
@@ -134,6 +139,14 @@ describe("authorizeCredentials (issue #4 required cases)", () => {
   const proxyRequest = {
     headers: new Headers({ "x-forwarded-for": "10.0.0.1, 127.0.0.1" }),
   };
+
+  it("success: falls back to the default idle time when the preference cannot be read", async () => {
+    mockGetUser.mockResolvedValue(user);
+    mockVerify.mockResolvedValue(true);
+    storedIdleTimeout = () => Promise.reject(new Error("db down"));
+    const result = await authorizeCredentials(credentials, proxyRequest);
+    expect(result?.appToken.idleTimeoutMinutes).toBe(480);
+  });
 
   it("success: returns the app token and records a successful attempt", async () => {
     mockGetUser.mockResolvedValue(user);
@@ -147,6 +160,8 @@ describe("authorizeCredentials (issue #4 required cases)", () => {
         role: "User",
         sessionVersion: 1,
         mustChangePassword: false,
+        idleTimeoutMinutes: 30,
+        lastActiveAt: expect.any(Number),
       },
     });
     expect(mockUserAttempt).toHaveBeenCalledWith(7, true, "10.0.0.1");

@@ -114,7 +114,7 @@ export default async function StakeholdersPage({
           stakeholder={selected}
           isNew={isNew && canCreate}
           projectId={projectId}
-          canEdit={canEdit}
+          canEdit={isNew ? canCreate : canEdit}
           canDelete={canDelete}
         />
       </LookupListsScope>

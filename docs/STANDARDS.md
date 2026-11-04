@@ -194,7 +194,7 @@ export const createSupplier = action({
 ## 4. Security (bar: OWASP ASVS Level 2; see also docs/SECURITY.md)
 
 - **Sessions**: Auth.js v5 credentials provider, JWT session strategy (encrypted,
-  `AUTH_SECRET` ≥ 32 random bytes), 8 h idle expiry, session version stamp for
+  `AUTH_SECRET` ≥ 32 random bytes), idle sign-out per user (default 8 h, ADR-0057), session version stamp for
   server-side revocation (module #4). Passwords: **argon2id** (m=19456 KiB, t=2, p=1
   — OWASP baseline), min length 12, no composition rules, deny top-10k list.
 - **Rate limiting** ([ADR-0031](adr/ADR-0031-request-gate-internal-routes-and-throttling.md)):

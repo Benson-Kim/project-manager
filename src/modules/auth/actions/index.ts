@@ -2,17 +2,19 @@
 
 import { AuthError } from "next-auth";
 import { auth as authProvider } from "@/lib/auth/provider";
-import { signIn, signOut } from "@/lib/auth/config";
+import { signIn, signOut, updateSession } from "@/lib/auth/config";
+import { idleTimeoutInput } from "@/lib/auth/idle-timeout";
 import { verifyPassword } from "@/lib/auth/password";
 import { isDatabaseUnavailable } from "@/lib/errors";
 import { messages } from "@/lib/messages";
-import type { ActionResult } from "@/lib/action";
+import { action, type ActionResult } from "@/lib/action";
+import { setIdleTimeout } from "@/lib/repositories/user-preference";
 import { deactivateAlertSubscriptionsByUser } from "@/modules/todo-items/repository/alert-subscriptions";
 import { auditLogout, getUserByUsername, setPassword } from "../repository/users";
 import { changePasswordInput, loginInput } from "../schemas/user";
 
 /**
- * Auth server actions. These sit OUTSIDE the action() wrapper deliberately:
+ * Auth server actions. All but setIdleTimeoutAction sit OUTSIDE the action() wrapper deliberately:
  * login/change-password run without (or while replacing) a session, and their
  * failure copy must stay generic (STANDARDS §4) rather than field-mapped.
  * CSRF: Server Actions are origin-checked by Next; the Auth.js routes carry
@@ -58,6 +60,15 @@ export async function loginAction(
 }
 
 export async function logoutAction(): Promise<void> {
+  await endSession("/login");
+}
+
+/** The browser's idle watcher: the same sign-out, landing on the expiry notice. */
+export async function idleSignOutAction(): Promise<void> {
+  await endSession("/login?reason=expired");
+}
+
+async function endSession(redirectTo: string): Promise<void> {
   try {
     // Best-effort cleanup: a transient DB outage must not leave the cookie
     // intact (especially dangerous on a shared device).  Both getSession()
@@ -72,7 +83,7 @@ export async function logoutAction(): Promise<void> {
   } catch {
     // Intentionally swallowed — proceed to sign out regardless.
   } finally {
-    await signOut({ redirectTo: "/login" });
+    await signOut({ redirectTo });
   }
 }
 
@@ -145,3 +156,19 @@ export async function changePasswordAction(
     throw err;
   }
 }
+
+/**
+ * The user's own idle sign-out time, keyed on the session only. updateSession
+ * re-reads it from the database into the cookie at once (the jwt callback
+ * ignores any value a request carries).
+ */
+export const setIdleTimeoutAction = action({
+  name: "auth.setIdleTimeout",
+  schema: idleTimeoutInput,
+  permission: "settings:update",
+  handler: async (input, ctx) => {
+    await setIdleTimeout(ctx.session.userId, input.idleTimeoutMinutes);
+    await updateSession({});
+    return { idleTimeoutMinutes: input.idleTimeoutMinutes };
+  },
+});

@@ -1,5 +1,22 @@
 import { describe, it, expect } from "vitest";
-import { formatDate, formatFileSize, toDateInput } from "../format";
+import { formatDate, formatDateTime, formatFileSize, toDateInput } from "../format";
+
+describe("formatDateTime", () => {
+  it("formats a moment as YYYY-MM-DD HH:mm in local time", () => {
+    // Built from local parts, so the expectation holds in any time zone.
+    expect(formatDateTime(new Date(2026, 2, 5, 9, 7, 30))).toBe("2026-03-05 09:07");
+    expect(formatDateTime(new Date(2026, 11, 31, 23, 59))).toBe("2026-12-31 23:59");
+  });
+  it("reads an ISO string", () => {
+    const d = new Date("2026-10-28T23:30:00.000Z");
+    expect(formatDateTime(d.toISOString())).toBe(formatDateTime(d));
+  });
+  it("returns an empty string for null, undefined or an invalid date", () => {
+    expect(formatDateTime(null)).toBe("");
+    expect(formatDateTime(undefined)).toBe("");
+    expect(formatDateTime("not a date")).toBe("");
+  });
+});
 
 describe("formatDate", () => {
   it("formats a Date as YYYY-MM-DD", () => {

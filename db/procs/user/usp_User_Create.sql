@@ -1,6 +1,6 @@
 -- usp_User_Create — insert one auth.User row; audits in-transaction; returns the
 -- new row WITHOUT PasswordHash (only usp_User_GetByUsername exposes the hash,
--- and only to the credentials authorize() path). Module: auth-and-rbac (#4).
+-- and only to the credentials authorize() path). Admin only (FORBIDDEN_ROW). Module: auth-and-rbac (#4).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_User_Create
@@ -15,6 +15,12 @@ AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
+
+    DECLARE @ActorRole NVARCHAR(50);
+    EXEC dbo.usp_User_GetActorRole @UserId = @ActorUserId, @Role = @ActorRole OUTPUT;
+    IF @ActorRole <> N'Admin'
+        THROW 50003, N'FORBIDDEN_ROW:Only administrators can manage users', 1;
+
     IF @Username IS NULL OR LTRIM(RTRIM(@Username)) = N''
         THROW 50004, N'VALIDATION:Username is required', 1;
     IF @PasswordHash IS NULL OR LTRIM(RTRIM(@PasswordHash)) = N''

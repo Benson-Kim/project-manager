@@ -191,6 +191,13 @@ describe("isApproachingDeadline", () => {
     expect(isApproachingDeadline({ DueDate: inThreeDays, Status: "In Progress" })).toBe(false);
   });
 
+  it("follows the user's chosen Due soon window", () => {
+    expect(isApproachingDeadline({ DueDate: inThreeDays, Status: "In Progress" }, 3)).toBe(true);
+    const inTwoDays = new Date(Date.now() + 2 * DAY_MS);
+    expect(isApproachingDeadline({ DueDate: inTwoDays, Status: "In Progress" }, 1)).toBe(false);
+    expect(isApproachingDeadline({ DueDate: tomorrow, Status: "In Progress" }, 1)).toBe(true);
+  });
+
   it("returns false when already overdue (yesterday)", () => {
     expect(isApproachingDeadline({ DueDate: yesterday, Status: "In Progress" })).toBe(false);
   });

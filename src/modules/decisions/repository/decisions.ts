@@ -139,25 +139,33 @@ export interface DecisionOption {
 }
 
 const OPTIONS_PAGE = 100;
+const OPTIONS_MAX_PAGES = 50;
 
 /**
  * The supersession picker's source — the project's decisions by number, read
  * through the list proc so the actor's access is checked the same way. A
  * decision cannot supersede itself, so the row being edited is left out; the
- * proc refuses a cycle regardless (ADR-0055).
+ * proc refuses a cycle regardless (ADR-0055). The proc pages at 100, so this
+ * reads page after page: a target missing from the picker would be cleared by
+ * the next save.
  */
 export async function listDecisionOptions(
   projectId: number,
   actorUserId: number,
   exceptDecisionId: number | null = null,
 ): Promise<DecisionOption[]> {
-  const rows = await listDecisions(
-    { page: 1, dir: "asc", q: undefined },
-    actorUserId,
-    projectId,
-    {},
-    OPTIONS_PAGE,
-  );
+  const rows: DecisionListRow[] = [];
+  for (let page = 1; page <= OPTIONS_MAX_PAGES; page++) {
+    const batch = await listDecisions(
+      { page, dir: "asc", q: undefined },
+      actorUserId,
+      projectId,
+      {},
+      OPTIONS_PAGE,
+    );
+    rows.push(...batch);
+    if (batch.length < OPTIONS_PAGE || rows.length >= (batch[0]?.TotalCount ?? 0)) break;
+  }
   return rows
     .filter((row) => row.DecisionId !== exceptDecisionId)
     .map((row) => ({
