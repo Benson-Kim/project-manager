@@ -62,7 +62,8 @@ BEGIN
            [Assignee],
            [Notes],
            [SortKey],
-           CAST(CASE WHEN rec.RepeatUnit IS NOT NULL THEN 1 ELSE 0 END AS BIT) AS Repeats,
+           CAST(CASE WHEN EXISTS (SELECT 1 FROM app.TodoRecurrence r WHERE r.TodoItemId = TodoItem.TodoItemId)
+                     THEN 1 ELSE 0 END AS BIT) AS Repeats,
            rec.RepeatUnit, rec.RepeatEvery, rec.StartTime, rec.Weekdays, rec.MonthMode, rec.Ordinal,
            rec.[Weekday], rec.EndsOn, rec.EndsAfter,
            CASE WHEN rec.RepeatUnit IS NOT NULL THEN
