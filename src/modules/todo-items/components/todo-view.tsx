@@ -27,6 +27,7 @@ import {
   DEFAULT_DUE_SOON_DAYS,
   isApproachingDeadline,
   isOverdue,
+  listedDates,
   type TodoItemListRow,
   type TodoItemRow,
 } from "../schemas/todo-item";
@@ -39,10 +40,13 @@ const P = messages.todoItems.placeholders;
 
 /** Due-date emphasis: overdue (danger) or approaching (warning) — design tokens only. */
 function dueTone(row: Row, dueSoonDays: number): string | undefined {
-  if (isOverdue(row)) return "font-semibold text-danger";
-  if (isApproachingDeadline(row, dueSoonDays)) return "font-semibold text-warning";
+  if (isOverdue(listedDates(row))) return "font-semibold text-danger";
+  if (isApproachingDeadline(listedDates(row), dueSoonDays)) return "font-semibold text-warning";
   return undefined;
 }
+
+/** A series' date cells show its next occurrence, so its own dates are edited in the record sheet. */
+const ownDates = (row: Row) => !row.Repeats;
 
 /** Up/down reorder buttons rendered inside the DataView card/row (list view only). */
 function ReorderControls({
@@ -175,14 +179,15 @@ function buildColumns(
       field: "dueDate",
       value: (r) => r.DueDate,
       placeholder: P.dueDate,
+      editable: ownDates,
       render: (r) => (
         <span className={dueTone(r, dueSoonDays)}>
-          {formatDate(r.DueDate) || messages.todoItems.noDueDate}
-          {isOverdue(r) ? (
+          {formatDate(listedDates(r).DueDate) || messages.todoItems.noDueDate}
+          {isOverdue(listedDates(r)) ? (
             <span className="ml-1.5 inline-flex items-center rounded-full border border-danger bg-danger-soft px-1.5 py-0.5 text-xs font-medium text-danger">
               {messages.todoItems.overdue}
             </span>
-          ) : isApproachingDeadline(r, dueSoonDays) ? (
+          ) : isApproachingDeadline(listedDates(r), dueSoonDays) ? (
             <span className="ml-1.5 inline-flex items-center rounded-full border border-warning bg-warning-soft px-1.5 py-0.5 text-xs font-medium text-warning">
               {messages.todoItems.approachingDeadline}
             </span>
@@ -197,6 +202,8 @@ function buildColumns(
       field: "startDate",
       value: (r) => r.StartDate,
       placeholder: P.startDate,
+      editable: ownDates,
+      render: (r) => formatDate(listedDates(r).StartDate),
     }),
     {
       key: "ProjectOrActivity",
@@ -220,7 +227,7 @@ const saveCell = formCellSaver<Row, TodoItemRow>(todoItemFormValues, updateTodoI
 /** The to-do rule per row (ADR-0021): own to-dos, or every to-do of projects you manage. */
 const canEditRow = rowAllows("todo-items:update");
 /** Overdue to-dos colour their whole row red — before any list colour (client feedback). */
-const overdueTone = (row: Row): OptionColor | null => (isOverdue(row) ? "red" : null);
+const overdueTone = (row: Row): OptionColor | null => (isOverdue(listedDates(row)) ? "red" : null);
 
 /**
  * To-do list: DataView with TodoToolbar; opening a row syncs ?id=. List view is
@@ -297,12 +304,12 @@ export function TodoView({
               </ProjectLink>
             </p>
           ) : null}
-          {row.DueDate ? (
+          {listedDates(row).DueDate ? (
             <p className={`text-xs ${dueTone(row, dueSoonDays) ?? "text-ink-muted"}`}>
-              {formatDate(row.DueDate)}
-              {isOverdue(row)
+              {formatDate(listedDates(row).DueDate)}
+              {isOverdue(listedDates(row))
                 ? ` — ${messages.todoItems.overdue}`
-                : isApproachingDeadline(row, dueSoonDays)
+                : isApproachingDeadline(listedDates(row), dueSoonDays)
                   ? ` — ${messages.todoItems.approachingDeadline}`
                   : ""}
             </p>

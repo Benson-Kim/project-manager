@@ -7,7 +7,9 @@
 -- ActorAccess (ADR-0023): the actor's level on each to-do under that rule; the datasheet uses it to
 --   decide per row whether cells are editable, and a row is listed when the actor has a level on it.
 --   ProjectName feeds the cross-project grid's Project column. Repeats: the to-do has a repeat rule
---   (app.TodoRecurrence, ADR-0059), which the list shows as a badge.
+--   (app.TodoRecurrence, ADR-0059), which the list shows as a badge. A series also returns its rule
+--   and, as JSON, its occurrence rows from @OpenSince on, so the app can show and judge it on its
+--   earliest open occurrence (ADR-0059 decision 5); the rule is expanded in the app, never in SQL.
 -- Entity app.TodoItem (source: tblTodoList (core; alert columns → TodoAlert)). Module: todo-items (#20).
 -- ActorGrants / ActorRevokes (ADR-0024): the actor's per-person overrides of 'todo-items' in the
 --   row's project (dbo.ufn_Permission_Overrides), so the datasheet gates cells as the procs do.
@@ -41,6 +43,9 @@ BEGIN
         EXEC dbo.usp_Project_AssertAccess
              @ProjectId = @ProjectId, @ActorUserId = @ActorUserId, @MinLevel = N'Viewer';
 
+    -- Open occurrences count from the last 31 days; one day more covers the user's time zone.
+    DECLARE @OpenSince DATE = DATEADD(DAY, -32, CAST(SYSUTCDATETIME() AS DATE));
+
     IF @Search IS NOT NULL
         SET @Search = REPLACE(REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'), N'_', N'\_'), N'[', N'\[');
 
@@ -57,8 +62,16 @@ BEGIN
            [Assignee],
            [Notes],
            [SortKey],
-           CAST(CASE WHEN EXISTS (SELECT 1 FROM app.TodoRecurrence r WHERE r.TodoItemId = TodoItem.TodoItemId)
-                     THEN 1 ELSE 0 END AS BIT) AS Repeats,
+           CAST(CASE WHEN rec.RepeatUnit IS NOT NULL THEN 1 ELSE 0 END AS BIT) AS Repeats,
+           rec.RepeatUnit, rec.RepeatEvery, rec.StartTime, rec.Weekdays, rec.MonthMode, rec.Ordinal,
+           rec.[Weekday], rec.EndsOn, rec.EndsAfter,
+           CASE WHEN rec.RepeatUnit IS NOT NULL THEN
+               (SELECT o.OccursAt, o.[Status], o.MovedTo, o.IsSkipped
+                FROM app.TodoOccurrence o
+                WHERE o.TodoItemId = TodoItem.TodoItemId
+                  AND (o.OccursAt >= @OpenSince OR o.MovedTo >= @OpenSince)
+                FOR JSON PATH, INCLUDE_NULL_VALUES)
+           END AS Occurrences,
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer,
@@ -69,6 +82,9 @@ BEGIN
     FROM app.TodoItem
     CROSS APPLY dbo.ufn_TodoItem_AccessLevel(@ActorRole, @ActorUserId, TodoItem.ProjectId, TodoItem.CreatedBy) acc
     OUTER APPLY dbo.ufn_Permission_Overrides(@ActorRole, @ActorUserId, TodoItem.ProjectId, N'todo-items') ov
+    OUTER APPLY (SELECT r.RepeatUnit, r.RepeatEvery, r.StartTime, r.Weekdays, r.MonthMode, r.Ordinal,
+                        r.[Weekday], r.EndsOn, r.EndsAfter
+                 FROM app.TodoRecurrence r WHERE r.TodoItemId = TodoItem.TodoItemId) rec
     WHERE IsDeleted = 0
       AND (@ProjectId         IS NULL OR ProjectId         = @ProjectId)
       AND (ISNULL(@WithoutProject, 0) = 0 OR ProjectId IS NULL)

@@ -2,9 +2,12 @@ import { execProc } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { parseLocalWallClock } from "@/lib/local-time";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
+import { nextOpenOccurrence } from "../recurrence";
+import { listedSeriesSchema } from "../schemas/todo-recurrence";
 import {
   createTodoItemInput,
   dueAlertRowSchema,
+  isClosedStatus,
   reorderTodoItemInput,
   todoItemListRowSchema,
   todoItemRowSchema,
@@ -13,6 +16,7 @@ import {
   type CreateTodoItemInput,
   type CreateTodoItemParsed,
   type DueAlertRow,
+  type NextOccurrence,
   type ReorderTodoItemInput,
   type TodoItemListRow,
   type TodoItemRow,
@@ -89,7 +93,33 @@ export async function listTodoItems(
     ProjectOrActivity: filters.projectOrActivity ?? null,
     WithoutProject: filters.withoutProject ?? false,
   });
-  return rows.map((r) => todoItemListRowSchema.parse(r));
+  const today = new Date().toISOString().slice(0, 10);
+  return rows.map((r) => {
+    const row = todoItemListRowSchema.parse(r);
+    return { ...row, Next: row.Repeats ? nextOccurrence(row, r, today) : null };
+  });
+}
+
+/** A series row's next open occurrence, from the rule and occurrence rows the list returned. */
+function nextOccurrence(
+  row: { StartDate: Date | null; DueDate: Date | null },
+  raw: unknown,
+  today: string,
+): NextOccurrence | null {
+  if (row.StartDate === null) return null;
+  const { rule, occurrences } = listedSeriesSchema.parse(raw);
+  const ymd = (d: Date) => d.toISOString().slice(0, 10);
+  const next = nextOpenOccurrence(
+    { startDate: ymd(row.StartDate), dueDate: row.DueDate === null ? null : ymd(row.DueDate) },
+    rule,
+    occurrences.map((o) => ({ ...o, closed: isClosedStatus(o.status) })),
+    today,
+  );
+  if (next === null) return null;
+  return {
+    StartDate: new Date(`${next.startsAt.slice(0, 10)}T00:00:00Z`),
+    DueDate: next.dueDate === null ? null : new Date(`${next.dueDate}T00:00:00Z`),
+  };
 }
 
 export async function updateTodoItem(

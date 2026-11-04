@@ -4,6 +4,12 @@ export const CALENDAR_MAX_DAYS = 62;
 /** One series yields at most this many occurrences per window; the screen says when it was cut. */
 export const MAX_OCCURRENCES_PER_WINDOW = 1000;
 
+/** The list counts open occurrences from this many days back, so a missed one is not overdue for ever. */
+export const OPEN_LOOKBACK_DAYS = 31;
+
+/** How far ahead the list looks for a series' next open occurrence, in windows: about two years. */
+const LOOKAHEAD_WINDOWS = 12;
+
 /** A rule repeats every 1 to this many units, and ends after 1 to this many times. */
 export const RECURRENCE_MAX_COUNT = 999;
 
@@ -190,4 +196,73 @@ export function expandOccurrences(
     });
   }
   return expansion;
+}
+
+/** An occurrence's own row (app.TodoOccurrence), keyed on its generated start. */
+export interface OccurrenceState {
+  occursAt: string;
+  movedTo: string | null;
+  isSkipped: boolean;
+  /** Its status ends it: Completed or Cancelled. */
+  closed: boolean;
+}
+
+/** An occurrence still to be done, where it falls: a moved one keeps its length. */
+export interface OpenOccurrence {
+  occursAt: string;
+  /** Wall clock "YYYY-MM-DDTHH:MM:SS": the generated start, or where it was moved to. */
+  startsAt: string;
+  dueDate: string | null;
+}
+
+/**
+ * The series' earliest occurrence that is neither closed nor skipped, from OPEN_LOOKBACK_DAYS
+ * before `today` on; null when none is left within about two years. A moved occurrence counts
+ * where it was moved to, so it may come before ones generated earlier. Rows the rule no longer
+ * generates are ignored, as in expandOccurrences.
+ */
+export function nextOpenOccurrence(
+  series: SeriesDates,
+  rule: RecurrenceRule,
+  states: readonly OccurrenceState[],
+  today: string,
+): OpenOccurrence | null {
+  const since = dayOf(today) - OPEN_LOOKBACK_DAYS;
+  const byKey = new Map(states.map((state) => [state.occursAt, state]));
+  const open = (o: Occurrence): OpenOccurrence | null => {
+    const state = byKey.get(o.occursAt);
+    if (state?.isSkipped || state?.closed) return null;
+    const startsAt = state?.movedTo ?? o.occursAt;
+    const shift = dayOf(startsAt.slice(0, 10)) - dayOf(o.occursAt.slice(0, 10));
+    if (dayOf(startsAt.slice(0, 10)) < since) return null;
+    const dueDate = o.dueDate === null ? null : ymdOf(dayOf(o.dueDate) + shift);
+    return { occursAt: o.occursAt, startsAt, dueDate };
+  };
+
+  const moved = states.flatMap((state) => {
+    if (state.movedTo === null) return [];
+    const day = state.occursAt.slice(0, 10);
+    const generated = expandOccurrences(series, rule, { from: day, to: day }, Infinity);
+    const o = generated.occurrences.find((g) => g.occursAt === state.occursAt);
+    const found = o ? open(o) : null;
+    return found ? [found] : [];
+  });
+
+  let first: OpenOccurrence | null = null;
+  for (let w = 0; w < LOOKAHEAD_WINDOWS && first === null; w++) {
+    const from = since + w * CALENDAR_MAX_DAYS;
+    if (rule.endsOn !== null && from > dayOf(rule.endsOn)) break;
+    const window = { from: ymdOf(from), to: ymdOf(from + CALENDAR_MAX_DAYS - 1) };
+    for (const o of expandOccurrences(series, rule, window, Infinity).occurrences) {
+      if (byKey.get(o.occursAt)?.movedTo) continue;
+      first = open(o);
+      if (first) break;
+    }
+  }
+
+  return [first, ...moved].reduce<OpenOccurrence | null>(
+    (earliest, o) =>
+      o !== null && (earliest === null || o.startsAt < earliest.startsAt) ? o : earliest,
+    null,
+  );
 }

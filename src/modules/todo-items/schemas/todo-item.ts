@@ -63,7 +63,31 @@ export const todoItemListRowSchema = todoItemRowSchema.extend({
   ...actorAccessFields,
 });
 
-export type TodoItemListRow = z.infer<typeof todoItemListRowSchema>;
+/** Where a repeating to-do's next open occurrence falls (ADR-0059 decision 5). */
+export interface NextOccurrence {
+  StartDate: Date;
+  DueDate: Date | null;
+}
+
+export type TodoItemListRow = z.infer<typeof todoItemListRowSchema> & {
+  /** A series' next open occurrence; null when none is left, or for a to-do that does not repeat. */
+  Next: NextOccurrence | null;
+};
+
+/**
+ * The dates the list shows and judges a to-do on: a repeating one's next open occurrence, so a
+ * daily series is not overdue for ever on its first day, or none once nothing is left open.
+ */
+export function listedDates(
+  row: Pick<TodoItemListRow, "Repeats" | "Next" | "StartDate" | "DueDate" | "Status">,
+): { StartDate: Date | null; DueDate: Date | null; Status: string | null } {
+  const dates = row.Repeats ? row.Next : row;
+  return {
+    StartDate: dates?.StartDate ?? null,
+    DueDate: dates?.DueDate ?? null,
+    Status: row.Status,
+  };
+}
 
 export const createTodoItemInput = z.object({
   projectId: z.number().int().positive().nullish(),
@@ -105,6 +129,11 @@ export const deleteTodoItemInput = z.object({
 
 export type DeleteTodoItemInput = z.input<typeof deleteTodoItemInput>;
 
+/** Completed and Cancelled end a to-do, or one occurrence of a series. */
+export function isClosedStatus(status: string | null): boolean {
+  return status === "Completed" || status === "Cancelled";
+}
+
 /**
  * Pure business-rule helper — mirrors Access qryUpcomingAlerts IIf chain.
  * Overdue = DueDate (UTC calendar day) < today (UTC calendar day) AND status is not terminal.
@@ -117,7 +146,7 @@ export type DeleteTodoItemInput = z.input<typeof deleteTodoItemInput>;
 export function isOverdue(row: { DueDate: Date | null; Status: string | null }): boolean {
   if (!row.DueDate) return false;
   // "In Review" is intentionally NOT excluded — still an active/alertable state per qryUpcomingAlerts
-  if (row.Status === "Completed" || row.Status === "Cancelled") return false;
+  if (isClosedStatus(row.Status)) return false;
   // Compare UTC calendar dates to match the proc: CAST(SYSUTCDATETIME() AS DATE).
   const todayUtc = new Date();
   todayUtc.setUTCHours(0, 0, 0, 0);
@@ -149,7 +178,7 @@ export function isApproachingDeadline(
   dueSoonDays: number = DEFAULT_DUE_SOON_DAYS,
 ): boolean {
   if (!row.DueDate) return false;
-  if (row.Status === "Completed" || row.Status === "Cancelled") return false;
+  if (isClosedStatus(row.Status)) return false;
   if (isOverdue(row)) return false;
   const todayUtc = new Date();
   todayUtc.setUTCHours(0, 0, 0, 0);

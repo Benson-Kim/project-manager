@@ -102,37 +102,68 @@ export type SetTodoOccurrenceInput = z.input<typeof setTodoOccurrenceInput>;
 const dateOnly = (d: Date | null) => (d === null ? null : d.toISOString().slice(0, 10));
 const wallClockOf = (d: Date) => d.toISOString().slice(0, 19);
 
+/** The rule's columns, as usp_TodoRecurrence_Set, _GetById and usp_TodoItem_List return them. */
+const ruleColumns = {
+  RepeatUnit: z.enum(REPEAT_UNITS),
+  RepeatEvery: z.number().int(),
+  StartTime: alertTimeSchema,
+  Weekdays: z.number().int().nullable(),
+  MonthMode: z.enum(MONTH_MODES).nullable(),
+  Ordinal: z.number().int().nullable(),
+  Weekday: z.number().int().nullable(),
+  EndsOn: z.date().nullable(),
+  EndsAfter: z.number().int().nullable(),
+};
+const ruleColumnsSchema = z.object(ruleColumns);
+
+/** The rule expandOccurrences reads, from its columns. */
+function ruleOf(r: z.output<typeof ruleColumnsSchema>): RecurrenceRule {
+  return {
+    unit: r.RepeatUnit,
+    every: r.RepeatEvery,
+    startTime: r.StartTime,
+    weekdays: r.Weekdays,
+    monthMode: r.MonthMode,
+    ordinal: r.Ordinal,
+    weekday: r.Weekday,
+    endsOn: dateOnly(r.EndsOn),
+    endsAfter: r.EndsAfter,
+  };
+}
+
 /** usp_TodoRecurrence_Set's and _GetById's result, as the rule expandOccurrences reads. */
-export const todoRecurrenceRowSchema = z
-  .object({
-    TodoItemId: z.number().int(),
-    RepeatUnit: z.enum(REPEAT_UNITS),
-    RepeatEvery: z.number().int(),
-    StartTime: alertTimeSchema,
-    Weekdays: z.number().int().nullable(),
-    MonthMode: z.enum(MONTH_MODES).nullable(),
-    Ordinal: z.number().int().nullable(),
-    Weekday: z.number().int().nullable(),
-    EndsOn: z.date().nullable(),
-    EndsAfter: z.number().int().nullable(),
-    RowVer: rowVerSchema,
+export const todoRecurrenceRowSchema = ruleColumnsSchema
+  .extend({ TodoItemId: z.number().int(), RowVer: rowVerSchema })
+  .transform((r) => ({ todoItemId: r.TodoItemId, rowVer: r.RowVer, rule: ruleOf(r) }));
+export type TodoRecurrence = z.output<typeof todoRecurrenceRowSchema>;
+
+/** FOR JSON writes DATETIME2(0) as wall clock "YYYY-MM-DDTHH:MM:SS", the occurrence key. */
+const listedOccurrenceSchema = z.object({
+  OccursAt: wallClock,
+  Status: z.string().nullable(),
+  MovedTo: wallClock.nullable(),
+  IsSkipped: z.boolean(),
+});
+
+/** A series row of usp_TodoItem_List: its rule, and its occurrence rows from the list's lookback. */
+export const listedSeriesSchema = ruleColumnsSchema
+  .extend({
+    Occurrences: z
+      .string()
+      .nullable()
+      .transform((json) => (json === null ? [] : (JSON.parse(json) as unknown)))
+      .pipe(z.array(listedOccurrenceSchema)),
   })
   .transform((r) => ({
-    todoItemId: r.TodoItemId,
-    rowVer: r.RowVer,
-    rule: {
-      unit: r.RepeatUnit,
-      every: r.RepeatEvery,
-      startTime: r.StartTime,
-      weekdays: r.Weekdays,
-      monthMode: r.MonthMode,
-      ordinal: r.Ordinal,
-      weekday: r.Weekday,
-      endsOn: dateOnly(r.EndsOn),
-      endsAfter: r.EndsAfter,
-    } satisfies RecurrenceRule,
+    rule: ruleOf(r),
+    occurrences: r.Occurrences.map((o) => ({
+      occursAt: o.OccursAt,
+      status: o.Status,
+      movedTo: o.MovedTo,
+      isSkipped: o.IsSkipped,
+    })),
   }));
-export type TodoRecurrence = z.output<typeof todoRecurrenceRowSchema>;
+export type ListedSeries = z.output<typeof listedSeriesSchema>;
 
 /** usp_TodoOccurrence_Set's result; DATETIME2 wall clock comes back as a Date holding it in UTC. */
 export const todoOccurrenceRowSchema = z

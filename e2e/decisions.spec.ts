@@ -28,9 +28,9 @@ async function pick(form: Locator, field: string, option: string): Promise<void>
   await form.getByRole("option", { name: option, exact: true }).click();
 }
 
-async function create(page: Page, title: string): Promise<Locator> {
+async function create(page: Page, title: string, dismissAlarms = true): Promise<Locator> {
   await page.goto(`${LIST}?id=new`);
-  await closeAlarmToast(page);
+  if (dismissAlarms) await closeAlarmToast(page);
   const form = page.getByTestId("decision-form");
   await expect(form).toBeVisible();
   await form.getByLabel(M.decisionTitle, { exact: true }).fill(title);
@@ -101,7 +101,7 @@ test("a superseded decision names the one that replaced it and stays in the log"
   await create(page, older);
   await page.getByTestId("decision-save").click();
   await saved(page, messages.feedback.created);
-  await create(page, newer);
+  await create(page, newer, false);
   await page.getByTestId("decision-save").click();
   await saved(page, messages.feedback.created);
 
