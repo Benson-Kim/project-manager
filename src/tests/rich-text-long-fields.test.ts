@@ -38,3 +38,53 @@ describe("long text fields take rich text", () => {
     expect(source).not.toMatch(new RegExp(`<Textarea[^>]*name="${field}"`));
   });
 });
+
+/**
+ * A form field grows between a floor and a ceiling and scrolls inside, so one
+ * long field cannot push the rest of a form away ("the box extends too far").
+ * A notebook page is the opposite case: it is the whole writing surface, so it
+ * grows with its text and the page scrolls. Giving it a ceiling froze it at
+ * 60dvh, the page stopped scrolling, and the toolbar that is meant to stay in
+ * view under the header never moved (e2e/notes.spec.ts:342).
+ */
+describe("the editor surface bounds a field but not a page", () => {
+  const SURFACE = readFileSync("src/components/ui/rich-text/editor-surface.tsx", "utf-8");
+  const BOUNDED = SURFACE.match(/const BOUNDED = "([^"]+)"/)?.[1] ?? "";
+  const HEIGHTS = SURFACE.slice(
+    SURFACE.indexOf("const HEIGHTS"),
+    SURFACE.indexOf("export interface EditorSurfaceProps"),
+  );
+
+  /** The classes written for one EditorHeight, with BOUNDED spelled out. */
+  const classes = (height: string) =>
+    (HEIGHTS.split("\n").find((l) => l.trimStart().startsWith(`${height}:`)) ?? "").replace(
+      "${BOUNDED}",
+      BOUNDED,
+    );
+
+  it("gives a form field and a panel a ceiling as well as a floor", () => {
+    expect(classes("field")).toMatch(/min-h-48.*max-h-\[min\(24rem,60dvh\)\]/);
+    expect(classes("panel")).toMatch(/min-h-\[min\(24rem,50dvh\)\].*max-h-\[min\(32rem,70dvh\)\]/);
+  });
+
+  it.each(["field", "panel"])("scrolls a bounded %s instead of clipping it", (height) => {
+    expect(classes(height)).toContain("overflow-y-auto");
+    expect(classes(height)).not.toContain("overflow-y-hidden");
+  });
+
+  it("lifts a ceiling for print so a long field is not cut off on paper", () => {
+    expect(BOUNDED).toContain("print:max-h-none");
+    expect(BOUNDED).toContain("print:overflow-visible");
+  });
+
+  it("lets a whole-page surface grow, so the page scrolls and not the box", () => {
+    expect(classes("page")).toContain("min-h-");
+    expect(classes("page")).not.toContain("max-h-");
+    expect(classes("page")).not.toContain("overflow-y-auto");
+  });
+
+  it("is the height a notebook page asks for", () => {
+    const workspace = readFileSync("src/modules/notes/components/notebook-workspace.tsx", "utf-8");
+    expect(workspace).toMatch(/name="content"[\s\S]*?height="page"/);
+  });
+});

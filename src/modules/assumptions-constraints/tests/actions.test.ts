@@ -40,7 +40,7 @@ function dbRow(overrides: Record<string, unknown> = {}) {
     ProjectId: 2,
     Type: "Assumption",
     Description: "An assumption about scope",
-    IsValidated: false,
+    Validated: null,
     Impact: null,
     MitigationPlan: null,
     CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),
@@ -111,16 +111,25 @@ describe("assumptions-constraints actions", () => {
     expect(params.Impact).toBe("Low");
   });
 
-  it("create with isValidated=on forwards IsValidated=true", async () => {
-    execProc.mockResolvedValue([dbRow({ IsValidated: true })]);
+  it("create forwards the chosen validated label, and an unchosen one as null", async () => {
+    execProc.mockResolvedValue([dbRow({ Validated: "Yes" })]);
     const fd = new FormData();
     fd.set("projectId", "2");
     fd.set("description", "Verified assumption");
-    fd.set("isValidated", "on");
+    fd.set("validated", "Yes");
     const result = await createAssumptionConstraintAction(fd);
     expect(result.ok).toBe(true);
     const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
-    expect(params.IsValidated).toBe(true);
+    expect(params.Validated).toBe("Yes");
+
+    execProc.mockResolvedValue([dbRow()]);
+    const blank = new FormData();
+    blank.set("projectId", "2");
+    blank.set("description", "An assumption nobody has checked");
+    blank.set("validated", "");
+    expect((await createAssumptionConstraintAction(blank)).ok).toBe(true);
+    const [, second] = execProc.mock.calls[1] as [string, Record<string, unknown>];
+    expect(second.Validated).toBeNull();
   });
 
   it("create returns VALIDATION for an empty description", async () => {

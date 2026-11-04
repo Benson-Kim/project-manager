@@ -2,6 +2,7 @@ import { formatDate, toDateInput } from "@/lib/format";
 import type { ListChoice, LookupListKey } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
 import { ListBadge } from "../lookup-lists";
+import { ProjectLink } from "../project-link";
 import { formText, richContent, type RichCellView } from "./datasheet";
 import type { DataViewColumn } from "./types";
 
@@ -258,7 +259,11 @@ export function projectColumn<
     key: "Project",
     header: messages.projectPicker.header,
     priority: spec.priority,
-    render: (row) => row.ProjectName ?? messages.projectPicker.none,
+    render: (row) => (
+      <ProjectLink projectId={row.ProjectId}>
+        {row.ProjectName ?? messages.projectPicker.none}
+      </ProjectLink>
+    ),
     edit: {
       kind: "select",
       field: "projectId",

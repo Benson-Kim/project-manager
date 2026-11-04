@@ -16,6 +16,23 @@ import { LinkDialog } from "./link-dialog";
  *   - a disabled input (prop or enclosing <fieldset disabled>) makes the
  *     editor read-only.
  */
+/**
+ * How tall the writing area may grow. A `field` or a `panel` has a ceiling and
+ * scrolls inside it, so one long field cannot push the rest of a form off the
+ * screen. A `page` is the whole writing surface (a notebook page): it grows with
+ * its text and the page scrolls, which is what keeps the toolbar in view.
+ */
+export type EditorHeight = "field" | "panel" | "page";
+
+/** Print lifts a ceiling so nothing is cut off on paper. */
+const BOUNDED = "overflow-y-auto print:max-h-none print:overflow-visible";
+
+const HEIGHTS: Record<EditorHeight, string> = {
+  field: `min-h-48 max-h-[min(24rem,60dvh)] ${BOUNDED}`,
+  panel: `min-h-[min(24rem,50dvh)] max-h-[min(32rem,70dvh)] ${BOUNDED}`,
+  page: "min-h-48",
+};
+
 export interface EditorSurfaceProps {
   bridge: HTMLInputElement;
   initialHtml: string;
@@ -27,7 +44,7 @@ export interface EditorSurfaceProps {
   onChange?: (html: string) => void;
   label?: string;
   autoFocus?: boolean;
-  tall?: boolean;
+  height?: EditorHeight;
 }
 
 /** Sets the value past React's value tracker, so React reports the input event. */
@@ -57,7 +74,7 @@ export function EditorSurface({
   onChange,
   label,
   autoFocus = false,
-  tall = false,
+  height = "field",
 }: EditorSurfaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [bridgeDisabled, setBridgeDisabled] = useState(() => bridge.matches(":disabled"));
@@ -82,7 +99,7 @@ export function EditorSurface({
         ...(invalid ? { "aria-invalid": "true" } : {}),
         ...(editable ? {} : { "aria-readonly": "true" }),
         spellcheck: "true",
-        class: `rich-text ${tall ? "min-h-[min(24rem,50dvh)]" : "min-h-48"} px-3 py-2`,
+        class: `rich-text ${HEIGHTS[height]} px-3 py-2`,
       },
       handleKeyDown: (_view: unknown, event: KeyboardEvent) => {
         if (!isLinkShortcut(event)) return false;
@@ -90,7 +107,7 @@ export function EditorSurface({
         return true;
       },
     }),
-    [inputId, labelId, label, errorId, invalid, editable, tall, setLinkOpen],
+    [inputId, labelId, label, errorId, invalid, editable, height, setLinkOpen],
   );
 
   const editor = useEditor({

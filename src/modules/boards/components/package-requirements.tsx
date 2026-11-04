@@ -12,6 +12,7 @@ import type { RequirementOption } from "@/modules/requirements/schemas/requireme
 import type { BoardOptionRow } from "../schemas/board";
 import { packageRequirementsInput } from "../schemas/board-package";
 import { boardFormSchema } from "../schemas/board-form";
+import { MAX_CARDS_PER_PACKAGE } from "../schemas/board-rules";
 import {
   packageRequirementsAction,
   readPackagingBoardAction,
@@ -97,6 +98,8 @@ function PackagingDialog({
     };
   }, [boardId, board]);
   const options = requirements.map((r) => ({ id: r.id, label: `${r.ref} · ${r.text}` }));
+  // usp_BoardCard_Package refuses more than this, so Select all stops where the server would.
+  const pickLimit = Math.min(options.length, MAX_CARDS_PER_PACKAGE);
   return (
     <BoardForm
       title={U.packageTitle}
@@ -173,6 +176,30 @@ function PackagingDialog({
           onAdd={(option) => setSelected((ids) => [...ids, option.id])}
           onRemove={(id) => setSelected((ids) => ids.filter((item) => item !== id))}
         />
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Button
+            variant="secondary"
+            size="compact"
+            disabled={loading || selected.length >= pickLimit}
+            onClick={() => setSelected(options.slice(0, MAX_CARDS_PER_PACKAGE).map((o) => o.id))}
+          >
+            {messages.actions.selectAll}
+          </Button>
+          <Button
+            variant="secondary"
+            size="compact"
+            disabled={loading || selected.length === 0}
+            onClick={() => setSelected([])}
+          >
+            {messages.actions.clearSelection}
+          </Button>
+          <span className="text-xs text-ink-muted">
+            {messages.list.selectedCount(selected.length)}
+          </span>
+          {options.length > MAX_CARDS_PER_PACKAGE ? (
+            <span className="text-xs text-ink-muted">{U.packageCap(MAX_CARDS_PER_PACKAGE)}</span>
+          ) : null}
+        </div>
       </BoardField>
       {loading ? (
         <p>{messages.app.loading}</p>

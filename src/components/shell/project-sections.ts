@@ -1,4 +1,5 @@
 import { messages } from "@/lib/messages";
+import { projectOverviewHref } from "@/modules/projects/project-links";
 
 /**
  * Project section registry (ADR-0018): mirrors nav-items.ts for the project
@@ -109,8 +110,8 @@ export const projectSectionGroups: ProjectSectionGroup[] = [
 
 export function sectionHref(projectId: number, section: ProjectSection): string {
   return section.segment === "."
-    ? `/projects/${projectId}`
-    : `/projects/${projectId}/${section.segment}`;
+    ? projectOverviewHref(projectId)
+    : `${projectOverviewHref(projectId)}/${section.segment}`;
 }
 
 /** The nav link: a Financials view keeps the open financial (?f=<id>) when switching views. */

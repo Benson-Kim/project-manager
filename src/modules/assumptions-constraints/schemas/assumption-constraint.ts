@@ -8,18 +8,23 @@ import { rowVerSchema } from "@/modules/projects/schemas/project";
  * AssumptionConstraint — zod contracts. Row schema mirrors the SELECT shape of
  * usp_AssumptionConstraint_{Create,GetById,List,Update}.
  *
- * Type and Impact are constrained to their respective allowlists at the form
- * and action boundaries (review comments #3 and #8). The row schema accepts
- * any string from the DB to avoid breakage when existing rows carry legacy values.
+ * Type, Impact and Validated are constrained to their respective allowlists at
+ * the form and action boundaries (review comments #3 and #8). The row schema
+ * accepts any string from the DB to avoid breakage when existing rows carry
+ * legacy values.
  */
 
 /**
  * Dropdown lists (ADR-0022). The two kinds of record, "Assumption" and
- * "Constraint", are locked in the type list; more can be added.
+ * "Constraint", are locked in the type list; more can be added. Validated is a
+ * list too since migration 053 (ADR-0054, BL20) rather than a checkbox, so the
+ * client can add options to it, rename them and colour the rows by them; its Yes
+ * and No are locked, because the derived IsValidated column reads them by name.
  */
 export const ASSUMPTION_CONSTRAINT_LISTS = [
   "assumption-constraint.type",
   "assumption-constraint.impact",
+  "assumption-constraint.validated",
 ] as const satisfies readonly LookupListKey[];
 
 export const assumptionConstraintRowSchema = z.object({
@@ -27,7 +32,7 @@ export const assumptionConstraintRowSchema = z.object({
   ProjectId: z.number().int(),
   Type: z.string().nullable(),
   Description: z.string().nullable(),
-  IsValidated: z.boolean(),
+  Validated: z.string().nullable(),
   Impact: z.string().nullable(),
   MitigationPlan: z.string().nullable(),
   CreatedAtUtc: z.date(),
@@ -50,7 +55,7 @@ export const createAssumptionConstraintInput = z.object({
   projectId: z.number().int().positive(),
   type: listValue.nullish(),
   description: z.string().trim().min(1).max(4000),
-  isValidated: z.boolean().default(false),
+  validated: listValue.nullish(),
   impact: listValue.nullish(),
   mitigationPlan: z.string().trim().max(4000).nullish(),
 });

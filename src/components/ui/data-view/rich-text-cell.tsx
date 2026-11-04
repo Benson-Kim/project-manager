@@ -222,7 +222,7 @@ export function RichTextCell({
               onChange={setDraft}
               label={editorLabel}
               autoFocus
-              tall
+              height="panel"
               testId="rich-cell-zoom"
             />
             {actions}

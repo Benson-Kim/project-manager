@@ -1,6 +1,6 @@
 "use client";
 
-import { booleanColumn, listColumn, textColumn } from "@/components/ui/data-view/columns";
+import { listColumn, textColumn } from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
 import { formCellSaver } from "@/components/ui/data-view/datasheet";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
@@ -56,15 +56,21 @@ const columns: DataViewColumn<Row>[] = [
     value: (r) => r.Impact,
     placeholder: P.impact,
   }),
-  booleanColumn({
-    key: "IsValidated",
-    header: messages.assumptionsConstraints.isValidated,
+  // A managed list rather than a checkbox since migration 053 (ADR-0054, BL20): the client can
+  // add options past Yes and No, rename the ones they added and colour the rows by the value.
+  listColumn({
+    key: "Validated",
+    header: messages.assumptionsConstraints.validated,
     priority: 3,
-    field: "isValidated",
-    value: (r) => r.IsValidated,
-    yes: messages.assumptionsConstraints.validatedYes,
-    no: messages.assumptionsConstraints.validatedNo,
-    placeholder: P.isValidated,
+    field: "validated",
+    list: "assumption-constraint.validated",
+    value: (r) => r.Validated,
+    placeholder: P.validated,
+    render: (r) => (
+      <span className="text-sm text-ink-muted">
+        {r.Validated ?? messages.assumptionsConstraints.validatedNone}
+      </span>
+    ),
   }),
 ];
 
@@ -128,9 +134,9 @@ export function AssumptionConstraintsView({
             {row.Description ?? messages.app.untitled}
           </p>
           {row.Type ? <span className="text-xs text-ink-muted">{row.Type}</span> : null}
-          {row.IsValidated ? (
+          {row.Validated ? (
             <span className="text-xs text-ink-muted">
-              {messages.assumptionsConstraints.isValidated}
+              {`${messages.assumptionsConstraints.validated}: ${row.Validated}`}
             </span>
           ) : null}
         </div>

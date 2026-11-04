@@ -220,13 +220,13 @@ describe("datasheet form values round-trip through each update form schema", () 
     });
   });
 
-  it("assumptions and constraints keep the validated flag both ways", () => {
+  it("assumptions and constraints keep the three list values both ways", () => {
     const row = {
       AssumptionConstraintId: 1,
       ProjectId: 2,
       Type: "Constraint",
       Description: "Fixed date",
-      IsValidated: true,
+      Validated: "Yes",
       Impact: "High",
       MitigationPlan: null,
       ...audit,
@@ -236,14 +236,21 @@ describe("datasheet form values round-trip through each update form schema", () 
     ).toMatchObject({
       type: "Constraint",
       description: "Fixed date",
-      isValidated: true,
+      validated: "Yes",
       impact: "High",
     });
+    // Validated is a list, not a flag (ADR-0054): an unset one round-trips as null, and a label
+    // an Admin added round-trips unchanged rather than collapsing to Yes or No.
     expect(
       updateAssumptionConstraintFormSchema.parse(
-        assumptionConstraintFormValues({ ...row, IsValidated: false }),
-      ).isValidated,
-    ).toBe(false);
+        assumptionConstraintFormValues({ ...row, Validated: null }),
+      ).validated,
+    ).toBeNull();
+    expect(
+      updateAssumptionConstraintFormSchema.parse(
+        assumptionConstraintFormValues({ ...row, Validated: "Partly" }),
+      ).validated,
+    ).toBe("Partly");
   });
 
   it("risks and issues keep both rich fields, the five list values and the dates", () => {

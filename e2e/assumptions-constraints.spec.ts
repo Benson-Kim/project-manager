@@ -9,7 +9,7 @@ import { expectListed, expectNotListed } from "./support/datasheet";
  * sheet, validation failure, deep link, edit, delete, type filter, axe scans.
  * Runs as e2e-pm (storage state from auth.setup.ts — no extra logins, LESSONS §12).
  * Seeded items: ids 1–8, all on project 2 (seed 014_assumption_constraint.sql).
- *   id=1: Type=Constraint, Description="I will make it on time", IsValidated=true
+ *   id=1: Type=Constraint, Description="I will make it on time", Validated=Yes
  *   id=2: Type=Assumption, Description="Is this constraint validated?"
  *   id=3: Type=Assumption, Description="This ia an assumption"
  *   id=5: Type=Assumption, Description="Assumption" (used for delete test)
@@ -61,6 +61,12 @@ test("sheet is URL-synced — deep link ?id=1 opens the seeded item", async ({ p
   await expect(form.getByLabel(messages.assumptionsConstraints.description)).toHaveValue(
     "I will make it on time",
   );
+  // Validated is a managed list, not a checkbox (ADR-0054): the seeded Yes arrives as the
+  // select's value, and the list's own options are what it offers.
+  const validated = form.getByLabel(messages.assumptionsConstraints.validated);
+  await expect(validated).toHaveValue("Yes");
+  await validated.selectOption("No");
+  await expect(validated).toHaveValue("No");
 });
 
 test("edit seeded item — updated value persists in the list and re-open shows new value", async ({

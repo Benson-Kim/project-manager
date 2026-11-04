@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 import { escapeRegExp } from "./support/datasheet";
 
@@ -14,7 +14,57 @@ const newEntry = (column: string) => messages.datasheet.newEntryField(column);
 const cell = (column: string, row: string) =>
   new RegExp(`^${escapeRegExp(messages.datasheet.cellLabel(column, row))}$`);
 
-async function addDeliverable(page: import("@playwright/test").Page, requirement: string) {
+/** The datasheet's column headers, in the order they are rendered. */
+function headerCells(page: Page) {
+  return page.getByTestId("data-view-table").locator("thead th[data-column]");
+}
+
+/** The header labels as toHaveText compares them (it normalizes whitespace). */
+async function headerOrder(page: Page): Promise<string[]> {
+  const labels = await headerCells(page).allTextContents();
+  return labels.map((text) => text.replace(/\s+/g, " ").trim());
+}
+
+const layoutDialog = (page: Page) =>
+  page.getByRole("dialog", { name: messages.datasheet.tableLayout });
+
+/**
+ * Moves the third column up one place through the "Table layout" dialog, and
+ * answers the order before the move and the order it leaves. The third is the
+ * one moved because the first cannot move up at all.
+ *
+ * A layout is stored per user per module, so a caller restores the default with
+ * restoreDefaultLayout before it finishes.
+ */
+async function moveThirdColumnUp(page: Page): Promise<{ before: string[]; after: string[] }> {
+  await expect(page.getByTestId("data-view-table")).toBeVisible();
+  const before = await headerOrder(page);
+  expect(before.length).toBeGreaterThan(3);
+  const after = [...before];
+  const [third] = after.splice(2, 1);
+  after.splice(1, 0, third!);
+
+  await page.getByTestId("table-layout").click();
+  const dialog = layoutDialog(page);
+  await expect(dialog.getByTestId("column-order-list")).toBeVisible();
+  await dialog.getByRole("button", { name: messages.datasheet.moveColumnUp(before[2]!) }).click();
+  await dialog.getByRole("button", { name: messages.actions.save }).click();
+  await expect(dialog).toBeHidden();
+  return { before, after };
+}
+
+/** "Reset to default" puts the module's own order back, on the page and stored. */
+async function restoreDefaultLayout(page: Page, before: readonly string[]): Promise<void> {
+  await page.getByTestId("table-layout").click();
+  const dialog = layoutDialog(page);
+  await dialog.getByRole("button", { name: messages.datasheet.resetLayout }).click();
+  await expect(dialog).toBeHidden();
+  await expect(headerCells(page)).toHaveText([...before]);
+  await page.reload();
+  await expect(headerCells(page)).toHaveText([...before]);
+}
+
+async function addDeliverable(page: Page, requirement: string) {
   await page.goto("/projects/2/deliverables?view=list");
   const addRow = page.getByTestId("datasheet-add-row");
   await expect(addRow).toBeVisible();
@@ -154,33 +204,61 @@ test("'Edit list…' in a form's dropdown edits the list and keeps the choice (k
   await expect(status).toHaveValue("On hold");
 });
 
-test("daily activities: the client's column order, and a project filter on the cross-project page", async ({
-  page,
-}) => {
-  await page.goto("/projects/2/daily-activities?view=list");
-  const headers = page.getByTestId("data-view-table").locator("thead th[data-column]");
-  await expect(headers).toHaveText([
-    messages.projectPicker.header,
-    messages.dailyActivities.requester,
-    messages.dailyActivities.requestDate,
-    messages.dailyActivities.contactMethod,
-    messages.dailyActivities.columns.task,
-    messages.dailyActivities.columns.myActivity,
-    messages.dailyActivities.columns.activityDate,
-    messages.dailyActivities.activityStatus,
-    messages.dailyActivities.comments,
-    messages.dailyActivities.columns.completeDate,
-  ]);
+/**
+ * Serial: both tests sign in as the same user and read the same module, and a
+ * datasheet layout is stored per user per module (usp_ViewPreference_SetLayout).
+ * A reorder running beside the default-order assertion would rearrange the
+ * table under it.
+ */
+test.describe.serial("daily activities in list view", () => {
+  test("the client's column order, and a project filter on the cross-project page", async ({
+    page,
+  }) => {
+    await page.goto("/projects/2/daily-activities?view=list");
+    await expect(headerCells(page)).toHaveText([
+      messages.projectPicker.header,
+      messages.dailyActivities.requester,
+      messages.dailyActivities.requestDate,
+      messages.dailyActivities.contactMethod,
+      messages.dailyActivities.columns.task,
+      messages.dailyActivities.columns.myActivity,
+      messages.dailyActivities.columns.activityDate,
+      messages.dailyActivities.activityStatus,
+      messages.dailyActivities.comments,
+      messages.dailyActivities.columns.completeDate,
+    ]);
 
-  await page.goto("/daily-activities?view=list");
-  await page.getByTestId("filter-project").selectOption("none");
-  await expect(page).toHaveURL(/project=none/);
-  // Persistent new-entry row, starting with no project.
-  await expect(
-    page
-      .getByTestId("datasheet-add-row")
-      .getByRole("combobox", { name: newEntry(messages.projectPicker.header) }),
-  ).toHaveValue("");
+    await page.goto("/daily-activities?view=list");
+    await page.getByTestId("filter-project").selectOption("none");
+    await expect(page).toHaveURL(/project=none/);
+    // Persistent new-entry row, starting with no project.
+    await expect(
+      page
+        .getByTestId("datasheet-add-row")
+        .getByRole("combobox", { name: newEntry(messages.projectPicker.header) }),
+    ).toHaveValue("");
+  });
+
+  test("table layout: a column moved in the dialog is still moved after a reload", async ({
+    page,
+  }) => {
+    // The other half of the reorder the client reported (the to-do half is
+    // below): the assertion is the order that survives a reload, never the
+    // toast, which says only that a save was refused (client feedback, tab 2 L4).
+    await page.goto("/projects/2/daily-activities?view=list");
+    const { before, after } = await moveThirdColumnUp(page);
+    await expect(headerCells(page)).toHaveText(after);
+    await page.reload();
+    await expect(headerCells(page)).toHaveText(after);
+
+    // Every column of this module is on both of its pages, unlike to-dos, so
+    // the arrangement applies whole on the cross-project one.
+    await page.goto("/daily-activities?view=list");
+    await expect(headerCells(page)).toHaveText(after);
+
+    await page.goto("/projects/2/daily-activities?view=list");
+    await restoreDefaultLayout(page, before);
+  });
 });
 
 test("table layout: a column edge resizes by keyboard and persists; Reset restores the default", async ({
@@ -225,4 +303,29 @@ test("table layout: a column edge resizes by keyboard and persists; Reset restor
       .first()
       .getByRole("separator"),
   ).not.toHaveAttribute("aria-valuenow", width!);
+});
+
+test("table layout: a column moved in the dialog is still moved after a reload (to-dos)", async ({
+  page,
+}) => {
+  // Reordering a to-do or activity list was reported as not working more than
+  // once, with nothing red to show it: no spec moved a column on any module.
+  // What the client sees is the column springing back on the next load, so the
+  // assertion is the stored order — never the toast, which says only that a
+  // save was refused (client feedback, tab 2 L4).
+  await page.goto("/todo?view=list");
+  const { before, after } = await moveThirdColumnUp(page);
+  await expect(headerCells(page)).toHaveText(after);
+  await page.reload();
+  await expect(headerCells(page)).toHaveText(after);
+
+  // The same arrangement on the module's other page, which has no Project
+  // column: the stored order says nothing about a column it never showed.
+  await page.goto("/projects/2/todos?view=list");
+  await expect(headerCells(page)).toHaveText(
+    after.filter((header) => header !== messages.projectPicker.header),
+  );
+
+  await page.goto("/todo?view=list");
+  await restoreDefaultLayout(page, before);
 });

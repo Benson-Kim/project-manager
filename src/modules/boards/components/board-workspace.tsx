@@ -5,10 +5,12 @@ import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } fr
 import { Button } from "@/components/ui/button";
 import { buttonClass } from "@/components/ui/button-styles";
 import { SearchInput } from "@/components/ui/data-view/search-input";
+import { StickyScrollbar } from "@/components/ui/data-view/sticky-scrollbar";
 import { DROP_MS, usePointerDrag } from "@/components/ui/drag/use-pointer-drag";
 import { useLookupLists } from "@/components/ui/lookup-lists";
 import { Menu, MenuButton } from "@/components/ui/menu";
 import { useFlip } from "@/components/ui/motion/use-flip";
+import { ProjectLink } from "@/components/ui/project-link";
 import { useToast } from "@/components/ui/toast";
 import type { ActionResult } from "@/lib/action";
 import { rowAllows } from "@/lib/auth/actor-access";
@@ -223,7 +225,11 @@ export function BoardWorkspace({
     <section className="flex min-w-0 flex-1 flex-col gap-3">
       <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h1 className="text-xl font-semibold">{board.header.Name}</h1>
-        <p className="text-sm text-ink-muted">{board.header.ProjectName ?? M.noProject}</p>
+        <p className="text-sm text-ink-muted">
+          <ProjectLink projectId={board.header.ProjectId} className="underline">
+            {board.header.ProjectName ?? M.noProject}
+          </ProjectLink>
+        </p>
         <nav
           aria-label={U.views}
           className="ml-auto flex gap-0.5 self-center rounded-md border border-line p-0.5"
@@ -284,117 +290,130 @@ export function BoardWorkspace({
           {error}
         </p>
       ) : null}
-      <div
-        ref={laneRef}
-        data-drag-container
-        className="flex items-start gap-3.5 overflow-x-auto pb-6"
-        aria-busy={pending}
-      >
-        {lanes.map((lane) => {
-          const cards = shownCards.filter((c) =>
-            planning ? c.BoardSprintId === lane.id : c.BoardColumnId === lane.id,
-          );
-          const wip = wipState(lane.count, lane.limit);
-          return (
-            <section
-              key={lane.id ?? "backlog"}
-              aria-label={lane.name}
-              className={`flex w-[290px] flex-none flex-col rounded-2xl border border-t-[3px] border-line bg-surface-sunken ${lane.tone}`}
-              data-drag-lane={lane.id ?? "backlog"}
-            >
-              <header className="flex items-center justify-between gap-2 border-b border-line px-3 py-2.5">
-                <h2 className="text-[13px] font-semibold">{lane.name}</h2>
-                <span
-                  data-testid="kanban-lane-count"
-                  className={`rounded-full border px-2 text-[11px] ${wip === "full" || wip === "over" ? "border-danger text-danger" : "border-line text-ink-muted"}`}
-                >
-                  {lane.count}
-                  {lane.limit !== null ? ` / ${lane.limit}` : ""}
-                </span>
-              </header>
-              <div className="flex min-h-30 flex-1 flex-col gap-2.5 p-2.5">
-                {cards.map((card) => {
-                  const tagged = hasCardTags(card);
-                  const menu =
-                    canEdit || canDelete ? (
-                      <Menu
-                        label={U.cardActions}
-                        trigger="⋮"
-                        triggerClassName={`relative z-10 -my-1 flex size-6 items-center justify-center rounded-md text-ink-muted hover:bg-surface-raised hover:text-ink ${kanbanReveal}`}
-                      >
-                        <MenuButton onClick={() => open(card)}>{U.editCard}</MenuButton>
-                        {canEdit ? (
-                          <>
-                            <MenuButton onClick={() => setMoving(card)}>{U.move}</MenuButton>
-                            <MenuButton onClick={() => reorder(card, -1)}>{U.up}</MenuButton>
-                            <MenuButton onClick={() => reorder(card, 1)}>{U.down}</MenuButton>
-                          </>
-                        ) : null}
-                        {canDelete ? (
-                          <MenuButton onClick={() => setDeleting(card)}>
-                            {messages.actions.delete}
-                          </MenuButton>
-                        ) : null}
-                      </Menu>
-                    ) : null;
-                  return (
-                    <article
-                      key={card.BoardCardId}
-                      data-drag-item={card.BoardCardId}
-                      className={`${kanbanCardClass(drag.dragging === card.BoardCardId)} ${canEdit ? "select-none" : ""}`}
-                      {...drag.bind(card.BoardCardId)}
-                    >
-                      {tagged ? <KanbanCardTags card={card} menu={menu} /> : null}
-                      {canEdit ? (
-                        <button
-                          type="button"
-                          data-drag-handle
-                          aria-label={U.dragCard(cardLabel(card))}
-                          className={`absolute top-1/2 -left-px z-10 flex h-10 w-4 -translate-y-1/2 touch-none cursor-grab items-center justify-center rounded-r-md text-xs text-ink-muted hover:bg-surface-raised ${kanbanReveal}`}
+      {/*
+        The lanes scroll sideways in their own box, which puts that box's horizontal scrollbar
+        under the tallest lane — out of reach until you have scrolled past every card (client
+        feedback 2026-10-31, after the same complaint about the datasheet, the WBS and the Gantt).
+        StickyScrollbar mirrors it within reach and is the only one shown: the box's own bar
+        (--hbar tall, which the bar measures) hangs below the clip, while wheel, touch, keyboard
+        and the drag's edge auto-scroll still scroll the box. `clip`, unlike `hidden`, makes no
+        scroll container, so the bar below still sticks to the page; `flow-root` keeps the
+        negative margin inside the clip instead of pulling the bar up over the hidden one.
+      */}
+      <div className="flow-root overflow-clip print:overflow-visible">
+        <div
+          ref={laneRef}
+          data-drag-container
+          className="relative mb-[calc(var(--hbar,0px)*-1)] flex items-start gap-3.5 overflow-x-auto pb-6 print:mb-0 print:overflow-visible"
+          aria-busy={pending}
+        >
+          {lanes.map((lane) => {
+            const cards = shownCards.filter((c) =>
+              planning ? c.BoardSprintId === lane.id : c.BoardColumnId === lane.id,
+            );
+            const wip = wipState(lane.count, lane.limit);
+            return (
+              <section
+                key={lane.id ?? "backlog"}
+                aria-label={lane.name}
+                className={`flex w-[290px] flex-none flex-col rounded-2xl border border-t-[3px] border-line bg-surface-sunken ${lane.tone}`}
+                data-drag-lane={lane.id ?? "backlog"}
+              >
+                <header className="flex items-center justify-between gap-2 border-b border-line px-3 py-2.5">
+                  <h2 className="text-[13px] font-semibold">{lane.name}</h2>
+                  <span
+                    data-testid="kanban-lane-count"
+                    className={`rounded-full border px-2 text-[11px] ${wip === "full" || wip === "over" ? "border-danger text-danger" : "border-line text-ink-muted"}`}
+                  >
+                    {lane.count}
+                    {lane.limit !== null ? ` / ${lane.limit}` : ""}
+                  </span>
+                </header>
+                <div className="flex min-h-30 flex-1 flex-col gap-2.5 p-2.5">
+                  {cards.map((card) => {
+                    const tagged = hasCardTags(card);
+                    const menu =
+                      canEdit || canDelete ? (
+                        <Menu
+                          label={U.cardActions}
+                          trigger="⋮"
+                          triggerClassName={`relative z-10 -my-1 flex size-6 items-center justify-center rounded-md text-ink-muted hover:bg-surface-raised hover:text-ink ${kanbanReveal}`}
                         >
-                          ⠿
-                        </button>
-                      ) : null}
-                      <div className="flex items-start gap-2">
-                        <h3 className="m-0 min-w-0 flex-1">
+                          <MenuButton onClick={() => open(card)}>{U.editCard}</MenuButton>
+                          {canEdit ? (
+                            <>
+                              <MenuButton onClick={() => setMoving(card)}>{U.move}</MenuButton>
+                              <MenuButton onClick={() => reorder(card, -1)}>{U.up}</MenuButton>
+                              <MenuButton onClick={() => reorder(card, 1)}>{U.down}</MenuButton>
+                            </>
+                          ) : null}
+                          {canDelete ? (
+                            <MenuButton onClick={() => setDeleting(card)}>
+                              {messages.actions.delete}
+                            </MenuButton>
+                          ) : null}
+                        </Menu>
+                      ) : null;
+                    return (
+                      <article
+                        key={card.BoardCardId}
+                        data-drag-item={card.BoardCardId}
+                        className={`${kanbanCardClass(drag.dragging === card.BoardCardId)} ${canEdit ? "select-none" : ""}`}
+                        {...drag.bind(card.BoardCardId)}
+                      >
+                        {tagged ? <KanbanCardTags card={card} menu={menu} /> : null}
+                        {canEdit ? (
                           <button
                             type="button"
-                            className="line-clamp-3 w-full cursor-pointer text-left text-[13px] leading-snug font-semibold text-ink"
-                            disabled={pending}
-                            onClick={() => open(card)}
+                            data-drag-handle
+                            aria-label={U.dragCard(cardLabel(card))}
+                            className={`absolute top-1/2 -left-px z-10 flex h-10 w-4 -translate-y-1/2 touch-none cursor-grab items-center justify-center rounded-r-md text-xs text-ink-muted hover:bg-surface-raised ${kanbanReveal}`}
                           >
-                            {cardLabel(card)}
+                            ⠿
                           </button>
-                        </h3>
-                        {tagged ? null : menu}
-                      </div>
-                      <KanbanCardBody
-                        card={card}
-                        assignee={
-                          card.AssigneeUserId
-                            ? (assigneeNames.get(card.AssigneeUserId) ?? U.assignee)
-                            : null
-                        }
-                      />
-                    </article>
-                  );
-                })}
-              </div>
-              {!planning && canCreate ? (
-                <button
-                  type="button"
-                  className="mx-3 mb-2 min-h-8 cursor-pointer self-start rounded-md px-2 text-sm font-semibold text-accent hover:bg-surface-raised disabled:opacity-50"
-                  disabled={pending}
-                  onClick={() => setNewColumn(lane.id)}
-                >
-                  <span aria-hidden="true">+ </span>
-                  {U.newCard}
-                </button>
-              ) : null}
-            </section>
-          );
-        })}
+                        ) : null}
+                        <div className="flex items-start gap-2">
+                          <h3 className="m-0 min-w-0 flex-1">
+                            <button
+                              type="button"
+                              className="line-clamp-3 w-full cursor-pointer text-left text-[13px] leading-snug font-semibold text-ink"
+                              disabled={pending}
+                              onClick={() => open(card)}
+                            >
+                              {cardLabel(card)}
+                            </button>
+                          </h3>
+                          {tagged ? null : menu}
+                        </div>
+                        <KanbanCardBody
+                          card={card}
+                          assignee={
+                            card.AssigneeUserId
+                              ? (assigneeNames.get(card.AssigneeUserId) ?? U.assignee)
+                              : null
+                          }
+                        />
+                      </article>
+                    );
+                  })}
+                </div>
+                {!planning && canCreate ? (
+                  <button
+                    type="button"
+                    className="mx-3 mb-2 min-h-8 cursor-pointer self-start rounded-md px-2 text-sm font-semibold text-accent hover:bg-surface-raised disabled:opacity-50"
+                    disabled={pending}
+                    onClick={() => setNewColumn(lane.id)}
+                  >
+                    <span aria-hidden="true">+ </span>
+                    {U.newCard}
+                  </button>
+                ) : null}
+              </section>
+            );
+          })}
+        </div>
       </div>
+      <StickyScrollbar targetRef={laneRef} />
       {editing || newColumn ? (
         <CardDialog
           board={board}

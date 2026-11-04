@@ -180,6 +180,11 @@ BEGIN
         ELSE IF @ListKey = N'assumption-constraint.impact'
             UPDATE t SET [Impact] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
             FROM app.AssumptionConstraint t JOIN @Renamed r ON t.[Impact] = r.OldLabel;
+        -- Yes and No are locked, so a rename here can only reach an option an Admin added; the
+        -- derived [IsValidated] still answers to Yes and so needs no update.
+        ELSE IF @ListKey = N'assumption-constraint.validated'
+            UPDATE t SET [Validated] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
+            FROM app.AssumptionConstraint t JOIN @Renamed r ON t.[Validated] = r.OldLabel;
         ELSE IF @ListKey = N'daily-activity.contact-method'
             UPDATE t SET [ContactMethod] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
             FROM app.DailyActivity t JOIN @Renamed r ON t.[ContactMethod] = r.OldLabel;
