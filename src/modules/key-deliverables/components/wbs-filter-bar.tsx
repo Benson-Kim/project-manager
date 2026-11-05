@@ -20,7 +20,7 @@ import {
 const W = messages.keyDeliverables.wbs;
 
 const chip =
-  "inline-flex min-h-8 min-w-8 cursor-pointer items-center justify-center rounded-full border px-2 text-xs font-semibold";
+  "inline-flex min-h-8 min-w-8 cursor-pointer items-center justify-center rounded-md border px-2 text-xs font-semibold";
 
 function chipTone(on: boolean, tone: keyof typeof TONES | null) {
   if (!on) return "border-line text-ink-faint line-through hover:bg-surface-raised";
