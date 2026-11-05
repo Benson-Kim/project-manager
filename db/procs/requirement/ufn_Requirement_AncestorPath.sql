@@ -10,15 +10,16 @@
 --
 -- Why a walk and not a stored column: a path column would go stale behind a renumber, and the
 -- register is paged (ADR-0016, 100 rows), so a child can land on a different page from its parent
--- and the browser could not assemble the path itself. The walk is one seek per level and the write
--- procs cap the depth at four, so it is bounded wherever it is applied.
+-- and the browser could not assemble the path itself. The walk is one seek per level and
+-- usp_Requirement_Create caps the depth at 50, so it is bounded wherever it is applied.
 --
 -- SortPath is padded to ten digits per level because CK_Requirement_Number permits any positive
 -- INT, and '1.10' sorts before '1.2' as text. Ten digits is the widest an INT can be, so the
 -- padding is correct for every number the constraint allows rather than merely for small ones.
 --
--- Distance < 50 bounds the recursion as ufn_KeyDeliverable_Ancestors does; the 600-wide results
--- hold a chain that long without truncating, though the procs refuse anything past four levels.
+-- Distance < 50 bounds the recursion as ufn_KeyDeliverable_Ancestors does, and it is also why
+-- usp_Requirement_Create stops at 50 levels: the client asked for no limit, and 50 is the most this
+-- walk reaches and the 600-wide results hold (50 ten-digit numbers and their dots) without truncating.
 -- Soft-deleted rows are walked through deliberately: a reference stays derivable even if an
 -- ancestor is deleted, so callers decide what to hide rather than losing the path. Procs only;
 -- the application never calls it. Sorts before ufn_Requirement_Links, which binds to it at create

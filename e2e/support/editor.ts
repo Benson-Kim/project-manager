@@ -31,3 +31,12 @@ export async function caretAt(editor: Locator, where: { text: string } | { insid
   if ("text" in where) await expect.poll(async () => (await caret()).text).toBe(where.text);
   else await expect.poll(async () => (await caret()).path).toContain(where.inside);
 }
+
+/** Lazy editors can move a sheet's Save button as they replace their placeholders. */
+export async function waitForRichTextEditors(form: Locator): Promise<void> {
+  const editors = form.locator("[data-rich-text]");
+  await expect(editors.first()).toBeAttached();
+  for (const editor of await editors.all()) {
+    await expect(editor.getByRole("textbox")).toBeVisible();
+  }
+}

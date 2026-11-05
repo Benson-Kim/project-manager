@@ -1,7 +1,7 @@
 import { messages } from "@/lib/messages";
 
 /**
- * Sticky list toolbar (STANDARDS §5.3/§6): search + filters + sort + view
+ * Sticky list toolbar: search + filters + sort + view
  * toggle. Sticks under the app header; safe on 360 px (wraps in rows).
  */
 export function Toolbar({ children }: { children: React.ReactNode }) {

@@ -178,6 +178,21 @@ describe("decisions repository", () => {
       },
     ]);
     const options = await listDecisionOptions(2, 7, 1);
-    expect(options).toEqual([{ id: 5, label: "D-4 Renew the licence" }]);
+    expect(options).toEqual([{ id: 5, label: "DEC-004 Renew the licence" }]);
+  });
+  it("the supersession picker reads every page, so a target past the first 100 is kept", async () => {
+    const page = (from: number, count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        ...dbRow({ DecisionId: from + i, DecisionNumber: from + i, Title: "T" }),
+        TotalCount: 130,
+        ActorAccess: null,
+        ActorGrants: null,
+        ActorRevokes: null,
+      }));
+    execProc.mockResolvedValueOnce(page(1, 100)).mockResolvedValueOnce(page(101, 30));
+    const options = await listDecisionOptions(2, 7, null);
+    expect(options).toHaveLength(130);
+    expect(options.at(-1)).toEqual({ id: 130, label: "DEC-130 T" });
+    expect(execProc.mock.calls.map((c) => (c[1] as Record<string, unknown>).Page)).toEqual([1, 2]);
   });
 });

@@ -1,7 +1,8 @@
 -- usp_User_SetPassword — replace the argon2id hash; clears MustChangePassword
 -- (unless the actor is forcing a reset with @MustChangePassword = 1), resets
 -- lockout counters and bumps SessionVersion so every other session is revoked.
--- The audit row NEVER contains the hash. Module: auth-and-rbac (#4).
+-- The audit row NEVER contains the hash. A user sets their own; only an Admin sets another's
+-- (FORBIDDEN_ROW). Module: auth-and-rbac (#4).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_User_SetPassword
@@ -15,6 +16,13 @@ BEGIN
     SET XACT_ABORT ON;
     IF @PasswordHash IS NULL OR LTRIM(RTRIM(@PasswordHash)) = N''
         THROW 50004, N'VALIDATION:PasswordHash is required', 1;
+    IF @ActorUserId IS NULL OR @UserId <> @ActorUserId
+    BEGIN
+        DECLARE @ActorRole NVARCHAR(50);
+        EXEC dbo.usp_User_GetActorRole @UserId = @ActorUserId, @Role = @ActorRole OUTPUT;
+        IF @ActorRole <> N'Admin'
+            THROW 50003, N'FORBIDDEN_ROW:Only administrators can reset another user''s password', 1;
+    END;
     IF NOT EXISTS (SELECT 1 FROM auth.[User] WHERE UserId = @UserId AND IsDeleted = 0)
         THROW 50001, N'NOT_FOUND:User not found', 1;
 

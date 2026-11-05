@@ -51,7 +51,7 @@ export const deleteRequirementAction = action({
   permission: "requirements:delete",
   revalidate: REVALIDATE_TARGETS,
   handler: async (input, ctx) => {
-    await deleteRequirement(input.requirementId, input.rowVer, ctx.session.userId);
+    await deleteRequirement(input, ctx.session.userId);
     return { requirementId: input.requirementId };
   },
 });

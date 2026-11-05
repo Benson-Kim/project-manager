@@ -83,6 +83,11 @@ describe("a wide table's horizontal scrollbar stays in reach", () => {
     expect(bar).toContain("sticky bottom-0");
   });
 
+  it("remeasures when the box gains or loses a child, such as a board lane", () => {
+    expect(bar).toContain("children.observe(target, { childList: true });");
+    expect(bar).toContain("children.disconnect();");
+  });
+
   it("mirrors only when a scroller already holds the value", () => {
     // `to.scrollLeft = from.scrollLeft` fires a scroll event on `to`, which
     // mirrors back: assigning only a different value ends the echo.
@@ -142,7 +147,7 @@ describe("a wide table's horizontal scrollbar stays in reach", () => {
     // A column resize changes the table's width without a window event.
     expect(bar).toContain("new ResizeObserver(measure)");
     expect(bar).toContain("resize.observe(target)");
-    expect(bar).toContain("resize.observe(target.firstElementChild)");
+    expect(bar).toContain("for (const child of target.children) resize.observe(child);");
   });
 
   it("is not rendered while the table fits", () => {

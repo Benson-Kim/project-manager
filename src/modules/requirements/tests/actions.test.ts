@@ -184,8 +184,8 @@ describe("requirements actions (ADR-0037)", () => {
     expect(params).not.toHaveProperty("ProjectId");
     expect(params).not.toHaveProperty("Number");
     expect(params).not.toHaveProperty("IsDeleted");
-    // Parentage is usp_Requirement_Create's alone: no update re-parents a requirement, so the
-    // update proc must not take one even if a client posts it (ADR-0048).
+    // No update re-parents a requirement (only a delete moves children up to its own parent), so
+    // the update proc must not take a parent even if a client posts one (ADR-0048).
     expect(params).not.toHaveProperty("ParentRequirementId");
     // A plain cell edit sent no "set" flags, so both lists stay untouched.
     expect(params.ValidatesSet).toBe(0);
@@ -206,7 +206,7 @@ describe("requirements actions (ADR-0037)", () => {
     if (!result.ok) expect(result.error.code).toBe("CONFLICT");
   });
 
-  it("delete forwards the ids to the proc", async () => {
+  it("delete forwards the ids to the proc, refusing a parent unless asked to move its children", async () => {
     execProc.mockResolvedValue([]);
     const result = await deleteRequirementAction({ requirementId: 3, rowVer: 99 });
     expect(result.ok).toBe(true);
@@ -214,7 +214,33 @@ describe("requirements actions (ADR-0037)", () => {
       RequirementId: 3,
       RowVer: 99,
       ActorUserId: 7,
+      PromoteChildren: false,
     });
+  });
+
+  it("delete can move the sub-requirements up a level", async () => {
+    execProc.mockResolvedValue([]);
+    const result = await deleteRequirementAction({
+      requirementId: 3,
+      rowVer: 99,
+      promoteChildren: true,
+    });
+    expect(result.ok).toBe(true);
+    expect(execProc).toHaveBeenCalledWith(
+      "usp_Requirement_Delete",
+      expect.objectContaining({ PromoteChildren: true }),
+    );
+  });
+
+  it("delete refuses a promote flag that is not a boolean", async () => {
+    const result = await deleteRequirementAction({
+      requirementId: 3,
+      rowVer: 99,
+      promoteChildren: "yes",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("VALIDATION");
+    expect(execProc).not.toHaveBeenCalledWith("usp_Requirement_Delete", expect.anything());
   });
 
   describe("planning (ADR-0052)", () => {

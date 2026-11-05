@@ -6,6 +6,7 @@ import {
   requirementListRowSchema,
   requirementOptionSchema,
   requirementRowSchema,
+  type DeleteRequirementInput,
   type RequirementListRow,
   type RequirementOption,
   type RequirementRow,
@@ -193,13 +194,13 @@ export async function unallocateRequirement(
 }
 
 export async function deleteRequirement(
-  requirementId: number,
-  rowVer: number,
+  input: DeleteRequirementInput,
   actorUserId: number,
 ): Promise<void> {
   await execProc("usp_Requirement_Delete", {
-    RequirementId: requirementId,
-    RowVer: rowVer,
+    RequirementId: input.requirementId,
+    RowVer: input.rowVer,
     ActorUserId: actorUserId,
+    PromoteChildren: input.promoteChildren,
   });
 }

@@ -8,6 +8,8 @@ import {
 } from "@/modules/auth/repository/users";
 import { loginInput } from "@/modules/auth/schemas/user";
 import { getEnv } from "@/lib/env";
+import { getUserPreference } from "@/lib/repositories/user-preference";
+import { DEFAULT_IDLE_TIMEOUT_MINUTES, isIdleExpired } from "./idle-timeout";
 import { verifyPassword } from "./password";
 import type { Role } from "./types";
 
@@ -29,6 +31,13 @@ export interface AppToken {
   role: Role;
   sessionVersion: number;
   mustChangePassword: boolean;
+  /** Absent on tokens minted before migration 060: the default and the token's iat stand in. */
+  idleTimeoutMinutes?: number;
+  lastActiveAt?: number;
+}
+
+function nowSeconds(): number {
+  return Math.floor(Date.now() / 1000);
 }
 
 /** Attempts per minute from one client address (STANDARDS §4). */
@@ -132,6 +141,7 @@ export async function authorizeCredentials(
     return null;
   }
   await recordLoginAttempt(user.UserId, true, ip);
+  const preference = await getUserPreference(user.UserId).catch(() => null);
 
   return {
     // Auth.js requires a string id; the numeric id travels in appToken.
@@ -142,14 +152,24 @@ export async function authorizeCredentials(
       role: user.RoleName,
       sessionVersion: user.SessionVersion,
       mustChangePassword: user.MustChangePassword,
+      idleTimeoutMinutes: preference?.idleTimeoutMinutes ?? DEFAULT_IDLE_TIMEOUT_MINUTES,
+      lastActiveAt: nowSeconds(),
     } satisfies AppToken,
   };
 }
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const {
+  handlers,
+  auth,
+  signIn,
+  signOut,
+  unstable_update: updateSession,
+} = NextAuth({
   session: {
     strategy: "jwt",
-    maxAge: 8 * 60 * 60, // 8 h idle expiry (STANDARDS §4)
+    // The cap for an idle sign-out of Never; each user's shorter idle time is
+    // enforced in the jwt callback and the proxy.
+    maxAge: 30 * 24 * 60 * 60,
   },
   pages: {
     signIn: "/login",
@@ -167,10 +187,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user && "appToken" in user) {
         token.appToken = user.appToken as AppToken;
+        return token;
       }
+      const appToken = token.appToken;
+      if (!appToken) return token;
+      const now = nowSeconds();
+      const idleTimeoutMinutes = appToken.idleTimeoutMinutes ?? DEFAULT_IDLE_TIMEOUT_MINUTES;
+      // Checked before an update too, so POSTing to the session route cannot revive an idle session.
+      if (isIdleExpired(appToken.lastActiveAt ?? token.iat ?? 0, idleTimeoutMinutes, now)) {
+        return null;
+      }
+      // An update only signals "reload": the value comes from the database, never the request body.
+      const preference =
+        trigger === "update" ? await getUserPreference(appToken.userId).catch(() => null) : null;
+      token.appToken = {
+        ...appToken,
+        idleTimeoutMinutes: preference?.idleTimeoutMinutes ?? idleTimeoutMinutes,
+        lastActiveAt: now,
+      };
       return token;
     },
     session({ session, token }) {

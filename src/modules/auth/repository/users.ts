@@ -18,9 +18,9 @@ import {
 } from "../schemas/user";
 
 /**
- * User/auth repository — stored procedures only , zod row parsing
- * (STANDARDS §2.5), list params forwarded 1:1 . PasswordHash never
- * leaves this module except inside CredentialsRow for authorize().
+ * User/auth repository — stored procedures only , zod row parsing,
+ * list params forwarded 1:1 . PasswordHash never leaves this module
+ * except inside CredentialsRow for authorize().
  */
 
 /** Credentials lookup — empty result means unknown username (no THROW: the
@@ -45,13 +45,17 @@ export async function listUsers(
   actorUserId: number,
   projectId: number | null = null,
   pageSize: number = DEFAULT_PAGE_SIZE,
-): Promise<UserRow[]> {
-  const rows = await execProc<UserRow>("usp_User_List", {
+): Promise<{ rows: UserRow[]; totalCount: number }> {
+  // The proc appends TotalCount to every row; the row schema strips it.
+  const rows = await execProc<UserRow & { TotalCount: number }>("usp_User_List", {
     ActorUserId: actorUserId,
     ProjectId: projectId,
     ...toProcListParams(params, pageSize),
   });
-  return rows.map((r) => userRowSchema.parse(r));
+  return {
+    rows: rows.map((r) => userRowSchema.parse(r)),
+    totalCount: Number(rows[0]?.TotalCount ?? 0),
+  };
 }
 
 export async function createUser(input: CreateUserInput, actorUserId: number): Promise<UserRow> {
@@ -63,6 +67,31 @@ export async function createUser(input: CreateUserInput, actorUserId: number): P
     Email: parsed.email ?? null,
     RoleId: parsed.roleId,
     MustChangePassword: parsed.mustChangePassword,
+    ActorUserId: actorUserId,
+  });
+  return userRowSchema.parse(rows[0]);
+}
+
+/** usp_User_Update. MustChangePassword is the stored value: the caller reads it, never a client. */
+export interface UserUpdate {
+  userId: number;
+  displayName: string;
+  email: string | null;
+  roleId: number;
+  isActive: boolean;
+  mustChangePassword: boolean;
+  rowVer: number;
+}
+
+export async function updateUser(update: UserUpdate, actorUserId: number): Promise<UserRow> {
+  const rows = await execProc<UserRow>("usp_User_Update", {
+    UserId: update.userId,
+    DisplayName: update.displayName,
+    Email: update.email,
+    RoleId: update.roleId,
+    IsActive: update.isActive,
+    MustChangePassword: update.mustChangePassword,
+    RowVer: update.rowVer,
     ActorUserId: actorUserId,
   });
   return userRowSchema.parse(rows[0]);

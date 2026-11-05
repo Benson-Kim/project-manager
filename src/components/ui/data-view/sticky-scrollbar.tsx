@@ -95,15 +95,26 @@ export function StickyScrollbar({ targetRef }: { targetRef: React.RefObject<HTML
     // The box resizes with the window; the table resizes when a column does.
     const resize = new ResizeObserver(measure);
     resize.observe(target);
-    if (target.firstElementChild) resize.observe(target.firstElementChild);
+    for (const child of target.children) resize.observe(child);
     // What sits above or below it can change height too, and so can the window.
     resize.observe(document.body);
     window.addEventListener("resize", measure);
+    // A board's lanes are the box's children, so a lane added or removed widens the box's
+    // content without resizing anything already observed.
+    const children = new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) if (node instanceof Element) resize.observe(node);
+        for (const node of record.removedNodes) if (node instanceof Element) resize.unobserve(node);
+      }
+      measure();
+    });
+    children.observe(target, { childList: true });
 
     return () => {
       window.removeEventListener("resize", measure);
       target.removeEventListener("scroll", onTarget);
       proxy.removeEventListener("scroll", onProxy);
+      children.disconnect();
       resize.disconnect();
     };
   }, [targetRef]);

@@ -115,7 +115,7 @@ export default async function QuestionsAnswersPage({
           questionAnswer={selected}
           isNew={isNew && canCreate}
           projectId={projectId}
-          canEdit={canEdit}
+          canEdit={isNew ? canCreate : canEdit}
           canDelete={canDelete}
         />
       </LookupListsScope>

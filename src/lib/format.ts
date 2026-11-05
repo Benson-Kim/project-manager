@@ -14,6 +14,22 @@ export function formatDate(value: Date | string | null | undefined): string {
 }
 
 /**
+ * Format a moment for display: "2026-03-15 09:05", the agreed date format plus a 24-hour time, in
+ * the local time of the process that renders it (the desktop app's server runs on the user's PC).
+ * Empty for null, undefined or invalid, like formatDate.
+ */
+export function formatDateTime(value: Date | string | null | undefined): string {
+  if (value == null) return "";
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+    `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  );
+}
+
+/**
  * A file size for display, in the units Windows Explorer uses (1 KB = 1024
  * bytes): "820 bytes", "14 KB", "2.4 MB". Empty for null/undefined.
  */

@@ -23,8 +23,8 @@ import { projectFormSchema, updateProjectFormSchema } from "../schemas/project-f
 import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
 
 /**
- * The charter workspace form  / ADR-0010 full-route exception):
- * sections Charter, Framework, Financing grouped with plain headings, ONE
+ * The charter workspace form (ADR-0010 full-route exception):
+ * sections Charter, Schedule/phase/progress, Details, Financing grouped with plain headings, ONE
  * submit; blur + submit validation against the same zod schema as the server;
  * CONFLICT surfaces an error summary with a reload affordance; unsaved
  * changes guard the navigation away.
@@ -33,10 +33,13 @@ export function ProjectForm({
   project,
   canEdit,
   canDelete,
+  milestones,
 }: {
   project?: ProjectRow;
   canEdit: boolean;
   canDelete: boolean;
+  /** Shown after the scope: read-only, from the work breakdown. */
+  milestones?: React.ReactNode;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -323,8 +326,24 @@ export function ProjectForm({
           </Field>
         </Panel>
 
-        <Panel id="framework-heading" title={messages.projects.frameworkSection}>
+        {milestones}
+
+        <Panel id="schedule-heading" title={messages.projects.scheduleSection}>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field
+              label={messages.projects.phase}
+              name="projectPhase"
+              errors={form.errors.projectPhase}
+            >
+              <ListSelect
+                list="project.phase"
+                current={project?.ProjectPhase}
+                name="projectPhase"
+                defaultValue={project?.ProjectPhase ?? ""}
+              >
+                <option value="">{messages.projects.none}</option>
+              </ListSelect>
+            </Field>
             <Field
               label={messages.projects.status}
               name="projectStatus"
@@ -340,19 +359,33 @@ export function ProjectForm({
               </ListSelect>
             </Field>
             <Field
-              label={messages.projects.phase}
-              name="projectPhase"
-              errors={form.errors.projectPhase}
+              label={messages.projects.startDate}
+              name="startDate"
+              errors={form.errors.startDate}
             >
-              <ListSelect
-                list="project.phase"
-                current={project?.ProjectPhase}
-                name="projectPhase"
-                defaultValue={project?.ProjectPhase ?? ""}
-              >
-                <option value="">{messages.projects.none}</option>
-              </ListSelect>
+              <DatePicker name="startDate" defaultValue={toDateInput(project?.StartDate)} />
             </Field>
+            <Field label={messages.projects.endDate} name="endDate" errors={form.errors.endDate}>
+              <DatePicker name="endDate" defaultValue={toDateInput(project?.EndDate)} />
+            </Field>
+            <Field
+              label={messages.projects.estimatedCompletion}
+              name="estimatedCompletionDate"
+              errors={form.errors.estimatedCompletionDate}
+            >
+              <DatePicker
+                name="estimatedCompletionDate"
+                defaultValue={toDateInput(project?.EstimatedCompletionDate)}
+              />
+            </Field>
+          </div>
+          <Field label={messages.projects.statusComments} name="projectStatusCom">
+            <Textarea name="projectStatusCom" defaultValue={project?.ProjectStatusCom ?? ""} />
+          </Field>
+        </Panel>
+
+        <Panel id="details-heading" title={messages.projects.detailsSection}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field
               label={messages.projects.priority}
               name="projectPriority"
@@ -382,26 +415,6 @@ export function ProjectForm({
               </ListSelect>
             </Field>
             <Field
-              label={messages.projects.startDate}
-              name="startDate"
-              errors={form.errors.startDate}
-            >
-              <DatePicker name="startDate" defaultValue={toDateInput(project?.StartDate)} />
-            </Field>
-            <Field label={messages.projects.endDate} name="endDate" errors={form.errors.endDate}>
-              <DatePicker name="endDate" defaultValue={toDateInput(project?.EndDate)} />
-            </Field>
-            <Field
-              label={messages.projects.estimatedCompletion}
-              name="estimatedCompletionDate"
-              errors={form.errors.estimatedCompletionDate}
-            >
-              <DatePicker
-                name="estimatedCompletionDate"
-                defaultValue={toDateInput(project?.EstimatedCompletionDate)}
-              />
-            </Field>
-            <Field
               label={messages.projects.existingBusinessModel}
               name="existBusMod"
               errors={form.errors.existBusMod}
@@ -409,9 +422,6 @@ export function ProjectForm({
               <Input name="existBusMod" defaultValue={project?.ExistBusMod ?? ""} />
             </Field>
           </div>
-          <Field label={messages.projects.statusComments} name="projectStatusCom">
-            <Textarea name="projectStatusCom" defaultValue={project?.ProjectStatusCom ?? ""} />
-          </Field>
           <Field label={messages.projects.docs} name="projectDocs">
             <Textarea name="projectDocs" defaultValue={project?.ProjectDocs ?? ""} />
           </Field>

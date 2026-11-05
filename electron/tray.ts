@@ -5,11 +5,14 @@ let tray: Tray | null = null;
 let actions: TrayActions | null = null;
 let appVersion = "";
 let readyVersion: string | null = null;
+let copyOverdue = false;
 
 function refresh(): void {
   if (!tray || !actions) return;
   tray.setContextMenu(
-    Menu.buildFromTemplate(trayMenuTemplate(actions, { version: appVersion, readyVersion })),
+    Menu.buildFromTemplate(
+      trayMenuTemplate(actions, { version: appVersion, readyVersion, copyOverdue }),
+    ),
   );
   tray.setToolTip(
     readyVersion ? `Project Manager — update ${readyVersion} ready` : "Project Manager",
@@ -29,6 +32,13 @@ export function initTray(iconPath: string, trayActions: TrayActions, version: st
 /** Adds (or removes, with null) the "Install update …" item. */
 export function setTrayUpdateReady(version: string | null): void {
   readyVersion = version;
+  refresh();
+}
+
+/** Adds (or removes) "Back up and copy now" while copies are overdue. */
+export function setTrayCopyOverdue(overdue: boolean): void {
+  if (overdue === copyOverdue) return;
+  copyOverdue = overdue;
   refresh();
 }
 

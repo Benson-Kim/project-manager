@@ -13,6 +13,8 @@ export interface NextServerOptions {
    * missing on a PC provisioned before F1 until IT sets it up.
    */
   uploadsDir?: string;
+  /** This PC's backup-status.json, read by Settings > Backup status. */
+  backupStatusFile?: string;
   log: Logger;
   /** Called after an unexpected exit has been recovered (new URL). */
   onRestarted?: (url: string) => void;
@@ -33,7 +35,7 @@ export const SLOW_START_MS = 45_000;
 
 /** The server's environment: loopback only, the machine's database and its folders. */
 export function nextServerEnv(
-  opts: Pick<NextServerOptions, "db" | "authSecret" | "uploadsDir">,
+  opts: Pick<NextServerOptions, "db" | "authSecret" | "uploadsDir" | "backupStatusFile">,
   port: number,
   base: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
@@ -55,6 +57,8 @@ export function nextServerEnv(
     // Without the machine folder, uploads are off until IT sets it up (ADR-0026 §9).
     UPLOADS_ENABLED: opts.uploadsDir ? "true" : "false",
     UPLOADS_DIR: opts.uploadsDir ?? "",
+    // Empty in the web edition, where the backup status page is not offered.
+    BACKUP_STATUS_FILE: opts.backupStatusFile ?? "",
     TRUSTED_PROXY_COUNT: "0",
     NEXT_TELEMETRY_DISABLED: "1",
   };

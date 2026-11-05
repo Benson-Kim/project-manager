@@ -42,12 +42,20 @@ BEGIN
     SELECT TRIM([value]) FROM OPENJSON(@Labels);
 
     -- One AssertLabel per area: it is the single place that decides what a label bound to a
-    -- managed list may be, and it hands back the option's own spelling (ADR-0022).
+    -- managed list may be, and it hands back the option's own spelling (ADR-0022). An area the
+    -- decision already carries passes as @CurrentLabel, so a retired option it still uses survives
+    -- a save of another field.
     DECLARE @Ordinal INT = 1, @Last INT = (SELECT ISNULL(MAX(Ordinal), 0) FROM @Wanted);
+    DECLARE @Label NVARCHAR(255), @Current NVARCHAR(255);
     WHILE @Ordinal <= @Last
     BEGIN
-        DECLARE @Label NVARCHAR(255) = (SELECT Label FROM @Wanted WHERE Ordinal = @Ordinal);
-        EXEC dbo.usp_LookupList_AssertLabel @ListKey = N'decision.impacted-area', @Label = @Label OUTPUT;
+        SET @Label = (SELECT Label FROM @Wanted WHERE Ordinal = @Ordinal);
+        SET @Current = (SELECT TOP (1) a.Label
+                        FROM app.DecisionImpactedArea AS a
+                        WHERE a.DecisionId = @DecisionId AND a.Label = @Label);
+        EXEC dbo.usp_LookupList_AssertLabel
+             @ListKey = N'decision.impacted-area', @Label = @Label OUTPUT,
+             @CurrentLabel = @Current;
         UPDATE @Wanted SET Label = @Label WHERE Ordinal = @Ordinal;
         SET @Ordinal = @Ordinal + 1;
     END

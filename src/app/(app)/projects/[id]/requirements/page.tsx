@@ -130,7 +130,7 @@ export default async function RequirementsPage({
         initialParent={initialParent}
         needOptions={needOptions}
         deliverableOptions={deliverableOptions}
-        canEdit={canEdit}
+        canEdit={isNew ? canCreate : canEdit}
         canDelete={canDelete}
       />
     </>

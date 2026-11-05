@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { trayMenuTemplate, type TrayActions } from "../tray-menu";
+import { describe, expect, it, vi } from "vitest";
+import { COPY_NOW_LABEL, trayMenuTemplate, type TrayActions } from "../tray-menu";
 
 const noop = () => {};
 const base: TrayActions = {
@@ -18,8 +18,8 @@ const everything: TrayActions = {
   setUpAttachments: noop,
 };
 
-const labels = (actions: TrayActions, readyVersion: string | null = null) =>
-  trayMenuTemplate(actions, { version: "1.0.9", readyVersion })
+const labels = (actions: TrayActions, readyVersion: string | null = null, copyOverdue = false) =>
+  trayMenuTemplate(actions, { version: "1.0.9", readyVersion, copyOverdue })
     .map((item) => item.label)
     .filter((label): label is string => Boolean(label));
 
@@ -40,6 +40,22 @@ describe("trayMenuTemplate", () => {
     expect(labels(base, "1.0.10").some((l) => /update/i.test(l))).toBe(false);
     expect(labels(everything)).toContain("Check for updates");
     expect(labels(everything).some((l) => l.startsWith("Install update"))).toBe(false);
+  });
+
+  it("offers to back up and copy first, after a ready update, only while copies are overdue", () => {
+    expect(labels(everything)).not.toContain(COPY_NOW_LABEL);
+    expect(labels(base, null, true)[0]).toBe(COPY_NOW_LABEL);
+    expect(labels(everything, "1.0.10", true).slice(0, 2)).toEqual([
+      "Install update 1.0.10 (restarts the app)",
+      COPY_NOW_LABEL,
+    ]);
+    const backupNow = vi.fn();
+    const item = trayMenuTemplate(
+      { ...base, backupNow },
+      { version: "1.0.9", readyVersion: null, copyOverdue: true },
+    )[0]!;
+    (item.click as () => void)();
+    expect(backupNow).toHaveBeenCalledOnce();
   });
 
   it("offers the attachments setup only while it is needed", () => {

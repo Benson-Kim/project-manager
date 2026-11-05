@@ -94,7 +94,7 @@ export default async function ObjectivesPage({
         objective={selected}
         isNew={isNew && canCreate}
         projectId={projectId}
-        canEdit={canEdit}
+        canEdit={isNew ? canCreate : canEdit}
         canDelete={canDelete}
       />
     </>

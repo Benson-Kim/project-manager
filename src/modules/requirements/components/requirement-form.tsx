@@ -28,6 +28,7 @@ import {
   deleteConsequence,
   parentText,
   pickedOptions,
+  promoteConsequence,
   refsText,
   typeBlockedReason,
 } from "./register-model";
@@ -54,9 +55,10 @@ const removeFrom = (set: Picked) => (id: number) => set((prev) => prev.filter((p
  * refuses the others with a message the action wrapper hides).
  *
  * A sub-requirement's type is its parent's (ADR-0048), so for one of those the select is replaced
- * by the type as text and the parent is named above it. There is no parent picker: re-parenting is
- * a second feature and the client did not ask for it, so parentage is set once, when the row is
- * created, and the tree can never grow a cycle.
+ * by the type as text and the parent is named above it. There is no parent picker: parentage is set
+ * when the row is created, and the only later move is "Move up and delete", which takes a deleted
+ * parent's sub-requirements to its own parent, an ancestor of each, so the tree can never grow a
+ * cycle.
  */
 export function RequirementForm({
   requirement,
@@ -114,11 +116,12 @@ export function RequirementForm({
       form,
       createAction: createRequirementAction,
       updateAction: updateRequirementAction,
-      deleteAction: () =>
+      deleteAction: (promoteChildren: boolean) =>
         requirement
           ? deleteRequirementAction({
               requirementId: requirement.RequirementId,
               rowVer: requirement.RowVer,
+              promoteChildren,
             })
           : Promise.resolve({
               ok: false as const,
@@ -136,6 +139,13 @@ export function RequirementForm({
   const inheritsType = initialParent !== null || (requirement?.Depth ?? 0) > 0;
   const parentLine = requirement ? parentText(requirement) : null;
   const deleteBlocked = requirement ? deleteBlockedReason(requirement) : null;
+  // The client's choice: a parent's delete is refused unless the user asks for its
+  // sub-requirements to move up a level, which the same confirm dialog then spells out.
+  const [promote, setPromote] = useState(false);
+  const askDelete = (moveUp: boolean) => {
+    setPromote(moveUp);
+    setConfirmDelete(true);
+  };
 
   return (
     <form
@@ -264,15 +274,25 @@ export function RequirementForm({
             type="button"
             variant="danger"
             data-testid="requirement-delete"
-            onClick={() => setConfirmDelete(true)}
+            onClick={() => askDelete(false)}
           >
             {messages.actions.delete}
           </Button>
         ) : null}
         {requirement && canDelete && deleteBlocked !== null ? (
-          <p className="text-sm text-ink-muted" data-testid="requirement-delete-blocked">
-            {deleteBlocked}
-          </p>
+          <>
+            <p className="text-sm text-ink-muted" data-testid="requirement-delete-blocked">
+              {deleteBlocked}
+            </p>
+            <Button
+              type="button"
+              variant="danger"
+              data-testid="requirement-promote-delete"
+              onClick={() => askDelete(true)}
+            >
+              {M.promoteAndDelete}
+            </Button>
+          </>
         ) : null}
       </div>
 
@@ -281,9 +301,9 @@ export function RequirementForm({
           open={confirmDelete}
           onOpenChange={setConfirmDelete}
           title={M.deleteTitle(requirement.Ref)}
-          body={deleteConsequence(requirement)}
-          confirmLabel={messages.actions.delete}
-          onConfirm={onDelete}
+          body={promote ? promoteConsequence(requirement) : deleteConsequence(requirement)}
+          confirmLabel={promote ? M.promoteAndDelete : messages.actions.delete}
+          onConfirm={() => onDelete(promote)}
           pending={pending}
         />
       ) : null}

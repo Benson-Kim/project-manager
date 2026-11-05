@@ -96,7 +96,14 @@ describe("milestoneStrip", () => {
       milestone(3, null, "2026-03-01", { status: "Cancelled" }),
       milestone(4, null, "2026-03-01", { status: "In Progress" }),
     ]);
-    const state = new Map(milestoneStrip(wbs, today).map((chip) => [chip.id, chip.state]));
+    const chips = milestoneStrip(wbs, today);
+    expect(chips.map((chip) => [chip.id, chip.status])).toEqual([
+      [2, "Completed"],
+      [3, "Cancelled"],
+      [4, "In Progress"],
+      [1, null],
+    ]);
+    const state = new Map(chips.map((chip) => [chip.id, chip.state]));
     expect([state.get(1), state.get(2), state.get(3)]).toEqual([
       "upcoming",
       "upcoming",

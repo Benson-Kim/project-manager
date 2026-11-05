@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
+import { LOCAL_WALL_CLOCK } from "@/lib/local-time";
 import { listValue, type LookupListKey } from "@/lib/lookup-lists";
 import { alertTimeSchema, rowVerSchema } from "./todo-alert";
 
@@ -56,11 +57,37 @@ export type TodoItemRow = z.infer<typeof todoItemRowSchema>;
 export const todoItemListRowSchema = todoItemRowSchema.extend({
   /** The project's name — the cross-project datasheet's Project column (null: personal). */
   ProjectName: z.string().nullable(),
+  /** The to-do has a repeat rule (ADR-0059): the list shows a "Repeats" badge. */
+  Repeats: z.boolean().default(false),
   TotalCount: z.number().int(),
   ...actorAccessFields,
 });
 
-export type TodoItemListRow = z.infer<typeof todoItemListRowSchema>;
+/** Where a repeating to-do's next open occurrence falls (ADR-0059 decision 5). */
+export interface NextOccurrence {
+  StartDate: Date;
+  DueDate: Date | null;
+}
+
+export type TodoItemListRow = z.infer<typeof todoItemListRowSchema> & {
+  /** A series' next open occurrence; null when none is left, or for a to-do that does not repeat. */
+  Next: NextOccurrence | null;
+};
+
+/**
+ * The dates the list shows and judges a to-do on: a repeating one's next open occurrence, so a
+ * daily series is not overdue for ever on its first day, or none once nothing is left open.
+ */
+export function listedDates(
+  row: Pick<TodoItemListRow, "Repeats" | "Next" | "StartDate" | "DueDate" | "Status">,
+): { StartDate: Date | null; DueDate: Date | null; Status: string | null } {
+  const dates = row.Repeats ? row.Next : row;
+  return {
+    StartDate: dates?.StartDate ?? null,
+    DueDate: dates?.DueDate ?? null,
+    Status: row.Status,
+  };
+}
 
 export const createTodoItemInput = z.object({
   projectId: z.number().int().positive().nullish(),
@@ -89,6 +116,8 @@ export type CreateTodoItemParsed = z.infer<typeof createTodoItemInput>;
 export const updateTodoItemInput = createTodoItemInput.extend({
   todoItemId: z.number().int().positive(),
   rowVer: rowVerSchema,
+  /** The user's wall clock: which of a series' occurrences are future when its start date moves (ADR-0059). */
+  localNow: z.string().regex(LOCAL_WALL_CLOCK).optional(),
 });
 
 export type UpdateTodoItemInput = z.input<typeof updateTodoItemInput>;
@@ -99,6 +128,11 @@ export const deleteTodoItemInput = z.object({
 });
 
 export type DeleteTodoItemInput = z.input<typeof deleteTodoItemInput>;
+
+/** Completed and Cancelled end a to-do, or one occurrence of a series. */
+export function isClosedStatus(status: string | null): boolean {
+  return status === "Completed" || status === "Cancelled";
+}
 
 /**
  * Pure business-rule helper — mirrors Access qryUpcomingAlerts IIf chain.
@@ -112,7 +146,7 @@ export type DeleteTodoItemInput = z.input<typeof deleteTodoItemInput>;
 export function isOverdue(row: { DueDate: Date | null; Status: string | null }): boolean {
   if (!row.DueDate) return false;
   // "In Review" is intentionally NOT excluded — still an active/alertable state per qryUpcomingAlerts
-  if (row.Status === "Completed" || row.Status === "Cancelled") return false;
+  if (isClosedStatus(row.Status)) return false;
   // Compare UTC calendar dates to match the proc: CAST(SYSUTCDATETIME() AS DATE).
   const todayUtc = new Date();
   todayUtc.setUTCHours(0, 0, 0, 0);
@@ -121,24 +155,38 @@ export function isOverdue(row: { DueDate: Date | null; Status: string | null }):
   return dueUtc < todayUtc;
 }
 
+/** The "Due soon" window a user may choose (app.UserPreference.DueSoonDays, migration 059). */
+export const DUE_SOON_DAY_OPTIONS = [1, 2, 3, 5, 7, 14] as const;
+export const DEFAULT_DUE_SOON_DAYS = 2;
+
+export const dueSoonDaysInput = z.object({
+  dueSoonDays: z.coerce
+    .number()
+    .int()
+    .refine((days) => (DUE_SOON_DAY_OPTIONS as readonly number[]).includes(days)),
+});
+
 /**
- * Approaching deadline = DueDate is within the next 2 UTC calendar days AND not already overdue.
- * Mirrors the Access qryUpcomingAlerts DATEADD(DAY, -2, DueDate) <= @Today tier.
+ * Approaching deadline = DueDate is within the next `dueSoonDays` UTC calendar days AND not
+ * already overdue. Mirrors usp_Todo_GetUpcomingAlerts' DATEADD(DAY, -@DueSoonDays, DueDate) tier.
  */
-export function isApproachingDeadline(row: {
-  DueDate: Date | null;
-  Status: string | null;
-}): boolean {
+export function isApproachingDeadline(
+  row: {
+    DueDate: Date | null;
+    Status: string | null;
+  },
+  dueSoonDays: number = DEFAULT_DUE_SOON_DAYS,
+): boolean {
   if (!row.DueDate) return false;
-  if (row.Status === "Completed" || row.Status === "Cancelled") return false;
+  if (isClosedStatus(row.Status)) return false;
   if (isOverdue(row)) return false;
   const todayUtc = new Date();
   todayUtc.setUTCHours(0, 0, 0, 0);
-  const twoDaysFromNow = new Date(todayUtc);
-  twoDaysFromNow.setUTCDate(twoDaysFromNow.getUTCDate() + 2);
+  const windowEnd = new Date(todayUtc);
+  windowEnd.setUTCDate(windowEnd.getUTCDate() + dueSoonDays);
   const dueUtc = new Date(row.DueDate);
   dueUtc.setUTCHours(0, 0, 0, 0);
-  return dueUtc <= twoDaysFromNow;
+  return dueUtc <= windowEnd;
 }
 
 /**

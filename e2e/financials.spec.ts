@@ -80,6 +80,50 @@ test("create financials from the default template", async ({ page }) => {
   await axe(page);
 });
 
+test("quick calculator: works out a sum over the page and leaves the page usable", async ({
+  page,
+}) => {
+  const Q = M.quickCalculator;
+  await page.goto(view("budget"));
+  // The calculator opens down to the bottom right, under any persistent alarm.
+  await closeAlarmToast(page);
+  const trigger = page.getByTestId("quick-calculator");
+  await trigger.click();
+  const panel = page.getByTestId("quick-calculator-panel");
+  const sum = panel.getByLabel(Q.sum);
+  const result = panel.getByTestId("quick-calculator-result");
+  await expect(sum).toBeFocused();
+  await sum.fill("1,200 * 3 + 16%");
+  await expect(result).toHaveText(Q.result("4,176"));
+  await axe(page);
+
+  // Non-modal: the sheet stays usable and the calculator stays open.
+  const cell = lineCell(page, "2023-2024", "Project management");
+  await cell.click();
+  await expect(cell).toBeFocused();
+  await expect(panel).toBeVisible();
+
+  await sum.press("Enter");
+  await expect(sum).toHaveValue("4176");
+  await panel.getByRole("button", { name: "÷", exact: true }).click();
+  await panel.getByRole("button", { name: "0", exact: true }).click();
+  await expect(sum).toHaveValue("4176÷0");
+  await expect(result).toHaveText(Q.divideByZero);
+  await sum.fill("2 +* 3");
+  await expect(result).toHaveText(Q.invalid);
+  await sum.fill("(2 + 3) * 4");
+  await panel.getByRole("button", { name: Q.equals }).click();
+  await expect(sum).toHaveValue("20");
+
+  await sum.press("Escape");
+  await expect(panel).toBeHidden();
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await expect(panel.getByLabel(Q.sum)).toHaveValue("20");
+  await panel.getByRole("button", { name: Q.close }).click();
+  await expect(panel).toBeHidden();
+});
+
 test("budget a recurrent line in its cells: tax per cell, escalation, totals", async ({ page }) => {
   await page.goto(view("budget"));
   const name = "Project management";

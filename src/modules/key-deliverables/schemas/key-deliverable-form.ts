@@ -22,6 +22,9 @@ import type { KeyDeliverableRow } from "./key-deliverable";
  * row 67) and the deadline may not come before it. Where the item sits in the
  * breakdown is the WBS editor's business, not this form's. No colour field: it
  * follows the status (ADR-0036).
+ *
+ * actualDate (migration 055) goes back on every save: usp_KeyDeliverable_Update writes the
+ * column each time, so a form without it would blank a date set in the WBS editor.
  */
 const dateInput = z
   .string()
@@ -51,6 +54,7 @@ const keyDeliverableFields = z.object({
   requestedDate: dateInput,
   startDate: requiredDateInput,
   deadline: dateInput,
+  actualDate: dateInput,
   /** FormData submits repeating fields as string[]. May arrive as a single string too.
    *  Each entry is validated by assigneeIdEntry here so that a malformed value
    *  produces a safeParse failure rather than a thrown ZodError from inside a transform. */
@@ -92,6 +96,7 @@ function toDeliverableInput(raw: z.output<typeof keyDeliverableFields>) {
     requestedDate: raw.requestedDate,
     startDate: raw.startDate,
     deadline: raw.deadline,
+    actualDate: raw.actualDate,
     assigneeIds: assigneeIds.length > 0 ? assigneeIds : null,
     priority: raw.priority,
     status: raw.status,
@@ -127,6 +132,7 @@ export function deliverableFormValues(row: KeyDeliverableRow): FormValues {
     requestedDate: toDateInput(row.RequestedDate),
     startDate: toDateInput(row.StartDate),
     deadline: toDateInput(row.Deadline),
+    actualDate: toDateInput(row.ActualDate),
     ...storedDates({
       requestedDate: row.RequestedDate,
       startDate: row.StartDate,

@@ -134,7 +134,7 @@ export default async function DailyActivitiesPage({
           uploadsEnabled={uploadsEnabled()}
           isNew={isNew && canCreate}
           projectId={projectId}
-          canEdit={canEdit}
+          canEdit={isNew ? canCreate : canEdit}
           canDelete={canDelete}
           canCreateTodo={canCreateTodo}
         />

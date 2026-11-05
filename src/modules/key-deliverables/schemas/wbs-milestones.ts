@@ -19,6 +19,8 @@ export interface MilestoneChip {
   date: Date | null;
   /** The day it was actually reached, or null while nobody has recorded one. */
   actual: Date | null;
+  /** Its status from the deliverable status list; null when none is set. */
+  status: string | null;
   state: MilestoneState;
   /** `state === "reached"`, so the chart reads one flag for its diamond. */
   reached: boolean;
@@ -45,6 +47,7 @@ export function milestoneStrip(wbs: Wbs, today: Date): MilestoneChip[] {
         name: node.item.name,
         date: node.item.start,
         actual: node.item.actualDate,
+        status: node.item.status,
         state,
         reached: state === "reached",
       };

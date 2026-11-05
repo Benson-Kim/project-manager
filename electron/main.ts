@@ -23,6 +23,13 @@ import {
   type BackupKind,
   type BackupResult,
 } from "./backup";
+import { copyReminder, knownCopyOverdue, reminderDue } from "./backup-reminder";
+import {
+  BACKUP_STATUS_FILE_NAME,
+  readBackupStatus,
+  recordBackup,
+  type BackupStatus,
+} from "./backup-status";
 import { waitForSql } from "./db";
 import { applyDatabaseSchema } from "./db-apply";
 import { createDbWatchdog } from "./db-watchdog";
@@ -46,6 +53,7 @@ import { getServiceState, isListening, runElevatedRepair, startService } from ".
 import {
   destroyTray,
   initTray,
+  setTrayCopyOverdue,
   setTrayUpdateActions,
   setTrayUpdateReady,
   showTrayHint,
@@ -492,18 +500,31 @@ async function setUpAttachmentsAction(): Promise<void> {
 // ---------------------------------------------------------------------------
 // Backups
 
+const backupStatusFile = path.join(app.getPath("userData"), BACKUP_STATUS_FILE_NAME);
+
+/** Every kind of backup goes through here, so the backup status sees each run. */
+async function backupAndRecord(kind: BackupKind, cfg: MachineConfig): Promise<BackupResult> {
+  const copyDir = settings.get().backupCopyDir;
+  try {
+    const result = await backupDatabase(kind, {
+      target: cfg.sql,
+      backupDir: cfg.backupDir,
+      copyDir,
+      uploadsDir: cfg.uploadsDir,
+      log,
+    });
+    await recordBackup(backupStatusFile, kind, { result, copyDir }, log);
+    return result;
+  } catch (err) {
+    await recordBackup(backupStatusFile, kind, { error: err }, log);
+    throw err;
+  }
+}
+
 async function runBackup(kind: BackupKind): Promise<BackupResult> {
   if (!config) throw new Error("Database not ready");
   const cfg = config;
-  return backups.run(() =>
-    backupDatabase(kind, {
-      target: cfg.sql,
-      backupDir: cfg.backupDir,
-      copyDir: settings.get().backupCopyDir,
-      uploadsDir: cfg.uploadsDir,
-      log,
-    }),
-  );
+  return backups.run(() => backupAndRecord(kind, cfg));
 }
 
 async function backupIfDue(): Promise<void> {
@@ -545,6 +566,32 @@ async function backupNowAction(): Promise<void> {
     log.error("[backup] manual backup failed", err);
     await message("error", "Backup failed", "The backup failed.", describeError(err));
   }
+  await refreshCopyOverdue();
+}
+
+let copyRemindedAt: Date | null = null;
+
+/** Keeps the tray's "Back up and copy now" in step with the recorded backup status. */
+async function refreshCopyOverdue(): Promise<BackupStatus | null> {
+  const status = await readBackupStatus(backupStatusFile);
+  setTrayCopyOverdue(knownCopyOverdue(status, new Date()));
+  return status;
+}
+
+/** While nothing reaches the backup copy folder: a Windows notification, at most once a day. */
+async function remindIfCopyOverdue(): Promise<void> {
+  if (quitting) return;
+  const status = await refreshCopyOverdue();
+  const now = new Date();
+  if (!reminderDue(status, copyRemindedAt, now)) return;
+  copyRemindedAt = now;
+  const { title, content } = copyReminder(settings.get().backupCopyDir, status);
+  showTrayNotice(title, content);
+}
+
+async function checkBackups(): Promise<void> {
+  await backupIfDue();
+  await remindIfCopyOverdue();
 }
 
 async function chooseBackupCopyFolder(): Promise<void> {
@@ -585,13 +632,7 @@ async function restoreAction(): Promise<void> {
   const srv = server;
   let filesNote: string | undefined;
   const task = backups.run(async () => {
-    await backupDatabase("pre-restore", {
-      target: cfg.sql,
-      backupDir: cfg.backupDir,
-      copyDir: settings.get().backupCopyDir,
-      uploadsDir: cfg.uploadsDir,
-      log,
-    });
+    await backupAndRecord("pre-restore", cfg);
     await srv.stopAndWait();
     try {
       await restoreDatabase(file, { target: cfg.sql, backupDir: cfg.backupDir, log });
@@ -681,13 +722,7 @@ async function bootstrap(): Promise<void> {
       log,
       backupBeforeMigrations: async () => {
         setSplashStatus("Backing up your data before upgrading…");
-        await backupDatabase("pre-upgrade", {
-          target: cfg.sql,
-          backupDir: cfg.backupDir,
-          copyDir: settings.get().backupCopyDir,
-          uploadsDir: cfg.uploadsDir,
-          log,
-        });
+        await backupAndRecord("pre-upgrade", cfg);
         setSplashStatus("Upgrading the database…");
       },
     });
@@ -700,6 +735,7 @@ async function bootstrap(): Promise<void> {
       db: cfg.sql,
       authSecret: cfg.authSecret,
       uploadsDir: cfg.uploadsDir,
+      backupStatusFile,
       log,
       onRestarted: (url) => mainWindow?.loadURL(url).catch(() => undefined),
       onSlowStart: () =>
@@ -761,8 +797,8 @@ async function bootstrap(): Promise<void> {
       });
     }
 
-    setTimeout(() => void backupIfDue(), 30_000);
-    setInterval(() => void backupIfDue(), BACKUP_CHECK_MS);
+    setTimeout(() => void checkBackups(), 30_000);
+    setInterval(() => void checkBackups(), BACKUP_CHECK_MS);
 
     const watchdog = createDbWatchdog({
       reachable: () => isListening(cfg.sql.host, cfg.sql.port),

@@ -6,7 +6,7 @@ export function PageHeader({ title, action }: { title?: string; action?: React.R
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 py-4">
       <h1 className=" text-base font-medium text-ink">{title}</h1>
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {action ? <div className="max-w-full shrink-0">{action}</div> : null}
     </div>
   );
 }

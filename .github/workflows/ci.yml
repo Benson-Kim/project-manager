@@ -197,6 +197,9 @@ jobs:
           node db/tests/boards-race.cjs
           node db/tests/risk-issue-procs.cjs
           node db/tests/alert-subscription-procs.cjs
+          node db/tests/users-procs.cjs
+          node db/tests/audit-procs.cjs
+          node db/tests/todo-recurrence-procs.cjs
 
   e2e-tests:
     name: Playwright E2E Smoke Tests

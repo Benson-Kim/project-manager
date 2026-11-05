@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { DEFAULT_IDLE_TIMEOUT_MINUTES, isIdleExpired } from "@/lib/auth/idle-timeout";
 
 /**
  * Next.js 16 proxy (formerly middleware): per-request nonce-based CSP + the
  * authentication gate (module #4): unauthenticated requests only reach /login,
  * the Auth.js routes and the PWA manifest — everything else redirects to
  * /login. A request that carried a session cookie which no longer decodes gets
- * /login?reason=expired so the login page announces the expiry politely.
+ * /login?reason=expired so the login page announces the expiry politely; so
+ * does one whose user has been idle past their idle sign-out time.
  * Session integrity (SessionVersion revocation stamp) is enforced per request
  * in src/lib/auth/provider.ts — this gate is routing, not the last defence.
  */
@@ -56,7 +58,17 @@ export async function proxy(request: NextRequest) {
       secret: process.env.AUTH_SECRET,
       secureCookie: request.nextUrl.protocol === "https:",
     });
-    if (!token) {
+    const appToken = token?.appToken as
+      | { mustChangePassword?: boolean; idleTimeoutMinutes?: number; lastActiveAt?: number }
+      | undefined;
+    const idle =
+      !!token &&
+      isIdleExpired(
+        appToken?.lastActiveAt ?? token.iat ?? 0,
+        appToken?.idleTimeoutMinutes ?? DEFAULT_IDLE_TIMEOUT_MINUTES,
+        Math.floor(Date.now() / 1000),
+      );
+    if (!token || idle) {
       const loginUrl = new URL("/login", request.url);
       if (hasSessionCookie(request)) loginUrl.searchParams.set("reason", "expired");
       const redirect = NextResponse.redirect(loginUrl);
@@ -65,7 +77,6 @@ export async function proxy(request: NextRequest) {
       redirect.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
       return redirect;
     }
-    const appToken = token.appToken as { mustChangePassword?: boolean } | undefined;
     if (appToken?.mustChangePassword && pathname !== "/change-password") {
       const changeUrl = new URL("/change-password", request.url);
       const redirect = NextResponse.redirect(changeUrl);

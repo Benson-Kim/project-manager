@@ -72,6 +72,56 @@ test("alert section — configure and save an alert on an existing todo", async 
   ).toBeVisible({ timeout: 15_000 });
 });
 
+test("Due soon follows the window the user picks in Settings", async ({ page }) => {
+  const title = `E2E due soon ${Date.now()}`;
+  const inFiveDays = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
+  const listed = `/projects/2/todos?view=grid&q=${encodeURIComponent(title)}`;
+  const dueSoon = page
+    .getByTestId("data-view-grid")
+    .getByText(`${inFiveDays} — ${messages.todoItems.approachingDeadline}`, { exact: true });
+
+  async function chooseWindow(days: number) {
+    await page.goto("/settings");
+    await closeAlarmToast(page);
+    const setting = page.getByTestId("due-soon-setting");
+    await setting.getByLabel(messages.settings.todos.dueSoon).selectOption(String(days));
+    const save = setting.getByRole("button", { name: messages.actions.save });
+    if (await save.isDisabled()) return;
+    await save.click();
+    await expect(
+      page.getByTestId("toast-success").filter({ hasText: messages.feedback.saved }).first(),
+    ).toBeVisible({ timeout: 15_000 });
+  }
+
+  await page.goto("/projects/2/todos");
+  await closeAlarmToast(page);
+  await page.getByTestId("new-todo-item").click();
+  const form = page.getByTestId("todo-item-form");
+  await form.getByLabel(messages.todoItems.todoItem).fill(title);
+  await form.getByLabel(messages.todoItems.dueDate).fill(inFiveDays);
+  await form.getByLabel(messages.todoItems.status).selectOption("Not Started");
+  await page.getByTestId("todo-item-save").click();
+  await expect(form).toHaveCount(0, { timeout: 15_000 });
+
+  try {
+    await chooseWindow(2);
+    await page.goto(listed);
+    await expectListed(page, title);
+    await expect(dueSoon).toHaveCount(0);
+
+    await chooseWindow(7);
+    const axe = await new AxeBuilder({ page }).include("main").analyze();
+    expect(axe.violations.filter((v) => v.impact === "serious" || v.impact === "critical")).toEqual(
+      [],
+    );
+    await page.goto(listed);
+    await expectListed(page, title);
+    await expect(dueSoon).toBeVisible();
+  } finally {
+    await chooseWindow(2);
+  }
+});
+
 test("status filter narrows the list", async ({ page }) => {
   await page.goto("/projects/2/todos?status=Cancelled");
   await expect(page.getByRole("heading", { name: messages.todoItems.title })).toBeVisible();

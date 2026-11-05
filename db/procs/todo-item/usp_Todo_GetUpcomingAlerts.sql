@@ -1,7 +1,8 @@
 -- usp_Todo_GetUpcomingAlerts — port of Access qryUpcomingAlerts
 -- (docs/source/analysis/access-database.md §5): to-dos that are overdue or due within
--- 2 days, excluding Completed/Cancelled. AlertType mirrors the original IIf chain:
--- Overdue (< today) / Approaching Deadline (due within 2 days) / Normal.
+-- the user's "Due soon" window, excluding Completed/Cancelled. AlertType mirrors the original
+-- IIf chain: Overdue (< today) / Approaching Deadline (due within the window) / Normal.
+-- The window is app.UserPreference.DueSoonDays (migration 059); no row = 2 days, as in Access.
 -- Scoped to @ActorUserId (CreatedBy) so each user sees only their own alerts.
 USE ProjectManager;
 GO
@@ -12,6 +13,8 @@ BEGIN
     SET NOCOUNT ON;
 
     DECLARE @Today DATE = CAST(SYSUTCDATETIME() AS DATE);
+    DECLARE @DueSoonDays INT = COALESCE(
+        (SELECT DueSoonDays FROM app.UserPreference WHERE UserId = @ActorUserId), 2);
 
     SELECT t.TodoItemId,
            t.[TodoItem],
@@ -20,7 +23,7 @@ BEGIN
            t.[Status],
            CASE
                WHEN t.[DueDate] < @Today THEN N'Overdue'
-               WHEN DATEADD(DAY, -2, t.[DueDate]) <= @Today THEN N'Approaching Deadline'
+               WHEN DATEADD(DAY, -@DueSoonDays, t.[DueDate]) <= @Today THEN N'Approaching Deadline'
                ELSE N'Normal'
            END AS AlertType,
            a.TodoAlertId,
@@ -36,7 +39,7 @@ BEGIN
     WHERE t.IsDeleted = 0
       AND t.CreatedBy = @ActorUserId
       AND t.[Status] NOT IN (N'Completed', N'Cancelled')
-      AND (t.[DueDate] < @Today OR DATEADD(DAY, -2, t.[DueDate]) <= @Today)
+      AND (t.[DueDate] < @Today OR DATEADD(DAY, -@DueSoonDays, t.[DueDate]) <= @Today)
     ORDER BY t.[DueDate] ASC, t.TodoItemId ASC;
 END;
 GO

@@ -1,4 +1,5 @@
--- usp_Decision_List — paged/filtered list per ADR-0016. Search columns: Title, Status.
+-- usp_Decision_List — paged/filtered list per ADR-0016. Search columns: Title, Status, and the
+--   reference as the app shows it (DEC-004, messages.decisions.ref).
 --   Sort whitelist: DecisionNumber, Title, DateLogged, Status.
 -- Row-level access: a supplied @ProjectId must be accessible (dbo.usp_Project_AssertAccess ->
 --   FORBIDDEN_ROW 50003); cross-project reads (@ProjectId NULL) return only rows of projects the
@@ -76,7 +77,11 @@ BEGIN
            OR EXISTS (SELECT 1 FROM app.DecisionImpactedArea AS f
                       WHERE f.DecisionId = d.DecisionId AND f.Label = @ImpactedArea))
       AND (@Search IS NULL OR d.[Title] LIKE N'%' + @Search + N'%' ESCAPE N'\'
-           OR d.[Status] LIKE N'%' + @Search + N'%' ESCAPE N'\')
+           OR d.[Status] LIKE N'%' + @Search + N'%' ESCAPE N'\'
+           OR N'DEC-' + CASE WHEN d.DecisionNumber < 100
+                             THEN RIGHT(N'00' + CAST(d.DecisionNumber AS NVARCHAR(10)), 3)
+                             ELSE CAST(d.DecisionNumber AS NVARCHAR(10)) END
+              LIKE N'%' + @Search + N'%' ESCAPE N'\')
       AND (@ProjectId IS NOT NULL OR acc.AccessLevel IS NOT NULL)
     ORDER BY
         CASE WHEN @SortBy = N'DecisionNumber' AND @SortDir = 'asc'  THEN DecisionNumber END ASC,

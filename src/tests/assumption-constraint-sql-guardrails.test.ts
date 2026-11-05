@@ -20,6 +20,7 @@ function sql(path: string): string {
 
 const DIR = "db/procs/assumption-constraint";
 const MIGRATION = "db/migrations/053_assumption_constraint_validated.sql";
+const SYNC = "db/migrations/058_assumption_constraint_validated_sync.sql";
 const WRITES = ["Create", "Update"] as const;
 const READS = ["GetById", "List"] as const;
 
@@ -73,5 +74,33 @@ describe("Validated is the register's value and IsValidated follows it (ADR-0054
     expect(text).not.toMatch(/DROP COLUMN/i);
     // A re-run must not overwrite a value an Admin has since changed.
     expect(text).toContain("WHERE [Validated] IS NULL");
+  });
+});
+
+describe("a release from before 053 cannot leave the label behind the flag (ADR-0054)", () => {
+  const text = sql(SYNC);
+
+  it("syncs on every insert and update that sets the flag", () => {
+    expect(text).toContain("CREATE OR ALTER TRIGGER app.TR_AssumptionConstraint_ValidatedSync");
+    expect(text).toContain("ON app.AssumptionConstraint\nAFTER INSERT, UPDATE\n");
+    expect(text).toContain("SET NOCOUNT ON;");
+    expect(text).toContain("IF NOT UPDATE([IsValidated]) RETURN;");
+  });
+
+  it("touches only a row whose label and flag disagree, the reverse of the derived flag", () => {
+    // Anything wider would rewrite rows the current procs wrote, bumping their RowVer.
+    expect(text).toContain(
+      "WHERE (i.[IsValidated] = 1 AND (i.[Validated] IS NULL OR i.[Validated] <> N'Yes'))\n" +
+        "       OR (i.[IsValidated] = 0 AND i.[Validated] = N'Yes');",
+    );
+    expect(text).toContain(
+      "SET [Validated] = CASE WHEN i.[IsValidated] = 1 THEN N'Yes' ELSE N'No' END",
+    );
+  });
+
+  it("the current procs never write a row it would correct", () => {
+    for (const name of WRITES) {
+      expect(sql(join(DIR, `usp_AssumptionConstraint_${name}.sql`))).toContain(DERIVED);
+    }
   });
 });

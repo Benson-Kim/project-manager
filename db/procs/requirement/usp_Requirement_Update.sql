@@ -9,9 +9,9 @@
 --   * a sub-requirement's type is its parent's, so it has none of its own to change;
 --   * a requirement that still has sub-requirements cannot change type, because every one of their
 --     references carries its letters and would silently become something the client never renamed.
---   Both are checked under the project lock, since both read other rows. Refusing is reversible —
---   the client has been asked whether children should instead follow the parent.
--- Nothing here re-parents a requirement: parentage is usp_Requirement_Create's alone.
+--   Both are checked under the project lock, since both read other rows. The client kept the
+--   refusal; their "move up" choice covers a parent's delete, not its type.
+-- Nothing here re-parents a requirement: only usp_Requirement_Delete moves a deleted row's children.
 -- The rules are checked on the resulting state, after the scalars and both lists are written, so a
 --   save that changes type and links together is judged as a whole. A refusal rolls it all back.
 USE ProjectManager;

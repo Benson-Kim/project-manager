@@ -3,6 +3,7 @@ import Link from "next/link";
 import { auth } from "@/lib/auth/provider";
 import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
+import { getUserPreference } from "@/lib/repositories/user-preference";
 import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNull } from "@/lib/row-access";
 import { formatDate } from "@/lib/format";
@@ -15,6 +16,7 @@ import {
   type TodoListFilters,
 } from "@/modules/todo-items/repository/todo-items";
 import { getTodoAlertByTodoItemId } from "@/modules/todo-items/repository/todo-alerts";
+import { getTodoRecurrence } from "@/modules/todo-items/repository/todo-recurrence";
 import { getTodoPermissions } from "@/modules/todo-items/repository/todo-access";
 import { TODO_ITEM_LISTS, TODO_ITEM_SORT } from "@/modules/todo-items/schemas/todo-item";
 import {
@@ -64,7 +66,7 @@ export default async function GlobalTodoPage({
     withoutProject: projectFilter.kind === "none",
   };
 
-  const [rows, preference, alerts, selected, lookup, personal] = await Promise.all([
+  const [rows, preference, alerts, selected, lookup, personal, userPreference] = await Promise.all([
     listTodoItems(
       effectiveParams,
       session.userId,
@@ -80,13 +82,15 @@ export default async function GlobalTodoPage({
     loadLookupLists(TODO_ITEM_LISTS, session),
     // The new-entry row adds personal, project-less to-dos.
     getTodoPermissions(null, session.userId),
+    getUserPreference(session.userId).catch(() => null),
   ]);
 
-  // Fetch the alert only when a specific todo is selected.
-  const [selectedAlert, allows] = await Promise.all([
+  // Fetch the alert and the repeat rule only when a specific todo is selected.
+  const [selectedAlert, selectedRecurrence, allows] = await Promise.all([
     selected
       ? getTodoAlertByTodoItemId(selected.TodoItemId, session.userId).catch(() => null)
       : null,
+    selected ? getTodoRecurrence(selected.TodoItemId, session.userId).catch(() => null) : null,
     getTodoPermissions(selected, session.userId),
   ]);
 
@@ -141,6 +145,14 @@ export default async function GlobalTodoPage({
                       : messages.todoItems.approachingDeadline}
                   </span>
                   <span>{formatDate(alert.DueDate)}</span>
+                  {alert.AlertDay && !alert.IsDismissed ? (
+                    <span data-testid="upcoming-alert-time">
+                      {messages.todoItems.alertAt(
+                        formatDate(alert.AlertDay),
+                        alert.AlertTime?.slice(0, 5) ?? null,
+                      )}
+                    </span>
+                  ) : null}
                   <Link href={`/todo?id=${alert.TodoItemId}`} className="text-accent">
                     {messages.actions.edit}
                   </Link>
@@ -155,6 +167,7 @@ export default async function GlobalTodoPage({
         <div className="flex flex-col flex-1">
           <TodoView
             rows={rows}
+            dueSoonDays={userPreference?.dueSoonDays}
             totalCount={totalCount}
             page={effectiveParams.page}
             initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}
@@ -172,10 +185,11 @@ export default async function GlobalTodoPage({
         <TodoItemSheet
           todoItem={selected}
           todoAlert={selectedAlert}
+          todoRecurrence={selectedRecurrence}
           isNew={isNew && canCreate}
           projectId={selected?.ProjectId ?? null}
           dailyActivityOptions={[]}
-          canEdit={canEdit}
+          canEdit={isNew ? canCreate : canEdit}
           canDelete={canDelete}
           canCreateAlert={canCreateAlert}
           canUpdateAlert={canUpdateAlert}

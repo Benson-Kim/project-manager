@@ -8,9 +8,14 @@ vi.mock("next-auth", () => {
   class AuthError extends Error {}
   return { AuthError, default: () => ({}) };
 });
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 vi.mock("@/lib/auth/config", () => ({
   signIn: vi.fn(),
   signOut: vi.fn(),
+  updateSession: vi.fn(),
+}));
+vi.mock("@/lib/repositories/user-preference", () => ({
+  setIdleTimeout: vi.fn(),
 }));
 vi.mock("@/lib/auth/provider", () => ({
   auth: { getSession: vi.fn(), requireSession: vi.fn() },
@@ -30,12 +35,13 @@ vi.mock("../repository/users", () => ({
 
 import { AuthError } from "next-auth";
 import { auth as authProvider } from "@/lib/auth/provider";
-import { signIn, signOut } from "@/lib/auth/config";
+import { signIn, signOut, updateSession } from "@/lib/auth/config";
 import { verifyPassword } from "@/lib/auth/password";
 import { AppError, DatabaseUnavailableError } from "@/lib/errors";
 import { messages } from "@/lib/messages";
 import { deactivateAlertSubscriptionsByUser } from "@/modules/todo-items/repository/alert-subscriptions";
-import { changePasswordAction, loginAction, logoutAction } from "../actions";
+import { setIdleTimeout } from "@/lib/repositories/user-preference";
+import { changePasswordAction, loginAction, logoutAction, setIdleTimeoutAction } from "../actions";
 import { auditLogout, getUserByUsername, setPassword } from "../repository/users";
 
 const mockSignIn = vi.mocked(signIn);
@@ -289,5 +295,43 @@ describe("changePasswordAction", () => {
       ok: false,
       error: { code: "INTERNAL", message: messages.errors.INTERNAL },
     });
+  });
+});
+
+describe("setIdleTimeoutAction", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockRequireSession.mockResolvedValue(session);
+  });
+
+  it("saves the time for the signed-in user only, then refreshes the session cookie", async () => {
+    const result = await setIdleTimeoutAction({ idleTimeoutMinutes: 30, userId: 99 });
+    expect(result).toEqual({ ok: true, data: { idleTimeoutMinutes: 30 } });
+    expect(vi.mocked(setIdleTimeout)).toHaveBeenCalledWith(7, 30);
+    expect(vi.mocked(updateSession)).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts Never", async () => {
+    const result = await setIdleTimeoutAction({ idleTimeoutMinutes: 0 });
+    expect(result.ok).toBe(true);
+    expect(vi.mocked(setIdleTimeout)).toHaveBeenCalledWith(7, 0);
+  });
+
+  it("refuses a time that is not offered, and never turns an empty value into Never", async () => {
+    for (const idleTimeoutMinutes of [3, 45, 1441, "0", "", null, undefined]) {
+      const result = await setIdleTimeoutAction({ idleTimeoutMinutes });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("VALIDATION");
+    }
+    expect(vi.mocked(setIdleTimeout)).not.toHaveBeenCalled();
+    expect(vi.mocked(updateSession)).not.toHaveBeenCalled();
+  });
+
+  it("asks a signed-out caller to sign in", async () => {
+    mockRequireSession.mockRejectedValue(new AppError("UNAUTHENTICATED", "Sign in to continue"));
+    const result = await setIdleTimeoutAction({ idleTimeoutMinutes: 30 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("UNAUTHENTICATED");
+    expect(vi.mocked(setIdleTimeout)).not.toHaveBeenCalled();
   });
 });

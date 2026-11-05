@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
 import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
+import { getUserPreference } from "@/lib/repositories/user-preference";
 import { getListPreference } from "@/lib/repositories/view-preference";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { orNotFound, orNull } from "@/lib/row-access";
@@ -17,6 +18,7 @@ import {
   type TodoListFilters,
 } from "@/modules/todo-items/repository/todo-items";
 import { getTodoAlertByTodoItemId } from "@/modules/todo-items/repository/todo-alerts";
+import { getTodoRecurrence } from "@/modules/todo-items/repository/todo-recurrence";
 import { listDailyActivityOptions } from "@/modules/todo-items/repository/daily-activity-options";
 import { parseProjectId } from "../project-id";
 import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
@@ -59,24 +61,29 @@ export default async function TodosPage({
     projectOrActivity: flat.projectOrActivity ?? null,
   };
 
-  const [rows, preference, activityOptions, selectedRaw, allows, lookup] = await Promise.all([
-    orNotFound(listTodoItems(effectiveParams, session.userId, projectId, undefined, filters)),
-    getListPreference(session.userId, "todo-items").catch(() => null),
-    listDailyActivityOptions(projectId, session.userId).catch(() => []),
-    selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? orNull(getTodoItemById(selectedId, session.userId))
-      : null,
-    getProjectPermissions(projectId, session.userId),
-    loadLookupLists(TODO_ITEM_LISTS, session),
-  ]);
+  const [rows, preference, activityOptions, selectedRaw, allows, lookup, userPreference] =
+    await Promise.all([
+      orNotFound(listTodoItems(effectiveParams, session.userId, projectId, undefined, filters)),
+      getListPreference(session.userId, "todo-items").catch(() => null),
+      listDailyActivityOptions(projectId, session.userId).catch(() => []),
+      selectedId && Number.isInteger(selectedId) && selectedId > 0
+        ? orNull(getTodoItemById(selectedId, session.userId))
+        : null,
+      getProjectPermissions(projectId, session.userId),
+      loadLookupLists(TODO_ITEM_LISTS, session),
+      getUserPreference(session.userId).catch(() => null),
+    ]);
 
   // A deep link to a todo from another project is treated as not found.
   const selected = guardProjectScope(selectedRaw, projectId);
 
-  // Fetch the alert only when a specific todo is selected.
-  const selectedAlert = selected
-    ? await getTodoAlertByTodoItemId(selected.TodoItemId, session.userId).catch(() => null)
-    : null;
+  // Fetch the alert and the repeat rule only when a specific todo is selected.
+  const [selectedAlert, selectedRecurrence] = selected
+    ? await Promise.all([
+        getTodoAlertByTodoItemId(selected.TodoItemId, session.userId).catch(() => null),
+        getTodoRecurrence(selected.TodoItemId, session.userId).catch(() => null),
+      ])
+    : [null, null];
 
   const totalCount = rows[0]?.TotalCount ?? 0;
   const canCreate = allows("todo-items:create");
@@ -115,16 +122,18 @@ export default async function TodosPage({
             layout={preference?.layout}
             filtersActive={filtersActive}
             canReorder={canReorder}
+            dueSoonDays={userPreference?.dueSoonDays}
             newTodoAction={canCreate ? newTodoLink : undefined}
           />
         </div>
         <TodoItemSheet
           todoItem={selected}
           todoAlert={selectedAlert}
+          todoRecurrence={selectedRecurrence}
           isNew={isNew && canCreate}
           projectId={projectId}
           dailyActivityOptions={activityOptions}
-          canEdit={canEdit}
+          canEdit={isNew ? canCreate : canEdit}
           canDelete={canDelete}
           canCreateAlert={canCreateAlert}
           canUpdateAlert={canUpdateAlert}

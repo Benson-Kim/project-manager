@@ -6,10 +6,12 @@
 --   Its type is then *inherited*, not chosen — whatever @RequirementType says is replaced by the
 --   parent's, so a child can never drift from the letters its own reference carries. The caller
 --   may leave @RequirementType NULL when it names a parent; a root still has to pick one.
---   The parent must be live and in this project, and four levels is the limit. Both are checked
---   under the project lock, since both read other rows.
---   Parentage is set here and by nothing else: no proc re-parents a requirement, which is what
---   makes a cycle unreachable without a second row to point at (ADR-0048).
+--   The parent must be live and in this project, and @MaxDepth levels is the limit: the client
+--   asked for none, so it is the most ufn_Requirement_AncestorPath walks and its references hold.
+--   Both are checked under the project lock, since both read other rows.
+--   Parentage is set here; the only later move is usp_Requirement_Delete taking a deleted row's
+--   children up to that row's own parent, an ancestor of each, so a cycle stays unreachable
+--   (ADR-0048).
 -- Only a solution type carries a met tick; a need is stored unticked. That is applied after the
 --   type is resolved, so a sub-requirement of a business requirement cannot arrive ticked.
 -- @ValidatesIds / @KeyDeliverableIds are JSON arrays, handled by the Replace helpers inside this
@@ -65,6 +67,7 @@ BEGIN
     IF @ParentRequirementId IS NOT NULL
     BEGIN
         DECLARE @ParentType VARCHAR(3), @ParentDepth INT;
+        DECLARE @MaxDepth INT = 50;
 
         SELECT @ParentType = RequirementType
         FROM app.Requirement
@@ -73,8 +76,8 @@ BEGIN
             THROW 50001, N'NOT_FOUND:Requirement not found', 1;
 
         SELECT @ParentDepth = Depth FROM dbo.ufn_Requirement_AncestorPath(@ParentRequirementId);
-        IF @ParentDepth >= 3
-            THROW 50004, N'VALIDATION:A requirement can only go four levels deep', 1;
+        IF @ParentDepth >= @MaxDepth - 1
+            THROW 50004, N'VALIDATION:A requirement can only go 50 levels deep', 1;
 
         SET @RequirementType = @ParentType;
     END

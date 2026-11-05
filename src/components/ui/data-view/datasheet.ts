@@ -117,14 +117,17 @@ export function formCellSaver<Row, Result>(
 
 /**
  * Key events that belong to a form control, not to the list's row navigation:
- * inputs, buttons, and text being written in a rich-text editor.
+ * inputs, buttons, links, and text being written in a rich-text editor. Enter on a link follows
+ * the link; it must not also open the row the link sits in.
  */
 export function isEditableTarget(
   target: { tagName?: string; isContentEditable?: boolean } | null | undefined,
 ): boolean {
   if (target?.isContentEditable) return true;
   const tag = target?.tagName?.toUpperCase();
-  return tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || tag === "BUTTON";
+  return (
+    tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || tag === "BUTTON" || tag === "A"
+  );
 }
 
 /** The choices a select cell offers, keeping the row's current value visible when it left the list. */

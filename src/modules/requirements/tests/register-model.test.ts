@@ -10,6 +10,7 @@ import {
   newRequirementType,
   parentText,
   pickedOptions,
+  promoteConsequence,
   refCell,
   refsText,
   registerType,
@@ -19,6 +20,7 @@ import {
   typeIsFree,
   type RegisterRow,
 } from "../components/register-model";
+import { MAX_REQUIREMENT_DEPTH } from "../schemas/requirement";
 import type { RequirementType } from "../schemas/requirement-types";
 
 const M = messages.requirements;
@@ -254,14 +256,14 @@ describe("typeCell", () => {
 });
 
 describe("canAddSubRequirement", () => {
-  it("offers another level until the fourth", () => {
+  it("offers another level well past the old four, up to the deepest", () => {
     expect(canAddSubRequirement(row({ Depth: 0 }))).toBe(true);
-    expect(canAddSubRequirement(row({ Depth: 1 }))).toBe(true);
-    expect(canAddSubRequirement(row({ Depth: 2 }))).toBe(true);
+    expect(canAddSubRequirement(row({ Depth: 3 }))).toBe(true);
+    expect(canAddSubRequirement(row({ Depth: MAX_REQUIREMENT_DEPTH - 2 }))).toBe(true);
   });
 
   it("stops at the depth usp_Requirement_Create refuses, rather than letting the save fail", () => {
-    expect(canAddSubRequirement(row({ Depth: 3 }))).toBe(false);
+    expect(canAddSubRequirement(row({ Depth: MAX_REQUIREMENT_DEPTH - 1 }))).toBe(false);
   });
 });
 
@@ -303,5 +305,21 @@ describe("deleteBlockedReason", () => {
 
   it("does not block a childless row", () => {
     expect(deleteBlockedReason(row())).toBeNull();
+  });
+});
+
+describe("promoteConsequence", () => {
+  it("says where the sub-requirements go and that their references change", () => {
+    expect(promoteConsequence(row({ Ref: "FR-1.2", Depth: 1, ChildCount: 3 }))).toBe(
+      M.promoteBody(3, "FR-1"),
+    );
+    expect(M.promoteBody(3, "FR-1")).toContain("under FR-1");
+    expect(M.promoteBody(1, null)).toContain("to the top");
+  });
+
+  it("goes on to name what the parent itself loses", () => {
+    expect(promoteConsequence(row({ Ref: "FR-1", ChildCount: 2, DeliverableIds: [5] }))).toBe(
+      `${M.promoteBody(2, null)} ${M.deleteLeaves(1)}`,
+    );
   });
 });

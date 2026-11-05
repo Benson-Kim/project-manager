@@ -126,7 +126,7 @@ export default async function GlobalDailyActivitiesPage({
           uploadsEnabled={uploadsEnabled()}
           isNew={isNew && canCreate}
           projectId={selected?.ProjectId ?? null}
-          canEdit={canEdit}
+          canEdit={isNew ? canCreate : canEdit}
           canDelete={canDelete}
         />
       </LookupListsScope>

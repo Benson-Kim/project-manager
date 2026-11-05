@@ -217,6 +217,7 @@ export const PROJECT_SORT: ListSort = {
     "StartDate",
     "EndDate",
     "ProjectStatus",
+    "ProjectPhase",
     "ProjectPriority",
     "ProjectManager",
   ],

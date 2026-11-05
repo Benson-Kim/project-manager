@@ -113,12 +113,13 @@ export default async function DecisionsPage({
           />
         </div>
         <DecisionSheet
+          key={selected?.DecisionId ?? (isNew ? "new" : "closed")}
           item={selected}
           isNew={isNew && canCreate}
           projectId={projectId}
           people={people}
           decisionOptions={decisionOptions}
-          canEdit={canEdit}
+          canEdit={isNew ? canCreate : canEdit}
           canDelete={canDelete}
         />
       </LookupListsScope>

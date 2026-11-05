@@ -357,6 +357,21 @@ test("sub-requirements: the register nests them, and the WBS names them the same
   // RefChip beside the text.
   const chipRow = page.locator('li[data-testid^="wbs-req-"]').filter({ hasText: childA });
   await expect(chipRow.first()).toContainText(`${parentRef}.1`, { timeout: 15_000 });
+
+  // The client's other choice: delete the first child and move its own child up a level, after
+  // the numbers already used under the parent (the deleted 1 and childB's 2).
+  await page.goto(`${REGISTER}&q=${encodeURIComponent(childA)}`);
+  await openRow(page, childA);
+  await page.getByTestId("requirement-promote-delete").click();
+  const dialog = page.getByRole("dialog").filter({ hasText: M.promoteBody(1, parentRef) });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: M.promoteAndDelete }).click();
+  await expect(
+    page.getByTestId("toast-success").filter({ hasText: messages.feedback.deleted }).first(),
+  ).toBeVisible({ timeout: 15_000 });
+  await page.goto(`${REGISTER}&q=${encodeURIComponent(grandchild)}`);
+  await expectListed(page, grandchild);
+  expect(await refOf(page, grandchild)).toBe(`${parentRef}.3`);
 });
 
 test("WBS quick add: Meets traces the new requirement to a business need", async ({ page }) => {

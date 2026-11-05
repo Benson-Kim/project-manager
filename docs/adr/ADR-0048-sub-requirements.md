@@ -1,8 +1,8 @@
 # ADR-0048 — Sub-requirements: the register becomes a tree
 
-- **Status:** Accepted for decisions 1–7. **Provisional** for decisions 8 and 9, which are the
-  client's to settle and are implemented as refusals until they do.
-- **Date:** 2026-10-27
+- **Status:** Accepted. Decisions 8 and 9 were provisional until the client settled them on
+  2026-11-04: 8 became a refusal that can move the children up instead, 9 stays a refusal.
+- **Date:** 2026-10-27. **Amended:** 2026-11-04 (decisions 3, 4 and 8, the depth limit).
 - **Supersedes:** nothing. Extends ADR-0037 (the requirement register), ADR-0016 (paged lists) and
   ADR-0046 (the WBS/Gantt surface that also renders a requirement reference). Closes the one
   correction ADR-0047 left open.
@@ -48,7 +48,7 @@ Invariants, and honestly where each one lives:
 | A requirement is not its own parent | `CK_Requirement_NotSelfParent`, table-level (a column CHECK naming a second column is error 8141) | strong |
 | One number per parent | `UX_Requirement_Number` re-keyed to `(ProjectId, RequirementType, ParentRequirementId, Number)` | strong |
 | A child's type equals its parent's | `usp_Requirement_Create`, under the project lock | medium |
-| Depth ≤ 4 levels | `usp_Requirement_Create`, under the project lock | medium |
+| Depth ≤ 50 levels | `usp_Requirement_Create`, under the project lock | medium |
 | No cycles | Unreachable by construction — see decision 3 | n/a |
 
 A composite FK with a NULL column is not checked at all (MATCH SIMPLE), so a root row passes
@@ -85,6 +85,15 @@ asserts no proc but Create assigns the column.
 If re-parenting is ever asked for, this decision is what has to be reopened first, and it will need
 the cycle check this ADR currently does without.
 
+**Amended 2026-11-04.** The client's answer to decision 8 adds one move, and only one:
+`usp_Requirement_Delete` with `@PromoteChildren = 1` takes the deleted row's live children to that
+row's own parent (or to the top level). The new parent is an ancestor of every child it receives,
+so no row can end up under its own descendant and a cycle is still unreachable; the depth only
+shrinks, so the depth walk stays bounded too. The parent is read under the project lock that every
+structure write takes. The guardrail now asserts that no proc but Create and Delete assigns the
+column, and that Delete assigns it only the deleted row's own parent. A user still cannot pick a
+parent; a general move would still reopen this decision.
+
 ### 4. The reference is a recursive walk with exactly one definition
 
 `ufn_Requirement_AncestorPath(@RequirementId)` returns `Ref` (`FR-1.1.1`), `SortPath` and `Depth`,
@@ -98,7 +107,7 @@ number any more**, in SQL or in TypeScript.
 
 Why derived and not stored: the register is paged (ADR-0016, 100 rows), so a child can land on a
 different page from its parent, and the browser cannot assemble a path for a row whose parent it was
-never sent. The walk is one seek per level and the depth is capped at four, so it is bounded
+never sent. The walk is one seek per level and the depth is capped at 50, so it is bounded
 wherever it is applied. Its cost is a bounded walk per row rather than per page; if a very large
 single project ever makes that show, the fix is a stored path behind this same function, which is a
 contained change precisely because there is only one definition.
@@ -147,7 +156,7 @@ why (STANDARDS §5.6) — rather than letting the save fail and explaining after
 and `Ref` contains its parent's reference, so the column would be a third way to ask the same
 question.
 
-### 8. Deleting a parent that still has children is refused — **provisional**
+### 8. Deleting a parent that still has children is refused, unless the user moves them up
 
 Three options were honest: refuse; soft-delete the whole subtree; or promote the children and
 renumber them. Promotion renumbers references the client may already have quoted in a document,
@@ -158,15 +167,23 @@ because it is the one option that is reversible in both directions: refusal can 
 others later without a migration and without having destroyed anything meanwhile, whereas a
 cascade that turns out to be unwanted has already taken the rows.
 
-The client has been asked (`docs/client-feedback-2026-10-26.md`). **This decision is theirs**; it is
-recorded here as provisional so the next session does not re-derive it or mistake it for settled.
+**Settled 2026-11-04.** The client chose "a hybrid option A with the ability to change to option C
+if needed": refusal stays the default, and the refusal offers **Move up and delete**. That deletes
+the row and moves its live children up one level, under its own parent or to the top level, numbered
+after every number already used there (deleted ones counted, as the unique index does) in their old
+order. Their own sub-requirements travel with them, so every reference in the branch changes; the
+confirm dialog says so before anything runs. The soft delete checks the row version first, so a
+stale version moves nothing, and each moved child is audited as an `Update` with its old and new
+parent and number. Subtree deletion was not chosen and is not built.
 
-### 9. Changing a parent's type while it has children is refused — **provisional**
+### 9. Changing a parent's type while it has children is refused — **kept by the client**
 
 Two options: the children's type follows the parent, and every one of their references changes; or
 the change is refused while children exist. **Refusal is implemented**, for the same reversibility
 reason, and because a reference silently becoming something the client never renamed is the failure
 mode they would notice last.
+
+The client's 2026-11-04 answer covered delete only, so this refusal stands.
 
 A **child** has no type of its own to change at all — its type is its parent's — so that is refused
 outright and is not provisional. It follows from the mock-up, not from a choice of ours.
@@ -183,8 +200,11 @@ originals, so a merged-from need keeps its children untouched. That reading was 
   future code that reaches for `Number` to name a row is wrong, and `Ref` is what it wants.
 - The trace picker offers sub-requirements: a sub-BR is a need like any other, and the client's own
   example names `subBR1.1`.
-- Four levels is a limit the client can ask to raise in one constant (`MAX_REQUIREMENT_DEPTH`) and
-  one proc literal, which a guardrail test keeps in step.
+- The client asked for no depth limit (2026-11-04). 50 levels is kept as a hard bound, not a product
+  rule: it is the most `ufn_Requirement_AncestorPath` walks (`Distance < 50`), and its 600-character
+  `Ref` and `SortPath` hold 50 ten-digit numbers and their dots. It lives in one constant
+  (`MAX_REQUIREMENT_DEPTH`) and one proc literal, which a guardrail test keeps in step with the walk
+  bound and the column widths. Going past it means widening both together.
 - `scripts/db-apply.sh` and `electron/db-apply.ts` now apply every `ufn_` before any `usp_`. An
   inline table-valued function is bound when it is created, so one that reads another must meet it
   already there, and folder-then-file order put `ufn_Requirement_AncestorPath` after the
@@ -193,7 +213,7 @@ originals, so a merged-from need keeps its children untouched. That reading was 
 - The WBS/Gantt JSON carries `ref` in place of `number`. That surface was the one ADR-0046 shipped a
   defect on for exactly this reason, so it is asserted in both the Vitest and the proc tests.
 - Depth and type inheritance are proc-level, not constraint-level. Direct SQL can still write a
-  fifth level or a child of a different type. Said plainly here because it is the gap this design
+  51st level or a child of a different type. Said plainly here because it is the gap this design
   accepts.
 
 ## Verification

@@ -6,9 +6,9 @@ import { auth } from "@/lib/auth/provider";
 import { messages } from "@/lib/messages";
 import { orNotFound } from "@/lib/row-access";
 import { financialReport } from "@/modules/financials/calc/report";
-import { PrintButton } from "@/modules/financials/components/print-button";
 import { getFinancialSheet } from "@/modules/financials/repository/financials";
 import { parseProjectId } from "../../../project-id";
+import { PrintButton } from "@/components/ui/print-button";
 
 const M = messages.financials;
 const idSchema = z.coerce.number().int().positive();
@@ -63,7 +63,7 @@ export default async function FinancialPrintPage({
         <Link href={base} className="inline-flex min-h-10 items-center text-sm text-accent">
           {report.title}
         </Link>
-        <PrintButton />
+        <PrintButton label={M.print} testId="print-financial" variant="secondary" />
         <a href={`${base}/pdf`} className="inline-flex min-h-10 items-center text-sm text-accent">
           {M.downloadPdf}
         </a>

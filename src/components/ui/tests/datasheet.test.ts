@@ -50,7 +50,7 @@ const status: CellEditor<Row> = {
 
 describe("datasheet helpers (ADR-0023)", () => {
   it("leaves keys typed into controls to the control, not to row navigation", () => {
-    for (const tagName of ["INPUT", "select", "TEXTAREA", "BUTTON"]) {
+    for (const tagName of ["INPUT", "select", "TEXTAREA", "BUTTON", "A"]) {
       expect(isEditableTarget({ tagName })).toBe(true);
     }
     expect(isEditableTarget({ tagName: "TR" })).toBe(false);

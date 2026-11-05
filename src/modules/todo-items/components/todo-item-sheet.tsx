@@ -34,6 +34,8 @@ import { PROJECT_OR_ACTIVITY, type TodoItemRow } from "../schemas/todo-item";
 import { REPEAT_UNITS, type TodoAlertRow } from "../schemas/todo-alert";
 import { todoItemFormSchema, updateTodoItemFormSchema } from "../schemas/todo-item-form";
 import { todoAlertFormSchema, updateTodoAlertFormSchema } from "../schemas/todo-alert-form";
+import type { TodoRecurrence } from "../schemas/todo-recurrence";
+import { TodoRecurrenceSection } from "./todo-recurrence-section";
 import type { DailyActivityOption } from "../repository/daily-activity-options";
 import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
 
@@ -47,6 +49,7 @@ import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
 export function TodoItemSheet({
   todoItem,
   todoAlert,
+  todoRecurrence,
   isNew,
   projectId,
   dailyActivityOptions,
@@ -58,6 +61,8 @@ export function TodoItemSheet({
 }: {
   todoItem: TodoItemRow | null;
   todoAlert: TodoAlertRow | null;
+  /** How the to-do repeats; null when it does not. The Repeat section reads it. */
+  todoRecurrence: TodoRecurrence | null;
   isNew: boolean;
   projectId: number | null;
   dailyActivityOptions: DailyActivityOption[];
@@ -87,11 +92,13 @@ export function TodoItemSheet({
   const [alertOpen, setAlertOpen] = useState(todoAlert !== null);
   const [itemDirty, setItemDirty] = useState(false);
   const [alertDirty, setAlertDirty] = useState(false);
+  const [repeatDirty, setRepeatDirty] = useState(false);
   const [showUnsaved, setShowUnsaved] = useState(false);
   const itemDirtyRef = useRef(false);
   const alertDirtyRef = useRef(false);
+  const repeatDirtyRef = useRef(false);
   const pendingNavRef = useRef<(() => void) | null>(null);
-  const { markDirty, markClean } = useUnsavedChangesGuard(itemDirty || alertDirty);
+  const { markDirty, markClean } = useUnsavedChangesGuard(itemDirty || alertDirty || repeatDirty);
 
   const open = isNew || todoItem !== null;
   const canSaveAlert = todoAlert ? canUpdateAlert : canCreateAlert;
@@ -104,8 +111,10 @@ export function TodoItemSheet({
   const resetDirty = () => {
     itemDirtyRef.current = false;
     alertDirtyRef.current = false;
+    repeatDirtyRef.current = false;
     setItemDirty(false);
     setAlertDirty(false);
+    setRepeatDirty(false);
     markClean();
   };
 
@@ -131,12 +140,19 @@ export function TodoItemSheet({
   const clearAlertDirty = () => {
     alertDirtyRef.current = false;
     setAlertDirty(false);
-    if (!itemDirtyRef.current) markClean();
+    if (!itemDirtyRef.current && !repeatDirtyRef.current) markClean();
+  };
+
+  const onRepeatDirtyChange = (dirty: boolean) => {
+    repeatDirtyRef.current = dirty;
+    setRepeatDirty(dirty);
+    if (dirty) markDirty();
+    else if (!itemDirtyRef.current && !alertDirtyRef.current) markClean();
   };
 
   useEffect(() => {
     function handleBeforeNavigate(event: Event) {
-      if (!itemDirtyRef.current && !alertDirtyRef.current) return;
+      if (!itemDirtyRef.current && !alertDirtyRef.current && !repeatDirtyRef.current) return;
       event.preventDefault();
       pendingNavRef.current = (event as CustomEvent<{ resume: () => void }>).detail.resume;
       setShowUnsaved(true);
@@ -147,7 +163,7 @@ export function TodoItemSheet({
   }, []);
 
   const requestClose = () => {
-    if (itemDirtyRef.current || alertDirtyRef.current) {
+    if (itemDirtyRef.current || alertDirtyRef.current || repeatDirtyRef.current) {
       pendingNavRef.current = null;
       setShowUnsaved(true);
     } else {
@@ -187,6 +203,7 @@ export function TodoItemSheet({
     setItemSummary(null);
     setItemConflict(false);
     const formData = new FormData(formElement);
+    if (todoItem) formData.set("localNow", localWallClock());
     startItemTransition(async () => {
       const result = todoItem
         ? await updateTodoItemAction(formData)
@@ -630,6 +647,18 @@ export function TodoItemSheet({
               </form>
             ) : null}
           </div>
+        ) : null}
+
+        {todoItem ? (
+          <TodoRecurrenceSection
+            key={todoItem.TodoItemId}
+            todoItemId={todoItem.TodoItemId}
+            rowVer={todoItem.RowVer}
+            startDate={toDateInput(todoItem.StartDate) || null}
+            recurrence={todoRecurrence}
+            canEdit={canEdit}
+            onDirtyChange={onRepeatDirtyChange}
+          />
         ) : null}
 
         {todoItem ? (

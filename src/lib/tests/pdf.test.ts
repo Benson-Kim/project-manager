@@ -73,4 +73,31 @@ describe("the document", () => {
       expect(text.slice(start + Number(m[1]), start + Number(m[1]) + 10)).toBe("\nendstream");
     }
   });
+
+  it("runs a row taller than a page on over the next pages, every line above the footer", () => {
+    const pdf = new PdfWriter({ title: "Long row" });
+    const criteria = Array.from({ length: 700 }, (_, i) => `criterion${i}`).join(" ");
+    pdf.table(
+      [
+        { header: "Ref", width: 60 },
+        { header: "Acceptance criteria", width: 140 },
+      ],
+      [
+        ["FR-1", "short"],
+        ["FR-2", criteria],
+        ["FR-3", "after"],
+      ],
+    );
+    const text = decode(pdf.toBytes());
+    const pages = Number(/\/Count (\d+)/.exec(text)![1]);
+    expect(pages).toBeGreaterThan(2);
+    expect(text.match(/\(Acceptance criteria\) Tj/g)!.length).toBe(pages);
+    const baselines = [...text.matchAll(/\/F[12] 8 Tf [\d.]+ ([\d.-]+) Td/g)].map((m) =>
+      Number(m[1]),
+    );
+    expect(Math.min(...baselines)).toBeGreaterThan(36 + 14);
+    for (const word of ["criterion0", "criterion350", "criterion699", "(after)"]) {
+      expect(text).toContain(word);
+    }
+  });
 });

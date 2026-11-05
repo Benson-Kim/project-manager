@@ -13,13 +13,13 @@ import { requirementTypeSchema, type RequirementType } from "./requirement-types
 export const MAX_REQUIREMENT_LENGTH = 4000;
 
 /**
- * How deep sub-requirements go, FR-1 through FR-1.1.1.1 (ADR-0048). usp_Requirement_Create refuses
- * a fifth level under the project lock; this is the same number for the UI, which stops offering
- * "Add sub-requirement" on the deepest row rather than letting the save fail. The client wrote
- * "normally this does not going for long", so four is a limit they can ask to raise, not a guess
- * at what they need.
+ * How deep sub-requirements go (ADR-0048). The client asked for no limit, so this is not a product
+ * rule but the most levels a reference can carry: ufn_Requirement_AncestorPath walks at most 50
+ * steps up, and its 600-character Ref and SortPath hold 50 ten-digit numbers. usp_Requirement_Create
+ * refuses a deeper one under the project lock with the same number; the UI stops offering
+ * "Add sub-requirement" on the deepest row rather than letting the save fail.
  */
-export const MAX_REQUIREMENT_DEPTH = 4;
+export const MAX_REQUIREMENT_DEPTH = 50;
 
 /** Links or allocations one save may set; usp_Requirement_Replace* refuse more. */
 export const MAX_REQUIREMENT_LINKS = 200;
@@ -127,6 +127,8 @@ export type RequirementOption = z.output<typeof requirementOptionSchema>;
 export const deleteRequirementInput = z.object({
   requirementId: z.coerce.number().int().positive(),
   rowVer: rowVerSchema,
+  /** Move its sub-requirements up one level instead of refusing (ADR-0048). Off unless asked. */
+  promoteChildren: z.boolean().default(false),
 });
 
 export type DeleteRequirementInput = z.output<typeof deleteRequirementInput>;
