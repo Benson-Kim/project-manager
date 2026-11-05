@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 import { expectListed, expectNotListed, openListed } from "./support/datasheet";
+import { waitForRichTextEditors } from "./support/editor";
 
 /**
  * Parking lot module (#18) — project-scoped route /projects/2/parking-lot.
@@ -16,6 +17,7 @@ async function createItem(page: Page, itemText: string) {
   await page.getByTestId("new-parking-lot-item").click();
   const form = page.getByTestId("parking-lot-form");
   await expect(form).toBeVisible();
+  await waitForRichTextEditors(form);
   await form.getByLabel(messages.parkingLot.item).fill(itemText);
   await page.getByTestId("parking-lot-save").click();
   await expect(
@@ -28,6 +30,7 @@ async function openItem(page: Page, itemText: string) {
   await openListed(page, itemText);
   const form = page.getByTestId("parking-lot-form");
   await expect(form).toBeVisible();
+  await waitForRichTextEditors(form);
   return form;
 }
 
