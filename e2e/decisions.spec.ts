@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 import { closeAlarmToast } from "./support/alarms";
 import { escapeRegExp, openListed } from "./support/datasheet";
+import { waitForRichTextEditors } from "./support/editor";
 
 /**
  * Decision log — project-scoped route /projects/2/decisions. Create with impacted areas and
@@ -33,6 +34,7 @@ async function create(page: Page, title: string, dismissAlarms = true): Promise<
   if (dismissAlarms) await closeAlarmToast(page);
   const form = page.getByTestId("decision-form");
   await expect(form).toBeVisible();
+  await waitForRichTextEditors(form);
   await form.getByLabel(M.decisionTitle, { exact: true }).fill(title);
   return form;
 }
@@ -43,6 +45,7 @@ async function open(page: Page, title: string): Promise<{ form: Locator; id: str
   await openListed(page, title);
   const form = page.getByTestId("decision-form");
   await expect(form).toBeVisible();
+  await waitForRichTextEditors(form);
   await expect(form.getByLabel(M.decisionTitle, { exact: true })).toHaveValue(title);
   return { form, id: new URL(page.url()).searchParams.get("id") ?? "" };
 }
