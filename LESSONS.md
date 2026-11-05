@@ -490,3 +490,6 @@ Numbered 35, not 33: when this was written `feature/wbs-requirements` held an un
 - 2026-11-04 PR #54: alarm toasts are announced once per browser session, so waiting for the seeded toast on every navigation breaks settings flows after their first save. Wait for the seeded alarm in the bell's due list with `toBeAttached()` (the panel is hidden), then close any remaining toasts; keep the reload regression in the shell suite.
 
 - 2026-11-04 PR #54: Playwright's default text matcher is case-insensitive and matches substrings, so `getByText("Due soon")` also finds a fixture titled "E2E due soon ...". Assert the exact badge text in an explicit list view; otherwise the negative check fails on the title and the positive check can pass without a badge.
+
+- 2026-11-05 PR #54: the decision Save trace sent no POST while lazy rich-text editors replaced their placeholders and moved the button. Wait for each real editor textbox before acting on a sheet; parking-lot creation had the same race.
+- 2026-11-05 PR #54 (supersedes the 2026-11-04 exact list-view advice): editable date cells render inputs, while grid cards show the due-soon label. Assert the exact dated grid label. Scope record helpers to data-view-grid/data-view-table: a hidden notification can hold the same title and win the first match.
