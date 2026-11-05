@@ -75,8 +75,10 @@ test("alert section — configure and save an alert on an existing todo", async 
 test("Due soon follows the window the user picks in Settings", async ({ page }) => {
   const title = `E2E due soon ${Date.now()}`;
   const inFiveDays = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
-  const listed = `/projects/2/todos?view=list&q=${encodeURIComponent(title)}`;
-  const dueSoon = page.getByText(messages.todoItems.approachingDeadline, { exact: true });
+  const listed = `/projects/2/todos?view=grid&q=${encodeURIComponent(title)}`;
+  const dueSoon = page
+    .getByTestId("data-view-grid")
+    .getByText(`${inFiveDays} — ${messages.todoItems.approachingDeadline}`, { exact: true });
 
   async function chooseWindow(days: number) {
     await page.goto("/settings");
@@ -114,7 +116,7 @@ test("Due soon follows the window the user picks in Settings", async ({ page }) 
     );
     await page.goto(listed);
     await expectListed(page, title);
-    await expect(dueSoon.first()).toBeVisible();
+    await expect(dueSoon).toBeVisible();
   } finally {
     await chooseWindow(2);
   }
