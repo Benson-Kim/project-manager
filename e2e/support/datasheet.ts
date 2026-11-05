@@ -6,16 +6,22 @@ export function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Hidden notification entries can carry the same title as a listed record. */
+function dataViews(page: Page) {
+  return page.getByTestId("data-view-grid").or(page.getByTestId("data-view-table"));
+}
+
 /**
  * A record is listed. Cards and read-only cells show it as text; in a list-view
  * datasheet (ADR-0023) an editable cell holds it as an input value instead, and
  * every cell's accessible name carries the row label ("To-do, Call vendor").
  */
 export async function expectListed(page: Page, text: string): Promise<void> {
+  const view = dataViews(page);
   await expect(
-    page
+    view
       .getByText(text)
-      .or(page.getByRole("textbox", { name: new RegExp(escapeRegExp(text)) }))
+      .or(view.getByRole("textbox", { name: new RegExp(escapeRegExp(text)) }))
       .first(),
   ).toBeVisible();
 }
@@ -26,15 +32,17 @@ export async function expectListed(page: Page, text: string): Promise<void> {
  * so it matches by text too and comes before the button; it is left out.
  */
 export async function openListed(page: Page, text: string): Promise<void> {
-  await page
+  const view = dataViews(page);
+  await view
     .getByRole("button", { name: messages.datasheet.open(text) })
-    .or(page.getByText(text).and(page.locator(":not(textarea)")))
+    .or(view.getByText(text).and(page.locator(":not(textarea)")))
     .first()
     .click();
 }
 
 /** No record shows `text` — neither as text nor as a datasheet cell value. */
 export async function expectNotListed(page: Page, text: string): Promise<void> {
-  await expect(page.getByText(text)).toHaveCount(0);
-  await expect(page.getByRole("textbox", { name: new RegExp(escapeRegExp(text)) })).toHaveCount(0);
+  const view = dataViews(page);
+  await expect(view.getByText(text)).toHaveCount(0);
+  await expect(view.getByRole("textbox", { name: new RegExp(escapeRegExp(text)) })).toHaveCount(0);
 }
