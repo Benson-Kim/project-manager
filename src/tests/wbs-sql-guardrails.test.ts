@@ -219,6 +219,36 @@ describe("work breakdown SQL guardrails", () => {
     }
   });
 
+  /**
+   * The actual date (migration 055): the day a deliverable was really reached, against StartDate,
+   * the day it is aimed at. The client asked for four milestone fields and three already existed —
+   * the name, the target date and the status (a managed list) — so this is one nullable column, and
+   * what has to hold is that every read reports it and both writes take it. Otherwise the strip and
+   * the sheet would offer a date nobody can save, and none of it can be run locally.
+   */
+  it("adds the actual date as one nullable column, with no rule about when it may fall", () => {
+    const migration = sql("db/migrations/055_key_deliverable_actual_date.sql");
+    expect(migration).toContain("ADD [ActualDate] DATETIME2 NULL;");
+    // Early and late are both facts worth recording, so there is no CHECK to refuse either, and
+    // none to fail on apply against the rows that are already there.
+    expect(migration).not.toMatch(/CHECK\s*\(/);
+  });
+
+  it("reports the actual date on every read the app parses, and takes it on both writes", () => {
+    for (const proc of ["GanttData", "List", "GetById", "Create", "Update"]) {
+      expect(sql(`${PROCS}/usp_KeyDeliverable_${proc}.sql`), proc).toMatch(/kd\.\[ActualDate\]/);
+    }
+    for (const proc of ["Create", "Update"]) {
+      expect(params(sql(`${PROCS}/usp_KeyDeliverable_${proc}.sql`)), proc).toMatch(
+        /@ActualDate\s+DATETIME2\s+= NULL,/,
+      );
+    }
+    // Update writes the column on every save, which is why detailsInput always sends it.
+    expect(sql(`${PROCS}/usp_KeyDeliverable_Update.sql`)).toMatch(
+      /\[ActualDate\]\s*=\s*@ActualDate,/,
+    );
+  });
+
   /** Dependencies (ADR-0046 decisions 5-10): the rule lives in the proc and again in the editor. */
   it("allows the same four dependency types in the editor and in the database", () => {
     const migration = sql("db/migrations/044_key_deliverable_dependency.sql");

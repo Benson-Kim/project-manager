@@ -90,6 +90,7 @@ function geometryOf(layout: GanttLayout, open: ReadonlySet<number>, display: Gan
  * packed into lines by their dates. Arrows join dependent cards.
  */
 export function GanttBoard({
+  fullscreen = false,
   scrollRef,
   wbs,
   links,
@@ -103,6 +104,8 @@ export function GanttBoard({
   on,
   tools,
 }: {
+  /** Full screen: the chart fills what is left of the window and scrolls both ways inside it. */
+  fullscreen?: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
   wbs: Wbs;
   links: readonly WbsLink[];
@@ -281,17 +284,27 @@ export function GanttBoard({
     "sticky left-0 z-10 flex shrink-0 gap-1.5 bg-surface pl-3 text-xs font-medium text-ink-muted";
 
   return (
-    <div className="relative">
-      <div className="flow-root overflow-clip rounded-2xl border border-line bg-surface print:overflow-visible print:border-0">
+    <div className={`relative ${fullscreen ? "flex min-h-64 flex-1 flex-col" : ""}`}>
+      <div
+        className={`flow-root overflow-clip rounded-2xl border border-line bg-surface print:overflow-visible print:border-0 ${
+          fullscreen ? "min-h-0 flex-1" : ""
+        }`}
+      >
         {/* The scroll padding keeps a card scrolled into view (by focus or a link) clear of the
-            sticky header and of the floating tools over the foot. */}
+            sticky header and of the floating tools over the foot. In full screen the box takes the room
+            left over and scrolls here rather than the page, so the date row stays in view and both
+            scrollbars are the chart's; the extra --hbar of height hides its own horizontal one. */}
         <div
           ref={scrollRef}
           role="region"
           aria-label={B.label}
           data-testid="gantt-board"
           data-print-fit=""
-          className="relative mb-[calc(var(--hbar,0px)*-1)] max-h-[var(--fit-h,calc(100dvh-16rem))] min-h-64 scroll-pt-10 scroll-pb-20 overflow-auto print:mb-0 print:max-h-none print:overflow-visible"
+          className={`relative mb-[calc(var(--hbar,0px)*-1)] scroll-pt-10 scroll-pb-20 overflow-auto print:mb-0 print:max-h-none print:overflow-visible ${
+            fullscreen
+              ? "h-[calc(100%+var(--hbar,0px))]"
+              : "max-h-[var(--fit-h,calc(100dvh-16rem))] min-h-64"
+          }`}
           onContextMenu={onContextMenu}
           onKeyDown={onKeyDown}
           onBlur={onBlur}

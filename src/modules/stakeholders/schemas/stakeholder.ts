@@ -10,10 +10,15 @@ import { rowVerSchema } from "@/modules/projects/schemas/project";
  * usp_Stakeholder_{Create,GetById,List,Update} exactly.
  */
 
-/** Dropdown lists (req row 70; ADR-0022 — migration 018 replaced the CHECK constraints). */
+/**
+ * Dropdown lists (req row 70; ADR-0022 — migration 018 replaced the CHECK constraints).
+ * The communication plan's two came with migration 054 (BL34).
+ */
 export const STAKEHOLDER_LISTS = [
   "stakeholder.communication-preference",
   "stakeholder.engagement-level",
+  "stakeholder.communication-purpose",
+  "stakeholder.communication-frequency",
 ] as const satisfies readonly LookupListKey[];
 
 export const stakeholderRowSchema = z.object({
@@ -32,6 +37,9 @@ export const stakeholderRowSchema = z.object({
   OrgTitle: z.string().nullable(),
   CommunicationPreference: z.string().nullable(),
   EngagementLevel: z.string().nullable(),
+  CommunicationPurpose: z.string().nullable(),
+  KeyMessageStrategy: z.string().nullable(),
+  CommunicationFrequency: z.string().nullable(),
   AdditionalNotes: z.string().nullable(),
   CreatedAtUtc: z.date(),
   UpdatedAtUtc: z.date().nullable(),
@@ -62,6 +70,9 @@ export const createStakeholderInput = z.object({
   orgTitle: z.string().trim().max(255).nullish(),
   communicationPreference: listValue.nullish(),
   engagementLevel: listValue.nullish(),
+  communicationPurpose: listValue.nullish(),
+  keyMessageStrategy: z.string().nullish(),
+  communicationFrequency: listValue.nullish(),
   additionalNotes: z.string().nullish(),
 });
 

@@ -963,6 +963,66 @@ test("WBS: a milestone is added as one day, converted either way, moved but not 
   await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
 });
 
+/**
+ * The strip used to call a milestone reached once its own day had gone by, so a slip could never
+ * be seen. Only a recorded day does it now, and the chip shows that day with the day it was aimed
+ * at in its label (migration 055).
+ */
+test("WBS: the day a milestone was reached is recorded, shows the slip, and clears again", async ({
+  page,
+}) => {
+  const stamp = Date.now();
+  await page.goto("/projects/2/deliverables/gantt?view=gantt&scale=day");
+  await expect(page.getByTestId("gantt-board")).toBeVisible();
+  await closeAlarmToast(page);
+
+  const gateId = await addInGantt(page, `E2E reached ${stamp}`, "wbs-add-milestone");
+  await expect(page.locator(`[data-wbs-details-name="${gateId}"]`)).toBeVisible();
+  const target = await page.getByTestId("wbs-details-start").inputValue();
+  const happened = plusDays(target, 3);
+
+  // Nobody has said when it happened yet.
+  const actual = page.getByTestId("wbs-details-actual");
+  await expect(actual).toHaveValue("");
+  await actual.fill(happened);
+  await actual.press("Enter");
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+
+  // A fresh load of the WBS: the proc wrote the column and the read reports it back.
+  await page.goto("/projects/2/deliverables/gantt?view=wbs");
+  await expect(page.getByTestId("wbs-diagram")).toBeVisible();
+  const toggle = page.getByTestId("wbs-milestones");
+  await turnOn(toggle);
+  const chip = page.getByTestId(`wbs-milestone-chip-${gateId}`);
+  await expect(chip).toHaveAttribute("data-state", "reached");
+  await expect(chip).toHaveAttribute("data-reached", "true");
+  // The day it happened stands in the chip; the day it was aimed at is in the label.
+  await expect(chip).toContainText(happened);
+  await expect(chip).toHaveAttribute(
+    "title",
+    new RegExp(escapeRegExp(W.milestoneStrip.expected(target))),
+  );
+
+  // Clearing it is "nobody has said yet" again, and the chip reads as the day it is aimed at.
+  await chip.getByRole("button").click();
+  await expect(page.getByTestId("wbs-details-actual")).toHaveValue(happened);
+  await page.getByTestId("wbs-details-actual").fill("");
+  await page.getByTestId("wbs-details-actual").press("Enter");
+  await expect(chip).toHaveAttribute("data-reached", "false");
+  await expect(chip).toContainText(target);
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+
+  // Clean up: with the strip hidden the milestone is a box again, which is what deletes.
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await selectBox(page.getByTestId(`wbs-box-${gateId}`));
+  await page.getByTestId("wbs-delete").click();
+  await page.getByRole("button", { name: W.delete, exact: true }).last().click();
+  await expect(page.getByTestId(`wbs-box-${gateId}`)).toHaveCount(0);
+  await turnOn(toggle);
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+});
+
 test("WBS notes: a paperclip note on a box and the project's note autosave and come back", async ({
   page,
 }) => {

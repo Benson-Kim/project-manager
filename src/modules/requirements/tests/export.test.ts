@@ -111,8 +111,8 @@ describe("requirementCsvRows", () => {
       "Estimate (days)",
       "Owner",
       "Met",
-      "Validates",
-      "Validated by",
+      "Upstream",
+      "Downstream",
       "Coverage",
     ]);
     expect(rows.slice(1).map((r) => r[0])).toEqual(["BR-1", "FR-1", "FR-2"]);

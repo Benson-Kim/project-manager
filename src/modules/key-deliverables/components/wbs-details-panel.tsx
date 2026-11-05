@@ -10,7 +10,7 @@ import { messages } from "@/lib/messages";
 import { StakeholderMultiSelect } from "@/modules/stakeholders/components/stakeholder-picker";
 import type { StakeholderOption } from "@/modules/stakeholders/repository/stakeholder-options";
 import { budgetSchema } from "../schemas/key-deliverable";
-import { DONE_STATUS, type WbsDetailsPatch, type WbsNode } from "../schemas/wbs";
+import { DONE_STATUS, parseDay, type WbsDetailsPatch, type WbsNode } from "../schemas/wbs";
 import { DraftInput } from "./draft-input";
 import { BoxNote } from "./wbs-box-note";
 import { budgetText } from "./wbs-box-meta";
@@ -97,6 +97,13 @@ export function WbsDetailsPanel({
   function commitBudget(raw: string) {
     const parsed = budgetSchema.safeParse(raw);
     if (parsed.success && parsed.data !== item.budget) on.update({ budget: parsed.data });
+  }
+
+  /** A blank clears it; anything that is not a usable day is left as it was. */
+  function commitActual(raw: string) {
+    const next = raw.trim() === "" ? null : parseDay(raw);
+    if (next === null && raw.trim() !== "") return;
+    if (toDateInput(next) !== toDateInput(item.actualDate)) on.update({ actualDate: next });
   }
 
   return (
@@ -206,6 +213,23 @@ export function WbsDetailsPanel({
               value={dates(node.end)}
             />
           </>
+        )}
+
+        {/* The day it really happened. It never rolls up: a summary is reached when
+            somebody says so, not when its sub-items are. */}
+        {canEdit ? (
+          <Labelled label={K.actualDate}>
+            <DraftInput
+              commitOnUnmount
+              type="date"
+              data-testid="wbs-details-actual"
+              value={toDateInput(item.actualDate)}
+              onCommit={commitActual}
+              className={field}
+            />
+          </Labelled>
+        ) : (
+          <ReadOnly label={K.actualDate} value={dates(item.actualDate)} />
         )}
 
         {/* A wrapping <label> would name the first chip's remove button, and a click on the

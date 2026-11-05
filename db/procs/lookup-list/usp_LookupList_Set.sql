@@ -153,12 +153,24 @@ BEGIN
         ELSE IF @ListKey = N'project.risk-level'
             UPDATE t SET [RiskLevel] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
             FROM app.Project t JOIN @Renamed r ON t.[RiskLevel] = r.OldLabel;
+        -- The objectives a project is aligned to are rows rather than a column, so a rename
+        -- reaches them here; the link table carries no audit columns of its own. Two options
+        -- cannot end up sharing a label, so this never collides with the primary key.
+        ELSE IF @ListKey = N'project.objective-alignment'
+            UPDATE t SET [Label] = r.NewLabel
+            FROM app.ProjectObjectiveAlignment t JOIN @Renamed r ON t.[Label] = r.OldLabel;
         ELSE IF @ListKey = N'stakeholder.communication-preference'
             UPDATE t SET [CommunicationPreference] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
             FROM app.Stakeholder t JOIN @Renamed r ON t.[CommunicationPreference] = r.OldLabel;
         ELSE IF @ListKey = N'stakeholder.engagement-level'
             UPDATE t SET [EngagementLevel] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
             FROM app.Stakeholder t JOIN @Renamed r ON t.[EngagementLevel] = r.OldLabel;
+        ELSE IF @ListKey = N'stakeholder.communication-purpose'
+            UPDATE t SET [CommunicationPurpose] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
+            FROM app.Stakeholder t JOIN @Renamed r ON t.[CommunicationPurpose] = r.OldLabel;
+        ELSE IF @ListKey = N'stakeholder.communication-frequency'
+            UPDATE t SET [CommunicationFrequency] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
+            FROM app.Stakeholder t JOIN @Renamed r ON t.[CommunicationFrequency] = r.OldLabel;
         ELSE IF @ListKey = N'supplier.rating'
             UPDATE t SET [Rating] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
             FROM app.Supplier t JOIN @Renamed r ON t.[Rating] = r.OldLabel;
@@ -218,6 +230,12 @@ BEGIN
         ELSE IF @ListKey = N'risk-issue.probability'
             UPDATE t SET [Probability] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
             FROM app.RiskIssue t JOIN @Renamed r ON t.[Probability] = r.OldLabel;
+        ELSE IF @ListKey = N'decision.status'
+            UPDATE t SET [Status] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
+            FROM app.Decision t JOIN @Renamed r ON t.[Status] = r.OldLabel;
+        ELSE IF @ListKey = N'decision.impacted-area'
+            UPDATE t SET [Label] = r.NewLabel
+            FROM app.DecisionImpactedArea t JOIN @Renamed r ON t.[Label] = r.OldLabel;
     END;
 
     -- 5. Move the list's RowVer so a stale editor gets CONFLICT (and set row colouring).

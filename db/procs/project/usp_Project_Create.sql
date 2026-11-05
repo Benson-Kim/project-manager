@@ -3,6 +3,9 @@
 --   ADR-0021) in the same transaction, so they can open what they just created.
 -- Dropdown values (ADR-0022): ProjectStatus, ProjectPriority, ProjectPhase and RiskLevel must be live options of their lists (VALIDATION 50004),
 --   and are stored as listed.
+-- Business case and scope (client updates 2026-11-03): the narrative columns are stored as written.
+--   @ObjectiveAlignment is a JSON array of 'project.objective-alignment' labels, replaced inside this
+--   transaction by dbo.usp_Project_ReplaceObjectiveAlignment, which checks each one against the list.
 -- Entity app.Project (source: tblProjectFramework). Module: database-schema-and-procs (#3).
 USE ProjectManager;
 GO
@@ -39,6 +42,13 @@ CREATE OR ALTER PROCEDURE dbo.usp_Project_Create
     @ProjectStatus NVARCHAR(50) = NULL,
     @ProjectPhase NVARCHAR(50) = NULL,
     @RiskLevel NVARCHAR(50) = NULL,
+    @AlternativeSolutions NVARCHAR(MAX) = NULL,
+    @ExpectedBenefits NVARCHAR(MAX) = NULL,
+    @SuccessMetrics NVARCHAR(MAX) = NULL,
+    @EstimatedRoi NVARCHAR(255) = NULL,
+    @ProjectScope NVARCHAR(MAX) = NULL,
+    @KeyDependencies NVARCHAR(MAX) = NULL,
+    @ObjectiveAlignment NVARCHAR(MAX) = NULL,
     @ActorUserId INT
 AS
 BEGIN
@@ -65,16 +75,20 @@ BEGIN
 
     BEGIN TRAN;
 
-    INSERT INTO app.Project ([ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel], CreatedBy)
-    VALUES (@ProjectName, @ProjectManager, @BusinessAnalyst, @ProjectDocs, @ProjectSponsor, @DateOfProject, @ProblemStatement, @CurrentState, @FutureState, @UserImpact, @Mandate, @ProjectStatusCom, @ExistBusMod, @A1, @DA, @DAS, @PurchaseOrder, @Requisition, @DO, @FinancingSource, @FinancingCost, @RecurrentCost, @PurchaseEquipment, @EquipmentNotes, @StartDate, @EndDate, @SimilarProject, @ProjectPriority, @EstimatedCompletionDate, @ProjectStatus, @ProjectPhase, @RiskLevel, @ActorUserId);
+    INSERT INTO app.Project ([ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel], [AlternativeSolutions], [ExpectedBenefits], [SuccessMetrics], [EstimatedRoi], [ProjectScope], [KeyDependencies], CreatedBy)
+    VALUES (@ProjectName, @ProjectManager, @BusinessAnalyst, @ProjectDocs, @ProjectSponsor, @DateOfProject, @ProblemStatement, @CurrentState, @FutureState, @UserImpact, @Mandate, @ProjectStatusCom, @ExistBusMod, @A1, @DA, @DAS, @PurchaseOrder, @Requisition, @DO, @FinancingSource, @FinancingCost, @RecurrentCost, @PurchaseEquipment, @EquipmentNotes, @StartDate, @EndDate, @SimilarProject, @ProjectPriority, @EstimatedCompletionDate, @ProjectStatus, @ProjectPhase, @RiskLevel, @AlternativeSolutions, @ExpectedBenefits, @SuccessMetrics, @EstimatedRoi, @ProjectScope, @KeyDependencies, @ActorUserId);
 
     DECLARE @Id INT = SCOPE_IDENTITY();
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, AfterJson)
     VALUES (@ActorUserId, N'Create', N'app.Project', CAST(@Id AS NVARCHAR(64)),
-            (SELECT ProjectId, [ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel]
+            (SELECT ProjectId, [ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel], [AlternativeSolutions], [ExpectedBenefits], [SuccessMetrics], [EstimatedRoi], [ProjectScope], [KeyDependencies]
              FROM app.Project WHERE ProjectId = @Id
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
+
+    IF @ObjectiveAlignment IS NOT NULL
+        EXEC dbo.usp_Project_ReplaceObjectiveAlignment
+             @ProjectId = @Id, @Labels = @ObjectiveAlignment, @ActorUserId = @ActorUserId;
 
     IF @ActorRole <> N'Admin'
     BEGIN
@@ -125,6 +139,17 @@ BEGIN
            [ProjectStatus],
            [ProjectPhase],
            [RiskLevel],
+           [AlternativeSolutions],
+           [ExpectedBenefits],
+           [SuccessMetrics],
+           [EstimatedRoi],
+           [ProjectScope],
+           [KeyDependencies],
+           ObjectiveAlignment = (SELECT a.Label AS label
+                                 FROM app.ProjectObjectiveAlignment AS a
+                                 WHERE a.ProjectId = @Id
+                                 ORDER BY a.Label
+                                 FOR JSON PATH),
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer

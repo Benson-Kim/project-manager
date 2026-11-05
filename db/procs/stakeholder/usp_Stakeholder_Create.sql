@@ -1,7 +1,8 @@
 -- usp_Stakeholder_Create — insert one app.Stakeholder row; audits in-transaction; returns the new row.
 -- Actor project-scope: @ActorUserId must be an assignee of @ProjectId (FORBIDDEN_ROW 50003).
 -- Admin bypass: an Admin actor (role read from auth.User) skips the project-scope check (same pattern as Q&A procs).
--- Dropdown values (ADR-0022): CommunicationPreference and EngagementLevel must be live options of their lists (VALIDATION 50004),
+-- Dropdown values (ADR-0022): CommunicationPreference, EngagementLevel, CommunicationPurpose and
+--   CommunicationFrequency must be live options of their lists (VALIDATION 50004),
 --   and are stored as listed.
 -- Entity app.Stakeholder (source: tblStakeholders). Module: stakeholders (#6).
 USE ProjectManager;
@@ -21,6 +22,9 @@ CREATE OR ALTER PROCEDURE dbo.usp_Stakeholder_Create
     @OrgTitle NVARCHAR(255) = NULL,
     @CommunicationPreference NVARCHAR(255) = NULL,
     @EngagementLevel NVARCHAR(255) = NULL,
+    @CommunicationPurpose NVARCHAR(50) = NULL,
+    @KeyMessageStrategy NVARCHAR(MAX) = NULL,
+    @CommunicationFrequency NVARCHAR(50) = NULL,
     @AdditionalNotes NVARCHAR(MAX) = NULL,
     @ActorUserId INT
 AS
@@ -41,17 +45,21 @@ BEGIN
          @ListKey = N'stakeholder.communication-preference', @Label = @CommunicationPreference OUTPUT;
     EXEC dbo.usp_LookupList_AssertLabel
          @ListKey = N'stakeholder.engagement-level', @Label = @EngagementLevel OUTPUT;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'stakeholder.communication-purpose', @Label = @CommunicationPurpose OUTPUT;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'stakeholder.communication-frequency', @Label = @CommunicationFrequency OUTPUT;
 
     BEGIN TRAN;
 
-    INSERT INTO app.Stakeholder ([ProjectId], [FirstName], [LastName], [DepartmentOrganization], [ProjectRole], [RoleDescription], [PhoneNumber], [PhoneExt], [Mobile], [EmailAddress], [PhysicalLocation], [OrgTitle], [CommunicationPreference], [EngagementLevel], [AdditionalNotes], CreatedBy)
-    VALUES (@ProjectId, @FirstName, @LastName, @DepartmentOrganization, @ProjectRole, @RoleDescription, @PhoneNumber, @PhoneExt, @Mobile, @EmailAddress, @PhysicalLocation, @OrgTitle, @CommunicationPreference, @EngagementLevel, @AdditionalNotes, @ActorUserId);
+    INSERT INTO app.Stakeholder ([ProjectId], [FirstName], [LastName], [DepartmentOrganization], [ProjectRole], [RoleDescription], [PhoneNumber], [PhoneExt], [Mobile], [EmailAddress], [PhysicalLocation], [OrgTitle], [CommunicationPreference], [EngagementLevel], [CommunicationPurpose], [KeyMessageStrategy], [CommunicationFrequency], [AdditionalNotes], CreatedBy)
+    VALUES (@ProjectId, @FirstName, @LastName, @DepartmentOrganization, @ProjectRole, @RoleDescription, @PhoneNumber, @PhoneExt, @Mobile, @EmailAddress, @PhysicalLocation, @OrgTitle, @CommunicationPreference, @EngagementLevel, @CommunicationPurpose, @KeyMessageStrategy, @CommunicationFrequency, @AdditionalNotes, @ActorUserId);
 
     DECLARE @Id INT = SCOPE_IDENTITY();
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, AfterJson)
     VALUES (@ActorUserId, N'Create', N'app.Stakeholder', CAST(@Id AS NVARCHAR(64)),
-            (SELECT StakeholderId, [ProjectId], [FirstName], [LastName], [DepartmentOrganization], [ProjectRole], [RoleDescription], [PhoneNumber], [PhoneExt], [Mobile], [EmailAddress], [PhysicalLocation], [OrgTitle], [CommunicationPreference], [EngagementLevel], [AdditionalNotes]
+            (SELECT StakeholderId, [ProjectId], [FirstName], [LastName], [DepartmentOrganization], [ProjectRole], [RoleDescription], [PhoneNumber], [PhoneExt], [Mobile], [EmailAddress], [PhysicalLocation], [OrgTitle], [CommunicationPreference], [EngagementLevel], [CommunicationPurpose], [KeyMessageStrategy], [CommunicationFrequency], [AdditionalNotes]
              FROM app.Stakeholder WHERE StakeholderId = @Id
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
@@ -72,6 +80,9 @@ BEGIN
            [OrgTitle],
            [CommunicationPreference],
            [EngagementLevel],
+           [CommunicationPurpose],
+           [KeyMessageStrategy],
+           [CommunicationFrequency],
            [AdditionalNotes],
            CreatedAtUtc,
            UpdatedAtUtc,

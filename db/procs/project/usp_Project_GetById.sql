@@ -52,6 +52,17 @@ BEGIN
            [ProjectStatus],
            [ProjectPhase],
            [RiskLevel],
+           [AlternativeSolutions],
+           [ExpectedBenefits],
+           [SuccessMetrics],
+           [EstimatedRoi],
+           [ProjectScope],
+           [KeyDependencies],
+           ObjectiveAlignment = (SELECT a.Label AS label
+                                 FROM app.ProjectObjectiveAlignment AS a
+                                 WHERE a.ProjectId = @ProjectId
+                                 ORDER BY a.Label
+                                 FOR JSON PATH),
            PlanNote,
            CreatedAtUtc,
            UpdatedAtUtc,

@@ -61,6 +61,8 @@ export interface WbsItem {
   start: Date | null;
   /** The deadline: the last day of the bar, included. */
   end: Date | null;
+  /** The day it was actually reached (migration 055); null until somebody records it. */
+  actualDate: Date | null;
   status: string | null;
   priority: string | null;
   /** Its own colour (ADR-0052): drawn over the level's on its box; null takes the level's. */
@@ -117,6 +119,15 @@ export function utcDay(date: Date): Date {
 /** Today on the viewer's calendar, as a UTC-midnight date like every stored date. */
 export function todayUtc(now: Date = new Date()): Date {
   return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+}
+
+/** A yyyy-mm-dd from a date field, as a UTC-midnight day; null when not a usable date. */
+export function parseDay(value: string): Date | null {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const day = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  const year = day.getUTCFullYear();
+  return Number.isNaN(day.getTime()) || year < 1900 || year > 2200 ? null : day;
 }
 
 export function addDays(date: Date, days: number): Date {
@@ -489,6 +500,7 @@ export interface WbsDetailsPatch {
   priority?: string | null;
   color?: OptionColor | null;
   budget?: number | null;
+  actualDate?: Date | null;
 }
 
 /** What usp_KeyDeliverable_Update does with a patch, applied to the rows on screen. */
@@ -507,6 +519,7 @@ export function applyDetails(
     if (patch.priority !== undefined) next.priority = patch.priority;
     if (patch.color !== undefined) next.color = patch.color;
     if (patch.budget !== undefined) next.budget = patch.budget;
+    if (patch.actualDate !== undefined) next.actualDate = patch.actualDate;
     return next;
   });
 }
@@ -514,7 +527,9 @@ export function applyDetails(
 /**
  * The whole update usp_KeyDeliverable_Update takes for an item, built from the item as it is now
  * with the patch over it. Name, dates and status go back as they are (a parent's dates are its
- * rolled-up ones, which the proc keeps); colour and budget are sent only when patched.
+ * rolled-up ones, which the proc keeps); colour and budget are sent only when patched. The
+ * actual date always goes back, patched or as it stands, because the proc writes the column
+ * every save and an omitted one would blank it.
  */
 export function detailsInput(item: WbsItem, projectId: number, patch: WbsDetailsPatch) {
   return {
@@ -524,6 +539,7 @@ export function detailsInput(item: WbsItem, projectId: number, patch: WbsDetails
     requestedDate: item.requestedDate,
     startDate: item.start,
     deadline: item.end,
+    actualDate: patch.actualDate !== undefined ? patch.actualDate : item.actualDate,
     assigneeIds: (patch.assignees ?? item.assignees).map((a) => a.id),
     priority: patch.priority !== undefined ? patch.priority : item.priority,
     status: item.status,

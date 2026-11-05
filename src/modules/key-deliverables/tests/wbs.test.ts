@@ -49,6 +49,7 @@ function item(id: number, parentId: number | null, sortOrder: number, more: Part
     requestedDate: null,
     start: null,
     end: null,
+    actualDate: null,
     status: null,
     priority: null,
     color: null,
@@ -595,6 +596,7 @@ describe("requirements and status on screen (ADR-0037)", () => {
       requestedDate: null,
       startDate: start,
       deadline: end,
+      actualDate: null,
       assigneeIds: [3],
       priority: "High",
       status: "In Progress",
@@ -605,6 +607,21 @@ describe("requirements and status on screen (ADR-0037)", () => {
       priority: "Low",
       color: null,
       budget: null,
+    });
+  });
+
+  /** The proc writes the column on every save, so an omitted actual date would blank it. */
+  it("always sends the actual date, patched or as the item has it", () => {
+    const reached = item(8, null, 1, { name: "Roof", actualDate: d("2026-05-02") });
+    expect(detailsInput(reached, 24, { priority: "High" })).toMatchObject({
+      actualDate: d("2026-05-02"),
+    });
+    expect(detailsInput(reached, 24, { actualDate: null })).toMatchObject({ actualDate: null });
+    expect(detailsInput(reached, 24, { actualDate: d("2026-05-09") })).toMatchObject({
+      actualDate: d("2026-05-09"),
+    });
+    expect(applyDetails(rows(), 2, { actualDate: d("2026-05-02") })[1]).toMatchObject({
+      actualDate: d("2026-05-02"),
     });
   });
 

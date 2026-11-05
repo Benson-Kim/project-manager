@@ -19,6 +19,7 @@ const MODULES: Record<string, string> = {
   "board-phase": "boards",
   "board-sprint": "boards",
   "daily-activity": "daily-activities",
+  decision: "decisions",
   "key-deliverable": "key-deliverables",
   "key-deliverable-dependency": "key-deliverables",
   keyword: "keywords",
@@ -140,10 +141,16 @@ const EXEMPT: Record<string, string> = {
     "recomputes parent dates inside the write procs' transaction, after their own access check",
   usp_KeyDeliverable_CascadeDependencies:
     "pushes dependent items inside the write procs' transaction, after their own access check",
+  usp_Project_ReplaceObjectiveAlignment:
+    "replaces a project's strategic objectives inside the project write procs' transaction, after their own access check; it refuses to run outside one",
   usp_Requirement_ReplaceTraces:
     "replaces links inside the requirement write procs' transaction, after their own access check",
   usp_Requirement_ReplaceAllocations:
     "replaces allocations inside the requirement write procs' transaction, after their own access check",
+  usp_Decision_ReplaceImpactedAreas:
+    "replaces the areas a decision affects inside the decision write procs' transaction, after their own access check; it refuses to run outside one",
+  usp_Decision_ReplaceStakeholders:
+    "replaces the people consulted inside the decision write procs' transaction, after their own access check; it refuses to run outside one",
   usp_Board_AssertRoom:
     "checks a column's work-in-progress limit inside the card write procs' transaction, after their own access check; it refuses to run outside one",
   usp_BoardCard_AssertAssignee:

@@ -50,6 +50,9 @@ export const stakeholderFormSchema = z.object({
   /** Managed lists (ADR-0022): the proc checks the value against the live options. */
   communicationPreference: listChoice,
   engagementLevel: listChoice,
+  communicationPurpose: listChoice,
+  communicationFrequency: listChoice,
+  keyMessageStrategy: memo,
   additionalNotes: memo,
 });
 
@@ -81,6 +84,9 @@ export function stakeholderFormValues(row: StakeholderRow): FormValues {
     orgTitle: formText(row.OrgTitle),
     communicationPreference: formText(row.CommunicationPreference),
     engagementLevel: formText(row.EngagementLevel),
+    communicationPurpose: formText(row.CommunicationPurpose),
+    communicationFrequency: formText(row.CommunicationFrequency),
+    keyMessageStrategy: formText(row.KeyMessageStrategy),
     additionalNotes: formText(row.AdditionalNotes),
   };
 }

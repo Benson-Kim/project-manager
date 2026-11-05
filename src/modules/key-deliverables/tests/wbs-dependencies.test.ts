@@ -31,6 +31,7 @@ function item(id: number, parentId: number | null, sortOrder: number, more: Part
     requestedDate: null,
     start: null,
     end: null,
+    actualDate: null,
     status: null,
     priority: null,
     color: null,

@@ -101,6 +101,7 @@ describe("key-deliverables repository", () => {
     expect(params.ProjectId).toBe(24);
     expect(params.RequestedDate).toBeNull();
     expect(params.Deadline).toBeNull();
+    expect(params.ActualDate).toBeNull();
     expect(params.AssigneeIds).toBeNull();
     expect(params.ActorUserId).toBe(7);
     expect(params.StartDate).toBeNull();
@@ -230,6 +231,7 @@ describe("key-deliverables repository", () => {
         requestedDate: null,
         start: new Date("2026-12-01"),
         end: new Date("2026-12-26"),
+        actualDate: null,
         status: "In Progress",
         priority: "Important",
         color: null,
@@ -259,6 +261,17 @@ describe("key-deliverables repository", () => {
         isMilestone: true,
         start: new Date("2026-12-01"),
         end: new Date("2026-12-01"),
+      });
+    });
+
+    // Migration 055: a row from a database before it has no ActualDate at all and must still read
+    // as unrecorded rather than failing the parse.
+    it("reads a row from before migration 055 as unrecorded, and a stored day as reached", async () => {
+      execProc.mockResolvedValue([wbsDbRow()]);
+      expect((await getWbs(24, 7)).items[0]).toMatchObject({ actualDate: null });
+      execProc.mockResolvedValue([wbsDbRow({ ActualDate: new Date("2026-12-04") })]);
+      expect((await getWbs(24, 7)).items[0]).toMatchObject({
+        actualDate: new Date("2026-12-04"),
       });
     });
 
