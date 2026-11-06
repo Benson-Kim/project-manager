@@ -1,4 +1,11 @@
-import { addWorkingDays, duration, toNumber, type NumericInput } from "./project-math";
+import {
+  addWorkingDays,
+  duration,
+  isWeekend,
+  parseDate,
+  toNumber,
+  type NumericInput,
+} from "./project-math";
 
 /**
  * Inverse of the standard normal CDF (Acklam's rational approximation,
@@ -98,7 +105,14 @@ export function estimateConfidence({
     p80: at(0.8),
     p90: at(0.9),
     p95: at(0.95),
-    probability: wanted === null || sigma === 0 ? null : normalCdf((wanted - mean) / sigma) * 100,
+    probability:
+      wanted === null
+        ? null
+        : sigma === 0
+          ? wanted >= mean
+            ? 100
+            : 0
+          : normalCdf((wanted - mean) / sigma) * 100,
   };
 }
 
@@ -134,7 +148,7 @@ export function riskExposure(rows: RiskRow[]): RiskSummary {
   for (const row of rows) {
     const probability = toNumber(row.probability);
     const impact = toNumber(row.impact);
-    if (probability === null || impact === null) {
+    if (probability === null || impact === null || probability < 0 || probability > 100) {
       emvById[row.id] = null;
       continue;
     }
@@ -203,8 +217,11 @@ export function deliveryForecast({
   const sprints = Math.ceil(b / v);
   const weeks = sprints * len;
   const workingDays = weeks * 5;
-  const finish =
-    workingDays > 0 ? addWorkingDays({ start, days: workingDays - 1 }) : { dateMs: null };
+  // The span is inclusive of the start only when work can begin on it: a weekday
+  // start is the first working day, a weekend start pushes day one to Monday.
+  const startMs = parseDate(start);
+  const inclusive = startMs !== null && !isWeekend(startMs) ? workingDays - 1 : workingDays;
+  const finish = workingDays > 0 ? addWorkingDays({ start, days: inclusive }) : { dateMs: null };
 
   let weeksAvailable: number | null = null;
   let requiredVelocity: number | null = null;

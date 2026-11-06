@@ -162,17 +162,7 @@ describe("evaluateExpression, scientific", () => {
     expect(value("3√(4)")).toBe(6);
     expect(value("2(3)^2")).toBe(18);
     expect(value("1 + 2π / π")).toBe(3);
-    for (const junk of [
-      "(2)3",
-      "2π3",
-      "10%5",
-      "2 3",
-      "e2",
-      "sin 30",
-      "sin30",
-      "sin",
-      "√9",
-    ]) {
+    for (const junk of ["(2)3", "2π3", "10%5", "2 3", "e2", "sin 30", "sin30", "sin", "√9"]) {
       expect(error(junk), junk).toBe("invalid");
     }
   });

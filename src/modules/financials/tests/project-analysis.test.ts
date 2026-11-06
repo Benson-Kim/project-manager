@@ -62,6 +62,13 @@ describe("estimateConfidence", () => {
     expect(estimateConfidence({ expected: "", sd: 1.5 })).toBeNull();
     expect(estimateConfidence({ expected: 8.5, sd: "" })).toBeNull();
   });
+
+  it("reports a deterministic probability when the spread is zero", () => {
+    expect(estimateConfidence({ expected: 8, sd: 0, target: 10 })?.probability).toBe(100);
+    expect(estimateConfidence({ expected: 8, sd: 0, target: 8 })?.probability).toBe(100);
+    expect(estimateConfidence({ expected: 8, sd: 0, target: 5 })?.probability).toBe(0);
+    expect(estimateConfidence({ expected: 8, sd: 0 })?.probability).toBeNull();
+  });
 });
 
 describe("riskExposure", () => {
@@ -96,6 +103,18 @@ describe("riskExposure", () => {
     const summary = riskExposure([]);
     expect(summary.net).toBe(0);
     expect(summary.contingency).toBe(0);
+  });
+
+  it("ignores probabilities outside 0-100", () => {
+    const summary = riskExposure([
+      ...rows,
+      { id: 5, label: "Over", probability: "150", impact: "-1000" },
+      { id: 6, label: "Under", probability: "-10", impact: "-1000" },
+    ]);
+    expect(summary.emvById[5]).toBeNull();
+    expect(summary.emvById[6]).toBeNull();
+    expect(summary.counted).toBe(3);
+    expect(summary.net).toBeCloseTo(-8200, 6);
   });
 });
 
@@ -140,6 +159,25 @@ describe("deliveryForecast", () => {
     });
     expect(forecast.sprints).toBeNull();
     expect(forecast.finishMs).toBeNull();
+  });
+
+  it("treats a weekend start as beginning the next working day", () => {
+    // Sat 7 Nov 2026 and Mon 9 Nov 2026 both deliver their first working day on
+    // the Monday, so the forecast must land on the same finish.
+    const saturday = deliveryForecast({
+      velocity: 25,
+      backlog: 130,
+      sprintWeeks: 2,
+      start: "2026-11-07",
+    });
+    const monday = deliveryForecast({
+      velocity: 25,
+      backlog: 130,
+      sprintWeeks: 2,
+      start: "2026-11-09",
+    });
+    expect(saturday.finishMs).not.toBeNull();
+    expect(saturday.finishMs).toBe(monday.finishMs);
   });
 });
 

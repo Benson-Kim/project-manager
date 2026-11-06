@@ -117,7 +117,7 @@ export function summarise(rows: readonly MatrixStakeholder[]): MatrixSummary {
     byQuadrant[quadrantOf(row.power, row.interest)] += 1;
     if (row.stance) {
       byStance[row.stance] += 1;
-      const weight = Math.max(row.power, 1);
+      const weight = row.power;
       weightTotal += weight;
       supportTotal += weight * STANCE_WEIGHT[row.stance];
     }

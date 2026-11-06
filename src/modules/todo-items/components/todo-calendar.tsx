@@ -26,7 +26,13 @@ export function CalendarSwitch({ on }: { on: boolean }) {
       type="button"
       aria-pressed={on}
       data-testid="view-calendar"
-      onClick={() => update(on ? { view: null, month: null } : { view: "calendar" })}
+      onClick={() =>
+        update(
+          on
+            ? { view: null, month: null }
+            : { view: "calendar", q: null, status: null, priority: null, projectOrActivity: null },
+        )
+      }
       className={`inline-flex min-h-11 items-center gap-2 rounded-md border border-line px-3 text-sm ${on ? "bg-accent-soft text-accent" : "text-ink-muted hover:bg-surface-raised"}`}
     >
       <svg

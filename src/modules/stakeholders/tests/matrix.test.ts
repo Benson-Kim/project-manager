@@ -134,6 +134,16 @@ describe("summarise", () => {
     expect(mixed.detractors).toBe(0);
   });
 
+  it("gives a zero-power stakeholder no weight in the index", () => {
+    const summary = summarise([
+      row({ id: 1, stance: "Champion", power: 100, interest: 60 }),
+      row({ id: 2, stance: "Critic", power: 0, interest: 60 }),
+    ]);
+    expect(summary.placed).toBe(2);
+    expect(summary.powerTotal).toBe(100);
+    expect(summary.alignment).toBeCloseTo(100, 6);
+  });
+
   it("handles an empty register", () => {
     const empty = summarise([]);
     expect(empty.total).toBe(0);

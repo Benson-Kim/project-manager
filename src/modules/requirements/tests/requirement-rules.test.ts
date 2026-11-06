@@ -130,9 +130,7 @@ describe("coverageOf", () => {
 
   it("gives a test case no coverage, since nothing validates it", () => {
     expect(coverageFor("TC", [])).toBeNull();
-    expect(coverageFor("FR", [{ isMet: true, status: "Proposed" }])).toBe(
-      coverageFor("FR", []),
-    );
+    expect(coverageFor("FR", [{ isMet: true, status: "Proposed" }])).toBe(coverageFor("FR", []));
     expect(coverageFor("FR", [{ isMet: true }])).toBe("All tests passed");
   });
 });

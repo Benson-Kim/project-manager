@@ -192,7 +192,6 @@ export function RequirementForm({
         <input type="hidden" name="parentRequirementId" value={initialParent.RequirementId} />
       ) : null}
       {requirement ? null : <input type="hidden" name="validatesSet" value="1" />}
-      <input type="hidden" name="deliverablesSet" value="1" />
       {requirement ? (
         <>
           <input type="hidden" name="requirementId" value={requirement.RequirementId} />
@@ -262,18 +261,21 @@ export function RequirementForm({
           </Field>
         ) : null}
         {allowsLink(linkRules, type, "WBS") ? (
-          <Field label={M.deliverables} name="deliverableIds[]">
-            <MultiSelect
-              options={deliverableOptions}
-              selected={deliverables}
-              disabled={!canEdit}
-              inputName="deliverableIds[]"
-              removeLabel={M.removeChip}
-              emptyPlaceholder={M.noDeliverables}
-              onAdd={addTo(setDeliverables)}
-              onRemove={removeFrom(setDeliverables)}
-            />
-          </Field>
+          <>
+            <input type="hidden" name="deliverablesSet" value="1" />
+            <Field label={M.deliverables} name="deliverableIds[]">
+              <MultiSelect
+                options={deliverableOptions}
+                selected={deliverables}
+                disabled={!canEdit}
+                inputName="deliverableIds[]"
+                removeLabel={M.removeChip}
+                emptyPlaceholder={M.noDeliverables}
+                onAdd={addTo(setDeliverables)}
+                onRemove={removeFrom(setDeliverables)}
+              />
+            </Field>
+          </>
         ) : null}
       </fieldset>
 

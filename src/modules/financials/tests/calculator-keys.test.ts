@@ -107,7 +107,8 @@ describe("addToTape", () => {
     let tape = addToTape([], { sum: "1+1", value: 2 });
     tape = addToTape(tape, { sum: "2+2", value: 4 });
     expect(tape.map((entry) => entry.value)).toEqual([4, 2]);
-    for (let index = 0; index < MAX_TAPE + 5; index++) tape = addToTape(tape, { sum: "1", value: 1 });
+    for (let index = 0; index < MAX_TAPE + 5; index++)
+      tape = addToTape(tape, { sum: "1", value: 1 });
     expect(tape).toHaveLength(MAX_TAPE);
   });
 });

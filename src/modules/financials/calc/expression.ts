@@ -100,7 +100,8 @@ export function sumAfterKey(sum: string, key: string, afterEquals: boolean): str
 export function toggleSign(sum: string): string {
   const text = sum.trim();
   if (!text) return "-";
-  if (/^-?[\d.,]+(?:e[+-]?\d+)?$/.test(text)) return text.startsWith("-") ? text.slice(1) : `-${text}`;
+  if (/^-?[\d.,]+(?:e[+-]?\d+)?$/.test(text))
+    return text.startsWith("-") ? text.slice(1) : `-${text}`;
   if (text.startsWith("-(") && closesAtEnd(text.slice(1))) return text.slice(2, -1);
   return `-(${text})`.slice(0, MAX_EXPRESSION_LENGTH);
 }
@@ -123,7 +124,9 @@ export function addToTape(tape: readonly TapeEntry[], entry: TapeEntry): TapeEnt
 }
 
 const EXPONENT = "(?:e[+-]?\\d+)?";
-const NUMBER = new RegExp(`^(?:\\d{1,3}(?:,\\d{3})+|\\d+)(?:\\.\\d*)?${EXPONENT}|^\\.\\d+${EXPONENT}`);
+const NUMBER = new RegExp(
+  `^(?:\\d{1,3}(?:,\\d{3})+|\\d+)(?:\\.\\d*)?${EXPONENT}|^\\.\\d+${EXPONENT}`,
+);
 const PLAIN_NUMBER = new RegExp(`^\\d+(?:\\.\\d*)?${EXPONENT}|^\\.\\d+${EXPONENT}`);
 const NAME = /^(?:[a-z_]+\d*|π|√|∛|τ|φ)/;
 const LETTERS = /^[a-z_]+/;
