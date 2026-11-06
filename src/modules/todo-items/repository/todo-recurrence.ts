@@ -1,7 +1,11 @@
-import { execProc } from "@/lib/db";
+import { execProc, execProcSets } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { parseLocalWallClock } from "@/lib/local-time";
 import {
+  calendarTodoRowSchema,
+  listTodoCalendarInput,
+  type CalendarTodo,
+  type ListTodoCalendarInput,
   clearTodoRecurrenceInput,
   setTodoOccurrenceInput,
   setTodoRecurrenceInput,
@@ -68,6 +72,24 @@ export async function clearTodoRecurrence(
   );
   if (!rows[0]) throw new AppError("NOT_FOUND", "TodoItem not found");
   return { todoItemId: rows[0].TodoItemId, rowVer: Number(rows[0].RowVer) };
+}
+
+/** What a calendar window shows: its to-dos with their rules, and the occurrence rows in it. */
+export async function listTodoCalendar(
+  input: ListTodoCalendarInput,
+  actorUserId: number,
+): Promise<{ todos: CalendarTodo[]; occurrences: TodoOccurrenceRow[] }> {
+  const { projectId, from, to } = listTodoCalendarInput.parse(input);
+  const [todos = [], occurrences = []] = await execProcSets("usp_Todo_ListCalendar", {
+    ActorUserId: actorUserId,
+    ProjectId: projectId,
+    From: from,
+    To: to,
+  });
+  return {
+    todos: todos.map((row) => calendarTodoRowSchema.parse(row)),
+    occurrences: occurrences.map((row) => todoOccurrenceRowSchema.parse(row)),
+  };
 }
 
 /** Marks, moves or skips one occurrence; null once it is back to plain (its row is deleted). */

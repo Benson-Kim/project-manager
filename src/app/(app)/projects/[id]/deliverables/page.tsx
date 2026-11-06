@@ -12,6 +12,7 @@ import { getProjectPermissions } from "@/modules/projects/repository/project-acc
 import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
 import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
 import { DeliverablesView } from "@/modules/key-deliverables/components/deliverables-view";
+import { CanvasLink } from "@/modules/requirements/components/canvas/canvas-link";
 import {
   getKeyDeliverableById,
   listKeyDeliverables,
@@ -96,6 +97,7 @@ export default async function DeliverablesPage({
         action={
           <div className="flex gap-2">
             {ganttLink}
+            <CanvasLink projectId={projectId} />
             {canCreate ? newDeliverableLink : null}
           </div>
         }

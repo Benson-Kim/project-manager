@@ -43,7 +43,7 @@ BEGIN
          @MinLevel = N'Contributor', @Permission = N'requirements:create', @AllowProjectless = 0;
 
     IF @ParentRequirementId IS NULL
-       AND (@RequirementType IS NULL OR @RequirementType NOT IN ('BR', 'SR', 'FR', 'NFR', 'TR'))
+       AND (@RequirementType IS NULL OR @RequirementType NOT IN ('BR', 'SR', 'FR', 'NFR', 'TR', 'TC'))
         THROW 50004, N'VALIDATION:Pick a requirement type', 1;
 
     IF NULLIF(LTRIM(RTRIM(@Requirement)), N'') IS NULL
@@ -82,7 +82,7 @@ BEGIN
         SET @RequirementType = @ParentType;
     END
 
-    IF @RequirementType NOT IN ('FR', 'NFR', 'TR')
+    IF @RequirementType IN ('BR', 'SR')
         SET @IsMet = 0;
 
     DECLARE @Number INT =

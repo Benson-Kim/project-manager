@@ -1,7 +1,7 @@
 import { MOSCOW, type MoSCoW } from "@/modules/requirements/schemas/moscow";
 import {
-  SOLUTION_TYPES,
-  type SolutionType,
+  REQUIREMENT_TYPES,
+  type RequirementType,
 } from "@/modules/requirements/schemas/requirement-types";
 import type { Wbs, WbsItem, WbsRequirement } from "./wbs";
 
@@ -15,11 +15,11 @@ import type { Wbs, WbsItem, WbsRequirement } from "./wbs";
 export type MoscowChip = MoSCoW | "none";
 
 export const MOSCOW_CHIPS: readonly MoscowChip[] = [...MOSCOW, "none"];
-export const TYPE_CHIPS: readonly SolutionType[] = SOLUTION_TYPES;
+export const TYPE_CHIPS: readonly RequirementType[] = REQUIREMENT_TYPES;
 
 export interface WbsFilter {
   text: string;
-  hiddenTypes: ReadonlySet<SolutionType>;
+  hiddenTypes: ReadonlySet<RequirementType>;
   hiddenMoscow: ReadonlySet<MoscowChip>;
 }
 
@@ -30,7 +30,7 @@ export function isFiltering(filter: WbsFilter): boolean {
 }
 
 /** The same filter with one chip turned the other way. */
-export function toggleTypeChip(filter: WbsFilter, type: SolutionType): WbsFilter {
+export function toggleTypeChip(filter: WbsFilter, type: RequirementType): WbsFilter {
   return { ...filter, hiddenTypes: flipped(filter.hiddenTypes, type) };
 }
 
@@ -88,13 +88,13 @@ export function itemRequirementsShown(item: WbsItem, filter: WbsFilter): Set<num
 }
 
 export interface RequirementCounts {
-  types: ReadonlyMap<SolutionType, number>;
+  types: ReadonlyMap<RequirementType, number>;
   moscow: ReadonlyMap<MoscowChip, number>;
 }
 
 /** How many of the requirements carry each type and each MoSCoW code ("none" for no code). */
 export function requirementCounts(requirements: readonly WbsRequirement[]): RequirementCounts {
-  const types = new Map<SolutionType, number>();
+  const types = new Map<RequirementType, number>();
   const moscow = new Map<MoscowChip, number>();
   for (const r of requirements) {
     types.set(r.type, (types.get(r.type) ?? 0) + 1);

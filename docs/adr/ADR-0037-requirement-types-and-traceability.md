@@ -251,3 +251,40 @@ E1 in `docs/bugs.md` with the shared `ErrorState` a boundary should use; a 35-se
 own piece of work, not one feature's exception. And nothing in migration 036, the eleven procs, the two
 `db/tests/*.cjs` suites or the Playwright specs has ever been executed: the workspace has no SQL
 Server, so CI's db-apply job is their first run.
+
+## Amendment 2026-11-05 — test cases (migration 062)
+
+The client asked for BR, SR, FR, NFR and tests, and to see which test case satisfies which
+requirement, upstream and downstream. A test case is a sixth type, `TC`, on a third side.
+
+| Side | Types | Tick | Allocated | Links up to |
+|---|---|---|---|---|
+| Need | `BR`, `SR` | no | no | nothing |
+| Solution | `FR`, `NFR`, `TR` | met | yes | needs |
+| Test | `TC` | passed | no | solutions |
+
+- **One table, one trace table.** A test case is an `app.Requirement` row, so it is numbered `TC-1`,
+  can have sub-tests (`TC-1.1`), is searched, exported, packaged to a board, audited and deleted
+  like any other row. Its link to what it proves is an `app.RequirementTrace` row; the direction
+  rule becomes "each link runs exactly one side up". `requirement-types.ts` holds the sides and the
+  side above each (`upstreamTypes`); `usp_Requirement_ReplaceTraces` and the resulting-state check
+  in `usp_Requirement_Update` enforce the same rule in SQL.
+- **The met tick means passed for a test.** `CK_Requirement_Met` is now `IsMet = 0 OR
+  RequirementType NOT IN ('BR', 'SR')`. There is no Failed or Blocked state and no run history:
+  nothing the client asked for needs them, and adding a result column later does not move any row.
+- **Coverage now has two levels.** A need reads "Not validated / m of n met / Validated" from its
+  solutions, as before; a solution reads "Not tested / m of n passed / All tests passed" from its
+  test cases. A test case has none. Still derived, never stored (`coverageFor`).
+- **Type changes stay on their side** once a row has a link either way or an allocation
+  (`compatibleTypes`), which is exactly what the SQL check accepts.
+- **Pickers.** `usp_Requirement_ListOptions` returns needs and solutions; the sheet offers the side
+  above the type being edited, and the WBS and Gantt cascade keep the needs (`listNeedOptions`).
+  Selecting solutions in the register offers "New test case for these", the counterpart of the
+  merge of needs into a new solution.
+- **Not done on purpose.** A stakeholder requirement does not link to a business requirement, so
+  the chain is BR/SR -> FR/NFR/TR -> TC; tests link to solutions only, never straight to a need.
+  Both are open questions to the client, and either is one more row in the side table.
+- **Guardrails.** `src/tests/requirement-sql-guardrails.test.ts` now also fails when any type-order
+  `CASE` misses a type (a missing one sorts first), and reads migration 062 for both checks;
+  `db/tests/requirements-procs.cjs` covers the test-case link, tick, allocation and type-change
+  rules.

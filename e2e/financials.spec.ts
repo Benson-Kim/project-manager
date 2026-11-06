@@ -115,6 +115,22 @@ test("quick calculator: works out a sum over the page and leaves the page usable
   await panel.getByRole("button", { name: Q.equals }).click();
   await expect(sum).toHaveValue("20");
 
+  await panel.getByRole("button", { name: Q.scientific }).click();
+  await axe(page);
+  await sum.fill("");
+  await panel.getByRole("button", { name: Q.keys.sine, exact: true }).click();
+  await sum.pressSequentially("90)");
+  await expect(result).toHaveText(Q.result("1"));
+  await panel.getByRole("button", { name: Q.angle.deg.name }).click();
+  await expect(result).toHaveText(Q.result("0.8939966636"));
+  await panel.getByRole("button", { name: Q.angle.rad.name }).click();
+  await sum.fill("sqrt(-1)");
+  await expect(result).toHaveText(Q.noAnswer);
+  await sum.fill("171!");
+  await expect(result).toHaveText(Q.tooLarge);
+  await sum.fill("(2 + 3) * 4");
+  await sum.press("Enter");
+
   await sum.press("Escape");
   await expect(panel).toBeHidden();
   await expect(trigger).toBeFocused();

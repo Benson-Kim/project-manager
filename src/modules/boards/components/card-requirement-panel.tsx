@@ -16,7 +16,7 @@ import {
   TypeBadge,
 } from "@/modules/requirements/components/requirement-chips";
 import type { MoSCoW } from "@/modules/requirements/schemas/moscow";
-import { isSolution } from "@/modules/requirements/schemas/requirement-types";
+import { canBeMet, isTest } from "@/modules/requirements/schemas/requirement-types";
 import {
   linkBoardCardRequirementAction,
   readBoardCardAction,
@@ -141,13 +141,13 @@ export function CardRequirementPanel({
       {live ? (
         <div className="flex flex-col gap-2 rounded-lg border border-line p-2.5 text-sm">
           <p className="flex flex-wrap items-center gap-1.5">
-            {isSolution(live.type) && canEditRequirement ? (
+            {canBeMet(live.type) && canEditRequirement ? (
               <input
                 type="checkbox"
                 className="size-4"
                 checked={shown.isMet}
                 disabled={pending}
-                aria-label={D.met(live.ref)}
+                aria-label={isTest(live.type) ? D.passed(live.ref) : D.met(live.ref)}
                 onChange={(event) => setMet(event.target.checked)}
               />
             ) : null}

@@ -23,7 +23,7 @@ BEGIN
       AND r.IsDeleted = 0
     ORDER BY CASE r.RequirementType
                  WHEN 'BR' THEN 1 WHEN 'SR' THEN 2 WHEN 'FR' THEN 3
-                 WHEN 'NFR' THEN 4 WHEN 'TR' THEN 5 END,
+                 WHEN 'NFR' THEN 4 WHEN 'TR' THEN 5 WHEN 'TC' THEN 6 END,
              ap.SortPath;
 END;
 GO

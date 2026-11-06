@@ -32,6 +32,7 @@ import {
   createStakeholderAction,
   updateStakeholderAction,
   deleteStakeholderAction,
+  placeStakeholderAction,
 } from "../actions";
 
 function dbRow(overrides: Record<string, unknown> = {}) {
@@ -55,6 +56,9 @@ function dbRow(overrides: Record<string, unknown> = {}) {
     KeyMessageStrategy: null,
     CommunicationFrequency: null,
     AdditionalNotes: null,
+    Power: null,
+    Interest: null,
+    Stance: null,
     CreatedAtUtc: new Date("2026-01-01T00:00:00Z"),
     UpdatedAtUtc: null,
     RowVer: "10",
@@ -122,9 +126,89 @@ describe("stakeholders actions", () => {
     fd.set("firstName", "Gary");
     fd.set("stakeholderId", "1");
     fd.set("rowVer", "9");
+    fd.set("power", "");
+    fd.set("interest", "");
+    fd.set("stance", "");
     const result = await updateStakeholderAction(fd);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("CONFLICT");
+  });
+
+  it("update refuses a form that leaves out the place", async () => {
+    const fd = new FormData();
+    fd.set("projectId", "2");
+    fd.set("firstName", "Gary");
+    fd.set("stakeholderId", "1");
+    fd.set("rowVer", "9");
+    fd.set("stance", "Critic");
+    const result = await updateStakeholderAction(fd);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("VALIDATION");
+      expect(result.error.fieldErrors?.power).toBeDefined();
+    }
+    expect(execProc).not.toHaveBeenCalled();
+  });
+
+  it("place moves a stakeholder and returns the new rowVer", async () => {
+    execProc.mockResolvedValue([
+      { StakeholderId: 1, Power: 55, Interest: 35, UpdatedAtUtc: new Date(), RowVer: "11" },
+    ]);
+    const result = await placeStakeholderAction({
+      stakeholderId: 1,
+      power: 55,
+      interest: 35,
+      rowVer: 10,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data.RowVer).toBe(11);
+    expect(execProc).toHaveBeenCalledWith("usp_Stakeholder_Place", {
+      StakeholderId: 1,
+      Power: 55,
+      Interest: 35,
+      RowVer: 10,
+      ActorUserId: 7,
+    });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("place returns VALIDATION for a score above 100 without calling the proc", async () => {
+    const result = await placeStakeholderAction({
+      stakeholderId: 1,
+      power: 105,
+      interest: 35,
+      rowVer: 10,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("VALIDATION");
+    expect(execProc).not.toHaveBeenCalled();
+  });
+
+  it("place surfaces the proc's CONFLICT and FORBIDDEN_ROW", async () => {
+    for (const code of ["CONFLICT", "FORBIDDEN_ROW"] as const) {
+      execProc.mockRejectedValueOnce(new AppError(code, "refused"));
+      const result = await placeStakeholderAction({
+        stakeholderId: 1,
+        power: 55,
+        interest: 35,
+        rowVer: 10,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe(code);
+    }
+  });
+
+  it("place requires a session", async () => {
+    session = null;
+    const result = await placeStakeholderAction({
+      stakeholderId: 1,
+      power: 55,
+      interest: 35,
+      rowVer: 10,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("UNAUTHENTICATED");
+    expect(execProc).not.toHaveBeenCalled();
   });
 
   it("delete succeeds", async () => {

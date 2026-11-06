@@ -114,7 +114,7 @@ BEGIN
     FROM app.BoardCard c
     CROSS APPLY dbo.ufn_BoardCard_Deliverable(c.KeyDeliverableId, @ActorRole, @ActorUserId) dv
     JOIN app.RequirementDeliverable d ON d.KeyDeliverableId = dv.KeyDeliverableId
-    JOIN app.Requirement r ON r.RequirementId = d.RequirementId AND r.IsDeleted = 0
+    JOIN app.Requirement r ON r.RequirementId = d.RequirementId AND r.IsDeleted = 0 AND d.LinkStatus <> 'Retired'
     CROSS APPLY dbo.ufn_Requirement_AncestorPath(r.RequirementId) ap
     WHERE c.BoardCardId = @BoardCardId AND c.IsDeleted = 0
       AND dv.DeliverableState = 'live'

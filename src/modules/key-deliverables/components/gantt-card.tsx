@@ -5,6 +5,7 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 import { planLine, TONES } from "@/components/ui/tones";
 import { toDateInput } from "@/lib/format";
 import { messages } from "@/lib/messages";
+import { canBeMet } from "@/modules/requirements/schemas/requirement-types";
 import { requirementChip, type WbsNode } from "../schemas/wbs";
 import { requirementTally, type GanttDisplay } from "./gantt-layout";
 import { PriorityChip, PrioritySelect } from "./priority-select";
@@ -216,9 +217,9 @@ export function GanttCard({
               <li key={requirement.id} className="flex items-start gap-1.5 text-xs text-ink">
                 <span
                   aria-hidden="true"
-                  className={requirement.isMet ? "text-success" : "text-ink-faint"}
+                  className={`w-3 shrink-0 text-center ${requirement.isMet ? "text-success" : "text-ink-faint"}`}
                 >
-                  {requirement.isMet ? "✓" : "○"}
+                  {canBeMet(requirement.type) ? (requirement.isMet ? "✓" : "○") : null}
                 </span>
                 <span className="text-ink-muted tabular-nums">{requirementChip(requirement)}</span>
                 <span className="min-w-0 break-words">{requirement.text}</span>

@@ -128,6 +128,10 @@ const VERBS: Record<string, string> = {
 
 /** Procs that legitimately call no access helper, and why. */
 const EXEMPT: Record<string, string> = {
+  usp_RequirementCanvas_AssertDetails:
+    "internal: runs inside the canvas write procs, after their access check",
+  usp_RequirementLinkRule_List: "app-wide settings, not project data; any active user reads them",
+  usp_RequirementLinkRule_Set: "app-wide settings, not project data; checks the Admin role itself",
   usp_Project_Create: "any user may create a project; the creator becomes its Manager",
   usp_Project_List: "filters to Admin-or-assigned projects instead of asserting one",
   usp_Project_Search: "filters to Admin-or-assigned projects instead of asserting one",
@@ -146,6 +150,8 @@ const EXEMPT: Record<string, string> = {
     "pushes dependent items inside the write procs' transaction, after their own access check",
   usp_Project_ReplaceObjectiveAlignment:
     "replaces a project's strategic objectives inside the project write procs' transaction, after their own access check; it refuses to run outside one",
+  usp_Requirement_AssertNoLinkLoop:
+    "Internal: runs inside a requirement write proc, after that proc's own access check.",
   usp_Requirement_ReplaceTraces:
     "replaces links inside the requirement write procs' transaction, after their own access check",
   usp_Requirement_ReplaceAllocations:
@@ -231,9 +237,27 @@ const procs: Proc[] = Object.keys(MODULES).flatMap((folder) =>
 const entityOf = (folder: string) =>
   folder.replace(/(^|-)(\w)/g, (_, __, c: string) => c.toUpperCase());
 
+/**
+ * Procs whose name does not say their permission. A link belongs to its requirement, so adding
+ * or removing one edits that requirement, as saving its links through usp_Requirement_Update does.
+ */
+const VERB_BY_PROC: Record<string, string> = {
+  usp_RequirementLink_Create: "update",
+  usp_RequirementLink_Delete: "update",
+  usp_Requirement_DeleteImpact: "delete",
+  usp_RequirementCanvas_Items: "read",
+  usp_RequirementCanvas_Links: "read",
+  usp_RequirementCanvasNode_Add: "update",
+  usp_RequirementCanvasNode_Remove: "update",
+  usp_Requirement_Allocate: "update",
+  // The matrix reads a project's register; placing a stakeholder is a restricted update of its row.
+  usp_Stakeholder_Matrix: "read",
+  usp_Stakeholder_Place: "update",
+};
+
 const verbOf = (name: string) => {
   const suffix = Object.keys(VERBS).find((s) => name.endsWith(`_${s}`));
-  return suffix && VERBS[suffix];
+  return VERB_BY_PROC[name] ?? (suffix && VERBS[suffix]);
 };
 
 /**

@@ -8,7 +8,7 @@ import {
   type RequirementRow,
 } from "./requirement";
 import { criteriaField, estimateField, moscowField, ownerField } from "./requirement-planning";
-import { isSolution, requirementTypeSchema } from "./requirement-types";
+import { canBeMet, requirementTypeSchema } from "./requirement-types";
 
 /**
  * One schema for the register's sheet, its datasheet cells and the server actions
@@ -60,7 +60,7 @@ function toInput(raw: Fields) {
   return {
     type: raw.requirementType,
     text: raw.requirement,
-    isMet: isSolution(raw.requirementType) && raw.isMet,
+    isMet: canBeMet(raw.requirementType) && raw.isMet,
     validatesIds: raw.validatesSet ? raw["validatesIds[]"] : null,
     deliverableIds: raw.deliverablesSet ? raw["deliverableIds[]"] : null,
   };

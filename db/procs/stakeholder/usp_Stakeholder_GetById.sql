@@ -39,6 +39,9 @@ BEGIN
            [KeyMessageStrategy],
            [CommunicationFrequency],
            [AdditionalNotes],
+           [Power],
+           [Interest],
+           [Stance],
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer

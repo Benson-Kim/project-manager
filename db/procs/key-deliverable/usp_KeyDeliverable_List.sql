@@ -44,29 +44,6 @@ BEGIN
     IF @Search IS NOT NULL
         SET @Search = REPLACE(REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'), N'_', N'\_'), N'[', N'\[');
 
-    WITH placed AS (
-        SELECT k.KeyDeliverableId, k.ParentKeyDeliverableId,
-               ROW_NUMBER() OVER (PARTITION BY k.ProjectId, k.ParentKeyDeliverableId
-                                  ORDER BY k.SortOrder, k.KeyDeliverableId) AS Position
-        FROM app.KeyDeliverable AS k
-        WHERE k.IsDeleted = 0 AND (@ProjectId IS NULL OR k.ProjectId = @ProjectId)
-    ),
-    wbs AS (
-        SELECT p.KeyDeliverableId,
-               CAST(p.Position AS NVARCHAR(400)) AS WbsCode,
-               CAST(RIGHT(N'0000' + CAST(p.Position AS NVARCHAR(10)), 5) AS NVARCHAR(400)) AS WbsKey,
-               1 AS Lvl
-        FROM placed AS p
-        WHERE p.ParentKeyDeliverableId IS NULL
-        UNION ALL
-        SELECT c.KeyDeliverableId,
-               CAST(w.WbsCode + N'.' + CAST(c.Position AS NVARCHAR(10)) AS NVARCHAR(400)),
-               CAST(w.WbsKey + N'.' + RIGHT(N'0000' + CAST(c.Position AS NVARCHAR(10)), 5) AS NVARCHAR(400)),
-               w.Lvl + 1
-        FROM wbs AS w
-        JOIN placed AS c ON c.ParentKeyDeliverableId = w.KeyDeliverableId
-        WHERE w.Lvl < 50
-    )
     SELECT kd.KeyDeliverableId,
            kd.[ProjectId],
            kd.ParentKeyDeliverableId,
@@ -112,7 +89,8 @@ BEGIN
            ov.Revokes AS ActorRevokes,
            TotalCount = COUNT(*) OVER ()
     FROM app.KeyDeliverable AS kd
-    LEFT JOIN wbs AS w ON w.KeyDeliverableId = kd.KeyDeliverableId
+    LEFT JOIN dbo.ufn_KeyDeliverable_WbsCode(@ProjectId) AS w
+        ON w.KeyDeliverableId = kd.KeyDeliverableId
     CROSS APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, kd.ProjectId, 0) acc
     OUTER APPLY dbo.ufn_Permission_Overrides(@ActorRole, @ActorUserId, kd.ProjectId, N'key-deliverables') ov
     WHERE kd.IsDeleted = 0

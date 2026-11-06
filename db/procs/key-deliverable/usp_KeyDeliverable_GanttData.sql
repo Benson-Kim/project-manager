@@ -120,7 +120,7 @@ BEGIN
                       CAST(d.RowVer AS BIGINT)  AS placeRowVer
                FROM app.RequirementDeliverable AS d
                JOIN app.Requirement AS r
-                   ON r.RequirementId = d.RequirementId AND r.IsDeleted = 0
+                   ON r.RequirementId = d.RequirementId AND r.IsDeleted = 0 AND d.LinkStatus <> 'Retired'
                CROSS APPLY dbo.ufn_Requirement_AncestorPath(r.RequirementId) AS ap
                LEFT JOIN app.Stakeholder AS os
                    ON os.StakeholderId = r.OwnerStakeholderId AND os.IsDeleted = 0

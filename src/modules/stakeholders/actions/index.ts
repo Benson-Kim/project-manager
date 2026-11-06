@@ -5,9 +5,10 @@ import {
   createStakeholder,
   updateStakeholder,
   deleteStakeholder,
+  placeStakeholder,
 } from "../repository/stakeholders";
 import { stakeholderFormSchema, updateStakeholderFormSchema } from "../schemas/stakeholder-form";
-import { deleteStakeholderInput } from "../schemas/stakeholder";
+import { deleteStakeholderInput, placeStakeholderInput } from "../schemas/stakeholder";
 
 /** Create a stakeholder (RBAC stakeholders:create — project level checked in-proc, ADR-0021; audited in-proc). */
 export const createStakeholderAction = action({
@@ -26,6 +27,15 @@ export const updateStakeholderAction = action({
   permission: "stakeholders:update",
   revalidate: [],
   handler: (input, ctx) => updateStakeholder(input, ctx.session.userId),
+});
+
+/** Move a stakeholder on its project's matrix (RBAC stakeholders:update — project level checked in-proc; audited in-proc). */
+export const placeStakeholderAction = action({
+  name: "stakeholders.place",
+  schema: placeStakeholderInput,
+  permission: "stakeholders:update",
+  revalidate: [],
+  handler: (input, ctx) => placeStakeholder(input, ctx.session.userId),
 });
 
 /** Soft-delete a stakeholder (RBAC stakeholders:delete — project level checked in-proc, ADR-0021; audited in-proc). */

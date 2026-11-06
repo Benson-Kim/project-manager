@@ -85,13 +85,14 @@ describe("projectSectionGroups", () => {
     expect(people.sections.map((s) => s.segment)).toContain("suppliers");
   });
 
-  it("financials group lists the four views of a financial (ADR-0029)", () => {
+  it("financials group lists the four views of a financial (ADR-0029), then project math", () => {
     const financials = projectSectionGroups.find((g) => g.key === "financials")!;
     expect(financials.sections.map((s) => s.segment)).toEqual([
       "financials/budget",
       "financials/monitoring",
       "financials/documents",
       "financials/settings",
+      "financials/project-math",
     ]);
     const planning = projectSectionGroups.find((g) => g.key === "planning")!;
     expect(planning.sections.some((s) => s.segment.startsWith("financials"))).toBe(false);

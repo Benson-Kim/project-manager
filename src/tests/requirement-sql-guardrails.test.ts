@@ -5,10 +5,12 @@ import {
   NEED_TYPES,
   REQUIREMENT_TYPES,
   SOLUTION_TYPES,
+  TEST_TYPES,
   type RequirementType,
 } from "@/modules/requirements/schemas/requirement-types";
 import { MOSCOW } from "@/modules/requirements/schemas/moscow";
 import { MAX_REQUIREMENT_DEPTH } from "@/modules/requirements/schemas/requirement";
+import { CANVAS_MOVE_MAX, CANVAS_NAME_MAX } from "@/modules/requirements/schemas/canvas";
 
 /**
  * Guardrail (ADR-0037): the requirement procs and migration 036 enforce the traceability rules
@@ -22,10 +24,12 @@ function sql(path: string): string {
 }
 
 const DIR = "db/procs/requirement";
-const MIGRATION = "db/migrations/036_requirement_traceability.sql";
+/** Migration 062 replaced 036's CK_Requirement_Type and CK_Requirement_Met, so it is the one read. */
+const TEST_CASE_MIGRATION = "db/migrations/062_requirement_test_cases.sql";
 const WRITES = [
   "Create",
   "Update",
+  "Allocate",
   "Move",
   "Unallocate",
   "Delete",
@@ -37,13 +41,18 @@ const procFiles = readdirSync(DIR)
   .filter((f) => f.endsWith(".sql"))
   .map((f) => join(DIR, f));
 
-/** Each requirement-type IN / NOT IN list must be exactly the full, need or solution set. */
+/** Each requirement-type IN / NOT IN list must be exactly the full, need, solution or test set. */
 describe("requirement type lists match the TypeScript catalog (ADR-0037)", () => {
-  const sets: (readonly RequirementType[])[] = [REQUIREMENT_TYPES, NEED_TYPES, SOLUTION_TYPES];
+  const sets: (readonly RequirementType[])[] = [
+    REQUIREMENT_TYPES,
+    NEED_TYPES,
+    SOLUTION_TYPES,
+    TEST_TYPES,
+  ];
   const canonical = new Set(sets.map((set) => [...set].sort().join(",")));
   const LIST = /@?RequirementType\s+(?:NOT\s+)?IN\s*\(([^)]*)\)/g;
 
-  it.each([MIGRATION, ...procFiles])("%s uses only whole type sets", (path) => {
+  it.each([TEST_CASE_MIGRATION, ...procFiles])("%s uses only whole type sets", (path) => {
     const text = sql(path);
     for (const [, body] of text.matchAll(LIST)) {
       const codes = [...body.matchAll(/'(\w+)'/g)].map((m) => m[1]!).sort();
@@ -51,8 +60,28 @@ describe("requirement type lists match the TypeScript catalog (ADR-0037)", () =>
     }
   });
 
-  it("the catalog is the five known types", () => {
-    expect([...REQUIREMENT_TYPES].sort()).toEqual(["BR", "FR", "NFR", "SR", "TR"]);
+  it("the catalog is the six known types", () => {
+    expect([...REQUIREMENT_TYPES].sort()).toEqual(["BR", "FR", "NFR", "SR", "TC", "TR"]);
+  });
+
+  it("migration 062 lets every catalog type in and keeps the tick off needs", () => {
+    const text = sql(TEST_CASE_MIGRATION);
+    const type = text.match(/CK_Requirement_Type\s+CHECK \(RequirementType IN \(([^)]*)\)\)/);
+    expect(type).not.toBeNull();
+    const codes = [...type![1]!.matchAll(/'(\w+)'/g)].map((m) => m[1]!);
+    expect(codes).toEqual([...REQUIREMENT_TYPES]);
+    expect(text).toMatch(
+      /CK_Requirement_Met\s+CHECK \(IsMet = 0 OR RequirementType NOT IN \('BR', 'SR'\)\)/,
+    );
+  });
+
+  /** A type left out of an ORDER BY CASE sorts as NULL, first, ahead of every business need. */
+  it.each(procFiles)("%s orders by type with every catalog type, in catalog order", (path) => {
+    const text = sql(path);
+    for (const [, body] of text.matchAll(/CASE \w+\.RequirementType\s+(WHEN[\s\S]*?)END/g)) {
+      const codes = [...body.matchAll(/WHEN '(\w+)' THEN (\d+)/g)].map((m) => [m[1], Number(m[2])]);
+      expect(codes, path).toEqual(REQUIREMENT_TYPES.map((t, i) => [t, i + 1]));
+    }
   });
 });
 
@@ -100,13 +129,104 @@ describe("requirement writes lock the project before their checks (ADR-0037)", (
     expect(firstDml, name).toBeGreaterThan(lock);
   });
 
-  it.each(["ReplaceTraces", "ReplaceAllocations", "AssertPlanning"])(
+  it.each(["ReplaceTraces", "ReplaceAllocations", "Update"])(
+    "usp_Requirement_%s reads the link rules rather than a fixed ladder (ADR-0060)",
+    (name) => {
+      expect(sql(join(DIR, `usp_Requirement_${name}.sql`))).toContain("app.RequirementLinkRule");
+    },
+  );
+
+  it("the rule write is Admin only and audited (ADR-0060)", () => {
+    const text = sql(join(DIR, "usp_RequirementLinkRule_Set.sql"));
+    expect(text).toMatch(/@ActorRole <> N'Admin'/);
+    expect(text).toContain("INSERT INTO audit.AuditLog");
+  });
+
+  it.each(["ReplaceTraces", "ReplaceAllocations", "AssertPlanning", "AssertNoLinkLoop"])(
     "helper usp_Requirement_%s refuses to run outside a transaction",
     (name) => {
       const text = sql(join(DIR, `usp_Requirement_${name}.sql`));
       expect(text).toMatch(/IF @@TRANCOUNT = 0\s*\n\s*THROW 50004/);
     },
   );
+
+  it("the canvas details helper refuses to run outside a transaction (ADR-0061)", () => {
+    expect(sql(join(DIR, "usp_RequirementCanvas_AssertDetails.sql"))).toContain(
+      "IF @@TRANCOUNT = 0",
+    );
+  });
+
+  it("a one-link allocation goes through the proc that owns the rule check (ADR-0061)", () => {
+    expect(sql(join(DIR, "usp_Requirement_Allocate.sql"))).toContain(
+      "EXEC dbo.usp_Requirement_ReplaceAllocations",
+    );
+  });
+});
+
+/** The limits and the audit split that ADR-0061 sections 3 and 4 set have one value each. */
+describe("the canvas procs (ADR-0061)", () => {
+  const canvas = (name: string) => sql(join(DIR, `usp_RequirementCanvas${name}.sql`));
+
+  it("a canvas name has one limit in the schema, the column and the check", () => {
+    expect(sql("db/migrations/064_requirement_canvases.sql")).toMatch(
+      new RegExp(`Name\\s+NVARCHAR\\(${CANVAS_NAME_MAX}\\) NOT NULL`),
+    );
+    expect(canvas("_AssertDetails")).toContain(`LEN(@Name) > ${CANVAS_NAME_MAX}`);
+  });
+
+  it("a move batch has one limit in the schema and the proc", () => {
+    expect(canvas("Node_Move")).toContain(`FROM OPENJSON(@NodesJson)) > ${CANVAS_MOVE_MAX}`);
+  });
+
+  it.each(["Create", "Update", "Delete"])(
+    "usp_RequirementCanvas_%s writes its audit row inside the transaction",
+    (name) => {
+      const text = canvas(`_${name}`);
+      const begin = text.indexOf("BEGIN TRAN;");
+      const audit = text.indexOf("INSERT INTO audit.AuditLog");
+      expect(begin, name).toBeGreaterThan(0);
+      expect(audit, name).toBeGreaterThan(begin);
+      expect(text.indexOf("COMMIT;", audit), name).toBeGreaterThan(audit);
+    },
+  );
+
+  it.each(["Add", "Move", "Remove"])("usp_RequirementCanvasNode_%s writes no audit row", (name) => {
+    expect(canvas(`Node_${name}`)).not.toContain("audit.AuditLog");
+  });
+});
+
+/** A link is its own record, so its procs carry the checks a requirement write has (ADR-0060). */
+describe("the link procs (ADR-0060)", () => {
+  const proc = (name: string) => sql(join(DIR, `usp_RequirementLink_${name}.sql`));
+
+  it.each(["Create", "Update", "Delete", "List"])(
+    "usp_RequirementLink_%s takes its project from the row and checks access",
+    (name) => {
+      const text = proc(name);
+      expect(text).not.toMatch(/^\s*@ProjectId\s+[A-Za-z]/m);
+      expect(text).toMatch(/EXEC dbo\.usp_Project_AssertAccess\s+@ProjectId = @RowProjectId\b/);
+    },
+  );
+
+  it.each(["Create", "Update", "Delete"])("usp_RequirementLink_%s writes an audit row", (name) => {
+    expect(proc(name)).toContain("INSERT INTO audit.AuditLog");
+  });
+
+  it("a new link reads the rules and walks for a loop", () => {
+    const text = proc("Create");
+    expect(text).toContain("app.RequirementLinkRule");
+    expect(text).toContain("EXEC dbo.usp_Requirement_AssertNoLinkLoop");
+  });
+
+  it("an update has no default rationale, so leaving it out cannot wipe one", () => {
+    expect(proc("Update")).toMatch(/^\s*@Rationale\s+NVARCHAR\(1000\),\s*$/m);
+  });
+
+  it("the list guards the path of a WBS link, whose APPLY of NULL still gives one row", () => {
+    expect(proc("List")).toMatch(
+      /ufn_Requirement_AncestorPath\(n\.RequirementId\)\s+WHERE n\.RequirementId IS NOT NULL/,
+    );
+  });
 });
 
 /** The register's search is a parameter, and every wildcard in it stays literal.
@@ -334,10 +454,21 @@ describe("the write procs own the invariants a constraint cannot express (ADR-00
 
   it("moves sub-requirements up only when asked, and refuses otherwise", () => {
     const del = sql(join(DIR, "usp_Requirement_Delete.sql"));
-    expect(del).toContain("@PromoteChildren BIT = 0");
-    expect(del).toContain("IF ISNULL(@PromoteChildren, 0) = 0");
+    expect(del).toContain("@ChildAction     NVARCHAR(10) = N'None'");
+    expect(del).toContain("IF @ChildAction = N'Orphan'");
+    expect(del).toContain(
+      "SELECT RequirementId FROM @Expected EXCEPT SELECT RequirementId FROM @Doomed",
+    );
+    expect(del).toContain("dbo.ufn_Requirement_DeleteSet(@RequirementId)");
     expect(del).toContain(
       "INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)",
     );
+  });
+
+  it("reorders the visible allocations only, numbering retired rows after them", () => {
+    const move = sql(join(DIR, "usp_Requirement_Move.sql"));
+    expect(move).toContain("AND LinkStatus <> 'Retired'");
+    expect(move).toContain("AND LinkStatus = 'Retired'");
+    expect(move).toContain("@VisibleCount + ROW_NUMBER() OVER (ORDER BY SortOrder, RequirementId)");
   });
 });

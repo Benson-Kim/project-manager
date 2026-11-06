@@ -9,6 +9,8 @@
 --   CommunicationFrequency must be live options of their lists, or unchanged (VALIDATION 50004),
 --   and are stored as listed.
 -- Entity app.Stakeholder (source: tblStakeholders). Module: stakeholders (#6).
+-- Power, Interest and Stance (migration 066) place the row on the stakeholder matrix: 0 to 100,
+--   and one of the five stances (VALIDATION 50004). NULL leaves it unplaced or unset.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Stakeholder_Update
@@ -31,12 +33,20 @@ CREATE OR ALTER PROCEDURE dbo.usp_Stakeholder_Update
     @KeyMessageStrategy NVARCHAR(MAX) = NULL,
     @CommunicationFrequency NVARCHAR(50) = NULL,
     @AdditionalNotes NVARCHAR(MAX) = NULL,
+    @Power INT = NULL,
+    @Interest INT = NULL,
+    @Stance NVARCHAR(20) = NULL,
     @RowVer BIGINT,
     @ActorUserId INT
 AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
+
+    IF @Power NOT BETWEEN 0 AND 100 OR @Interest NOT BETWEEN 0 AND 100
+        THROW 50004, N'VALIDATION:Power and Interest are 0 to 100', 1;
+    IF @Stance COLLATE Latin1_General_BIN2 NOT IN (N'Champion', N'Supporter', N'Neutral', N'Critic', N'Blocker')
+        THROW 50004, N'VALIDATION:Stance is not a known stance', 1;
 
     -- Verify the row exists (NOT_FOUND) before entering the transaction so we
     -- give a useful error even when RowVer is stale.
@@ -70,7 +80,7 @@ BEGIN
     BEGIN TRAN;
 
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT StakeholderId, [ProjectId], [FirstName], [LastName], [DepartmentOrganization], [ProjectRole], [RoleDescription], [PhoneNumber], [PhoneExt], [Mobile], [EmailAddress], [PhysicalLocation], [OrgTitle], [CommunicationPreference], [EngagementLevel], [CommunicationPurpose], [KeyMessageStrategy], [CommunicationFrequency], [AdditionalNotes]
+        (SELECT StakeholderId, [ProjectId], [FirstName], [LastName], [DepartmentOrganization], [ProjectRole], [RoleDescription], [PhoneNumber], [PhoneExt], [Mobile], [EmailAddress], [PhysicalLocation], [OrgTitle], [CommunicationPreference], [EngagementLevel], [CommunicationPurpose], [KeyMessageStrategy], [CommunicationFrequency], [AdditionalNotes], [Power], [Interest], [Stance]
          FROM app.Stakeholder WHERE StakeholderId = @StakeholderId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 
@@ -95,6 +105,9 @@ BEGIN
         [KeyMessageStrategy] = @KeyMessageStrategy,
         [CommunicationFrequency] = @CommunicationFrequency,
         [AdditionalNotes] = @AdditionalNotes,
+        [Power] = @Power,
+        [Interest] = @Interest,
+        [Stance] = @Stance,
         UpdatedAtUtc = SYSUTCDATETIME(),
         UpdatedBy    = @ActorUserId
     WHERE StakeholderId = @StakeholderId
@@ -106,7 +119,7 @@ BEGIN
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.Stakeholder', CAST(@StakeholderId AS NVARCHAR(64)), @Before,
-            (SELECT StakeholderId, [ProjectId], [FirstName], [LastName], [DepartmentOrganization], [ProjectRole], [RoleDescription], [PhoneNumber], [PhoneExt], [Mobile], [EmailAddress], [PhysicalLocation], [OrgTitle], [CommunicationPreference], [EngagementLevel], [CommunicationPurpose], [KeyMessageStrategy], [CommunicationFrequency], [AdditionalNotes]
+            (SELECT StakeholderId, [ProjectId], [FirstName], [LastName], [DepartmentOrganization], [ProjectRole], [RoleDescription], [PhoneNumber], [PhoneExt], [Mobile], [EmailAddress], [PhysicalLocation], [OrgTitle], [CommunicationPreference], [EngagementLevel], [CommunicationPurpose], [KeyMessageStrategy], [CommunicationFrequency], [AdditionalNotes], [Power], [Interest], [Stance]
              FROM app.Stakeholder WHERE StakeholderId = @StakeholderId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
@@ -131,6 +144,9 @@ BEGIN
            [KeyMessageStrategy],
            [CommunicationFrequency],
            [AdditionalNotes],
+           [Power],
+           [Interest],
+           [Stance],
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer

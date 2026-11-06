@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { actorAccessSchema } from "@/lib/auth/actor-access";
 import { LOCAL_WALL_CLOCK } from "@/lib/local-time";
 import { listValue } from "@/lib/lookup-lists";
 import {
   ALL_WEEKDAYS,
+  CALENDAR_MAX_DAYS,
   MONTH_MODES,
   ORDINALS,
   RECURRENCE_MAX_COUNT,
@@ -186,3 +188,46 @@ export const todoOccurrenceRowSchema = z
     rowVer: r.RowVer,
   }));
 export type TodoOccurrenceRow = z.output<typeof todoOccurrenceRowSchema>;
+
+export const listTodoCalendarInput = z
+  .object({ projectId: z.number().int().positive().nullable(), from: ymd, to: ymd })
+  .strict()
+  .refine(
+    (w) =>
+      w.from <= w.to && (Date.parse(w.to) - Date.parse(w.from)) / 86_400_000 < CALENDAR_MAX_DAYS,
+    { path: ["to"], message: `A calendar window is at most ${CALENDAR_MAX_DAYS} days` },
+  );
+export type ListTodoCalendarInput = z.input<typeof listTodoCalendarInput>;
+
+/** usp_Todo_ListCalendar's first result set: a to-do, with its rule when it repeats. */
+export const calendarTodoRowSchema = z
+  .object({
+    TodoItemId: z.number().int(),
+    ProjectId: z.number().int().nullable(),
+    ProjectName: z.string().nullable(),
+    TodoItem: z.string().nullable(),
+    StartDate: z.date().nullable(),
+    DueDate: z.date().nullable(),
+    Priority: z.string().nullable(),
+    Status: z.string().nullable(),
+    Assignee: z.string().nullable(),
+    RowVer: rowVerSchema,
+    ActorAccess: actorAccessSchema,
+    RepeatUnit: z.enum(REPEAT_UNITS).nullable(),
+  })
+  .loose()
+  .transform((r) => ({
+    todoItemId: r.TodoItemId,
+    projectId: r.ProjectId,
+    projectName: r.ProjectName,
+    title: r.TodoItem,
+    startDate: dateOnly(r.StartDate),
+    dueDate: dateOnly(r.DueDate),
+    priority: r.Priority,
+    status: r.Status,
+    assignee: r.Assignee,
+    rowVer: r.RowVer,
+    actorAccess: r.ActorAccess,
+    rule: r.RepeatUnit === null ? null : ruleOf(ruleColumnsSchema.parse(r)),
+  }));
+export type CalendarTodo = z.output<typeof calendarTodoRowSchema>;

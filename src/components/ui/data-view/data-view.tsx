@@ -10,6 +10,7 @@ import {
   type ListLayout,
 } from "@/lib/list-layout";
 import { optionColor, type LookupListKey, type OptionColor } from "@/lib/lookup-lists";
+import { selectAllState, toggleAll } from "./selection";
 import { DEFAULT_PAGE_SIZE, totalPages, type SortDir, type ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { useAnnouncer } from "../announcer";
@@ -167,6 +168,10 @@ export function DataView<Row>({
   }, []);
 
   const clearSelection = useCallback(() => setSelected([]), []);
+
+  const shownIds = shownRows.map(getRowId);
+  const allState = selectAllState(selected, shownIds);
+  const toggleAllShown = () => setSelected((current) => toggleAll(current, shownIds));
 
   /** Asks the proc for a new order; the page reloads with it (page 1 again). */
   const sortBy = (column: DataViewColumn<Row>, dir: SortDir) => {
@@ -409,6 +414,15 @@ export function DataView<Row>({
           </p>
           <div className="flex items-center gap-2">
             {bulkActions(selected, clearSelection)}
+            {allState === "all" ? null : (
+              <button
+                type="button"
+                onClick={toggleAllShown}
+                className="min-h-11 px-3 text-sm font-medium text-ink-muted"
+              >
+                {messages.actions.selectAll}
+              </button>
+            )}
             <button
               type="button"
               onClick={clearSelection}
@@ -481,10 +495,13 @@ export function DataView<Row>({
                     <thead className="sticky top-0 z-20 print:static">
                       <tr>
                         {bulkActions ? (
-                          <th
-                            className={`w-11 ${headerCellClass} p-2`}
-                            aria-label={messages.actions.selectAll}
-                          />
+                          <th className={`w-11 ${headerCellClass} p-2`}>
+                            <SelectAllBox
+                              state={allState}
+                              disabled={shownIds.length === 0}
+                              onToggle={toggleAllShown}
+                            />
+                          </th>
                         ) : null}
                         {shownColumns.map((col, index) => {
                           const order = headerSort(col, sort, currentSort);
@@ -686,6 +703,32 @@ export function DataView<Row>({
         />
       ) : null}
     </div>
+  );
+}
+
+function SelectAllBox({
+  state,
+  disabled,
+  onToggle,
+}: {
+  state: ReturnType<typeof selectAllState>;
+  disabled: boolean;
+  onToggle: () => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = state === "some";
+  }, [state]);
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      aria-label={messages.actions.selectAll}
+      checked={state === "all"}
+      disabled={disabled}
+      onChange={onToggle}
+      className="size-5"
+    />
   );
 }
 

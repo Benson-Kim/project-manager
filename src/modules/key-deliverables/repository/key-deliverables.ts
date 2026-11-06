@@ -13,7 +13,10 @@ import type {
   SetPlanningInput,
 } from "@/modules/requirements/schemas/requirement-planning";
 import type { MoSCoW } from "@/modules/requirements/schemas/moscow";
-import type { SolutionType } from "@/modules/requirements/schemas/requirement-types";
+import type {
+  RequirementType,
+  SolutionType,
+} from "@/modules/requirements/schemas/requirement-types";
 import {
   createKeyDeliverableInput,
   keyDeliverableListRowSchema,
@@ -404,7 +407,7 @@ export async function addCascadeRequirement(
 
 /** Edit wording or the met tick (shared across deliverables); links and allocations left alone. */
 export async function updateCascadeRequirement(
-  input: { id: number; type: SolutionType; text: string; isMet: boolean; rowVer: number },
+  input: { id: number; type: RequirementType; text: string; isMet: boolean; rowVer: number },
   actorUserId: number,
 ): Promise<WbsData> {
   const row = await updateRequirementRow(

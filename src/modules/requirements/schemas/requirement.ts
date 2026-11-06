@@ -3,6 +3,7 @@ import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 import { moscowSchema } from "./moscow";
+import { linkStatusSchema } from "./requirement-link";
 import { requirementTypeSchema, type RequirementType } from "./requirement-types";
 
 /**
@@ -35,6 +36,7 @@ export interface RequirementRef {
 
 export interface SolutionRef extends RequirementRef {
   isMet: boolean;
+  status?: string;
 }
 
 const bit = z.union([z.boolean(), z.literal(0), z.literal(1)]).transform(Boolean);
@@ -46,7 +48,7 @@ const refEntry = z.object({
   sortPath: z.string().min(1),
 });
 
-const solutionRefEntry = refEntry.extend({ isMet: bit });
+const solutionRefEntry = refEntry.extend({ isMet: bit, status: linkStatusSchema.optional() });
 
 const deliverableEntry = z.object({ id: z.number().int().positive() });
 
@@ -124,14 +126,32 @@ export const requirementOptionSchema = z
 
 export type RequirementOption = z.output<typeof requirementOptionSchema>;
 
+export const CHILD_ACTIONS = ["None", "Orphan", "Delete"] as const;
+export type ChildAction = (typeof CHILD_ACTIONS)[number];
+
 export const deleteRequirementInput = z.object({
   requirementId: z.coerce.number().int().positive(),
   rowVer: rowVerSchema,
-  /** Move its sub-requirements up one level instead of refusing (ADR-0048). Off unless asked. */
-  promoteChildren: z.boolean().default(false),
+  /** What happens to a parent's sub-requirements and downstream rows. None refuses a parent. */
+  childAction: z.enum(CHILD_ACTIONS).default("None"),
+  /** The exact rows the dialog showed for Delete: the server refuses if the set has changed. */
+  expectedDeleteIds: z.array(z.number().int().positive()).optional(),
 });
 
 export type DeleteRequirementInput = z.output<typeof deleteRequirementInput>;
+
+export const requirementDeleteImpactInput = z.object({
+  requirementId: z.coerce.number().int().positive(),
+});
+
+export const deleteImpactRowSchema = z.object({
+  RequirementId: z.number(),
+  RequirementType: z.string(),
+  Ref: z.string(),
+  Fate: z.enum(["Deleted", "Unlinked"]),
+});
+
+export type DeleteImpactRow = z.output<typeof deleteImpactRowSchema>;
 
 /**
  * The orders usp_Requirement_List applies (ADR-0016). Null default: the proc's own is the catalog

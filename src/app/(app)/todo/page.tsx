@@ -7,6 +7,7 @@ import { getUserPreference } from "@/lib/repositories/user-preference";
 import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNull } from "@/lib/row-access";
 import { formatDate } from "@/lib/format";
+import { TodoCalendar } from "@/modules/todo-items/components/todo-calendar";
 import { TodoView } from "@/modules/todo-items/components/todo-view";
 import { TodoItemSheet } from "@/modules/todo-items/components/todo-item-sheet";
 import {
@@ -18,6 +19,7 @@ import {
 import { getTodoAlertByTodoItemId } from "@/modules/todo-items/repository/todo-alerts";
 import { getTodoRecurrence } from "@/modules/todo-items/repository/todo-recurrence";
 import { getTodoPermissions } from "@/modules/todo-items/repository/todo-access";
+import { loadTodoCalendar } from "@/modules/todo-items/queries/load-todo-calendar";
 import { TODO_ITEM_LISTS, TODO_ITEM_SORT } from "@/modules/todo-items/schemas/todo-item";
 import {
   canAddWith,
@@ -53,6 +55,7 @@ export default async function GlobalTodoPage({
   const listParams = parseListParams(raw, TODO_ITEM_SORT);
   const effectiveParams = listParams;
 
+  const isCalendar = flat.view === "calendar";
   const isNew = flat.id === "new";
   const selectedId = flat.id && !isNew ? Number(flat.id) : null;
 
@@ -66,24 +69,37 @@ export default async function GlobalTodoPage({
     withoutProject: projectFilter.kind === "none",
   };
 
-  const [rows, preference, alerts, selected, lookup, personal, userPreference] = await Promise.all([
-    listTodoItems(
-      effectiveParams,
-      session.userId,
-      filteredProjectId(projectFilter),
-      undefined,
-      filters,
-    ),
-    getListPreference(session.userId, "todo-items").catch(() => null),
-    getUpcomingAlertRows(session.userId).catch(() => []),
-    selectedId && Number.isInteger(selectedId) && selectedId > 0
-      ? orNull(getTodoItemById(selectedId, session.userId))
-      : null,
-    loadLookupLists(TODO_ITEM_LISTS, session),
-    // The new-entry row adds personal, project-less to-dos.
-    getTodoPermissions(null, session.userId),
-    getUserPreference(session.userId).catch(() => null),
-  ]);
+  const [rows, preference, alerts, selected, lookup, personal, userPreference, calendar] =
+    await Promise.all([
+      isCalendar
+        ? []
+        : listTodoItems(
+            effectiveParams,
+            session.userId,
+            filteredProjectId(projectFilter),
+            undefined,
+            filters,
+          ),
+      getListPreference(session.userId, "todo-items").catch(() => null),
+      getUpcomingAlertRows(session.userId).catch(() => []),
+      selectedId && Number.isInteger(selectedId) && selectedId > 0
+        ? orNull(getTodoItemById(selectedId, session.userId))
+        : null,
+      loadLookupLists(TODO_ITEM_LISTS, session),
+      // The new-entry row adds personal, project-less to-dos.
+      getTodoPermissions(null, session.userId),
+      getUserPreference(session.userId).catch(() => null),
+      isCalendar
+        ? loadTodoCalendar(
+            {
+              month: flat.month,
+              projectId: filteredProjectId(projectFilter),
+              withoutProject: projectFilter.kind === "none",
+            },
+            session.userId,
+          )
+        : null,
+    ]);
 
   // Fetch the alert and the repeat rule only when a specific todo is selected.
   const [selectedAlert, selectedRecurrence, allows] = await Promise.all([
@@ -165,20 +181,24 @@ export default async function GlobalTodoPage({
 
       <LookupListsScope {...lookup}>
         <div className="flex flex-col flex-1">
-          <TodoView
-            rows={rows}
-            dueSoonDays={userPreference?.dueSoonDays}
-            totalCount={totalCount}
-            page={effectiveParams.page}
-            initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}
-            layout={preference?.layout}
-            filtersActive={filtersActive}
-            projectId={null}
-            projects={projects}
-            projectFilterOptions={projectOptions}
-            canCreate={canAddWith(projects)}
-            emptyBody={messages.todoItems.emptyGlobalBody}
-          />
+          {calendar ? (
+            <TodoCalendar {...calendar} projectFilterOptions={projectOptions} />
+          ) : (
+            <TodoView
+              rows={rows}
+              dueSoonDays={userPreference?.dueSoonDays}
+              totalCount={totalCount}
+              page={effectiveParams.page}
+              initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}
+              layout={preference?.layout}
+              filtersActive={filtersActive}
+              projectId={null}
+              projects={projects}
+              projectFilterOptions={projectOptions}
+              canCreate={canAddWith(projects)}
+              emptyBody={messages.todoItems.emptyGlobalBody}
+            />
+          )}
         </div>
 
         {/* Sheet: create (project-unscoped, projectId=null) or edit when canEdit */}

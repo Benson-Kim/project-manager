@@ -159,10 +159,16 @@ describe("datasheet form values round-trip through each update form schema", () 
         KeyMessageStrategy: "Lead with the schedule risk, then the ask",
         CommunicationFrequency: "Milestone-Driven",
         AdditionalNotes: "Notes",
+        Power: 0,
+        Interest: 85,
+        Stance: "Critic",
         ...audit,
       }),
     );
     expect(parsed).toMatchObject({
+      power: 0,
+      interest: 85,
+      stance: "Critic",
       stakeholderId: 3,
       firstName: "Gary",
       lastName: "Lee",

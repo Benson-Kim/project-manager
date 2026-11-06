@@ -43,8 +43,20 @@ BEGIN
     INSERT INTO @Wanted (KeyDeliverableId)
     SELECT TRY_CAST([value] AS INT) FROM OPENJSON(@Ids);
 
-    IF EXISTS (SELECT 1 FROM @Wanted) AND @RowType NOT IN ('FR', 'NFR', 'TR')
-        THROW 50004, N'VALIDATION:This kind of requirement cannot be allocated', 1;
+    IF EXISTS (SELECT 1 FROM @Wanted AS w
+               WHERE NOT EXISTS (SELECT 1 FROM app.RequirementDeliverable AS d
+                                 WHERE d.RequirementId = @RequirementId
+                                   AND d.KeyDeliverableId = w.KeyDeliverableId))
+       AND NOT EXISTS (SELECT 1 FROM app.RequirementLinkRule
+                       WHERE DownstreamType = @RowType AND UpstreamType = 'WBS')
+        THROW 50004, N'VALIDATION:The link settings do not allow this link', 1;
+
+    -- The client's stated exception, so a fixed check rather than a rule (ADR-0060).
+    IF @RowType = 'TC'
+       AND EXISTS (SELECT 1 FROM @Wanted AS w
+                   JOIN app.KeyDeliverable AS kd ON kd.KeyDeliverableId = w.KeyDeliverableId
+                   WHERE kd.ParentKeyDeliverableId IS NULL)
+        THROW 50004, N'VALIDATION:A test case cannot go on a top-level WBS item', 1;
 
     IF EXISTS (SELECT 1 FROM @Wanted AS w
                WHERE NOT EXISTS (SELECT 1 FROM app.KeyDeliverable AS kd
@@ -66,12 +78,21 @@ BEGIN
     SELECT d.KeyDeliverableId
     FROM app.RequirementDeliverable AS d
     WHERE d.RequirementId = @RequirementId
+      AND d.LinkStatus <> 'Retired'
       AND d.KeyDeliverableId NOT IN (SELECT KeyDeliverableId FROM @Wanted);
 
+    -- The sheet never sees a Retired link, so its absence here is not a request to remove it.
     DELETE d FROM app.RequirementDeliverable AS d
     WHERE d.RequirementId = @RequirementId
+      AND d.LinkStatus <> 'Retired'
       AND d.KeyDeliverableId NOT IN (SELECT KeyDeliverableId FROM @Wanted);
     DECLARE @Changed INT = @@ROWCOUNT;
+
+    UPDATE d SET LinkStatus = 'Active', UpdatedAtUtc = SYSUTCDATETIME(), UpdatedBy = @ActorUserId
+    FROM app.RequirementDeliverable AS d
+    JOIN @Wanted AS w ON w.KeyDeliverableId = d.KeyDeliverableId
+    WHERE d.RequirementId = @RequirementId AND d.LinkStatus = 'Retired';
+    SET @Changed = @Changed + @@ROWCOUNT;
 
     -- One row per deliverable (the primary key), so MAX + 1 places each new one last.
     INSERT INTO app.RequirementDeliverable (ProjectId, RequirementId, KeyDeliverableId, SortOrder, CreatedBy)

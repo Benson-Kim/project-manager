@@ -14,6 +14,7 @@ import {
   type RequirementOption,
 } from "@/modules/requirements/schemas/requirement";
 import {
+  canBeMet,
   SOLUTION_TYPES,
   type SolutionType,
 } from "@/modules/requirements/schemas/requirement-types";
@@ -27,6 +28,7 @@ import {
   type WbsRequirement,
 } from "../schemas/wbs";
 import { DraftInput } from "./draft-input";
+import { requirementTally } from "./gantt-layout";
 import { RequirementMore } from "./wbs-requirement-more";
 
 const W = messages.keyDeliverables.wbs;
@@ -73,8 +75,9 @@ export function isPending(requirement: WbsRequirement): boolean {
   return requirement.id < 0;
 }
 
-function metCount(requirements: readonly WbsRequirement[]): number {
-  return requirements.filter((r) => r.isMet).length;
+export function requirementCountText(requirements: readonly WbsRequirement[]): string {
+  const { met, total } = requirementTally(requirements);
+  return W.requirementCount(met, total);
 }
 
 const iconButton =
@@ -183,6 +186,7 @@ export function MetBox({
   canEdit: boolean;
   on: RequirementHandlers;
 }) {
+  if (!canBeMet(requirement.type)) return <span aria-hidden="true" className="size-4 shrink-0" />;
   return (
     <input
       type="checkbox"
@@ -409,9 +413,7 @@ export function RequirementsToggle({
       >
         <path d="M5 3l6 5-6 5z" />
       </svg>
-      <span className="truncate">
-        {W.requirementCount(metCount(requirements), requirements.length)}
-      </span>
+      <span className="truncate">{requirementCountText(requirements)}</span>
     </button>
   );
 }

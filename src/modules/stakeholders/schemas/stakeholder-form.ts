@@ -2,6 +2,7 @@ import { z } from "zod";
 import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
 import { listChoice } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
+import { isStance } from "../matrix";
 import type { StakeholderRow } from "./stakeholder";
 
 /**
@@ -24,6 +25,23 @@ const memo = z
   .trim()
   .optional()
   .transform((v) => (v ? v : null));
+
+const scoreText = z
+  .string()
+  .trim()
+  .refine(
+    (v) => v === "" || (/^\d{1,3}$/.test(v) && Number(v) <= 100),
+    messages.stakeholders.scoreRange,
+  )
+  .transform((v) => (v === "" ? null : Number(v)));
+
+const stanceText = z
+  .string()
+  .refine((v) => v === "" || isStance(v))
+  .transform((v) => (isStance(v) ? v : null));
+
+/** The update form always carries the place and stance, so an omitted one is refused, never cleared. */
+const placeFields = { power: scoreText, interest: scoreText, stance: stanceText };
 
 export const stakeholderFormSchema = z.object({
   projectId: z.coerce.number().int().positive(messages.stakeholders.projectRequired),
@@ -54,6 +72,9 @@ export const stakeholderFormSchema = z.object({
   communicationFrequency: listChoice,
   keyMessageStrategy: memo,
   additionalNotes: memo,
+  power: scoreText.optional().transform((v) => v ?? null),
+  interest: scoreText.optional().transform((v) => v ?? null),
+  stance: stanceText.optional().transform((v) => v ?? null),
 });
 
 export type StakeholderFormValues = z.output<typeof stakeholderFormSchema>;
@@ -61,6 +82,7 @@ export type StakeholderFormValues = z.output<typeof stakeholderFormSchema>;
 export const updateStakeholderFormSchema = stakeholderFormSchema.extend({
   stakeholderId: z.coerce.number().int().positive(),
   rowVer: z.coerce.number().int().nonnegative(),
+  ...placeFields,
 });
 
 export type UpdateStakeholderFormValues = z.output<typeof updateStakeholderFormSchema>;
@@ -88,5 +110,8 @@ export function stakeholderFormValues(row: StakeholderRow): FormValues {
     communicationFrequency: formText(row.CommunicationFrequency),
     keyMessageStrategy: formText(row.KeyMessageStrategy),
     additionalNotes: formText(row.AdditionalNotes),
+    power: row.Power === null ? "" : String(row.Power),
+    interest: row.Interest === null ? "" : String(row.Interest),
+    stance: formText(row.Stance),
   };
 }

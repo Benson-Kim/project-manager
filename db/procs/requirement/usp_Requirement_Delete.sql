@@ -1,11 +1,13 @@
--- usp_Requirement_Delete — soft-delete one requirement and remove every link to and from it and
+-- usp_Requirement_Delete — soft-delete a requirement and remove every link to and from it and
 -- every allocation (ADR-0037); renumber each deliverable that loses one.
 -- Access: Manager + requirements:delete. CONFLICT 50002 on a stale RowVer.
 -- BeforeJson keeps the links and allocations so the change can be read back. Answers with the
 --   project id. Deliverables stay; only this requirement leaves the register.
--- A requirement that still has sub-requirements is refused (ADR-0048), under the project lock
---   since it reads other rows, unless @PromoteChildren = 1. That is the client's choice: refuse by
---   default, and on request move the live children up one level, under this row's own parent (or
+-- A parent, meaning a row with sub-requirements or anything linked downstream (ADR-0060 section 8),
+--   is refused under the project lock unless @ChildAction says what to do. 'Delete' also removes
+--   ufn_Requirement_DeleteSet, one BeforeJson audit row each; @ExpectedDeleteIds are the exact rows
+--   the dialog showed, and any difference from the set now is a conflict, so nothing unseen goes.
+--   'Orphan' removes the links and moves the live children up one level, under this row's own parent (or
 --   to the top level), numbered after the numbers already used there, deleted ones counted, in
 --   their old order. Their own sub-requirements travel with them, so every reference below changes;
 --   the UI says so before asking. The new parent is an ancestor of each child, so the move cannot
@@ -16,7 +18,8 @@ CREATE OR ALTER PROCEDURE dbo.usp_Requirement_Delete
     @RequirementId   INT,
     @RowVer          BIGINT,
     @ActorUserId     INT,
-    @PromoteChildren BIT = 0
+    @ChildAction     NVARCHAR(10) = N'None',
+    @ExpectedDeleteIds NVARCHAR(MAX) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -32,6 +35,9 @@ BEGIN
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
          @MinLevel = N'Manager', @Permission = N'requirements:delete', @AllowProjectless = 0;
 
+    IF @ChildAction IS NULL OR @ChildAction NOT IN (N'None', N'Orphan', N'Delete')
+        THROW 50004, N'VALIDATION:Choose what happens to the items under this requirement', 1;
+
     IF @CurrentVer <> @RowVer
         THROW 50002, N'CONFLICT:Requirement was modified by someone else', 1;
 
@@ -40,10 +46,33 @@ BEGIN
     DECLARE @Locked INT;
     SELECT @Locked = ProjectId FROM app.Project WITH (UPDLOCK, HOLDLOCK) WHERE ProjectId = @RowProjectId;
 
-    IF ISNULL(@PromoteChildren, 0) = 0
-       AND EXISTS (SELECT 1 FROM app.Requirement
-                   WHERE ParentRequirementId = @RequirementId AND IsDeleted = 0)
-        THROW 50004, N'VALIDATION:Delete the sub-requirements under this one first, or move them up a level', 1;
+    IF @ChildAction = N'None'
+       AND (EXISTS (SELECT 1 FROM app.Requirement
+                    WHERE ParentRequirementId = @RequirementId AND IsDeleted = 0)
+            OR EXISTS (SELECT 1 FROM app.RequirementTrace
+                       WHERE ValidatesRequirementId = @RequirementId AND LinkStatus <> 'Retired'))
+        THROW 50004, N'VALIDATION:Delete the sub-requirements and downstream links first, or choose what happens to them', 1;
+
+    DECLARE @Doomed TABLE (RequirementId INT PRIMARY KEY);
+    IF @ChildAction = N'Delete'
+        INSERT INTO @Doomed (RequirementId)
+        SELECT RequirementId FROM dbo.ufn_Requirement_DeleteSet(@RequirementId);
+    ELSE
+        INSERT INTO @Doomed (RequirementId) VALUES (@RequirementId);
+
+    IF @ChildAction = N'Delete'
+    BEGIN
+        IF @ExpectedDeleteIds IS NULL OR ISJSON(@ExpectedDeleteIds) <> 1
+            THROW 50002, N'CONFLICT:What this delete would remove has changed', 1;
+
+        DECLARE @Expected TABLE (RequirementId INT PRIMARY KEY);
+        INSERT INTO @Expected (RequirementId)
+        SELECT DISTINCT val FROM OPENJSON(@ExpectedDeleteIds) WITH (val INT '$');
+
+        IF EXISTS (SELECT RequirementId FROM @Expected EXCEPT SELECT RequirementId FROM @Doomed)
+           OR EXISTS (SELECT RequirementId FROM @Doomed EXCEPT SELECT RequirementId FROM @Expected)
+            THROW 50002, N'CONFLICT:What this delete would remove has changed', 1;
+    END
 
     -- Read under the lock: every structure write takes it, so the parent cannot move meanwhile.
     DECLARE @ParentId INT, @RowType VARCHAR(3);
@@ -53,16 +82,21 @@ BEGIN
     -- The deliverables that will lose an allocation; their lists are renumbered after the delete.
     DECLARE @Touched TABLE (KeyDeliverableId INT PRIMARY KEY);
     INSERT INTO @Touched (KeyDeliverableId)
-    SELECT KeyDeliverableId FROM app.RequirementDeliverable WHERE RequirementId = @RequirementId;
+    SELECT DISTINCT a.KeyDeliverableId
+    FROM app.RequirementDeliverable AS a
+    JOIN @Doomed AS d ON d.RequirementId = a.RequirementId;
 
-    DECLARE @Before NVARCHAR(MAX) =
-        (SELECT r.RequirementId, r.ProjectId, r.RequirementType, r.Number, r.ParentRequirementId,
-                r.Requirement, r.IsMet,
-                l.ValidatesJson, l.ValidatedByJson, l.DeliverablesJson
-         FROM app.Requirement AS r
-         OUTER APPLY dbo.ufn_Requirement_Links(r.RequirementId) AS l
-         WHERE r.RequirementId = @RequirementId
-         FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+    DECLARE @Before TABLE (RequirementId INT PRIMARY KEY, BeforeJson NVARCHAR(MAX) NOT NULL);
+    INSERT INTO @Before (RequirementId, BeforeJson)
+    SELECT d.RequirementId,
+           (SELECT r.RequirementId, r.ProjectId, r.RequirementType, r.Number, r.ParentRequirementId,
+                   r.Requirement, r.IsMet,
+                   l.ValidatesJson, l.ValidatedByJson, l.DeliverablesJson
+            FROM app.Requirement AS r
+            OUTER APPLY dbo.ufn_Requirement_Links(r.RequirementId) AS l
+            WHERE r.RequirementId = d.RequirementId
+            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+    FROM @Doomed AS d;
 
     UPDATE app.Requirement SET
         IsDeleted    = 1,
@@ -77,7 +111,15 @@ BEGIN
         THROW 50002, N'CONFLICT:Requirement was modified by someone else', 1;
     END
 
-    IF @PromoteChildren = 1
+    UPDATE r SET
+        IsDeleted    = 1,
+        DeletedAtUtc = SYSUTCDATETIME(),
+        DeletedBy    = @ActorUserId
+    FROM app.Requirement AS r
+    JOIN @Doomed AS d ON d.RequirementId = r.RequirementId
+    WHERE r.RequirementId <> @RequirementId AND r.IsDeleted = 0;
+
+    IF @ChildAction = N'Orphan'
     BEGIN
         DECLARE @Promoted TABLE (RequirementId INT PRIMARY KEY, OldNumber INT NOT NULL, NewNumber INT NOT NULL);
         DECLARE @LastNumber INT =
@@ -106,10 +148,12 @@ BEGIN
         FROM @Promoted AS p;
     END
 
-    DELETE FROM app.RequirementTrace
-    WHERE RequirementId = @RequirementId OR ValidatesRequirementId = @RequirementId;
+    DELETE t FROM app.RequirementTrace AS t
+    WHERE EXISTS (SELECT 1 FROM @Doomed AS d
+                  WHERE d.RequirementId IN (t.RequirementId, t.ValidatesRequirementId));
 
-    DELETE FROM app.RequirementDeliverable WHERE RequirementId = @RequirementId;
+    DELETE a FROM app.RequirementDeliverable AS a
+    JOIN @Doomed AS d ON d.RequirementId = a.RequirementId;
 
     UPDATE d SET
         SortOrder = o.Position
@@ -123,8 +167,9 @@ BEGIN
     WHERE d.SortOrder <> o.Position;
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson)
-    VALUES (@ActorUserId, N'Delete', N'app.Requirement',
-            CAST(@RequirementId AS NVARCHAR(64)), @Before);
+    SELECT @ActorUserId, N'Delete', N'app.Requirement',
+           CAST(b.RequirementId AS NVARCHAR(64)), b.BeforeJson
+    FROM @Before AS b;
 
     COMMIT;
 

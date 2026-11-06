@@ -40,6 +40,12 @@ and prints `N passed, M failed`.
   scheduling nothing; a link read back on its successor row with its RowVer; retyping, a stale
   RowVer conflicting, an idempotent no-op relink, unlinking and re-linking the same pair; a deleted
   item taking the links at both of its ends; and a link alone moving the Gantt freshness stamp.
+- `requirement-canvas-procs.cjs` — ADR-0061: canvas details, reveal, move and hide of nodes, the
+  whole-project Items and Links reads, and the one-at-a-time WBS link, including parallel writes.
+- `stakeholder-matrix-procs.cjs` — migration 066: power, interest and stance through create, update,
+  get and list (0 and 100 kept, 101, -1 and an unknown or wrongly cased stance refused); the place
+  proc moving only power and interest, refusing a stale RowVer, a Viewer and a Contributor, and
+  writing one audit row; the whole-project matrix read and its access; and places being per project.
 - `requirements-race.cjs` — ADR-0037 under concurrency: parallel creates get distinct numbers,
   a link racing a delete leaves no link to a deleted row, a type change racing a new link stays
   valid, and parallel moves under one deliverable leave the order 1..n.

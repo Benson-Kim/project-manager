@@ -94,7 +94,18 @@ export default async function StakeholdersPage({
     <>
       <PageHeader
         title={messages.stakeholders.title}
-        action={canCreate ? newStakeholderLink : undefined}
+        action={
+          <div className="flex gap-2">
+            <Link
+              href={`/projects/${projectId}/stakeholders/matrix`}
+              data-testid="matrix-link"
+              className="inline-flex min-h-10 items-center rounded-md border border-line bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-raised"
+            >
+              {messages.stakeholders.matrix.link}
+            </Link>
+            {canCreate ? newStakeholderLink : null}
+          </div>
+        }
       />
       <LookupListsScope {...lookup}>
         <div className="mt-3 flex flex-col flex-1">

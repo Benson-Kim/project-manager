@@ -61,7 +61,11 @@ import {
  * rendered instance is reached. The Sheet component also calls router.refresh()
  * for the current tab (ADR-0018).
  */
-const REVALIDATE_TARGETS = ["/projects/[id]/deliverables", "/projects/[id]/deliverables/gantt"];
+const REVALIDATE_TARGETS = [
+  "/projects/[id]/deliverables",
+  "/projects/[id]/deliverables/gantt",
+  "/projects/[id]/deliverables/canvas",
+];
 
 /** Create a deliverable (RBAC key-deliverables:create — project level checked in-proc, ADR-0021; audited in-proc). */
 export const createKeyDeliverableAction = action({
