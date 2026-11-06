@@ -81,9 +81,18 @@ test.describe("kitchen sink — shared primitives", () => {
 
   test("data view selection shows the bulk bar", async ({ page }) => {
     await page.getByTestId("view-list").click();
-    await page.getByRole("checkbox").first().check();
+    // One row's own checkbox — not the header "Select all" box, which would take every row.
+    await page.getByRole("checkbox", { name: "Select Network refresh" }).check();
     await expect(page.getByText("1 selected")).toBeVisible();
     await page.getByRole("button", { name: "Clear selection" }).click();
     await expect(page.getByText("1 selected")).toBeHidden();
+  });
+
+  test("data view select-all box takes every visible row", async ({ page }) => {
+    await page.getByTestId("view-list").click();
+    await page.getByRole("checkbox", { name: "Select all" }).check();
+    await expect(page.getByText("3 selected")).toBeVisible();
+    await page.getByRole("button", { name: "Clear selection" }).click();
+    await expect(page.getByText("3 selected")).toBeHidden();
   });
 });
