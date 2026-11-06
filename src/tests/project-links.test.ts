@@ -75,3 +75,15 @@ describe("every cross-project list links the project name", () => {
     });
   }
 });
+
+describe("the Projects list", () => {
+  it("shows each project's name as a link to its Overview, never an editor", () => {
+    const text = source("src/modules/projects/components/projects-view.tsx");
+    const nameColumn = text.slice(
+      text.indexOf('key: "ProjectName"'),
+      text.indexOf('key: "ProjectStatus"'),
+    );
+    expect(nameColumn).toContain("editable: () => false");
+    expect(nameColumn).toMatch(/<ProjectLink projectId={r.ProjectId}/);
+  });
+});

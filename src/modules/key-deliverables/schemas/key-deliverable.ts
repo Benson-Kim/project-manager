@@ -5,7 +5,10 @@ import { OPTION_COLORS, type LookupListKey } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
 import { moscowSchema } from "@/modules/requirements/schemas/moscow";
 import { requirementText } from "@/modules/requirements/schemas/requirement-form";
-import { solutionTypeSchema } from "@/modules/requirements/schemas/requirement-types";
+import {
+  requirementTypeSchema,
+  solutionTypeSchema,
+} from "@/modules/requirements/schemas/requirement-types";
 import { DEPENDENCY_TYPES, LAG_MAX_DAYS, LAG_MIN_DAYS, type WbsLink } from "./wbs-dependencies";
 import { utcDay, type WbsItem, type WbsRequirement } from "./wbs";
 
@@ -69,7 +72,7 @@ export function parseAssigneesJson(raw: unknown): AssigneeEntry[] {
 const requirementEntrySchema = z
   .object({
     id: z.number().int().positive(),
-    type: solutionTypeSchema,
+    type: requirementTypeSchema,
     ref: z.string().min(1),
     requirement: z.string(),
     isMet: z.union([z.boolean(), z.literal(0), z.literal(1)]).transform(Boolean),
@@ -471,7 +474,7 @@ export type AddRequirementInput = z.input<typeof addRequirementInput>;
 
 export const updateRequirementInput = z.object({
   id: itemId,
-  type: solutionTypeSchema,
+  type: requirementTypeSchema,
   text: requirementText,
   isMet: z.boolean(),
   rowVer: rowVerSchema,

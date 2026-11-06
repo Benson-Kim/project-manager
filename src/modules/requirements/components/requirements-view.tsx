@@ -16,11 +16,13 @@ import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { createRequirementAction, updateRequirementAction } from "../actions";
+import type { LinkRule } from "../schemas/link-rules";
 import type { RequirementListRow, RequirementRow } from "../schemas/requirement";
 import { MAX_REQUIREMENT_LENGTH, REQUIREMENT_SORT } from "../schemas/requirement";
 import { requirementFormValues } from "../schemas/requirement-form";
 import {
-  isSolution,
+  canBeMet,
+  isTest,
   REQUIREMENT_TYPES,
   typeLabel,
   type RequirementType,
@@ -54,7 +56,8 @@ const canEditRow = rowAllows("requirements:update");
 /**
  * The project's requirement register (ADR-0037): DataView datasheet over usp_Requirement_List.
  * Wording, met tick and a free row's type edit in a cell; links and allocations are the sheet's,
- * since each needs the whole picture. Selecting needs offers the merge into a new solution.
+ * since each needs the whole picture. Selecting needs offers the merge into a new solution, and
+ * selecting solutions a new test case that validates them.
  */
 export function RequirementsView({
   rows,
@@ -65,12 +68,14 @@ export function RequirementsView({
   filtersActive,
   filterType,
   deliverableOptions,
+  linkRules,
   projectId,
   canCreate,
   canPackage = false,
   newRequirementAction,
 }: {
   rows: RequirementListRow[];
+  linkRules: readonly LinkRule[];
   projectId: number;
   /** Shows the datasheet's new-entry row. */
   canCreate: boolean;
@@ -133,7 +138,7 @@ export function RequirementsView({
         yes: M.yes,
         no: M.no,
         placeholder: P.isMet,
-        editable: (r) => isSolution(r.RequirementType),
+        editable: (r) => canBeMet(r.RequirementType),
       }),
       {
         key: "Deliverables",
@@ -214,7 +219,7 @@ export function RequirementsView({
       bulkActions={
         canCreate || canPackage
           ? (selectedIds, clear) => {
-              const merge = mergeSelection(rows, selectedIds);
+              const merge = mergeSelection(rows, selectedIds, linkRules);
               if (!selectedIds.length) return null;
               return (
                 <div className="flex flex-wrap gap-2">
@@ -233,7 +238,7 @@ export function RequirementsView({
                       clear();
                     }}
                   >
-                    {M.merge}
+                    {merge && isTest(merge.type) ? M.newTest : M.merge}
                   </Button>
                 </div>
               );

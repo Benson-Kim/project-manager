@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
+import { ProjectLink } from "@/components/ui/project-link";
 import { listEmptyState } from "@/components/ui/states";
 import { dateColumn, listColumn, textColumn } from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
@@ -66,7 +67,12 @@ const columns: DataViewColumn<Row>[] = [
     value: (r) => r.ProjectName,
     placeholder: P.name,
     maxLength: 255,
-    render: (r) => <span className="font-medium text-ink">{r.ProjectName}</span>,
+    editable: () => false,
+    render: (r) => (
+      <ProjectLink projectId={r.ProjectId} className="font-medium text-accent underline">
+        {r.ProjectName}
+      </ProjectLink>
+    ),
   }),
   listColumn({
     key: "ProjectStatus",

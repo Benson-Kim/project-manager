@@ -5,6 +5,7 @@ import {
   coverageText,
   deleteBlockedReason,
   deleteConsequence,
+  deleteImpactText,
   deliverablesText,
   mergeSelection,
   newRequirementType,
@@ -16,12 +17,12 @@ import {
   registerType,
   typeBlockedReason,
   typeCell,
-  typeChangeContext,
   typeIsFree,
   type RegisterRow,
 } from "../components/register-model";
-import { MAX_REQUIREMENT_DEPTH } from "../schemas/requirement";
+import { deleteRequirementInput, MAX_REQUIREMENT_DEPTH } from "../schemas/requirement";
 import type { RequirementType } from "../schemas/requirement-types";
+import { SEED_LINK_RULES } from "./seed-link-rules";
 
 const M = messages.requirements;
 
@@ -89,19 +90,7 @@ describe("newRequirementType", () => {
   });
 });
 
-describe("typeChangeContext and typeIsFree", () => {
-  it("counts the links and allocations a type change must keep valid", () => {
-    expect(
-      typeChangeContext(
-        row({
-          RequirementType: "FR",
-          Validates: [link(2, "BR", "1")],
-          DeliverableIds: [5, 6],
-        }),
-      ),
-    ).toEqual({ type: "FR", validates: 1, validatedBy: 0, allocations: 2 });
-  });
-
+describe("typeIsFree", () => {
   it("frees only a row with no link either way and no allocation", () => {
     expect(typeIsFree(row())).toBe(true);
     expect(typeIsFree(row({ Validates: [link(2, "BR", "1")] }))).toBe(false);
@@ -131,15 +120,23 @@ describe("coverageText", () => {
     ).toBe(M.coverageDone);
   });
 
-  it("leaves a solution without coverage of its own", () => {
+  it("reads a solution's state from the test cases that validate it", () => {
+    expect(coverageText(row({ RequirementType: "FR" }))).toBe(M.testCoverageNone);
     expect(
       coverageText(
         row({
-          RequirementType: "FR",
-          ValidatedBy: [solution(3, "FR", "1", true)],
+          RequirementType: "NFR",
+          ValidatedBy: [solution(7, "TC", "1", true), solution(8, "TC", "2", false)],
         }),
       ),
-    ).toBe(M.none);
+    ).toBe(M.testCoveragePartial(1, 2));
+    expect(
+      coverageText(row({ RequirementType: "TR", ValidatedBy: [solution(7, "TC", "1", true)] })),
+    ).toBe(M.testCoverageDone);
+  });
+
+  it("leaves a test case without coverage of its own", () => {
+    expect(coverageText(row({ RequirementType: "TC" }))).toBe(M.none);
   });
 });
 
@@ -176,24 +173,39 @@ describe("mergeSelection", () => {
     row({ RequirementId: 1, RequirementType: "BR", Ref: "BR-1" }),
     row({ RequirementId: 2, RequirementType: "SR", Ref: "SR-1" }),
     row({ RequirementId: 3, RequirementType: "FR", Ref: "FR-1" }),
+    row({ RequirementId: 4, RequirementType: "NFR", Ref: "NFR-1" }),
+    row({ RequirementId: 5, RequirementType: "TC", Ref: "TC-1" }),
   ];
+  const merge = (ids: readonly (string | number)[]) => mergeSelection(rows, ids, SEED_LINK_RULES);
 
   it("merges needs into a new functional requirement", () => {
-    expect(mergeSelection(rows, [1, 2])).toEqual({ type: "FR", validates: "1,2" });
+    expect(merge([1, 2])).toEqual({ type: "FR", validates: "1,2" });
   });
 
   it("matches ids the DataView reports as strings", () => {
-    expect(mergeSelection(rows, ["2"])).toEqual({ type: "FR", validates: "2" });
+    expect(merge(["2"])).toEqual({ type: "FR", validates: "2" });
   });
 
-  it("refuses a selection that is not all needs", () => {
-    expect(mergeSelection(rows, [1, 3])).toBeNull();
-    expect(mergeSelection(rows, [3])).toBeNull();
+  it("turns solutions into a new test case that validates them", () => {
+    expect(merge([3, 4])).toEqual({ type: "TC", validates: "3,4" });
+  });
+
+  it("takes a mixed selection below all of it", () => {
+    expect(merge([1, 3])).toEqual({ type: "TC", validates: "1,3" });
+  });
+
+  it("refuses a selection holding a test case, which has nothing below it", () => {
+    expect(merge([5])).toBeNull();
+    expect(merge([3, 5])).toBeNull();
+  });
+
+  it("refuses when the rules leave no target", () => {
+    expect(mergeSelection(rows, [1, 2], [])).toBeNull();
   });
 
   it("refuses an empty selection, or one holding a row of another page", () => {
-    expect(mergeSelection(rows, [])).toBeNull();
-    expect(mergeSelection(rows, [1, 99])).toBeNull();
+    expect(merge([])).toBeNull();
+    expect(merge([1, 99])).toBeNull();
   });
 });
 
@@ -224,6 +236,65 @@ describe("deleteConsequence", () => {
 
   it("falls back to the register when nothing else is lost", () => {
     expect(deleteConsequence(row())).toBe(M.deleteBody);
+  });
+});
+
+describe("deleting a parent", () => {
+  const impact = (ref: string, fate: "Deleted" | "Unlinked", id = 1) => ({
+    RequirementId: id,
+    RequirementType: "FR",
+    Ref: ref,
+    Fate: fate,
+  });
+
+  it("treats a row with only a downstream link as a parent", () => {
+    const parent = row({ ValidatedBy: [solution(3, "FR", "1", false)] });
+    expect(deleteBlockedReason(parent)).toBe(M.downstreamBlocksDelete(1));
+  });
+
+  it("lets a row with nothing under it go", () => {
+    expect(deleteBlockedReason(row())).toBeNull();
+  });
+
+  it("says what is lost when there are no sub-requirements to move", () => {
+    const parent = row({ DeliverableIds: [5], ValidatedBy: [solution(3, "FR", "1", false)] });
+    expect(promoteConsequence(parent)).toBe(deleteConsequence(parent));
+  });
+
+  it("lists the deleted rows, then the rows that stay", () => {
+    const text = deleteImpactText([impact("BR-1", "Deleted"), impact("FR-1", "Unlinked")]);
+    expect(text).toBe(`${M.cascadeGoes("BR-1")} ${M.cascadeKeeps("FR-1")}`);
+  });
+
+  it("leaves the kept sentence out when nothing stays", () => {
+    expect(deleteImpactText([impact("BR-1", "Deleted")])).toBe(M.cascadeGoes("BR-1"));
+  });
+
+  it("caps a long list and counts the rest", () => {
+    const rows = Array.from({ length: 14 }, (_, i) => impact(`BR-${i + 1}`, "Deleted", i + 1));
+    const shown = rows.slice(0, 12).map((r) => r.Ref);
+    expect(deleteImpactText(rows)).toBe(M.cascadeGoes(`${shown.join(", ")} ${M.andMore(2)}`));
+  });
+});
+
+describe("deleteRequirementInput", () => {
+  const base = { requirementId: 7, rowVer: "1" };
+
+  it("defaults to None, which the server refuses for a parent", () => {
+    expect(deleteRequirementInput.parse(base).childAction).toBe("None");
+  });
+
+  it("takes only the three choices", () => {
+    expect(deleteRequirementInput.safeParse({ ...base, childAction: "Delete" }).success).toBe(true);
+    expect(deleteRequirementInput.safeParse({ ...base, childAction: "Sideways" }).success).toBe(
+      false,
+    );
+  });
+
+  it("refuses a count of zero", () => {
+    expect(deleteRequirementInput.safeParse({ ...base, expectedDeleteCount: 0 }).success).toBe(
+      false,
+    );
   });
 });
 

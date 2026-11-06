@@ -16,7 +16,21 @@ import { usePopoverPlacement } from "./popover-placement";
  * moved sideways when that would cross the window's edge (360 px screens).
  */
 const ITEM = '[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]';
-const CLOSES = '[role="menuitem"], [role="menuitemradio"]';
+export const CLOSES = '[role="menuitem"], [role="menuitemradio"]';
+
+export function menuItemsIn(root: HTMLElement | null) {
+  return Array.from(root?.querySelectorAll<HTMLElement>(ITEM) ?? []);
+}
+
+/** Up and down arrows move focus through the items, stopping at either end. */
+export function stepMenuFocus(event: React.KeyboardEvent, list: readonly HTMLElement[]) {
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+  event.preventDefault();
+  const index = list.indexOf(document.activeElement as HTMLElement);
+  const next =
+    event.key === "ArrowDown" ? Math.min(index + 1, list.length - 1) : Math.max(index - 1, 0);
+  list[next]?.focus();
+}
 
 export function Menu({
   label,
@@ -43,10 +57,7 @@ export function Menu({
   const panelRef = useRef<HTMLDivElement>(null);
   usePopoverPlacement(triggerRef, panelRef, open, { align });
 
-  const items = useCallback(
-    () => Array.from(rootRef.current?.querySelectorAll<HTMLElement>(ITEM) ?? []),
-    [],
-  );
+  const items = useCallback(() => menuItemsIn(rootRef.current), []);
 
   useEffect(() => {
     if (!open) return;
@@ -65,14 +76,7 @@ export function Menu({
       triggerRef.current?.focus();
       return;
     }
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      event.preventDefault();
-      const list = items();
-      const index = list.indexOf(document.activeElement as HTMLElement);
-      const next =
-        event.key === "ArrowDown" ? Math.min(index + 1, list.length - 1) : Math.max(index - 1, 0);
-      list[next]?.focus();
-    }
+    stepMenuFocus(event, items());
   };
 
   return (

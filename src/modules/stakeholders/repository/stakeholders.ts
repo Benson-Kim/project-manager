@@ -2,13 +2,19 @@ import { execProc } from "@/lib/db";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
 import {
   createStakeholderInput,
+  placeStakeholderInput,
   stakeholderListRowSchema,
+  stakeholderMatrixRowSchema,
+  stakeholderPlaceRowSchema,
   stakeholderRowSchema,
   updateStakeholderInput,
   type CreateStakeholderInput,
   type CreateStakeholderParsed,
+  type PlaceStakeholderInput,
   type StakeholderFilters,
   type StakeholderListRow,
+  type StakeholderMatrixRow,
+  type StakeholderPlaceRow,
   type StakeholderRow,
   type UpdateStakeholderInput,
 } from "../schemas/stakeholder";
@@ -39,6 +45,9 @@ function toProcParams(input: CreateStakeholderParsed) {
     KeyMessageStrategy: input.keyMessageStrategy ?? null,
     CommunicationFrequency: input.communicationFrequency ?? null,
     AdditionalNotes: input.additionalNotes ?? null,
+    Power: input.power ?? null,
+    Interest: input.interest ?? null,
+    Stance: input.stance ?? null,
   };
 }
 
@@ -92,6 +101,33 @@ export async function updateStakeholder(
     ActorUserId: actorUserId,
   });
   return stakeholderRowSchema.parse(rows[0]);
+}
+
+export async function placeStakeholder(
+  input: PlaceStakeholderInput,
+  actorUserId: number,
+): Promise<StakeholderPlaceRow> {
+  const parsed = placeStakeholderInput.parse(input);
+  const rows = await execProc<StakeholderPlaceRow>("usp_Stakeholder_Place", {
+    StakeholderId: parsed.stakeholderId,
+    Power: parsed.power,
+    Interest: parsed.interest,
+    RowVer: parsed.rowVer,
+    ActorUserId: actorUserId,
+  });
+  return stakeholderPlaceRowSchema.parse(rows[0]);
+}
+
+/** One project's whole register for the matrix; places are per project. */
+export async function getStakeholderMatrix(
+  projectId: number,
+  actorUserId: number,
+): Promise<StakeholderMatrixRow[]> {
+  const rows = await execProc<StakeholderMatrixRow>("usp_Stakeholder_Matrix", {
+    ProjectId: projectId,
+    ActorUserId: actorUserId,
+  });
+  return rows.map((r) => stakeholderMatrixRowSchema.parse(r));
 }
 
 export async function deleteStakeholder(

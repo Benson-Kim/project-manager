@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -10,12 +10,7 @@ import { Input, Select, Switch } from "@/components/ui/form/inputs";
 import { LabelListEditor } from "@/components/ui/form/label-list-editor";
 import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
 import { Panel } from "@/components/ui/panel";
-import {
-  NO_CURRENCY,
-  type Currency,
-  listCurrencies,
-  suggestedCurrency,
-} from "@/lib/currency/currencies";
+import { NO_CURRENCY } from "@/lib/currency/currencies";
 import { messages } from "@/lib/messages";
 import { deleteFinancialAction, setTaxProfilesAction, updateFinancialAction } from "../actions";
 import { fiscalYearLabel, horizonYears } from "../calc/fiscal";
@@ -23,6 +18,7 @@ import { formatPercent, parseFraction } from "../calc/money";
 import { ratesByYear, sameEveryYear, stepsFromRates } from "../calc/tax-rates";
 import type { SheetDto } from "../schemas/financial";
 import { MONTHS } from "./months";
+import { useCurrencies, useSuggestedCurrency } from "./use-currencies";
 import { useFinancialAction } from "./use-financial-action";
 
 const M = messages.financials;
@@ -50,34 +46,6 @@ export function breakdownValues(f: SheetDto["financial"]) {
     fundingSources: f.fundingSources,
     currency: f.currency,
   };
-}
-
-/** Nothing to subscribe to: neither the zone nor the runtime's list changes while this is open. */
-const noSubscription = () => () => {};
-
-/**
- * The currency to offer first, resolved on the client only: it reads the
- * viewer's time zone, which the server cannot know, so deciding it during
- * render would differ between the two and drift on hydration. The server
- * snapshot is "no symbol", and React swaps in the real one after hydrating.
- */
-function useSuggestedCurrency() {
-  return useSyncExternalStore(noSubscription, suggestedCurrency, () => NO_CURRENCY);
-}
-
-const NO_CURRENCIES: Currency[] = [];
-
-/**
- * The list resolves on the client only, for the reason the suggestion does.
- * Intl's currencies come from the runtime's own ICU build and the builds
- * disagree: Node 22 lists 162, Chrome 139 lists 159, and they name ZWL
- * differently. A list rendered on the server therefore cannot be hydrated, and
- * React answers a mismatch by discarding this form and rendering it again,
- * which loses a currency already chosen in it. The server renders the stored
- * code as its own label; the names arrive with hydration.
- */
-function useCurrencies() {
-  return useSyncExternalStore(noSubscription, listCurrencies, () => NO_CURRENCIES);
 }
 
 /** The currency figures are shown in (ADR-0051), or no symbol at all. */

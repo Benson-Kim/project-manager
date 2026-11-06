@@ -3,8 +3,8 @@ import { PdfWriter, textWidth, type TableColumn } from "@/lib/pdf";
 import type { CsvCell } from "@/lib/csv";
 import { moscowLabel } from "./schemas/moscow";
 import type { RequirementListRow } from "./schemas/requirement";
-import { coverageLabel, coverageOf, refList } from "./schemas/requirement-rules";
-import { isNeed, typeOrder } from "./schemas/requirement-types";
+import { coverageFor, refList } from "./schemas/requirement-rules";
+import { canBeMet, typeOrder } from "./schemas/requirement-types";
 import { refCell, typeCell } from "./components/register-model";
 
 /**
@@ -21,7 +21,7 @@ import { refCell, typeCell } from "./components/register-model";
  * three days after this file last changed and so were missing from both files).
  *
  * A cell is empty only where the field does not apply to that kind of
- * requirement — a need carries no Met of its own, a solution no coverage.
+ * requirement — a need carries no Met of its own, a test case no coverage.
  * Where the field applies and is unset, the cell says so in words
  * ("Not prioritised", "Unassigned"), because a blank there reads as a failure.
  *
@@ -49,12 +49,12 @@ interface Column {
 }
 
 function metCell(row: RequirementListRow): string {
-  if (isNeed(row.RequirementType)) return "";
+  if (!canBeMet(row.RequirementType)) return "";
   return row.IsMet ? M.yes : M.no;
 }
 
 function coverageCell(row: RequirementListRow): string {
-  return isNeed(row.RequirementType) ? coverageLabel(coverageOf(row.ValidatedBy)) : "";
+  return coverageFor(row.RequirementType, row.ValidatedBy) ?? "";
 }
 
 /** NULL MoSCoW is "not prioritised yet" (ADR-0052), which is a state and not a blank. */

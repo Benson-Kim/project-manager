@@ -53,6 +53,13 @@ export default async function Page() {
           >
             {messages.settings.audit.title}
           </Link>
+          <Link
+            href="/settings/link-rules"
+            data-testid="link-rules-link"
+            className="ml-4 inline-flex min-h-10 items-center text-sm font-medium text-accent"
+          >
+            {messages.settings.linkRules.title}
+          </Link>
           {backupStatusFile() ? (
             <Link
               href="/settings/backup"

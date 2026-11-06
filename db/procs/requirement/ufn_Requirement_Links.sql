@@ -2,7 +2,8 @@
 -- (ADR-0037): the needs it validates, the solutions that validate it, and the deliverables it is
 -- allocated to. Shared by usp_Requirement_List and usp_Requirement_GetById so the shapes cannot
 -- drift. Deleted rows and deleted deliverables are left out. Procs only; the application never
--- calls it. Lives beside the procs; db-apply applies every ufn_ before any usp_, and this one
+-- calls it. A Retired link stays on record (usp_RequirementLink_List) and out of all three columns
+-- (ADR-0060). Lives beside the procs; db-apply applies every ufn_ before any usp_, and this one
 -- binds to ufn_Requirement_AncestorPath, which sorts before it.
 -- Each linked requirement carries its own ref and sortPath from ufn_Requirement_AncestorPath
 -- (ADR-0048), not a number: a chip must read "BR-1.2" when the trace points at a sub-requirement,
@@ -26,25 +27,25 @@ RETURN
             JOIN app.Requirement AS n
                 ON n.RequirementId = t.ValidatesRequirementId AND n.IsDeleted = 0
             CROSS APPLY dbo.ufn_Requirement_AncestorPath(n.RequirementId) AS np
-            WHERE t.RequirementId = @RequirementId
+            WHERE t.RequirementId = @RequirementId AND t.LinkStatus <> 'Retired'
             ORDER BY CASE n.RequirementType
                          WHEN 'BR' THEN 1 WHEN 'SR' THEN 2 WHEN 'FR' THEN 3
-                         WHEN 'NFR' THEN 4 WHEN 'TR' THEN 5 END,
+                         WHEN 'NFR' THEN 4 WHEN 'TR' THEN 5 WHEN 'TC' THEN 6 END,
                      np.SortPath
             FOR JSON PATH, INCLUDE_NULL_VALUES
         ),
         ValidatedByJson = (
             SELECT s.RequirementId AS id, s.RequirementType AS [type],
                    sp.Ref AS ref, sp.SortPath AS sortPath,
-                   s.IsMet AS isMet
+                   s.IsMet AS isMet, t.LinkStatus AS status
             FROM app.RequirementTrace AS t
             JOIN app.Requirement AS s
                 ON s.RequirementId = t.RequirementId AND s.IsDeleted = 0
             CROSS APPLY dbo.ufn_Requirement_AncestorPath(s.RequirementId) AS sp
-            WHERE t.ValidatesRequirementId = @RequirementId
+            WHERE t.ValidatesRequirementId = @RequirementId AND t.LinkStatus <> 'Retired'
             ORDER BY CASE s.RequirementType
                          WHEN 'BR' THEN 1 WHEN 'SR' THEN 2 WHEN 'FR' THEN 3
-                         WHEN 'NFR' THEN 4 WHEN 'TR' THEN 5 END,
+                         WHEN 'NFR' THEN 4 WHEN 'TR' THEN 5 WHEN 'TC' THEN 6 END,
                      sp.SortPath
             FOR JSON PATH, INCLUDE_NULL_VALUES
         ),
@@ -53,7 +54,7 @@ RETURN
             FROM app.RequirementDeliverable AS d
             JOIN app.KeyDeliverable AS kd
                 ON kd.KeyDeliverableId = d.KeyDeliverableId AND kd.IsDeleted = 0
-            WHERE d.RequirementId = @RequirementId
+            WHERE d.RequirementId = @RequirementId AND d.LinkStatus <> 'Retired'
             ORDER BY d.SortOrder, d.KeyDeliverableId
             FOR JSON PATH, INCLUDE_NULL_VALUES
         );

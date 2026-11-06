@@ -13,6 +13,7 @@ export const TYPE_TONES: Record<RequirementType, OptionColor> = {
   TR: "purple",
   BR: "gray",
   SR: "green",
+  TC: "orange",
 };
 
 export const MOSCOW_TONES: Record<MoSCoW, OptionColor> = {

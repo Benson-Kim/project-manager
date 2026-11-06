@@ -1,4 +1,5 @@
-import type { Wbs, WbsNode } from "../schemas/wbs";
+import { canBeMet } from "@/modules/requirements/schemas/requirement-types";
+import type { Wbs, WbsNode, WbsRequirement } from "../schemas/wbs";
 import { barBox, dayCentre, type Timeline } from "./gantt-scale";
 
 /**
@@ -176,12 +177,13 @@ export function readGanttDisplay(saved: unknown): GanttDisplay {
   return read;
 }
 
-/** How many of an item's own requirements are met, out of how many. */
-export function requirementTally(requirements: readonly { isMet: boolean }[]): {
+/** How many of an item's own requirements are met, out of those that can be: a need has no tick. */
+export function requirementTally(requirements: readonly Pick<WbsRequirement, "isMet" | "type">[]): {
   met: number;
   total: number;
 } {
-  return { met: requirements.filter((r) => r.isMet).length, total: requirements.length };
+  const countable = requirements.filter((r) => canBeMet(r.type));
+  return { met: countable.filter((r) => r.isMet).length, total: countable.length };
 }
 
 /** The card that shows an item: itself, or the card a tile sits in; null for a group or lane. */

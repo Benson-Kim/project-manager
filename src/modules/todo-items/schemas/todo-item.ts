@@ -129,9 +129,11 @@ export const deleteTodoItemInput = z.object({
 
 export type DeleteTodoItemInput = z.input<typeof deleteTodoItemInput>;
 
+export const COMPLETED_STATUS = "Completed";
+
 /** Completed and Cancelled end a to-do, or one occurrence of a series. */
 export function isClosedStatus(status: string | null): boolean {
-  return status === "Completed" || status === "Cancelled";
+  return status === COMPLETED_STATUS || status === "Cancelled";
 }
 
 /**

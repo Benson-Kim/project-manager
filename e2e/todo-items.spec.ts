@@ -1,8 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 import { closeAlarmToast } from "./support/alarms";
-import { expectListed } from "./support/datasheet";
+import { expectListed, openListed } from "./support/datasheet";
 
 /**
  * To-do items module (#20) — project-scoped route /projects/2/todos.
@@ -165,6 +165,96 @@ test("alert snooze — snooze buttons visible for a saved alert", async ({ page 
     ).toBeVisible({ timeout: 15_000 });
   }
   // If neither is visible the alert was already dismissed — pass.
+});
+
+/** A to-do on one calendar day: a day cell shows three, and "+N more" lists the rest. */
+async function calendarEntry(page: Page, day: string, title: string) {
+  const cell = page.locator(`[data-testid="calendar-day"][data-day="${day}"]`);
+  const entry = cell.getByTestId("calendar-entry").filter({ hasText: title });
+  if ((await entry.count()) > 0) return entry;
+  await cell.getByTestId("calendar-more").click();
+  return page.getByRole("dialog").getByTestId("calendar-entry").filter({ hasText: title });
+}
+
+async function seriousViolations(page: Page) {
+  const results = await new AxeBuilder({ page }).analyze();
+  return results.violations.filter((v) => ["serious", "critical"].includes(v.impact ?? ""));
+}
+
+test("calendar — one day of a daily series is marked done; the series stays listed", async ({
+  page,
+}) => {
+  test.slow();
+  const R = messages.todoItems.repeat;
+  const title = `E2E daily ${Date.now()}`;
+  const today = new Date().toISOString().slice(0, 10);
+  const listed = `/projects/2/todos?q=${encodeURIComponent(title)}`;
+  const viewport = page.viewportSize();
+  const saved = page
+    .getByTestId("toast-success")
+    .filter({ hasText: messages.feedback.saved })
+    .first();
+
+  await page.goto("/projects/2/todos");
+  await closeAlarmToast(page);
+  await page.getByTestId("new-todo-item").click();
+  const form = page.getByTestId("todo-item-form");
+  await form.getByLabel(messages.todoItems.todoItem).fill(title);
+  await form.getByLabel(messages.todoItems.startDate).fill(today);
+  await page.getByTestId("todo-item-save").click();
+  await expect(form).toHaveCount(0, { timeout: 15_000 });
+
+  try {
+    await page.goto(listed);
+    await openListed(page, title);
+    await page.getByTestId("todo-repeat").getByRole("button", { name: R.configure }).click();
+    const rule = page.getByTestId("todo-repeat-form");
+    await rule.getByLabel(R.unit, { exact: true }).selectOption("Day");
+    await rule.getByLabel(R.ends, { exact: true }).selectOption("after");
+    await rule.getByLabel(R.endsAfterCount, { exact: true }).fill("3");
+    await page.getByTestId("todo-repeat-save").click();
+    await expect(saved).toBeVisible({ timeout: 15_000 });
+
+    await page.goto("/projects/2/todos");
+    await closeAlarmToast(page);
+    await page.getByTestId("view-calendar").click();
+    await expect(page.getByTestId("todo-calendar")).toBeVisible();
+    expect(await seriousViolations(page)).toEqual([]);
+
+    await (await calendarEntry(page, today, title)).click();
+    const dialog = page.getByTestId("occurrence-dialog");
+    await expect(dialog).toBeVisible();
+    expect(await seriousViolations(page)).toEqual([]);
+    await dialog.getByTestId("occurrence-done").click();
+    await expect(saved).toBeVisible({ timeout: 15_000 });
+    await expect(dialog).toHaveCount(0);
+    await expect(await calendarEntry(page, today, title)).toHaveClass(/line-through/);
+    if (await page.getByRole("dialog").first().isVisible()) await page.keyboard.press("Escape");
+
+    await page.getByTestId("view-calendar").click();
+    await expect(page.getByTestId("todo-calendar")).toHaveCount(0);
+    await page.goto(listed);
+    await expectListed(page, title);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/projects/2/todos?view=calendar");
+    await expect(page.getByTestId("calendar-day").first()).toBeHidden();
+    const agendaDay = page.getByTestId("calendar-agenda").locator(`li[data-day="${today}"]`);
+    await expect(
+      agendaDay
+        .getByTestId("calendar-entry")
+        .filter({ hasText: title })
+        .or(agendaDay.getByTestId("calendar-more"))
+        .first(),
+    ).toBeVisible();
+  } finally {
+    if (viewport) await page.setViewportSize(viewport);
+    await page.goto(listed);
+    await openListed(page, title);
+    await page.getByTestId("todo-item-delete").click();
+    await page.getByRole("button", { name: messages.actions.delete, exact: true }).last().click();
+    await expect(page.getByTestId("todo-item-form")).toHaveCount(0, { timeout: 15_000 });
+  }
 });
 
 test("axe scan on the todos list has no serious or critical violations", async ({ page }) => {

@@ -1,7 +1,7 @@
 # ADR-0059: Recurring to-dos and the to-do calendar
 
 - Status: Accepted. The choices marked "default" are ours, not the client's, and can be changed.
-  Built so far: slices 1 to 3. The calendar view (decision 6, slice 4) is not built yet.
+  Built: slices 1 to 4. The calendar view (decision 6, slice 4) was added on 2026-11-06.
 - Date: 2026-11-04
 
 ## Context

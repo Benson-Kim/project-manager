@@ -29,3 +29,15 @@ test("viewer sheet is read-only — no save or delete, fields disabled", async (
   await expect(page.getByTestId("stakeholder-delete")).toHaveCount(0);
   await expect(form.getByLabel(messages.stakeholders.firstName)).toBeDisabled();
 });
+
+test("viewer reaches the matrix from the list and its sheet stays read-only", async ({ page }) => {
+  await page.goto("/projects/2/stakeholders");
+  await page.getByTestId("matrix-link").click();
+  await expect(
+    page.getByRole("heading", { name: messages.stakeholders.matrix.title }),
+  ).toBeVisible();
+  await expect(page.getByTestId("matrix-grid")).toBeVisible();
+  await page.goto("/projects/2/stakeholders/matrix?id=1");
+  await expect(page.getByTestId("stakeholder-form")).toBeVisible();
+  await expect(page.getByTestId("stakeholder-save")).toHaveCount(0);
+});

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
+import { CanvasLink } from "@/modules/requirements/components/canvas/canvas-link";
 import { auth } from "@/lib/auth/provider";
 import { flattenSearchParams, initialViewOf, parseListParams } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
@@ -15,8 +16,10 @@ import { RequirementsView } from "@/modules/requirements/components/requirements
 import { newRequirementType, registerType } from "@/modules/requirements/components/register-model";
 import {
   getRequirementById,
+  listLinkRules,
   listRequirementOptions,
   listRequirements,
+  listRequirementLinks,
 } from "@/modules/requirements/repository/requirements";
 import { parseValidatesParam } from "@/modules/requirements/schemas/requirement-form";
 import { parseProjectId } from "../project-id";
@@ -58,21 +61,35 @@ export default async function RequirementsPage({
   const parentId = isNew && flat.parent ? Number(flat.parent) : null;
   const wantsParent = parentId !== null && Number.isInteger(parentId) && parentId > 0;
 
-  const [rows, preference, selectedRaw, parentRaw, allows, deliverableOptions, needOptions] =
-    await Promise.all([
-      orNotFound(listRequirements(listParams, session.userId, projectId, filterType)),
-      getListPreference(session.userId, "requirements").catch(() => null),
-      selectedId && Number.isInteger(selectedId) && selectedId > 0
-        ? orNull(getRequirementById(selectedId, session.userId))
-        : null,
-      // Only read when a sub-requirement is actually being created; the sheet names the parent and
-      // takes its type from it, so a bad ?parent= must read as not found rather than as a root.
-      wantsParent ? orNull(getRequirementById(parentId, session.userId)) : null,
-      getProjectPermissions(projectId, session.userId),
-      orNotFound(listDeliverableOptions(projectId, session.userId)),
-      // Only the sheet picks needs to validate.
-      sheetOpen ? orNotFound(listRequirementOptions(projectId, session.userId)) : [],
-    ]);
+  const [
+    rows,
+    preference,
+    selectedRaw,
+    linksRaw,
+    parentRaw,
+    allows,
+    deliverableOptions,
+    linkOptions,
+    linkRules,
+  ] = await Promise.all([
+    orNotFound(listRequirements(listParams, session.userId, projectId, filterType)),
+    getListPreference(session.userId, "requirements").catch(() => null),
+    selectedId && Number.isInteger(selectedId) && selectedId > 0
+      ? orNull(getRequirementById(selectedId, session.userId))
+      : null,
+    selectedId && Number.isInteger(selectedId) && selectedId > 0
+      ? orNull(listRequirementLinks(selectedId, session.userId))
+      : null,
+    // Only read when a sub-requirement is actually being created; the sheet names the parent and
+    // takes its type from it, so a bad ?parent= must read as not found rather than as a root.
+    wantsParent ? orNull(getRequirementById(parentId, session.userId)) : null,
+    getProjectPermissions(projectId, session.userId),
+    orNotFound(listDeliverableOptions(projectId, session.userId)),
+    // Only the sheet picks the requirements a new link points at.
+    sheetOpen ? orNotFound(listRequirementOptions(projectId, session.userId)) : [],
+    // The sheet's pickers and the bulk bar's merge link both read these.
+    listLinkRules(session.userId),
+  ]);
 
   // A deep link to a requirement from another project is treated as not found.
   const selected = guardProjectScope(selectedRaw, projectId);
@@ -103,7 +120,12 @@ export default async function RequirementsPage({
     <>
       <PageHeader
         title={messages.requirements.title}
-        action={canCreate ? newRequirementLink : undefined}
+        action={
+          <div className="flex gap-2">
+            <CanvasLink projectId={projectId} />
+            {canCreate ? newRequirementLink : null}
+          </div>
+        }
       />
       <div className="mt-3 flex flex-1 flex-col">
         <RequirementsView
@@ -118,17 +140,20 @@ export default async function RequirementsPage({
           filtersActive={filtersActive}
           filterType={filterType}
           deliverableOptions={deliverableOptions}
+          linkRules={linkRules}
           newRequirementAction={canCreate ? newRequirementLink : undefined}
         />
       </div>
       <RequirementSheet
         requirement={selected}
+        links={selected ? (linksRaw ?? []) : []}
         isNew={isNew && canCreate}
         projectId={projectId}
         initialType={initialParent?.RequirementType ?? newRequirementType(filterType)}
         initialValidates={parseValidatesParam(flat.validates)}
         initialParent={initialParent}
-        needOptions={needOptions}
+        linkOptions={linkOptions}
+        linkRules={linkRules}
         deliverableOptions={deliverableOptions}
         canEdit={isNew ? canCreate : canEdit}
         canDelete={canDelete}

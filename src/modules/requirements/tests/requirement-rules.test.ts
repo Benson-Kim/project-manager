@@ -1,19 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
-  canMerge,
-  compatibleTypes,
+  coverageFor,
   coverageLabel,
   coverageOf,
   parentRefOf,
   refList,
 } from "../schemas/requirement-rules";
 import {
+  canBeMet,
   isNeed,
   isSolution,
+  isTest,
   NEED_TYPES,
   REQUIREMENT_TYPES,
+  sideOf,
   SOLUTION_TYPES,
   solutionTypeSchema,
+  TEST_TYPES,
   typeLabel,
   type RequirementType,
 } from "../schemas/requirement-types";
@@ -31,26 +34,35 @@ function link(type: RequirementType, path: string) {
 }
 
 describe("requirement types", () => {
-  it("splits the five types into needs and solutions", () => {
+  it("splits the six types into needs, solutions and test cases, each on one side", () => {
     expect(NEED_TYPES).toEqual(["BR", "SR"]);
     expect(SOLUTION_TYPES).toEqual(["FR", "NFR", "TR"]);
-    for (const type of REQUIREMENT_TYPES) expect(isNeed(type)).toBe(!isSolution(type));
+    expect(TEST_TYPES).toEqual(["TC"]);
+    for (const type of REQUIREMENT_TYPES) {
+      expect([isNeed(type), isSolution(type), isTest(type)].filter(Boolean)).toHaveLength(1);
+    }
+  });
+
+  it("ticks solutions (met) and test cases (passed), never needs", () => {
+    expect(REQUIREMENT_TYPES.filter(canBeMet)).toEqual(["FR", "NFR", "TR", "TC"]);
+    expect(sideOf("TC")).toBe("test");
   });
 
   it.each(REQUIREMENT_TYPES)("%s has a label", (type) => {
-    expect(typeLabel(type)).toMatch(/^[A-Z][a-z-]+$/);
+    expect(typeLabel(type)).toMatch(/^[A-Z][a-z -]+$/);
   });
 
   it("takes only a solution where a deliverable is concerned, and knows no other code", () => {
     for (const type of SOLUTION_TYPES) {
       expect(solutionTypeSchema.safeParse(type).success).toBe(true);
     }
-    for (const type of NEED_TYPES) {
+    for (const type of [...NEED_TYPES, ...TEST_TYPES]) {
       expect(solutionTypeSchema.safeParse(type).success).toBe(false);
     }
     // An unknown code belongs to neither side, so a cast cannot smuggle one in.
     expect(isNeed("XX")).toBe(false);
     expect(isSolution("XX")).toBe(false);
+    expect(isTest("XX")).toBe(false);
   });
 });
 
@@ -97,57 +109,30 @@ describe("parentRefOf", () => {
 describe("coverageOf", () => {
   it("is none without validating requirements", () => {
     expect(coverageOf([])).toEqual({ kind: "none" });
-    expect(coverageLabel(coverageOf([]))).toBe("Not validated");
+    expect(coverageLabel(coverageOf([]), "BR")).toBe("Not validated");
+    expect(coverageLabel(coverageOf([]), "FR")).toBe("Not tested");
   });
 
   it("is partial while any is unmet", () => {
     const coverage = coverageOf([{ isMet: true }, { isMet: false }, { isMet: false }]);
     expect(coverage).toEqual({ kind: "partial", met: 1, total: 3 });
-    expect(coverageLabel(coverage)).toBe("1 of 3 met");
+    expect(coverageLabel(coverage, "SR")).toBe("1 of 3 met");
+    expect(coverageLabel(coverage, "NFR")).toBe("1 of 3 passed");
     expect(coverageOf([{ isMet: false }])).toEqual({ kind: "partial", met: 0, total: 1 });
   });
 
   it("is validated when every one is met", () => {
     const coverage = coverageOf([{ isMet: true }, { isMet: true }]);
     expect(coverage).toEqual({ kind: "validated", total: 2 });
-    expect(coverageLabel(coverage)).toBe("Validated");
-  });
-});
-
-describe("compatibleTypes", () => {
-  const free = { validates: 0, validatedBy: 0, allocations: 0 };
-
-  it.each(REQUIREMENT_TYPES)("an unlinked %s may take any type", (type) => {
-    expect(compatibleTypes({ type, ...free })).toEqual([...REQUIREMENT_TYPES]);
+    expect(coverageLabel(coverage, "BR")).toBe("Validated");
+    expect(coverageLabel(coverage, "TR")).toBe("All tests passed");
   });
 
-  it.each<[RequirementType, Partial<typeof free>]>([
-    ["FR", { validates: 1 }],
-    ["NFR", { allocations: 1 }],
-    ["TR", { validates: 3, allocations: 2 }],
-  ])("a linked or allocated %s stays a solution", (type, links) => {
-    expect(compatibleTypes({ type, ...free, ...links })).toEqual(["FR", "NFR", "TR"]);
-  });
-
-  it.each<RequirementType>(["BR", "SR"])("a validated %s stays a need", (type) => {
-    expect(compatibleTypes({ type, ...free, validatedBy: 1 })).toEqual(["BR", "SR"]);
-  });
-
-  it("always offers the current type", () => {
-    for (const type of REQUIREMENT_TYPES) {
-      for (const links of [free, { ...free, validates: 1 }, { ...free, validatedBy: 1 }]) {
-        expect(compatibleTypes({ type, ...links })).toContain(type);
-      }
-    }
-  });
-});
-
-describe("canMerge", () => {
-  it("needs at least one row, all of them needs", () => {
-    expect(canMerge([])).toBe(false);
-    expect(canMerge(["BR"])).toBe(true);
-    expect(canMerge(["BR", "SR", "SR"])).toBe(true);
-    expect(canMerge(["BR", "FR"])).toBe(false);
-    expect(canMerge(["TR"])).toBe(false);
+  it("gives a test case no coverage, since nothing validates it", () => {
+    expect(coverageFor("TC", [])).toBeNull();
+    expect(coverageFor("FR", [{ isMet: true, status: "Proposed" }])).toBe(
+      coverageFor("FR", []),
+    );
+    expect(coverageFor("FR", [{ isMet: true }])).toBe("All tests passed");
   });
 });

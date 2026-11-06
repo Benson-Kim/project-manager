@@ -11,7 +11,9 @@ import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helper
 import { orNotFound, orNull } from "@/lib/row-access";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { TodoItemSheet } from "@/modules/todo-items/components/todo-item-sheet";
+import { TodoCalendar } from "@/modules/todo-items/components/todo-calendar";
 import { TodoView } from "@/modules/todo-items/components/todo-view";
+import { loadTodoCalendar } from "@/modules/todo-items/queries/load-todo-calendar";
 import {
   getTodoItemById,
   listTodoItems,
@@ -52,6 +54,7 @@ export default async function TodosPage({
   const listParams = parseListParams(raw, TODO_ITEM_SORT);
   const effectiveParams = listParams;
 
+  const isCalendar = flat.view === "calendar";
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
@@ -61,9 +64,11 @@ export default async function TodosPage({
     projectOrActivity: flat.projectOrActivity ?? null,
   };
 
-  const [rows, preference, activityOptions, selectedRaw, allows, lookup, userPreference] =
+  const [rows, preference, activityOptions, selectedRaw, allows, lookup, userPreference, calendar] =
     await Promise.all([
-      orNotFound(listTodoItems(effectiveParams, session.userId, projectId, undefined, filters)),
+      isCalendar
+        ? []
+        : orNotFound(listTodoItems(effectiveParams, session.userId, projectId, undefined, filters)),
       getListPreference(session.userId, "todo-items").catch(() => null),
       listDailyActivityOptions(projectId, session.userId).catch(() => []),
       selectedId && Number.isInteger(selectedId) && selectedId > 0
@@ -72,6 +77,9 @@ export default async function TodosPage({
       getProjectPermissions(projectId, session.userId),
       loadLookupLists(TODO_ITEM_LISTS, session),
       getUserPreference(session.userId).catch(() => null),
+      isCalendar
+        ? orNotFound(loadTodoCalendar({ month: flat.month, projectId }, session.userId))
+        : null,
     ]);
 
   // A deep link to a todo from another project is treated as not found.
@@ -112,19 +120,23 @@ export default async function TodosPage({
       <PageHeader title={messages.todoItems.title} action={canCreate ? newTodoLink : undefined} />
       <LookupListsScope {...lookup}>
         <div className="mt-3 flex flex-col flex-1">
-          <TodoView
-            projectId={projectId}
-            canCreate={canCreate}
-            rows={rows}
-            totalCount={totalCount}
-            page={effectiveParams.page}
-            initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}
-            layout={preference?.layout}
-            filtersActive={filtersActive}
-            canReorder={canReorder}
-            dueSoonDays={userPreference?.dueSoonDays}
-            newTodoAction={canCreate ? newTodoLink : undefined}
-          />
+          {calendar ? (
+            <TodoCalendar {...calendar} />
+          ) : (
+            <TodoView
+              projectId={projectId}
+              canCreate={canCreate}
+              rows={rows}
+              totalCount={totalCount}
+              page={effectiveParams.page}
+              initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}
+              layout={preference?.layout}
+              filtersActive={filtersActive}
+              canReorder={canReorder}
+              dueSoonDays={userPreference?.dueSoonDays}
+              newTodoAction={canCreate ? newTodoLink : undefined}
+            />
+          )}
         </div>
         <TodoItemSheet
           todoItem={selected}

@@ -1,22 +1,10 @@
 import { messages } from "@/lib/messages";
 import type { MultiSelectOption } from "@/components/ui/form/multi-select";
-import {
-  coverageLabel,
-  coverageOf,
-  parentRefOf,
-  refList,
-  type RefLike,
-  type TypeChangeContext,
-} from "../schemas/requirement-rules";
-import type { RequirementListRow, RequirementRow } from "../schemas/requirement";
+import { coverageFor, parentRefOf, refList, type RefLike } from "../schemas/requirement-rules";
+import { mergeTarget, type LinkRule } from "../schemas/link-rules";
+import type { DeleteImpactRow, RequirementListRow, RequirementRow } from "../schemas/requirement";
 import { MAX_REQUIREMENT_DEPTH } from "../schemas/requirement";
-import {
-  isNeed,
-  REQUIREMENT_TYPES,
-  SOLUTION_TYPES,
-  typeLabel,
-  type RequirementType,
-} from "../schemas/requirement-types";
+import { REQUIREMENT_TYPES, typeLabel, type RequirementType } from "../schemas/requirement-types";
 
 /**
  * What the register derives from a row before rendering it: the cells that are not stored
@@ -77,16 +65,6 @@ export function newRequirementType(filter: RequirementType | null): RequirementT
   return filter ?? REQUIREMENT_TYPES[0];
 }
 
-/** What a type change must keep valid (compatibleTypes), counted from the row's links. */
-export function typeChangeContext(row: RegisterRow): TypeChangeContext {
-  return {
-    type: row.RequirementType,
-    validates: row.Validates.length,
-    validatedBy: row.ValidatedBy.length,
-    allocations: row.DeliverableIds.length,
-  };
-}
-
 /**
  * Whether the datasheet may edit this row's type: only a row with no link either way and no
  * allocation, since every other row needs the sheet to show what constrains it.
@@ -112,12 +90,13 @@ export function typeBlockedReason(row: RegisterRow): string | null {
 
 /** Why this row cannot be deleted yet, or null when it can. */
 export function deleteBlockedReason(row: RegisterRow): string | null {
-  return row.ChildCount > 0 ? M.subRequirementsBlockDelete(row.ChildCount) : null;
+  if (row.ChildCount > 0) return M.subRequirementsBlockDelete(row.ChildCount);
+  return row.ValidatedBy.length > 0 ? M.downstreamBlocksDelete(row.ValidatedBy.length) : null;
 }
 
-/** A need's state from the solutions that validate it; a solution has none of its own. */
+/** A need's state from its solutions, a solution's from its test cases; a test has none. */
 export function coverageText(row: RegisterRow): string {
-  return isNeed(row.RequirementType) ? coverageLabel(coverageOf(row.ValidatedBy)) : M.none;
+  return coverageFor(row.RequirementType, row.ValidatedBy) ?? M.none;
 }
 
 /** "BR-1, BR-1.2, SR-2", or "None". */
@@ -144,16 +123,24 @@ export function pickedOptions(
   return options.filter((o) => picked.has(o.id));
 }
 
-/** The merge link's parameters when every selected row is a need, else null. */
+/**
+ * The merge link's parameters when the rules leave a type that can trace to every selected row,
+ * else null.
+ */
 export function mergeSelection(
   rows: readonly (RegisterRow & { RequirementId: number })[],
   selectedIds: readonly (string | number)[],
+  rules: readonly LinkRule[],
 ): { type: RequirementType; validates: string } | null {
   const wanted = new Set(selectedIds.map(String));
   const selected = rows.filter((r) => wanted.has(String(r.RequirementId)));
   if (selected.length === 0 || selected.length !== wanted.size) return null;
-  if (!selected.every((r) => isNeed(r.RequirementType))) return null;
-  return { type: SOLUTION_TYPES[0]!, validates: selected.map((r) => r.RequirementId).join(",") };
+  const type = mergeTarget(
+    rules,
+    selected.map((r) => r.RequirementType),
+  );
+  if (type === null) return null;
+  return { type, validates: selected.map((r) => r.RequirementId).join(",") };
 }
 
 function linkCosts(row: RegisterRow): string[] {
@@ -175,5 +162,23 @@ export function deleteConsequence(row: RegisterRow): string {
  * their references change, then the links the parent itself loses.
  */
 export function promoteConsequence(row: RegisterRow): string {
+  if (row.ChildCount === 0) return deleteConsequence(row);
   return [M.promoteBody(row.ChildCount, parentRefOf(row.Ref)), ...linkCosts(row)].join(" ");
+}
+
+const MAX_IMPACT_REFS = 12;
+
+function impactRefs(rows: DeleteImpactRow[]): string {
+  const refs = rows.map((r) => r.Ref);
+  const shown = refs.slice(0, MAX_IMPACT_REFS).join(", ");
+  return refs.length > MAX_IMPACT_REFS
+    ? `${shown} ${M.andMore(refs.length - MAX_IMPACT_REFS)}`
+    : shown;
+}
+
+/** What deleting a parent and its children removes and what only loses a link (ADR-0060). */
+export function deleteImpactText(rows: DeleteImpactRow[]): string {
+  const kept = rows.filter((r) => r.Fate === "Unlinked");
+  const gone = M.cascadeGoes(impactRefs(rows.filter((r) => r.Fate === "Deleted")));
+  return kept.length > 0 ? `${gone} ${M.cascadeKeeps(impactRefs(kept))}` : gone;
 }

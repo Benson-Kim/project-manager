@@ -5,6 +5,8 @@ import { messages } from "../src/lib/messages";
 
 const U = messages.settings.users;
 const A = messages.settings.audit;
+const L = messages.settings.linkRules;
+const T = messages.requirements.types;
 const USERS_LINK = 'main a[href="/settings/users"]';
 
 /**
@@ -19,20 +21,24 @@ async function expectToast(page: Page, title: string) {
   });
 }
 
+async function signInAsAdmin(page: Page) {
+  const password = process.env.E2E_USER_PASSWORD;
+  if (!password) throw new Error("E2E_USER_PASSWORD must be set for the e2e suite");
+  await page.goto("/login");
+  await page.getByLabel(messages.auth.username).fill("e2e-admin");
+  await page.getByLabel(messages.auth.password).fill(password);
+  await page.getByRole("button", { name: messages.auth.signIn }).click();
+  await page.waitForURL("/");
+}
+
 test.describe("as an Admin", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
   test("adds, edits, resets, deactivates and reactivates a user", async ({ page }) => {
-    const password = process.env.E2E_USER_PASSWORD;
-    if (!password) throw new Error("E2E_USER_PASSWORD must be set for the e2e suite");
     const username = `e2e-user-${Date.now().toString(36)}`;
     const temporaryPassword = () => `Tmp-${randomUUID()}`;
 
-    await page.goto("/login");
-    await page.getByLabel(messages.auth.username).fill("e2e-admin");
-    await page.getByLabel(messages.auth.password).fill(password);
-    await page.getByRole("button", { name: messages.auth.signIn }).click();
-    await page.waitForURL("/");
+    await signInAsAdmin(page);
 
     await page.goto("/settings");
     await page.locator(USERS_LINK).click();
@@ -120,6 +126,33 @@ test.describe("as an Admin", () => {
     await expect(page.getByTestId("audit-link")).toBeVisible();
     await expect(page.getByTestId("backup-link")).toHaveCount(0);
   });
+
+  test("changes a link rule, keeps it after a reload and puts it back", async ({ page }) => {
+    await signInAsAdmin(page);
+    await page.goto("/settings");
+    await page.getByTestId("link-rules-link").click();
+
+    const cell = page
+      .getByTestId("link-rules-matrix")
+      .getByRole("checkbox", { name: L.cell(T.BR, T.TC), exact: true });
+    const before = await cell.isChecked();
+
+    const axe = await new AxeBuilder({ page }).include("main").analyze();
+    expect(axe.violations.filter((v) => v.impact === "serious" || v.impact === "critical")).toEqual(
+      [],
+    );
+
+    for (const wanted of [!before, before]) {
+      const saved = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" && response.url().includes("/settings/link-rules"),
+      );
+      await cell.setChecked(wanted);
+      await saved;
+      await page.reload();
+      await expect(cell).toBeChecked({ checked: wanted });
+    }
+  });
 });
 
 test.describe("as a User", () => {
@@ -139,5 +172,12 @@ test.describe("as a User", () => {
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(page.getByTestId("audit-link")).toHaveCount(0);
     await expect(page.getByTestId("backup-link")).toHaveCount(0);
+  });
+
+  test("never reaches the link rules and sees no link to them", async ({ page }) => {
+    expect((await page.goto("/settings/link-rules"))?.status()).toBe(404);
+    await page.goto("/settings");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByTestId("link-rules-link")).toHaveCount(0);
   });
 });

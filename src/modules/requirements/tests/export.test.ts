@@ -85,14 +85,17 @@ describe("requirementCsvRows", () => {
     },
   );
 
-  it.each(["FR", "NFR", "TR"] as const)(
-    "exports an unmet %s as a solution without coverage",
-    (type) => {
-      const rows = requirementCsvRows([row({ RequirementType: type })]);
-      expect(at(rows, M.met)).toBe(M.no);
-      expect(at(rows, M.coverage)).toBe("");
-    },
-  );
+  it.each(["FR", "NFR", "TR"] as const)("exports an unmet, untested %s as a solution", (type) => {
+    const rows = requirementCsvRows([row({ RequirementType: type })]);
+    expect(at(rows, M.met)).toBe(M.no);
+    expect(at(rows, M.coverage)).toBe(M.testCoverageNone);
+  });
+
+  it("exports a test case with its pass tick and no coverage", () => {
+    const rows = requirementCsvRows([row({ RequirementType: "TC", IsMet: true })]);
+    expect(at(rows, M.met)).toBe(M.yes);
+    expect(at(rows, M.coverage)).toBe("");
+  });
 
   it("heads the file and puts the register in catalog order", () => {
     const rows = requirementCsvRows([

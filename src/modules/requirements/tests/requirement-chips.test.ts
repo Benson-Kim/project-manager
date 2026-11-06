@@ -12,6 +12,7 @@ describe("requirement chip colours", () => {
       TR: "purple",
       BR: "gray",
       SR: "green",
+      TC: "orange",
     });
   });
 

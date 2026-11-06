@@ -1,4 +1,4 @@
-import { execProc } from "@/lib/db";
+import { execProc, type ProcParams } from "@/lib/db";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
 import type { CreateRequirementValues, UpdateRequirementValues } from "../schemas/requirement-form";
 import type { SetMoscowInput, SetPlanningInput } from "../schemas/requirement-planning";
@@ -6,11 +6,22 @@ import {
   requirementListRowSchema,
   requirementOptionSchema,
   requirementRowSchema,
+  type DeleteImpactRow,
+  deleteImpactRowSchema,
   type DeleteRequirementInput,
   type RequirementListRow,
   type RequirementOption,
   type RequirementRow,
 } from "../schemas/requirement";
+import { linkRuleRowSchema, type LinkRule, type SetLinkRuleInput } from "../schemas/link-rules";
+import {
+  requirementLinkRowSchema,
+  type CreateRequirementLinkInput,
+  type DeleteRequirementLinkInput,
+  type RequirementLink,
+  type UpdateRequirementLinkInput,
+} from "../schemas/requirement-link";
+import { isNeed } from "../schemas/requirement-types";
 
 /**
  * Requirement repository (ADR-0037) — stored procedures only, every row zod-parsed at the
@@ -78,6 +89,7 @@ export async function getRequirementById(
   return requirementRowSchema.parse(rows[0]);
 }
 
+/** The needs and solutions a link can point at: a solution links to needs, a test to solutions. */
 export async function listRequirementOptions(
   projectId: number,
   actorUserId: number,
@@ -87,6 +99,89 @@ export async function listRequirementOptions(
     ActorUserId: actorUserId,
   });
   return rows.map((r) => requirementOptionSchema.parse(r));
+}
+
+/** The allowed link pairs, app-wide (ADR-0060). The write procs have the last word. */
+export async function listLinkRules(actorUserId: number): Promise<LinkRule[]> {
+  const rows = await execProc("usp_RequirementLinkRule_List", { ActorUserId: actorUserId });
+  return rows.map((r) => linkRuleRowSchema.parse(r));
+}
+
+/** Ticks or clears one link rule. The proc refuses anyone but an Admin. */
+export async function setLinkRule(input: SetLinkRuleInput, actorUserId: number): Promise<void> {
+  await execProc("usp_RequirementLinkRule_Set", {
+    DownstreamType: input.downstreamType,
+    UpstreamType: input.upstreamType,
+    Allowed: input.allowed,
+    ActorUserId: actorUserId,
+  });
+}
+
+/** Every link of one requirement with its record, for the sheet (ADR-0060). */
+export async function listRequirementLinks(
+  requirementId: number,
+  actorUserId: number,
+): Promise<RequirementLink[]> {
+  const rows = await execProc("usp_RequirementLink_List", {
+    RequirementId: requirementId,
+    ActorUserId: actorUserId,
+  });
+  return rows.map((r) => requirementLinkRowSchema.parse(r));
+}
+
+export async function execForProjectId(proc: string, params: ProcParams): Promise<number> {
+  const rows = await execProc<{ ProjectId: number }>(proc, params);
+  const projectId = rows[0]?.ProjectId;
+  if (typeof projectId !== "number") throw new Error(`${proc} returned no ProjectId`);
+  return projectId;
+}
+
+export function createRequirementLink(
+  input: CreateRequirementLinkInput,
+  actorUserId: number,
+): Promise<number> {
+  return execForProjectId("usp_RequirementLink_Create", {
+    RequirementId: input.requirementId,
+    UpstreamRequirementId: input.upstreamRequirementId,
+    Rationale: input.rationale,
+    LinkStatus: input.linkStatus,
+    ActorUserId: actorUserId,
+  });
+}
+
+export function updateRequirementLink(
+  input: UpdateRequirementLinkInput,
+  actorUserId: number,
+): Promise<number> {
+  return execForProjectId("usp_RequirementLink_Update", {
+    RequirementId: input.requirementId,
+    UpstreamRequirementId: input.upstreamRequirementId,
+    KeyDeliverableId: input.keyDeliverableId,
+    Rationale: input.rationale,
+    LinkStatus: input.linkStatus,
+    RowVer: input.rowVer,
+    ActorUserId: actorUserId,
+  });
+}
+
+export function deleteRequirementLink(
+  input: DeleteRequirementLinkInput,
+  actorUserId: number,
+): Promise<number> {
+  return execForProjectId("usp_RequirementLink_Delete", {
+    RequirementId: input.requirementId,
+    UpstreamRequirementId: input.upstreamRequirementId,
+    RowVer: input.rowVer,
+    ActorUserId: actorUserId,
+  });
+}
+
+/** The needs alone, for the WBS and Gantt cascade, which only creates solutions. */
+export async function listNeedOptions(
+  projectId: number,
+  actorUserId: number,
+): Promise<RequirementOption[]> {
+  return (await listRequirementOptions(projectId, actorUserId)).filter((o) => isNeed(o.type));
 }
 
 export async function createRequirement(
@@ -201,6 +296,18 @@ export async function deleteRequirement(
     RequirementId: input.requirementId,
     RowVer: input.rowVer,
     ActorUserId: actorUserId,
-    PromoteChildren: input.promoteChildren,
+    ChildAction: input.childAction,
+    ExpectedDeleteCount: input.expectedDeleteCount ?? null,
   });
+}
+
+export async function readRequirementDeleteImpact(
+  requirementId: number,
+  actorUserId: number,
+): Promise<DeleteImpactRow[]> {
+  const rows = await execProc("usp_Requirement_DeleteImpact", {
+    RequirementId: requirementId,
+    ActorUserId: actorUserId,
+  });
+  return rows.map((r) => deleteImpactRowSchema.parse(r));
 }

@@ -56,7 +56,7 @@ RETURN
                SUM(CASE WHEN r.[MoSCoW] = 'C' THEN 1 ELSE 0 END) AS CouldCount,
                SUM(CASE WHEN r.[MoSCoW] = 'W' THEN 1 ELSE 0 END) AS WontCount
         FROM app.RequirementDeliverable AS d
-        JOIN app.Requirement AS r ON r.RequirementId = d.RequirementId AND r.IsDeleted = 0
+        JOIN app.Requirement AS r ON r.RequirementId = d.RequirementId AND r.IsDeleted = 0 AND d.LinkStatus <> 'Retired'
         WHERE d.KeyDeliverableId = kd.KeyDeliverableId AND v.Visible = 1
     ) AS rc;
 GO

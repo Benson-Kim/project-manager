@@ -352,7 +352,7 @@ describe("key-deliverables repository", () => {
       await expect(getWbs(24, 7)).rejects.toThrow();
     });
 
-    it("refuses a need among an item's requirements, which the procs cannot allocate", async () => {
+    it("reads a need on an item, which the link rules allow (ADR-0060)", async () => {
       execProc.mockResolvedValue([
         wbsDbRow({
           RequirementsJson: JSON.stringify([
@@ -369,7 +369,8 @@ describe("key-deliverables repository", () => {
           ]),
         }),
       ]);
-      await expect(getWbs(24, 7)).rejects.toThrow();
+      const { items } = await getWbs(24, 7);
+      expect(items[0].requirements[0]).toMatchObject({ id: 42, type: "BR", ref: "BR-1" });
     });
 
     it("reads each item's allocated requirements in order, and none when there are none", async () => {
@@ -839,7 +840,7 @@ describe("key-deliverable inputs", () => {
     expect(reschedule).not.toHaveProperty("HasChildren");
   });
 
-  it("refuse a need on the cascade's writes: only a solution goes to a deliverable (ADR-0037)", () => {
+  it("adds only a solution from the cascade, and edits any kind already on it (ADR-0060)", () => {
     const add = { projectId: 2, itemId: 22, text: "Permit" };
     expect(addRequirementInput.safeParse({ ...add, type: "FR" }).success).toBe(true);
     for (const type of ["BR", "SR", "XX"]) {
@@ -847,6 +848,7 @@ describe("key-deliverable inputs", () => {
     }
     const update = { id: 40, text: "Permit", isMet: true, rowVer: 1 };
     expect(updateRequirementInput.safeParse({ ...update, type: "TR" }).success).toBe(true);
-    expect(updateRequirementInput.safeParse({ ...update, type: "BR" }).success).toBe(false);
+    expect(updateRequirementInput.safeParse({ ...update, type: "BR" }).success).toBe(true);
+    expect(updateRequirementInput.safeParse({ ...update, type: "XX" }).success).toBe(false);
   });
 });

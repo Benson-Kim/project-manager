@@ -1,6 +1,6 @@
 import type { OptionColor } from "@/lib/lookup-lists";
 import type { MoSCoW } from "@/modules/requirements/schemas/moscow";
-import type { SolutionType } from "@/modules/requirements/schemas/requirement-types";
+import type { RequirementType } from "@/modules/requirements/schemas/requirement-types";
 import type { AssigneeEntry } from "./key-deliverable";
 
 /**
@@ -30,8 +30,8 @@ const DAY_MS = 86_400_000;
  *  deliverable it sits on; the order and the allocation's RowVer (placeRowVer) are per deliverable. */
 export interface WbsRequirement {
   id: number;
-  /** Only a solution is ever allocated to a deliverable (ADR-0037). */
-  type: SolutionType;
+  /** Any kind the link rules allow on a deliverable (ADR-0060). */
+  type: RequirementType;
   /** "FR-1.2", the register's own reference, from the server (ADR-0048); "" until it has one. */
   ref: string;
   text: string;

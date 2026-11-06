@@ -18,7 +18,8 @@ import {
   getKeyDeliverableById,
   getWbs,
 } from "@/modules/key-deliverables/repository/key-deliverables";
-import { listRequirementOptions } from "@/modules/requirements/repository/requirements";
+import { CanvasLink } from "@/modules/requirements/components/canvas/canvas-link";
+import { listNeedOptions } from "@/modules/requirements/repository/requirements";
 import { listStakeholderOptions } from "@/modules/stakeholders/repository/stakeholder-options";
 import { KEY_DELIVERABLE_LISTS } from "@/modules/key-deliverables/schemas/key-deliverable";
 import { todayUtc } from "@/modules/key-deliverables/schemas/wbs";
@@ -56,7 +57,7 @@ export default async function DeliverablesGanttPage({
     orNotFound(getWbs(projectId, session.userId)),
     getProjectPermissions(projectId, session.userId),
     listStakeholderOptions(projectId, session.userId),
-    listRequirementOptions(projectId, session.userId),
+    listNeedOptions(projectId, session.userId),
     openId ? orNull(getKeyDeliverableById(openId, session.userId)) : null,
     loadLookupLists(KEY_DELIVERABLE_LISTS, session),
   ]);
@@ -70,6 +71,7 @@ export default async function DeliverablesGanttPage({
         action={
           <div className="flex gap-2 print:hidden">
             <PrintButton />
+            <CanvasLink projectId={projectId} />
             <Link
               href={`/projects/${projectId}/deliverables`}
               data-testid="list-link"

@@ -9,7 +9,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Sheet } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
-import { Input, Textarea } from "@/components/ui/form/inputs";
+import { Input, Select, Textarea } from "@/components/ui/form/inputs";
 import { ListSelect } from "@/components/ui/form/list-select";
 import { SectionHeading } from "@/components/ui/form/section-heading";
 import { useUnsavedChangesGuard } from "@/components/ui/form/use-unsaved-changes-guard";
@@ -22,6 +22,7 @@ import {
   deleteStakeholderAction,
   updateStakeholderAction,
 } from "../actions";
+import { STANCES } from "../matrix";
 import type { StakeholderRow } from "../schemas/stakeholder";
 import { stakeholderFormSchema, updateStakeholderFormSchema } from "../schemas/stakeholder-form";
 import { fullName } from "./stakeholders-view";
@@ -338,6 +339,48 @@ export function StakeholderSheet({
                   >
                     <option value="">{messages.stakeholders.none}</option>
                   </ListSelect>
+                </Field>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <Field label={messages.stakeholders.power} name="power" errors={form.errors.power}>
+                  <Input
+                    name="power"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={100}
+                    step={1}
+                    defaultValue={stakeholder?.Power ?? ""}
+                  />
+                </Field>
+                <Field
+                  label={messages.stakeholders.interest}
+                  name="interest"
+                  errors={form.errors.interest}
+                >
+                  <Input
+                    name="interest"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={100}
+                    step={1}
+                    defaultValue={stakeholder?.Interest ?? ""}
+                  />
+                </Field>
+                <Field
+                  label={messages.stakeholders.stance}
+                  name="stance"
+                  errors={form.errors.stance}
+                >
+                  <Select name="stance" defaultValue={stakeholder?.Stance ?? ""}>
+                    <option value="">{messages.stakeholders.none}</option>
+                    {STANCES.map((s) => (
+                      <option key={s} value={s}>
+                        {messages.stakeholders.stances[s]}
+                      </option>
+                    ))}
+                  </Select>
                 </Field>
               </div>
               <Field

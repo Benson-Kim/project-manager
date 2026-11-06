@@ -3,6 +3,9 @@ import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { listValue, type LookupListKey } from "@/lib/lookup-lists";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
+import { STANCES } from "../matrix";
+
+const score = z.number().int().min(0).max(100);
 
 /**
  * Stakeholder (app.Stakeholder ← tblStakeholders) — zod contracts for the
@@ -41,6 +44,9 @@ export const stakeholderRowSchema = z.object({
   KeyMessageStrategy: z.string().nullable(),
   CommunicationFrequency: z.string().nullable(),
   AdditionalNotes: z.string().nullable(),
+  Power: z.number().int().nullable(),
+  Interest: z.number().int().nullable(),
+  Stance: z.enum(STANCES).nullable(),
   CreatedAtUtc: z.date(),
   UpdatedAtUtc: z.date().nullable(),
   RowVer: rowVerSchema,
@@ -74,14 +80,21 @@ export const createStakeholderInput = z.object({
   keyMessageStrategy: z.string().nullish(),
   communicationFrequency: listValue.nullish(),
   additionalNotes: z.string().nullish(),
+  power: score.nullish(),
+  interest: score.nullish(),
+  stance: z.enum(STANCES).nullish(),
 });
 
 export type CreateStakeholderInput = z.input<typeof createStakeholderInput>;
 export type CreateStakeholderParsed = z.infer<typeof createStakeholderInput>;
 
+/** The proc writes every column, so an update names the place and stance even when they are empty. */
 export const updateStakeholderInput = createStakeholderInput.extend({
   stakeholderId: z.coerce.number().int().positive(),
   rowVer: rowVerSchema,
+  power: score.nullable(),
+  interest: score.nullable(),
+  stance: z.enum(STANCES).nullable(),
 });
 
 export type UpdateStakeholderInput = z.input<typeof updateStakeholderInput>;
@@ -93,6 +106,41 @@ export const deleteStakeholderInput = z.object({
 });
 
 export type DeleteStakeholderInput = z.input<typeof deleteStakeholderInput>;
+
+/** A move on the matrix: usp_Stakeholder_Place sets power and interest only. */
+export const placeStakeholderInput = z.object({
+  stakeholderId: z.coerce.number().int().positive(),
+  power: score,
+  interest: score,
+  rowVer: rowVerSchema,
+});
+
+export type PlaceStakeholderInput = z.input<typeof placeStakeholderInput>;
+
+export const stakeholderPlaceRowSchema = z.object({
+  StakeholderId: z.number().int(),
+  Power: score,
+  Interest: score,
+  UpdatedAtUtc: z.date(),
+  RowVer: rowVerSchema,
+});
+
+export type StakeholderPlaceRow = z.infer<typeof stakeholderPlaceRowSchema>;
+
+/** One row of usp_Stakeholder_Matrix: a project's whole register, placed or not. */
+export const stakeholderMatrixRowSchema = z.object({
+  StakeholderId: z.number().int(),
+  FirstName: z.string(),
+  LastName: z.string().nullable(),
+  ProjectRole: z.string().nullable(),
+  Stance: z.enum(STANCES).nullable(),
+  Power: z.number().int().nullable(),
+  Interest: z.number().int().nullable(),
+  KeyMessageStrategy: z.string().nullable(),
+  RowVer: rowVerSchema,
+});
+
+export type StakeholderMatrixRow = z.infer<typeof stakeholderMatrixRowSchema>;
 
 /** Module filter params (URL ⇄ usp_Stakeholder_List @ProjectId/@EngagementLevel). */
 export const stakeholderFiltersSchema = z.object({

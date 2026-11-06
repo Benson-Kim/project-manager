@@ -61,6 +61,11 @@ export const projectSections: ProjectSection[] = [
     match: "prefix",
   },
   { segment: "financials/settings", label: messages.financials.settings, match: "prefix" },
+  {
+    segment: "financials/project-math",
+    label: messages.financials.projectMath.title,
+    match: "prefix",
+  },
 ];
 
 /** Sections grouped for the disclosure nav (ADR-0018). */

@@ -809,6 +809,53 @@ button:focus-visible {
   }
 }
 
+/* ── Requirement canvas: print preview and print ─────────────────────────────
+   The board is one A4 landscape page box in both, so what the preview fits is what prints.
+   ──────────────────────────────────────────────────────────────────────────── */
+@page canvas {
+  size: A4 landscape;
+  margin: 10mm;
+}
+[data-canvas-view="preview"] [data-canvas-panes] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 1rem;
+}
+[data-canvas-view="preview"] [data-canvas-panes] > :not([data-canvas-page]),
+[data-canvas-view="preview"] [data-canvas-chrome] {
+  display: none;
+}
+[data-canvas-view="preview"] [data-canvas-page] {
+  flex: none;
+  width: 1040px;
+  height: 712px;
+}
+@media print {
+  body:has([data-canvas-page])
+    :not(:has([data-canvas-page]), [data-canvas-page], [data-canvas-page] *) {
+    display: none !important;
+  }
+  body:has([data-canvas-page]) :has([data-canvas-page]) {
+    display: block !important;
+    position: static !important;
+    overflow: visible !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+  }
+  [data-canvas-page] {
+    page: canvas;
+    width: 1040px !important;
+    height: 712px !important;
+    border: 0 !important;
+  }
+}
+
 /* ── Printed meeting minutes ────────────────────────────────────────────────
    Portrait A4: a named page, so the Gantt keeps its landscape @page.
    ──────────────────────────────────────────────────────────────────────────── */

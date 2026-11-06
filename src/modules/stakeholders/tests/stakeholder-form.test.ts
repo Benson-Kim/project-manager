@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { messages } from "@/lib/messages";
 import { stakeholderFormSchema, updateStakeholderFormSchema } from "../schemas/stakeholder-form";
 
 /** The sheet form schema coerces FormData strings into the repo input shape. */
@@ -90,16 +91,65 @@ describe("stakeholderFormSchema", () => {
   });
 });
 
+describe("stakeholderFormSchema place and stance", () => {
+  it("leaves an unplaced stakeholder unplaced when the fields are absent or empty", () => {
+    for (const extra of [{}, { power: "", interest: "", stance: "" }]) {
+      const parsed = stakeholderFormSchema.parse({ projectId: "2", firstName: "Gary", ...extra });
+      expect(parsed).toMatchObject({ power: null, interest: null, stance: null });
+    }
+  });
+
+  it("coerces whole-number scores, keeping 0 and 100", () => {
+    const parsed = stakeholderFormSchema.parse({
+      projectId: "2",
+      firstName: "Gary",
+      power: "0",
+      interest: " 100 ",
+      stance: "Blocker",
+    });
+    expect(parsed).toMatchObject({ power: 0, interest: 100, stance: "Blocker" });
+  });
+
+  it.each(["101", "-1", "4.5", "1e2", "abc"])(
+    "refuses the score %s with the range message",
+    (v) => {
+      const result = stakeholderFormSchema.safeParse({
+        projectId: "2",
+        firstName: "Gary",
+        power: v,
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0].path).toEqual(["power"]);
+        expect(result.error.issues[0].message).toBe(messages.stakeholders.scoreRange);
+      }
+    },
+  );
+
+  it.each(["champion", "Ally"])("refuses the stance %s", (v) => {
+    const result = stakeholderFormSchema.safeParse({
+      projectId: "2",
+      firstName: "Gary",
+      stance: v,
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
 describe("updateStakeholderFormSchema", () => {
+  const placed = { power: "60", interest: "", stance: "Neutral" };
+
   it("coerces stakeholderId and rowVer from FormData strings", () => {
     const parsed = updateStakeholderFormSchema.parse({
       projectId: "2",
       firstName: "Gary",
       stakeholderId: "1",
       rowVer: "2001",
+      ...placed,
     });
     expect(parsed.stakeholderId).toBe(1);
     expect(parsed.rowVer).toBe(2001);
+    expect(parsed).toMatchObject({ power: 60, interest: null, stance: "Neutral" });
   });
 
   it("rejects a missing rowVer", () => {
@@ -107,7 +157,22 @@ describe("updateStakeholderFormSchema", () => {
       projectId: "2",
       firstName: "Gary",
       stakeholderId: "1",
+      ...placed,
     });
     expect(result.success).toBe(false);
+  });
+
+  it.each(["power", "interest", "stance"])("refuses an update that leaves out %s", (field) => {
+    const values: Record<string, string> = {
+      projectId: "2",
+      firstName: "Gary",
+      stakeholderId: "1",
+      rowVer: "2001",
+      ...placed,
+    };
+    delete values[field];
+    const result = updateStakeholderFormSchema.safeParse(values);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues[0].path).toEqual([field]);
   });
 });

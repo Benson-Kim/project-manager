@@ -1,5 +1,6 @@
 -- usp_Requirement_Update — change one requirement's type, wording and met tick, and optionally
--- replace its links or its allocations (ADR-0037); answers with the row.
+-- replace its links or its allocations (ADR-0037); answers with the row. A test case's tick says it
+-- passed; a need's is always cleared.
 -- Access: Contributor + requirements:update. CONFLICT 50002 on a stale RowVer.
 -- @ValidatesSet / @DeliverablesSet follow the @ColorSet pattern: that side is replaced only when
 --   its flag is 1, so a datasheet cell edit leaves links and allocations alone.
@@ -44,14 +45,14 @@ BEGIN
          @ProjectId = @RowProjectId, @ActorUserId = @ActorUserId,
          @MinLevel = N'Contributor', @Permission = N'requirements:update', @AllowProjectless = 0;
 
-    IF @RequirementType IS NULL OR @RequirementType NOT IN ('BR', 'SR', 'FR', 'NFR', 'TR')
+    IF @RequirementType IS NULL OR @RequirementType NOT IN ('BR', 'SR', 'FR', 'NFR', 'TR', 'TC')
         THROW 50004, N'VALIDATION:Pick a requirement type', 1;
 
     IF NULLIF(LTRIM(RTRIM(@Requirement)), N'') IS NULL
         THROW 50004, N'VALIDATION:A requirement is required', 1;
 
     SET @IsMet = ISNULL(@IsMet, 0);
-    IF @RequirementType NOT IN ('FR', 'NFR', 'TR')
+    IF @RequirementType IN ('BR', 'SR')
         SET @IsMet = 0;
 
     IF @CurrentVer <> @RowVer
@@ -108,18 +109,38 @@ BEGIN
         EXEC dbo.usp_Requirement_ReplaceAllocations
              @RequirementId = @RequirementId, @Ids = @KeyDeliverableIds, @ActorUserId = @ActorUserId;
 
-    IF @RequirementType NOT IN ('FR', 'NFR', 'TR')
+    -- A type change is judged against the rules for every link the row keeps (ADR-0060). With no
+    -- type change a kept link is left alone: removing a rule does not touch existing links.
+    IF @RequirementType <> @OldType
     BEGIN
-        IF EXISTS (SELECT 1 FROM app.RequirementTrace WHERE RequirementId = @RequirementId)
-            THROW 50004, N'VALIDATION:This requirement still validates another one', 1;
+        IF EXISTS (SELECT 1 FROM app.RequirementTrace AS t
+                   JOIN app.Requirement AS v ON v.RequirementId = t.ValidatesRequirementId
+                   WHERE t.RequirementId = @RequirementId
+                     AND NOT EXISTS (SELECT 1 FROM app.RequirementLinkRule AS r
+                                     WHERE r.DownstreamType = @RequirementType
+                                       AND r.UpstreamType = v.RequirementType))
+            THROW 50004, N'VALIDATION:This requirement still traces to one the link settings do not allow', 1;
+
+        IF EXISTS (SELECT 1 FROM app.RequirementTrace AS t
+                   JOIN app.Requirement AS s ON s.RequirementId = t.RequirementId
+                   WHERE t.ValidatesRequirementId = @RequirementId
+                     AND NOT EXISTS (SELECT 1 FROM app.RequirementLinkRule AS r
+                                     WHERE r.DownstreamType = s.RequirementType
+                                       AND r.UpstreamType = @RequirementType))
+            THROW 50004, N'VALIDATION:Another requirement still traces to this one and the link settings do not allow it', 1;
+
         IF EXISTS (SELECT 1 FROM app.RequirementDeliverable WHERE RequirementId = @RequirementId)
+           AND NOT EXISTS (SELECT 1 FROM app.RequirementLinkRule
+                           WHERE DownstreamType = @RequirementType AND UpstreamType = 'WBS')
             THROW 50004, N'VALIDATION:This requirement is still on a deliverable', 1;
-    END
-    ELSE
-    BEGIN
-        IF EXISTS (SELECT 1 FROM app.RequirementTrace WHERE ValidatesRequirementId = @RequirementId)
-            THROW 50004, N'VALIDATION:Another requirement still validates this one', 1;
-    END
+
+        IF @RequirementType = 'TC'
+           AND EXISTS (SELECT 1 FROM app.RequirementDeliverable AS d
+                       JOIN app.KeyDeliverable AS kd ON kd.KeyDeliverableId = d.KeyDeliverableId
+                       WHERE d.RequirementId = @RequirementId
+                         AND kd.ParentKeyDeliverableId IS NULL)
+            THROW 50004, N'VALIDATION:A test case cannot go on a top-level WBS item', 1;
+    END;
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.Requirement',

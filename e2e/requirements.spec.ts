@@ -199,11 +199,11 @@ test("a linked requirement changes type only in the sheet, which offers the type
   page,
 }) => {
   const stamp = Date.now();
-  const br = `E2E typed need ${stamp}`;
+  const upstream = `E2E typed upstream ${stamp}`;
   const fr = `E2E typed solution ${stamp}`;
 
   await page.goto(`${REGISTER}&q=${stamp}`);
-  await addRequirement(page, "BR", br);
+  await addRequirement(page, "FR", upstream);
   await addRequirement(page, "FR", fr);
 
   // A row nothing points at changes type in its cell.
@@ -219,19 +219,21 @@ test("a linked requirement changes type only in the sheet, which offers the type
   const typeField = form.getByLabel(M.type, { exact: true });
   await expect(typeField).toHaveValue("TR");
 
-  const validates = picker(form, "validatesIds[]");
-  await validates.getByRole("combobox").fill(br);
-  await validates.getByRole("option").first().click();
-  await expect(chips(validates)).toHaveCount(1);
-  await page.getByTestId("requirement-save").click();
-  await expect(form).toHaveCount(0);
+  // An open row links from the panel under the form, and the link saves on its own.
+  await expect(picker(form, "validatesIds[]")).toHaveCount(0);
+  const links = page.getByTestId("requirement-links");
+  const addUpstream = picker(links, "link-upstream");
+  await addUpstream.getByRole("combobox").fill(upstream);
+  await addUpstream.getByRole("option").first().click();
+  await expect(links.getByRole("listitem").filter({ hasText: upstream })).toBeVisible();
+  await axe(page);
 
-  // With a link it keeps its own cell read-only and the sheet offers solution types only.
+  // With a link it keeps its own cell read-only and the sheet offers what may trace to an FR.
   await page.goto(`${REGISTER}&q=${encodeURIComponent(fr)}`);
   await expect(page.getByRole("combobox", { name: cellName(M.type, fr) })).toHaveCount(0);
   await openRow(page, fr);
   await expect(form).toBeVisible();
-  await expect(typeField.getByRole("option")).toHaveCount(3);
+  await expect(typeField.getByRole("option")).toHaveCount(4);
   await expect(typeField.getByRole("option", { name: /^Business/ })).toHaveCount(0);
 });
 
@@ -362,7 +364,7 @@ test("sub-requirements: the register nests them, and the WBS names them the same
   // the numbers already used under the parent (the deleted 1 and childB's 2).
   await page.goto(`${REGISTER}&q=${encodeURIComponent(childA)}`);
   await openRow(page, childA);
-  await page.getByTestId("requirement-promote-delete").click();
+  await page.getByTestId("requirement-parent-delete").click();
   const dialog = page.getByRole("dialog").filter({ hasText: M.promoteBody(1, parentRef) });
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: M.promoteAndDelete }).click();
@@ -372,6 +374,83 @@ test("sub-requirements: the register nests them, and the WBS names them the same
   await page.goto(`${REGISTER}&q=${encodeURIComponent(grandchild)}`);
   await expectListed(page, grandchild);
   expect(await refOf(page, grandchild)).toBe(`${parentRef}.3`);
+});
+
+test("deleting a need with a solution below it offers the choice and names what goes", async ({
+  page,
+}) => {
+  const stamp = Date.now();
+  const first = `E2E cascade first need ${stamp}`;
+  const second = `E2E cascade second need ${stamp}`;
+  const fr = `E2E cascade solution ${stamp}`;
+
+  await page.goto(`${REGISTER}&q=${stamp}`);
+  await expect(page.getByRole("heading", { name: M.title })).toBeVisible();
+  await closeAlarmToast(page);
+  await addRequirement(page, "BR", first);
+  await addRequirement(page, "BR", second);
+  await page.goto(`${REGISTER}&q=${stamp}`);
+  const firstRef = await refOf(page, first);
+  const secondRef = await refOf(page, second);
+
+  const selectFirst = page.getByRole("checkbox", { name: messages.list.selectRow(first) });
+  const selectSecond = page.getByRole("checkbox", { name: messages.list.selectRow(second) });
+  const merge = page.getByTestId("requirements-merge");
+  await expect(async () => {
+    await selectFirst.check();
+    await selectSecond.check();
+    await expect(merge).toBeVisible();
+  }).toPass({ timeout: 20_000 });
+  await merge.click();
+  await expect(page).toHaveURL(/id=new/);
+  const form = page.getByTestId("requirement-form");
+  await expect(form).toBeVisible();
+  await form.getByLabel(M.requirement, { exact: true }).fill(fr);
+  await page.getByTestId("requirement-save").click();
+  await expect(
+    page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
+  ).toBeVisible({ timeout: 15_000 });
+
+  await page.goto(`${REGISTER}&q=${stamp}`);
+  const frRef = await refOf(page, fr);
+
+  // The solution has another need above it, so it outlives this one and is named as staying.
+  await openRow(page, first);
+  await expect(form).toBeVisible();
+  await expect(page.getByTestId("requirement-delete")).toHaveCount(0);
+  await expect(page.getByTestId("requirement-delete-blocked")).toContainText(
+    M.downstreamBlocksDelete(1),
+  );
+  await page.getByTestId("requirement-parent-delete").click();
+  const dialog = page.getByRole("dialog").filter({ hasText: M.deleteChoice });
+  await expect(page.getByTestId("requirement-delete-orphan")).toBeChecked();
+  await expect(dialog.getByRole("button", { name: messages.actions.delete })).toBeVisible();
+  await page.getByTestId("requirement-delete-cascade").check();
+  await expect(dialog).toContainText(M.cascadeGoes(firstRef));
+  await expect(dialog).toContainText(M.cascadeKeeps(frRef));
+  await dialog.getByRole("button", { name: M.deleteWithChildren }).click();
+  await expect(
+    page.getByTestId("toast-success").filter({ hasText: messages.feedback.deleted }).first(),
+  ).toBeVisible({ timeout: 15_000 });
+
+  await page.goto(`${REGISTER}&q=${stamp}`);
+  await expectListed(page, fr);
+  await expect(rowOf(page, first)).toHaveCount(0);
+
+  // Nothing else holds the solution now, so it goes with the second need.
+  await openRow(page, second);
+  await expect(form).toBeVisible();
+  await page.getByTestId("requirement-parent-delete").click();
+  await page.getByTestId("requirement-delete-cascade").check();
+  await expect(dialog).toContainText(M.cascadeGoes(`${secondRef}, ${frRef}`));
+  await dialog.getByRole("button", { name: M.deleteWithChildren }).click();
+  await expect(
+    page.getByTestId("toast-success").filter({ hasText: messages.feedback.deleted }).first(),
+  ).toBeVisible({ timeout: 15_000 });
+
+  await page.goto(`${REGISTER}&q=${stamp}`);
+  await expect(rowOf(page, second)).toHaveCount(0);
+  await expect(rowOf(page, fr)).toHaveCount(0);
 });
 
 test("WBS quick add: Meets traces the new requirement to a business need", async ({ page }) => {

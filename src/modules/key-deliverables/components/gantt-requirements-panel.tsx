@@ -17,6 +17,7 @@ import {
   BoxRequirements,
   type RequirementAccess,
   type RequirementHandlers,
+  requirementCountText,
 } from "./wbs-requirements";
 
 const W = messages.keyDeliverables.wbs;
@@ -48,7 +49,6 @@ export function GanttRequirementsPanel({
   const requirements = node.item.requirements;
   const only = itemRequirementsShown(node.item, filter) ?? undefined;
   const name = node.item.name || messages.keyDeliverables.deliverableFallback(node.item.id);
-  const met = requirements.filter((r) => r.isMet).length;
 
   return (
     <section
@@ -61,7 +61,7 @@ export function GanttRequirementsPanel({
           {B.requirementsTitle(node.code, name)}
         </h2>
         <span className="text-xs text-ink-muted tabular-nums">
-          {W.requirementCount(met, requirements.length)}
+          {requirementCountText(requirements)}
         </span>
         <button
           type="button"

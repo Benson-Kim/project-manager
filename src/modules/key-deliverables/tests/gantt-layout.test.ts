@@ -194,11 +194,23 @@ describe("display settings", () => {
   });
 
   it("tallies met requirements", () => {
-    expect(requirementTally([{ isMet: true }, { isMet: false }, { isMet: true }])).toEqual({
-      met: 2,
-      total: 3,
-    });
+    expect(
+      requirementTally([
+        { type: "FR", isMet: true },
+        { type: "NFR", isMet: false },
+        { type: "TC", isMet: true },
+      ]),
+    ).toEqual({ met: 2, total: 3 });
     expect(requirementTally([])).toEqual({ met: 0, total: 0 });
+  });
+
+  it("leaves a need out of the tally, since it has no tick", () => {
+    expect(
+      requirementTally([
+        { type: "BR", isMet: false },
+        { type: "FR", isMet: true },
+      ]),
+    ).toEqual({ met: 1, total: 1 });
   });
 });
 

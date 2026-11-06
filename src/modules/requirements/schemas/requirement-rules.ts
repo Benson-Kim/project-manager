@@ -1,13 +1,5 @@
 import { messages } from "@/lib/messages";
-import {
-  isNeed,
-  isSolution,
-  NEED_TYPES,
-  REQUIREMENT_TYPES,
-  SOLUTION_TYPES,
-  typeOrder,
-  type RequirementType,
-} from "./requirement-types";
+import { isTest, sideOf, typeOrder, type RequirementType } from "./requirement-types";
 
 /**
  * A reference is the server's (ADR-0048). There is deliberately no requirementRef(type, number)
@@ -57,7 +49,7 @@ export type Coverage =
   | { kind: "partial"; met: number; total: number }
   | { kind: "validated"; total: number };
 
-/** A need's state, from the solutions that validate it. */
+/** A requirement's state from what validates it: a need's solutions, a solution's tests. */
 export function coverageOf(validatedBy: readonly { isMet: boolean }[]): Coverage {
   const total = validatedBy.length;
   if (total === 0) return { kind: "none" };
@@ -65,38 +57,25 @@ export function coverageOf(validatedBy: readonly { isMet: boolean }[]): Coverage
   return met === total ? { kind: "validated", total } : { kind: "partial", met, total };
 }
 
-export function coverageLabel(coverage: Coverage): string {
+/** A need reads as validated by its solutions, a solution as tested by its test cases. */
+export function coverageLabel(coverage: Coverage, type: RequirementType): string {
   const M = messages.requirements;
+  const solution = sideOf(type) === "solution";
   switch (coverage.kind) {
     case "none":
-      return M.coverageNone;
+      return solution ? M.testCoverageNone : M.coverageNone;
     case "partial":
-      return M.coveragePartial(coverage.met, coverage.total);
+      return (solution ? M.testCoveragePartial : M.coveragePartial)(coverage.met, coverage.total);
     case "validated":
-      return M.coverageDone;
+      return solution ? M.testCoverageDone : M.coverageDone;
   }
 }
 
-export interface TypeChangeContext {
-  type: RequirementType;
-  /** Needs this requirement validates. */
-  validates: number;
-  /** Solutions that validate this requirement. */
-  validatedBy: number;
-  /** Deliverables it is allocated to. */
-  allocations: number;
-}
-
-/** The types a requirement may take without breaking its links or allocations (as usp_Requirement_Update). */
-export function compatibleTypes(context: TypeChangeContext): RequirementType[] {
-  if (isSolution(context.type) && (context.validates > 0 || context.allocations > 0)) {
-    return [...SOLUTION_TYPES];
-  }
-  if (isNeed(context.type) && context.validatedBy > 0) return [...NEED_TYPES];
-  return [...REQUIREMENT_TYPES];
-}
-
-/** Selected rows can be merged into a new solution when every one is a need. */
-export function canMerge(types: readonly RequirementType[]): boolean {
-  return types.length > 0 && types.every(isNeed);
+/** The coverage a requirement shows, or null for a test case, which nothing validates. */
+export function coverageFor(
+  type: RequirementType,
+  validatedBy: readonly { isMet: boolean; status?: string }[],
+): string | null {
+  const active = validatedBy.filter((link) => link.status !== "Proposed");
+  return isTest(type) ? null : coverageLabel(coverageOf(active), type);
 }

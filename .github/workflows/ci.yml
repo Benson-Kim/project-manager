@@ -188,6 +188,7 @@ jobs:
           node db/tests/financial-documents-race.cjs
           node db/tests/requirements-procs.cjs
           node db/tests/requirements-race.cjs
+          node db/tests/requirement-canvas-procs.cjs
           node db/tests/notes-procs.cjs
           node db/tests/notes-race.cjs
           node db/tests/key-deliverable-assignees.cjs
@@ -200,6 +201,7 @@ jobs:
           node db/tests/users-procs.cjs
           node db/tests/audit-procs.cjs
           node db/tests/todo-recurrence-procs.cjs
+          node db/tests/stakeholder-matrix-procs.cjs
 
   e2e-tests:
     name: Playwright E2E Smoke Tests

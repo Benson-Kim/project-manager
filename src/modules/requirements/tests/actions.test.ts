@@ -33,6 +33,7 @@ import {
   deleteRequirementAction,
   setRequirementMoscowAction,
   setRequirementPlanningAction,
+  unallocateRequirementAction,
   updateRequirementAction,
 } from "../actions";
 
@@ -214,7 +215,8 @@ describe("requirements actions (ADR-0037)", () => {
       RequirementId: 3,
       RowVer: 99,
       ActorUserId: 7,
-      PromoteChildren: false,
+      ChildAction: "None",
+      ExpectedDeleteCount: null,
     });
   });
 
@@ -223,12 +225,12 @@ describe("requirements actions (ADR-0037)", () => {
     const result = await deleteRequirementAction({
       requirementId: 3,
       rowVer: 99,
-      promoteChildren: true,
+      childAction: "Orphan",
     });
     expect(result.ok).toBe(true);
     expect(execProc).toHaveBeenCalledWith(
       "usp_Requirement_Delete",
-      expect.objectContaining({ PromoteChildren: true }),
+      expect.objectContaining({ ChildAction: "Orphan" }),
     );
   });
 
@@ -236,7 +238,7 @@ describe("requirements actions (ADR-0037)", () => {
     const result = await deleteRequirementAction({
       requirementId: 3,
       rowVer: 99,
-      promoteChildren: "yes",
+      childAction: "yes",
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("VALIDATION");
@@ -331,6 +333,48 @@ describe("requirements actions (ADR-0037)", () => {
         requirementId: 3,
         rowVer: 98,
         moscow: "C",
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("CONFLICT");
+    });
+  });
+
+  describe("canvas unlink from a WBS item (ADR-0061)", () => {
+    it("takes the requirement off that one item with the allocation's row version", async () => {
+      execProc.mockResolvedValue([{ ProjectId: 2 }]);
+      const result = await unallocateRequirementAction({
+        requirementId: 3,
+        keyDeliverableId: 4,
+        rowVer: "99",
+      });
+      expect(result.ok).toBe(true);
+      expect(execProc).toHaveBeenCalledWith("usp_Requirement_Unallocate", {
+        RequirementId: 3,
+        KeyDeliverableId: 4,
+        RowVer: 99,
+        ActorUserId: 7,
+      });
+      const paths = revalidatePath.mock.calls.map((c) => c[0]);
+      expect(paths).toEqual(
+        expect.arrayContaining([
+          "/projects/[id]/deliverables/canvas",
+          "/projects/[id]/deliverables",
+        ]),
+      );
+    });
+
+    it("refuses an unlink without a row version, so a stale canvas never removes a newer one", async () => {
+      const result = await unallocateRequirementAction({ requirementId: 3, keyDeliverableId: 4 });
+      expect(result.ok).toBe(false);
+      expect(execProc).not.toHaveBeenCalled();
+    });
+
+    it("maps a stale allocation to CONFLICT", async () => {
+      execProc.mockRejectedValue(new AppError("CONFLICT", "Allocation was modified"));
+      const result = await unallocateRequirementAction({
+        requirementId: 3,
+        keyDeliverableId: 4,
+        rowVer: 98,
       });
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error.code).toBe("CONFLICT");

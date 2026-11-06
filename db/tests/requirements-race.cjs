@@ -71,7 +71,7 @@ async function create(params) {
         RequirementId: sol.RequirementId, RequirementType: "FR", Requirement: sol.Requirement, IsMet: 0,
         ValidatesSet: 1, ValidatesIds: JSON.stringify([need.RequirementId]), RowVer: sol.RowVer, ActorUserId: PM,
       }),
-      () => exec("usp_Requirement_Delete", { RequirementId: need.RequirementId, RowVer: need.RowVer, ActorUserId: PM }),
+      () => exec("usp_Requirement_Delete", { RequirementId: need.RequirementId, RowVer: need.RowVer, ChildAction: "Orphan", ActorUserId: PM }),
     ]);
     // The lock serialises the two, and a delete removes traces both ways, so the surviving
     // solution never validates the deleted need.
@@ -84,8 +84,9 @@ async function create(params) {
   const danglers = all.filter((r) => JSON.parse(r.ValidatesJson || "[]").some((v) => v.id == null));
   ok(danglers.length === 0, "no listed requirement shows a link to a missing need");
 
-  // 3. A type change racing a new incoming link never leaves an invalid link (a solution validating
-  //    a row that just became a solution). The resulting-state check and the lock serialise them.
+  // 3. A type change racing a new incoming link never leaves a link the rules refuse (a solution
+  //    validating a row that just became a test case). The resulting-state check and the lock
+  //    serialise them.
   for (let round = 0; round < 15; round++) {
     const need = await create({ ProjectId: P, RequirementType: "BR", Requirement: `flip ${round}` });
     const sol = await create({ ProjectId: P, RequirementType: "FR", Requirement: `cover ${round}` });
@@ -95,13 +96,13 @@ async function create(params) {
         ValidatesSet: 1, ValidatesIds: JSON.stringify([need.RequirementId]), RowVer: sol.RowVer, ActorUserId: PM,
       }),
       () => exec("usp_Requirement_Update", {
-        RequirementId: need.RequirementId, RequirementType: "FR", Requirement: need.Requirement, IsMet: 0,
+        RequirementId: need.RequirementId, RequirementType: "TC", Requirement: need.Requirement, IsMet: 0,
         RowVer: need.RowVer, ActorUserId: PM,
       }),
     ]));
     const n = (await exec("usp_Requirement_GetById", { RequirementId: need.RequirementId, ActorUserId: PM }))[0][0];
-    // If the need became a solution, nothing may still validate it.
-    const invalid = n.RequirementType !== "BR" && JSON.parse(n.ValidatedByJson || "[]").length > 0;
+    // If the need became a test case, nothing may still validate it.
+    const invalid = n.RequirementType === "TC" && JSON.parse(n.ValidatedByJson || "[]").length > 0;
     ok(!invalid, `type change vs new link stays valid (${res})`);
   }
 

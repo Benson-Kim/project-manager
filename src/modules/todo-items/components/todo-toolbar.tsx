@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/form/inputs";
 import { Toolbar } from "@/components/ui/toolbar";
 import { messages } from "@/lib/messages";
 import { PROJECT_OR_ACTIVITY } from "../schemas/todo-item";
+import { CalendarSwitch } from "./todo-calendar";
 
 /**
  * To-do toolbar: search + project filter (/todo only) + status filter +
@@ -66,6 +67,7 @@ export function TodoToolbar({
         </Select>
       </label>
 
+      <CalendarSwitch on={false} />
       {/* View toggle — injected by DataView via renderToolbar */}
       {children}
     </Toolbar>
