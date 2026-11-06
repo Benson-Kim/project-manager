@@ -297,7 +297,7 @@ export async function deleteRequirement(
     RowVer: input.rowVer,
     ActorUserId: actorUserId,
     ChildAction: input.childAction,
-    ExpectedDeleteCount: input.expectedDeleteCount ?? null,
+    ExpectedDeleteIds: input.expectedDeleteIds ? JSON.stringify(input.expectedDeleteIds) : null,
   });
 }
 

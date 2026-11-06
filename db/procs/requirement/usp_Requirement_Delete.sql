@@ -5,8 +5,8 @@
 --   project id. Deliverables stay; only this requirement leaves the register.
 -- A parent, meaning a row with sub-requirements or anything linked downstream (ADR-0060 section 8),
 --   is refused under the project lock unless @ChildAction says what to do. 'Delete' also removes
---   ufn_Requirement_DeleteSet, one BeforeJson audit row each; @ExpectedDeleteCount is the count the
---   dialog showed, and a different count now is a conflict, so nothing goes unseen.
+--   ufn_Requirement_DeleteSet, one BeforeJson audit row each; @ExpectedDeleteIds are the exact rows
+--   the dialog showed, and any difference from the set now is a conflict, so nothing unseen goes.
 --   'Orphan' removes the links and moves the live children up one level, under this row's own parent (or
 --   to the top level), numbered after the numbers already used there, deleted ones counted, in
 --   their old order. Their own sub-requirements travel with them, so every reference below changes;
@@ -19,7 +19,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_Requirement_Delete
     @RowVer          BIGINT,
     @ActorUserId     INT,
     @ChildAction     NVARCHAR(10) = N'None',
-    @ExpectedDeleteCount INT = NULL
+    @ExpectedDeleteIds NVARCHAR(MAX) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -61,8 +61,18 @@ BEGIN
         INSERT INTO @Doomed (RequirementId) VALUES (@RequirementId);
 
     IF @ChildAction = N'Delete'
-       AND ISNULL(@ExpectedDeleteCount, -1) <> (SELECT COUNT(*) FROM @Doomed)
-        THROW 50002, N'CONFLICT:What this delete would remove has changed', 1;
+    BEGIN
+        IF @ExpectedDeleteIds IS NULL OR ISJSON(@ExpectedDeleteIds) <> 1
+            THROW 50002, N'CONFLICT:What this delete would remove has changed', 1;
+
+        DECLARE @Expected TABLE (RequirementId INT PRIMARY KEY);
+        INSERT INTO @Expected (RequirementId)
+        SELECT DISTINCT val FROM OPENJSON(@ExpectedDeleteIds) WITH (val INT '$');
+
+        IF EXISTS (SELECT RequirementId FROM @Expected EXCEPT SELECT RequirementId FROM @Doomed)
+           OR EXISTS (SELECT RequirementId FROM @Doomed EXCEPT SELECT RequirementId FROM @Expected)
+            THROW 50002, N'CONFLICT:What this delete would remove has changed', 1;
+    END
 
     -- Read under the lock: every structure write takes it, so the parent cannot move meanwhile.
     DECLARE @ParentId INT, @RowType VARCHAR(3);

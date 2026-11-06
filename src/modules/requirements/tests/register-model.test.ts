@@ -291,8 +291,11 @@ describe("deleteRequirementInput", () => {
     );
   });
 
-  it("refuses a count of zero", () => {
-    expect(deleteRequirementInput.safeParse({ ...base, expectedDeleteCount: 0 }).success).toBe(
+  it("takes a reviewed id set and refuses a non-positive id", () => {
+    expect(deleteRequirementInput.safeParse({ ...base, expectedDeleteIds: [3, 4] }).success).toBe(
+      true,
+    );
+    expect(deleteRequirementInput.safeParse({ ...base, expectedDeleteIds: [0] }).success).toBe(
       false,
     );
   });

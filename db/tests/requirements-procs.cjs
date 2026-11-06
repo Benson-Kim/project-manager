@@ -628,6 +628,8 @@ function reqsOf(rows, kdId) {
   const impactOf = async (id, actor = PM) =>
     (await exec("usp_Requirement_DeleteImpact", { RequirementId: id, ActorUserId: actor }))[0];
   const fate = (rows, name) => idsOf(rows.filter((r) => r.Fate === name));
+  const doomedIds = (impact) =>
+    JSON.stringify(impact.filter((r) => r.Fate === "Deleted").map((r) => r.RequirementId));
   const remove = async (row, params = {}, actor = PM) => {
     const current = await getReq(row.RequirementId);
     return exec("usp_Requirement_Delete", { RequirementId: row.RequirementId, RowVer: current.RowVer, ActorUserId: actor, ...params });
@@ -657,7 +659,7 @@ function reqsOf(rows, kdId) {
   const treeImpact = await impactOf(tree.RequirementId);
   ok(fate(treeImpact, "Deleted") === idsOf([tree, treeKid, treeLeaf]), "the impact lists the sub-requirement tree");
   ok(treeImpact.every((r) => r.Ref && r.RequirementType === "BR"), "the impact carries each reference and type");
-  await remove(tree, { ChildAction: "Delete", ExpectedDeleteCount: 3 });
+  await remove(tree, { ChildAction: "Delete", ExpectedDeleteIds: doomedIds(treeImpact) });
   ok(await noneAlive([tree, treeKid, treeLeaf]), "Delete takes the sub-requirement tree");
 
   const brA = await fresh2("BR");
@@ -666,14 +668,15 @@ function reqsOf(rows, kdId) {
   const sharedImpact = await impactOf(brA.RequirementId);
   ok(fate(sharedImpact, "Deleted") === idsOf([brA]), "a row with another upstream link is not in the delete");
   ok(fate(sharedImpact, "Unlinked") === idsOf([shared]), "the impact lists the row that stays");
-  await remove(brA, { ChildAction: "Delete", ExpectedDeleteCount: 1 });
+  await remove(brA, { ChildAction: "Delete", ExpectedDeleteIds: doomedIds(sharedImpact) });
   const sharedKept = links(await getReq(shared.RequirementId), "ValidatesJson");
   ok(sharedKept.length === 1 && sharedKept[0].id === brB.RequirementId, "it survives and keeps its other need");
 
   const wNeed = await fresh2("BR");
   const onWbs = await fresh2("FR", [wNeed], { KeyDeliverableIds: JSON.stringify([XD.KeyDeliverableId]) });
-  ok(fate(await impactOf(wNeed.RequirementId), "Unlinked") === idsOf([onWbs]), "a row on a WBS item is kept in the impact");
-  await remove(wNeed, { ChildAction: "Delete", ExpectedDeleteCount: 1 });
+  const wImpact = await impactOf(wNeed.RequirementId);
+  ok(fate(wImpact, "Unlinked") === idsOf([onWbs]), "a row on a WBS item is kept in the impact");
+  await remove(wNeed, { ChildAction: "Delete", ExpectedDeleteIds: doomedIds(wImpact) });
   ok(links(await getReq(onWbs.RequirementId), "DeliverablesJson").length === 1, "a row on a WBS item survives and stays on it");
 
   const cNeed = await fresh2("BR");
@@ -686,10 +689,11 @@ function reqsOf(rows, kdId) {
   const chainImpact = await impactOf(cNeed.RequirementId);
   ok(fate(chainImpact, "Deleted") === idsOf(chain), "the walk reaches a row only a doomed sub-requirement holds");
   ok(fate(chainImpact, "Unlinked") === idsOf([cShared]), "the walk stops at a row with a surviving upstream");
-  await expectCode(50002, "a stale count is a conflict", () => remove(cNeed, { ChildAction: "Delete", ExpectedDeleteCount: 3 }));
-  await expectCode(50002, "a missing count is a conflict", () => remove(cNeed, { ChildAction: "Delete" }));
+  await expectCode(50002, "a changed set is a conflict", () =>
+    remove(cNeed, { ChildAction: "Delete", ExpectedDeleteIds: JSON.stringify(chain.slice(0, 3).map((r) => r.RequirementId)) }));
+  await expectCode(50002, "a missing set is a conflict", () => remove(cNeed, { ChildAction: "Delete" }));
   ok(await allAlive(chain), "a refused delete removes nothing");
-  await remove(cNeed, { ChildAction: "Delete", ExpectedDeleteCount: 4 });
+  await remove(cNeed, { ChildAction: "Delete", ExpectedDeleteIds: doomedIds(chainImpact) });
   ok(await noneAlive(chain), "what the delete removed is what the impact showed");
   const cSharedKept = links(await getReq(cShared.RequirementId), "ValidatesJson");
   ok(cSharedKept.length === 1 && cSharedKept[0].id === cOther.RequirementId, "the kept row loses only the doomed link");
@@ -708,9 +712,9 @@ function reqsOf(rows, kdId) {
   await expectCode(50003, "an id in another project does not answer (IDOR)", () => impactOf(reqQ.RequirementId, VIEWER));
   await expectCode(50003, "an outsider cannot delete another project's row (IDOR)", () =>
     exec("usp_Requirement_Delete", { RequirementId: reqQ.RequirementId, RowVer: 1, ActorUserId: VIEWER,
-      ChildAction: "Delete", ExpectedDeleteCount: 1 }));
+      ChildAction: "Delete", ExpectedDeleteIds: JSON.stringify([reqQ.RequirementId]) }));
   await expectCode(50003, "a Contributor cannot delete with children", () =>
-    remove(guarded, { ChildAction: "Delete", ExpectedDeleteCount: 2 }, CONTRIB));
+    remove(guarded, { ChildAction: "Delete", ExpectedDeleteIds: JSON.stringify([guarded.RequirementId, guardedKid.RequirementId]) }, CONTRIB));
   ok(await allAlive([guarded, guardedKid]), "a refused actor removes nothing");
   await expectCode(50001, "a deleted row has no impact", () => impactOf(cNeed.RequirementId));
 
@@ -750,7 +754,7 @@ function reqsOf(rows, kdId) {
   const heldB = await fresh2("BR");
   const held = await fresh2("FR", [heldA, heldB]);
   await setStatus(held, heldB, "Retired");
-  await remove(heldA, { ChildAction: "Delete", ExpectedDeleteCount: 1 });
+  await remove(heldA, { ChildAction: "Delete", ExpectedDeleteIds: JSON.stringify([heldA.RequirementId]) });
   ok(await alive(held), "a Retired link still holds a row back from the cascade");
 
   console.log(`${passes} passed, ${failures} failed`);

@@ -45,18 +45,31 @@ BEGIN
                      AND CAST(RowVer AS BIGINT) = @RowVer)
         THROW 50002, N'CONFLICT:Requirement was modified by someone else', 1;
 
+    -- The position is an index into the visible list, which hides Retired allocations, so reorder
+    -- within the non-retired rows only. Retired rows then take the numbers after every visible one,
+    -- keeping their own order, so a hidden row between two visible ones neither absorbs a move nor
+    -- shifts the visible order, and the list stays a single contiguous 1..n.
     DECLARE @Order TABLE (RequirementId INT PRIMARY KEY, Position INT NOT NULL);
     INSERT INTO @Order (RequirementId, Position)
     SELECT RequirementId, ROW_NUMBER() OVER (ORDER BY SortOrder, RequirementId)
     FROM app.RequirementDeliverable
     WHERE KeyDeliverableId = @KeyDeliverableId
-      AND RequirementId <> @RequirementId;
+      AND RequirementId <> @RequirementId
+      AND LinkStatus <> 'Retired';
 
     DECLARE @At INT = (SELECT COUNT(*) FROM @Order) + 1;
     IF @Position < @At SET @At = @Position;
 
     UPDATE @Order SET Position = Position + 1 WHERE Position >= @At;
     INSERT INTO @Order (RequirementId, Position) VALUES (@RequirementId, @At);
+
+    DECLARE @VisibleCount INT = (SELECT COUNT(*) FROM @Order);
+    INSERT INTO @Order (RequirementId, Position)
+    SELECT RequirementId, @VisibleCount + ROW_NUMBER() OVER (ORDER BY SortOrder, RequirementId)
+    FROM app.RequirementDeliverable
+    WHERE KeyDeliverableId = @KeyDeliverableId
+      AND RequirementId <> @RequirementId
+      AND LinkStatus = 'Retired';
 
     DECLARE @Before NVARCHAR(MAX) =
         (SELECT RequirementId AS id, SortOrder FROM app.RequirementDeliverable

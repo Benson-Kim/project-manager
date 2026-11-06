@@ -157,7 +157,7 @@ Built as `ufn_Requirement_DeleteSet`, the one definition of what the delete remo
 - A sub-requirement of a doomed row always goes. It cannot stay under a deleted parent.
 - A top-level row goes only when every upstream link it has is to a doomed row and no WBS item holds it. A link of any status counts, Retired included, and a WBS allocation counts as an upstream link. Both choices delete less.
 - A sub-requirement under a surviving parent stays and only loses the link.
-- The dialog sends the row count it showed as `@ExpectedDeleteCount`. A different or missing count is a CONFLICT, so nothing goes unseen. It is a count, not a list of ids: a change that swaps one row for another under the same count is not caught.
+- The dialog sends the exact ids it showed as `@ExpectedDeleteIds`. A set that differs from the cascade now, or a missing set, is a CONFLICT, so nothing goes unseen — including a concurrent change that swaps one row for another while the count stays the same.
 - "Keep them and remove the links" is the preselected choice.
 
 ### 9. Links show everywhere

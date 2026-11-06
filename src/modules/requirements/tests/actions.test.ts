@@ -216,7 +216,7 @@ describe("requirements actions (ADR-0037)", () => {
       RowVer: 99,
       ActorUserId: 7,
       ChildAction: "None",
-      ExpectedDeleteCount: null,
+      ExpectedDeleteIds: null,
     });
   });
 

@@ -134,8 +134,8 @@ export const deleteRequirementInput = z.object({
   rowVer: rowVerSchema,
   /** What happens to a parent's sub-requirements and downstream rows. None refuses a parent. */
   childAction: z.enum(CHILD_ACTIONS).default("None"),
-  /** The row count the dialog showed for Delete: the server refuses if it has changed. */
-  expectedDeleteCount: z.coerce.number().int().positive().optional(),
+  /** The exact rows the dialog showed for Delete: the server refuses if the set has changed. */
+  expectedDeleteIds: z.array(z.number().int().positive()).optional(),
 });
 
 export type DeleteRequirementInput = z.output<typeof deleteRequirementInput>;

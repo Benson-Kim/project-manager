@@ -11,7 +11,7 @@ const M = messages.requirements;
 
 export interface DeleteChoice {
   childAction: ChildAction;
-  expectedDeleteCount?: number;
+  expectedDeleteIds?: number[];
 }
 
 interface RequirementDeleteDialogProps {
@@ -57,7 +57,7 @@ export function RequirementDeleteDialog({
     if (impact === null) return;
     onConfirm({
       childAction: "Delete",
-      expectedDeleteCount: impact.filter((r) => r.Fate === "Deleted").length,
+      expectedDeleteIds: impact.filter((r) => r.Fate === "Deleted").map((r) => r.RequirementId),
     });
   };
 

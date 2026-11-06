@@ -456,10 +456,19 @@ describe("the write procs own the invariants a constraint cannot express (ADR-00
     const del = sql(join(DIR, "usp_Requirement_Delete.sql"));
     expect(del).toContain("@ChildAction     NVARCHAR(10) = N'None'");
     expect(del).toContain("IF @ChildAction = N'Orphan'");
-    expect(del).toContain("ISNULL(@ExpectedDeleteCount, -1) <> (SELECT COUNT(*) FROM @Doomed)");
+    expect(del).toContain(
+      "SELECT RequirementId FROM @Expected EXCEPT SELECT RequirementId FROM @Doomed",
+    );
     expect(del).toContain("dbo.ufn_Requirement_DeleteSet(@RequirementId)");
     expect(del).toContain(
       "INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)",
     );
+  });
+
+  it("reorders the visible allocations only, numbering retired rows after them", () => {
+    const move = sql(join(DIR, "usp_Requirement_Move.sql"));
+    expect(move).toContain("AND LinkStatus <> 'Retired'");
+    expect(move).toContain("AND LinkStatus = 'Retired'");
+    expect(move).toContain("@VisibleCount + ROW_NUMBER() OVER (ORDER BY SortOrder, RequirementId)");
   });
 });
