@@ -232,7 +232,11 @@ test("the matrix passes axe in light and dark and fits a 360 px screen", async (
   await page.goto(MATRIX);
   await expect(page.getByTestId("matrix-grid")).toBeVisible();
   await axe(page);
+  // A reload sets the theme before paint; a live switch would scan colours mid-transition.
   await page.emulateMedia({ colorScheme: "dark" });
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.getByTestId("matrix-grid")).toBeVisible();
   await axe(page);
 
   await page.setViewportSize({ width: 360, height: 800 });

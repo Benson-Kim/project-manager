@@ -270,7 +270,12 @@ test("business case: Do Nothing sits before the alternatives, saves and reopens"
   await page.goto("/projects/new");
   await page.getByLabel(P.name).fill(`E2E do nothing ${Date.now()}`);
   const businessCase = page.getByTestId("project-business-case");
-  await businessCase.getByRole("button", { name: P.businessCaseSection }).click();
+  const toggle = businessCase.getByRole("button", { name: P.businessCaseSection });
+  // A click before hydration does nothing, so it is retried until the section opens.
+  await expect(async () => {
+    if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true", { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   const top = async (label: string) =>
     (await businessCase.getByText(label, { exact: true }).first().boundingBox())?.y ?? NaN;
   const objectives = await top(P.objectiveAlignment);
