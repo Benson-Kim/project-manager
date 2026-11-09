@@ -118,6 +118,8 @@ BEGIN
              FROM app.Board WHERE BoardId = @BoardId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES));
 
+    EXEC dbo.usp_Todo_FollowBoardCards @BoardId = @BoardId, @ActorUserId = @ActorUserId;
+
     COMMIT;
 
     SELECT b.BoardId,

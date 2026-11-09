@@ -153,6 +153,12 @@ BEGIN
         ELSE IF @ListKey = N'project.risk-level'
             UPDATE t SET [RiskLevel] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
             FROM app.Project t JOIN @Renamed r ON t.[RiskLevel] = r.OldLabel;
+        ELSE IF @ListKey = N'project.po-requisition-status'
+            UPDATE t SET [PoRequisitionStatus] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
+            FROM app.Project t JOIN @Renamed r ON t.[PoRequisitionStatus] = r.OldLabel;
+        ELSE IF @ListKey = N'project.requisition-status'
+            UPDATE t SET [RequisitionStatus] = r.NewLabel, UpdatedAtUtc = @Now, UpdatedBy = @ActorUserId
+            FROM app.Project t JOIN @Renamed r ON t.[RequisitionStatus] = r.OldLabel;
         -- The objectives a project is aligned to are rows rather than a column, so a rename
         -- reaches them here; the link table carries no audit columns of its own. Two options
         -- cannot end up sharing a label, so this never collides with the primary key.

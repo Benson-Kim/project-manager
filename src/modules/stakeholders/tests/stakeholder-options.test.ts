@@ -31,6 +31,29 @@ describe("stakeholder picker options", () => {
     ]);
   });
 
+  it("reads every page when a project has more stakeholders than one page holds", async () => {
+    const page = (from: number, count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        StakeholderId: from + i,
+        FirstName: `S${from + i}`,
+        LastName: null,
+      }));
+    execProc.mockResolvedValueOnce(page(1, 100)).mockResolvedValueOnce(page(101, 3));
+    const options = await listStakeholderOptions(2, 7);
+    expect(execProc).toHaveBeenCalledTimes(2);
+    expect(execProc.mock.calls.map((c) => (c[1] as { Page: number }).Page)).toEqual([1, 2]);
+    expect(options).toHaveLength(103);
+    expect(options.at(-1)).toEqual({ stakeholderId: 103, name: "S103" });
+  });
+
+  it("stops at its page cap even if every page comes back full", async () => {
+    execProc.mockResolvedValue(
+      Array.from({ length: 100 }, (_, i) => ({ StakeholderId: i, FirstName: "S", LastName: null })),
+    );
+    await listStakeholderOptions(2, 7);
+    expect(execProc).toHaveBeenCalledTimes(50);
+  });
+
   it("sends no actor role: the proc resolves it (ADR-0021)", async () => {
     execProc.mockResolvedValue([]);
     await listStakeholderOptions(2, 7);

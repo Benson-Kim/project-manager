@@ -78,6 +78,12 @@ export const ClearFormattingIcon = () => (
   </Icon>
 );
 
+export const FormatPainterIcon = () => (
+  <Icon>
+    <path d="M2.5 2.5h9v3.5h-9zM11.5 4.25h2v4H8v2M7 10.25h2v3.25H7z" />
+  </Icon>
+);
+
 export const HighlightIcon = () => (
   <Icon>
     <path d="m9.5 2.5 4 4-6 6H3.5v-4zM7.5 4.5l4 4M2 14h5" />

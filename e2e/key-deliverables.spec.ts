@@ -1157,7 +1157,39 @@ test("WBS details panel: priority, budget, colour, assignees and Done save and c
   // Someone is put on the item from the panel, and the box names them at once.
   const assignees = page.getByTestId(`wbs-assignees-${id}`);
   await expect(assignees).toHaveText(K.unassigned);
-  await panel.getByRole("combobox", { name: K.assignees }).click();
+  const assigneeBox = panel.getByRole("combobox", { name: K.assignees });
+
+  // A typed name that is no stakeholder is not added, and the field says why.
+  await assigneeBox.fill("Nobody Zzqx");
+  await assigneeBox.press("Enter");
+  await expect(panel.getByTestId("stakeholder-no-match")).toContainText(
+    messages.stakeholders.notAStakeholder("Nobody Zzqx"),
+  );
+  await expect(assignees).toHaveText(K.unassigned);
+  await assigneeBox.fill("");
+  await expect(panel.getByTestId("stakeholder-no-match")).toBeHidden();
+
+  // Someone who may create stakeholders adds the typed name as one, and it is picked at once.
+  const newcomer = `E2E Zzadded${stamp}`;
+  await assigneeBox.fill(newcomer);
+  await panel
+    .getByRole("button", { name: messages.stakeholders.addAsStakeholder(newcomer) })
+    .click();
+  const unassignNewcomer = panel.getByRole("button", { name: K.removeAssignee(newcomer) });
+  await expect(unassignNewcomer).toBeVisible();
+  await expect(assignees.getByRole("img", { name: newcomer })).toBeVisible();
+  await expect(assigneeBox).toHaveValue("");
+  await expect(panel.getByTestId("stakeholder-no-match")).toBeHidden();
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+  await unassignNewcomer.click();
+  await expect(assignees).toHaveText(K.unassigned);
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+  // The page's stakeholder list now has them, so they can be picked like anyone else.
+  await assigneeBox.fill(newcomer);
+  await expect(panel.getByRole("listbox").getByRole("option", { name: newcomer })).toBeVisible();
+  await assigneeBox.fill("");
+
+  await assigneeBox.click();
   const option = panel.getByRole("listbox").getByRole("option").first();
   const who = ((await option.textContent()) ?? "").trim();
   expect(who).not.toBe("");

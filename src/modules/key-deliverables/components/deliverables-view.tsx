@@ -135,6 +135,7 @@ export function DeliverablesView({
   openDeliverable,
   sheetOpen,
   assigneeOptions,
+  canAddStakeholder,
   canEdit,
   canCreate,
   canDelete,
@@ -153,6 +154,7 @@ export function DeliverablesView({
   openDeliverable?: KeyDeliverableRow;
   sheetOpen: boolean;
   assigneeOptions: StakeholderOption[];
+  canAddStakeholder: boolean;
   canEdit: boolean;
   /** Shows the datasheet's new-entry row. */
   canCreate: boolean;
@@ -236,6 +238,7 @@ export function DeliverablesView({
           projectId={projectId}
           deliverable={openDeliverable}
           assigneeOptions={assigneeOptions}
+          canAddStakeholder={canAddStakeholder}
           canEdit={canEdit}
           canDelete={canDelete}
           onDone={close}

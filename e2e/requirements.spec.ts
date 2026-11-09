@@ -260,6 +260,31 @@ test("the register fits a 360 px screen", async ({ page }) => {
   expect(width).toBeLessThanOrEqual(360);
 });
 
+test("the register opens full page over the app header, and Escape brings it back", async ({
+  page,
+}) => {
+  await page.goto(REGISTER);
+  await closeAlarmToast(page);
+  const register = page.getByTestId("requirements-register");
+  const toggle = page.getByTestId("requirements-full-page");
+  const appHeader = page.getByRole("banner");
+  await expect(appHeader).toBeVisible();
+
+  await toggle.click();
+  await expect(register).toHaveCSS("position", "fixed");
+  await expect(appHeader).toBeHidden();
+  await expect(toggle).toHaveText(M.canvas.exitFullPage);
+
+  await page.keyboard.press("Escape");
+  await expect(register).not.toHaveCSS("position", "fixed");
+  await expect(appHeader).toBeVisible();
+
+  await toggle.click();
+  await toggle.click();
+  await expect(toggle).toHaveText(M.canvas.fullPage);
+  await expect(appHeader).toBeVisible();
+});
+
 /**
  * Sub-requirements (ADR-0048). The client asked for FR-1, then FR-1.1, then FR-1.1.1, and sent a
  * mock-up: a child is indented, its Type column reads "Sub-Requirement", and its reference carries

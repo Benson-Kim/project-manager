@@ -9,7 +9,7 @@ import { messages } from "./messages";
  * app.DailyActivity.ActivityStatusId, which stores the option id.
  *
  * This registry names every list the app reads; src/tests/lookup-lists.test.ts
- * keeps it equal to the lists the migrations seed (018, 021, 031, 049, 053, 054, 056, 057)
+ * keeps it equal to the lists the migrations seed (018, 021, 031, 049, 053, 054, 056, 057, 068)
  * and
  * to the rename cascade in dbo.usp_LookupList_Set.
  */
@@ -21,6 +21,9 @@ export const LOOKUP_LISTS = [
   // The business case (migration 056, client updates 2026-11-03): a project is aligned to
   // several objectives at once, held as labels in app.ProjectObjectiveAlignment.
   "project.objective-alignment",
+  // Financing (migration 068): where a purchase order or requisition stands.
+  "project.po-requisition-status",
+  "project.requisition-status",
   "stakeholder.communication-preference",
   "stakeholder.engagement-level",
   // The communication plan (migration 054, BL34): the client gave examples, not a closed set,

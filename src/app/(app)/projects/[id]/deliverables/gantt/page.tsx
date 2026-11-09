@@ -102,6 +102,7 @@ export default async function DeliverablesGanttPage({
             openDeliverable={openDeliverable}
             sheetOpen={Boolean(openDeliverable)}
             assigneeOptions={assigneeOptions}
+            canAddStakeholder={allows("stakeholders:create")}
             needOptions={needOptions}
           />
         </LookupListsScope>

@@ -41,6 +41,7 @@ import {
   clearTodoRecurrenceAction,
   createTodoAlertAction,
   createTodoItemAction,
+  buildTodoFromBoardCardAction,
   deleteTodoItemAction,
   dismissTodoAlertAction,
   registerPushSubscriptionAction,
@@ -608,6 +609,36 @@ describe("to-do recurrence actions", () => {
     const result = await setTodoOccurrenceAction({ ...occurrence, isSkipped: true });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.fieldErrors?.isSkipped).toBeDefined();
+    expect(execProc).not.toHaveBeenCalled();
+  });
+});
+
+describe("buildTodoFromBoardCardAction", () => {
+  beforeEach(() => {
+    session = { userId: 7, username: "pm", role: "User" };
+    execProc.mockReset();
+  });
+
+  it("builds the card's to-do in one proc call and says whether it already existed", async () => {
+    execProc.mockResolvedValueOnce([{ TodoItemId: 9, Existed: true }]);
+    const result = await buildTodoFromBoardCardAction({ boardCardId: 4 });
+    expect(result).toEqual({ ok: true, data: { todoItemId: 9, existed: true } });
+    expect(execProc).toHaveBeenCalledTimes(1);
+    expect(execProc).toHaveBeenCalledWith("usp_Todo_BuildFromBoardCard", {
+      BoardCardId: 4,
+      ActorUserId: 7,
+    });
+  });
+
+  it("passes on a hidden existing to-do as a null id", async () => {
+    execProc.mockResolvedValueOnce([{ TodoItemId: null, Existed: true }]);
+    const result = await buildTodoFromBoardCardAction({ boardCardId: 4 });
+    expect(result).toEqual({ ok: true, data: { todoItemId: null, existed: true } });
+  });
+
+  it("refuses a card id that is not a positive number", async () => {
+    const result = await buildTodoFromBoardCardAction({ boardCardId: 0 });
+    expect(result.ok).toBe(false);
     expect(execProc).not.toHaveBeenCalled();
   });
 });

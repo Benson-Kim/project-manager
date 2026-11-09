@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchRank, NO_MATCH, rankByMatch } from "../form/rank-options";
+import { matchesNone, matchRank, NO_MATCH, rankByMatch } from "../form/rank-options";
 import { opensUp, panelLeft, panelTop, roomFor } from "../popover-placement";
 
 describe("rankByMatch", () => {
@@ -27,6 +27,29 @@ describe("rankByMatch", () => {
     expect(matchRank("Mike Armstrong", "arm")).toBe(2);
     expect(matchRank("Karma", "arm")).toBe(3);
     expect(matchRank("Suganthi", "arm")).toBe(NO_MATCH);
+  });
+});
+
+describe("matchesNone", () => {
+  const people = ["Jane Test1", "Alex Rivera"];
+  const label = (s: string) => s;
+
+  it("is true for typed text no option contains", () => {
+    expect(matchesNone(people, "Marcus Chen", label)).toBe(true);
+  });
+
+  it("is true when there are no options to match", () => {
+    expect(matchesNone([], "Jane", label)).toBe(true);
+  });
+
+  it("is false while any option contains the text, whatever its case or spacing", () => {
+    expect(matchesNone(people, "  rivera ", label)).toBe(false);
+    expect(matchesNone(people, "JANE", label)).toBe(false);
+  });
+
+  it("is false for blank text", () => {
+    expect(matchesNone(people, "", label)).toBe(false);
+    expect(matchesNone(people, "   ", label)).toBe(false);
   });
 });
 

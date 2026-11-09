@@ -213,3 +213,19 @@ export async function buildTodoFromDailyActivity(
   if (!rows[0]) throw new AppError("NOT_FOUND", "TodoItem not found after build");
   return todoItemRowSchema.parse(rows[0]);
 }
+
+/**
+ * The dated card's to-do and its alert; a card's existing to-do comes back with existed: true,
+ * and with todoItemId null when the actor may not open it.
+ */
+export async function buildTodoFromBoardCard(
+  boardCardId: number,
+  actorUserId: number,
+): Promise<{ todoItemId: number | null; existed: boolean }> {
+  const rows = await execProc<{ TodoItemId: number | null; Existed: boolean }>(
+    "usp_Todo_BuildFromBoardCard",
+    { BoardCardId: boardCardId, ActorUserId: actorUserId },
+  );
+  if (!rows[0]) throw new AppError("NOT_FOUND", "TodoItem not found after build");
+  return { todoItemId: rows[0].TodoItemId, existed: Boolean(rows[0].Existed) };
+}

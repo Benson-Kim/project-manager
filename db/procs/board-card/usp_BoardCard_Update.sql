@@ -11,6 +11,7 @@
 -- A packaged card may clear its title and show the requirement's or deliverable's text instead
 --   (ADR-0052); an unpackaged one may not, or it would have nothing to show. That is CK_BoardCard_Content, checked here first so
 --   it reads as VALIDATION rather than surfacing error 547 as INTERNAL.
+-- A new due date moves the card's to-do and its alert to that day; clearing the date leaves them.
 -- Entity app.BoardCard. Module: boards (ADR-0038).
 USE ProjectManager;
 GO
@@ -55,8 +56,9 @@ BEGIN
          @BoardId = @BoardId, @ActorUserId = @ActorUserId,
          @MinLevel = N'Contributor', @Permission = N'boards:update';
 
-    DECLARE @RequirementId INT, @KeyDeliverableId INT, @Found BIT = 0;
-    SELECT @RequirementId = RequirementId, @KeyDeliverableId = KeyDeliverableId, @Found = 1
+    DECLARE @RequirementId INT, @KeyDeliverableId INT, @OldDueDate DATE, @Found BIT = 0;
+    SELECT @RequirementId = RequirementId, @KeyDeliverableId = KeyDeliverableId,
+           @OldDueDate = DueDate, @Found = 1
     FROM app.BoardCard
     WHERE BoardCardId = @BoardCardId AND IsDeleted = 0 AND CAST(RowVer AS BIGINT) = @RowVer;
     IF @Found = 0
@@ -93,6 +95,50 @@ BEGIN
             (SELECT Title, AssigneeUserId, DueDate, StoryPoints, Color
              FROM app.BoardCard WHERE BoardCardId = @BoardCardId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES));
+
+    DECLARE @TodoItemId INT, @TodoBefore NVARCHAR(MAX);
+    DECLARE @Alerts TABLE (
+        TodoAlertId INT NOT NULL PRIMARY KEY,
+        BeforeJson  NVARCHAR(MAX) NOT NULL
+    );
+    IF @DueDate IS NOT NULL AND (@OldDueDate IS NULL OR @OldDueDate <> @DueDate)
+        SELECT @TodoItemId = t.TodoItemId,
+               @TodoBefore = (SELECT t.TodoItemId, t.DueDate
+                              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES)
+        FROM app.TodoItem t
+        WHERE t.BoardCardId = @BoardCardId AND t.IsDeleted = 0;
+    IF @TodoItemId IS NOT NULL
+    BEGIN
+        INSERT INTO @Alerts (TodoAlertId, BeforeJson)
+        SELECT a.TodoAlertId,
+               (SELECT a.TodoAlertId, a.TodoItemId, a.AlertDay, a.IsDismissed
+                FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES)
+        FROM app.TodoAlert a
+        WHERE a.TodoItemId = @TodoItemId AND a.IsDeleted = 0
+          AND (a.IsDismissed = 1 OR EXISTS (SELECT a.AlertDay EXCEPT SELECT @DueDate));
+
+        UPDATE app.TodoItem SET
+            DueDate = @DueDate, UpdatedAtUtc = SYSUTCDATETIME(), UpdatedBy = @ActorUserId
+        WHERE TodoItemId = @TodoItemId;
+
+        UPDATE a SET
+            AlertDay = @DueDate, IsDismissed = 0, UpdatedAtUtc = SYSUTCDATETIME(), UpdatedBy = @ActorUserId
+        FROM app.TodoAlert a JOIN @Alerts x ON x.TodoAlertId = a.TodoAlertId;
+
+        INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
+        VALUES (@ActorUserId, N'ShiftWithBoardCard', N'app.TodoItem', CAST(@TodoItemId AS NVARCHAR(64)),
+                @TodoBefore,
+                (SELECT TodoItemId, DueDate FROM app.TodoItem WHERE TodoItemId = @TodoItemId
+                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES));
+
+        INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
+        SELECT @ActorUserId, N'ShiftWithBoardCard', N'app.TodoAlert', CAST(x.TodoAlertId AS NVARCHAR(64)),
+               x.BeforeJson,
+               (SELECT a.TodoAlertId, a.TodoItemId, a.AlertDay, a.IsDismissed
+                FROM app.TodoAlert a WHERE a.TodoAlertId = x.TodoAlertId
+                FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES)
+        FROM @Alerts x;
+    END;
 
     COMMIT;
 

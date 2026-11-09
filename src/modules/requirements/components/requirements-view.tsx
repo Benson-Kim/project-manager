@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { PackageRequirementsButton } from "@/modules/boards/components/package-requirements";
+import { useFullPage } from "@/components/shell/use-full-page";
+import { useRefreshOnFocus } from "@/components/shell/use-refresh-on-focus";
 import { Button } from "@/components/ui/button";
 import { booleanColumn, choiceColumn, textColumn } from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
@@ -93,6 +95,9 @@ export function RequirementsView({
   newRequirementAction?: React.ReactNode;
 }) {
   const { update, searchParams } = useListUrlState();
+  useRefreshOnFocus();
+  const [fullPage, setFullPage] = useState(false);
+  useFullPage(fullPage, () => setFullPage(false));
 
   const columns = useMemo<DataViewColumn<Row>[]>(
     () => [
@@ -183,74 +188,88 @@ export function RequirementsView({
   );
 
   return (
-    <DataView
-      moduleKey="requirements"
-      rows={rows}
-      totalCount={totalCount}
-      page={page}
-      initialView={initialView}
-      initialLayout={layout}
-      getRowId={(row) => row.RequirementId}
-      getRowLabel={(row) => row.Requirement}
-      filtersActive={filtersActive}
-      onOpen={(row) =>
-        update({ id: String(row.RequirementId), page: searchParams.get("page") ?? null })
-      }
-      renderCard={(row) => (
-        <div className="flex flex-col gap-1">
-          <p className="text-xs font-medium text-ink-muted">
-            {M.typeWithRef(typeCell(row), row.Ref)}
-          </p>
-          <p className="text-sm font-semibold text-ink">{row.Requirement}</p>
-          <p className="text-xs text-ink-muted">{coverageText(row)}</p>
-        </div>
-      )}
-      columns={columns}
-      sort={REQUIREMENT_SORT}
-      datasheet={{
-        canEditRow,
-        saveCell,
-        addRow: canCreate
-          ? {
-              add: (values) => createRequirementAction({ ...values, projectId: String(projectId) }),
-            }
-          : undefined,
-      }}
-      bulkActions={
-        canCreate || canPackage
-          ? (selectedIds, clear) => {
-              const merge = mergeSelection(rows, selectedIds, linkRules);
-              if (!selectedIds.length) return null;
-              return (
-                <div className="flex flex-wrap gap-2">
-                  {canPackage ? (
-                    <PackageRequirementsButton
-                      projectId={projectId}
-                      selectedIds={selectedIds.map(Number)}
-                    />
-                  ) : null}
-                  <Button
-                    disabled={!canCreate || !merge}
-                    data-testid="requirements-merge"
-                    onClick={() => {
-                      if (merge)
-                        update({ id: "new", type: merge.type, validates: merge.validates });
-                      clear();
-                    }}
-                  >
-                    {merge && isTest(merge.type) ? M.newTest : M.merge}
-                  </Button>
-                </div>
-              );
-            }
-          : undefined
-      }
-      renderToolbar={(viewToggle) => (
-        <RequirementsToolbar projectId={projectId} canPackage={canPackage}>
-          {viewToggle}
-        </RequirementsToolbar>
-      )}
-      empty={listEmptyState(filtersActive, M.emptyBody, newRequirementAction)}
-    />
+    <div
+      data-testid="requirements-register"
+      className={fullPage ? "fixed inset-0 z-(--z-fullscreen) overflow-auto bg-surface p-4" : ""}
+    >
+      <DataView
+        moduleKey="requirements"
+        rows={rows}
+        totalCount={totalCount}
+        page={page}
+        initialView={initialView}
+        initialLayout={layout}
+        getRowId={(row) => row.RequirementId}
+        getRowLabel={(row) => row.Requirement}
+        filtersActive={filtersActive}
+        onOpen={(row) =>
+          update({ id: String(row.RequirementId), page: searchParams.get("page") ?? null })
+        }
+        renderCard={(row) => (
+          <div className="flex flex-col gap-1">
+            <p className="text-xs font-medium text-ink-muted">
+              {M.typeWithRef(typeCell(row), row.Ref)}
+            </p>
+            <p className="text-sm font-semibold text-ink">{row.Requirement}</p>
+            <p className="text-xs text-ink-muted">{coverageText(row)}</p>
+          </div>
+        )}
+        columns={columns}
+        sort={REQUIREMENT_SORT}
+        datasheet={{
+          canEditRow,
+          saveCell,
+          addRow: canCreate
+            ? {
+                add: (values) =>
+                  createRequirementAction({ ...values, projectId: String(projectId) }),
+              }
+            : undefined,
+        }}
+        bulkActions={
+          canCreate || canPackage
+            ? (selectedIds, clear) => {
+                const merge = mergeSelection(rows, selectedIds, linkRules);
+                if (!selectedIds.length) return null;
+                return (
+                  <div className="flex flex-wrap gap-2">
+                    {canPackage ? (
+                      <PackageRequirementsButton
+                        projectId={projectId}
+                        selectedIds={selectedIds.map(Number)}
+                      />
+                    ) : null}
+                    <Button
+                      disabled={!canCreate || !merge}
+                      data-testid="requirements-merge"
+                      onClick={() => {
+                        if (merge)
+                          update({ id: "new", type: merge.type, validates: merge.validates });
+                        clear();
+                      }}
+                    >
+                      {merge && isTest(merge.type) ? M.newTest : M.merge}
+                    </Button>
+                  </div>
+                );
+              }
+            : undefined
+        }
+        renderToolbar={(viewToggle) => (
+          <RequirementsToolbar projectId={projectId} canPackage={canPackage}>
+            {viewToggle}
+            <Button
+              type="button"
+              variant="secondary"
+              data-testid="requirements-full-page"
+              onClick={() => setFullPage(!fullPage)}
+            >
+              {fullPage ? M.canvas.exitFullPage : M.canvas.fullPage}
+            </Button>
+          </RequirementsToolbar>
+        )}
+        empty={listEmptyState(filtersActive, M.emptyBody, newRequirementAction)}
+      />
+    </div>
   );
 }

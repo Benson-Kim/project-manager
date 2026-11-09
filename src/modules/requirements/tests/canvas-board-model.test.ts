@@ -12,6 +12,7 @@ import {
   mergeFlowNodes,
   rollbackPlacements,
   savedMoves,
+  settlePlacements,
   unlinkableKeys,
   withHidden,
   type ItemNode,
@@ -152,6 +153,43 @@ describe("canvas board model", () => {
       ["a", old],
       ["b", later],
     ]);
+  });
+
+  it("drops a local placement once the server has moved that node, and keeps the rest", () => {
+    const placed = { OnCanvas: true, X: 10, Y: 20, IsCollapsed: false };
+    const kept = { OnCanvas: true, X: 30, Y: 40, IsCollapsed: false };
+    const keyA = itemKey("Requirement", 1),
+      keyB = itemKey("Requirement", 2);
+    const overlay = new Map([
+      [keyA, placed],
+      [keyB, kept],
+    ]);
+    const before = [item({ ItemId: 1 }), item({ ItemId: 2 })];
+    const after = [item({ ItemId: 1, X: 500, Y: 600 }), item({ ItemId: 2 })];
+    const settled = settlePlacements(overlay, before, after);
+    expect([...settled]).toEqual([[keyB, kept]]);
+    expect(settled.get(keyB)).toBe(kept);
+    expect(overlay.size).toBe(2);
+  });
+
+  it("drops a local placement when the server collapses, hides or removes that node", () => {
+    const overlay = new Map([
+      [itemKey("Requirement", 1), { OnCanvas: true, X: 1, Y: 1, IsCollapsed: false }],
+      [itemKey("Requirement", 2), { OnCanvas: true, X: 2, Y: 2, IsCollapsed: false }],
+      [itemKey("Requirement", 3), { OnCanvas: true, X: 3, Y: 3, IsCollapsed: false }],
+    ]);
+    const before = [item({ ItemId: 1 }), item({ ItemId: 2 }), item({ ItemId: 3 })];
+    const after = [item({ ItemId: 1, IsCollapsed: true }), item({ ItemId: 2, OnCanvas: false })];
+    expect(settlePlacements(overlay, before, after).size).toBe(0);
+  });
+
+  it("keeps the same map when the server left every overlaid node where it was", () => {
+    const overlay = new Map([
+      [itemKey("Requirement", 1), { OnCanvas: true, X: 5, Y: 5, IsCollapsed: false }],
+    ]);
+    const before = [item({ ItemId: 1 }), item({ ItemId: 2 })];
+    const after = [item({ ItemId: 1 }), item({ ItemId: 2, X: 9, Y: 9 })];
+    expect(settlePlacements(overlay, before, after)).toBe(overlay);
   });
 });
 

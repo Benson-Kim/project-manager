@@ -13,6 +13,15 @@ export function matchRank(label: string, query: string): number {
   return /[\s\-_/.,(]/.test(text[at - 1]) ? 2 : 3;
 }
 
+/** Typed text that no option contains, so nothing it names can be picked. */
+export function matchesNone<T>(
+  options: readonly T[],
+  query: string,
+  labelOf: (option: T) => string,
+): boolean {
+  return query.trim() !== "" && options.every((o) => matchRank(labelOf(o), query) === NO_MATCH);
+}
+
 /**
  * Every option, best matches first (client feedback, 2026-10-28): typing reorders the list
  * instead of emptying it, so an option spelled differently is still there to pick. Options that

@@ -64,19 +64,23 @@ function ReadOnly({ label, value }: { label: string; value: string }) {
  * come from its sub-items, so they show here without a field.
  */
 export function WbsDetailsPanel({
+  projectId,
   node,
   canEdit,
   canDone,
   assigneeOptions,
+  canAddStakeholder,
   rolledBudget,
   subItems,
   on,
 }: {
+  projectId: number;
   node: WbsNode;
   canEdit: boolean;
   /** The status list offers the done status. */
   canDone: boolean;
   assigneeOptions: StakeholderOption[];
+  canAddStakeholder: boolean;
   /** The budget the box shows: its own, or its sub-items' sum. */
   rolledBudget: number | null;
   /** How a parent's sub-items are laid out in the diagram (this viewer's choice); null for a leaf. */
@@ -238,6 +242,8 @@ export function WbsDetailsPanel({
           {canEdit ? (
             <Field label={K.assignees} name="assigneeIds" labelClassName={labelText}>
               <StakeholderMultiSelect
+                projectId={projectId}
+                canAdd={canAddStakeholder}
                 options={assigneeOptions}
                 selected={item.assignees}
                 disabled={false}

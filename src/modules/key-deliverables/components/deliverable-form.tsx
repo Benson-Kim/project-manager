@@ -36,6 +36,7 @@ export function DeliverableForm({
   projectId,
   deliverable,
   assigneeOptions,
+  canAddStakeholder,
   canEdit,
   canDelete,
   focusField = null,
@@ -44,6 +45,7 @@ export function DeliverableForm({
   projectId: number;
   deliverable?: KeyDeliverableRow;
   assigneeOptions: StakeholderOption[];
+  canAddStakeholder: boolean;
   canEdit: boolean;
   canDelete: boolean;
   /** The field the caret starts in — the WBS editor's Assignees… command opens the form on it. */
@@ -220,6 +222,8 @@ export function DeliverableForm({
 
         <Field label={messages.keyDeliverables.assignees} name="assigneeIds[]">
           <StakeholderMultiSelect
+            projectId={projectId}
+            canAdd={canAddStakeholder}
             options={assigneeOptions}
             selected={selectedAssignees}
             disabled={!canEdit}

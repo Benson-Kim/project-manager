@@ -79,6 +79,7 @@ const VERBS: Record<string, string> = {
   // Copying a template's documents into a financial adds rows (ADR-0030).
   CreateFromTemplate: "create",
   BuildFromDailyActivity: "create",
+  BuildFromBoardCard: "create",
   Update: "update",
   Reorder: "update",
   // Work breakdown (ADR-0027): placing, dating and naming an item edit it.
@@ -130,6 +131,8 @@ const VERBS: Record<string, string> = {
 const EXEMPT: Record<string, string> = {
   usp_RequirementCanvas_AssertDetails:
     "internal: runs inside the canvas write procs, after their access check",
+  usp_Todo_FollowBoardCards:
+    "internal: runs inside usp_Board_SetProject and usp_BoardCard_Delete, after their access check",
   usp_RequirementLinkRule_List: "app-wide settings, not project data; any active user reads them",
   usp_RequirementLinkRule_Set: "app-wide settings, not project data; checks the Admin role itself",
   usp_Project_Create: "any user may create a project; the creator becomes its Manager",

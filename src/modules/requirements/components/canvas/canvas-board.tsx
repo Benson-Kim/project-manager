@@ -15,6 +15,7 @@ import "@xyflow/react/dist/style.css";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { isEditableTarget } from "@/components/ui/data-view/datasheet";
 import { messages } from "@/lib/messages";
 import {
   boardEdges,
@@ -71,6 +72,8 @@ interface BoardProps {
   onHide: (item: CanvasItem) => void;
   onDropItem: (key: string, point: Point) => void;
   onAutoLayout: () => void;
+  onUndo: () => void;
+  canUndo: boolean;
   canLink: (sourceKey: string, targetKey: string) => boolean;
   onLink: (sourceKey: string, targetKey: string) => void;
   onUnlink: (link: CanvasLink) => void;
@@ -85,11 +88,25 @@ function menuPoint(event: React.MouseEvent): Point {
   return { x: left, y: bottom };
 }
 
+/** Ctrl+Z (Cmd+Z) belongs to the field being typed in; anywhere else on the board it is Undo. */
+function isUndoKey(event: React.KeyboardEvent) {
+  const target = event.target as HTMLElement;
+  return (
+    (event.ctrlKey || event.metaKey) &&
+    !event.shiftKey &&
+    !event.altKey &&
+    event.key.toLowerCase() === "z" &&
+    (!isEditableTarget(target) || target.tagName === "BUTTON")
+  );
+}
+
 function Toolbar({
   items,
   canEdit,
   onAutoLayout,
-}: Pick<BoardProps, "items" | "canEdit" | "onAutoLayout">) {
+  onUndo,
+  canUndo,
+}: Pick<BoardProps, "items" | "canEdit" | "onAutoLayout" | "onUndo" | "canUndo">) {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   const { zoom } = useViewport();
   const [confirming, setConfirming] = useState(false);
@@ -98,13 +115,25 @@ function Toolbar({
   return (
     <Panel position="top-right" data-canvas-chrome className="flex items-center gap-1 print:hidden">
       {canEdit ? (
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => (handPlaced ? setConfirming(true) : onAutoLayout())}
-        >
-          {M.autoLayout}
-        </Button>
+        <>
+          <Button
+            type="button"
+            variant="secondary"
+            data-testid="canvas-undo"
+            aria-keyshortcuts="Control+Z"
+            disabled={!canUndo}
+            onClick={onUndo}
+          >
+            {M.undo}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => (handPlaced ? setConfirming(true) : onAutoLayout())}
+          >
+            {M.autoLayout}
+          </Button>
+        </>
       ) : null}
       <Button type="button" variant="secondary" aria-label={M.zoomOut} onClick={() => zoomOut()}>
         −
@@ -169,6 +198,18 @@ function Board(props: BoardProps) {
     unsaved.current = new Map();
   });
   useEffect(() => flush.current, []);
+  /** Forgets a drop that is not saved yet; true when there was one. */
+  const dropUnsaved = () => {
+    clearTimeout(timer.current);
+    const pending = unsaved.current.size > 0;
+    unsaved.current = new Map();
+    return pending;
+  };
+  /** A drop not saved yet is the newest change, so Undo puts that card back before anything else. */
+  const undo = () => {
+    if (dropUnsaved()) setNodes(mergeFlowNodes(wanted, nodes));
+    else props.onUndo();
+  };
 
   const { view, printRequest } = props;
   const printed = useRef(printRequest);
@@ -300,6 +341,11 @@ function Board(props: BoardProps) {
         }}
         onPaneClick={() => setPicking(null)}
         onKeyDown={(event) => {
+          if (isUndoKey(event)) {
+            event.preventDefault();
+            undo();
+            return;
+          }
           const target = event.target as HTMLElement;
           const id = target.classList.contains("react-flow__node") ? target.dataset.id : undefined;
           if (event.key === "Enter" && id) pick(id);
@@ -325,7 +371,16 @@ function Board(props: BoardProps) {
             </p>
           ))}
         </ViewportPortal>
-        <Toolbar items={items} canEdit={canEdit} onAutoLayout={props.onAutoLayout} />
+        <Toolbar
+          items={items}
+          canEdit={canEdit}
+          onAutoLayout={() => {
+            dropUnsaved();
+            props.onAutoLayout();
+          }}
+          onUndo={undo}
+          canUndo={props.canUndo}
+        />
         <Panel
           position="top-center"
           data-canvas-chrome

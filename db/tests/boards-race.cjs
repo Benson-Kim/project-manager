@@ -70,8 +70,8 @@ const planBoard = (boardId) =>
   const stamp = Date.now();
 
   const [[project]] = await exec("usp_Project_Create", {
-    ProjectName: `boards-race-${stamp}`, A1: 0, DA: 0, DAS: 0, PurchaseOrder: 0,
-    Requisition: 0, DO: 0, PurchaseEquipment: 0, SimilarProject: 0, ActorUserId: PM,
+    ProjectName: `boards-race-${stamp}`, A1: 0, DA: 0, DAS: 0, DO: 0,
+    PurchaseEquipment: 0, SimilarProject: 0, ActorUserId: PM,
   });
   const P = project.ProjectId;
   await exec("usp_ProjectAssignee_Set", {

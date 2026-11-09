@@ -1,5 +1,7 @@
 "use client";
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useMemo, useState, useTransition } from "react";
+import { Button } from "@/components/ui/button";
 import { Input, DatePicker } from "@/components/ui/form/inputs";
 import { Combobox } from "@/components/ui/form/combobox";
 import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
@@ -23,6 +25,7 @@ import {
   packageDeliverablesAction,
 } from "../actions";
 import type { ProjectOption } from "@/modules/projects/project-options";
+import { buildTodoFromBoardCardAction } from "@/modules/todo-items/actions";
 import { BoardForm, BoardField } from "./board-form";
 import { CardDeliverablePanel } from "./card-deliverable-panel";
 import { CardRequirementPanel } from "./card-requirement-panel";
@@ -37,6 +40,7 @@ export function CardDialog({
   projects,
   canEdit,
   canEditRequirements = false,
+  canSetTodoAlert = false,
   onCardChange,
   onChanged,
   close,
@@ -48,6 +52,7 @@ export function CardDialog({
   projects: ProjectOption[];
   canEdit: boolean;
   canEditRequirements?: boolean;
+  canSetTodoAlert?: boolean;
   /** A section of the sheet wrote and read the card again: the sheet now edits this version. */
   onCardChange: (card: BoardCardDetailRow) => void;
   /** Something the board draws changed; it redraws once the sheet closes. */
@@ -146,6 +151,9 @@ export function CardDialog({
       <BoardField name="dueDate" label={U.due}>
         <DatePicker name="dueDate" defaultValue={toDateInput(card?.DueDate)} />
       </BoardField>
+      {card?.DueDate && canSetTodoAlert ? (
+        <CardTodoAlert boardCardId={card.BoardCardId} dueDate={toDateInput(card.DueDate)} />
+      ) : null}
       <BoardField name="storyPoints" label={U.points}>
         <Input
           name="storyPoints"
@@ -171,6 +179,57 @@ export function CardDialog({
     </BoardForm>
   );
 }
+/** A to-do with an alert on the card's saved due day; its sheet then sets the time. */
+function CardTodoAlert({ boardCardId, dueDate }: { boardCardId: number; dueDate: string }) {
+  const [todo, setTodo] = useState<{ todoItemId: number | null; existed: boolean } | null>(null);
+  const [error, setError] = useState("");
+  const [pending, start] = useTransition();
+  if (todo !== null)
+    return (
+      <p role="status" className="text-sm text-ink-muted">
+        {todo.todoItemId === null ? (
+          U.todoAlertOthers
+        ) : (
+          <>
+            {todo.existed ? U.todoAlertExists : U.todoAlertSet(dueDate)}{" "}
+            <Link href={`/todo?id=${todo.todoItemId}`} className="underline">
+              {U.openTodo}
+            </Link>
+          </>
+        )}
+      </p>
+    );
+  const set = () =>
+    start(async () => {
+      setError("");
+      try {
+        const result = await buildTodoFromBoardCardAction({ boardCardId });
+        if (result.ok) setTodo(result.data);
+        else setError(result.error.message);
+      } catch {
+        setError(messages.errors.INTERNAL);
+      }
+    });
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <Button
+        type="button"
+        variant="secondary"
+        data-testid="card-todo-alert"
+        disabled={pending}
+        onClick={set}
+      >
+        {U.setTodoAlert}
+      </Button>
+      {error ? (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function CardMoveDialog({
   board,
   card,

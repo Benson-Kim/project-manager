@@ -48,6 +48,7 @@ export function ProjectForm({
   // A folded section hides what it holds, so one that already has something written starts open:
   // the client asked for sections that expand to write more, not for filled-in prose to disappear.
   const hasBusinessCase = Boolean(
+    project?.DoNothing ||
     project?.AlternativeSolutions ||
     project?.ExpectedBenefits ||
     project?.SuccessMetrics ||
@@ -267,6 +268,13 @@ export function ProjectForm({
             />
           </Field>
           <Field
+            label={messages.projects.doNothing}
+            name="doNothing"
+            errors={form.errors.doNothing}
+          >
+            <RichTextEditor name="doNothing" defaultValue={project?.DoNothing} />
+          </Field>
+          <Field
             label={messages.projects.alternativeSolutions}
             name="alternativeSolutions"
             errors={form.errors.alternativeSolutions}
@@ -438,16 +446,36 @@ export function ProjectForm({
             <Switch name="da" label={messages.projects.flagDa} defaultChecked={project?.DA} />
             <Switch name="das" label={messages.projects.flagDas} defaultChecked={project?.DAS} />
             <Switch name="a1" label={messages.projects.flagA1} defaultChecked={project?.A1} />
-            <Switch
-              name="purchaseOrder"
-              label={messages.projects.flagPurchaseOrder}
-              defaultChecked={project?.PurchaseOrder}
-            />
-            <Switch
-              name="requisition"
-              label={messages.projects.flagRequisition}
-              defaultChecked={project?.Requisition}
-            />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field
+              label={messages.projects.poRequisitionStatus}
+              name="poRequisitionStatus"
+              errors={form.errors.poRequisitionStatus}
+            >
+              <ListSelect
+                list="project.po-requisition-status"
+                current={project?.PoRequisitionStatus}
+                name="poRequisitionStatus"
+                defaultValue={project?.PoRequisitionStatus ?? ""}
+              >
+                <option value="">{messages.projects.none}</option>
+              </ListSelect>
+            </Field>
+            <Field
+              label={messages.projects.requisitionStatus}
+              name="requisitionStatus"
+              errors={form.errors.requisitionStatus}
+            >
+              <ListSelect
+                list="project.requisition-status"
+                current={project?.RequisitionStatus}
+                name="requisitionStatus"
+                defaultValue={project?.RequisitionStatus ?? ""}
+              >
+                <option value="">{messages.projects.none}</option>
+              </ListSelect>
+            </Field>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field

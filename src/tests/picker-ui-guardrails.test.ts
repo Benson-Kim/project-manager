@@ -20,17 +20,21 @@ function callback(path: string, name: string): string {
   const text = source(path);
   const start = text.indexOf(`const ${name} = useCallback(`);
   expect(start, `${path}: const ${name} = useCallback(`).toBeGreaterThan(-1);
-  const end = text.indexOf("\n  );", start);
-  expect(end, `${path}: end of ${name}`).toBeGreaterThan(start);
-  return text.slice(start, end);
+  const length = text.slice(start).search(/\n {2}[)}][^\n]*;/);
+  expect(length, `${path}: end of ${name}`).toBeGreaterThan(0);
+  return text.slice(start, start + length);
 }
 
 describe("an option picker closes its panel when it commits a choice", () => {
   it.each([
-    [MULTI, "pick"],
+    [MULTI, "clear"],
     [COMBO, "select"],
   ])("%s closes the panel in %s()", (path, name) => {
     expect(callback(path, name)).toContain("setOpen(false)");
+  });
+
+  it("the multi-select's pick() closes the panel through clear()", () => {
+    expect(callback(MULTI, "pick")).toContain("clear();");
   });
 
   it.each([MULTI, COMBO])("%s reopens on a click, not only on focus", (path) => {

@@ -1,12 +1,15 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
+import { useFullPage } from "@/components/shell/use-full-page";
+import { useRefreshOnFocus } from "@/components/shell/use-refresh-on-focus";
 import { Button } from "@/components/ui/button";
 import { messages } from "@/lib/messages";
 import { itemConnection } from "../../canvas/board-model";
 import { canvasGaps, itemKey } from "../../canvas/gaps";
 import type { Point } from "../../canvas/layout";
+import { savedLink, undoApplies, type CanvasUndo } from "../../canvas/undo";
 import type { CanvasItem, CanvasLink } from "../../schemas/canvas";
 import type { LinkRule } from "../../schemas/link-rules";
 import { CanvasBoard, type CanvasView } from "./canvas-board";
@@ -15,6 +18,7 @@ const M = messages.requirements.canvas;
 import { RepositoryList } from "./repository-list";
 import { useCanvasLinks } from "./use-canvas-links";
 import { useCanvasNodes } from "./use-canvas-nodes";
+import { useCanvasUndo } from "./use-canvas-undo";
 
 /**
  * The three panes. The inspector, built on the server from ?inspect=, takes the third column.
@@ -26,6 +30,7 @@ export function CanvasWorkspace({
   links,
   linkRules,
   canEdit,
+  newRequirementHref,
   inspector,
 }: {
   canvasId: number;
@@ -33,9 +38,11 @@ export function CanvasWorkspace({
   links: readonly CanvasLink[];
   linkRules: readonly LinkRule[];
   canEdit: boolean;
+  newRequirementHref?: string;
   inspector?: ReactNode;
 }) {
   const router = useRouter();
+  useRefreshOnFocus();
   const pathname = usePathname();
   const search = useSearchParams();
   const inspect = (requirementId: number) => {
@@ -44,8 +51,13 @@ export function CanvasWorkspace({
     router.replace(`${pathname}?${next}`, { scroll: false });
   };
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const { shown, reveal, hide, move, autoLayout, toggleCollapse } = useCanvasNodes(canvasId, items);
-  const { connect, disconnect } = useCanvasLinks();
+  const history = useCanvasUndo();
+  const { shown, reveal, hide, move, autoLayout, toggleCollapse, restore } = useCanvasNodes(
+    canvasId,
+    items,
+    history.remember,
+  );
+  const { connect, disconnect } = useCanvasLinks(history.remember);
   const gaps = useMemo(() => canvasGaps(shown, links), [shown, links]);
 
   const linkFor = (sourceKey: string, targetKey: string) =>
@@ -53,6 +65,22 @@ export function CanvasWorkspace({
   const link = (sourceKey: string, targetKey: string) => {
     const made = linkFor(sourceKey, targetKey);
     if (made) void connect(made);
+  };
+
+  const applies = (step: CanvasUndo) => undoApplies(step, shown, links, linkRules);
+  /** Takes back the newest board change that still applies; the step back is not remembered. */
+  const undo = () => {
+    if (!canEdit) return;
+    const step = history.take(applies);
+    if (step?.kind === "nodes") restore(step.before);
+    if (step?.kind === "unlink") {
+      const saved = savedLink(links, step.upKey, step.downId);
+      if (saved) void disconnect(saved, false);
+    }
+    if (step?.kind === "relink") {
+      const made = linkFor(step.upKey, step.downKey);
+      if (made) void connect(made, false);
+    }
   };
 
   const dropItem = (key: string, point: Point) => {
@@ -68,22 +96,7 @@ export function CanvasWorkspace({
     setView("preview");
     setPrintRequest((count) => count + 1);
   };
-  useEffect(() => {
-    if (view === "board") return;
-    // The full-screen/preview overlay is a CSS layer inside <main> (its own stacking context), so it
-    // cannot out-stack the app-shell header. Mark the root, as native fullscreen marks :root:fullscreen,
-    // and the header steps aside for it.
-    const root = document.documentElement;
-    root.dataset.canvasFullscreen = "true";
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented) setView("board");
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      delete root.dataset.canvasFullscreen;
-    };
-  }, [view]);
+  useFullPage(view !== "board", () => setView("board"));
 
   const viewButton = (testId: string, label: string, onClick: () => void) => (
     <Button type="button" variant="secondary" data-testid={testId} onClick={onClick}>
@@ -132,6 +145,7 @@ export function CanvasWorkspace({
           items={shown}
           gaps={gaps}
           canEdit={canEdit}
+          newRequirementHref={newRequirementHref}
           selectedKey={selectedKey}
           onSelect={setSelectedKey}
           onReveal={(item) => void reveal(item)}
@@ -150,6 +164,8 @@ export function CanvasWorkspace({
             onHide={(item) => void hide(item)}
             onDropItem={dropItem}
             onAutoLayout={() => void autoLayout()}
+            onUndo={undo}
+            canUndo={history.canUndo(applies)}
             canLink={(sourceKey, targetKey) => linkFor(sourceKey, targetKey) !== null}
             onLink={link}
             onUnlink={(saved) => void disconnect(saved)}

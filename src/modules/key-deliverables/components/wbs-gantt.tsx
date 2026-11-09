@@ -193,6 +193,7 @@ export function WbsGantt({
   openDeliverable,
   sheetOpen,
   assigneeOptions,
+  canAddStakeholder,
   needOptions,
   planNote,
 }: {
@@ -218,6 +219,7 @@ export function WbsGantt({
   openDeliverable?: KeyDeliverableRow;
   sheetOpen: boolean;
   assigneeOptions: StakeholderOption[];
+  canAddStakeholder: boolean;
   /** The project's business and stakeholder requirements a new requirement can meet. */
   needOptions: RequirementOption[];
 }) {
@@ -1314,10 +1316,12 @@ export function WbsGantt({
         {selected ? (
           <WbsDetailsPanel
             key={selected.item.id}
+            projectId={projectId}
             node={selected}
             canEdit={canEdit}
             canDone={statuses.some((s) => s.label === DONE_STATUS)}
             assigneeOptions={assigneeOptions}
+            canAddStakeholder={canAddStakeholder}
             rolledBudget={budgets.get(selected.item.id) ?? null}
             subItems={
               view === "wbs" && selected.childIds.length > 0
@@ -1438,6 +1442,7 @@ export function WbsGantt({
               projectId={projectId}
               deliverable={openDeliverable}
               assigneeOptions={assigneeOptions}
+              canAddStakeholder={canAddStakeholder}
               canEdit={canEdit}
               canDelete={canDelete}
               focusField={detailsFocus}

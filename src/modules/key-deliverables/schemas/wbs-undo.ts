@@ -1,7 +1,7 @@
+import { dropStep, pushStep, takeStep } from "@/lib/undo-stack";
 import { descendantIds, fitsUnder, type Placement, type Wbs } from "./wbs";
 
-/** How many moves and reschedules the editor can take back, newest first. */
-export const UNDO_LIMIT = 20;
+export { UNDO_LIMIT } from "@/lib/undo-stack";
 
 /** What puts an item back: its place, or its dates, before a move or a reschedule. */
 export type UndoStep =
@@ -28,14 +28,8 @@ export function rescheduleBack(wbs: Wbs, id: number, key: number): UndoStep | nu
   return { key, kind: "reschedule", id, start: node.start, end: node.end };
 }
 
-export function pushUndo(stack: readonly UndoStep[], step: UndoStep | null): UndoStep[] {
-  return step ? [...stack, step].slice(-UNDO_LIMIT) : [...stack];
-}
-
-/** Forgets a step whose change the server refused: there is nothing to take back. */
-export function dropUndo(stack: readonly UndoStep[], key: number): UndoStep[] {
-  return stack.filter((step) => step.key !== key);
-}
+export const pushUndo = pushStep<UndoStep>;
+export const dropUndo = dropStep<UndoStep>;
 
 /**
  * A step still applies while its item is on the plan and, for a move, its old parent can take it
@@ -60,15 +54,6 @@ export function canUndo(stack: readonly UndoStep[], wbs: Wbs): boolean {
   return stack.some((step) => applies(wbs, step));
 }
 
-/** The newest step that still applies, and the steps left under it; ones that no longer apply go. */
-export function takeUndo(
-  stack: readonly UndoStep[],
-  wbs: Wbs,
-): { step: UndoStep | null; rest: UndoStep[] } {
-  const rest = [...stack];
-  while (rest.length > 0) {
-    const step = rest.pop()!;
-    if (applies(wbs, step)) return { step, rest };
-  }
-  return { step: null, rest };
+export function takeUndo(stack: readonly UndoStep[], wbs: Wbs) {
+  return takeStep(stack, (step) => applies(wbs, step));
 }
