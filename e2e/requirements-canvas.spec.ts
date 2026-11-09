@@ -152,12 +152,15 @@ test("a node saves a drag and a key move once each, keeps them on reload, and Au
 
   const board = page.locator(".react-flow");
   const background = () => board.evaluate((el) => getComputedStyle(el).backgroundColor);
+  const html = page.locator("html");
+  // The theme follows a colour-scheme change from a media event the page handles later, so it is awaited.
   await page.emulateMedia({ colorScheme: "light" });
+  await expect(html).toHaveAttribute("data-theme", "light");
   const light = await background();
   await page.emulateMedia({ colorScheme: "dark" });
-  const dark = await background();
-  expect(dark).not.toBe(light);
-  expect(dark).not.toBe("rgb(255, 255, 255)");
+  await expect(html).toHaveAttribute("data-theme", "dark");
+  await expect.poll(background).not.toBe(light);
+  expect(await background()).not.toBe("rgb(255, 255, 255)");
   expect(errors).toEqual([]);
 });
 
