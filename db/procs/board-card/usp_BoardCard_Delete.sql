@@ -59,6 +59,8 @@ BEGIN
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson)
     VALUES (@ActorUserId, N'Delete', N'app.BoardCard', CAST(@BoardCardId AS NVARCHAR(64)), @Before);
 
+    EXEC dbo.usp_Todo_FollowBoardCards @BoardId = @BoardId, @ActorUserId = @ActorUserId;
+
     COMMIT;
 END;
 GO

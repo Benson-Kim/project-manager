@@ -82,6 +82,35 @@ export function rollbackPlacements(
   return next;
 }
 
+const samePlacement = (a: CanvasItem | undefined, b: CanvasItem | undefined) =>
+  a !== undefined &&
+  b !== undefined &&
+  a.OnCanvas === b.OnCanvas &&
+  a.X === b.X &&
+  a.Y === b.Y &&
+  a.IsCollapsed === b.IsCollapsed;
+
+/**
+ * Lets fresh server items win: a local placement stays only while the server still has that node
+ * where it had it before, so a save from this window or another one replaces it. Nothing to drop
+ * keeps the same map.
+ */
+export function settlePlacements(
+  overlay: Placements,
+  before: readonly CanvasItem[],
+  after: readonly CanvasItem[],
+): Placements {
+  if (overlay.size === 0) return overlay;
+  const byKey = (items: readonly CanvasItem[]) => new Map(items.map((item) => [keyOf(item), item]));
+  const was = byKey(before),
+    now = byKey(after);
+  const stale = [...overlay.keys()].filter((key) => !samePlacement(was.get(key), now.get(key)));
+  if (stale.length === 0) return overlay;
+  const next = new Map(overlay);
+  for (const key of stale) next.delete(key);
+  return next;
+}
+
 /**
  * Items on the canvas. A saved position wins; the rest take their auto layout slot, laid out one
  * top-level WBS cluster at a time.

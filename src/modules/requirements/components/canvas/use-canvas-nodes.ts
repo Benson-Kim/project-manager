@@ -9,6 +9,7 @@ import {
   applyPlacements,
   rollbackPlacements,
   savedMoves,
+  settlePlacements,
   type Placement,
   type Placements,
 } from "../../canvas/board-model";
@@ -43,6 +44,11 @@ const nodeMove = (item: CanvasItem, to: Placement): NodeMove => ({
 export function useCanvasNodes(canvasId: number, items: readonly CanvasItem[], remember: Remember) {
   const { toast } = useToast();
   const [overlay, setOverlay] = useState<ReadonlyMap<string, Placement>>(new Map());
+  const [seen, setSeen] = useState(items);
+  if (seen !== items) {
+    setSeen(items);
+    setOverlay((current) => settlePlacements(current, seen, items));
+  }
   const shown = useMemo(() => applyPlacements(items, overlay), [items, overlay]);
 
   const write = async (

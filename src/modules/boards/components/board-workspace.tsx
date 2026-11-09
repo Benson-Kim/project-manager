@@ -67,12 +67,14 @@ export function BoardWorkspace({
   assignees,
   projects,
   planning = false,
+  canSetTodoAlert = false,
   basePath = `/boards/${board.header.BoardId}`,
 }: {
   board: BoardView;
   assignees: BoardAssigneeRow[];
   projects: ProjectOption[];
   planning?: boolean;
+  canSetTodoAlert?: boolean;
   basePath?: string;
 }) {
   const router = useRouter();
@@ -423,6 +425,7 @@ export function BoardWorkspace({
           projects={projects}
           canEdit={canEdit}
           canEditRequirements={rowAllows("requirements:update")(board.header)}
+          canSetTodoAlert={canSetTodoAlert}
           onCardChange={setEditing}
           onChanged={() => {
             sheetChanged.current = true;

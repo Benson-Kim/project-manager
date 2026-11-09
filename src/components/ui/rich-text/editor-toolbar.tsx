@@ -1,7 +1,7 @@
 "use client";
 
 import { type Editor, useEditorState } from "@tiptap/react";
-import { useCallback, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Menu, MenuButton } from "@/components/ui/menu";
 import {
   DEFAULT_HIGHLIGHT,
@@ -14,6 +14,7 @@ import {
   AlignIcon,
   BulletListIcon,
   ClearFormattingIcon,
+  FormatPainterIcon,
   IndentIcon,
   LinkIcon,
   OrderedListIcon,
@@ -23,6 +24,7 @@ import {
   UndoIcon,
 } from "./icons";
 import { innermostList } from "./format-extensions";
+import { copyFormat, type PaintedFormat, paintFormat } from "./format-painter";
 import {
   FONT_FAMILIES,
   FONT_SIZES_PT,
@@ -78,6 +80,38 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
   const toolbarRef = useRef<HTMLDivElement>(null);
   const activeIndex = useRef(0);
   const pointerPick = useRef(false);
+  const [painter, setPainter] = useState<PaintedFormat | null>(null);
+
+  // An armed painter applies to the next mouse selection or clicked word, or
+  // to a Shift+arrow selection, then disarms; Escape disarms it.
+  useEffect(() => {
+    if (!painter) return;
+    const dom = editor.view.dom;
+    const paint = () => {
+      editor
+        .chain()
+        .command(({ tr }) => (paintFormat(tr, painter), true))
+        .run();
+      setPainter(null);
+    };
+    let pending: ReturnType<typeof setTimeout> | undefined;
+    const later = (run: () => void) => {
+      clearTimeout(pending);
+      pending = setTimeout(run, 0);
+    };
+    const onMouseUp = () => later(paint);
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPainter(null);
+      else if (event.key === "Shift") later(() => !editor.state.selection.empty && paint());
+    };
+    dom.addEventListener("mouseup", onMouseUp);
+    dom.addEventListener("keyup", onKeyUp);
+    return () => {
+      clearTimeout(pending);
+      dom.removeEventListener("mouseup", onMouseUp);
+      dom.removeEventListener("keyup", onKeyUp);
+    };
+  }, [editor, painter]);
 
   const state = useEditorState({
     editor,
@@ -396,6 +430,13 @@ export function EditorToolbar({ editor, onOpenLink }: { editor: Editor; onOpenLi
       <InsertMenu editor={editor} />
       <Divider />
 
+      <ToolButton
+        label={t.formatPainter}
+        pressed={painter !== null}
+        onRun={() => setPainter(painter ? null : copyFormat(editor.state))}
+      >
+        <FormatPainterIcon />
+      </ToolButton>
       <ToolButton
         label={t.clearFormatting}
         onRun={() =>

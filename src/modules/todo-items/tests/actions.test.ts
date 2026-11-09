@@ -630,6 +630,12 @@ describe("buildTodoFromBoardCardAction", () => {
     });
   });
 
+  it("passes on a hidden existing to-do as a null id", async () => {
+    execProc.mockResolvedValueOnce([{ TodoItemId: null, Existed: true }]);
+    const result = await buildTodoFromBoardCardAction({ boardCardId: 4 });
+    expect(result).toEqual({ ok: true, data: { todoItemId: null, existed: true } });
+  });
+
   it("refuses a card id that is not a positive number", async () => {
     const result = await buildTodoFromBoardCardAction({ boardCardId: 0 });
     expect(result.ok).toBe(false);

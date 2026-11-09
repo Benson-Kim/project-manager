@@ -214,12 +214,15 @@ export async function buildTodoFromDailyActivity(
   return todoItemRowSchema.parse(rows[0]);
 }
 
-/** The dated card's to-do and its alert; a card's existing to-do comes back with existed: true. */
+/**
+ * The dated card's to-do and its alert; a card's existing to-do comes back with existed: true,
+ * and with todoItemId null when the actor may not open it.
+ */
 export async function buildTodoFromBoardCard(
   boardCardId: number,
   actorUserId: number,
-): Promise<{ todoItemId: number; existed: boolean }> {
-  const rows = await execProc<{ TodoItemId: number; Existed: boolean }>(
+): Promise<{ todoItemId: number | null; existed: boolean }> {
+  const rows = await execProc<{ TodoItemId: number | null; Existed: boolean }>(
     "usp_Todo_BuildFromBoardCard",
     { BoardCardId: boardCardId, ActorUserId: actorUserId },
   );

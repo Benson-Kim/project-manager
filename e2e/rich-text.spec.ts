@@ -70,6 +70,61 @@ test.describe("rich-text editor (ADR-0025)", () => {
     ).toBeVisible();
   });
 
+  test("the format painter copies formatting to the next selection or clicked word", async ({
+    page,
+  }) => {
+    const editor = await openEditor(page);
+    const painter = page
+      .getByRole("toolbar", { name: "Formatting" })
+      .getByRole("button", { name: "Format painter", exact: true });
+    await editor.click();
+    await clear(page);
+    await page.keyboard.press("Control+B");
+    await page.keyboard.type("Source");
+    await page.keyboard.press("Control+B");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("Keys");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("Mouse");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("Click me");
+
+    const fromSource = async () => {
+      await page.keyboard.press("Control+Home");
+      await page.keyboard.press("ArrowRight");
+      await painter.click();
+      await expect(painter).toHaveAttribute("aria-pressed", "true");
+      await expect(editor).toBeFocused();
+    };
+
+    await fromSource();
+    await page.keyboard.press("Escape");
+    await expect(painter).toHaveAttribute("aria-pressed", "false");
+
+    await fromSource();
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("End");
+    await page.keyboard.press("Shift+Home");
+    await expect(painter).toHaveAttribute("aria-pressed", "false");
+    await expect(editor.locator("strong", { hasText: "Keys" })).toBeVisible();
+
+    await fromSource();
+    const line = (await editor.locator("p", { hasText: "Mouse" }).boundingBox())!;
+    await page.mouse.move(line.x + 1, line.y + line.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(line.x + line.width - 1, line.y + line.height / 2, { steps: 5 });
+    await page.mouse.up();
+    await expect(painter).toHaveAttribute("aria-pressed", "false");
+    await expect(editor.locator("strong", { hasText: "Mouse" })).toBeVisible();
+
+    await fromSource();
+    const click = (await editor.locator("p", { hasText: "Click me" }).boundingBox())!;
+    await page.mouse.click(click.x + 4, click.y + click.height / 2);
+    await expect(painter).toHaveAttribute("aria-pressed", "false");
+    await expect(editor.locator("strong", { hasText: /^Click$/ })).toBeVisible();
+    await expect(editor.locator("strong", { hasText: "Click me" })).toHaveCount(0);
+  });
+
   test("colours, highlights, indents, numbering, h5, shading and page breaks survive the server (ADR-0041)", async ({
     page,
   }) => {

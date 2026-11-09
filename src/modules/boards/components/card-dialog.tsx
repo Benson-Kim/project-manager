@@ -40,6 +40,7 @@ export function CardDialog({
   projects,
   canEdit,
   canEditRequirements = false,
+  canSetTodoAlert = false,
   onCardChange,
   onChanged,
   close,
@@ -51,6 +52,7 @@ export function CardDialog({
   projects: ProjectOption[];
   canEdit: boolean;
   canEditRequirements?: boolean;
+  canSetTodoAlert?: boolean;
   /** A section of the sheet wrote and read the card again: the sheet now edits this version. */
   onCardChange: (card: BoardCardDetailRow) => void;
   /** Something the board draws changed; it redraws once the sheet closes. */
@@ -149,7 +151,7 @@ export function CardDialog({
       <BoardField name="dueDate" label={U.due}>
         <DatePicker name="dueDate" defaultValue={toDateInput(card?.DueDate)} />
       </BoardField>
-      {card?.DueDate && canEdit ? (
+      {card?.DueDate && canSetTodoAlert ? (
         <CardTodoAlert boardCardId={card.BoardCardId} dueDate={toDateInput(card.DueDate)} />
       ) : null}
       <BoardField name="storyPoints" label={U.points}>
@@ -179,16 +181,22 @@ export function CardDialog({
 }
 /** A to-do with an alert on the card's saved due day; its sheet then sets the time. */
 function CardTodoAlert({ boardCardId, dueDate }: { boardCardId: number; dueDate: string }) {
-  const [todo, setTodo] = useState<{ todoItemId: number; existed: boolean } | null>(null);
+  const [todo, setTodo] = useState<{ todoItemId: number | null; existed: boolean } | null>(null);
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
   if (todo !== null)
     return (
       <p role="status" className="text-sm text-ink-muted">
-        {todo.existed ? U.todoAlertExists : U.todoAlertSet(dueDate)}{" "}
-        <Link href={`/todo?id=${todo.todoItemId}`} className="underline">
-          {U.openTodo}
-        </Link>
+        {todo.todoItemId === null ? (
+          U.todoAlertOthers
+        ) : (
+          <>
+            {todo.existed ? U.todoAlertExists : U.todoAlertSet(dueDate)}{" "}
+            <Link href={`/todo?id=${todo.todoItemId}`} className="underline">
+              {U.openTodo}
+            </Link>
+          </>
+        )}
       </p>
     );
   const set = () =>

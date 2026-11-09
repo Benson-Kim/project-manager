@@ -96,24 +96,48 @@ BEGIN
              FROM app.BoardCard WHERE BoardCardId = @BoardCardId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES));
 
-    DECLARE @TodoItemId INT;
+    DECLARE @TodoItemId INT, @TodoBefore NVARCHAR(MAX);
+    DECLARE @Alerts TABLE (
+        TodoAlertId INT NOT NULL PRIMARY KEY,
+        BeforeJson  NVARCHAR(MAX) NOT NULL
+    );
     IF @DueDate IS NOT NULL AND (@OldDueDate IS NULL OR @OldDueDate <> @DueDate)
-        SELECT @TodoItemId = TodoItemId FROM app.TodoItem
-        WHERE BoardCardId = @BoardCardId AND IsDeleted = 0;
+        SELECT @TodoItemId = t.TodoItemId,
+               @TodoBefore = (SELECT t.TodoItemId, t.DueDate
+                              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES)
+        FROM app.TodoItem t
+        WHERE t.BoardCardId = @BoardCardId AND t.IsDeleted = 0;
     IF @TodoItemId IS NOT NULL
     BEGIN
+        INSERT INTO @Alerts (TodoAlertId, BeforeJson)
+        SELECT a.TodoAlertId,
+               (SELECT a.TodoAlertId, a.TodoItemId, a.AlertDay, a.IsDismissed
+                FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES)
+        FROM app.TodoAlert a
+        WHERE a.TodoItemId = @TodoItemId AND a.IsDeleted = 0
+          AND (a.IsDismissed = 1 OR EXISTS (SELECT a.AlertDay EXCEPT SELECT @DueDate));
+
         UPDATE app.TodoItem SET
             DueDate = @DueDate, UpdatedAtUtc = SYSUTCDATETIME(), UpdatedBy = @ActorUserId
         WHERE TodoItemId = @TodoItemId;
 
-        UPDATE app.TodoAlert SET
+        UPDATE a SET
             AlertDay = @DueDate, IsDismissed = 0, UpdatedAtUtc = SYSUTCDATETIME(), UpdatedBy = @ActorUserId
-        WHERE TodoItemId = @TodoItemId AND IsDeleted = 0;
+        FROM app.TodoAlert a JOIN @Alerts x ON x.TodoAlertId = a.TodoAlertId;
 
         INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
         VALUES (@ActorUserId, N'ShiftWithBoardCard', N'app.TodoItem', CAST(@TodoItemId AS NVARCHAR(64)),
-                (SELECT @OldDueDate AS DueDate FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES),
-                (SELECT @DueDate AS DueDate FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
+                @TodoBefore,
+                (SELECT TodoItemId, DueDate FROM app.TodoItem WHERE TodoItemId = @TodoItemId
+                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES));
+
+        INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
+        SELECT @ActorUserId, N'ShiftWithBoardCard', N'app.TodoAlert', CAST(x.TodoAlertId AS NVARCHAR(64)),
+               x.BeforeJson,
+               (SELECT a.TodoAlertId, a.TodoItemId, a.AlertDay, a.IsDismissed
+                FROM app.TodoAlert a WHERE a.TodoAlertId = x.TodoAlertId
+                FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES)
+        FROM @Alerts x;
     END;
 
     COMMIT;
