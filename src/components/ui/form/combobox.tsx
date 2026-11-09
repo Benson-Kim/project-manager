@@ -3,6 +3,7 @@
 import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { Chevron } from "../chevron";
 import { usePopoverPlacement } from "../popover-placement";
+import { closeAfterBlur } from "./close-after-blur";
 import { useFieldAria } from "./field";
 import { NO_MATCH, rankByMatch } from "./rank-options";
 
@@ -139,13 +140,12 @@ export function Combobox({
         }}
         onFocus={() => setOpen(true)}
         onClick={() => setOpen(true)}
-        onBlur={() => {
-          // Allow option mousedown to win over blur-close. A pick-only box
-          // returns to its choice; a box accepting typed names keeps its text.
-          setTimeout(() => {
+        onBlur={(e) => {
+          // A pick-only box returns to its choice; a box accepting typed names keeps its text.
+          closeAfterBlur(e.currentTarget, () => {
             setOpen(false);
             if (!freeTextName) setQuery(selected?.label ?? "");
-          }, 100);
+          });
         }}
         onKeyDown={onKeyDown}
         {...aria}

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
+import { closeAfterBlur } from "@/components/ui/form/close-after-blur";
 import { Toolbar } from "@/components/ui/toolbar";
 import { messages } from "@/lib/messages";
 import { searchProjectsAction } from "../actions";
@@ -97,7 +98,7 @@ export function ProjectsToolbar({ children }: { children?: React.ReactNode }) {
             className="min-h-10 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink"
             value={query}
             onChange={(e) => onChange(e.target.value)}
-            onBlur={() => setTimeout(() => setOpen(false), 100)}
+            onBlur={(e) => closeAfterBlur(e.currentTarget, () => setOpen(false))}
             onKeyDown={onKeyDown}
           />
         </label>

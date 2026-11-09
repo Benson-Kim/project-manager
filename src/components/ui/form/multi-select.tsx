@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { usePopoverPlacement } from "../popover-placement";
+import { closeAfterBlur } from "./close-after-blur";
 import { useFieldContext } from "./field";
 import { matchesNone, NO_MATCH, rankByMatch } from "./rank-options";
 
@@ -229,7 +230,7 @@ export function MultiSelectField({
             }}
             onFocus={() => setOpen(true)}
             onClick={() => setOpen(true)}
-            onBlur={() => setTimeout(() => setOpen(false), 100)}
+            onBlur={(e) => closeAfterBlur(e.currentTarget, () => setOpen(false))}
             onKeyDown={onKeyDown}
           />
         )}
