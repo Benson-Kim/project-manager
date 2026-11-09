@@ -57,7 +57,7 @@ async function refuses(label, reason, run) {
 }
 async function project(name) {
   const [[row]] = await exec("usp_Project_Create", {
-    ProjectName: name, A1: 0, DA: 0, DAS: 0, PurchaseOrder: 0, Requisition: 0, DO: 0,
+    ProjectName: name, A1: 0, DA: 0, DAS: 0, DO: 0,
     PurchaseEquipment: 0, SimilarProject: 0, ActorUserId: PM,
   });
   return row.ProjectId;

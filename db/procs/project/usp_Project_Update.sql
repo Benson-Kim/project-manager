@@ -1,7 +1,7 @@
 ﻿-- usp_Project_Update — full-row update with rowversion concurrency (50002 CONFLICT) + in-transaction audit.
 -- Row-level access: the actor needs Manager on the project (dbo.usp_Project_AssertAccess,
 --   ADR-0021; FORBIDDEN_ROW 50003).
--- Dropdown values (ADR-0022): ProjectStatus, ProjectPriority, ProjectPhase and RiskLevel must be live options of their lists, or unchanged (VALIDATION 50004),
+-- Dropdown values (ADR-0022): ProjectStatus, ProjectPriority, ProjectPhase, RiskLevel, PoRequisitionStatus and RequisitionStatus must be live options of their lists, or unchanged (VALIDATION 50004),
 --   and are stored as listed.
 -- Business case and scope (client updates 2026-11-03): the narrative columns are stored as written.
 --   @ObjectiveAlignment is a JSON array of 'project.objective-alignment' labels, replaced inside this
@@ -32,8 +32,6 @@ CREATE OR ALTER PROCEDURE dbo.usp_Project_Update
     @A1 BIT,
     @DA BIT,
     @DAS BIT,
-    @PurchaseOrder BIT,
-    @Requisition BIT,
     @DO BIT,
     @FinancingSource NVARCHAR(255) = NULL,
     @FinancingCost MONEY = NULL,
@@ -48,6 +46,9 @@ CREATE OR ALTER PROCEDURE dbo.usp_Project_Update
     @ProjectStatus NVARCHAR(50) = NULL,
     @ProjectPhase NVARCHAR(50) = NULL,
     @RiskLevel NVARCHAR(50) = NULL,
+    @PoRequisitionStatus NVARCHAR(50) = NULL,
+    @RequisitionStatus NVARCHAR(50) = NULL,
+    @DoNothing NVARCHAR(MAX) = NULL,
     @AlternativeSolutions NVARCHAR(MAX) = NULL,
     @ExpectedBenefits NVARCHAR(MAX) = NULL,
     @SuccessMetrics NVARCHAR(MAX) = NULL,
@@ -65,9 +66,11 @@ BEGIN
 
     DECLARE @CurrentVer BIGINT, @CurrentStatus NVARCHAR(50), @CurrentPriority NVARCHAR(50),
             @CurrentPhase NVARCHAR(50), @CurrentRiskLevel NVARCHAR(50),
+            @CurrentPoRequisitionStatus NVARCHAR(50), @CurrentRequisitionStatus NVARCHAR(50),
             @CurrentStart DATETIME2, @CurrentEnd DATETIME2, @CurrentEstimated DATETIME2;
     SELECT @CurrentVer = CAST(RowVer AS BIGINT), @CurrentStatus = ProjectStatus,
            @CurrentPriority = ProjectPriority, @CurrentPhase = ProjectPhase, @CurrentRiskLevel = RiskLevel,
+           @CurrentPoRequisitionStatus = PoRequisitionStatus, @CurrentRequisitionStatus = RequisitionStatus,
            @CurrentStart = StartDate, @CurrentEnd = EndDate, @CurrentEstimated = EstimatedCompletionDate
     FROM app.Project WHERE ProjectId = @ProjectId AND IsDeleted = 0;
     IF @CurrentVer IS NULL
@@ -91,6 +94,12 @@ BEGIN
     EXEC dbo.usp_LookupList_AssertLabel
          @ListKey = N'project.risk-level', @Label = @RiskLevel OUTPUT,
          @CurrentLabel = @CurrentRiskLevel;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'project.po-requisition-status', @Label = @PoRequisitionStatus OUTPUT,
+         @CurrentLabel = @CurrentPoRequisitionStatus;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'project.requisition-status', @Label = @RequisitionStatus OUTPUT,
+         @CurrentLabel = @CurrentRequisitionStatus;
 
     IF (@EndDate < @StartDate
         AND (@CurrentStart IS NULL OR @CurrentEnd IS NULL
@@ -105,7 +114,7 @@ BEGIN
     BEGIN TRAN;
 
     DECLARE @Before NVARCHAR(MAX) =
-        (SELECT ProjectId, [ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel], [AlternativeSolutions], [ExpectedBenefits], [SuccessMetrics], [EstimatedRoi], [ProjectScope], [KeyDependencies]
+        (SELECT ProjectId, [ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel], [PoRequisitionStatus], [RequisitionStatus], [DoNothing], [AlternativeSolutions], [ExpectedBenefits], [SuccessMetrics], [EstimatedRoi], [ProjectScope], [KeyDependencies]
          FROM app.Project WHERE ProjectId = @ProjectId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 
@@ -126,8 +135,6 @@ BEGIN
         [A1] = @A1,
         [DA] = @DA,
         [DAS] = @DAS,
-        [PurchaseOrder] = @PurchaseOrder,
-        [Requisition] = @Requisition,
         [DO] = @DO,
         [FinancingSource] = @FinancingSource,
         [FinancingCost] = @FinancingCost,
@@ -142,6 +149,9 @@ BEGIN
         [ProjectStatus] = @ProjectStatus,
         [ProjectPhase] = @ProjectPhase,
         [RiskLevel] = @RiskLevel,
+        [PoRequisitionStatus] = @PoRequisitionStatus,
+        [RequisitionStatus] = @RequisitionStatus,
+        [DoNothing] = @DoNothing,
         [AlternativeSolutions] = @AlternativeSolutions,
         [ExpectedBenefits] = @ExpectedBenefits,
         [SuccessMetrics] = @SuccessMetrics,
@@ -165,7 +175,7 @@ BEGIN
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.Project', CAST(@ProjectId AS NVARCHAR(64)), @Before,
-            (SELECT ProjectId, [ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel], [AlternativeSolutions], [ExpectedBenefits], [SuccessMetrics], [EstimatedRoi], [ProjectScope], [KeyDependencies]
+            (SELECT ProjectId, [ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel], [PoRequisitionStatus], [RequisitionStatus], [DoNothing], [AlternativeSolutions], [ExpectedBenefits], [SuccessMetrics], [EstimatedRoi], [ProjectScope], [KeyDependencies]
              FROM app.Project WHERE ProjectId = @ProjectId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
@@ -188,8 +198,6 @@ BEGIN
            [A1],
            [DA],
            [DAS],
-           [PurchaseOrder],
-           [Requisition],
            [DO],
            [FinancingSource],
            [FinancingCost],
@@ -204,6 +212,9 @@ BEGIN
            [ProjectStatus],
            [ProjectPhase],
            [RiskLevel],
+           [PoRequisitionStatus],
+           [RequisitionStatus],
+           [DoNothing],
            [AlternativeSolutions],
            [ExpectedBenefits],
            [SuccessMetrics],

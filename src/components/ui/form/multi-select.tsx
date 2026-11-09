@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { usePopoverPlacement } from "../popover-placement";
 import { useFieldContext } from "./field";
-import { NO_MATCH, rankByMatch } from "./rank-options";
+import { matchesNone, NO_MATCH, rankByMatch } from "./rank-options";
 
 /** A row of a lookup the record links to by id (requirements ⇄ deliverables, stakeholders). */
 export interface MultiSelectOption {
@@ -70,6 +70,7 @@ export function MultiSelectField({
   removeLabel,
   emptyPlaceholder,
   autoFocus = false,
+  noMatch,
   onAdd,
   onRemove,
 }: {
@@ -82,6 +83,11 @@ export function MultiSelectField({
   emptyPlaceholder: string;
   /** Put the caret in the field once it is on screen (a command that opens a form on it). */
   autoFocus?: boolean;
+  /**
+   * Shown under the box while the typed text names no option, which typing alone never adds.
+   * `clear` empties the box, for a control in it that has added the person some other way.
+   */
+  noMatch?: (text: string, clear: () => void) => React.ReactNode;
   onAdd: (item: MultiSelectItem) => void;
   onRemove: (value: string) => void;
 }) {
@@ -116,6 +122,7 @@ export function MultiSelectField({
     [options, query, selectedValues],
   );
   const filtered = ranked.map((r) => r.option);
+  const unmatched = noMatch !== undefined && matchesNone(options, query, (o) => o.label);
   // Placed against the whole field, so a panel that opens upwards sits above the chips and every
   // chosen item stays in reach of its ×.
   usePopoverPlacement(fieldRef, listRef, open && filtered.length > 0, {
@@ -125,15 +132,23 @@ export function MultiSelectField({
 
   // The panel closes on each pick: its options take mousedown, so left open it swallows a click
   // aimed at whatever sits under the field (a sheet's Save). Click, typing or ↓ brings it back.
+  // Counts the picks and clears that put the caret back in the box.
+  const [refocus, setRefocus] = useState(0);
+  useEffect(() => {
+    if (refocus > 0) inputRef.current?.focus();
+  }, [refocus]);
+  const clear = useCallback(() => {
+    setQuery("");
+    setActiveIndex(0);
+    setOpen(false);
+    setRefocus((n) => n + 1);
+  }, []);
   const pick = useCallback(
     (item: MultiSelectItem) => {
       onAdd(item);
-      setQuery("");
-      setActiveIndex(0);
-      setOpen(false);
-      inputRef.current?.focus();
+      clear();
     },
-    [onAdd],
+    [onAdd, clear],
   );
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -247,6 +262,13 @@ export function MultiSelectField({
           ))}
         </ul>
       )}
+      {!disabled && noMatch ? (
+        <div role="status">
+          {unmatched ? (
+            <div className="mt-1 text-xs text-ink-muted">{noMatch(query.trim(), clear)}</div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -271,6 +293,7 @@ export function MultiSelect({
   removeLabel: (label: string) => string;
   emptyPlaceholder: string;
   autoFocus?: boolean;
+  noMatch?: (text: string, clear: () => void) => React.ReactNode;
   onAdd: (option: MultiSelectOption) => void;
   onRemove: (id: number) => void;
 }) {

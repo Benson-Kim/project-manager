@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { buttonClass } from "@/components/ui/button-styles";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/states";
 import { auth } from "@/lib/auth/provider";
@@ -102,15 +100,6 @@ export default async function RequirementCanvasPage({
         action={
           canvases.length > 0 ? (
             <div className="flex flex-wrap items-center gap-2 print:hidden">
-              {canvas && canCreate ? (
-                <Link
-                  href={canvasHref({ id: "new" })}
-                  data-testid="canvas-new-requirement"
-                  className={buttonClass("secondary", "compact")}
-                >
-                  {messages.requirements.newRequirement}
-                </Link>
-              ) : null}
               <CanvasPicker
                 projectId={projectId}
                 listed={listed}
@@ -132,6 +121,7 @@ export default async function RequirementCanvasPage({
             links={links}
             linkRules={linkRules}
             canEdit={canEdit}
+            newRequirementHref={canCreate ? canvasHref({ id: "new" }) : undefined}
             inspector={
               inspected && inspectedLinks ? (
                 <CanvasInspector

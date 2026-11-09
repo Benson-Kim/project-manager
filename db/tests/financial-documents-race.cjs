@@ -43,7 +43,7 @@ const codes = (rs) => rs.map((r) => (r.status === "fulfilled" ? "ok" : r.reason.
   const stamp = Date.now();
   const project = async (name) =>
     (await exec("usp_Project_Create", {
-      ProjectName: name, A1: 0, DA: 0, DAS: 0, PurchaseOrder: 0, Requisition: 0, DO: 0,
+      ProjectName: name, A1: 0, DA: 0, DAS: 0, DO: 0,
       PurchaseEquipment: 0, SimilarProject: 0, ActorUserId: PM,
     }))[0][0].ProjectId;
   const P = await project(`race-${stamp}`);

@@ -7,6 +7,7 @@ import { getPushConfig } from "@/lib/push/config";
 import { messages } from "@/lib/messages";
 import { setDueSoonDays } from "@/lib/repositories/user-preference";
 import {
+  buildTodoFromBoardCard,
   buildTodoFromDailyActivity,
   createTodoItem,
   deleteTodoItem,
@@ -48,6 +49,14 @@ export const createTodoItemAction = action({
   schema: todoItemFormSchema,
   permission: "todo-items:create",
   handler: (input, ctx) => createTodoItem(input, ctx.session.userId),
+});
+
+/** A to-do with an alert on a dated Kanban card's due day; a card keeps one, returned again. */
+export const buildTodoFromBoardCardAction = action({
+  name: "todo-items.buildFromBoardCard",
+  schema: z.object({ boardCardId: z.number().int().positive() }),
+  permission: "todo-items:create",
+  handler: (input, ctx) => buildTodoFromBoardCard(input.boardCardId, ctx.session.userId),
 });
 
 /** Update a to-do item (RBAC todo-items:update — project level checked in-proc, ADR-0021; CONFLICT on stale RowVer). */

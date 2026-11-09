@@ -79,6 +79,7 @@ const VERBS: Record<string, string> = {
   // Copying a template's documents into a financial adds rows (ADR-0030).
   CreateFromTemplate: "create",
   BuildFromDailyActivity: "create",
+  BuildFromBoardCard: "create",
   Update: "update",
   Reorder: "update",
   // Work breakdown (ADR-0027): placing, dating and naming an item edit it.

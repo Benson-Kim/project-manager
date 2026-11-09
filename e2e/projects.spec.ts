@@ -262,3 +262,67 @@ test.describe("project workspace", () => {
     await expect(page).toHaveURL(/\/projects\/2$/);
   });
 });
+
+test("business case: Do Nothing sits before the alternatives, saves and reopens", async ({
+  page,
+}) => {
+  const P = messages.projects;
+  await page.goto("/projects/new");
+  await page.getByLabel(P.name).fill(`E2E do nothing ${Date.now()}`);
+  const businessCase = page.getByTestId("project-business-case");
+  await businessCase.getByRole("button", { name: P.businessCaseSection }).click();
+  const top = async (label: string) =>
+    (await businessCase.getByText(label, { exact: true }).first().boundingBox())?.y ?? NaN;
+  const objectives = await top(P.objectiveAlignment);
+  const doNothing = await top(P.doNothing);
+  expect(objectives).toBeLessThan(doNothing);
+  expect(doNothing).toBeLessThan(await top(P.alternativeSolutions));
+
+  const editor = businessCase.getByRole("textbox", { name: P.doNothing, exact: true });
+  await expect(editor).toBeVisible({ timeout: 15_000 });
+  await editor.click();
+  await page.keyboard.type("Costs keep rising");
+  await page.getByTestId("project-save").click();
+  await page.waitForURL(/\/projects\/\d+/);
+  await page.reload();
+  const saved = page.getByTestId("project-business-case");
+  await expect(saved.getByRole("button", { name: P.businessCaseSection })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+  await expect(saved.getByRole("textbox", { name: P.doNothing, exact: true })).toContainText(
+    "Costs keep rising",
+    { timeout: 15_000 },
+  );
+});
+
+test("financing: the PO / Requisition and Requisition dropdowns replace the switches, save and reopen", async ({
+  page,
+}) => {
+  const P = messages.projects;
+  await page.goto("/projects/new");
+  await page.getByLabel(P.name).fill(`E2E po status ${Date.now()}`);
+  const financing = page.getByRole("region", { name: P.financingSection });
+  const po = financing.getByLabel(P.poRequisitionStatus, { exact: true });
+  const requisition = financing.getByLabel(P.requisitionStatus, { exact: true });
+  await expect(financing.getByRole("switch", { name: "Purchase order" })).toHaveCount(0);
+  await expect(financing.getByRole("switch", { name: "Requisition" })).toHaveCount(0);
+  await expect(po).toHaveValue("");
+  for (const option of [P.none, "Draft", "Submitted", "Approved", "Invoiced"]) {
+    await expect(po.getByRole("option", { name: option, exact: true })).toBeAttached();
+  }
+  for (const option of [P.none, "Draft", "Submitted", "Approved", "Sent for Approval"]) {
+    await expect(requisition.getByRole("option", { name: option, exact: true })).toBeAttached();
+  }
+
+  await po.selectOption("Invoiced");
+  await requisition.selectOption("Sent for Approval");
+  await page.getByTestId("project-save").click();
+  await page.waitForURL(/\/projects\/\d+/);
+  await page.reload();
+  const saved = page.getByRole("region", { name: P.financingSection });
+  await expect(saved.getByLabel(P.poRequisitionStatus, { exact: true })).toHaveValue("Invoiced");
+  await expect(saved.getByLabel(P.requisitionStatus, { exact: true })).toHaveValue(
+    "Sent for Approval",
+  );
+});

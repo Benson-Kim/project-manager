@@ -128,6 +128,7 @@ describe("the business case and the scope", () => {
   it("keeps the prose as written and the payback period as text", () => {
     const parsed = projectFormSchema.parse({
       projectName: "X",
+      doNothing: "<p>Costs keep rising</p>",
       alternativeSolutions: "<p>Buy, build, do nothing</p>",
       expectedBenefits: "<p>Two days a month back</p>",
       successMetrics: "<p>Orders closed within a week</p>",
@@ -135,6 +136,7 @@ describe("the business case and the scope", () => {
       projectScope: "<p>In: ordering. Out: payroll</p>",
       keyDependencies: "<p>Waiting on the finance upgrade</p>",
     });
+    expect(parsed.doNothing).toBe("<p>Costs keep rising</p>");
     expect(parsed.alternativeSolutions).toBe("<p>Buy, build, do nothing</p>");
     expect(parsed.estimatedRoi).toBe("1.4x by the next financial year");
     expect(parsed.projectScope).toBe("<p>In: ordering. Out: payroll</p>");

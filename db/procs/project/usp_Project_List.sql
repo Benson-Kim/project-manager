@@ -51,8 +51,6 @@ BEGIN
            [A1],
            [DA],
            [DAS],
-           [PurchaseOrder],
-           [Requisition],
            [DO],
            [FinancingSource],
            [FinancingCost],
@@ -67,8 +65,11 @@ BEGIN
            [ProjectStatus],
            [ProjectPhase],
            [RiskLevel],
+           [PoRequisitionStatus],
+           [RequisitionStatus],
            -- The narrative columns travel with the list because the datasheet saves a whole row
            -- (formCellSaver): a column it cannot read back is a column one cell edit would clear.
+           [DoNothing],
            [AlternativeSolutions],
            [ExpectedBenefits],
            [SuccessMetrics],

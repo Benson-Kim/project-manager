@@ -115,6 +115,7 @@ export default async function DeliverablesPage({
             openDeliverable={openDeliverable}
             sheetOpen={sheetOpen}
             assigneeOptions={assigneeOptions}
+            canAddStakeholder={allows("stakeholders:create")}
             canEdit={dParam === "new" ? canCreate : canEdit}
             canCreate={canCreate}
             canDelete={canDelete}

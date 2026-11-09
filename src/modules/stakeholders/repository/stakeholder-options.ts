@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { execProc } from "@/lib/db";
+import { stakeholderOption } from "../names";
 
 const optionRowSchema = z.object({
   StakeholderId: z.number().int(),
@@ -30,11 +31,5 @@ export async function listStakeholderOptions(
     Page: 1,
     PageSize: 100,
   });
-  return rows.map((r) => {
-    const parsed = optionRowSchema.parse(r);
-    return {
-      stakeholderId: parsed.StakeholderId,
-      name: [parsed.FirstName, parsed.LastName].filter(Boolean).join(" "),
-    };
-  });
+  return rows.map((r) => stakeholderOption(optionRowSchema.parse(r)));
 }

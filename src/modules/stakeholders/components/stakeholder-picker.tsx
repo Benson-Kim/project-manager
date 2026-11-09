@@ -1,8 +1,16 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useCallback, useMemo, useTransition } from "react";
+import { Button } from "@/components/ui/button";
+import { failureMessage } from "@/components/ui/data-view/datasheet";
 import { Combobox, type ComboboxOption } from "@/components/ui/form/combobox";
 import { ChipTag, MultiSelect, type MultiSelectOption } from "@/components/ui/form/multi-select";
+import { useToast } from "@/components/ui/toast";
+import { messages } from "@/lib/messages";
+import { createStakeholderAction } from "../actions";
+import { stakeholderOption, typedNameValues } from "../names";
 import type { StakeholderOption } from "../repository/stakeholder-options";
 
 export interface PickedStakeholder {
@@ -40,9 +48,13 @@ export function StakeholderChip({
 
 /**
  * The shared stakeholder picker (ADR-0001: meetings and key deliverables use
- * it): the shared MultiSelect over the project's stakeholders.
+ * it): the shared MultiSelect over the project's stakeholders. A typed name that is not one of
+ * them says so and links to the project's stakeholders; with `canAdd` it can also be added as a
+ * new stakeholder there and then, and is picked at once.
  */
 export function StakeholderMultiSelect({
+  projectId,
+  canAdd,
   options,
   selected,
   disabled,
@@ -53,6 +65,9 @@ export function StakeholderMultiSelect({
   onAdd,
   onRemove,
 }: {
+  projectId: number;
+  /** The viewer may create stakeholders (stakeholders:create); the action checks it again. */
+  canAdd: boolean;
   options: StakeholderOption[];
   selected: PickedStakeholder[];
   disabled: boolean;
@@ -79,6 +94,54 @@ export function StakeholderMultiSelect({
     },
     [options, onAdd],
   );
+  const router = useRouter();
+  const { toast } = useToast();
+  const [adding, startAdding] = useTransition();
+  const addTyped = useCallback(
+    (text: string, clear: () => void) =>
+      startAdding(async () => {
+        const result = await createStakeholderAction(typedNameValues(projectId, text));
+        if (!result.ok) {
+          toast({ variant: "error", title: failureMessage(result.error) });
+          return;
+        }
+        const option = stakeholderOption(result.data);
+        onAdd(option);
+        clear();
+        toast({ variant: "success", title: messages.stakeholders.stakeholderAdded(option.name) });
+        router.refresh();
+      }),
+    [projectId, onAdd, toast, router],
+  );
+  const noMatch = useCallback(
+    (text: string, clear: () => void) => (
+      <div data-testid="stakeholder-no-match" className="flex flex-wrap items-center gap-x-3">
+        <span>
+          {messages.stakeholders.notAStakeholder(text)}
+          {canAdd ? null : ` ${messages.stakeholders.addStakeholderFirst}`}
+        </span>
+        {canAdd ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="compact"
+            className="min-h-11"
+            pending={adding}
+            onClick={() => addTyped(text, clear)}
+          >
+            {messages.stakeholders.addAsStakeholder(text)}
+          </Button>
+        ) : null}
+        <Link
+          href={`/projects/${projectId}/stakeholders`}
+          className="inline-flex min-h-11 items-center font-medium text-accent"
+        >
+          {messages.stakeholders.viewStakeholders}
+        </Link>
+      </div>
+    ),
+    [projectId, canAdd, adding, addTyped],
+  );
   return (
     <MultiSelect
       options={choices}
@@ -88,6 +151,7 @@ export function StakeholderMultiSelect({
       removeLabel={removeLabel}
       emptyPlaceholder={emptyPlaceholder}
       autoFocus={autoFocus}
+      noMatch={noMatch}
       onAdd={add}
       onRemove={onRemove}
     />

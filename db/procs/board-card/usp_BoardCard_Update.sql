@@ -11,6 +11,7 @@
 -- A packaged card may clear its title and show the requirement's or deliverable's text instead
 --   (ADR-0052); an unpackaged one may not, or it would have nothing to show. That is CK_BoardCard_Content, checked here first so
 --   it reads as VALIDATION rather than surfacing error 547 as INTERNAL.
+-- A new due date moves the card's to-do and its alert to that day; clearing the date leaves them.
 -- Entity app.BoardCard. Module: boards (ADR-0038).
 USE ProjectManager;
 GO
@@ -55,8 +56,9 @@ BEGIN
          @BoardId = @BoardId, @ActorUserId = @ActorUserId,
          @MinLevel = N'Contributor', @Permission = N'boards:update';
 
-    DECLARE @RequirementId INT, @KeyDeliverableId INT, @Found BIT = 0;
-    SELECT @RequirementId = RequirementId, @KeyDeliverableId = KeyDeliverableId, @Found = 1
+    DECLARE @RequirementId INT, @KeyDeliverableId INT, @OldDueDate DATE, @Found BIT = 0;
+    SELECT @RequirementId = RequirementId, @KeyDeliverableId = KeyDeliverableId,
+           @OldDueDate = DueDate, @Found = 1
     FROM app.BoardCard
     WHERE BoardCardId = @BoardCardId AND IsDeleted = 0 AND CAST(RowVer AS BIGINT) = @RowVer;
     IF @Found = 0
@@ -93,6 +95,26 @@ BEGIN
             (SELECT Title, AssigneeUserId, DueDate, StoryPoints, Color
              FROM app.BoardCard WHERE BoardCardId = @BoardCardId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES));
+
+    DECLARE @TodoItemId INT;
+    IF @DueDate IS NOT NULL AND (@OldDueDate IS NULL OR @OldDueDate <> @DueDate)
+        SELECT @TodoItemId = TodoItemId FROM app.TodoItem
+        WHERE BoardCardId = @BoardCardId AND IsDeleted = 0;
+    IF @TodoItemId IS NOT NULL
+    BEGIN
+        UPDATE app.TodoItem SET
+            DueDate = @DueDate, UpdatedAtUtc = SYSUTCDATETIME(), UpdatedBy = @ActorUserId
+        WHERE TodoItemId = @TodoItemId;
+
+        UPDATE app.TodoAlert SET
+            AlertDay = @DueDate, IsDismissed = 0, UpdatedAtUtc = SYSUTCDATETIME(), UpdatedBy = @ActorUserId
+        WHERE TodoItemId = @TodoItemId AND IsDeleted = 0;
+
+        INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
+        VALUES (@ActorUserId, N'ShiftWithBoardCard', N'app.TodoItem', CAST(@TodoItemId AS NVARCHAR(64)),
+                (SELECT @OldDueDate AS DueDate FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES),
+                (SELECT @DueDate AS DueDate FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
+    END;
 
     COMMIT;
 

@@ -246,3 +246,50 @@ test("Kanban: a deliverable card, its stats, filters, JSON copy and drawer", asy
   await expect(drawer.getByRole("progressbar", { name: B.drawer.readiness })).toBeVisible();
   await axe(page);
 });
+
+test("Kanban: a dated card sets one to-do alert, and it follows the card's due date", async ({
+  page,
+}) => {
+  const stamp = Date.now();
+  const title = `E2E alert card ${stamp}`;
+  await page.goto("/projects/2/boards");
+  await closeAlarmToast(page);
+  await page.getByRole("button", { name: B.newBoard }).first().click();
+  const create = page.getByRole("dialog");
+  await create.getByLabel(B.name, { exact: true }).fill(`E2E alert board ${stamp}`);
+  await create.getByRole("button", { name: messages.actions.save }).click();
+  await page.waitForURL(/\/projects\/2\/boards\/\d+$/);
+  await page.getByRole("button", { name: B.ui.newCard }).first().click();
+  const created = page.getByRole("dialog");
+  await created.getByLabel(B.ui.cardTitle, { exact: true }).fill(title);
+  await created.getByLabel(B.ui.due, { exact: true }).fill("2030-01-15");
+  await created.getByRole("button", { name: messages.actions.save }).click();
+  await expect(created).toBeHidden();
+
+  const sheet = page.getByRole("dialog");
+  const status = sheet.getByRole("status");
+  await page.getByRole("button", { name: title, exact: true }).click();
+  await sheet.getByTestId("card-todo-alert").click();
+  await expect(status).toContainText(B.ui.todoAlertSet("2030-01-15"));
+  await sheet.getByRole("button", { name: messages.actions.save }).click();
+  await expect(sheet).toBeHidden();
+
+  await page.getByRole("button", { name: title, exact: true }).click();
+  await sheet.getByTestId("card-todo-alert").click();
+  await expect(status).toContainText(B.ui.todoAlertExists);
+  await sheet.getByLabel(B.ui.due, { exact: true }).fill("2030-02-20");
+  await sheet.getByRole("button", { name: messages.actions.save }).click();
+  await expect(sheet).toBeHidden();
+
+  await page.getByRole("button", { name: title, exact: true }).click();
+  await sheet.getByTestId("card-todo-alert").click();
+  await expect(status).toContainText(B.ui.todoAlertExists);
+  await status.getByRole("link", { name: B.ui.openTodo }).click();
+  await page.waitForURL(/\/todo\?id=\d+/);
+  await expect(page.getByTestId("todo-item-form")).toBeVisible();
+  const configure = page.getByRole("button", { name: messages.todoItems.configureAlert });
+  if (await configure.isVisible()) await configure.click();
+  await expect(
+    page.getByTestId("todo-alert-form").getByLabel(messages.todoItems.alertDay),
+  ).toHaveValue("2030-02-20");
+});

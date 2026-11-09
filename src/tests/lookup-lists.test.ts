@@ -27,6 +27,7 @@ const migration = [
   "054_stakeholder_communication_plan.sql",
   "056_project_business_case.sql",
   "057_decision_log.sql",
+  "068_project_po_requisition_status.sql",
 ]
   .map((file) => read("db", "migrations", file))
   .join(String.fromCharCode(10));

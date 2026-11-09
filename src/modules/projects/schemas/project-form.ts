@@ -21,6 +21,8 @@ export const PROJECT_LISTS = [
   "project.phase",
   "project.risk-level",
   "project.objective-alignment",
+  "project.po-requisition-status",
+  "project.requisition-status",
 ] as const satisfies readonly LookupListKey[];
 
 const optionalText = (max: number) =>
@@ -71,8 +73,6 @@ const projectFields = z.object({
   a1: flag,
   da: flag,
   das: flag,
-  purchaseOrder: flag,
-  requisition: flag,
   do: flag,
   financingSource: optionalText(255),
   financingCost: money,
@@ -88,7 +88,10 @@ const projectFields = z.object({
   projectStatus: listChoice,
   projectPhase: listChoice,
   riskLevel: listChoice,
+  poRequisitionStatus: listChoice,
+  requisitionStatus: listChoice,
   /** The business case and the scope (client updates 2026-11-03). */
+  doNothing: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
   alternativeSolutions: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
   expectedBenefits: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
   successMetrics: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
@@ -164,8 +167,6 @@ export function projectFormValues(row: ProjectRow): FormValues {
     a1: flagValue(row.A1),
     da: flagValue(row.DA),
     das: flagValue(row.DAS),
-    purchaseOrder: flagValue(row.PurchaseOrder),
-    requisition: flagValue(row.Requisition),
     do: flagValue(row.DO),
     financingSource: formText(row.FinancingSource),
     financingCost: formText(row.FinancingCost),
@@ -185,6 +186,9 @@ export function projectFormValues(row: ProjectRow): FormValues {
     projectStatus: formText(row.ProjectStatus),
     projectPhase: formText(row.ProjectPhase),
     riskLevel: formText(row.RiskLevel),
+    poRequisitionStatus: formText(row.PoRequisitionStatus),
+    requisitionStatus: formText(row.RequisitionStatus),
+    doNothing: formText(row.DoNothing),
     alternativeSolutions: formText(row.AlternativeSolutions),
     expectedBenefits: formText(row.ExpectedBenefits),
     successMetrics: formText(row.SuccessMetrics),

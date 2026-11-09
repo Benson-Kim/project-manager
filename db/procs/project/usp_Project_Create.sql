@@ -1,7 +1,7 @@
 -- usp_Project_Create — insert one app.Project row; audits in-transaction; returns the new row.
 -- A non-Admin creator becomes the project's manager (title 'Project manager' — locked in the managed title list, ADR-0024 — access Manager,
 --   ADR-0021) in the same transaction, so they can open what they just created.
--- Dropdown values (ADR-0022): ProjectStatus, ProjectPriority, ProjectPhase and RiskLevel must be live options of their lists (VALIDATION 50004),
+-- Dropdown values (ADR-0022): ProjectStatus, ProjectPriority, ProjectPhase, RiskLevel, PoRequisitionStatus and RequisitionStatus must be live options of their lists (VALIDATION 50004),
 --   and are stored as listed.
 -- Business case and scope (client updates 2026-11-03): the narrative columns are stored as written.
 --   @ObjectiveAlignment is a JSON array of 'project.objective-alignment' labels, replaced inside this
@@ -26,8 +26,6 @@ CREATE OR ALTER PROCEDURE dbo.usp_Project_Create
     @A1 BIT,
     @DA BIT,
     @DAS BIT,
-    @PurchaseOrder BIT,
-    @Requisition BIT,
     @DO BIT,
     @FinancingSource NVARCHAR(255) = NULL,
     @FinancingCost MONEY = NULL,
@@ -42,6 +40,9 @@ CREATE OR ALTER PROCEDURE dbo.usp_Project_Create
     @ProjectStatus NVARCHAR(50) = NULL,
     @ProjectPhase NVARCHAR(50) = NULL,
     @RiskLevel NVARCHAR(50) = NULL,
+    @PoRequisitionStatus NVARCHAR(50) = NULL,
+    @RequisitionStatus NVARCHAR(50) = NULL,
+    @DoNothing NVARCHAR(MAX) = NULL,
     @AlternativeSolutions NVARCHAR(MAX) = NULL,
     @ExpectedBenefits NVARCHAR(MAX) = NULL,
     @SuccessMetrics NVARCHAR(MAX) = NULL,
@@ -69,20 +70,24 @@ BEGIN
          @ListKey = N'project.phase', @Label = @ProjectPhase OUTPUT;
     EXEC dbo.usp_LookupList_AssertLabel
          @ListKey = N'project.risk-level', @Label = @RiskLevel OUTPUT;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'project.po-requisition-status', @Label = @PoRequisitionStatus OUTPUT;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'project.requisition-status', @Label = @RequisitionStatus OUTPUT;
 
     IF @EndDate < @StartDate OR @EstimatedCompletionDate < @StartDate
         THROW 50004, N'VALIDATION:EndDate and EstimatedCompletionDate cannot be before StartDate', 1;
 
     BEGIN TRAN;
 
-    INSERT INTO app.Project ([ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel], [AlternativeSolutions], [ExpectedBenefits], [SuccessMetrics], [EstimatedRoi], [ProjectScope], [KeyDependencies], CreatedBy)
-    VALUES (@ProjectName, @ProjectManager, @BusinessAnalyst, @ProjectDocs, @ProjectSponsor, @DateOfProject, @ProblemStatement, @CurrentState, @FutureState, @UserImpact, @Mandate, @ProjectStatusCom, @ExistBusMod, @A1, @DA, @DAS, @PurchaseOrder, @Requisition, @DO, @FinancingSource, @FinancingCost, @RecurrentCost, @PurchaseEquipment, @EquipmentNotes, @StartDate, @EndDate, @SimilarProject, @ProjectPriority, @EstimatedCompletionDate, @ProjectStatus, @ProjectPhase, @RiskLevel, @AlternativeSolutions, @ExpectedBenefits, @SuccessMetrics, @EstimatedRoi, @ProjectScope, @KeyDependencies, @ActorUserId);
+    INSERT INTO app.Project ([ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel], [PoRequisitionStatus], [RequisitionStatus], [DoNothing], [AlternativeSolutions], [ExpectedBenefits], [SuccessMetrics], [EstimatedRoi], [ProjectScope], [KeyDependencies], CreatedBy)
+    VALUES (@ProjectName, @ProjectManager, @BusinessAnalyst, @ProjectDocs, @ProjectSponsor, @DateOfProject, @ProblemStatement, @CurrentState, @FutureState, @UserImpact, @Mandate, @ProjectStatusCom, @ExistBusMod, @A1, @DA, @DAS, @DO, @FinancingSource, @FinancingCost, @RecurrentCost, @PurchaseEquipment, @EquipmentNotes, @StartDate, @EndDate, @SimilarProject, @ProjectPriority, @EstimatedCompletionDate, @ProjectStatus, @ProjectPhase, @RiskLevel, @PoRequisitionStatus, @RequisitionStatus, @DoNothing, @AlternativeSolutions, @ExpectedBenefits, @SuccessMetrics, @EstimatedRoi, @ProjectScope, @KeyDependencies, @ActorUserId);
 
     DECLARE @Id INT = SCOPE_IDENTITY();
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, AfterJson)
     VALUES (@ActorUserId, N'Create', N'app.Project', CAST(@Id AS NVARCHAR(64)),
-            (SELECT ProjectId, [ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [PurchaseOrder], [Requisition], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel], [AlternativeSolutions], [ExpectedBenefits], [SuccessMetrics], [EstimatedRoi], [ProjectScope], [KeyDependencies]
+            (SELECT ProjectId, [ProjectName], [ProjectManager], [BusinessAnalyst], [ProjectDocs], [ProjectSponsor], [DateOfProject], [ProblemStatement], [CurrentState], [FutureState], [UserImpact], [Mandate], [ProjectStatusCom], [ExistBusMod], [A1], [DA], [DAS], [DO], [FinancingSource], [FinancingCost], [RecurrentCost], [PurchaseEquipment], [EquipmentNotes], [StartDate], [EndDate], [SimilarProject], [ProjectPriority], [EstimatedCompletionDate], [ProjectStatus], [ProjectPhase], [RiskLevel], [PoRequisitionStatus], [RequisitionStatus], [DoNothing], [AlternativeSolutions], [ExpectedBenefits], [SuccessMetrics], [EstimatedRoi], [ProjectScope], [KeyDependencies]
              FROM app.Project WHERE ProjectId = @Id
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
@@ -123,8 +128,6 @@ BEGIN
            [A1],
            [DA],
            [DAS],
-           [PurchaseOrder],
-           [Requisition],
            [DO],
            [FinancingSource],
            [FinancingCost],
@@ -139,6 +142,9 @@ BEGIN
            [ProjectStatus],
            [ProjectPhase],
            [RiskLevel],
+           [PoRequisitionStatus],
+           [RequisitionStatus],
+           [DoNothing],
            [AlternativeSolutions],
            [ExpectedBenefits],
            [SuccessMetrics],

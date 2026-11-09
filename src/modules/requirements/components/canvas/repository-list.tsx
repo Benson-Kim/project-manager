@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
+import { buttonClass } from "@/components/ui/button-styles";
 import { Input, Switch } from "@/components/ui/form/inputs";
 import { messages } from "@/lib/messages";
 import { itemKey, type CanvasGaps } from "../../canvas/gaps";
@@ -94,6 +96,7 @@ export function RepositoryList({
   items,
   gaps,
   canEdit,
+  newRequirementHref,
   selectedKey,
   onSelect,
   onReveal,
@@ -101,6 +104,7 @@ export function RepositoryList({
   items: readonly CanvasItem[];
   gaps: ReadonlyMap<string, CanvasGaps>;
   canEdit: boolean;
+  newRequirementHref?: string;
   selectedKey: string | null;
   onSelect: (key: string) => void;
   onReveal: (item: CanvasItem) => void;
@@ -119,7 +123,19 @@ export function RepositoryList({
       aria-label={M.repository(items.length)}
       className="flex min-h-0 flex-col gap-2 border-line p-3 lg:border-r print:hidden"
     >
-      <h2 className="text-sm font-medium text-ink">{M.repository(items.length)}</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-medium text-ink">{M.repository(items.length)}</h2>
+        {newRequirementHref ? (
+          <Link
+            href={newRequirementHref}
+            scroll={false}
+            data-testid="canvas-new-requirement"
+            className={buttonClass("secondary", "compact")}
+          >
+            {messages.requirements.newRequirement}
+          </Link>
+        ) : null}
+      </div>
       <Input
         type="search"
         aria-label={M.search}
