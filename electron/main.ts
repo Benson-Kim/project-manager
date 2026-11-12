@@ -3,6 +3,7 @@ import {
   BrowserWindow,
   clipboard,
   dialog,
+  ipcMain,
   Menu,
   screen,
   session,
@@ -36,11 +37,14 @@ import { createDbWatchdog } from "./db-watchdog";
 import { contextMenuTemplate } from "./context-menu";
 import { createExclusive } from "./exclusive";
 import { GrammarChecker } from "./grammar";
+import { PRINT_PREVIEW_CHANNEL } from "./ipc-channels";
 import { createLogger, describeError } from "./log";
+import { APP_ID, APP_NAME, carryOverProfile, programDataDir } from "./app-folders";
 import { readMachineConfig, SetupRequiredError, type MachineConfig } from "./machine-config";
 import { NextServer } from "./next-server";
 import { paths } from "./paths";
 import { allowPermission } from "./permissions";
+import { createPrintPreview, tempPdfFiles } from "./print-preview";
 import {
   dialectFor,
   grammarFixes,
@@ -67,11 +71,13 @@ import { windowTitle } from "./window-title";
 
 // A fixed, explicit profile folder (otherwise Electron derives it from the
 // package name). Must be set before anything touches app paths.
-app.setName("Project Manager");
-app.setPath("userData", path.join(app.getPath("appData"), "Project Manager"));
-app.setAppUserModelId("com.burton.projectmanager");
+const profileCopyFailure = carryOverProfile(app.getPath("appData"));
+app.setName(APP_NAME);
+app.setPath("userData", path.join(app.getPath("appData"), APP_NAME));
+app.setAppUserModelId(APP_ID);
 
 const log = createLogger(path.join(app.getPath("userData"), "logs"));
+if (profileCopyFailure) log.warn(`Old settings not copied, starting fresh: ${profileCopyFailure}`);
 const settings = new SettingsStore(app.getPath("userData"));
 
 const BACKUP_INTERVAL_MS = 24 * 60 * 60_000;
@@ -81,7 +87,7 @@ const DB_CHECK_MS = 30_000;
 const grammar = new GrammarChecker({
   fork: () => {
     const child = utilityProcess.fork(path.join(__dirname, "grammar-worker.js"), [], {
-      serviceName: "Project Manager grammar check",
+      serviceName: "Modulus grammar check",
     });
     return {
       postMessage: (message) => child.postMessage(message),
@@ -97,6 +103,10 @@ const grammar = new GrammarChecker({
 
 let config: MachineConfig | null = null;
 let server: NextServer | null = null;
+const showPrintPreview = createPrintPreview({
+  ...tempPdfFiles(app.getPath("temp")),
+  openWindow: (options) => new BrowserWindow({ ...options, icon: paths.icon }),
+});
 let mainWindow: BrowserWindow | null = null;
 let splash: BrowserWindow | null = null;
 let quitting = false;
@@ -139,10 +149,15 @@ function createSplash(): BrowserWindow {
 const appWindowOptions = {
   minWidth: 360,
   minHeight: 600,
-  title: "Project Manager",
+  title: "Modulus",
   icon: paths.icon,
   autoHideMenuBar: true,
-  webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
+  webPreferences: {
+    sandbox: true,
+    contextIsolation: true,
+    nodeIntegration: false,
+    preload: paths.preload,
+  },
 } satisfies BrowserWindowConstructorOptions;
 
 /** The title bar shows the page's own title, without the app name the sidebar already shows. */
@@ -397,7 +412,7 @@ async function ensureDatabaseEngine(): Promise<MachineConfig> {
     const { response } = await dialog.showMessageBox({
       type: "warning",
       title: "Database setup needed",
-      message: "Project Manager needs to finish setting up its database engine.",
+      message: "Modulus needs to finish setting up its database engine.",
       detail:
         `${err instanceof Error ? err.message : String(err)}\n\n` +
         "Click Repair and approve the Windows administrator prompt. A first-time setup takes 5–15 minutes.",
@@ -418,8 +433,7 @@ async function ensureDatabaseEngine(): Promise<MachineConfig> {
 }
 
 function provisionLog(): string {
-  const programData = process.env.ProgramData ?? "C:\\ProgramData";
-  return path.join(programData, "Project Manager", "logs", "provision.log");
+  return path.join(programDataDir(), "logs", "provision.log");
 }
 
 // ---------------------------------------------------------------------------
@@ -486,7 +500,7 @@ async function setUpAttachmentsAction(): Promise<void> {
   const { response } = await dialog.showMessageBox({
     type: "info",
     title: "Attachments are set up",
-    message: "Restart Project Manager to start using attachments.",
+    message: "Restart Modulus to start using attachments.",
     buttons: ["Restart now", "Later"],
     defaultId: 0,
     cancelId: 1,
@@ -610,7 +624,7 @@ async function chooseBackupCopyFolder(): Promise<void> {
 async function restoreAction(): Promise<void> {
   if (!config || !server) return;
   const pick = await dialog.showOpenDialog({
-    title: "Restore Project Manager data from a backup",
+    title: "Restore Modulus data from a backup",
     defaultPath: settings.get().backupCopyDir,
     filters: [{ name: "SQL Server backup", extensions: ["bak"] }],
     properties: ["openFile"],
@@ -698,7 +712,7 @@ async function restoreAttachmentFiles(cfg: MachineConfig, bakFile: string): Prom
 // ---------------------------------------------------------------------------
 
 async function bootstrap(): Promise<void> {
-  log.info(`=== Project Manager ${app.getVersion()} starting (packaged=${app.isPackaged}) ===`);
+  log.info(`=== Modulus ${app.getVersion()} starting (packaged=${app.isPackaged}) ===`);
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback, details) =>
     callback(server !== null && allowPermission(permission, details.requestingUrl, server.url)),
   );
@@ -729,7 +743,7 @@ async function bootstrap(): Promise<void> {
 
     const adminPassword = await ensureAdminAccount(cfg.sql, loadArgon2(), log);
 
-    setSplashStatus("Starting Project Manager…");
+    setSplashStatus("Starting Modulus…");
     server = new NextServer({
       standaloneDir: paths.standaloneDir,
       db: cfg.sql,
@@ -743,12 +757,7 @@ async function bootstrap(): Promise<void> {
           "Still starting… Right after the computer starts, this can take a few minutes.",
         ),
       onFatal: (msg) => {
-        void message(
-          "error",
-          "Project Manager stopped",
-          msg,
-          `Please restart the app.\nLog: ${log.file}`,
-        );
+        void message("error", "Modulus stopped", msg, `Please restart the app.\nLog: ${log.file}`);
       },
     });
     const url = await server.start();
@@ -814,9 +823,9 @@ async function bootstrap(): Promise<void> {
         void message(
           "warning",
           "The database has stopped",
-          "Project Manager's database has stopped, so nothing can be opened or saved right now.",
+          "The Modulus database has stopped, so nothing can be opened or saved right now.",
           "Restart the computer to start it again.\n\n" +
-            "If this happens again, ask IT to run the Project Manager setup again: " +
+            "If this happens again, ask IT to run the Modulus setup again: " +
             "after that the app restarts the database by itself.",
         ),
       log,
@@ -831,8 +840,8 @@ async function bootstrap(): Promise<void> {
     splash = null;
     const { response } = await dialog.showMessageBox({
       type: "error",
-      title: "Project Manager could not start",
-      message: "Project Manager could not start.",
+      title: "Modulus could not start",
+      message: "Modulus could not start.",
       detail: `${err instanceof Error ? err.message : String(err)}\n\nLog file: ${log.file}`,
       buttons: ["Open log folder", "Close"],
       defaultId: 1,
@@ -865,6 +874,12 @@ if (!app.requestSingleInstanceLock()) {
     server?.stop();
     destroyTray();
     log.info("=== quit ===");
+  });
+  ipcMain.handle(PRINT_PREVIEW_CHANNEL, (event) => {
+    const frameUrl = event.senderFrame?.url;
+    if (!server?.url || !frameUrl || new URL(frameUrl).origin !== new URL(server.url).origin)
+      throw new Error("Print preview is only for the app's own pages.");
+    return showPrintPreview(event.sender, BrowserWindow.fromWebContents(event.sender) ?? undefined);
   });
   app.whenReady().then(bootstrap);
 }

@@ -16,7 +16,7 @@ export interface ShellAlert {
 }
 
 const iconButtonClass =
-  "relative flex min-h-10 min-w-10 items-center justify-center rounded-md text-ink-muted hover:bg-surface-sunken";
+  "relative flex min-h-10 min-w-10 items-center justify-center rounded-md text-ink-muted hover:bg-hover";
 
 /** A to-do alarm that is due now (the open app's 30 s poll, useAlertPoller). */
 export interface ShellAlarm {
@@ -115,7 +115,7 @@ export function NotificationsBell({
                 <Link
                   href={`/todo?id=${alarm.todoItemId}`}
                   onClick={() => setOpen(false)}
-                  className="flex min-h-10 flex-col justify-center px-6 py-1.5 text-sm hover:bg-surface-sunken"
+                  className="flex min-h-10 flex-col justify-center px-6 py-1.5 text-sm hover:bg-hover"
                 >
                   <span className="text-xs font-semibold text-warning">
                     {messages.app.alarmsDue}
@@ -134,7 +134,7 @@ export function NotificationsBell({
                 setCanAskDesktop(result === "default"),
               )
             }
-            className="w-full px-6 py-2 text-left text-sm font-medium text-accent hover:bg-surface-sunken"
+            className="w-full px-6 py-2 text-left text-sm font-medium text-accent hover:bg-hover"
           >
             {messages.app.enableDesktopAlerts}
           </button>
@@ -214,7 +214,7 @@ export function AvatarMenu({ username }: { username: string }) {
     <Menu
       label={messages.app.account}
       testId="avatar-menu"
-      triggerClassName="flex min-h-10 min-w-9 items-center justify-center rounded-md hover:bg-surface-sunken"
+      triggerClassName="flex min-h-10 min-w-9 items-center justify-center rounded-md hover:bg-hover"
       trigger={
         <span className="flex size-7 items-center justify-center rounded-full bg-accent text-xs font-semibold text-on-accent">
           {initialsFrom(username)}

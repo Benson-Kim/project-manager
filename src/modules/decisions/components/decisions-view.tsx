@@ -7,7 +7,7 @@ import {
   textColumn,
 } from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
-import { formCellSaver } from "@/components/ui/data-view/datasheet";
+import { addUndo, formCellSaver } from "@/components/ui/data-view/datasheet";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { ListBadge } from "@/components/ui/lookup-lists";
@@ -19,7 +19,7 @@ import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import type { OptionColor } from "@/lib/lookup-lists";
 import type { StakeholderOption } from "@/modules/stakeholders/repository/stakeholder-options";
-import { updateDecisionAction, createDecisionAction } from "../actions";
+import { updateDecisionAction, createDecisionAction, deleteDecisionAction } from "../actions";
 import { DECISION_SORT, type DecisionListRow, type DecisionRow } from "../schemas/decision";
 import { decisionFormValues } from "../schemas/decision-form";
 import { DecisionToolbar } from "./decision-toolbar";
@@ -224,7 +224,13 @@ export function DecisionsView({
         canEditRow,
         saveCell,
         addRow: canCreate
-          ? { add: (values) => createDecisionAction({ ...values, projectId: String(projectId) }) }
+          ? {
+              undo: addUndo(
+                (row: { DecisionId: number; RowVer: number }) => row.DecisionId,
+                (row) => deleteDecisionAction({ decisionId: row.DecisionId, rowVer: row.RowVer }),
+              ),
+              add: (values) => createDecisionAction({ ...values, projectId: String(projectId) }),
+            }
           : undefined,
       }}
       renderToolbar={(viewToggle) => <DecisionToolbar>{viewToggle}</DecisionToolbar>}

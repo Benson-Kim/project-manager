@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { messages } from "@/lib/messages";
 import {
   isCurrentSection,
   isGroupActive,
@@ -6,12 +7,17 @@ import {
   projectSections,
   sectionHref,
   sectionLinkHref,
+  sectionRuns,
   type ProjectSection,
   type ProjectSectionGroup,
 } from "../project-sections";
 
 const charter: ProjectSection = { segment: ".", label: "Charter", match: "exact" };
 const meetings: ProjectSection = { segment: "meetings", label: "Meetings", match: "prefix" };
+
+const group = (key: string) => projectSectionGroups.find((g) => g.key === key)!;
+const segmentsOf = (key: string) => group(key).sections.map((s) => s.segment);
+const section = (segment: string) => projectSections.find((s) => s.segment === segment)!;
 
 describe("sectionHref", () => {
   it("maps the charter index to the project root route", () => {
@@ -38,111 +44,178 @@ describe("isCurrentSection", () => {
     expect(isCurrentSection("/projects/2/meetings-x", 2, meetings)).toBe(false);
     expect(isCurrentSection("/projects/22/meetings", 2, meetings)).toBe(false);
   });
+
+  it("a page with its own entry under another (the canvas, the matrix) is the only current one", () => {
+    const deliverables = section("deliverables");
+    const canvas = section("deliverables/canvas");
+    expect(isCurrentSection("/projects/2/deliverables/canvas", 2, canvas)).toBe(true);
+    expect(isCurrentSection("/projects/2/deliverables/canvas", 2, deliverables)).toBe(false);
+    expect(isCurrentSection("/projects/2/deliverables", 2, deliverables)).toBe(true);
+    expect(isCurrentSection("/projects/2/deliverables/gantt", 2, deliverables)).toBe(true);
+    expect(isCurrentSection("/projects/2/deliverables", 2, canvas)).toBe(false);
+
+    const comms = section("stakeholders");
+    const matrix = section("stakeholders/matrix");
+    expect(isCurrentSection("/projects/2/stakeholders/matrix", 2, matrix)).toBe(true);
+    expect(isCurrentSection("/projects/2/stakeholders/matrix", 2, comms)).toBe(false);
+    expect(isCurrentSection("/projects/2/stakeholders", 2, comms)).toBe(true);
+  });
 });
 
 describe("projectSectionGroups", () => {
-  it("has six groups in order: overview, requirements, planning, people, financials, activity", () => {
-    expect(projectSectionGroups.map((g) => g.key)).toEqual([
-      "overview",
-      "requirements",
-      "planning",
-      "people",
-      "financials",
-      "activity",
+  const G = messages.projects.sectionGroups;
+
+  it("shows the client's six groups, in the client's order and names", () => {
+    expect(projectSectionGroups.map((g) => g.label)).toEqual([
+      G.strategy,
+      G.requirements,
+      G.execution,
+      G.governance,
+      G.workspace,
+      G.communication,
+    ]);
+    expect(Object.values(G)).toEqual([
+      "Strategy & Financials",
+      "Requirements & Deliverables",
+      "Execution",
+      "Governance",
+      "Workspace",
+      "Communication",
     ]);
   });
 
-  it("overview group contains the charter index section", () => {
-    const overview = projectSectionGroups.find((g) => g.key === "overview")!;
-    expect(overview.sections.map((s) => s.segment)).toContain(".");
+  it("lists every built page exactly once across the groups", () => {
+    const listed = projectSectionGroups.flatMap((g) => g.sections.map((s) => s.segment));
+    expect(new Set(listed).size).toBe(listed.length);
+    expect([...listed].sort()).toEqual(projectSections.map((s) => s.segment).sort());
   });
 
-  it("planning group contains deliverables", () => {
-    const planning = projectSectionGroups.find((g) => g.key === "planning")!;
-    expect(planning.sections.map((s) => s.segment)).toContain("deliverables");
+  it("every group is a disclosure of at least two pages", () => {
+    for (const g of projectSectionGroups) expect(g.sections.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("requirements is its own group, before planning, holding only the register (ADR-0046)", () => {
-    const requirements = projectSectionGroups.find((g) => g.key === "requirements")!;
-    expect(requirements.sections.map((s) => s.segment)).toEqual(["requirements"]);
-    const keys = projectSectionGroups.map((g) => g.key);
-    expect(keys.indexOf("requirements")).toBeLessThan(keys.indexOf("planning"));
-  });
-
-  it("planning no longer lists requirements (ADR-0046)", () => {
-    const planning = projectSectionGroups.find((g) => g.key === "planning")!;
-    expect(planning.sections.map((s) => s.segment)).not.toContain("requirements");
-  });
-
-  it("every group of one section is reachable as a link, so none hides its only entry", () => {
-    for (const group of projectSectionGroups.filter((g) => g.sections.length === 1)) {
-      expect(sectionHref(2, group.sections[0]!)).toMatch(/^\/projects\/2/);
-    }
-  });
-
-  it("people group contains suppliers", () => {
-    const people = projectSectionGroups.find((g) => g.key === "people")!;
-    expect(people.sections.map((s) => s.segment)).toContain("suppliers");
-  });
-
-  it("financials group lists the four views of a financial (ADR-0029), then project math", () => {
-    const financials = projectSectionGroups.find((g) => g.key === "financials")!;
-    expect(financials.sections.map((s) => s.segment)).toEqual([
+  it("Strategy & Financials: overview, objectives, then the financials views ending with performance analytics", () => {
+    expect(segmentsOf("strategy")).toEqual([
+      ".",
+      "objectives",
       "financials/budget",
       "financials/monitoring",
       "financials/documents",
       "financials/settings",
       "financials/project-math",
     ]);
-    const planning = projectSectionGroups.find((g) => g.key === "planning")!;
-    expect(planning.sections.some((s) => s.segment.startsWith("financials"))).toBe(false);
+    expect(section("financials/project-math").label).toBe("Performance analytics");
+  });
+
+  it("Requirements & Deliverables: key deliverables, the tracker, then the canvas board", () => {
+    expect(segmentsOf("requirements")).toEqual([
+      "deliverables",
+      "requirements",
+      "deliverables/canvas",
+    ]);
+    expect(group("requirements").sections.map((s) => s.label)).toEqual([
+      "Key deliverables (WBS/Gantt)",
+      "Requirements tracker",
+      "Dynamic requirements board",
+    ]);
+  });
+
+  it("Execution: boards, checklists, daily activities, to-do & alerts, calendar", () => {
+    expect(segmentsOf("execution")).toEqual([
+      "boards",
+      "checklists",
+      "daily-activities",
+      "todos",
+      "calendar",
+    ]);
+    expect(section("checklists").label).toBe(messages.projects.checklistsSection);
+    expect(sectionHref(2, section("checklists"))).toBe("/projects/2/checklists");
+    expect(section("todos").label).toBe("To-do & alerts");
+  });
+
+  it("Governance: decision log, risks & issues, assumptions & constraints, parking lot, Q&A", () => {
+    expect(segmentsOf("governance")).toEqual([
+      "decisions",
+      "risks-issues",
+      "assumptions-constraints",
+      "parking-lot",
+      "questions-answers",
+    ]);
+  });
+
+  it("Workspace: BPMN, meeting minutes, notes (notes matched as a prefix for its workspace route)", () => {
+    expect(segmentsOf("workspace")).toEqual(["bpmn", "meetings", "notes"]);
+    expect(section("meetings").label).toBe("Meeting minutes");
+    expect(group("workspace").sections.at(-1)?.match).toBe("prefix");
+  });
+
+  it("Communication: stakeholder matrix, stakeholder comms, responsibility, suppliers, keywords", () => {
+    expect(segmentsOf("communication")).toEqual([
+      "stakeholders/matrix",
+      "stakeholders",
+      "responsibility",
+      "suppliers",
+      "keywords",
+    ]);
+    expect(
+      group("communication")
+        .sections.slice(0, 2)
+        .map((s) => s.label),
+    ).toEqual(["Stakeholder matrix", "Stakeholder comms"]);
+  });
+
+  it("only the financials views carry the Financials sub-list label", () => {
+    const labelled = projectSections.filter((s) => s.subgroup).map((s) => s.segment);
+    expect(labelled).toEqual(
+      projectSections.filter((s) => s.segment.startsWith("financials/")).map((s) => s.segment),
+    );
+    expect(new Set(projectSections.map((s) => s.subgroup).filter(Boolean))).toEqual(
+      new Set([messages.projects.financialsSection]),
+    );
   });
 
   it("only the open financials view is current", () => {
-    const [budget, monitoring] = projectSectionGroups.find((g) => g.key === "financials")!.sections;
-    expect(sectionHref(2, budget!)).toBe("/projects/2/financials/budget");
-    expect(isCurrentSection("/projects/2/financials/budget", 2, budget!)).toBe(true);
-    expect(isCurrentSection("/projects/2/financials/budget", 2, monitoring!)).toBe(false);
-    expect(isCurrentSection("/projects/2/financials/monitoring", 2, monitoring!)).toBe(true);
+    const budget = section("financials/budget");
+    const monitoring = section("financials/monitoring");
+    expect(sectionHref(2, budget)).toBe("/projects/2/financials/budget");
+    expect(isCurrentSection("/projects/2/financials/budget", 2, budget)).toBe(true);
+    expect(isCurrentSection("/projects/2/financials/budget", 2, monitoring)).toBe(false);
+    expect(isCurrentSection("/projects/2/financials/monitoring", 2, monitoring)).toBe(true);
   });
 
   it("keeps the open financial when switching financials views, and only there", () => {
-    const [budget] = projectSectionGroups.find((g) => g.key === "financials")!.sections;
-    expect(sectionLinkHref(2, budget!, "7")).toBe("/projects/2/financials/budget?f=7");
-    expect(sectionLinkHref(2, budget!, null)).toBe("/projects/2/financials/budget");
-    expect(sectionLinkHref(2, budget!, "7&x=1")).toBe("/projects/2/financials/budget");
+    const budget = section("financials/budget");
+    expect(sectionLinkHref(2, budget, "7")).toBe("/projects/2/financials/budget?f=7");
+    expect(sectionLinkHref(2, budget, null)).toBe("/projects/2/financials/budget");
+    expect(sectionLinkHref(2, budget, "7&x=1")).toBe("/projects/2/financials/budget");
     expect(sectionLinkHref(2, meetings, "7")).toBe("/projects/2/meetings");
   });
+});
 
-  it("activity group contains keywords", () => {
-    const activity = projectSectionGroups.find((g) => g.key === "activity")!;
-    expect(activity.sections.map((s) => s.segment)).toContain("keywords");
-  });
-
-  it("activity group ends with meetings then notes, matched as a prefix for the notes workspace route", () => {
-    const activity = projectSectionGroups.find((g) => g.key === "activity")!;
-    expect(activity.sections.map((s) => s.segment)).toEqual([
-      "daily-activities",
-      "todos",
-      "keywords",
-      "meetings",
-      "notes",
+describe("sectionRuns", () => {
+  it("splits Strategy & Financials into its plain pages and the labelled Financials sub-list", () => {
+    const runs = sectionRuns(group("strategy").sections);
+    expect(runs.map((r) => [r.subgroup, r.sections.map((s) => s.segment)])).toEqual([
+      [undefined, [".", "objectives"]],
+      [
+        messages.projects.financialsSection,
+        [
+          "financials/budget",
+          "financials/monitoring",
+          "financials/documents",
+          "financials/settings",
+          "financials/project-math",
+        ],
+      ],
     ]);
-    expect(activity.sections.at(-1)?.match).toBe("prefix");
   });
 
-  it("flatMap projectSections contains built segments in ADR-0018 order", () => {
-    const segments = projectSections.map((s) => s.segment);
-    expect(segments).toContain(".");
-    expect(segments).toContain("deliverables");
-    expect(segments).toContain("suppliers");
-    expect(segments).toContain("keywords");
-    // ADR-0018 order, amended by ADR-0046: charter before requirements before
-    // deliverables before suppliers before keywords
-    expect(segments.indexOf(".")).toBeLessThan(segments.indexOf("requirements"));
-    expect(segments.indexOf("requirements")).toBeLessThan(segments.indexOf("deliverables"));
-    expect(segments.indexOf("deliverables")).toBeLessThan(segments.indexOf("suppliers"));
-    expect(segments.indexOf("suppliers")).toBeLessThan(segments.indexOf("keywords"));
+  it("a group without sub-lists is one run", () => {
+    expect(sectionRuns(group("governance").sections)).toHaveLength(1);
+  });
+
+  it("an empty list has no runs", () => {
+    expect(sectionRuns([])).toEqual([]);
   });
 });
 
@@ -175,5 +248,10 @@ describe("isGroupActive", () => {
 
   it("returns false for a different project id", () => {
     expect(isGroupActive("/projects/99/deliverables", 2, planningGroup)).toBe(false);
+  });
+
+  it("the Requirements & Deliverables group is active on the canvas board", () => {
+    expect(isGroupActive("/projects/2/deliverables/canvas", 2, group("requirements"))).toBe(true);
+    expect(isGroupActive("/projects/2/stakeholders/matrix", 2, group("communication"))).toBe(true);
   });
 });

@@ -33,8 +33,8 @@ function childrenBottom(node: Element): number | null {
   return bottom;
 }
 
-/** Each ancestor of the box up to the page, as fitHeight needs it. */
-function levelsAbove(target: HTMLElement): FitLevel[] {
+/** Each ancestor of the box up to its frame (or the page), as fitHeight needs it. */
+function levelsAbove(target: HTMLElement, frame: HTMLElement | null): FitLevel[] {
   const levels: FitLevel[] = [];
   for (let node = target.parentElement; node && node !== document.body; node = node.parentElement) {
     const style = getComputedStyle(node);
@@ -45,19 +45,45 @@ function levelsAbove(target: HTMLElement): FitLevel[] {
         parseFloat(style.borderBottomWidth),
       childrenBottom: childrenBottom(node),
     });
+    if (node === frame) break;
   }
   return levels;
 }
 
-/** The box's `--fit-h`: the window less what sits above and below it, never the stretch. */
+/**
+ * The window the box fills: a full-page layer marked `data-fit-frame` when the box sits in one,
+ * else the page. Measured against the page, a box in the layer counted the page behind it as room
+ * below, grew to its whole content, and the layer scrolled the header row away instead of the box
+ * (client feedback, 2026-11-12). `origin` is where the frame's content starts on screen.
+ */
+function frameOf(target: HTMLElement) {
+  const frame = target.closest<HTMLElement>("[data-fit-frame]");
+  if (!frame) {
+    const doc = document.documentElement;
+    return {
+      frame,
+      height: doc.clientHeight,
+      scrollHeight: doc.scrollHeight,
+      origin: -window.scrollY,
+    };
+  }
+  return {
+    frame,
+    height: frame.clientHeight,
+    scrollHeight: frame.scrollHeight,
+    origin: frame.getBoundingClientRect().top + frame.clientTop - frame.scrollTop,
+  };
+}
+
+/** The box's `--fit-h`: its window less what sits above and below it, never the stretch. */
 function measureFit(target: HTMLElement): number {
-  const doc = document.documentElement;
+  const { frame, height, scrollHeight, origin } = frameOf(target);
   const rect = target.getBoundingClientRect();
   return fitHeight({
-    viewport: doc.clientHeight,
-    top: rect.top + window.scrollY,
-    below: doc.scrollHeight - (rect.bottom + window.scrollY),
-    stretch: stretchBelow(levelsAbove(target)),
+    viewport: height,
+    top: rect.top - origin,
+    below: scrollHeight - (rect.bottom - origin),
+    stretch: stretchBelow(levelsAbove(target, frame)),
   });
 }
 

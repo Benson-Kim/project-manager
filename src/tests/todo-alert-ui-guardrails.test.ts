@@ -8,8 +8,8 @@ function source(path: string): string {
 describe("todo alert UI review guardrails", () => {
   it("passes alert permissions independently of to-do edit permission", () => {
     const sheet = source("src/modules/todo-items/components/todo-item-sheet.tsx");
-    const globalPage = source("src/app/(app)/todo/page.tsx");
-    const projectPage = source("src/app/(app)/projects/[id]/todos/page.tsx");
+    const globalPage = source("src/app/(app)/todo/todo-screen.tsx");
+    const projectPage = source("src/app/(app)/projects/[id]/todos/project-todos-screen.tsx");
 
     expect(sheet).toContain("const canSaveAlert = todoAlert ? canUpdateAlert : canCreateAlert");
     expect(sheet).not.toContain("{todoItem && canEdit ? (");
@@ -35,7 +35,7 @@ describe("todo alert UI review guardrails", () => {
   });
 
   it("preserves a null project id for unscoped global items", () => {
-    const globalPage = source("src/app/(app)/todo/page.tsx");
+    const globalPage = source("src/app/(app)/todo/todo-screen.tsx");
     const sheet = source("src/modules/todo-items/components/todo-item-sheet.tsx");
 
     expect(globalPage).toContain("projectId={selected?.ProjectId ?? null}");

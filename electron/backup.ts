@@ -7,7 +7,7 @@ import { mirrorUploads } from "./uploads-mirror";
 /**
  * Native SQL Server backups for the desktop edition.
  *
- * Flow: BACKUP DATABASE into `backupDir` (%ProgramData%\Project Manager\Backups,
+ * Flow: BACKUP DATABASE into `backupDir` (%ProgramData%\Modulus\Backups,
  * which the provisioning script makes writable for the SQL Server service —
  * the service cannot write into a user's Documents/OneDrive), verify it, then
  * copy it to the user's chosen copy folder (OneDrive / network share / USB) so
@@ -59,7 +59,7 @@ export async function backupDatabase(kind: BackupKind, opts: BackupOptions): Pro
     await pool
       .request()
       .input("file", sql.NVarChar, file)
-      .input("name", sql.NVarChar, `Project Manager ${kind} backup`)
+      .input("name", sql.NVarChar, `Modulus ${kind} backup`)
       .batch(
         `BACKUP DATABASE ${quoteName(target.database)} TO DISK = @file ` +
           `WITH INIT, FORMAT, CHECKSUM, NAME = @name`,

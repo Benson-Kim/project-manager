@@ -12,7 +12,7 @@ import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists
 import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
 import { isGanttScale } from "@/modules/key-deliverables/components/gantt-scale";
 import { isWbsView } from "@/modules/key-deliverables/components/wbs-diagram-layout";
-import { PrintButton } from "@/modules/key-deliverables/components/print-button";
+import { PrintButton } from "@/components/ui/print-button";
 import { WbsGantt } from "@/modules/key-deliverables/components/wbs-gantt";
 import {
   getKeyDeliverableById,
@@ -70,7 +70,12 @@ export default async function DeliverablesGanttPage({
         title={messages.keyDeliverables.ganttTitle}
         action={
           <div className="flex gap-2 print:hidden">
-            <PrintButton />
+            <PrintButton
+              label={messages.keyDeliverables.print}
+              testId="gantt-print"
+              variant="secondary"
+              className="min-h-10"
+            />
             <CanvasLink projectId={projectId} />
             <Link
               href={`/projects/${projectId}/deliverables`}

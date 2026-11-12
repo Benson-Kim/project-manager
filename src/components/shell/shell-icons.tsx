@@ -57,17 +57,12 @@ export function MenuIcon() {
 
 export function LogoMark() {
   return (
-    <svg viewBox="0 0 24 24" className="size-6 shrink-0" aria-hidden="true">
-      <rect x="2" y="2" width="20" height="20" rx="5" fill="var(--accent)" />
-      <path
-        d="M7 16.5v-9h4.2a3.1 3.1 0 0 1 0 6.2H9.4"
-        fill="none"
-        stroke="var(--on-accent)"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <img
+      src="/brand/modulus-mark.png"
+      alt=""
+      className="size-6 shrink-0 object-contain"
+      aria-hidden="true"
+    />
   );
 }
 

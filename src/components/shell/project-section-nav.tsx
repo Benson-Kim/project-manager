@@ -12,6 +12,7 @@ import {
   projectSectionGroups,
   sectionHref,
   sectionLinkHref,
+  sectionRuns,
   type ProjectSectionGroup,
 } from "./project-sections";
 
@@ -21,22 +22,23 @@ import {
 
 const pillClass = (active: boolean, open: boolean) =>
   [
-    "relative inline-flex min-h-10 items-center gap-1",
+    "relative inline-flex min-h-10 items-center gap-1 rounded-md",
     "px-3 text-sm font-medium whitespace-nowrap",
     "transition-colors duration-(--duration-fast) select-none cursor-pointer",
     active || open
-      ? "bg-accent text-on-accent hover:bg-accent-strong"
-      : "text-ink-muted hover:text-ink hover:bg-surface-raised",
+      ? "bg-primary text-on-primary shadow-sm shadow-primary/25 hover:bg-primary-hover"
+      : "text-ink-muted hover:text-ink hover:bg-hover",
   ].join(" ");
 
-const linkClass = (current: boolean) =>
+const linkClass = (current: boolean, nested: boolean) =>
   [
-    "block px-4 py-2.5 text-sm whitespace-nowrap",
+    "block py-2.5 pr-4 text-sm whitespace-nowrap",
+    nested ? "pl-7" : "pl-4",
     "first:rounded-t-lg last:rounded-b-lg",
     "transition-colors duration-(--duration-fast)",
     current
-      ? "text-ink font-medium bg-accent-soft"
-      : "text-ink-muted hover:text-ink hover:bg-surface-raised",
+      ? "text-accent font-semibold bg-accent-soft"
+      : "text-ink-muted hover:text-ink hover:bg-hover",
   ].join(" ");
 
 // ---------------------------------------------------------------------------
@@ -67,10 +69,9 @@ function GroupTrigger({
   if (group.sections.length === 0) return null;
 
   // A group with one section renders as a plain link — a disclosure holding a
-  // single link would open a panel to say what the pill already says (the
-  // Overview charter, and the Requirements register since ADR-0046). onClose is
-  // called so any other open disclosure collapses on navigation (review
-  // #4162765957). The panels below skip these groups for the same reason.
+  // single link would open a panel to say what the pill already says. onClose is
+  // called so any other open disclosure collapses on navigation. The panels
+  // below skip these groups for the same reason.
   const only = group.sections.length === 1 ? group.sections[0] : undefined;
   if (only) {
     const section = only;
@@ -127,10 +128,11 @@ function openReducer(state: OpenState, action: OpenAction): OpenState {
 // ---------------------------------------------------------------------------
 
 /**
- * Project section navigation (ADR-0019): group disclosure buttons (Overview /
- * Requirements / Planning / People & Resources / Financials / Activity), each
- * toggling a dropdown panel of section links. A group of one section is a pill
- * link instead of a disclosure (ADR-0046). Every panel starts closed (the
+ * Project section navigation (ADR-0019, ADR-0065): the client's six group
+ * disclosure buttons (Strategy & Financials / Requirements & Deliverables /
+ * Execution / Governance / Workspace / Communication), each toggling a dropdown
+ * panel of section links; the Financials views sit in a labelled sub-list. A
+ * group of one section is a pill link instead of a disclosure. Every panel starts closed (the
  * active group's pill stays highlighted) and a route change closes any open
  * panel.
  *
@@ -263,18 +265,38 @@ export function ProjectSectionNav({ projectId }: { projectId: number }) {
             style={{ position: "absolute", top: pos.top + 4, left: pos.left }}
             className="z-(--z-dropdown) min-w-44 rounded-lg border border-line bg-surface shadow-lg"
           >
-            {group.sections.map((section) => {
-              const current = isCurrentSection(pathname, projectId, section);
+            {sectionRuns(group.sections).map((run) => {
+              const links = run.sections.map((section) => {
+                const current = isCurrentSection(pathname, projectId, section);
+                return (
+                  <Link
+                    key={section.segment}
+                    href={sectionLinkHref(projectId, section, financialId)}
+                    aria-current={current ? "page" : undefined}
+                    className={linkClass(current, !!run.subgroup)}
+                    onClick={() => dispatch({ type: "close" })}
+                  >
+                    {section.label}
+                  </Link>
+                );
+              });
+              if (!run.subgroup) return links;
+              const labelId = `${panelId}-${run.sections[0]!.segment.replace(/\W/g, "-")}`;
               return (
-                <Link
-                  key={section.segment}
-                  href={sectionLinkHref(projectId, section, financialId)}
-                  aria-current={current ? "page" : undefined}
-                  className={linkClass(current)}
-                  onClick={() => dispatch({ type: "close" })}
+                <div
+                  key={labelId}
+                  role="group"
+                  aria-labelledby={labelId}
+                  className="border-t border-line first:border-t-0"
                 >
-                  {section.label}
-                </Link>
+                  <p
+                    id={labelId}
+                    className="px-4 pt-2.5 pb-1 text-xs font-semibold tracking-wide text-ink-muted uppercase"
+                  >
+                    {run.subgroup}
+                  </p>
+                  {links}
+                </div>
               );
             })}
           </div>,

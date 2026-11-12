@@ -225,8 +225,8 @@ describe("the arrangement is stored under the key every page of the module reads
   });
   const modules = [
     pagesOf("todo-items", TODO_VIEW, [
-      "src/app/(app)/todo/page.tsx",
-      "src/app/(app)/projects/[id]/todos/page.tsx",
+      "src/app/(app)/todo/todo-screen.tsx",
+      "src/app/(app)/projects/[id]/todos/project-todos-screen.tsx",
     ]),
     pagesOf("daily-activities", ACTIVITIES_VIEW, [
       "src/app/(app)/daily-activities/page.tsx",

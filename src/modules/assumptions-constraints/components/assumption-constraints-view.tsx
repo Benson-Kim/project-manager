@@ -2,7 +2,7 @@
 
 import { listColumn, textColumn } from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
-import { formCellSaver } from "@/components/ui/data-view/datasheet";
+import { addUndo, formCellSaver } from "@/components/ui/data-view/datasheet";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { listEmptyState } from "@/components/ui/states";
@@ -10,7 +10,11 @@ import { rowAllows } from "@/lib/auth/actor-access";
 import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
-import { createAssumptionConstraintAction, updateAssumptionConstraintAction } from "../actions";
+import {
+  createAssumptionConstraintAction,
+  updateAssumptionConstraintAction,
+  deleteAssumptionConstraintAction,
+} from "../actions";
 import type {
   AssumptionConstraintListRow,
   AssumptionConstraintRow,
@@ -148,6 +152,15 @@ export function AssumptionConstraintsView({
         saveCell,
         addRow: canCreate
           ? {
+              undo: addUndo(
+                (row: { AssumptionConstraintId: number; RowVer: number }) =>
+                  row.AssumptionConstraintId,
+                (row) =>
+                  deleteAssumptionConstraintAction({
+                    assumptionConstraintId: row.AssumptionConstraintId,
+                    rowVer: row.RowVer,
+                  }),
+              ),
               add: (values) =>
                 createAssumptionConstraintAction({ ...values, projectId: String(projectId) }),
             }

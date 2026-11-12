@@ -63,7 +63,7 @@ function CloseButton() {
   return (
     <RadixDialog.Close
       aria-label={messages.actions.close}
-      className="absolute top-3 right-3 flex size-11 items-center justify-center rounded-md text-ink-muted hover:bg-surface-sunken"
+      className="absolute top-3 right-3 flex size-11 items-center justify-center rounded-md text-ink-muted hover:bg-hover"
     >
       <svg viewBox="0 0 16 16" className="size-4" fill="none" aria-hidden="true">
         <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" />

@@ -4,7 +4,7 @@ import { allowsLink, type LinkRule } from "../schemas/link-rules";
 import { layoutClusters } from "./cluster-layout";
 import { itemKey } from "./gaps";
 import { NODE_HEIGHT, NODE_WIDTH } from "./layout";
-import { canvasClusters, foldLinks, neighbourhood } from "./scale";
+import { canvasClusters, focusTrace, foldLinks, type Trace } from "./scale";
 
 export type Placement = Pick<CanvasItem, "OnCanvas" | "X" | "Y" | "IsCollapsed">;
 export type Placements = ReadonlyMap<string, Placement>;
@@ -161,12 +161,14 @@ export function collapsibleKeys(items: readonly CanvasItem[]): ReadonlySet<strin
 /**
  * Links with both ends on the canvas, pointing downstream, one edge per shown pair. An edge that
  * stands for several links, or for a folded end, shows the count and carries no single link.
- * A link that is only Proposed is dashed.
+ * A link that is only Proposed is dashed. Under a focus, an edge none of whose links the trace
+ * followed is hidden, even when both its cards are shown.
  */
 export function boardEdges(
   items: readonly CanvasItem[],
   links: readonly CanvasLink[],
   hiddenBy: ReadonlyMap<string, string> = new Map(),
+  traced: ReadonlySet<CanvasLink> | null = null,
 ): LinkEdge[] {
   const onCanvas = new Set(items.filter((item) => item.OnCanvas).map(keyOf));
   const shown = links.filter(
@@ -189,6 +191,7 @@ export function boardEdges(
       sourceHandle: "downstream",
       targetHandle: "upstream",
       markerEnd: { type: "arrowclosed" as const },
+      hidden: traced !== null && !folded.some((link) => traced.has(link)),
       data: own ? { link: own, count: 1 } : { count: folded.length },
       ...(own ? {} : { label: String(folded.length) }),
       ...(folded.every((link) => link.LinkStatus === "Proposed")
@@ -201,15 +204,21 @@ export function boardEdges(
 /** A card shown with what lies up to `depth` links from it. */
 export type Focus = { key: string; depth: number };
 
-/** The nodes a focus leaves on the board. A folded neighbour shows as the card that folds it. */
-export function focusKeys(
+/**
+ * What a focus leaves on the board: its traced nodes, a folded one showing as the card that folds
+ * it, and the links the trace followed.
+ */
+export function focusView(
   focus: Focus | null,
   links: readonly CanvasLink[],
   hiddenBy: ReadonlyMap<string, string>,
-): ReadonlySet<string> | null {
+): Trace | null {
   if (!focus) return null;
-  const near = neighbourhood(focus.key, links, focus.depth);
-  return new Set([...near].map((key) => hiddenBy.get(key) ?? key));
+  const trace = focusTrace(focus.key, links, focus.depth);
+  return {
+    keys: new Set([...trace.keys].map((key) => hiddenBy.get(key) ?? key)),
+    links: trace.links,
+  };
 }
 
 /** Nodes a fold or a focus takes off the board. Their positions stay, so they come back in place. */
@@ -251,18 +260,39 @@ export function clusterLabels(
   });
 }
 
-/** New data over the flow's own nodes: keeps what it measured, and a node mid-drag where it is. */
+/**
+ * New data over the flow's own nodes: keeps what it measured, and a node mid-drag, or dropped but
+ * not saved yet (`unsaved`), where it is.
+ */
 export function mergeFlowNodes(
   next: readonly ItemNode[],
   current: readonly ItemNode[],
+  unsaved: ReadonlySet<string> = NO_KEYS,
 ): ItemNode[] {
   const flow = new Map(current.map((node) => [node.id, node]));
   return next.map((node) => {
     const old = flow.get(node.id);
     if (!old) return node;
-    const position = old.dragging ? old.position : node.position;
+    const position = old.dragging || unsaved.has(node.id) ? old.position : node.position;
     return { ...node, position, measured: old.measured, dragging: old.dragging };
   });
+}
+
+/**
+ * Where the shown cards with no saved place sit now, and whether the layout moved one that was
+ * already on the board. A new link regroups those cards; cards placed by hand stay where they are.
+ */
+export function layoutMoves(
+  before: ReadonlyMap<string, string>,
+  nodes: readonly ItemNode[],
+): { laidOut: Map<string, string>; moved: boolean } {
+  const laidOut = new Map(
+    nodes
+      .filter((node) => !node.hidden && (node.data.item.X === null || node.data.item.Y === null))
+      .map((node) => [node.id, `${node.position.x},${node.position.y}`]),
+  );
+  const moved = [...laidOut].some(([id, at]) => before.has(id) && before.get(id) !== at);
+  return { laidOut, moved };
 }
 
 /** Whole-number moves that changed anything, as the move action takes them. */

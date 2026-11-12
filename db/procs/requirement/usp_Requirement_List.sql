@@ -16,6 +16,9 @@
 -- Planning columns (ADR-0052) as usp_Requirement_GetById.
 -- Row-level access: dbo.usp_Project_AssertAccess on @ProjectId (FORBIDDEN_ROW 50003).
 -- ActorAccess / ActorGrants / ActorRevokes per ADR-0023 and ADR-0024, as usp_Objective_List.
+-- Added columns (ADR-0067): @CustomColumnId + @CustomOptionId keep the rows holding that choice,
+--   both ids, never a label, so a renamed choice or column filters the same rows. CustomCellsJson
+--   is each page row's added-column values (ufn_Requirement_CustomCells).
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Requirement_List
@@ -26,7 +29,9 @@ CREATE OR ALTER PROCEDURE dbo.usp_Requirement_List
     @SortBy      NVARCHAR(50)  = NULL,
     @SortDir     VARCHAR(4)    = 'asc',
     @Page        INT           = 1,
-    @PageSize    INT           = 25
+    @PageSize    INT           = 25,
+    @CustomColumnId INT        = NULL,
+    @CustomOptionId INT        = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -77,6 +82,11 @@ BEGIN
           AND r.IsDeleted = 0
           AND (@Type IS NULL OR r.RequirementType = @Type)
           AND (@Search IS NULL OR r.Requirement LIKE N'%' + @Search + N'%' ESCAPE N'\')
+          AND (@CustomOptionId IS NULL OR EXISTS (
+                   SELECT 1 FROM app.RequirementCell AS v
+                   WHERE v.RequirementId = r.RequirementId
+                     AND v.RequirementColumnId = @CustomColumnId
+                     AND v.OptionId = @CustomOptionId))
     )
     SELECT r.RequirementId,
            r.ProjectId,
@@ -101,6 +111,7 @@ BEGIN
            l.ValidatesJson,
            l.ValidatedByJson,
            l.DeliverablesJson,
+           dbo.ufn_Requirement_CustomCells(r.RequirementId) AS CustomCellsJson,
            p.TotalCount,
            acc.AccessLevel AS ActorAccess,
            ov.Grants       AS ActorGrants,

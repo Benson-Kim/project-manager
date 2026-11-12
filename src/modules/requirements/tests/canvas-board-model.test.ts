@@ -6,8 +6,9 @@ import {
   CLUSTER_LABEL_RISE,
   clusterLabels,
   collapsibleKeys,
-  focusKeys,
+  focusView,
   itemConnection,
+  layoutMoves,
   linkEnds,
   mergeFlowNodes,
   rollbackPlacements,
@@ -56,6 +57,47 @@ describe("canvas board model", () => {
     expect(nodes[0]?.position).toEqual({ x: 7, y: 9 });
     expect(nodes[1]?.position.x).toBeGreaterThan(0);
     expect(nodes.map((node) => node.selected)).toEqual([false, true]);
+  });
+
+  it("notices when a new link moves a card the layout places, so the board can fit it back in view", () => {
+    const items = [
+      item({ ItemId: 1, Type: "BR" }),
+      item({ ItemId: 2, Type: "SR" }),
+      item({ ItemId: 3 }),
+      item({ ItemId: 4, X: 900, Y: 900 }),
+    ];
+    const before = layoutMoves(new Map(), boardNodes(items, [link()], null));
+    expect(before.moved).toBe(false);
+    expect([...before.laidOut.keys()]).not.toContain("Requirement:4");
+
+    const linked = boardNodes(items, [link(), link({ UpstreamId: 2, DownstreamId: 3 })], null);
+    expect(linked.find((node) => node.id === "Requirement:3")?.position).not.toEqual(
+      boardNodes(items, [link()], null).find((node) => node.id === "Requirement:3")?.position,
+    );
+    expect(layoutMoves(before.laidOut, linked).moved).toBe(true);
+    expect(layoutMoves(before.laidOut, boardNodes(items, [link()], null)).moved).toBe(false);
+  });
+
+  it("does not count a hidden card, a card new to the board or a card placed by hand as moved", () => {
+    const node = (
+      id: string,
+      x: number,
+      over: Partial<ItemNode> = {},
+      placed = false,
+    ): ItemNode => ({
+      id,
+      type: "item",
+      position: { x, y: 0 },
+      data: { item: item({ ItemId: Number(id.split(":")[1]), ...(placed ? { X: x, Y: 0 } : {}) }) },
+      ...over,
+    });
+    const { laidOut } = layoutMoves(new Map(), [node("Requirement:1", 0)]);
+    expect(layoutMoves(laidOut, [node("Requirement:1", 0), node("Requirement:2", 50)]).moved).toBe(
+      false,
+    );
+    expect(layoutMoves(laidOut, [node("Requirement:1", 80, { hidden: true })]).moved).toBe(false);
+    expect(layoutMoves(laidOut, [node("Requirement:1", 80, {}, true)]).moved).toBe(false);
+    expect(layoutMoves(laidOut, [node("Requirement:1", 80)]).moved).toBe(true);
   });
 
   it("keeps an edge only with both ends on the canvas, and dashes a Proposed link", () => {
@@ -116,6 +158,21 @@ describe("canvas board model", () => {
       [flow({ position: { x: 40, y: 50 }, measured })],
     );
     expect(settled?.position).toEqual({ x: 1, y: 2 });
+  });
+
+  it("keeps a dropped card where it was put until its move is saved", () => {
+    const flow = (position: { x: number; y: number }): ItemNode => ({
+      id: "Requirement:1",
+      type: "item",
+      position,
+      data: { item: item({ ItemId: 1 }) },
+    });
+    const [held] = mergeFlowNodes(
+      [flow({ x: 1, y: 2 })],
+      [flow({ x: 40, y: 50 })],
+      new Set(["Requirement:1"]),
+    );
+    expect(held?.position).toEqual({ x: 40, y: 50 });
   });
 
   it("rounds a move, keeps the collapsed flag, and skips an unchanged or unknown node", () => {
@@ -315,17 +372,58 @@ describe("canvas folds and focus", () => {
   ];
 
   it("focuses a card with its direct links, or its whole trace", () => {
-    expect(focusKeys(null, chain, new Map())).toBeNull();
-    const near = focusKeys({ key: "Requirement:2", depth: 1 }, chain, new Map());
-    expect([...(near ?? [])].sort()).toEqual(["Requirement:1", "Requirement:2", "Requirement:3"]);
-    const all = focusKeys({ key: "Requirement:2", depth: Infinity }, chain, new Map());
-    expect(all?.size).toBe(4);
+    expect(focusView(null, chain, new Map())).toBeNull();
+    const near = focusView({ key: "Requirement:2", depth: 1 }, chain, new Map());
+    expect([...(near?.keys ?? [])].sort()).toEqual([
+      "Requirement:1",
+      "Requirement:2",
+      "Requirement:3",
+    ]);
+    const all = focusView({ key: "Requirement:2", depth: Infinity }, chain, new Map());
+    expect(all?.keys.size).toBe(4);
   });
 
   it("shows a folded neighbour as the card that folds it", () => {
     const hiddenBy = new Map([["Requirement:3", "Requirement:9"]]);
-    const near = focusKeys({ key: "Requirement:2", depth: 1 }, chain, hiddenBy);
-    expect([...(near ?? [])].sort()).toEqual(["Requirement:1", "Requirement:2", "Requirement:9"]);
+    const near = focusView({ key: "Requirement:2", depth: 1 }, chain, hiddenBy);
+    expect([...(near?.keys ?? [])].sort()).toEqual([
+      "Requirement:1",
+      "Requirement:2",
+      "Requirement:9",
+    ]);
+  });
+
+  const four = [1, 2, 3, 4].map((ItemId) => item({ ItemId }));
+  const shownEdges = (edges: ReturnType<typeof boardEdges>) =>
+    edges.filter((edge) => !edge.hidden).map((edge) => edge.id);
+
+  it("shows every edge with no focus", () => {
+    expect(shownEdges(boardEdges(four, chain))).toHaveLength(3);
+  });
+
+  it("hides every edge the focus did not follow, even between two shown cards", () => {
+    const sideways = link({ UpstreamId: 1, DownstreamId: 3 });
+    const links = [...chain, sideways];
+    const near = focusView({ key: "Requirement:2", depth: 1 }, links, new Map());
+    expect(shownEdges(boardEdges(four, links, new Map(), near?.links ?? null))).toEqual([
+      "Requirement:1>Requirement:2",
+      "Requirement:2>Requirement:3",
+    ]);
+    const all = focusView({ key: "Requirement:2", depth: Infinity }, links, new Map());
+    expect(shownEdges(boardEdges(four, links, new Map(), all?.links ?? null))).toEqual([
+      "Requirement:1>Requirement:2",
+      "Requirement:2>Requirement:3",
+      "Requirement:3>Requirement:4",
+    ]);
+  });
+
+  it("keeps a folded edge when the focus followed one of its links", () => {
+    const hiddenBy = new Map([["Requirement:3", "Requirement:4"]]);
+    const near = focusView({ key: "Requirement:2", depth: 1 }, chain, hiddenBy);
+    expect(shownEdges(boardEdges(four, chain, hiddenBy, near?.links ?? null))).toEqual([
+      "Requirement:1>Requirement:2",
+      "Requirement:2>Requirement:4",
+    ]);
   });
 
   it("hides folded cards and cards outside the focus", () => {

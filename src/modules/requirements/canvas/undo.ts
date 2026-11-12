@@ -53,6 +53,22 @@ export function savedLink(
   );
 }
 
+/** What takes a step back once it is applied, read from the board before it is applied. */
+export function stepBack(
+  step: CanvasUndo,
+  items: readonly CanvasItem[],
+  links: readonly CanvasLink[],
+  rules: readonly LinkRule[],
+): CanvasUndo | null {
+  if (step.kind === "nodes") return nodesBack(items, step.before);
+  if (step.kind === "unlink") {
+    const saved = savedLink(links, step.upKey, step.downId);
+    return saved ? unlinkBack(saved) : null;
+  }
+  const made = itemConnection(items, links, rules, step.upKey, step.downKey);
+  return made ? linkBack(made.up, made.down) : null;
+}
+
 /** A step applies while one of its nodes is still listed, or its link can still go or come back. */
 export function undoApplies(
   step: CanvasUndo,

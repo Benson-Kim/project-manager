@@ -193,3 +193,10 @@ describe("rolledEffort", () => {
     expect(effort.get(3)).toBe(0);
   });
 });
+
+describe("statusToCompletion", () => {
+  it("counts Blocked as far along as On Hold", () => {
+    expect(statusToCompletion("Blocked")).toBe(statusToCompletion("On Hold"));
+    expect(statusToCompletion("Blocked")).toBe(20);
+  });
+});

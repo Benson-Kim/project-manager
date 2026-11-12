@@ -7,18 +7,8 @@
 // Runs against the seeded database in the CI db-apply job (E2E_SEED=1: users 1 admin,
 // 3 e2e-pm, 5 e2e-viewer) and locally: node db/tests/todo-recurrence-procs.cjs. Leaves to-dos
 // behind, so never point it at a real database.
-// Env: DB_SERVER, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (a .env file fills what is missing).
-try {
-  require("fs")
-    .readFileSync(".env", "utf8")
-    .split(/\r?\n/)
-    .forEach((l) => {
-      const m = l.match(/^([A-Z_0-9]+)=(.*)$/);
-      if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
-    });
-} catch {
-  // No .env: the environment must carry the DB_* values (CI).
-}
+// Env: DB_SERVER, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (DB_NAME must be set; .env fills the rest).
+require("./support/test-env.cjs");
 const sql = require("mssql");
 
 const ADMIN = 1;
@@ -95,7 +85,7 @@ const lastAudit = async (entity, id) => {
 (async () => {
   pool = await sql.connect({
     server: process.env.DB_SERVER || "localhost", port: Number(process.env.DB_PORT || 1433),
-    database: process.env.DB_NAME || "ProjectManager",
+    database: process.env.DB_NAME,
     user: process.env.DB_USER, password: process.env.DB_PASSWORD,
     options: { trustServerCertificate: true, encrypt: true },
   });

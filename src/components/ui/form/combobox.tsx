@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Chevron } from "../chevron";
 import { usePopoverPlacement } from "../popover-placement";
 import { closeAfterBlur } from "./close-after-blur";
+import { NoMatchNote } from "./no-match-note";
 import { useFieldAria } from "./field";
-import { NO_MATCH, rankByMatch } from "./rank-options";
+import { matchesNone, NO_MATCH, rankByMatch } from "./rank-options";
 
 /**
  * Minimal ARIA 1.2 combobox : text input + filtered listbox popup.
@@ -21,7 +22,8 @@ export interface ComboboxOption {
 }
 
 export interface ComboboxProps {
-  name: string;
+  /** The field the chosen value submits under; a box that adds (`onPick`) submits nothing itself. */
+  name?: string;
   options: ComboboxOption[];
   defaultValue?: string;
   onSelect?: (option: ComboboxOption | null) => void;
@@ -39,6 +41,19 @@ export interface ComboboxProps {
   freeTextName?: string;
   /** The typed name to start with, when the stored value was free text. */
   defaultFreeText?: string;
+  /**
+   * Makes the box an adder, like the project team's add row: each choice is handed over here and
+   * the box empties, with the caret still in it, ready for the next one. It keeps no choice of
+   * its own, so `onSelect` and `defaultValue` do not apply.
+   */
+  onPick?: (option: ComboboxOption) => void;
+  /** Put the caret in the box once it is on screen (a command that opens a form on it). */
+  autoFocus?: boolean;
+  /**
+   * Shown under the box while the typed text names no option, which typing alone never picks.
+   * `clear` empties the box, for a control in it that has dealt with the name some other way.
+   */
+  noMatch?: (text: string, clear: () => void) => React.ReactNode;
 }
 
 export function Combobox({
@@ -51,6 +66,9 @@ export function Combobox({
   inCell = false,
   freeTextName,
   defaultFreeText,
+  onPick,
+  autoFocus = false,
+  noMatch,
 }: ComboboxProps) {
   const listboxId = useId();
   const aria = useFieldAria();
@@ -64,24 +82,46 @@ export function Combobox({
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
+  // A frame later, not on mount: a dialog focuses its first field as it opens,
+  // which would otherwise land after this and take the caret away.
+  useEffect(() => {
+    if (!autoFocus) return;
+    const frame = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [autoFocus]);
+
   const ranked = useMemo(
     () => rankByMatch(options, query === selected?.label ? "" : query, (o) => o.label),
     [options, query, selected],
   );
   const filtered = ranked.map((r) => r.option);
+  const unmatched = noMatch !== undefined && matchesNone(options, query, (o) => o.label);
   usePopoverPlacement(inputRef, listRef, open && filtered.length > 0, {
     fit: true,
     contentKey: filtered.length,
   });
 
+  const clear = useCallback(() => {
+    keyedRef.current = false;
+    setQuery("");
+    setActiveIndex(0);
+    setOpen(false);
+    inputRef.current?.focus();
+  }, []);
+
   const select = useCallback(
     (option: ComboboxOption | null) => {
+      if (onPick) {
+        if (option) onPick(option);
+        clear();
+        return;
+      }
       setSelected(option);
       setQuery(option?.label ?? "");
       setOpen(false);
       onSelect?.(option);
     },
-    [onSelect],
+    [onPick, onSelect, clear],
   );
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -110,7 +150,7 @@ export function Combobox({
 
   return (
     <div className="relative">
-      <input type="hidden" name={name} value={selected?.value ?? ""} />
+      {name ? <input type="hidden" name={name} value={selected?.value ?? ""} /> : null}
       {freeTextName ? (
         <input type="hidden" name={freeTextName} value={selected ? "" : query.trim()} />
       ) : null}
@@ -141,10 +181,11 @@ export function Combobox({
         onFocus={() => setOpen(true)}
         onClick={() => setOpen(true)}
         onBlur={(e) => {
-          // A pick-only box returns to its choice; a box accepting typed names keeps its text.
+          // A pick-only box returns to its choice; a box accepting typed names keeps its text, and
+          // so does an adder, whose no-match note may hold the control that deals with it.
           closeAfterBlur(e.currentTarget, () => {
             setOpen(false);
-            if (!freeTextName) setQuery(selected?.label ?? "");
+            if (!freeTextName && !onPick) setQuery(selected?.label ?? "");
           });
         }}
         onKeyDown={onKeyDown}
@@ -179,6 +220,9 @@ export function Combobox({
           </li>
         ))}
       </ul>
+      {noMatch ? (
+        <NoMatchNote unmatched={unmatched} text={query} clear={clear} render={noMatch} />
+      ) : null}
     </div>
   );
 }

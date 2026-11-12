@@ -62,33 +62,41 @@ export function foldLinks(
   return [...folded.values()];
 }
 
+export interface Trace {
+  keys: ReadonlySet<string>;
+  /** The links the walk followed; one joining two traced items around the focus is not one. */
+  links: ReadonlySet<CanvasLink>;
+}
+
 /**
  * The focus with what lies up to `depth` links upstream and downstream of it. The walk keeps one
  * direction, so a sibling sharing a parent is not a neighbour. Infinity gives the whole trace.
  */
-export function neighbourhood(
-  focus: string,
-  links: readonly CanvasLink[],
-  depth = 1,
-): ReadonlySet<string> {
-  const ups = new Map<string, string[]>();
-  const downs = new Map<string, string[]>();
+export function focusTrace(focus: string, links: readonly CanvasLink[], depth = 1): Trace {
+  const ups = new Map<string, CanvasLink[]>();
+  const downs = new Map<string, CanvasLink[]>();
   for (const link of links) {
     const [up, down] = linkEnds(link);
-    ups.set(down, [...(ups.get(down) ?? []), up]);
-    downs.set(up, [...(downs.get(up) ?? []), down]);
+    ups.set(down, [...(ups.get(down) ?? []), link]);
+    downs.set(up, [...(downs.get(up) ?? []), link]);
   }
-  const found = new Set([focus]);
-  for (const next of [ups, downs]) {
+  const keys = new Set([focus]);
+  const followed = new Set<CanvasLink>();
+  for (const [next, far] of [
+    [ups, 0],
+    [downs, 1],
+  ] as const) {
     const reached = new Set([focus]);
     let ring = [focus];
     for (let step = 0; step < depth && ring.length > 0; step++) {
-      ring = ring.flatMap((key) => next.get(key) ?? []).filter((key) => !reached.has(key));
+      const out = ring.flatMap((key) => next.get(key) ?? []);
+      for (const link of out) followed.add(link);
+      ring = out.map((link) => linkEnds(link)[far]).filter((key) => !reached.has(key));
       for (const key of ring) reached.add(key);
     }
-    for (const key of reached) found.add(key);
+    for (const key of reached) keys.add(key);
   }
-  return found;
+  return { keys, links: followed };
 }
 
 /**

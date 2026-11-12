@@ -10,7 +10,7 @@ import {
   textColumn,
 } from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
-import { formCellSaver } from "@/components/ui/data-view/datasheet";
+import { addUndo, formCellSaver } from "@/components/ui/data-view/datasheet";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { ProjectLink } from "@/components/ui/project-link";
@@ -32,7 +32,12 @@ import {
   type TodoItemRow,
 } from "../schemas/todo-item";
 import { todoItemFormValues } from "../schemas/todo-item-form";
-import { createTodoItemAction, reorderTodoItemAction, updateTodoItemAction } from "../actions";
+import {
+  createTodoItemAction,
+  reorderTodoItemAction,
+  updateTodoItemAction,
+  deleteTodoItemAction,
+} from "../actions";
 import { TodoToolbar } from "./todo-toolbar";
 
 type Row = TodoItemListRow;
@@ -325,6 +330,10 @@ export function TodoView({
         addRow: canCreate
           ? {
               // The Project cell (on /todo) names the project; else this page's project.
+              undo: addUndo(
+                (row: { TodoItemId: number; RowVer: number }) => row.TodoItemId,
+                (row) => deleteTodoItemAction({ todoItemId: row.TodoItemId, rowVer: row.RowVer }),
+              ),
               add: (values) =>
                 createTodoItemAction({
                   projectId: projectId === null ? "" : String(projectId),

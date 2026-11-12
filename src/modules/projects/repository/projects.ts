@@ -108,16 +108,30 @@ export async function listProjects(
 /**
  * Every project the actor can see, by name, with their access level — the shell's
  * project switcher and the cross-project pickers/filters. Cached per request, so
- * the layout and the page share one proc call.
+ * the layout and the page share these proc calls.
+ *
+ * usp_Project_List returns at most PROJECT_LIST_PAGE_MAX rows a call, so the list is read a page
+ * at a time until a short page; asking for more in one call used to cut it off at the first 100
+ * names, and a form could not then preselect a project later in the alphabet.
  */
+export const PROJECT_LIST_PAGE_MAX = 100;
+const PROJECT_OPTION_PAGES_MAX = 100;
+
 export const listProjectOptions = cache(async (actorUserId: number): Promise<ProjectOption[]> => {
-  const rows = await listProjects(
-    { q: undefined, sort: "ProjectName", dir: "asc", view: undefined, page: 1 },
-    actorUserId,
-    {},
-    1000,
-  );
-  return rows.map((row) => ({ id: row.ProjectId, name: row.ProjectName, access: row.ActorAccess }));
+  const options: ProjectOption[] = [];
+  for (let page = 1; page <= PROJECT_OPTION_PAGES_MAX; page++) {
+    const rows = await listProjects(
+      { q: undefined, sort: "ProjectName", dir: "asc", view: undefined, page },
+      actorUserId,
+      {},
+      PROJECT_LIST_PAGE_MAX,
+    );
+    for (const row of rows) {
+      options.push({ id: row.ProjectId, name: row.ProjectName, access: row.ActorAccess });
+    }
+    if (rows.length < PROJECT_LIST_PAGE_MAX) break;
+  }
+  return options;
 });
 
 export async function updateProject(

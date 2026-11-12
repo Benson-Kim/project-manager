@@ -15,6 +15,7 @@ import {
   moveBack,
   pushUndo,
   rescheduleBack,
+  stepBack,
   takeUndo,
   type UndoStep,
 } from "../schemas/wbs-undo";
@@ -128,6 +129,59 @@ describe("rescheduleBack", () => {
     const wbs = buildWbs([...building(), item(30, null, 3)]);
     expect(rescheduleBack(wbs, 30, 1)).toBeNull();
     expect(rescheduleBack(wbs, 999, 1)).toBeNull();
+  });
+});
+
+describe("stepBack", () => {
+  it("redoes an undone move: the step back returns the item to where the undo found it", () => {
+    const rows = building();
+    const undo: UndoStep = {
+      key: 1,
+      kind: "move",
+      id: 12,
+      placement: { parentId: 10, position: 2 },
+    };
+    const moved = applyMove(rows, 12, { parentId: 20, position: 1 });
+    const redo = stepBack(buildWbs(moved), undo, 2);
+    expect(redo).toEqual({
+      key: 2,
+      kind: "move",
+      id: 12,
+      placement: { parentId: 20, position: 1 },
+    });
+    if (redo?.kind !== "move") throw new Error("a move step");
+    const undone = applyMove(moved, 12, undo.placement);
+    expect(places(applyMove(undone, 12, redo.placement))).toEqual(places(moved));
+  });
+
+  it("redoes an undone reschedule by the dates the item has before the undo", () => {
+    const rows = building();
+    const undo: UndoStep = {
+      key: 1,
+      kind: "reschedule",
+      id: 11,
+      start: d("2024-03-01"),
+      end: d("2024-03-05"),
+    };
+    expect(stepBack(buildWbs(rows), undo, 2)).toEqual({
+      key: 2,
+      kind: "reschedule",
+      id: 11,
+      start: d("2024-04-01"),
+      end: d("2024-04-05"),
+    });
+  });
+
+  it("gives nothing to redo when the undo changes nothing", () => {
+    const wbs = buildWbs(building());
+    const stay: UndoStep = {
+      key: 1,
+      kind: "move",
+      id: 12,
+      placement: { parentId: 10, position: 2 },
+    };
+    expect(stepBack(wbs, stay, 2)).toBeNull();
+    expect(stepBack(wbs, step(1, 999), 2)).toBeNull();
   });
 });
 

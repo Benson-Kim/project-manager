@@ -10,7 +10,9 @@ import {
   createProject,
   deleteProject,
   getProjectById,
+  listProjectOptions,
   listProjects,
+  PROJECT_LIST_PAGE_MAX,
   searchProjects,
   updateProject,
 } from "../repository/projects";
@@ -121,6 +123,30 @@ describe("projects repository", () => {
       Page: 1,
       PageSize: 25,
     });
+  });
+
+  it("project options read every page, so a project past the first 100 names is still offered", async () => {
+    const page = (from: number, count: number) =>
+      Array.from({ length: count }, (_, i) =>
+        dbRow({
+          ProjectId: from + i,
+          ProjectName: `Project ${from + i}`,
+          TotalCount: 215,
+          ActorAccess: "Viewer",
+        }),
+      );
+    execProc
+      .mockResolvedValueOnce(page(1, PROJECT_LIST_PAGE_MAX))
+      .mockResolvedValueOnce(page(101, PROJECT_LIST_PAGE_MAX))
+      .mockResolvedValueOnce(page(201, 15));
+    const options = await listProjectOptions(41);
+    expect(options).toHaveLength(215);
+    expect(options[214]).toEqual({ id: 215, name: "Project 215", access: "Viewer" });
+    expect(execProc.mock.calls.map(([, p]) => [p.Page, p.PageSize])).toEqual([
+      [1, PROJECT_LIST_PAGE_MAX],
+      [2, PROJECT_LIST_PAGE_MAX],
+      [3, PROJECT_LIST_PAGE_MAX],
+    ]);
   });
 
   it("list rejects rows that break the contract", async () => {

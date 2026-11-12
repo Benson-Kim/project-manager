@@ -8,8 +8,10 @@
 //               clients so the fresh worker controls existing tabs.
 //   fetch     → navigation requests: network-first with cache fallback so users
 //               always see fresh data when online; cached skeleton when offline.
-//               Static assets (JS/CSS/images): cache-first (content-hashed names
-//               mean a new file name on every deploy).
+//               Static assets (an allowlist): cache-first. Everything else,
+//               above all the page data Next fetches on refresh and on
+//               client-side navigation (`?_rsc=`), goes to the network
+//               untouched: a cached copy would show the data from before a save.
 //   push      → wake this worker for each due alert and show an OS notification.
 //               Browsers may stop an idle worker at any time; each push event
 //               is independent and handled by a fresh instance.
@@ -28,7 +30,7 @@
 //   • Use a short date stamp or incrementing integer, e.g. "v2", "v3", "2026-10".
 //   • After bumping, `skipWaiting()` in the install handler activates the new
 //     worker immediately; existing tabs call `clients.claim()` and switch over.
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const SHELL_CACHE = `shell-${CACHE_VERSION}`;
 
 // App-shell assets to precache.  Next.js content-hashes JS/CSS filenames so
@@ -67,62 +69,51 @@ self.addEventListener("activate", (event) => {
 
 // ─── Fetch ───────────────────────────────────────────────────────────────────
 
+// Files that only change with a deploy: content-hashed build output and the
+// public icons. Nothing that carries data is listed here.
+const STATIC_PREFIXES = ["/_next/static/", "/icons/", "/brand/"];
+const STATIC_FILES = new Set(["/favicon.ico", "/manifest.webmanifest", "/robots.txt"]);
+
+function isStaticAsset(url) {
+  return (
+    STATIC_FILES.has(url.pathname) ||
+    STATIC_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))
+  );
+}
+
+function keepInCache(request, response) {
+  if (response.ok) {
+    const clone = response.clone();
+    caches.open(SHELL_CACHE).then((cache) => cache.put(request, clone));
+  }
+  return response;
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
 
-  // Only intercept GET requests on our own origin.
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-
-  // API routes and internal routes are never cached — always pass through.
-  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/_next/")) {
-    // For _next/static assets (content-hashed), use cache-first so repeat
-    // visits are instant.  For everything else (_next/data, etc.) skip.
-    if (url.pathname.startsWith("/_next/static/")) {
-      event.respondWith(
-        caches.match(request).then(
-          (cached) => cached || fetch(request).then((response) => {
-            if (response.ok) {
-              const clone = response.clone();
-              caches.open(SHELL_CACHE).then((cache) => cache.put(request, clone));
-            }
-            return response;
-          }),
-        ),
-      );
-    }
-    return;
-  }
+  if (url.pathname.startsWith("/api/")) return;
 
   // Navigation requests (HTML): network-first, fall back to cached "/" shell.
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(SHELL_CACHE).then((cache) => cache.put(request, clone));
-          }
-          return response;
-        })
+        .then((response) => keepInCache(request, response))
         .catch(() => caches.match(request).then((cached) => cached || caches.match("/"))),
     );
     return;
   }
 
-  // All other same-origin GETs (images, icons, manifest): cache-first.
-  event.respondWith(
-    caches.match(request).then(
-      (cached) => cached || fetch(request).then((response) => {
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(SHELL_CACHE).then((cache) => cache.put(request, clone));
-        }
-        return response;
-      }),
-    ),
-  );
+  if (isStaticAsset(url)) {
+    event.respondWith(
+      caches
+        .match(request)
+        .then((cached) => cached || fetch(request).then((response) => keepInCache(request, response))),
+    );
+  }
 });
 
 // ─── Push ─────────────────────────────────────────────────────────────────────

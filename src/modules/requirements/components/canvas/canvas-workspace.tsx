@@ -5,11 +5,12 @@ import { type ReactNode, useMemo, useState } from "react";
 import { useFullPage } from "@/components/shell/use-full-page";
 import { useRefreshOnFocus } from "@/components/shell/use-refresh-on-focus";
 import { Button } from "@/components/ui/button";
+import { PrintButton } from "@/components/ui/print-button";
 import { messages } from "@/lib/messages";
 import { itemConnection } from "../../canvas/board-model";
 import { canvasGaps, itemKey } from "../../canvas/gaps";
 import type { Point } from "../../canvas/layout";
-import { savedLink, undoApplies, type CanvasUndo } from "../../canvas/undo";
+import { savedLink, stepBack, undoApplies, type CanvasUndo } from "../../canvas/undo";
 import type { CanvasItem, CanvasLink } from "../../schemas/canvas";
 import type { LinkRule } from "../../schemas/link-rules";
 import { CanvasBoard, type CanvasView } from "./canvas-board";
@@ -68,10 +69,9 @@ export function CanvasWorkspace({
   };
 
   const applies = (step: CanvasUndo) => undoApplies(step, shown, links, linkRules);
-  /** Takes back the newest board change that still applies; the step back is not remembered. */
-  const undo = () => {
-    if (!canEdit) return;
-    const step = history.take(applies);
+  const back = (step: CanvasUndo) => stepBack(step, shown, links, linkRules);
+  /** Applies a step from Undo or Redo; the hook keeps its step back, so the write remembers none. */
+  const apply = (step: CanvasUndo | null) => {
     if (step?.kind === "nodes") restore(step.before);
     if (step?.kind === "unlink") {
       const saved = savedLink(links, step.upKey, step.downId);
@@ -81,6 +81,12 @@ export function CanvasWorkspace({
       const made = linkFor(step.upKey, step.downKey);
       if (made) void connect(made, false);
     }
+  };
+  const undo = () => {
+    if (canEdit) apply(history.undo(applies, back));
+  };
+  const redo = () => {
+    if (canEdit) apply(history.redo(applies, back));
   };
 
   const dropItem = (key: string, point: Point) => {
@@ -103,6 +109,15 @@ export function CanvasWorkspace({
       {label}
     </Button>
   );
+  const printButton = (
+    <PrintButton
+      label={M.print}
+      testId="canvas-print"
+      variant="secondary"
+      className="min-h-10"
+      onPrint={print}
+    />
+  );
 
   return (
     <div
@@ -122,7 +137,7 @@ export function CanvasWorkspace({
       >
         {view === "preview" ? (
           <>
-            {viewButton("canvas-print", M.print, print)}
+            {printButton}
             {viewButton("canvas-close-preview", M.closePreview, () => setView("board"))}
           </>
         ) : (
@@ -131,14 +146,16 @@ export function CanvasWorkspace({
               ? viewButton("canvas-exit-full-page", M.exitFullPage, () => setView("board"))
               : viewButton("canvas-full-page", M.fullPage, () => setView("full"))}
             {viewButton("canvas-preview", M.preview, () => setView("preview"))}
-            {viewButton("canvas-print", M.print, print)}
+            {printButton}
           </>
         )}
       </div>
       <div
         data-canvas-panes
         className={`grid min-h-0 flex-1 grid-cols-1 ${
-          view === "board" ? "border-t border-line lg:h-[calc(100dvh-12.5rem)]" : ""
+          view === "board"
+            ? "border-t border-line lg:h-[calc(100dvh-12.5rem)] lg:flex-none lg:grid-rows-[minmax(0,1fr)]"
+            : ""
         } ${inspector ? "lg:grid-cols-[20rem_1fr_22rem]" : "lg:grid-cols-[20rem_1fr]"}`}
       >
         <RepositoryList
@@ -166,6 +183,8 @@ export function CanvasWorkspace({
             onAutoLayout={() => void autoLayout()}
             onUndo={undo}
             canUndo={history.canUndo(applies)}
+            onRedo={redo}
+            canRedo={history.canRedo(applies)}
             canLink={(sourceKey, targetKey) => linkFor(sourceKey, targetKey) !== null}
             onLink={link}
             onUnlink={(saved) => void disconnect(saved)}

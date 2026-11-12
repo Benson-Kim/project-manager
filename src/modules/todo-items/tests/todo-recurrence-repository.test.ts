@@ -66,6 +66,7 @@ describe("listTodoCalendar", () => {
     StartDate: new Date("2026-10-30T00:00:00Z"),
     DueDate: null,
     Priority: "High",
+    Notes: null,
     Status: "Not Started",
     Assignee: "Ann",
     RowVer: "11",

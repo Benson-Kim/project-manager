@@ -127,35 +127,41 @@ test("axe scan on the charter workspace has no serious or critical violations", 
 });
 
 test.describe("project workspace", () => {
-  test("deep link shows project-switcher, section nav with Charter current", async ({ page }) => {
+  test("deep link shows project-switcher, the six menu groups, overview current", async ({
+    page,
+  }) => {
     await page.goto("/projects/2");
-    // The project-switcher combobox is the header component for project routes.
     const switcher = page.getByRole("combobox", { name: messages.projects.jumpToProject });
     await expect(switcher).toBeVisible();
-    // The section nav is grouped; the Charter link carries aria-current="page".
     const nav = page.getByRole("navigation", { name: messages.projects.sectionsNav });
+    const G = messages.projects.sectionGroups;
 
-    // ADR-0019: the Overview group has exactly one section (Charter). It renders
-    // as a plain <Link> pill — not a disclosure button — so there is no
-    // aria-expanded. The Charter link itself carries aria-current="page".
-    const charter = nav.getByRole("link", { name: messages.projects.charterSection });
-    await expect(charter).toHaveAttribute("aria-current", "page");
-    await expect(charter).toHaveAttribute("href", "/projects/2");
+    await expect(nav.getByRole("button")).toHaveText([
+      G.strategy,
+      G.requirements,
+      G.execution,
+      G.governance,
+      G.workspace,
+      G.communication,
+    ]);
+    for (const button of await nav.getByRole("button").all()) {
+      await expect(button).toHaveAttribute("aria-expanded", "false");
+    }
 
-    // The Planning group (≥2 sections) renders as a disclosure button.
-    const planningBtn = nav.getByRole("button", { name: messages.planning.title });
-    await expect(planningBtn).toBeVisible();
-    await expect(planningBtn).toHaveAttribute("aria-expanded", "false");
+    await nav.getByRole("button", { name: G.strategy }).click();
+    const strategy = page.getByRole("group", { name: G.strategy });
+    const overview = strategy.getByRole("link", { name: messages.projects.charterSection });
+    await expect(overview).toHaveAttribute("aria-current", "page");
+    await expect(overview).toHaveAttribute("href", "/projects/2");
+    const financials = strategy.getByRole("group", { name: messages.projects.financialsSection });
+    await expect(financials.getByRole("link")).toHaveText([
+      messages.financials.budgetTab,
+      messages.financials.monitoringTab,
+      messages.financials.documentsTab,
+      messages.financials.settings,
+      messages.financials.projectMath.title,
+    ]);
 
-    // ADR-0046: Requirements is its own group with one section, so it is a pill
-    // link straight to the register — not a disclosure, and no longer under Planning.
-    const requirements = nav.getByRole("link", { name: messages.projects.requirementsSection });
-    await expect(requirements).toHaveAttribute("href", "/projects/2/requirements");
-    await expect(
-      nav.getByRole("button", { name: messages.projects.requirementsSection }),
-    ).toHaveCount(0);
-
-    // The page h1 stays the section name (PageHeader), not the project name.
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
       messages.projects.charterSection,
     );
@@ -163,23 +169,59 @@ test.describe("project workspace", () => {
 
   test("section menus stay closed until their group is clicked", async ({ page }) => {
     await page.goto("/projects/2/deliverables");
+    const G = messages.projects.sectionGroups;
     const nav = page.getByRole("navigation", { name: messages.projects.sectionsNav });
-    const planningBtn = nav.getByRole("button", { name: messages.planning.title });
-    const panel = page.getByRole("group", { name: messages.planning.title });
+    const groupBtn = nav.getByRole("button", { name: G.requirements });
+    const panel = page.getByRole("group", { name: G.requirements });
 
-    // The current section's group is not opened over the page on load.
-    await expect(planningBtn).toHaveAttribute("aria-expanded", "false");
+    await expect(groupBtn).toHaveAttribute("aria-expanded", "false");
     await expect(panel).toHaveCount(0);
 
-    await planningBtn.click();
-    await expect(planningBtn).toHaveAttribute("aria-expanded", "true");
+    await groupBtn.click();
+    await expect(groupBtn).toHaveAttribute("aria-expanded", "true");
+    await expect(panel.getByRole("link")).toHaveText([
+      messages.projects.deliverablesSection,
+      messages.projects.requirementsSection,
+      messages.projects.requirementsBoardSection,
+    ]);
     await expect(
       panel.getByRole("link", { name: messages.projects.deliverablesSection }),
     ).toHaveAttribute("aria-current", "page");
 
     await page.getByRole("heading", { level: 1 }).click();
     await expect(panel).toHaveCount(0);
-    await expect(planningBtn).toHaveAttribute("aria-expanded", "false");
+    await expect(groupBtn).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("the canvas board and the stakeholder matrix are their own menu entries", async ({
+    page,
+  }) => {
+    const G = messages.projects.sectionGroups;
+    const nav = page.getByRole("navigation", { name: messages.projects.sectionsNav });
+
+    await page.goto("/projects/2");
+    await nav.getByRole("button", { name: G.requirements }).click();
+    await page.getByRole("link", { name: messages.projects.requirementsBoardSection }).click();
+    await expect(page).toHaveURL(/\/projects\/2\/deliverables\/canvas/);
+    await nav.getByRole("button", { name: G.requirements }).click();
+    const requirements = page.getByRole("group", { name: G.requirements });
+    await expect(
+      requirements.getByRole("link", { name: messages.projects.requirementsBoardSection }),
+    ).toHaveAttribute("aria-current", "page");
+    await expect(
+      requirements.getByRole("link", { name: messages.projects.deliverablesSection }),
+    ).not.toHaveAttribute("aria-current", "page");
+
+    await page.goto("/projects/2/stakeholders/matrix");
+    await nav.getByRole("button", { name: G.communication }).click();
+    const communication = page.getByRole("group", { name: G.communication });
+    await expect(communication.getByRole("link").first()).toHaveText(
+      messages.stakeholders.matrix.title,
+    );
+    await expect(communication.getByRole("link").first()).toHaveAttribute("aria-current", "page");
+    await expect(
+      communication.getByRole("link", { name: messages.projects.stakeholderCommsSection }),
+    ).not.toHaveAttribute("aria-current", "page");
   });
 
   test("team cog: a manager grants a section permission per person, then resets it (ADR-0024)", async ({
@@ -217,7 +259,7 @@ test.describe("project workspace", () => {
   }) => {
     await page.goto("/projects/2");
     const nav = page.getByRole("navigation", { name: messages.projects.sectionsNav });
-    await nav.getByRole("button", { name: messages.planning.title }).click();
+    await nav.getByRole("button", { name: messages.projects.sectionGroups.governance }).click();
     await page.getByRole("link", { name: messages.projects.parkingLotSection }).click();
     await expect(page).toHaveURL(/\/projects\/2\/parking-lot$/);
   });

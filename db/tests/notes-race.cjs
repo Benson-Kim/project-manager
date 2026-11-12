@@ -9,18 +9,8 @@
 // db-apply job after the seeds (users 1 admin, 3 e2e-pm, 4 e2e-contributor, 5 e2e-viewer) and
 // locally: node db/tests/notes-race.cjs. Creates throwaway notebooks in the shared space, so never
 // point it at a real database.
-// Env: DB_SERVER, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (a .env file fills what is missing).
-try {
-  require("fs")
-    .readFileSync(".env", "utf8")
-    .split(/\r?\n/)
-    .forEach((l) => {
-      const m = l.match(/^([A-Z_0-9]+)=(.*)$/);
-      if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
-    });
-} catch {
-  // No .env: the environment must carry the DB_* values (CI).
-}
+// Env: DB_SERVER, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (DB_NAME must be set; .env fills the rest).
+require("./support/test-env.cjs");
 const sql = require("mssql");
 const ADMIN = 1;
 const PM = 3;
@@ -70,7 +60,7 @@ const among = (list, ...allowed) => list.every((c) => allowed.includes(c));
 (async () => {
   pool = await sql.connect({
     server: process.env.DB_SERVER || "localhost", port: Number(process.env.DB_PORT || 1433),
-    database: process.env.DB_NAME || "ProjectManager",
+    database: process.env.DB_NAME,
     user: process.env.DB_USER, password: process.env.DB_PASSWORD,
     options: { trustServerCertificate: true, encrypt: true }, pool: { max: 30 },
   });

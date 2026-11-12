@@ -140,6 +140,7 @@ export function KitchenSink({ richText }: { richText?: React.ReactNode }) {
             <Button>Primary</Button>
             <Button variant="secondary">Secondary</Button>
             <Button variant="danger">Danger</Button>
+            <Button variant="destructive">Destructive</Button>
             <Button variant="ghost">Ghost</Button>
             <Button pending>Pending</Button>
             <Button

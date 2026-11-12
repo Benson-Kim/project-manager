@@ -3,18 +3,8 @@
 // quota, or leave a live attachment on a deleted document or financial. Runs in the CI db-apply job
 // after the seeds and locally: node db/tests/financial-documents-race.cjs. Creates a throwaway
 // project as e2e-pm, so never point it at a real database.
-// Env: DB_SERVER, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (a .env file fills what is missing).
-try {
-  require("fs")
-    .readFileSync(".env", "utf8")
-    .split(/\r?\n/)
-    .forEach((l) => {
-      const m = l.match(/^([A-Z_0-9]+)=(.*)$/);
-      if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
-    });
-} catch {
-  // No .env: the environment must carry the DB_* values (CI).
-}
+// Env: DB_SERVER, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (DB_NAME must be set; .env fills the rest).
+require("./support/test-env.cjs");
 const sql = require("mssql");
 const PM = 3;
 let pool;
@@ -36,7 +26,7 @@ const codes = (rs) => rs.map((r) => (r.status === "fulfilled" ? "ok" : r.reason.
 
 (async () => {
   pool = await sql.connect({
-    server: process.env.DB_SERVER || "localhost", port: Number(process.env.DB_PORT || 1433), database: process.env.DB_NAME || "ProjectManager",
+    server: process.env.DB_SERVER || "localhost", port: Number(process.env.DB_PORT || 1433), database: process.env.DB_NAME,
     user: process.env.DB_USER, password: process.env.DB_PASSWORD,
     options: { trustServerCertificate: true, encrypt: true }, pool: { max: 30 },
   });

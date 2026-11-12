@@ -16,18 +16,8 @@
 // Not covered here, on purpose: the Update carve-out that lets a record stored with its dates
 // inverted stay editable. Only migrated rows have an inverted pair, Create refuses to make one,
 // and CI connects as the EXECUTE-only login (pm_web, ADR-0033) with no INSERT right to forge one.
-// Env: DB_SERVER, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (a .env file fills what is missing).
-try {
-  require("fs")
-    .readFileSync(".env", "utf8")
-    .split(/\r?\n/)
-    .forEach((l) => {
-      const m = l.match(/^([A-Z_0-9]+)=(.*)$/);
-      if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
-    });
-} catch {
-  // No .env: the environment must carry the DB_* values (CI).
-}
+// Env: DB_SERVER, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (DB_NAME must be set; .env fills the rest).
+require("./support/test-env.cjs");
 const sql = require("mssql");
 
 const ADMIN = 1;
@@ -100,7 +90,7 @@ async function list(actor, params = {}) {
 (async () => {
   pool = await sql.connect({
     server: process.env.DB_SERVER || "localhost", port: Number(process.env.DB_PORT || 1433),
-    database: process.env.DB_NAME || "ProjectManager",
+    database: process.env.DB_NAME,
     user: process.env.DB_USER, password: process.env.DB_PASSWORD,
     options: { trustServerCertificate: true, encrypt: true },
   });

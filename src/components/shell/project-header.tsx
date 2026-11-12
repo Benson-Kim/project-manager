@@ -103,7 +103,7 @@ export function ProjectHeader({
         aria-label={messages.projects.jumpToProject}
         aria-expanded={open}
         tabIndex={-1}
-        className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-ink-muted hover:bg-surface-sunken"
+        className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-ink-muted hover:bg-hover"
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => setOpen((current) => !current)}
       >
@@ -132,7 +132,7 @@ export function ProjectHeader({
             className={`flex min-h-11 cursor-pointer items-center px-4 py-2.5 text-sm whitespace-nowrap first:rounded-t-lg last:rounded-b-lg transition-colors duration-(--duration-fast) ${
               index === activeIndex
                 ? "bg-accent-soft text-ink"
-                : "text-ink-muted hover:text-ink hover:bg-surface-raised"
+                : "text-ink-muted hover:text-ink hover:bg-hover"
             }`}
             onMouseDown={(event) => event.preventDefault()}
             onMouseEnter={() => setActiveIndex(index)}

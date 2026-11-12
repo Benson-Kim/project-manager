@@ -40,12 +40,30 @@ and prints `N passed, M failed`.
   scheduling nothing; a link read back on its successor row with its RowVer; retyping, a stale
   RowVer conflicting, an idempotent no-op relink, unlinking and re-linking the same pair; a deleted
   item taking the links at both of its ends; and a link alone moving the Gantt freshness stamp.
+- `bpmn-diagram-procs.cjs` — ADR-0064: diagram create, list, open, rename, save and delete; the level
+  each needs and a member of another project refused by id; a stale RowVer, non-JSON, a wrong document
+  version and a drawing over 300,000 characters refused; saves audited by element count; two saves on
+  one version, one of which lands.
+- `checklist-procs.cjs` — ADR-0066: checklists, added columns of every kind, rows, the done tick,
+  cells (a bad date, a `javascript:` link, a typed to-do refused), sign-off and the to-do button (one
+  live to-do per cell); the level each needs; a stale RowVer; the 30-column cap; a column of another
+  checklist refused; a deleted column's values gone; audit rows; two writes on one row, one of which lands.
+- `register-columns-procs.cjs` — ADR-0067: a built-in column's project name (a label row only, the
+  data untouched, cleared back to the default), names unique ignoring case across built-in and added
+  columns, a stale RowVer on labels, columns and cells, the 5-column cap, values kept under a renamed
+  column, choices renamed by id with the filter following and kept while in use, a kind change refused
+  while values exist, a soft delete that keeps values, the level each needs, audits, two renames at once.
 - `requirement-canvas-procs.cjs` — ADR-0061: canvas details, reveal, move and hide of nodes, the
   whole-project Items and Links reads, and the one-at-a-time WBS link, including parallel writes.
 - `stakeholder-matrix-procs.cjs` — migration 066: power, interest and stance through create, update,
   get and list (0 and 100 kept, 101, -1 and an unknown or wrongly cased stance refused); the place
   proc moving only power and interest, refusing a stale RowVer, a Viewer and a Contributor, and
   writing one audit row; the whole-project matrix read and its access; and places being per project.
+- `responsibility-matrix-procs.cjs` — migration 071 and ADR-0062: matrices per framework and row
+  kind, members (at most 40, ordered, moved, removed), cells on WBS and decision rows, roles from
+  another framework or project refused, one-per-row roles as CONFLICT unless moved (including from
+  a non-member WBS assignee), outsiders and other projects' matrices refused, parallel adds, and a
+  cell write bumping the WBS item's RowVer.
 - `requirements-race.cjs` — ADR-0037 under concurrency: parallel creates get distinct numbers,
   a link racing a delete leaves no link to a deleted row, a type change racing a new link stays
   valid, and parallel moves under one deliverable leave the order 1..n.
@@ -116,6 +134,8 @@ and prints `N passed, M failed`.
   reads back to the to-do's readers only; a series keeps its start date, and moving it deletes only
   future rows; the calendar refuses 63 days, shows moved occurrences, and hides another user's to-do.
 
-Run one locally with the `.env` of a throwaway database: `node db/tests/financials-procs.cjs`.
+Run one locally against the test database: `DB_NAME=ProjectManager_t1028 node db/tests/financials-procs.cjs`.
+`.env` fills the other `DB_*` values but names the real database, so `support/test-env.cjs` refuses
+to start when `DB_NAME` is unset, or is `ProjectManager` outside CI.
 Never run them against a database anyone depends on: they create projects and leave
 soft-deleted rows behind.

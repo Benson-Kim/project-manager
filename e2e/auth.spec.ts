@@ -17,7 +17,7 @@ test("happy path: sign in, land on the app, sign out", async ({ page }) => {
   await page.getByLabel(messages.auth.password).fill(password);
   await page.getByRole("button", { name: messages.auth.signIn }).click();
   await page.waitForURL("/");
-  await expect(page.getByRole("heading", { name: messages.app.name })).toBeVisible();
+  await expect(page.getByRole("heading", { name: messages.home.title })).toBeVisible();
 
   await page.getByRole("button", { name: messages.auth.signOut }).click();
   await page.waitForURL(/\/login/);

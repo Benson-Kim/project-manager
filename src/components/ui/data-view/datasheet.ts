@@ -88,6 +88,58 @@ export interface DatasheetConfig<Row> {
   /** The new-entry row; omitted when the viewer can't create here. */
   addRow?: {
     add: (values: Record<string, string>) => Promise<ActionResult<unknown>>;
+    /** How Undo takes a new row back (ADR-0063); without it a new row is not a step. */
+    undo?: AddUndo;
+  };
+}
+
+/** A new row's id, and the module's delete action that takes it back. */
+export interface AddUndo {
+  id: (created: object) => string | number;
+  remove: (created: object) => Promise<ActionResult<unknown>>;
+}
+
+/** The AddUndo for a module whose create action returns `Created`. */
+export function addUndo<Created extends object>(
+  id: (created: Created) => string | number,
+  remove: (created: Created) => Promise<ActionResult<unknown>>,
+): AddUndo {
+  return {
+    id: (created) => id(created as Created),
+    remove: (created) => remove(created as Created),
+  };
+}
+
+/**
+ * Runs a row's cell saves one at a time, each from the row the save before it returned. An edit
+ * made while the row's last save is still on its way would otherwise send the old RowVer and be
+ * refused as a conflict with that save. Once a row's saves are done it is forgotten, so a later
+ * edit starts from the row the page shows. `write` returns the saved row, or null when it failed.
+ */
+export function rowSaveQueue<Row>() {
+  const turns = new Map<
+    string | number,
+    { queue: Promise<unknown>; pending: number; latest: Row | null }
+  >();
+  return (
+    id: string | number,
+    row: Row,
+    write: (row: Row) => Promise<Row | null>,
+  ): Promise<boolean> => {
+    const turn = turns.get(id) ?? { queue: Promise.resolve(), pending: 0, latest: null };
+    turns.set(id, turn);
+    turn.pending++;
+    const run = turn.queue
+      .then(() => write(turn.latest ?? row))
+      .then((written) => {
+        if (written) turn.latest = written;
+        return written !== null;
+      })
+      .finally(() => {
+        if (--turn.pending === 0) turns.delete(id);
+      });
+    turn.queue = run.catch(() => undefined);
+    return run;
   };
 }
 

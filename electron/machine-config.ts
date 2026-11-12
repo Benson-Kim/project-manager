@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { programDataDir } from "./app-folders";
 import type { DbTarget } from "./db";
 
 /**
@@ -20,7 +21,7 @@ export interface MachineConfig {
   authSecret: string;
   backupDir: string;
   /**
-   * Attachments (ADR-0026 §9): %ProgramData%\Project Manager\Uploads, writable
+   * Attachments (ADR-0026 §9): %ProgramData%\Modulus\Uploads, writable
    * by every local user like Backups. Written by provision.ps1 since F1. A PC
    * provisioned before F1 has none, and only an administrator can create it;
    * the client's staff are standard users, so the app runs with uploads off
@@ -40,8 +41,7 @@ export function machineConfigPath(): string {
   // PM_MACHINE_CONFIG lets the integration test / a developer point the app at
   // another SQL Server; the installer never sets it.
   if (process.env.PM_MACHINE_CONFIG) return process.env.PM_MACHINE_CONFIG;
-  const programData = process.env.ProgramData ?? "C:\\ProgramData";
-  return path.join(programData, "Project Manager", "machine.json");
+  return path.join(programDataDir(), "machine.json");
 }
 
 export function readMachineConfig(file = machineConfigPath()): MachineConfig {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { usePopoverPlacement } from "../popover-placement";
 import { closeAfterBlur } from "./close-after-blur";
 import { useFieldContext } from "./field";
+import { NoMatchNote } from "./no-match-note";
 import { matchesNone, NO_MATCH, rankByMatch } from "./rank-options";
 
 /** A row of a lookup the record links to by id (requirements ⇄ deliverables, stakeholders). */
@@ -264,11 +265,7 @@ export function MultiSelectField({
         </ul>
       )}
       {!disabled && noMatch ? (
-        <div role="status">
-          {unmatched ? (
-            <div className="mt-1 text-xs text-ink-muted">{noMatch(query.trim(), clear)}</div>
-          ) : null}
-        </div>
+        <NoMatchNote unmatched={unmatched} text={query} clear={clear} render={noMatch} />
       ) : null}
     </div>
   );

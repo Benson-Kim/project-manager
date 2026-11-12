@@ -1,5 +1,6 @@
+import { messages } from "@/lib/messages";
 import { isOverdue } from "./key-deliverable";
-import { utcDay, type Wbs, type WbsItem } from "./wbs";
+import { DONE_STATUS, utcDay, type Wbs, type WbsItem } from "./wbs";
 
 /**
  * Where a milestone stands. Reached is a fact: somebody recorded the day it happened (migration
@@ -9,6 +10,32 @@ import { utcDay, type Wbs, type WbsItem } from "./wbs";
  * which is the whole point of keeping a target date and an actual one side by side.
  */
 export type MilestoneState = "reached" | "overdue" | "upcoming";
+
+/** Where a milestone stands in the words the client plans with; Cancelled is shown greyed. */
+export type MilestonePhase = "notStarted" | "inProgress" | "blocked" | "done" | "cancelled";
+
+const PHASE_OF = new Map<string, MilestonePhase>([
+  ["Pending", "notStarted"],
+  ["In Progress", "inProgress"],
+  ["On Hold", "blocked"],
+  ["Blocked", "blocked"],
+  [DONE_STATUS, "done"],
+  ["Cancelled", "cancelled"],
+]);
+
+/**
+ * A deliverable status in milestone words: none set is Not Started. Null for a status an Admin
+ * added to the list, which the milestone then shows as it is.
+ */
+export function milestonePhase(status: string | null): MilestonePhase | null {
+  return status === null ? "notStarted" : (PHASE_OF.get(status) ?? null);
+}
+
+/** A milestone's status as the client reads it: the milestone word, else the status as it is. */
+export function milestoneWords(status: string | null): string {
+  const phase = milestonePhase(status);
+  return phase ? messages.projects.milestonePhases[phase] : (status ?? "");
+}
 
 /** A milestone as the strip above the WBS diagram shows it. */
 export interface MilestoneChip {
@@ -21,6 +48,8 @@ export interface MilestoneChip {
   actual: Date | null;
   /** Its status from the deliverable status list; null when none is set. */
   status: string | null;
+  /** `status` in milestone words, or null for a status the list does not map. */
+  phase: MilestonePhase | null;
   state: MilestoneState;
   /** `state === "reached"`, so the chart reads one flag for its diamond. */
   reached: boolean;
@@ -48,6 +77,7 @@ export function milestoneStrip(wbs: Wbs, today: Date): MilestoneChip[] {
         date: node.item.start,
         actual: node.item.actualDate,
         status: node.item.status,
+        phase: milestonePhase(node.item.status),
         state,
         reached: state === "reached",
       };

@@ -22,7 +22,8 @@ import {
   boardNodes,
   clusterLabels,
   collapsibleKeys,
-  focusKeys,
+  focusView,
+  layoutMoves,
   linkEnds,
   mergeFlowNodes,
   unlinkableKeys,
@@ -74,6 +75,8 @@ interface BoardProps {
   onAutoLayout: () => void;
   onUndo: () => void;
   canUndo: boolean;
+  onRedo: () => void;
+  canRedo: boolean;
   canLink: (sourceKey: string, targetKey: string) => boolean;
   onLink: (sourceKey: string, targetKey: string) => void;
   onUnlink: (link: CanvasLink) => void;
@@ -88,16 +91,25 @@ function menuPoint(event: React.MouseEvent): Point {
   return { x: left, y: bottom };
 }
 
-/** Ctrl+Z (Cmd+Z) belongs to the field being typed in; anywhere else on the board it is Undo. */
-function isUndoKey(event: React.KeyboardEvent) {
+/**
+ * Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z (Cmd on a Mac) belong to the field being typed in; anywhere else
+ * on the board they are Undo and Redo.
+ */
+function historyKey(event: React.KeyboardEvent): "undo" | "redo" | null {
   const target = event.target as HTMLElement;
-  return (
-    (event.ctrlKey || event.metaKey) &&
-    !event.shiftKey &&
-    !event.altKey &&
-    event.key.toLowerCase() === "z" &&
-    (!isEditableTarget(target) || target.tagName === "BUTTON")
-  );
+  if (!(event.ctrlKey || event.metaKey) || event.altKey) return null;
+  if (isEditableTarget(target) && target.tagName !== "BUTTON") return null;
+  const key = event.key.toLowerCase();
+  if (key === "z") return event.shiftKey ? "redo" : "undo";
+  return key === "y" && !event.shiftKey ? "redo" : null;
+}
+
+/** Escape leaves a focus unless a field, a menu or a dialog has it. */
+function leavesFocus(event: KeyboardEvent) {
+  if (event.key !== "Escape" || event.defaultPrevented) return false;
+  const target = event.target as HTMLElement;
+  if (isEditableTarget(target) && target.tagName !== "BUTTON") return false;
+  return !target.closest?.('[role="dialog"], [role="alertdialog"], [role="menu"]');
 }
 
 function Toolbar({
@@ -106,7 +118,14 @@ function Toolbar({
   onAutoLayout,
   onUndo,
   canUndo,
-}: Pick<BoardProps, "items" | "canEdit" | "onAutoLayout" | "onUndo" | "canUndo">) {
+  onRedo,
+  canRedo,
+  focus,
+  onFocus,
+}: Pick<
+  BoardProps,
+  "items" | "canEdit" | "onAutoLayout" | "onUndo" | "canUndo" | "onRedo" | "canRedo"
+> & { focus: Focus | null; onFocus: (next: Focus | null) => void }) {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   const { zoom } = useViewport();
   const [confirming, setConfirming] = useState(false);
@@ -114,6 +133,30 @@ function Toolbar({
 
   return (
     <Panel position="top-right" data-canvas-chrome className="flex items-center gap-1 print:hidden">
+      {focus ? (
+        <>
+          {focus.depth !== Infinity ? (
+            <Button
+              type="button"
+              variant="secondary"
+              data-testid="canvas-focus-trace"
+              onClick={() => onFocus({ key: focus.key, depth: Infinity })}
+            >
+              {M.wholeTrace}
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            variant="secondary"
+            data-testid="canvas-focus-clear"
+            aria-keyshortcuts="Escape"
+            onClick={() => onFocus(null)}
+          >
+            {M.showAll}
+          </Button>
+          <span aria-hidden="true" className="mx-1 h-6 w-px bg-line" />
+        </>
+      ) : null}
       {canEdit ? (
         <>
           <Button
@@ -125,6 +168,16 @@ function Toolbar({
             onClick={onUndo}
           >
             {M.undo}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            data-testid="canvas-redo"
+            aria-keyshortcuts="Control+Y Control+Shift+Z"
+            disabled={!canRedo}
+            onClick={onRedo}
+          >
+            {M.redo}
           </Button>
           <Button
             type="button"
@@ -166,26 +219,30 @@ function Board(props: BoardProps) {
   const { hiddenBy, hiddenCount } = useMemo(() => collapsedView(items), [items]);
   const collapsible = useMemo(() => collapsibleKeys(items), [items]);
   const [focus, setFocus] = useState<Focus | null>(null);
-  const shownKeys = useMemo(() => focusKeys(focus, links, hiddenBy), [focus, links, hiddenBy]);
+  const focused = useMemo(() => focusView(focus, links, hiddenBy), [focus, links, hiddenBy]);
   const wanted = useMemo(
-    () => withHidden(boardNodes(items, links, selectedKey), hiddenBy, shownKeys),
-    [items, links, selectedKey, hiddenBy, shownKeys],
+    () => withHidden(boardNodes(items, links, selectedKey), hiddenBy, focused?.keys ?? null),
+    [items, links, selectedKey, hiddenBy, focused],
   );
   const focusOn = (next: Focus | null) => {
     setFocus(next);
     void fitView({ ...FIT_OPTIONS, duration: 200 });
   };
-  const edges = useMemo(() => boardEdges(items, links, hiddenBy), [items, links, hiddenBy]);
+  const edges = useMemo(
+    () => boardEdges(items, links, hiddenBy, focused?.links ?? null),
+    [items, links, hiddenBy, focused],
+  );
+  const unsaved = useRef(new Map<string, { id: string } & Point>());
   const [nodes, setNodes] = useState(wanted);
   const [seen, setSeen] = useState(wanted);
+  const [moved, setMoved] = useState<ReadonlySet<string>>(new Set());
   if (seen !== wanted) {
     setSeen(wanted);
-    setNodes(mergeFlowNodes(wanted, nodes));
+    setNodes(mergeFlowNodes(wanted, nodes, moved));
   }
   const clusters = useMemo(() => canvasClusters(items, links), [items, links]);
   const labels = useMemo(() => clusterLabels(items, nodes, clusters), [items, nodes, clusters]);
 
-  const unsaved = useRef(new Map<string, { id: string } & Point>());
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const onMove = useRef(props.onMove);
   useEffect(() => {
@@ -196,6 +253,7 @@ function Board(props: BoardProps) {
     if (unsaved.current.size === 0) return;
     onMove.current([...unsaved.current.values()]);
     unsaved.current = new Map();
+    setMoved(new Set());
   });
   useEffect(() => flush.current, []);
   /** Forgets a drop that is not saved yet; true when there was one. */
@@ -203,12 +261,18 @@ function Board(props: BoardProps) {
     clearTimeout(timer.current);
     const pending = unsaved.current.size > 0;
     unsaved.current = new Map();
+    setMoved(new Set());
     return pending;
   };
   /** A drop not saved yet is the newest change, so Undo puts that card back before anything else. */
   const undo = () => {
     if (dropUnsaved()) setNodes(mergeFlowNodes(wanted, nodes));
     else props.onUndo();
+  };
+  /** A drop not saved yet is a new change, which leaves Redo nothing to make again. */
+  const redo = () => {
+    if (unsaved.current.size > 0) flush.current();
+    else props.onRedo();
   };
 
   const { view, printRequest } = props;
@@ -238,6 +302,14 @@ function Board(props: BoardProps) {
     fitted.current = nodes.length;
   }, [nodes.length, fitView]);
 
+  // A new link regroups the cards that have no saved place, which can move one out of view.
+  const laidOut = useRef(new Map<string, string>());
+  useEffect(() => {
+    const next = layoutMoves(laidOut.current, wanted);
+    laidOut.current = next.laidOut;
+    if (next.moved) void fitView(FIT_OPTIONS);
+  }, [wanted, fitView]);
+
   const onNodesChange = (changes: NodeChange<ItemNode>[]) => {
     setNodes((current) => applyNodeChanges(changes, current));
     const picked = changes.find((change) => change.type === "select" && change.selected);
@@ -247,6 +319,7 @@ function Board(props: BoardProps) {
     for (const change of changes) {
       if (change.type !== "position" || change.dragging !== false || !change.position) continue;
       unsaved.current.set(change.id, { id: change.id, ...change.position });
+      setMoved((ids) => new Set(ids).add(change.id));
       clearTimeout(timer.current);
       timer.current = setTimeout(flush.current, SAVE_DELAY_MS);
     }
@@ -284,6 +357,19 @@ function Board(props: BoardProps) {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [picking]);
+
+  const inFocus = focus !== null;
+  useEffect(() => {
+    if (!inFocus || picking) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!leavesFocus(event)) return;
+      event.preventDefault();
+      setFocus(null);
+      void fitView({ ...FIT_OPTIONS, duration: 200 });
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [inFocus, picking, fitView]);
 
   const pick = (key: string) => {
     if (!picking) return;
@@ -341,9 +427,11 @@ function Board(props: BoardProps) {
         }}
         onPaneClick={() => setPicking(null)}
         onKeyDown={(event) => {
-          if (isUndoKey(event)) {
+          const shortcut = historyKey(event);
+          if (shortcut) {
             event.preventDefault();
-            undo();
+            if (shortcut === "undo") undo();
+            else redo();
             return;
           }
           const target = event.target as HTMLElement;
@@ -380,12 +468,12 @@ function Board(props: BoardProps) {
           }}
           onUndo={undo}
           canUndo={props.canUndo}
+          onRedo={redo}
+          canRedo={props.canRedo}
+          focus={focus}
+          onFocus={focusOn}
         />
-        <Panel
-          position="top-center"
-          data-canvas-chrome
-          className="flex flex-col items-center gap-1 print:hidden"
-        >
+        <Panel position="bottom-center" data-canvas-chrome className="print:hidden">
           <div role="status">
             {picking ? (
               <p
@@ -396,36 +484,11 @@ function Board(props: BoardProps) {
               </p>
             ) : null}
             {focus ? (
-              <p
-                data-testid="canvas-focus"
-                className="rounded-md border border-line bg-surface-raised px-3 py-1.5 text-sm text-ink shadow"
-              >
+              <p data-testid="canvas-focus" className="sr-only">
                 {M.focusing(itemOf(focus.key)?.Ref ?? focus.key)}
               </p>
             ) : null}
           </div>
-          {focus ? (
-            <div className="flex gap-1">
-              {focus.depth !== Infinity ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  data-testid="canvas-focus-trace"
-                  onClick={() => focusOn({ key: focus.key, depth: Infinity })}
-                >
-                  {M.wholeTrace}
-                </Button>
-              ) : null}
-              <Button
-                type="button"
-                variant="secondary"
-                data-testid="canvas-focus-clear"
-                onClick={() => focusOn(null)}
-              >
-                {M.showAll}
-              </Button>
-            </div>
-          ) : null}
         </Panel>
       </ReactFlow>
       {menu && menuItem ? (

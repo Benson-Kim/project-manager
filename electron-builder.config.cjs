@@ -30,9 +30,9 @@ const signing = signingConfig(process.env, fs.existsSync(PUBLISHER_CER));
 
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
-  appId: "com.burton.projectmanager",
-  productName: "Project Manager",
-  copyright: "Copyright © 2026 Burton",
+  appId: "com.eliandigitalsolutions.modulus",
+  productName: "Modulus",
+  copyright: "Copyright © 2026 ElianDigitalSolutions",
   electronVersion: require("./node_modules/electron/package.json").version,
 
   directories: {
@@ -67,7 +67,7 @@ module.exports = {
   win: {
     target: [{ target: "nsis", arch: ["x64"] }],
     icon: r("build-resources", "icon.ico"),
-    artifactName: "ProjectManager-Setup-${version}.${ext}",
+    artifactName: "Modulus-Setup-${version}.${ext}",
     // Keep Microsoft's signature on the SQL Server media: provision.ps1 refuses
     // to run an installer that isn't Microsoft-signed.
     signExts: ["!SQLEXPR_x64_ENU.exe"],
@@ -94,7 +94,7 @@ module.exports = {
     uninstallerSidebar: r("build-resources", "installerSidebar.bmp"),
     createDesktopShortcut: "always",
     createStartMenuShortcut: true,
-    shortcutName: "Project Manager",
+    shortcutName: "Modulus",
     deleteAppDataOnUninstall: false,
     include: r("build-resources", "installer.nsh"),
   },

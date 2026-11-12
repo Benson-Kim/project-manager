@@ -40,7 +40,7 @@ const uploadsEnvSchema = z.object({
   /**
    * Where attachment bytes live, outside the web root: absolute; default
    * `<cwd>/uploads`. Docker sets /app/uploads (a volume); the desktop sets
-   * %ProgramData%\Project Manager\Uploads from machine.json. turbopackIgnore:
+   * %ProgramData%\Modulus\Uploads from machine.json. turbopackIgnore:
    * output tracing would otherwise copy the build machine's <cwd>/uploads into
    * the standalone server (the Docker image, the desktop installer).
    */

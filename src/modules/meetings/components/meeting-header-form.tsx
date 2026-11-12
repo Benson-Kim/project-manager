@@ -13,6 +13,8 @@ import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
 import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
+import { formEditStep, recordKey, stepName } from "@/lib/undo/steps";
+import { usePageHistory } from "@/components/undo/page-history";
 import { deleteMeetingAction, updateMeetingAction } from "../actions";
 import type { MeetingRow } from "../schemas/meeting";
 import { meetingFormValues, updateMeetingFormSchema } from "../schemas/meeting-form";
@@ -47,6 +49,7 @@ export function MeetingHeaderForm({
   const router = useRouter();
   const { toast } = useToast();
   const { announce } = useAnnouncer();
+  const pageHistory = usePageHistory();
   const form = useZodForm(updateMeetingFormSchema);
   const values = meetingFormValues(meeting);
   const [pending, startTransition] = useTransition();
@@ -79,6 +82,16 @@ export function MeetingHeaderForm({
     startTransition(async () => {
       const result = await updateMeetingAction(data);
       if (result.ok) {
+        const step = formEditStep({
+          label: messages.pageHistory.changesTo(stepName(result.data.Subject)),
+          key: recordKey("meetings", meeting.MeetingId),
+          before: meeting,
+          saved: result.data,
+          toFormValues: meetingFormValues,
+          update: updateMeetingAction,
+          book: pageHistory.book,
+        });
+        if (step) pageHistory.record(step);
         clean();
         toast({ variant: "success", title: messages.feedback.saved });
         announce(messages.feedback.saved);

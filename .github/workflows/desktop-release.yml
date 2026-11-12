@@ -90,11 +90,11 @@ jobs:
         env:
           VERSION: ${{ steps.plan.outputs.version }}
         run: |
-          exe="dist-installer/ProjectManager-Setup-${VERSION}.exe"
+          exe="dist-installer/Modulus-Setup-${VERSION}.exe"
           gh release create "v${VERSION}" \
             "$exe" "$exe.blockmap" "$exe.sha256" dist-installer/latest.yml \
             --target "${GITHUB_SHA}" \
-            --title "Project Manager ${VERSION}" \
+            --title "Modulus ${VERSION}" \
             --notes-file dist-installer/release-notes.md \
             --latest
 

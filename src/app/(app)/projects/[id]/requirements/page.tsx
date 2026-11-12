@@ -4,7 +4,12 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { CanvasLink } from "@/modules/requirements/components/canvas/canvas-link";
 import { auth } from "@/lib/auth/provider";
-import { flattenSearchParams, initialViewOf, parseListParams } from "@/lib/list-params";
+import {
+  DEFAULT_PAGE_SIZE,
+  flattenSearchParams,
+  initialViewOf,
+  parseListParams,
+} from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { getListPreference } from "@/lib/repositories/view-preference";
@@ -24,6 +29,11 @@ import {
 import { parseValidatesParam } from "@/modules/requirements/schemas/requirement-form";
 import { parseProjectId } from "../project-id";
 import { REQUIREMENT_SORT } from "@/modules/requirements/schemas/requirement";
+import { parseChoiceFilter } from "@/modules/requirements/schemas/register-columns";
+import {
+  listColumnLabels,
+  listRegisterColumns,
+} from "@/modules/requirements/repository/register-columns";
 
 export const metadata: Metadata = {
   title: `${messages.requirements.title} — ${messages.app.name}`,
@@ -53,6 +63,7 @@ export default async function RequirementsPage({
   const flat = flattenSearchParams(raw);
   const listParams = parseListParams(raw, REQUIREMENT_SORT);
   const filterType = registerType(flat.type);
+  const choiceFilter = parseChoiceFilter(flat.cf);
 
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
@@ -71,8 +82,19 @@ export default async function RequirementsPage({
     deliverableOptions,
     linkOptions,
     linkRules,
+    labels,
+    registerColumns,
   ] = await Promise.all([
-    orNotFound(listRequirements(listParams, session.userId, projectId, filterType)),
+    orNotFound(
+      listRequirements(
+        listParams,
+        session.userId,
+        projectId,
+        filterType,
+        DEFAULT_PAGE_SIZE,
+        choiceFilter,
+      ),
+    ),
     getListPreference(session.userId, "requirements").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? orNull(getRequirementById(selectedId, session.userId))
@@ -89,6 +111,8 @@ export default async function RequirementsPage({
     sheetOpen ? orNotFound(listRequirementOptions(projectId, session.userId)) : [],
     // The sheet's pickers and the bulk bar's merge link both read these.
     listLinkRules(session.userId),
+    orNotFound(listColumnLabels(projectId, session.userId)),
+    orNotFound(listRegisterColumns(projectId, session.userId)),
   ]);
 
   // A deep link to a requirement from another project is treated as not found.
@@ -99,7 +123,7 @@ export default async function RequirementsPage({
   const canCreate = allows("requirements:create");
   const canEdit = allows("requirements:update");
   const canDelete = allows("requirements:delete");
-  const filtersActive = Boolean(listParams.q) || filterType !== null;
+  const filtersActive = Boolean(listParams.q) || filterType !== null || choiceFilter !== null;
 
   const newRequirementLink = (
     <Link
@@ -142,6 +166,10 @@ export default async function RequirementsPage({
           deliverableOptions={deliverableOptions}
           linkRules={linkRules}
           newRequirementAction={canCreate ? newRequirementLink : undefined}
+          labels={labels}
+          registerColumns={registerColumns}
+          choiceFilter={choiceFilter}
+          canManageColumns={{ create: canCreate, update: canEdit, delete: canDelete }}
         />
       </div>
       <RequirementSheet

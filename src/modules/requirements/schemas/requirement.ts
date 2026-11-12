@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { registerCellsSchema } from "./register-columns";
 import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
@@ -104,8 +105,16 @@ export const requirementRowSchema = requirementColumns.transform(withLinks);
 export type RequirementRow = z.output<typeof requirementRowSchema>;
 
 export const requirementListRowSchema = requirementColumns
-  .extend({ TotalCount: z.number().int(), ...actorAccessFields })
-  .transform(withLinks);
+  .extend({
+    TotalCount: z.number().int(),
+    ...actorAccessFields,
+    /** The values in the columns the project added (ADR-0067). */
+    CustomCellsJson: registerCellsSchema,
+  })
+  .transform(({ CustomCellsJson, ...row }) => ({
+    ...withLinks(row),
+    CustomCells: CustomCellsJson,
+  }));
 
 export type RequirementListRow = z.output<typeof requirementListRowSchema>;
 

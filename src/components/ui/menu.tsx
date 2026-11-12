@@ -125,7 +125,7 @@ export function Menu({
 }
 
 const itemClass =
-  "flex min-h-10 w-full items-center px-4 py-2.5 text-left text-sm text-ink first:rounded-t-lg last:rounded-b-lg transition-colors duration-(--duration-fast) hover:bg-surface-raised";
+  "flex min-h-10 w-full items-center px-4 py-2.5 text-left text-sm text-ink first:rounded-t-lg last:rounded-b-lg transition-colors duration-(--duration-fast) hover:bg-hover";
 
 export function MenuLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (

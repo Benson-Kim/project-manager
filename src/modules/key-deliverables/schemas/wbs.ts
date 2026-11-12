@@ -754,6 +754,7 @@ export function statusToCompletion(status: string | null): number {
     case "In Progress":
       return 50;
     case "On Hold":
+    case "Blocked":
       return 20;
     default:
       return 0;

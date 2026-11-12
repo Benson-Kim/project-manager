@@ -6,6 +6,8 @@ import { Sheet } from "@/components/ui/dialog";
 import { messages } from "@/lib/messages";
 import { useAlertPoller } from "@/modules/todo-items/components/use-alert-poller";
 import { useAnnouncer } from "../ui/announcer";
+import { PageHistoryProvider } from "../undo/page-history";
+import { UndoButtons } from "../undo/undo-buttons";
 import {
   AvatarMenu,
   NewWindowButton,
@@ -60,87 +62,90 @@ export function AppShell({
   }, [announce, pathname]);
 
   return (
-    <div className="flex min-h-dvh bg-surface-raised">
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-(--z-toast) focus:rounded-md focus:bg-surface focus:p-3"
-      >
-        {messages.app.skipToContent}
-      </a>
-      {/* useSearchParams requires a Suspense boundary at build time */}
-      <Suspense fallback={null}>
-        <RouteProgress />
-      </Suspense>
-      <OfflineBanner />
+    <PageHistoryProvider>
+      <div className="flex min-h-dvh bg-surface-raised">
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-(--z-toast) focus:rounded-md focus:bg-surface focus:p-3"
+        >
+          {messages.app.skipToContent}
+        </a>
+        {/* useSearchParams requires a Suspense boundary at build time */}
+        <Suspense fallback={null}>
+          <RouteProgress />
+        </Suspense>
+        <OfflineBanner />
 
-      {/* Desktop sidebar */}
-      <nav
-        id={SIDEBAR_ID}
-        aria-label={messages.app.menu}
-        data-testid="sidebar"
-        className="sticky top-0 hidden h-dvh w-60 shrink-0 overflow-x-clip bg-surface-raised p-3 transition-[width] duration-150 motion-reduce:transition-none md:block rail:w-18"
-      >
-        <SidebarContent
-          canCreateProject={canCreateProject}
-          canCreateDailyActivity={canCreateDailyActivity}
-          canCreateTodo={canCreateTodo}
-          pathname={pathname}
-          rail={{ ...sidebar, controls: SIDEBAR_ID }}
-        />
-      </nav>
-
-      {/* Mobile drawer */}
-      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen} title={messages.app.menu}>
-        <nav aria-label={messages.app.menu} className="-mx-1 min-h-[60dvh]">
+        {/* Desktop sidebar */}
+        <nav
+          id={SIDEBAR_ID}
+          aria-label={messages.app.menu}
+          data-testid="sidebar"
+          className="sticky top-0 hidden h-dvh w-60 shrink-0 overflow-x-clip bg-surface-raised p-3 transition-[width] duration-150 motion-reduce:transition-none md:block rail:w-18"
+        >
           <SidebarContent
             canCreateProject={canCreateProject}
             canCreateDailyActivity={canCreateDailyActivity}
             canCreateTodo={canCreateTodo}
             pathname={pathname}
-            onNavigate={() => setDrawerOpen(false)}
+            rail={{ ...sidebar, controls: SIDEBAR_ID }}
           />
         </nav>
-      </Sheet>
 
-      <div className="flex min-w-0 flex-1 flex-col bg-surface-raised pt-2 pr-2 pb-2">
-        <div className="flex flex-col flex-1 p-3 pb-4 rounded-2xl bg-surface border border-line min-h-[calc(100dvh-1rem)]">
-          {/* A full-screen view covers the page from inside main: the header steps aside — for native
+        {/* Mobile drawer */}
+        <Sheet open={drawerOpen} onOpenChange={setDrawerOpen} title={messages.app.menu}>
+          <nav aria-label={messages.app.menu} className="-mx-1 min-h-[60dvh]">
+            <SidebarContent
+              canCreateProject={canCreateProject}
+              canCreateDailyActivity={canCreateDailyActivity}
+              canCreateTodo={canCreateTodo}
+              pathname={pathname}
+              onNavigate={() => setDrawerOpen(false)}
+            />
+          </nav>
+        </Sheet>
+
+        <div className="flex min-w-0 flex-1 flex-col bg-surface-raised pt-2 pr-2 pb-2">
+          <div className="flex flex-col flex-1 p-3 pb-4 rounded-2xl bg-canvas border border-line min-h-[calc(100dvh-1rem)]">
+            {/* A full-screen view covers the page from inside main: the header steps aside — for native
               fullscreen (:root:fullscreen) and for a CSS overlay that marks :root[data-canvas-fullscreen]. */}
-          <header className="sticky top-0 z-(--z-dialog) flex h-14 items-center gap-1 border border-line bg-surface px-4 py-3 rounded-t-md [background-image:linear-gradient(to_bottom,var(--surface-raised),var(--surface))] [:root:fullscreen_&]:hidden [:root[data-canvas-fullscreen]_&]:hidden">
-            <button
-              type="button"
-              aria-label={messages.app.menu}
-              data-testid="open-drawer"
-              className="flex min-h-9 min-w-9 items-center justify-center rounded-md text-ink-muted hover:bg-surface-sunken md:hidden"
-              onClick={() => setDrawerOpen(true)}
-            >
-              <MenuIcon />
-            </button>
-            {projectId !== null ? (
-              <ProjectHeader projectId={projectId} options={projectOptions} />
-            ) : (
-              <p
-                className="flex-1 truncate text-base font-semibold text-ink"
-                data-testid="page-title"
+            <header className="sticky top-0 z-(--z-dialog) flex h-14 items-center gap-1 border border-line bg-surface px-4 py-3 rounded-t-md [background-image:linear-gradient(to_bottom,var(--surface-raised),var(--surface))] [:root:fullscreen_&]:hidden [:root[data-canvas-fullscreen]_&]:hidden">
+              <button
+                type="button"
+                aria-label={messages.app.menu}
+                data-testid="open-drawer"
+                className="flex min-h-9 min-w-9 items-center justify-center rounded-md text-ink-muted hover:bg-hover md:hidden"
+                onClick={() => setDrawerOpen(true)}
               >
-                {pageTitleFor(pathname)}
-              </p>
-            )}
-            <div className="ml-auto flex items-center gap-2">
-              <NewWindowButton />
-              <NotificationsBell alerts={alerts} alarms={dueAlarms} />
-              <ThemeToggle />
-              <AvatarMenu username={username} />
-            </div>
-          </header>
-          <main
-            id="main"
-            className="relative z-0 flex flex-col flex-1 px-4 [--editor-toolbar-top:3.5rem]"
-          >
-            {children}
-          </main>
+                <MenuIcon />
+              </button>
+              {projectId !== null ? (
+                <ProjectHeader projectId={projectId} options={projectOptions} />
+              ) : (
+                <p
+                  className="flex-1 truncate text-base font-semibold text-ink"
+                  data-testid="page-title"
+                >
+                  {pageTitleFor(pathname)}
+                </p>
+              )}
+              <div className="ml-auto flex items-center gap-2">
+                <UndoButtons />
+                <NewWindowButton />
+                <NotificationsBell alerts={alerts} alarms={dueAlarms} />
+                <ThemeToggle />
+                <AvatarMenu username={username} />
+              </div>
+            </header>
+            <main
+              id="main"
+              className="relative z-0 flex flex-col flex-1 px-4 [--editor-toolbar-top:3.5rem]"
+            >
+              {children}
+            </main>
+          </div>
         </div>
       </div>
-    </div>
+    </PageHistoryProvider>
   );
 }

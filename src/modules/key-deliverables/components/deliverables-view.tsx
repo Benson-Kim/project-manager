@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet } from "@/components/ui/dialog";
 import { DataView } from "@/components/ui/data-view/data-view";
 import { dateColumn, listColumn, textColumn } from "@/components/ui/data-view/columns";
-import { formCellSaver } from "@/components/ui/data-view/datasheet";
+import { addUndo, formCellSaver } from "@/components/ui/data-view/datasheet";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { listEmptyState } from "@/components/ui/states";
@@ -15,7 +15,11 @@ import { messages } from "@/lib/messages";
 import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
 
-import { createKeyDeliverableAction, updateKeyDeliverableAction } from "../actions";
+import {
+  createKeyDeliverableAction,
+  updateKeyDeliverableAction,
+  deleteKeyDeliverableAction,
+} from "../actions";
 import type { StakeholderOption } from "@/modules/stakeholders/repository/stakeholder-options";
 import {
   KEY_DELIVERABLE_SORT,
@@ -212,6 +216,14 @@ export function DeliverablesView({
           saveCell,
           addRow: canCreate
             ? {
+                undo: addUndo(
+                  (row: { KeyDeliverableId: number; RowVer: number }) => row.KeyDeliverableId,
+                  (row) =>
+                    deleteKeyDeliverableAction({
+                      keyDeliverableId: row.KeyDeliverableId,
+                      rowVer: row.RowVer,
+                    }),
+                ),
                 add: (values) =>
                   createKeyDeliverableAction({
                     ...values,

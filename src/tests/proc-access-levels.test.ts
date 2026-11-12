@@ -14,6 +14,11 @@ import { sourceFiles } from "./import-graph";
 /** Proc folder -> permission module (rbac.ts names). */
 const MODULES: Record<string, string> = {
   board: "boards",
+  "bpmn-diagram": "bpmn",
+  checklist: "checklists",
+  "checklist-column": "checklists",
+  "checklist-item": "checklists",
+  "checklist-cell": "checklists",
   "board-column": "boards",
   "board-card": "boards",
   "board-phase": "boards",
@@ -28,6 +33,7 @@ const MODULES: Record<string, string> = {
   "question-answer": "questions-answers",
   "risk-issue": "risks-issues",
   stakeholder: "stakeholders",
+  responsibility: "stakeholders",
   supplier: "suppliers",
   "parking-lot-item": "parking-lot",
   note: "notes",
@@ -80,6 +86,7 @@ const VERBS: Record<string, string> = {
   CreateFromTemplate: "create",
   BuildFromDailyActivity: "create",
   BuildFromBoardCard: "create",
+  BuildFromChecklist: "create",
   Update: "update",
   Reorder: "update",
   // Work breakdown (ADR-0027): placing, dating and naming an item edit it.
@@ -129,6 +136,12 @@ const VERBS: Record<string, string> = {
 
 /** Procs that legitimately call no access helper, and why. */
 const EXEMPT: Record<string, string> = {
+  usp_RequirementColumn_AssertName:
+    "internal: runs inside the register label and column write procs, after their access check",
+  usp_Checklist_AssertName:
+    "internal: runs inside the checklist create and rename procs, after their access check",
+  usp_BpmnDiagram_AssertName:
+    "internal: runs inside the diagram create and rename procs, after their access check",
   usp_RequirementCanvas_AssertDetails:
     "internal: runs inside the canvas write procs, after their access check",
   usp_Todo_FollowBoardCards:
@@ -203,13 +216,19 @@ const CROSS_SCOPE: Record<
     // Landing it in one is creating a board there, so it asks what usp_Board_Create asks.
     { entity: "Project", level: "Contributor", permission: "boards:create" },
   ],
+  usp_ResponsibilityAssignment_Set: [
+    { entity: "Project", level: "Manager", permission: "stakeholders:update" },
+    // Setting or clearing the assignee role changes the WBS item's assignees.
+    { entity: "Project", level: "Manager", permission: "key-deliverables:update" },
+  ],
 };
 
-/** The card procs whose second check reads the card's source, and that source's module. */
-const CARD_SOURCES: Record<string, string> = {
+/** The procs whose second check is in another module (a card's source, a WBS item's assignees). */
+const SECOND_CHECK_MODULE: Record<string, string> = {
   usp_BoardCard_Package: "requirements",
   usp_BoardCard_LinkRequirement: "requirements",
   usp_BoardCard_PackageDeliverables: "key-deliverables",
+  usp_ResponsibilityAssignment_Set: "key-deliverables",
 };
 
 /** The access helpers themselves (they take @MinLevel as a parameter). */
@@ -256,6 +275,11 @@ const VERB_BY_PROC: Record<string, string> = {
   // The matrix reads a project's register; placing a stakeholder is a restricted update of its row.
   usp_Stakeholder_Matrix: "read",
   usp_Stakeholder_Place: "update",
+  // A matrix belongs to the stakeholder register; adding or removing a column edits that matrix.
+  usp_ResponsibilityMember_Add: "update",
+  usp_ResponsibilityMember_Remove: "update",
+  // Changing what an added register column holds edits the register's columns (ADR-0067).
+  usp_RequirementColumn_SetKind: "update",
 };
 
 const verbOf = (name: string) => {
@@ -364,9 +388,8 @@ describe("a cross-scope proc asks every scope it crosses (ADR-0038 decision 23)"
       expect(call, `${name} call ${i + 1}`).toContain(`@Permission = N'${want.permission}'`);
       // The level the UI computes for that permission, so proc and cog cannot drift apart.
       expect(requiredLevel(want.permission), `${name}: ${want.permission}`).toBe(want.level);
-      // A card's source is read in its own module; every other check stays in the proc's module.
       expect(want.permission.split(":")[0], `${name}: ${want.permission}`).toBe(
-        i === 1 && name in CARD_SOURCES ? CARD_SOURCES[name] : MODULES[proc!.folder],
+        i === 1 && name in SECOND_CHECK_MODULE ? SECOND_CHECK_MODULE[name] : MODULES[proc!.folder],
       );
     });
   });
@@ -374,11 +397,12 @@ describe("a cross-scope proc asks every scope it crosses (ADR-0038 decision 23)"
   it("registers every proc whose checks disagree with each other", () => {
     // The generic rule reads one level per proc. Any proc that asks two different levels must be
     // registered above, or it would pass that rule by accident on whichever call it reads first.
+    // A proc may also be registered for a second module at the same level.
     const disagreeing = procs
       .filter((p) => !(p.name in EXEMPT))
       .filter((p) => new Set(operationLevels(p)).size > 1)
       .map((p) => p.name);
-    expect(disagreeing.sort()).toEqual(Object.keys(CROSS_SCOPE).sort());
+    expect(Object.keys(CROSS_SCOPE)).toEqual(expect.arrayContaining(disagreeing));
   });
 });
 

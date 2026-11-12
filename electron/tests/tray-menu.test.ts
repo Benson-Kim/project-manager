@@ -66,6 +66,6 @@ describe("trayMenuTemplate", () => {
   it("shows the version and ends with Quit", () => {
     const items = labels(everything);
     expect(items).toContain("Version 1.0.9");
-    expect(items.at(-1)).toBe("Quit Project Manager");
+    expect(items.at(-1)).toBe("Quit Modulus");
   });
 });

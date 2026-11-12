@@ -26,10 +26,19 @@ function card(page: Page, name: string) {
 
 test("opens from the Financials menu with every card", async ({ page }) => {
   await page.goto("/projects/2/financials");
+  const G = messages.projects.sectionGroups;
+  const sections = page.getByRole("navigation", { name: messages.projects.sectionsNav });
+  const strategy = sections.getByRole("button", { name: G.strategy, exact: true });
+  // A click before hydration does nothing, so it is retried until the group opens.
+  await expect(async () => {
+    if ((await strategy.getAttribute("aria-expanded")) !== "true") await strategy.click();
+    await expect(strategy).toHaveAttribute("aria-expanded", "true", { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  // The group's panel is portalled to <body>, outside the nav; Financials is a group inside it.
   await page
-    .getByRole("button", { name: messages.projects.financialsSection, exact: true })
+    .getByRole("group", { name: messages.projects.financialsSection, exact: true })
+    .getByRole("link", { name: M.title, exact: true })
     .click();
-  await page.getByRole("link", { name: M.title, exact: true }).click();
   await page.waitForURL(/\/projects\/2\/financials\/project-math/);
   await expect(page.getByRole("heading", { name: M.title, level: 1 })).toBeVisible();
   await expect(page.locator("section[aria-label]")).toHaveCount(10);
@@ -84,11 +93,12 @@ test("a filtered-out card keeps what was typed", async ({ page }) => {
 test("a picked currency shows its symbol on the figures", async ({ page }) => {
   await page.goto(URL);
   const currency = page.getByRole("group", { name: M.currency, exact: true });
-  await currency.getByRole("button", { name: "EUR", exact: true }).click();
-  await expect(currency.getByRole("button", { name: "EUR", exact: true })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  const euro = currency.getByRole("button", { name: "EUR", exact: true });
+  // A click before hydration does nothing, so it is retried until the button is pressed.
+  await expect(async () => {
+    if ((await euro.getAttribute("aria-pressed")) !== "true") await euro.click();
+    await expect(euro).toHaveAttribute("aria-pressed", "true", { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   await expect(page.getByTestId("cost-total")).toHaveText(/^−?€/);
   await currency.getByRole("button", { name: "GBP", exact: true }).click();
   await expect(page.getByTestId("cost-total")).toHaveText(/^−?£/);

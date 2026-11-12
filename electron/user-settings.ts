@@ -1,6 +1,7 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { backupCopyDir } from "./app-folders";
 import type { Placement } from "./window-placement";
 
 /** Per-Windows-user preferences (machine-wide settings live in machine.json). */
@@ -24,8 +25,8 @@ export interface UserSettings {
 function defaultCopyDir(): string {
   const oneDrive =
     process.env.OneDriveCommercial || process.env.OneDrive || process.env.OneDriveConsumer;
-  if (oneDrive && fs.existsSync(oneDrive)) return path.join(oneDrive, "Project Manager Backups");
-  return path.join(os.homedir(), "Documents", "Project Manager Backups");
+  if (oneDrive && fs.existsSync(oneDrive)) return backupCopyDir(oneDrive);
+  return backupCopyDir(path.join(os.homedir(), "Documents"));
 }
 
 export class SettingsStore {

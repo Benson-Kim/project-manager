@@ -46,8 +46,8 @@ async function pickFirst(field: Locator): Promise<void> {
   await expect(chips(field)).toHaveCount(before + 1);
 }
 
-/** Adds a requirement in the datasheet's new-entry row and waits for the list to show it. */
-async function addRequirement(page: Page, type: string, text: string): Promise<void> {
+/** Saves a requirement through the datasheet's new-entry row. */
+async function enterRequirement(page: Page, type: string, text: string): Promise<void> {
   const addRow = page.getByTestId("datasheet-add-row");
   await expect(addRow).toBeVisible();
   const field = addRow.getByRole("textbox", { name: newEntry(M.requirement) });
@@ -57,6 +57,11 @@ async function addRequirement(page: Page, type: string, text: string): Promise<v
   await field.press("Enter");
   // The row clears for the next entry once the record is saved.
   await expect(field).toHaveValue("");
+}
+
+/** Adds a requirement in the datasheet's new-entry row and waits for the list to show it. */
+async function addRequirement(page: Page, type: string, text: string): Promise<void> {
+  await enterRequirement(page, type, text);
   await expect(rowOf(page, text)).toBeVisible();
 }
 
@@ -283,6 +288,61 @@ test("the register opens full page over the app header, and Escape brings it bac
   await toggle.click();
   await expect(toggle).toHaveText(M.canvas.fullPage);
   await expect(appHeader).toBeVisible();
+});
+
+/**
+ * Full page lost the column headers (client feedback, 2026-11-12): the register's box kept a height
+ * the layer had no room for (a smaller window, say), so the layer scrolled instead and took the
+ * header row under the toolbar. The box now fits the layer and scrolls under a header row that
+ * stays put and uncovered.
+ */
+test("full page keeps the column headers in view while a long register scrolls", async ({
+  page,
+}) => {
+  const stamp = Date.now();
+  const text = `E2E long register ${stamp}`;
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto(`${REGISTER}&q=${stamp}`);
+  for (let i = 1; i <= 8; i++) await enterRequirement(page, "BR", `${text} ${i}`);
+  await page.reload();
+  await closeAlarmToast(page);
+  const register = page.getByTestId("requirements-register");
+  const scroller = register.getByTestId("data-view-scroller");
+  const header = register.locator("thead").getByText(M.requirement, { exact: true });
+  const saved = new RegExp(`^${escapeRegExp(messages.datasheet.cellLabel(M.requirement, text))} `);
+  await expect(register.getByRole("textbox", { name: saved })).toHaveCount(8);
+
+  // A click before hydration does nothing, so it is retried until the register is pinned.
+  await expect(async () => {
+    await page.getByTestId("requirements-full-page").click();
+    await expect(register).toHaveCSS("position", "fixed", { timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  await page.setViewportSize({ width: 1280, height: 420 });
+  const tall = await register.evaluate(
+    (layer) => (layer.querySelector("table")?.offsetHeight ?? 0) > layer.clientHeight,
+  );
+  expect(tall, "the register should outgrow the window").toBe(true);
+
+  await expect
+    .poll(() => register.evaluate((layer) => layer.scrollHeight - layer.clientHeight))
+    .toBeLessThanOrEqual(1);
+  await scroller.hover();
+  await page.mouse.wheel(0, 3000);
+  await expect.poll(() => scroller.evaluate((box) => box.scrollTop)).toBeGreaterThan(0);
+  expect(await register.evaluate((layer) => layer.scrollTop)).toBe(0);
+
+  await expect(header).toBeInViewport();
+  const stuck = await header.evaluate((label) => {
+    const cell = label.closest("th")!;
+    const box = cell.closest('[data-testid="data-view-scroller"]')!.getBoundingClientRect();
+    const rect = cell.getBoundingClientRect();
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    return {
+      offset: Math.round(rect.top - box.top),
+      uncovered: Boolean(hit && cell.contains(hit)),
+    };
+  });
+  expect(stuck).toEqual({ offset: 0, uncovered: true });
 });
 
 /**

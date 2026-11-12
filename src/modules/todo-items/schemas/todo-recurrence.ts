@@ -199,6 +199,28 @@ export const listTodoCalendarInput = z
   );
 export type ListTodoCalendarInput = z.input<typeof listTodoCalendarInput>;
 
+const NOTE_LINE_MAX = 140;
+
+/** The first line of a to-do's rich-text notes as plain text, or null when there is none. */
+export function notesFirstLine(html: string | null): string | null {
+  if (html === null) return null;
+  const text = html
+    .replace(/<\/(p|div|h[1-6]|li|blockquote|pre|tr)>|<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
+  const line = text
+    .split("\n")
+    .map((l) => l.replace(/\s+/g, " ").trim())
+    .find((l) => l !== "");
+  if (line === undefined) return null;
+  return line.length > NOTE_LINE_MAX ? `${line.slice(0, NOTE_LINE_MAX - 1)}…` : line;
+}
+
 /** usp_Todo_ListCalendar's first result set: a to-do, with its rule when it repeats. */
 export const calendarTodoRowSchema = z
   .object({
@@ -211,6 +233,7 @@ export const calendarTodoRowSchema = z
     Priority: z.string().nullable(),
     Status: z.string().nullable(),
     Assignee: z.string().nullable(),
+    Notes: z.string().nullable(),
     RowVer: rowVerSchema,
     ActorAccess: actorAccessSchema,
     RepeatUnit: z.enum(REPEAT_UNITS).nullable(),
@@ -226,6 +249,7 @@ export const calendarTodoRowSchema = z
     priority: r.Priority,
     status: r.Status,
     assignee: r.Assignee,
+    noteLine: notesFirstLine(r.Notes),
     rowVer: r.RowVer,
     actorAccess: r.ActorAccess,
     rule: r.RepeatUnit === null ? null : ruleOf(ruleColumnsSchema.parse(r)),

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
+import { PrintLink } from "@/components/ui/print-link";
 import { RichTextView } from "@/components/ui/rich-text/rich-text-view";
 import { messages } from "@/lib/messages";
 import type { ProjectPermissions } from "@/modules/projects/repository/project-access";
@@ -42,13 +43,11 @@ export function NotebookPage({
       <PageHeader
         title={note.Title ?? messages.notes.untitled}
         action={
-          <Link
+          <PrintLink
             href={notePrintHref(note)}
-            data-testid="note-print-link"
-            className="inline-flex min-h-11 items-center text-sm font-medium text-accent"
-          >
-            {messages.notes.print}
-          </Link>
+            testId="note-print-link"
+            label={messages.notes.print}
+          />
         }
       />
       <NotebookWorkspace

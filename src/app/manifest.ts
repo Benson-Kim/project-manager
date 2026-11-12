@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Saeol Project Manager",
-    short_name: "Saeol",
+    name: "Modulus",
+    short_name: "Modulus",
     description:
       "Mobile-first project management: charter, stakeholders, meetings, financials, risks, to-dos and reports.",
     start_url: "/",

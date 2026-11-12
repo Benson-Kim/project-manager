@@ -50,7 +50,7 @@ export function ConfirmDialog({
         >
           {messages.actions.cancel}
         </Button>
-        <Button variant="danger" onClick={onConfirm} pending={pending}>
+        <Button variant="destructive" onClick={onConfirm} pending={pending}>
           {confirmLabel}
         </Button>
       </div>

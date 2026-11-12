@@ -58,7 +58,7 @@ export function GanttTools({
               <span aria-hidden="true">+</span> {B.add} <span aria-hidden="true">▾</span>
             </>
           }
-          triggerClassName="flex h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-accent px-3 text-xs font-semibold text-on-accent hover:bg-accent-strong focus-visible:outline-2 focus-visible:outline-coral disabled:opacity-50"
+          triggerClassName="flex h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-on-primary hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-coral disabled:opacity-50"
         >
           <MenuButton testId="gantt-tools-add-item" onClick={addItem.run}>
             {W.addItem}

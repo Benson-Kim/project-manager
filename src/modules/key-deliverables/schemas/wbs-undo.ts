@@ -28,6 +28,13 @@ export function rescheduleBack(wbs: Wbs, id: number, key: number): UndoStep | nu
   return { key, kind: "reschedule", id, start: node.start, end: node.end };
 }
 
+/** The step that takes `step` back again once it is applied, from the item as it is now. */
+export function stepBack(wbs: Wbs, step: UndoStep, key: number): UndoStep | null {
+  return step.kind === "move"
+    ? moveBack(wbs, step.id, step.placement, key)
+    : rescheduleBack(wbs, step.id, key);
+}
+
 export const pushUndo = pushStep<UndoStep>;
 export const dropUndo = dropStep<UndoStep>;
 
@@ -57,3 +64,6 @@ export function canUndo(stack: readonly UndoStep[], wbs: Wbs): boolean {
 export function takeUndo(stack: readonly UndoStep[], wbs: Wbs) {
   return takeStep(stack, (step) => applies(wbs, step));
 }
+
+export const canRedo = canUndo;
+export const takeRedo = takeUndo;
