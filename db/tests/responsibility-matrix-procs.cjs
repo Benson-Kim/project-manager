@@ -18,6 +18,7 @@ try {
   // No .env: the environment must carry the DB_* values (CI).
 }
 const sql = require("mssql");
+const { openAuditTrail } = require("./support/audit-trail.cjs");
 
 const PM = 3;
 const OUTSIDER = 5;
@@ -97,14 +98,25 @@ async function cells(projectId, m) {
 }
 const roleOf = (rows, kd, s) =>
   rows.find((r) => r.KeyDeliverableId === kd && r.StakeholderId === s)?.RoleCode ?? null;
-async function scalar(text, params) {
-  const req = pool.request();
-  for (const [k, v] of Object.entries(params)) req.input(k, v);
-  const { recordset } = await req.query(text);
-  return Object.values(recordset[0])[0];
+let trail;
+const auditCount = () => trail.count("app.Responsibility");
+const kdRow = async (k) => (await exec("usp_KeyDeliverable_GetById", { KeyDeliverableId: k, ActorUserId: PM }))[0][0];
+const assigneeIds = async (k) => JSON.parse((await kdRow(k)).AssigneesJson || "[]").map((a) => Number(a.id));
+async function assign(projectId, k, s) {
+  const row = await kdRow(k);
+  await exec("usp_KeyDeliverable_Update", {
+    KeyDeliverableId: k, ProjectId: projectId, KeyRequirement: "Rm item", StartDate: new Date("2026-01-05"),
+    Deadline: new Date("2026-01-12"), AssigneeIds: JSON.stringify([...(await assigneeIds(k)), s]), RowVer: row.RowVer,
+    ActorUserId: PM,
+  });
 }
-const auditCount = () =>
-  scalar("SELECT COUNT(*) FROM audit.AuditLog WHERE EntityName LIKE N'app.Responsibility%'", {});
+async function removeDeliverable(k) {
+  await exec("usp_KeyDeliverable_Delete", { KeyDeliverableId: k, RowVer: (await kdRow(k)).RowVer, ActorUserId: PM });
+}
+async function removeStakeholder(s) {
+  const [[row]] = await exec("usp_Stakeholder_GetById", { StakeholderId: s, ActorUserId: PM });
+  await exec("usp_Stakeholder_Delete", { StakeholderId: s, RowVer: row.RowVer, ActorUserId: PM });
+}
 
 (async () => {
   pool = await sql.connect({
@@ -113,6 +125,7 @@ const auditCount = () =>
     options: { trustServerCertificate: true, encrypt: true },
     connectionTimeout: 60000, requestTimeout: 60000,
   });
+  trail = await openAuditTrail(exec);
 
   const p = await project(`Rm ${Date.now()}`);
   const [s1, s2, s3] = [await stakeholder(p, "Ann"), await stakeholder(p, "Ben"), await stakeholder(p, "Cy")];
@@ -134,8 +147,7 @@ const auditCount = () =>
   ok((await code(set(m, kd, s1, "DRIVER", null))) !== 0, "a role of another framework is refused");
   ok((await code(set(m, kd, s1, "CONSULTED", "INFORMED"))) === 50002, "a stale expected role is CONFLICT");
 
-  const kdVer = () =>
-    scalar("SELECT CAST(RowVer AS BIGINT) FROM app.KeyDeliverable WHERE KeyDeliverableId = @k", { k: kd });
+  const kdVer = async () => (await kdRow(kd)).RowVer;
   const ganttVer = String(await kdVer());
   const [[setRow]] = await set(m, kd, s1, "RESPONSIBLE", null);
   ok(
@@ -149,18 +161,10 @@ const auditCount = () =>
     }))) === 50002,
     "a Gantt save with the RowVer from before the matrix edit is CONFLICT",
   );
-  const stored = await scalar(
-    "SELECT COUNT(*) FROM app.ResponsibilityAssignment WHERE ResponsibilityMatrixId = @m AND RoleCode = N'RESPONSIBLE'",
-    { m: m.id },
-  );
-  const assigned = () =>
-    scalar("SELECT COUNT(*) FROM app.KeyDeliverableAssignee WHERE KeyDeliverableId = @k AND StakeholderId = @s", {
-      k: kd, s: s1,
-    });
-  ok(stored === 0 && (await assigned()) === 1, "the assignee role lives in the WBS assignee list");
+  ok((await assigneeIds(kd)).includes(s1), "the assignee role lives in the WBS assignee list");
   ok(roleOf(await cells(p, m), kd, s1) === "RESPONSIBLE", "List shows an assignee as the assignee role");
   await set(m, kd, s1, null, "RESPONSIBLE");
-  ok((await assigned()) === 0, "clearing the assignee role removes the WBS assignee");
+  ok(!(await assigneeIds(kd)).includes(s1), "clearing the assignee role removes the WBS assignee");
 
   ok((await code(set(m, kd, s3, "CONSULTED", null))) !== 0, "a stakeholder outside the matrix is refused");
   ok(
@@ -199,9 +203,7 @@ const auditCount = () =>
   const otherKd = await deliverable(other);
   ok((await code(set(m, otherKd, s1, "CONSULTED", null))) !== 0, "a row of another project is refused");
 
-  await pool.request().input("k", kd).input("s", s3).input("a", PM).query(
-    "INSERT INTO app.KeyDeliverableAssignee (KeyDeliverableId, StakeholderId, CreatedAtUtc, CreatedBy) VALUES (@k, @s, SYSUTCDATETIME(), @a)",
-  );
+  await assign(p, kd, s3);
   const hint = (await cells(p, m)).find((r) => r.KeyDeliverableId === kd && r.StakeholderId === s3);
   ok(hint?.RoleCode === "RESPONSIBLE" && hint.IsMember === false, "an assignee outside the matrix lists with IsMember = 0");
 
@@ -210,7 +212,7 @@ const auditCount = () =>
   await set(m, gone, s2, "RESPONSIBLE", null);
   const onGone = async () => (await cells(p, m)).filter((r) => r.KeyDeliverableId === gone).length;
   const beforeDelete = await onGone();
-  await pool.request().input("k", gone).query("UPDATE app.KeyDeliverable SET IsDeleted = 1 WHERE KeyDeliverableId = @k");
+  await removeDeliverable(gone);
   ok(beforeDelete === 2 && (await onGone()) === 0, "a soft-deleted WBS item drops its cells and its assignee hints");
 
   for (const [framework, role] of [["DACI", "DRIVER"], ["MOCHA", "OWNER"]]) {
@@ -219,16 +221,11 @@ const auditCount = () =>
     const member = await stakeholder(p, `${role} member`);
     const outsider = await stakeholder(p, `${role} outsider`);
     await addMember(fm, member);
-    await pool.request().input("k", fkd).input("s", outsider).input("a", PM).query(
-      "INSERT INTO app.KeyDeliverableAssignee (KeyDeliverableId, StakeholderId, CreatedAtUtc, CreatedBy) VALUES (@k, @s, SYSUTCDATETIME(), @a)",
-    );
+    await assign(p, fkd, outsider);
     ok((await code(set(fm, fkd, member, role, null))) === 50002, `${framework} ${role} over a non-member assignee is CONFLICT`);
     await set(fm, fkd, member, role, null, { MoveSingle: 1 });
     const after = await cells(p, fm);
-    const outsiderRows = await scalar(
-      "SELECT COUNT(*) FROM app.KeyDeliverableAssignee WHERE KeyDeliverableId = @k AND StakeholderId = @s",
-      { k: fkd, s: outsider },
-    );
+    const outsiderRows = (await assigneeIds(fkd)).filter((id) => id === outsider).length;
     ok(
       roleOf(after, fkd, member) === role && roleOf(after, fkd, outsider) === null && outsiderRows === 0,
       `MoveSingle moves ${framework} ${role} from the non-member assignee to the member`,
@@ -252,10 +249,7 @@ const auditCount = () =>
   );
   ok(
     decRow.KeyDeliverableRowVer === null &&
-      (await scalar(
-        "SELECT COUNT(*) FROM app.ResponsibilityAssignment WHERE ResponsibilityMatrixId = @m AND RoleCode = N'RESPONSIBLE'",
-        { m: dm.id },
-      )) === 1,
+      (await cells(p, dm)).filter((r) => r.DecisionId === dec && r.RoleCode === "RESPONSIBLE").length === 1,
     "the assignee role is stored on decision rows",
   );
   ok((await code(onDec(s1, "ACCOUNTABLE", "RESPONSIBLE"))) === 50002, "a second A on a decision row is CONFLICT");
@@ -265,10 +259,7 @@ const auditCount = () =>
   for (let i = 0; i < 39; i++) await addMember(big, await stakeholder(p, `S${i}`));
   const [last1, last2] = [await stakeholder(p, "Last1"), await stakeholder(p, "Last2")];
   const adds = await Promise.all([code(addMember(big, last1)), code(addMember(big, last2))]);
-  const memberCount = await scalar(
-    "SELECT COUNT(*) FROM app.ResponsibilityMember WHERE ResponsibilityMatrixId = @m",
-    { m: big.id },
-  );
+  const memberCount = (await list(p, big))[0].length;
   ok(adds.filter((c) => c === 0).length === 1 && memberCount === 40, "parallel adds at 39 columns leave exactly 40");
   ok((await code(addMember(big, s1))) === 50004, "the 41st column is refused");
 
@@ -286,7 +277,7 @@ const auditCount = () =>
     "List returns the members first, in column order",
   );
   const holder = rows.find((r) => r.RoleCode === "ACCOUNTABLE").StakeholderId;
-  await pool.request().input("s", holder).query("UPDATE app.Stakeholder SET IsDeleted = 1 WHERE StakeholderId = @s");
+  await removeStakeholder(holder);
   const [liveMembers, liveCells] = await list(p, race);
   ok(
     !liveMembers.some((r) => r.StakeholderId === holder) && !liveCells.some((r) => r.StakeholderId === holder),

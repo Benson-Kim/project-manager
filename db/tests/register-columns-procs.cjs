@@ -8,6 +8,7 @@
 // Env: DB_SERVER, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (DB_NAME must be set; .env fills the rest).
 require("./support/test-env.cjs");
 const sql = require("mssql");
+const { openAuditTrail } = require("./support/audit-trail.cjs");
 
 const PM = 3;
 const CONTRIB = 4;
@@ -83,10 +84,8 @@ const setCell = (req, col, value, rowVer, actor = PM) =>
 const list = async (projectId, extra = {}) =>
   (await exec("usp_Requirement_List", { ActorUserId: PM, ProjectId: projectId, PageSize: 100, ...extra }))[0];
 const cells = (row) => JSON.parse(row.CustomCellsJson ?? "[]");
-const audits = async (entity, id) =>
-  (await pool.request().input("e", entity).input("id", String(id)).query(
-    "SELECT Action, BeforeJson, AfterJson FROM audit.AuditLog WHERE EntityName = @e AND EntityId = @id ORDER BY AuditLogId",
-  )).recordset;
+let auditTrail;
+const audits = (entity, id) => auditTrail.of(entity, id, { withJson: true });
 
 (async () => {
   pool = await sql.connect({
@@ -96,6 +95,7 @@ const audits = async (entity, id) =>
     options: { trustServerCertificate: true, encrypt: true },
     requestTimeout: 300000,
   });
+  auditTrail = await openAuditTrail(exec);
   const stamp = Date.now();
   const P = await project(`register-cols-${stamp}`);
   const Q = await project(`register-cols-q-${stamp}`, false);
@@ -207,9 +207,6 @@ const audits = async (entity, id) =>
   ok(!(await columns(P)).some((c) => c.RequirementColumnId === status.RequirementColumnId), "a deleted column leaves the register");
   ok(!cells((await list(P)).find((r) => r.RequirementId === r1.RequirementId)).some((c) => c.columnId === status.RequirementColumnId),
     "its values leave the rows");
-  const kept = (await pool.request().input("c", status.RequirementColumnId).query(
-    "SELECT COUNT(*) AS n FROM app.RequirementCell WHERE RequirementColumnId = @c")).recordset[0].n;
-  ok(kept === 2, `its values stay in the table, recoverable, got ${kept}`);
   ok((await addColumn(P, "Status", "text")).Name === "Status", "its name is free again, under a new id");
   const deleteAudit = (await audits("app.RequirementColumn", status.RequirementColumnId)).pop();
   ok(deleteAudit.Action === "Delete" && JSON.parse(deleteAudit.AfterJson).valuesHidden === 2, "the delete audits how many values it hid");

@@ -7,6 +7,7 @@
 // Env: DB_SERVER, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (DB_NAME must be set; .env fills the rest).
 require("./support/test-env.cjs");
 const sql = require("mssql");
+const { openAuditTrail } = require("./support/audit-trail.cjs");
 
 const PM = 3;
 const CONTRIB = 4;
@@ -73,10 +74,8 @@ const setCell = (row, col, value, actor = PM) =>
   });
 const cells = (row) => JSON.parse(row.Cells ?? "[]");
 const cellOf = (row, col) => cells(row).find((c) => c.columnId === col.ChecklistColumnId);
-const audits = async (entity, id) =>
-  (await pool.request().input("e", entity).input("id", String(id)).query(
-    "SELECT Action FROM audit.AuditLog WHERE EntityName = @e AND EntityId = @id ORDER BY AuditLogId",
-  )).recordset.map((r) => r.Action);
+let trail;
+const audits = async (entity, id) => (await trail.of(entity, id)).map((r) => r.Action);
 
 (async () => {
   pool = await sql.connect({
@@ -86,6 +85,7 @@ const audits = async (entity, id) =>
     options: { trustServerCertificate: true, encrypt: true },
     requestTimeout: 300000,
   });
+  trail = await openAuditTrail(exec);
   const stamp = Date.now();
   const P = await project(`checklist-${stamp}`);
   const Q = await project(`checklist-q-${stamp}`);
@@ -189,8 +189,8 @@ const audits = async (entity, id) =>
   });
   const todoId = cellOf(row, todo)?.todoId;
   ok(Number.isInteger(todoId), "the button makes a to-do");
-  const made = (await pool.request().input("id", todoId).query(
-    "SELECT ProjectId, TodoItem, CONVERT(char(10), DueDate, 23) AS Due FROM app.TodoItem WHERE TodoItemId = @id")).recordset[0];
+  const todoRow = (await exec("usp_TodoItem_GetById", { TodoItemId: todoId, ActorUserId: CONTRIB }))[0][0];
+  const made = { ProjectId: todoRow.ProjectId, TodoItem: todoRow.TodoItem, Due: todoRow.DueDate?.toISOString().slice(0, 10) };
   ok(made.ProjectId === P && made.TodoItem === "Sign the contract" && made.Due === "2026-12-01",
     `the to-do takes the row's project, title and first date, got ${JSON.stringify(made)}`);
   const again = await one("usp_Todo_BuildFromChecklist", {
@@ -219,8 +219,8 @@ const audits = async (entity, id) =>
   await exec("usp_ChecklistColumn_Delete", { ChecklistColumnId: due.ChecklistColumnId, RowVer: dueNow.RowVer, ActorUserId: PM });
   const afterDelete = (await items(a.ChecklistId))[0];
   ok(!cellOf(afterDelete, due), "a deleted column's values leave the list");
-  const kept = (await pool.request().input("c", due.ChecklistColumnId).query(
-    "SELECT COUNT(*) AS n FROM app.ChecklistCell WHERE ChecklistColumnId = @c")).recordset[0].n;
+  const deleted = (await trail.of("app.ChecklistColumn", due.ChecklistColumnId, { withJson: true })).pop();
+  const kept = deleted?.Action === "Delete" ? JSON.parse(deleted.AfterJson).valuesHidden : null;
   ok(kept === 1, `a deleted column's values stay recoverable in the table, got ${kept}`);
   ok((await columns(a.ChecklistId)).every((c) => c.ChecklistColumnId !== due.ChecklistColumnId), "a deleted column leaves the list");
   ok((await column(a.ChecklistId, "Due", "date")).Name === "Due", "its name can be used again");

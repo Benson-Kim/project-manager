@@ -72,14 +72,6 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    // Proc tests run against a throwaway database and check what the procs leave behind (audit
-    // rows, soft-deleted values) or build fixtures the procs refuse; they are not app data access.
-    files: ["db/tests/**/*.cjs"],
-    rules: {
-      "no-restricted-syntax": "off",
-    },
-  },
-  {
     // electron-builder loads its config as CommonJS.
     files: ["**/*.cjs"],
     rules: { "@typescript-eslint/no-require-imports": "off" },

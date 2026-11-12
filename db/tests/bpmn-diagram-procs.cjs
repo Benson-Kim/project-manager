@@ -7,6 +7,7 @@
 // Env: DB_SERVER, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (DB_NAME must be set; .env fills the rest).
 require("./support/test-env.cjs");
 const sql = require("mssql");
+const { openAuditTrail } = require("./support/audit-trail.cjs");
 
 const PM = 3;
 const CONTRIB = 4;
@@ -57,10 +58,8 @@ const save = async (id, json, rowVer, actor = PM) =>
   (await exec("usp_BpmnDiagram_Update", { BpmnDiagramId: id, DiagramJson: json, RowVer: rowVer, ActorUserId: actor }))[0][0];
 const remove = async (id, rowVer, actor = PM) =>
   (await exec("usp_BpmnDiagram_Delete", { BpmnDiagramId: id, RowVer: rowVer, ActorUserId: actor }))[0][0];
-const audits = async (id) =>
-  (await pool.request().input("id", String(id)).query(
-    "SELECT Action, BeforeJson, AfterJson FROM audit.AuditLog WHERE EntityName = N'app.BpmnDiagram' AND EntityId = @id ORDER BY AuditLogId",
-  )).recordset;
+let trail;
+const audits = (id) => trail.of("app.BpmnDiagram", id, { withJson: true });
 
 const drawing = (label) => JSON.stringify({
   version: 1,
@@ -81,6 +80,7 @@ const drawing = (label) => JSON.stringify({
     options: { trustServerCertificate: true, encrypt: true },
     requestTimeout: 300000,
   });
+  trail = await openAuditTrail(exec);
   const stamp = Date.now();
   const P = await project(`bpmn-${stamp}`);
   const Q = await project(`bpmn-q-${stamp}`);
