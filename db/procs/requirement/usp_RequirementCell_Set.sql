@@ -60,6 +60,18 @@ BEGIN
 
     BEGIN TRAN;
 
+    -- A choice is checked again under the column lock that deleting a choice takes, so a choice
+    -- deleted meanwhile is never stored.
+    IF @OptionId IS NOT NULL
+    BEGIN
+        DECLARE @ColumnLock INT;
+        SELECT @ColumnLock = RequirementColumnId FROM app.RequirementColumn WITH (UPDLOCK, HOLDLOCK)
+        WHERE RequirementColumnId = @RequirementColumnId;
+        IF NOT EXISTS (SELECT 1 FROM app.RequirementColumnOption
+                       WHERE RequirementColumnOptionId = @OptionId AND IsDeleted = 0)
+            THROW 50004, N'VALIDATION:Pick one of the column''s choices', 1;
+    END;
+
     UPDATE app.Requirement SET UpdatedAtUtc = SYSUTCDATETIME(), UpdatedBy = @ActorUserId
     WHERE RequirementId = @RequirementId AND IsDeleted = 0 AND CAST(RowVer AS BIGINT) = @RowVer;
     IF @@ROWCOUNT = 0

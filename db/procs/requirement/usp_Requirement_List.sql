@@ -50,6 +50,15 @@ BEGIN
     IF @Search IS NOT NULL
         SET @Search = REPLACE(REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'), N'_', N'\_'), N'[', N'\[');
 
+    -- A filter on a removed column or choice is dropped, so the register never stays filtered
+    -- by a control it no longer shows.
+    IF @CustomOptionId IS NOT NULL AND NOT EXISTS (
+           SELECT 1 FROM app.RequirementColumnOption AS o
+           JOIN app.RequirementColumn AS c ON c.RequirementColumnId = o.RequirementColumnId
+           WHERE o.RequirementColumnOptionId = @CustomOptionId AND o.IsDeleted = 0
+             AND c.RequirementColumnId = @CustomColumnId AND c.ProjectId = @ProjectId AND c.IsDeleted = 0)
+        SELECT @CustomColumnId = NULL, @CustomOptionId = NULL;
+
     WITH page AS (
         SELECT r.RequirementId, ap.Ref, ap.SortPath, ap.Depth,
                COUNT(*) OVER () AS TotalCount,

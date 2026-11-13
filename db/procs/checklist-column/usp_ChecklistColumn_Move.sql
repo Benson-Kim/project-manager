@@ -32,6 +32,10 @@ BEGIN
 
     DECLARE @Locked INT;
     SELECT @Locked = ChecklistId FROM app.Checklist WITH (UPDLOCK, HOLDLOCK) WHERE ChecklistId = @ChecklistId;
+    -- A rename or delete that took the lock first has changed the version read above.
+    IF NOT EXISTS (SELECT 1 FROM app.ChecklistColumn
+                   WHERE ChecklistColumnId = @ChecklistColumnId AND IsDeleted = 0 AND CAST(RowVer AS BIGINT) = @RowVer)
+        THROW 50002, N'CONFLICT:Column was modified by someone else', 1;
 
     -- Renumber 1..n first, so a swap is always between two distinct places.
     DECLARE @Order TABLE (ColumnId INT PRIMARY KEY, Place INT NOT NULL);
