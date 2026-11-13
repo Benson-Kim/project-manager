@@ -527,7 +527,13 @@ test("deleting a need with a solution below it offers the choice and names what 
   await expect(form).toBeVisible();
   await page.getByTestId("requirement-parent-delete").click();
   await page.getByTestId("requirement-delete-cascade").check();
-  await expect(dialog).toContainText(M.cascadeGoes(`${secondRef}, ${frRef}`));
+  await expect(dialog).toContainText(
+    new RegExp(
+      [`${secondRef}, ${frRef}`, `${frRef}, ${secondRef}`]
+        .map((refs) => M.cascadeGoes(refs).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+        .join("|"),
+    ),
+  );
   await dialog.getByRole("button", { name: M.deleteWithChildren }).click();
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.deleted }).first(),

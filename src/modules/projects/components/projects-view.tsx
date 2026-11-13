@@ -69,7 +69,7 @@ const columns: DataViewColumn<Row>[] = [
     maxLength: 255,
     editable: () => false,
     render: (r) => (
-      <ProjectLink projectId={r.ProjectId} className="font-medium text-accent underline">
+      <ProjectLink projectId={r.ProjectId} className="font-medium text-accent">
         {r.ProjectName}
       </ProjectLink>
     ),

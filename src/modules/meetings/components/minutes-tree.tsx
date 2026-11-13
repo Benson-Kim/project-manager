@@ -226,7 +226,7 @@ export function ActionStatusCell({
               data-testid="edit-on-hold-reason"
               onClick={() => hold("on-hold")}
               disabled={busy}
-              className="rounded-md px-1 underline hover:bg-surface-sunken disabled:opacity-50 print:hidden"
+              className="rounded-md px-1 text-accent hover:bg-surface-sunken disabled:opacity-50 print:hidden"
             >
               {M.onHoldReasonEdit}
             </button>

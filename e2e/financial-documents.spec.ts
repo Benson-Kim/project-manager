@@ -61,10 +61,17 @@ test("a financial from the default template lists its documents", async ({ page 
   await amount.press("Enter");
   await expect(page.getByText(messages.datasheet.saved("2023-2024"))).toBeAttached();
 
+  const strategy = page
+    .getByRole("navigation", { name: messages.projects.sectionsNav })
+    .getByRole("button", { name: messages.projects.sectionGroups.strategy, exact: true });
+  await expect(async () => {
+    if ((await strategy.getAttribute("aria-expanded")) !== "true") await strategy.click();
+    await expect(strategy).toHaveAttribute("aria-expanded", "true", { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   await page
-    .getByRole("button", { name: messages.projects.financialsSection, exact: true })
+    .getByRole("group", { name: messages.projects.financialsSection, exact: true })
+    .getByRole("link", { name: M.documentsTab, exact: true })
     .click();
-  await page.getByRole("link", { name: M.documentsTab, exact: true }).click();
   await page.waitForURL(/\/projects\/2\/financials\/documents/);
   await expect(page.getByTestId("documents-panel")).toBeVisible();
   await expect(page.getByTestId(/^document-\d+$/)).toHaveCount(9);

@@ -304,7 +304,7 @@ export function TodoView({
           </div>
           {projects && row.ProjectName ? (
             <p className="text-xs text-ink-muted">
-              <ProjectLink projectId={row.ProjectId} className="underline">
+              <ProjectLink projectId={row.ProjectId} className="text-accent">
                 {row.ProjectName}
               </ProjectLink>
             </p>

@@ -3,6 +3,7 @@
 import { useId, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { messages } from "@/lib/messages";
+import { rankByMatch } from "@/components/ui/form/rank-options";
 
 export interface ProjectOption {
   id: number;
@@ -24,12 +25,10 @@ export function ProjectHeader({
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const filtered = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return normalized
-      ? options.filter((option) => option.name.toLowerCase().includes(normalized))
-      : options;
-  }, [options, query]);
+  const filtered = useMemo(
+    () => rankByMatch(options, query, (option) => option.name).map(({ option }) => option),
+    [options, query],
+  );
 
   function selectProject(nextProjectId: number) {
     const currentPrefix = `/projects/${projectId}`;

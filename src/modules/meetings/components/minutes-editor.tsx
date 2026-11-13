@@ -389,7 +389,7 @@ export function MinutesEditor({
                     <Link
                       href={`${meetingsHref}/${action.FromMeetingId}`}
                       aria-label={M.openCarriedMeeting(action.FromSubject ?? messages.app.untitled)}
-                      className="text-ink-muted underline print:no-underline"
+                      className="text-accent print:text-ink-muted"
                     >
                       {M.carriedFrom(action.FromSubject ?? messages.app.untitled)}
                     </Link>

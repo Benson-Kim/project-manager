@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { buttonClass } from "@/components/ui/button-styles";
 import { SearchInput } from "@/components/ui/data-view/search-input";
 import { StickyScrollbar } from "@/components/ui/data-view/sticky-scrollbar";
+import { DragHandle } from "@/components/ui/drag/drag-look";
 import { DROP_MS, usePointerDrag } from "@/components/ui/drag/use-pointer-drag";
 import { useLookupLists } from "@/components/ui/lookup-lists";
 import { Menu, MenuButton } from "@/components/ui/menu";
@@ -228,7 +229,7 @@ export function BoardWorkspace({
       <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h1 className="text-xl font-semibold">{board.header.Name}</h1>
         <p className="text-sm text-ink-muted">
-          <ProjectLink projectId={board.header.ProjectId} className="underline">
+          <ProjectLink projectId={board.header.ProjectId} className="text-accent">
             {board.header.ProjectName ?? M.noProject}
           </ProjectLink>
         </p>
@@ -365,14 +366,10 @@ export function BoardWorkspace({
                       >
                         {tagged ? <KanbanCardTags card={card} menu={menu} /> : null}
                         {canEdit ? (
-                          <button
-                            type="button"
-                            data-drag-handle
-                            aria-label={U.dragCard(cardLabel(card))}
-                            className={`absolute top-1/2 -left-px z-10 flex h-10 w-4 -translate-y-1/2 touch-none cursor-grab items-center justify-center rounded-r-md text-xs text-ink-muted hover:bg-surface-raised ${kanbanReveal}`}
-                          >
-                            ⠿
-                          </button>
+                          <DragHandle
+                            label={U.dragCard(cardLabel(card))}
+                            className={`absolute top-1/2 -left-px z-10 h-10 w-4 -translate-y-1/2 rounded-r-md ${kanbanReveal}`}
+                          />
                         ) : null}
                         <div className="flex items-start gap-2">
                           <h3 className="m-0 min-w-0 flex-1">

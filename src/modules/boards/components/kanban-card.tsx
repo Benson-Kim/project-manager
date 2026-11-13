@@ -1,4 +1,5 @@
 "use client";
+import { DRAG_SOURCE } from "@/components/ui/drag/drag-look";
 import { useLookupLists } from "@/components/ui/lookup-lists";
 import { TONES } from "@/components/ui/tones";
 import { formatDate } from "@/lib/format";
@@ -144,9 +145,7 @@ export const kanbanReveal =
 
 export function kanbanCardClass(dragging: boolean): string {
   return `group/card relative flex flex-col gap-1.5 rounded-xl border bg-surface p-3 transition-colors ${
-    dragging
-      ? "border-dashed border-ink-muted bg-surface-raised opacity-40"
-      : "border-line hover:border-coral focus-within:border-coral"
+    dragging ? DRAG_SOURCE : "border-line hover:border-coral focus-within:border-coral"
   }`;
 }
 

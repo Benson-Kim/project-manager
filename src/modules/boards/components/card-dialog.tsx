@@ -192,7 +192,7 @@ function CardTodoAlert({ boardCardId, dueDate }: { boardCardId: number; dueDate:
         ) : (
           <>
             {todo.existed ? U.todoAlertExists : U.todoAlertSet(dueDate)}{" "}
-            <Link href={`/todo?id=${todo.todoItemId}`} className="underline">
+            <Link href={`/todo?id=${todo.todoItemId}`} className="text-accent">
               {U.openTodo}
             </Link>
           </>
