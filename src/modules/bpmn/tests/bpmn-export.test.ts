@@ -113,6 +113,36 @@ describe("BPMN XML export", () => {
     expect(xml).toContain('name="Order &lt;1&gt;"');
   });
 
+  it("never lets a sequence flow leave its process", () => {
+    const flow = { sourceSide: "right" as const, targetSide: "left" as const };
+    let d = connect(order(), {
+      id: "f5",
+      kind: "sequence",
+      source: "start",
+      target: "outside",
+      ...flow,
+    });
+    d = connect(d, { id: "f6", kind: "default", source: "start", target: "outside", ...flow });
+    d = connect(d, { id: "f7", kind: "association", source: "outside", target: "stock", ...flow });
+    const out = diagramToBpmnXml(d, "Order");
+    const collaboration = out.slice(
+      out.indexOf("<bpmn:collaboration"),
+      out.indexOf("</bpmn:collaboration>"),
+    );
+    expect(collaboration).toContain(
+      '<bpmn:messageFlow id="f5" sourceRef="start" targetRef="outside"/>',
+    );
+    expect(collaboration).toContain(
+      '<bpmn:messageFlow id="f6" sourceRef="start" targetRef="outside"/>',
+    );
+    expect(collaboration).toContain(
+      '<bpmn:association id="f7" sourceRef="outside" targetRef="stock"/>',
+    );
+    expect(collaboration.indexOf("messageFlow")).toBeLessThan(collaboration.indexOf("association"));
+    expect(out).not.toContain('<bpmn:sequenceFlow id="f5"');
+    expect(out).toContain('<bpmn:startEvent id="start"/>');
+  });
+
   it("lays every element out in DI", () => {
     expect(xml).toContain(
       '<bpmndi:BPMNShape id="Participant_p1_di" bpmnElement="Participant_p1" isHorizontal="true"><dc:Bounds x="0" y="0" width="720" height="320"/>',

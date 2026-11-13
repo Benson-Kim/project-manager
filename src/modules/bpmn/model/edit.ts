@@ -1,6 +1,15 @@
 import {
+  carryNames,
+  isResponsibilityFrameworkCode,
+  responsibilityFramework,
+} from "@/modules/stakeholders/schemas/responsibility-frameworks";
+import {
+  DEFAULT_RESPONSIBILITY,
+  diagramFramework,
   DIAGRAM_LIMITS,
   poolHeight,
+  SHAPE_KINDS,
+  STATUS_ID,
   type BpmnDiagram,
   type BpmnFlow,
   type BpmnPool,
@@ -8,6 +17,8 @@ import {
   type FlowKind,
   type ShapeKind,
   type Side,
+  type StepDetails,
+  type StepField,
 } from "./diagram";
 import { SHAPE_SPECS } from "./shapes";
 
@@ -95,6 +106,22 @@ export function addShape(
   return { ...diagram, shapes: [...diagram.shapes, shape] };
 }
 
+/** How far below and to the right of the original a copy lands. */
+export const COPY_OFFSET = 30;
+
+/** A copy of a shape, its text and step details included, just below and to the right of it. */
+export function duplicateShape(diagram: BpmnDiagram, id: string, copyId: string): BpmnDiagram {
+  const shape = diagram.shapes.find((each) => each.id === id);
+  if (!shape || !canAddShape(diagram)) return diagram;
+  const copy: BpmnShape = {
+    ...shape,
+    id: copyId,
+    x: clampCoord(shape.x + COPY_OFFSET),
+    y: clampCoord(shape.y + COPY_OFFSET),
+  };
+  return { ...diagram, shapes: [...diagram.shapes, copy] };
+}
+
 export function moveShapes(diagram: BpmnDiagram, moves: ReadonlyMap<string, Point>): BpmnDiagram {
   if (moves.size === 0) return diagram;
   return {
@@ -136,17 +163,126 @@ export const setShapeLabel = (diagram: BpmnDiagram, id: string, label: string): 
   ),
 });
 
+const replaceShape = (diagram: BpmnDiagram, next: BpmnShape): BpmnDiagram => ({
+  ...diagram,
+  shapes: diagram.shapes.map((shape) => (shape.id === next.id ? next : shape)),
+});
+
+/** A copy of the record with the key set, or without it when the value is empty. */
+function withKey<T extends object>(record: T | undefined, key: string, value: unknown): T {
+  const next: Record<string, unknown> = { ...record, [key]: value };
+  if (value === undefined || value === "") delete next[key];
+  return next as T;
+}
+
+const tidy = (value: string) => value.trim().slice(0, DIAGRAM_LIMITS.detail);
+
+/** Stores a step's details; a step left with none stores no details at all. */
+function withStep(diagram: BpmnDiagram, shape: BpmnShape, step: StepDetails): BpmnDiagram {
+  const next: BpmnShape = { ...shape, step };
+  if (Object.keys(step).length === 0) delete next.step;
+  return replaceShape(diagram, next);
+}
+
+/** Sets one step detail; an empty value removes it. */
+export function setStepDetail(
+  diagram: BpmnDiagram,
+  id: string,
+  field: StepField,
+  value: string,
+): BpmnDiagram {
+  const text = tidy(value);
+  const shape = diagram.shapes.find((each) => each.id === id);
+  if (!shape || (shape.step?.[field] ?? "") === text) return diagram;
+  if (field === "status" && text && !STATUS_ID.test(text)) return diagram;
+  return withStep(diagram, shape, withKey(shape.step, field, text));
+}
+
+/** Sets who holds one role of the diagram's responsibility model on a step; empty clears it. */
+export function setStepPerson(
+  diagram: BpmnDiagram,
+  id: string,
+  roleCode: string,
+  value: string,
+): BpmnDiagram {
+  const text = tidy(value);
+  const shape = diagram.shapes.find((each) => each.id === id);
+  if (!shape || (shape.step?.people?.[roleCode] ?? "") === text) return diagram;
+  if (!diagramFramework(diagram).roles.some((role) => role.code === roleCode)) return diagram;
+  const people = withKey(shape.step?.people, roleCode, text);
+  const kept = Object.keys(people).length > 0 ? people : undefined;
+  return withStep(diagram, shape, withKey(shape.step, "people", kept));
+}
+
+/**
+ * Picks the responsibility model for every step of the diagram. People named for roles the new
+ * model lacks are kept, so switching back shows them again.
+ */
+export function setResponsibilityModel(diagram: BpmnDiagram, code: string): BpmnDiagram {
+  const from = diagramFramework(diagram);
+  if (!isResponsibilityFrameworkCode(code) || from.code === code) return diagram;
+  const to = responsibilityFramework(code);
+  const switched = withKey(
+    diagram,
+    "responsibility",
+    code === DEFAULT_RESPONSIBILITY ? undefined : code,
+  );
+  return {
+    ...switched,
+    shapes: switched.shapes.map((shape) =>
+      shape.step?.people
+        ? { ...shape, step: { ...shape.step, people: carryNames(shape.step.people, from, to) } }
+        : shape,
+    ),
+  };
+}
+
+const isArtifact = (kind: ShapeKind) => SHAPE_SPECS[kind].group === "artifacts";
+
+/** The kinds a symbol may become without breaking its connectors: artifacts stay artifacts. */
+export const kindsLike = (kind: ShapeKind): ShapeKind[] =>
+  SHAPE_KINDS.filter((each) => isArtifact(each) === isArtifact(kind));
+
+/** Changes a symbol's kind about its centre; it takes the new kind's size unless both are activities. */
+export function setShapeKind(diagram: BpmnDiagram, id: string, kind: ShapeKind): BpmnDiagram {
+  const shape = diagram.shapes.find((each) => each.id === id);
+  if (!shape || shape.kind === kind || !kindsLike(shape.kind).includes(kind)) return diagram;
+  const activity = (each: ShapeKind) => SHAPE_SPECS[each].group === "activities";
+  const { width, height } = activity(shape.kind) && activity(kind) ? shape : SHAPE_SPECS[kind];
+  const mid = centre(shape);
+  return replaceShape(diagram, {
+    ...shape,
+    kind,
+    width,
+    height,
+    x: clampCoord(mid.x - width / 2),
+    y: clampCoord(mid.y - height / 2),
+  });
+}
+
 export type NewFlow = Omit<BpmnFlow, "label"> & { label?: string };
+
+/** Whether a flow other than `except` already joins the two shapes the same way in that direction. */
+function joined(
+  diagram: BpmnDiagram,
+  flow: Pick<BpmnFlow, "source" | "target" | "kind">,
+  except?: string,
+): boolean {
+  return diagram.flows.some(
+    (each) =>
+      each.id !== except &&
+      each.source === flow.source &&
+      each.target === flow.target &&
+      each.kind === flow.kind,
+  );
+}
 
 /** A flow between two different shapes that are not already joined the same way in that direction. */
 export function connect(diagram: BpmnDiagram, flow: NewFlow): BpmnDiagram {
   const ids = new Set(diagram.shapes.map((shape) => shape.id));
   if (!canAddFlow(diagram) || flow.source === flow.target) return diagram;
   if (!ids.has(flow.source) || !ids.has(flow.target)) return diagram;
-  const twin = diagram.flows.some(
-    (each) => each.source === flow.source && each.target === flow.target && each.kind === flow.kind,
-  );
-  if (twin) return diagram;
+  if (joined(diagram, flow)) return diagram;
   return { ...diagram, flows: [...diagram.flows, { ...flow, label: cut(flow.label ?? "") }] };
 }
 
@@ -155,9 +291,12 @@ export const setFlowLabel = (diagram: BpmnDiagram, id: string, label: string): B
   flows: diagram.flows.map((flow) => (flow.id === id ? { ...flow, label: cut(label) } : flow)),
 });
 
+/** A flow keeps its kind when the new one would join its shapes the way another flow already does. */
 export const setFlowKind = (diagram: BpmnDiagram, id: string, kind: FlowKind): BpmnDiagram => ({
   ...diagram,
-  flows: diagram.flows.map((flow) => (flow.id === id ? { ...flow, kind } : flow)),
+  flows: diagram.flows.map((flow) =>
+    flow.id === id && !joined(diagram, { ...flow, kind }, id) ? { ...flow, kind } : flow,
+  ),
 });
 
 export function reconnect(
@@ -168,6 +307,8 @@ export function reconnect(
   if (ends.source === ends.target) return diagram;
   const ids = new Set(diagram.shapes.map((shape) => shape.id));
   if (!ids.has(ends.source) || !ids.has(ends.target)) return diagram;
+  const flow = diagram.flows.find((each) => each.id === id);
+  if (!flow || joined(diagram, { ...ends, kind: flow.kind }, id)) return diagram;
   return {
     ...diagram,
     flows: diagram.flows.map((flow) => (flow.id === id ? { ...flow, ...ends } : flow)),

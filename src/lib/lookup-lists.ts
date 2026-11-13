@@ -60,12 +60,17 @@ export const LOOKUP_LISTS = [
   // labels in app.DecisionImpactedArea the way every other list-bound value is held.
   "decision.status",
   "decision.impacted-area",
+  // Process steps (migration 075): held in the diagram document, so by option id.
+  "bpmn.step-status",
 ] as const;
 
 export type LookupListKey = (typeof LOOKUP_LISTS)[number];
 
 /** Lists whose records store the option id rather than its label. */
-export const ID_BOUND_LISTS: readonly LookupListKey[] = ["daily-activity.status"];
+export const ID_BOUND_LISTS: readonly LookupListKey[] = [
+  "daily-activity.status",
+  "bpmn.step-status",
+];
 
 /** Longest option label: the narrowest column a list is bound to (app.Project, NVARCHAR(50)). */
 export const LOOKUP_LABEL_MAX = 50;

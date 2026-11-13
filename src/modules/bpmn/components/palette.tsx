@@ -1,5 +1,7 @@
 "use client";
 
+import { DRAG_SOURCE } from "@/components/ui/drag/drag-look";
+import type { DragGesture } from "@/components/ui/drag/use-pointer-drag";
 import { messages } from "@/lib/messages";
 import { FLOW_KINDS, type FlowKind, type ShapeKind } from "../model/diagram";
 import { PALETTE_GROUPS } from "../model/shapes";
@@ -8,12 +10,15 @@ import { GlyphIcon } from "./glyph";
 
 const M = messages.bpmn;
 
-/** The drag payload a palette item carries onto the canvas: a symbol kind, or a pool. */
-export const DRAG_TYPE = "application/x-bpmn-item";
+/** What a palette item places on the canvas: a symbol kind, or a pool. */
 export type PaletteItem = ShapeKind | "pool";
 
 const ITEM =
-  "flex flex-col items-center gap-0.5 rounded-md border border-transparent p-1 text-center text-[11px] leading-tight text-ink hover:border-line hover:bg-surface-raised focus-visible:border-accent focus-visible:outline-none";
+  "flex flex-col items-center gap-0.5 rounded-md border p-1 text-center text-[11px] leading-tight text-ink select-none focus-visible:border-accent focus-visible:outline-none";
+
+function itemClass(dragging: boolean): string {
+  return `${ITEM} ${dragging ? DRAG_SOURCE : "cursor-grab border-transparent hover:border-line hover:bg-surface-raised"}`;
+}
 
 function FlowIcon({ kind }: { kind: FlowKind }) {
   const arrow = kind === "association" ? null : kind === "message" ? "open" : "solid";
@@ -62,22 +67,21 @@ function PoolIcon() {
 }
 
 /**
- * The symbols: a click places one in the middle of the view, a drag places it where it is dropped.
+ * The symbols: a click places one in the middle of the view, a drag places it where it is dropped;
+ * on a touch screen a tap places it, so the palette still scrolls under a finger.
  * The connector type picked here is the one new connections take.
  */
 export function Palette({
   connector,
   onConnector,
   onAdd,
+  drag,
 }: {
   connector: FlowKind;
   onConnector: (kind: FlowKind) => void;
   onAdd: (item: PaletteItem) => void;
+  drag: DragGesture<PaletteItem, unknown>;
 }) {
-  const drag = (item: PaletteItem) => (event: React.DragEvent) => {
-    event.dataTransfer.setData(DRAG_TYPE, item);
-    event.dataTransfer.effectAllowed = "copy";
-  };
   return (
     <aside
       aria-label={M.palette}
@@ -92,11 +96,10 @@ export function Palette({
               <button
                 key={kind}
                 type="button"
-                draggable
                 data-testid={`bpmn-palette-${kind}`}
-                className={ITEM}
+                className={itemClass(drag.dragging === kind)}
                 onClick={() => onAdd(kind)}
-                onDragStart={drag(kind)}
+                {...drag.bind(kind)}
               >
                 <GlyphIcon kind={kind} />
                 <span>{M.shapes[kind]}</span>
@@ -109,11 +112,10 @@ export function Palette({
         <h3 className="mb-1 text-xs font-semibold text-ink-muted">{M.groups.swimlanes}</h3>
         <button
           type="button"
-          draggable
           data-testid="bpmn-palette-pool"
-          className={`${ITEM} w-full`}
+          className={`${itemClass(drag.dragging === "pool")} w-full`}
           onClick={() => onAdd("pool")}
-          onDragStart={drag("pool")}
+          {...drag.bind("pool")}
         >
           <PoolIcon />
           <span>{M.pool}</span>

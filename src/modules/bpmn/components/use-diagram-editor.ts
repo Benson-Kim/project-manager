@@ -55,6 +55,9 @@ export function useDiagramEditor(initial: BpmnDiagram) {
     [set],
   );
 
+  const undoStep = useCallback(() => step(undo), [step]);
+  const redoStep = useCallback(() => step(redo), [step]);
+
   return useMemo(
     () => ({
       diagram: state.diagram,
@@ -63,10 +66,10 @@ export function useDiagramEditor(initial: BpmnDiagram) {
       change,
       beginGesture,
       endGesture,
-      undo: () => step(undo),
-      redo: () => step(redo),
+      undo: undoStep,
+      redo: redoStep,
     }),
-    [state, change, beginGesture, endGesture, step],
+    [state, change, beginGesture, endGesture, undoStep, redoStep],
   );
 }
 

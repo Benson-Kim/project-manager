@@ -147,4 +147,80 @@ test.describe("BPMN diagrams", () => {
     expect(xml).toContain(`name="${M.newPoolName}"`);
     expect(xml).toContain("<bpmn:exclusiveGateway");
   });
+
+  test("the right-click menu adds, duplicates and deletes, and the header's Undo takes it back", async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const projectId = await createProject(page);
+    await createDiagram(page, projectId);
+
+    const shapes = page.getByTestId("bpmn-shape");
+    const menu = page.getByRole("menu");
+    await page
+      .getByTestId("bpmn-board")
+      .locator(".react-flow__pane")
+      .click({ button: "right", position: { x: 300, y: 200 } });
+    await menu.getByTestId("bpmn-menu-add-task").click();
+    await expect(shapes).toHaveCount(1);
+    await expect(menu).toBeHidden();
+
+    await shapes.first().click({ button: "right" });
+    await menu.getByTestId("bpmn-menu-duplicate").click();
+    await expect(shapes).toHaveCount(2);
+
+    await shapes.nth(1).click({ button: "right", position: { x: 60, y: 50 } });
+    await menu.getByTestId("bpmn-menu-delete").click();
+    await expect(shapes).toHaveCount(1);
+
+    const undo = page.getByTestId("page-undo");
+    await expect(undo).toBeEnabled();
+    await undo.click();
+    await expect(shapes).toHaveCount(2);
+    await page.getByTestId("page-redo").click();
+    await expect(shapes).toHaveCount(1);
+    await waitForSave(page);
+  });
+
+  test("the inspector's details show in the matrix and swimlanes, and a step deletes from there", async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const projectId = await createProject(page);
+    await createDiagram(page, projectId);
+
+    await page.getByTestId("bpmn-palette-pool").click();
+    await page.getByTestId("bpmn-palette-task").click();
+    await expect(page.getByTestId("bpmn-inspector-label")).toBeVisible();
+    const fill = async (testId: string, text: string) => {
+      await page.getByTestId(testId).fill(text);
+      await page.getByTestId(testId).press("Enter");
+    };
+    await fill("bpmn-inspector-label", "Check order");
+    await fill("bpmn-inspector-role", "Clerk");
+    await page.getByTestId("bpmn-inspector-status").selectOption({ label: "Active" });
+    await page.getByTestId("bpmn-inspector-model").selectOption("DACI");
+    await fill("bpmn-inspector-person-approver", "Ops lead");
+    await waitForSave(page);
+    await page.reload();
+
+    await page.getByTestId("bpmn-layout-matrix").click();
+    await expect(page.getByTestId("bpmn-palette-task")).toBeHidden();
+    const matrix = page.getByTestId("bpmn-matrix");
+    await expect(matrix.locator("th", { hasText: "Approver" })).toHaveCount(1);
+    const row = page.getByTestId("bpmn-matrix-row");
+    await expect(row).toHaveCount(1);
+    for (const text of ["Check order", "Clerk", "Ops lead", "Active"])
+      await expect(row).toContainText(text);
+    await row.click();
+    await expect(page.getByTestId("bpmn-inspector-label")).toHaveValue("Check order");
+
+    await page.getByTestId("bpmn-layout-swimlanes").click();
+    const lane = page.locator('[data-testid="bpmn-swimlane"][data-role="Clerk"]');
+    await expect(lane.getByTestId("bpmn-step-card")).toHaveText(/Check order/);
+    await page.getByTestId("bpmn-inspector-delete").click();
+    await expect(page.getByTestId("bpmn-step-card")).toHaveCount(0);
+    await page.getByTestId("bpmn-undo").click();
+    await expect(lane.getByTestId("bpmn-step-card")).toHaveCount(1);
+  });
 });

@@ -8,6 +8,9 @@ import { messages } from "@/lib/messages";
 import { guardProjectScope } from "@/lib/project-page-helpers";
 import { orNotFound, orNull } from "@/lib/row-access";
 import { BpmnWorkspace } from "@/modules/bpmn/components/bpmn-workspace";
+import { ListEditorHost } from "@/components/ui/form/list-select";
+import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
+import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
 import { DiagramForm } from "@/modules/bpmn/components/diagram-form";
 import { getDiagram, listDiagrams } from "@/modules/bpmn/repository/diagrams";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
@@ -34,9 +37,10 @@ export default async function BpmnPage({
   if (projectId === null) notFound();
 
   const raw = flattenSearchParams(await searchParams);
-  const [diagrams, allows] = await Promise.all([
+  const [diagrams, allows, lookup] = await Promise.all([
     orNotFound(listDiagrams(projectId, session.userId)),
     getProjectPermissions(projectId, session.userId),
+    loadLookupLists(["bpmn.step-status"], session),
   ]);
   const picked =
     diagrams.find((each) => String(each.BpmnDiagramId) === raw.diagram) ?? diagrams[0] ?? null;
@@ -53,18 +57,28 @@ export default async function BpmnPage({
     <>
       <PageHeader title={row?.Name ?? M.title} />
       {row ? (
-        <BpmnWorkspace
-          key={row.BpmnDiagramId}
-          projectId={projectId}
-          row={row}
-          diagrams={diagrams}
-          can={can}
-        />
+        <LookupListsScope {...lookup}>
+          <ListEditorHost>
+            <BpmnWorkspace
+              key={row.BpmnDiagramId}
+              projectId={projectId}
+              row={row}
+              diagrams={diagrams}
+              can={can}
+            />
+          </ListEditorHost>
+        </LookupListsScope>
       ) : (
         <EmptyState
           title={M.none}
           body={can.create ? M.noneBody : undefined}
-          action={can.create ? <DiagramForm projectId={projectId} /> : undefined}
+          action={
+            can.create ? (
+              <div className="sm:w-80">
+                <DiagramForm projectId={projectId} />
+              </div>
+            ) : undefined
+          }
         />
       )}
     </>

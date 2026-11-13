@@ -40,6 +40,23 @@ BEGIN
        OR JSON_QUERY(@DiagramJson, N'$.flows') IS NULL
         THROW 50004, N'VALIDATION:The diagram could not be read', 1;
 
+    -- A step's status is an option of the step-status list; a step keeps a status since removed.
+    DECLARE @NewStatus TABLE (OptionId INT PRIMARY KEY);
+    INSERT INTO @NewStatus (OptionId)
+    SELECT DISTINCT TRY_CAST(s.StatusId AS INT)
+    FROM OPENJSON(@DiagramJson, N'$.shapes') WITH (StatusId NVARCHAR(20) N'$.step.status') s
+    WHERE TRY_CAST(s.StatusId AS INT) IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM OPENJSON(ISNULL(@OldJson, N'{}'), N'$.shapes')
+                      WITH (StatusId NVARCHAR(20) N'$.step.status') o
+                      WHERE o.StatusId = s.StatusId);
+    DECLARE @StatusId INT;
+    WHILE EXISTS (SELECT 1 FROM @NewStatus)
+    BEGIN
+        SELECT TOP (1) @StatusId = OptionId FROM @NewStatus;
+        EXEC dbo.usp_LookupList_AssertOption @ListKey = N'bpmn.step-status', @LookupOptionId = @StatusId;
+        DELETE FROM @NewStatus WHERE OptionId = @StatusId;
+    END;
+
     BEGIN TRAN;
 
     UPDATE app.BpmnDiagram SET

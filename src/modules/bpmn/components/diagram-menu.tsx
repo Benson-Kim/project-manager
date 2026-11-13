@@ -2,12 +2,13 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { BinIcon } from "@/components/ui/action-icons";
 import { buttonClass } from "@/components/ui/button-styles";
 import { Chevron } from "@/components/ui/chevron";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
-import { Menu, MenuButton } from "@/components/ui/menu";
+import { Menu, MenuButton, MenuSeparator } from "@/components/ui/menu";
 import { messages } from "@/lib/messages";
 import { firstError } from "@/modules/key-deliverables/components/wbs-queue";
 import { deleteDiagramAction } from "../actions";
@@ -92,9 +93,17 @@ export function DiagramMenu({
           </MenuButton>
         ) : null}
         {can.delete ? (
-          <MenuButton testId="bpmn-diagram-delete" onClick={() => show("delete")}>
-            {M.deleteDiagram}
-          </MenuButton>
+          <>
+            <MenuSeparator />
+            <MenuButton
+              testId="bpmn-diagram-delete"
+              tone="danger"
+              icon={<BinIcon />}
+              onClick={() => show("delete")}
+            >
+              {M.deleteDiagram}
+            </MenuButton>
+          </>
         ) : null}
       </Menu>
       <Dialog open={open === "new"} onOpenChange={toggle("new")} title={M.newDiagram}>

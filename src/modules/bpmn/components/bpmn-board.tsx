@@ -16,13 +16,16 @@ import {
 import "@xyflow/react/dist/style.css";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { menuPoint } from "@/components/ui/context-menu";
 import { isEditableTarget } from "@/components/ui/data-view/datasheet";
 import { Select } from "@/components/ui/form/inputs";
+import { HistoryButtons } from "@/components/undo/history-buttons";
 import { messages } from "@/lib/messages";
 import { FLOW_KINDS, type FlowKind } from "../model/diagram";
 import {
   addLane,
   connect,
+  duplicateShape,
   movePool,
   moveShapes,
   reconnect,
@@ -40,9 +43,10 @@ import {
 } from "../model/edit";
 import { flowKindFor } from "../model/shapes";
 import { BoardContext, type BoardActions } from "./board-context";
+import { BoardMenu, type BoardMenuActions, type MenuTarget } from "./board-menu";
 import { asSide, newId, toEdges, toNodes, type BoardNode } from "./board-model";
 import { FlowEdge, FlowMarkers, type FlowFlowEdge } from "./flow-edge";
-import { DRAG_TYPE, type PaletteItem } from "./palette";
+import type { PaletteItem } from "./palette";
 import { PoolNode } from "./pool-node";
 import { ShapeNode } from "./shape-node";
 import type { DiagramEditor } from "./use-diagram-editor";
@@ -88,6 +92,7 @@ export function BpmnBoard({
   const { screenToFlowPosition, fitView, zoomIn, zoomOut } = useReactFlow();
   const zoom = useStore((state) => state.transform[2]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [menu, setMenu] = useState<MenuTarget | null>(null);
   const { diagram, change } = editor;
 
   const nodes = useMemo(() => toNodes(diagram, selected), [diagram, selected]);
@@ -208,6 +213,38 @@ export function BpmnBoard({
     onSelect(() => new Set());
   };
 
+  const selectOnly = (id: string) => onSelect(() => new Set([id]));
+
+  const menuActions: BoardMenuActions = {
+    rename: setEditingId,
+    duplicate: (id) => {
+      const copy = newId("shape");
+      change((d) => duplicateShape(d, id, copy));
+      selectOnly(copy);
+    },
+    remove: (id) => {
+      change((d) => removeElements(d, new Set([id])));
+      onSelect(() => new Set());
+    },
+    addLane: actions.addLane,
+    setFlowKind: (id, kind) => change((d) => setFlowKind(d, id, kind)),
+    place: onPlace,
+  };
+
+  const openMenu = (
+    event: React.MouseEvent | MouseEvent,
+    element?: { of: "shape" | "pool" | "flow"; id: string },
+  ) => {
+    if (!canEdit) return;
+    event.preventDefault();
+    setEditingId(null);
+    const screen = menuPoint(event);
+    if (element) {
+      selectOnly(element.id);
+      setMenu({ ...element, screen });
+    } else setMenu({ of: "canvas", screen, at: screenToFlowPosition(screen) });
+  };
+
   const onKeyDown = (event: React.KeyboardEvent) => {
     const editable = isEditableTarget(event.target as HTMLElement);
     const shortcut = historyKey(event);
@@ -258,17 +295,11 @@ export function BpmnBoard({
             if (canEdit) setEditingId(edge.id);
           }}
           onPaneClick={() => setEditingId(null)}
-          onDragOver={(event) => {
-            if (!canEdit || !event.dataTransfer.types.includes(DRAG_TYPE)) return;
-            event.preventDefault();
-            event.dataTransfer.dropEffect = "copy";
-          }}
-          onDrop={(event) => {
-            const item = event.dataTransfer.getData(DRAG_TYPE) as PaletteItem;
-            if (!canEdit || !item) return;
-            event.preventDefault();
-            onPlace(item, screenToFlowPosition({ x: event.clientX, y: event.clientY }));
-          }}
+          onNodeContextMenu={(event, node) =>
+            openMenu(event, { of: node.type === "pool" ? "pool" : "shape", id: node.id })
+          }
+          onEdgeContextMenu={(event, edge) => openMenu(event, { of: "flow", id: edge.id })}
+          onPaneContextMenu={(event) => openMenu(event)}
           isValidConnection={(connection) => connection.source !== connection.target}
           connectionMode={ConnectionMode.Loose}
           connectionLineType={ConnectionLineType.SmoothStep}
@@ -293,30 +324,7 @@ export function BpmnBoard({
               aria-label={M.canvasLabel}
               className="flex flex-wrap items-center justify-end gap-1"
             >
-              {canEdit ? (
-                <>
-                  <Button
-                    type="button"
-                    size="compact"
-                    variant="secondary"
-                    data-testid="bpmn-undo"
-                    disabled={!editor.canUndo}
-                    onClick={editor.undo}
-                  >
-                    {M.undo}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="compact"
-                    variant="secondary"
-                    data-testid="bpmn-redo"
-                    disabled={!editor.canRedo}
-                    onClick={editor.redo}
-                  >
-                    {M.redo}
-                  </Button>
-                </>
-              ) : null}
+              {canEdit ? <HistoryButtons history={editor} labels={M} testId="bpmn" /> : null}
               <Button
                 type="button"
                 size="compact"
@@ -385,6 +393,15 @@ export function BpmnBoard({
             ) : null}
           </Panel>
         </ReactFlow>
+        {menu ? (
+          <BoardMenu
+            key={`${menu.screen.x},${menu.screen.y}`}
+            diagram={diagram}
+            target={menu}
+            actions={menuActions}
+            onClose={() => setMenu(null)}
+          />
+        ) : null}
       </div>
     </BoardContext.Provider>
   );

@@ -6,7 +6,8 @@ import { escapeXml } from "./svg";
 /**
  * BPMN 2.0 XML for other modelling tools (ADR-0064). Each pool is a participant with its own
  * process and lane set; a shape belongs to the pool and lane its centre is in, and shapes outside
- * every pool form one more process. Positions travel as DI bounds and waypoints.
+ * every pool form one more process. A sequence flow never leaves its process, so one drawn between
+ * two processes travels as a message flow. Positions travel as DI bounds and waypoints.
  */
 
 const ELEMENT: Record<ShapeKind, { tag: string; definition?: string }> = {
@@ -49,10 +50,10 @@ function shapeXml(shape: BpmnShape, defaultFlow: string | undefined): string {
   return definition ? `${open}><bpmn:${definition}/></bpmn:${tag}>` : `${open}/>`;
 }
 
-function flowXml(flow: BpmnFlow): string {
+function flowXml(flow: BpmnFlow, asMessage = flow.kind === "message"): string {
   if (flow.kind === "association")
     return `<bpmn:association id="${flow.id}" sourceRef="${flow.source}" targetRef="${flow.target}"/>`;
-  const tag = flow.kind === "message" ? "messageFlow" : "sequenceFlow";
+  const tag = asMessage ? "messageFlow" : "sequenceFlow";
   return `<bpmn:${tag} id="${flow.id}"${attr("name", flow.label)} sourceRef="${flow.source}" targetRef="${flow.target}"/>`;
 }
 
@@ -88,9 +89,12 @@ export function diagramToBpmnXml(diagram: BpmnDiagram, name: string): string {
     owner.set(shape.id, at?.poolId ?? FREE);
     if (at) laneOf.set(shape.id, at.laneId);
   }
+  const within = (flow: BpmnFlow) =>
+    flow.kind !== "message" && owner.get(flow.source) === owner.get(flow.target);
   const defaults = new Map<string, string>();
   for (const flow of diagram.flows)
-    if (flow.kind === "default" && !defaults.has(flow.source)) defaults.set(flow.source, flow.id);
+    if (flow.kind === "default" && within(flow) && !defaults.has(flow.source))
+      defaults.set(flow.source, flow.id);
 
   const processIds = [...diagram.pools.map((pool) => pool.id)];
   if (diagram.pools.length === 0 || diagram.shapes.some((shape) => owner.get(shape.id) === FREE))
@@ -100,9 +104,7 @@ export function diagramToBpmnXml(diagram: BpmnDiagram, name: string): string {
   const processes = processIds.map((key) => {
     const pool = diagram.pools.find((each) => each.id === key);
     const shapes = diagram.shapes.filter((shape) => owner.get(shape.id) === key);
-    const flows = diagram.flows.filter(
-      (flow) => flow.kind !== "message" && owner.get(flow.source) === key,
-    );
+    const flows = diagram.flows.filter((flow) => within(flow) && owner.get(flow.source) === key);
     const lanes =
       pool && pool.lanes.length > 0
         ? `<bpmn:laneSet id="LaneSet_${pool.id}">${pool.lanes
@@ -117,10 +119,12 @@ export function diagramToBpmnXml(diagram: BpmnDiagram, name: string): string {
         : "";
     return `<bpmn:process id="${processId(key)}" isExecutable="false">${lanes}${shapes
       .map((shape) => shapeXml(shape, defaults.get(shape.id)))
-      .join("")}${flows.map(flowXml).join("")}</bpmn:process>`;
+      .join("")}${flows.map((flow) => flowXml(flow)).join("")}</bpmn:process>`;
   });
 
-  const messages = diagram.flows.filter((flow) => flow.kind === "message");
+  const between = diagram.flows.filter((flow) => !within(flow));
+  const messages = between.filter((flow) => flow.kind !== "association");
+  const associations = between.filter((flow) => flow.kind === "association");
   const collaborate = diagram.pools.length > 0 || messages.length > 0;
   const collaboration = collaborate
     ? `<bpmn:collaboration id="Collaboration_1">${diagram.pools
@@ -128,7 +132,9 @@ export function diagramToBpmnXml(diagram: BpmnDiagram, name: string): string {
           (pool) =>
             `<bpmn:participant id="Participant_${pool.id}"${attr("name", pool.name)} processRef="${processId(pool.id)}"/>`,
         )
-        .join("")}${messages.map(flowXml).join("")}</bpmn:collaboration>`
+        .join("")}${messages.map((flow) => flowXml(flow, true)).join("")}${associations
+        .map((flow) => flowXml(flow))
+        .join("")}</bpmn:collaboration>`
     : "";
 
   const shapesDi = [

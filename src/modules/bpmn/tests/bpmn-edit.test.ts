@@ -7,16 +7,21 @@ import {
   addShape,
   connect,
   diagramBounds,
+  duplicateShape,
   laneAt,
   movePool,
   moveShapes,
+  reconnect,
   removeElements,
   removeLane,
   renameLane,
   resizeLane,
   resizePoolWidth,
+  setFlowKind,
   setFlowLabel,
   setShapeLabel,
+  setStepDetail,
+  COPY_OFFSET,
 } from "../model/edit";
 import { EMPTY_HISTORY, record, redo, undo } from "../model/history";
 import { flowKindFor, glyph, isResizable, SHAPE_SPECS } from "../model/shapes";
@@ -55,6 +60,24 @@ describe("shapes", () => {
     const d = moveShapes(twoLanes(), new Map([["top", { x: 10.4, y: 20.6 }]]));
     expect(at(d, "top")).toEqual({ x: 10, y: 21 });
     expect(at(d, "bottom")).toEqual(at(twoLanes(), "bottom"));
+  });
+
+  it("duplicates a shape with its text and details, offset, under a new id", () => {
+    const base = setStepDetail(
+      setShapeLabel(twoLanes(), "top", "Check order"),
+      "top",
+      "role",
+      "Clerk",
+    );
+    const d = duplicateShape(base, "top", "copy");
+    const copy = d.shapes.find((s) => s.id === "copy")!;
+    expect(d.shapes).toHaveLength(base.shapes.length + 1);
+    expect(copy).toMatchObject({ kind: "task", label: "Check order", step: { role: "Clerk" } });
+    expect(at(d, "copy")).toEqual({
+      x: at(base, "top").x + COPY_OFFSET,
+      y: at(base, "top").y + COPY_OFFSET,
+    });
+    expect(duplicateShape(base, "missing", "copy")).toBe(base);
   });
 
   it("cuts a label at the limit", () => {
@@ -96,6 +119,27 @@ describe("connectors", () => {
     expect(missing).toBe(d);
     const message = connect(d, { ...d.flows[0]!, id: "f5", kind: "message" });
     expect(message.flows).toHaveLength(2);
+  });
+
+  it("never changes a connector into a twin of another", () => {
+    const d = connect(base(), { ...base().flows[0]!, id: "f2", kind: "message" });
+    expect(setFlowKind(d, "f2", "sequence")).toEqual(d);
+    expect(setFlowKind(d, "f2", "default").flows[1]!.kind).toBe("default");
+    const other = connect(d, { ...d.flows[0]!, id: "f3", target: "outside" });
+    const ends = {
+      source: "top",
+      target: "bottom",
+      sourceSide: "right",
+      targetSide: "left",
+    } as const;
+    expect(reconnect(other, "f3", ends)).toBe(other);
+    expect(reconnect(other, "f3", { ...ends, target: "top" })).toBe(other);
+    expect(
+      reconnect(other, "f3", { ...ends, source: "bottom", target: "top" }).flows[2],
+    ).toMatchObject({
+      source: "bottom",
+      target: "top",
+    });
   });
 
   it("takes text on a connector", () => {
