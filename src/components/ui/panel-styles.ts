@@ -5,7 +5,7 @@
  * client component.
  */
 export const PANEL_SHELL =
-  "flex min-w-0 flex-col gap-4 rounded-md border border-line bg-surface [background-image:linear-gradient(to_bottom,var(--surface-raised),var(--surface)_40%)]";
+  "flex min-w-0 flex-col gap-4 rounded-lg border border-line bg-surface shadow-sm [background-image:linear-gradient(to_bottom,var(--surface-raised),var(--surface)_40%)]";
 
 export const PANEL_BODY = "flex flex-col gap-4 px-4 py-3";
 

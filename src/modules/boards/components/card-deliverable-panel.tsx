@@ -115,7 +115,7 @@ export function CardDeliverablePanel({
       onChange={(event) => event.stopPropagation()}
     >
       <Link
-        className="text-sm text-accent underline"
+        className="text-sm text-accent"
         href={`/projects/${card.DeliverableProjectId}/deliverables/gantt?view=wbs`}
       >
         {card.DeliverableTitle}

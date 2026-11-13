@@ -3,7 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { DataView } from "@/components/ui/data-view/data-view";
 import { listColumn, textColumn } from "@/components/ui/data-view/columns";
-import { formCellSaver } from "@/components/ui/data-view/datasheet";
+import { addUndo, formCellSaver } from "@/components/ui/data-view/datasheet";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { listEmptyState } from "@/components/ui/states";
@@ -13,7 +13,11 @@ import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 
-import { createStakeholderAction, updateStakeholderAction } from "../actions";
+import {
+  createStakeholderAction,
+  updateStakeholderAction,
+  deleteStakeholderAction,
+} from "../actions";
 import type { StakeholderListRow, StakeholderRow } from "../schemas/stakeholder";
 import { stakeholderFormValues } from "../schemas/stakeholder-form";
 
@@ -189,6 +193,11 @@ export function StakeholdersView({
         saveCell,
         addRow: canCreate
           ? {
+              undo: addUndo(
+                (row: { StakeholderId: number; RowVer: number }) => row.StakeholderId,
+                (row) =>
+                  deleteStakeholderAction({ stakeholderId: row.StakeholderId, rowVer: row.RowVer }),
+              ),
               add: (values) => createStakeholderAction({ ...values, projectId: String(projectId) }),
             }
           : undefined,

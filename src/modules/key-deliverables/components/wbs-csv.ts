@@ -10,6 +10,7 @@ import {
   type Wbs,
   type WbsRequirement,
 } from "../schemas/wbs";
+import { milestoneWords } from "../schemas/wbs-milestones";
 
 const C = messages.keyDeliverables.wbs.csv;
 
@@ -39,6 +40,7 @@ export function wbsCsv(wbs: Wbs): string {
       toDateInput(item.actualDate),
       Math.round(progress.get(id) ?? 0),
       decimal(budget, 2),
+      item.isMilestone ? milestoneWords(item.status) : null,
     ]);
     for (const { requirement } of requirementOutline(item.requirements)) {
       rows.push([
@@ -52,6 +54,7 @@ export function wbsCsv(wbs: Wbs): string {
         null,
         null,
         Math.round(requirementsProgress(subtree(item.requirements, requirement.id)) ?? 0),
+        null,
         null,
       ]);
     }

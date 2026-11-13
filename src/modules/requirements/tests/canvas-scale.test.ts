@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canvasClusters, collapsedView, foldLinks, neighbourhood } from "../canvas/scale";
+import { canvasClusters, collapsedView, focusTrace, foldLinks } from "../canvas/scale";
 import type { CanvasItem, CanvasLink } from "../schemas/canvas";
 
 const item = (over: Partial<CanvasItem> & { ItemId: number }): CanvasItem => ({
@@ -86,7 +86,7 @@ describe("canvas collapse by parent", () => {
   });
 });
 
-describe("canvas neighbourhood", () => {
+describe("canvas focus trace", () => {
   const links = [
     link(1, 2, { UpstreamKind: "Wbs" }),
     link(2, 3),
@@ -97,7 +97,7 @@ describe("canvas neighbourhood", () => {
   const sorted = (keys: ReadonlySet<string>) => [...keys].sort();
 
   it("is the focus with its direct upstream and downstream items by default", () => {
-    expect(sorted(neighbourhood("Requirement:3", links))).toEqual([
+    expect(sorted(focusTrace("Requirement:3", links).keys)).toEqual([
       "Requirement:2",
       "Requirement:3",
       "Requirement:4",
@@ -106,19 +106,44 @@ describe("canvas neighbourhood", () => {
   });
 
   it("keeps one direction per walk, so a sibling is not a neighbour", () => {
-    expect(neighbourhood("Requirement:3", links, 2).has("Requirement:5")).toBe(false);
-    expect(neighbourhood("Requirement:3", links, 2).has("Wbs:1")).toBe(true);
+    expect(focusTrace("Requirement:3", links, 2).keys.has("Requirement:5")).toBe(false);
+    expect(focusTrace("Requirement:3", links, 2).keys.has("Wbs:1")).toBe(true);
   });
 
   it("gives the whole trace at Infinity, and the focus alone with no links", () => {
-    expect(sorted(neighbourhood("Wbs:1", links, Infinity))).toEqual([
+    expect(sorted(focusTrace("Wbs:1", links, Infinity).keys)).toEqual([
       "Requirement:2",
       "Requirement:3",
       "Requirement:4",
       "Requirement:5",
       "Wbs:1",
     ]);
-    expect(sorted(neighbourhood("Requirement:9", links))).toEqual(["Requirement:9"]);
+    expect(sorted(focusTrace("Requirement:9", links).keys)).toEqual(["Requirement:9"]);
+  });
+
+  it("follows only the links on the trace, not one joining two traced items around the focus", () => {
+    const bypass = link(6, 4);
+    const all = [...links, bypass];
+    const followed = (depth: number) =>
+      [...focusTrace("Requirement:3", all, depth).links]
+        .map((l) => `${l.UpstreamKind}:${l.UpstreamId}>${l.DownstreamId}`)
+        .sort();
+    expect(focusTrace("Requirement:3", all).keys.has("Requirement:6")).toBe(true);
+    expect(focusTrace("Requirement:3", all).keys.has("Requirement:4")).toBe(true);
+    expect(followed(1)).toEqual(["Requirement:2>3", "Requirement:3>4", "Requirement:6>3"]);
+    expect(followed(Infinity)).toEqual([
+      "Requirement:2>3",
+      "Requirement:3>4",
+      "Requirement:6>3",
+      "Wbs:1>2",
+    ]);
+  });
+
+  it("follows a link between two items on the same side of the focus", () => {
+    const chain = [link(1, 2), link(1, 3), link(2, 3)];
+    const followed = (depth: number) => focusTrace("Requirement:1", chain, depth).links.size;
+    expect(followed(1)).toBe(2);
+    expect(followed(Infinity)).toBe(3);
   });
 });
 

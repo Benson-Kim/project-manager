@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Project Manager - database engine provisioning. Runs elevated (asks for
+  Modulus - database engine provisioning. Runs elevated (asks for
   administrator approval itself when started by a standard user).
 
 .DESCRIPTION
@@ -16,7 +16,8 @@
     4. Dedicated login 'pm_app' (password kept in machine.json); 'sa' disabled
     5. Backups folder writable by the SQL Server service; Uploads folder
        (attachments) writable by every local user
-    6. %ProgramData%\Project Manager\machine.json (atomic write)
+    6. %ProgramData%\Modulus\machine.json (atomic write; a folder from before
+       the rename, %ProgramData%\Project Manager, is moved there first)
 
   Secrets are never written to the log.
 
@@ -30,7 +31,7 @@ param(
   [Parameter(Mandatory = $true)] [string] $SqlInstaller,
   [string] $InstanceName = 'PROJECTMGR',
   [int]    $Port = 14330,
-  [string] $DataRoot = (Join-Path $env:ProgramData 'Project Manager')
+  [string] $DataRoot = (Join-Path $env:ProgramData 'Modulus')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -38,11 +39,18 @@ Set-StrictMode -Version 3
 
 $ServiceName = "MSSQL`$$InstanceName"
 $ServiceSid = "NT SERVICE\MSSQL`$$InstanceName"
-$LogDir = Join-Path $DataRoot 'logs'
-$BackupDir = Join-Path $DataRoot 'Backups'
-$UploadsDir = Join-Path $DataRoot 'Uploads'
-$ConfigPath = Join-Path $DataRoot 'machine.json'
-$LogFile = Join-Path $LogDir 'provision.log'
+$DefaultDataRoot = Join-Path $env:ProgramData 'Modulus'
+$LegacyDataRoot = Join-Path $env:ProgramData 'Project Manager'
+
+function Use-DataRoot([string] $Root) {
+  $script:DataRoot = $Root
+  $script:LogDir = Join-Path $Root 'logs'
+  $script:BackupDir = Join-Path $Root 'Backups'
+  $script:UploadsDir = Join-Path $Root 'Uploads'
+  $script:ConfigPath = Join-Path $Root 'machine.json'
+  $script:LogFile = Join-Path $script:LogDir 'provision.log'
+}
+Use-DataRoot $DataRoot
 $SqlRegRoot = 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server'
 $FirewallRuleName = 'ProjectManager-SQL-BlockInbound'
 
@@ -215,7 +223,7 @@ function Set-FirewallRule {
   try {
     $existing = Get-NetFirewallRule -Name $FirewallRuleName -ErrorAction SilentlyContinue
     if (-not $existing) {
-      New-NetFirewallRule -Name $FirewallRuleName -DisplayName 'Project Manager database (block network access)' `
+      New-NetFirewallRule -Name $FirewallRuleName -DisplayName 'Modulus database (block network access)' `
         -Direction Inbound -Action Block -Protocol TCP -LocalPort $Port -Profile Any | Out-Null
       Write-Log "Firewall: inbound TCP $Port blocked."
     }
@@ -310,6 +318,26 @@ function Grant-ServiceBackupAccess {
   if ($LASTEXITCODE -ne 0) { throw [ProvisionError]::new(50, "Could not grant $ServiceSid access to $BackupDir") }
 }
 
+# A PC set up before the rename keeps its database password, sign-in secret, backups and
+# attachments: its folder becomes the new one. When it cannot be moved (a file in it is
+# open), this run keeps using it, as the app does. Runs before logging: the log lives inside.
+function Move-LegacyDataRoot {
+  if ($DataRoot -ne $DefaultDataRoot) { return '' }
+  if (Test-Path -LiteralPath (Join-Path $DataRoot 'machine.json')) { return '' }
+  if (-not (Test-Path -LiteralPath (Join-Path $LegacyDataRoot 'machine.json'))) { return '' }
+  if (-not (Test-Path -LiteralPath $DataRoot)) {
+    try {
+      Move-Item -LiteralPath $LegacyDataRoot -Destination $DataRoot
+      return "Moved $LegacyDataRoot to $DataRoot."
+    } catch {
+      Use-DataRoot $LegacyDataRoot
+      return "Could not move $LegacyDataRoot ($($_.Exception.Message)); using it as it is."
+    }
+  }
+  Use-DataRoot $LegacyDataRoot
+  return "$DefaultDataRoot exists without machine.json; using $LegacyDataRoot as it is."
+}
+
 function Read-ExistingConfig {
   if (-not (Test-Path -LiteralPath $ConfigPath)) { return $null }
   try { return (Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json) }
@@ -335,8 +363,10 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 
 $exitCode = 0
 try {
+  $moved = Move-LegacyDataRoot
   if (-not (Test-Path -LiteralPath $LogDir)) { New-Item -ItemType Directory -Path $LogDir -Force | Out-Null }
   Write-Log "=== Provisioning start (instance $InstanceName, port $Port) ==="
+  if ($moved) { Write-Log $moved }
 
   $principal = New-Object Security.Principal.WindowsPrincipal ([Security.Principal.WindowsIdentity]::GetCurrent())
   if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {

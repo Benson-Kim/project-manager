@@ -4,6 +4,7 @@ import * as RadixDialog from "@radix-ui/react-dialog";
 import { isToastInteraction } from "./toast";
 import { useCallback, useRef } from "react";
 import { messages } from "@/lib/messages";
+import { Button } from "./button";
 
 /**
  * The ONE overlay engine : Radix Dialog. Two skins —
@@ -63,12 +64,51 @@ function CloseButton() {
   return (
     <RadixDialog.Close
       aria-label={messages.actions.close}
-      className="absolute top-3 right-3 flex size-11 items-center justify-center rounded-md text-ink-muted hover:bg-surface-sunken"
+      className="absolute top-0.5 right-1 flex size-11 items-center justify-center rounded-md text-ink-muted hover:bg-hover"
     >
       <svg viewBox="0 0 16 16" className="size-4" fill="none" aria-hidden="true">
         <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" />
       </svg>
     </RadixDialog.Close>
+  );
+}
+
+/** The title bar: a subtle band with a line under it, the close button at its right. */
+function Header({
+  title,
+  description,
+  className,
+}: Pick<OverlayProps, "title" | "description"> & { className: string }) {
+  return (
+    <div className={`relative border-b border-line bg-surface-raised py-3 pr-14 pl-4 ${className}`}>
+      <RadixDialog.Title className="text-base font-semibold text-ink">{title}</RadixDialog.Title>
+      {description ? (
+        <RadixDialog.Description className="mt-1 text-sm text-ink-muted">
+          {description}
+        </RadixDialog.Description>
+      ) : null}
+      <CloseButton />
+    </div>
+  );
+}
+
+/** A dialog's buttons at its bottom right: Cancel when `onCancel` is given, then the action. */
+export function DialogActions({
+  onCancel,
+  children,
+}: {
+  onCancel?: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mt-4 flex flex-wrap justify-end gap-2">
+      {onCancel ? (
+        <Button type="button" variant="secondary" onClick={onCancel}>
+          {messages.actions.cancel}
+        </Button>
+      ) : null}
+      {children}
+    </div>
   );
 }
 
@@ -90,18 +130,10 @@ export function Dialog({
           {...focusReturn}
           onInteractOutside={keepOpenForToasts}
           aria-describedby={description ? undefined : undefined}
-          className={`fixed top-1/2 left-1/2 z-(--z-dialog) w-[calc(100vw-2rem)] ${wide ? "max-w-[720px]" : "max-w-[480px]"} -translate-x-1/2 -translate-y-1/2 rounded-lg border border-line bg-surface p-4 shadow-xl`}
+          className={`fixed top-1/2 left-1/2 z-(--z-dialog) w-[calc(100vw-2rem)] ${wide ? "max-w-[720px]" : "max-w-[480px]"} -translate-x-1/2 -translate-y-1/2 rounded-lg border border-line bg-surface shadow-xl`}
         >
-          <RadixDialog.Title className="pr-11 text-base font-semibold text-ink">
-            {title}
-          </RadixDialog.Title>
-          {description ? (
-            <RadixDialog.Description className="mt-1 text-sm text-ink-muted">
-              {description}
-            </RadixDialog.Description>
-          ) : null}
-          <CloseButton />
-          <div className="mt-4">{children}</div>
+          <Header title={title} description={description} className="rounded-t-lg" />
+          {children ? <div className="p-4">{children}</div> : null}
         </RadixDialog.Content>
       </RadixDialog.Portal>
     </RadixDialog.Root>
@@ -197,16 +229,12 @@ export function Sheet({
           onInteractOutside={keepOpenForToasts}
           className={`fixed inset-x-0 bottom-0 z-(--z-dialog) max-h-[85dvh] overflow-y-auto rounded-t-lg border-t border-line bg-surface p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-xl md:inset-x-auto md:inset-y-0 md:right-0 md:max-h-none md:max-w-full md:rounded-none md:border-t-0 md:border-l ${wide ? "md:w-[640px]" : "md:w-[480px]"}`}
         >
-          <RadixDialog.Title className="pr-11 text-base font-semibold text-ink">
-            {title}
-          </RadixDialog.Title>
-          {description ? (
-            <RadixDialog.Description className="mt-1 text-sm text-ink-muted">
-              {description}
-            </RadixDialog.Description>
-          ) : null}
-          <CloseButton />
-          <div className="mt-4">{children}</div>
+          <Header
+            title={title}
+            description={description}
+            className="-mx-4 -mt-4 mb-4 rounded-t-lg md:rounded-none"
+          />
+          <div>{children}</div>
         </RadixDialog.Content>
       </RadixDialog.Portal>
     </RadixDialog.Root>

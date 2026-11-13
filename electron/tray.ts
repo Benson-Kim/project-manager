@@ -14,9 +14,7 @@ function refresh(): void {
       trayMenuTemplate(actions, { version: appVersion, readyVersion, copyOverdue }),
     ),
   );
-  tray.setToolTip(
-    readyVersion ? `Project Manager — update ${readyVersion} ready` : "Project Manager",
-  );
+  tray.setToolTip(readyVersion ? `Modulus — update ${readyVersion} ready` : "Modulus");
 }
 
 export function initTray(iconPath: string, trayActions: TrayActions, version: string): Tray {
@@ -53,7 +51,7 @@ export function setTrayUpdateActions(
 
 export function showTrayHint(): void {
   tray?.displayBalloon({
-    title: "Project Manager is still running",
+    title: "Modulus is still running",
     content: "It keeps backing up your data. Use the tray icon to open it or quit.",
     iconType: "info",
   });

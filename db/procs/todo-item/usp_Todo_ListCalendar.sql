@@ -60,6 +60,7 @@ BEGIN
            t.[Priority],
            t.[Status],
            t.Assignee,
+           t.Notes,
            CAST(t.RowVer AS BIGINT) AS RowVer,
            s.AccessLevel AS ActorAccess,
            r.RepeatUnit, r.RepeatEvery, r.StartTime, r.Weekdays, r.MonthMode, r.Ordinal, r.[Weekday],

@@ -281,7 +281,7 @@ export function PipeButton({
       <span>{text}</span>
       <span
         className={`rounded-sm px-1 font-mono tabular-nums ${
-          primary ? "bg-on-accent/15 text-on-accent" : "bg-surface-sunken text-ink"
+          primary ? "bg-primary-active text-on-primary" : "bg-surface-sunken text-ink"
         }`}
       >
         {readable}

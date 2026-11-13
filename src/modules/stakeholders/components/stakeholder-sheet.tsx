@@ -17,6 +17,8 @@ import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
+import { sheetUndo } from "@/lib/undo/steps";
+import { usePageHistory } from "@/components/undo/page-history";
 import {
   createStakeholderAction,
   deleteStakeholderAction,
@@ -24,7 +26,11 @@ import {
 } from "../actions";
 import { STANCES } from "../matrix";
 import type { StakeholderRow } from "../schemas/stakeholder";
-import { stakeholderFormSchema, updateStakeholderFormSchema } from "../schemas/stakeholder-form";
+import {
+  stakeholderFormSchema,
+  updateStakeholderFormSchema,
+  stakeholderFormValues,
+} from "../schemas/stakeholder-form";
 import { fullName } from "./stakeholders-view";
 
 /**
@@ -53,6 +59,18 @@ export function StakeholderSheet({
   const { update } = useListUrlState();
   const { toast } = useToast();
   const { announce } = useAnnouncer();
+  const pageHistory = usePageHistory();
+  const undoStep = sheetUndo<StakeholderRow>({
+    moduleKey: "stakeholders",
+    idOf: (row) => row.StakeholderId,
+    nameOf: (row) => row.FirstName,
+    before: stakeholder,
+    toFormValues: stakeholderFormValues,
+    update: updateStakeholderAction,
+    create: createStakeholderAction,
+    remove: (row) =>
+      deleteStakeholderAction({ stakeholderId: row.StakeholderId, rowVer: row.RowVer }),
+  });
   const schema = stakeholder ? updateStakeholderFormSchema : stakeholderFormSchema;
   const form = useZodForm(schema);
   const [pending, startTransition] = useTransition();
@@ -113,6 +131,8 @@ export function StakeholderSheet({
         ? await updateStakeholderAction(data)
         : await createStakeholderAction(data);
       if (result.ok) {
+        const step = undoStep(result.data, data, pageHistory.book);
+        if (step) pageHistory.record(step);
         toast({
           variant: "success",
           title: stakeholder ? messages.feedback.saved : messages.feedback.created,

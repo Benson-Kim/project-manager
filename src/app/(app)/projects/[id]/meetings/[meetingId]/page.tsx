@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { UnsavedChangesScope } from "@/components/ui/form/unsaved-scope";
 import { PageHeader } from "@/components/ui/page-header";
+import { PrintLink } from "@/components/ui/print-link";
 import { RichTextView } from "@/components/ui/rich-text/rich-text-view";
 import { auth } from "@/lib/auth/provider";
 import { messages } from "@/lib/messages";
@@ -92,13 +92,11 @@ export default async function MeetingPage({
                 <h2 id="meeting-minutes-heading" className="text-base font-medium text-ink">
                   {M.minutes}
                 </h2>
-                <Link
+                <PrintLink
                   href={`${listHref}/${meeting.MeetingId}/print`}
-                  data-testid="minutes-print-link"
-                  className="inline-flex min-h-11 items-center text-sm font-medium text-accent"
-                >
-                  {M.printView}
-                </Link>
+                  testId="minutes-print-link"
+                  label={M.printView}
+                />
               </div>
               <MinutesEditor
                 workspace={workspace}

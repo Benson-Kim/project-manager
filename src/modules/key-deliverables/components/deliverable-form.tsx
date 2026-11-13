@@ -11,6 +11,7 @@ import { ListSelect } from "@/components/ui/form/list-select";
 import { useSheetFormActions } from "@/components/ui/form/use-sheet-form-actions";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { messages } from "@/lib/messages";
+import { sheetUndo } from "@/lib/undo/steps";
 import { toDateInput } from "@/lib/format";
 import {
   createKeyDeliverableAction,
@@ -20,11 +21,13 @@ import {
 
 import type { KeyDeliverableRow } from "../schemas/key-deliverable";
 import {
+  deliverableFormValues,
   keyDeliverableFormSchema,
   updateKeyDeliverableFormSchema,
 } from "../schemas/key-deliverable-form";
 import { StakeholderMultiSelect } from "@/modules/stakeholders/components/stakeholder-picker";
 import type { StakeholderOption } from "@/modules/stakeholders/repository/stakeholder-options";
+import { withoutPick, withPick } from "@/modules/stakeholders/stakeholder-picks";
 import { todayUtc } from "../schemas/wbs";
 
 /**
@@ -71,14 +74,11 @@ export function DeliverableForm({
   );
 
   const handleAdd = useCallback((opt: StakeholderOption) => {
-    setSelectedAssignees((prev) => {
-      if (prev.some((a) => a.id === opt.stakeholderId)) return prev;
-      return [...prev, { id: opt.stakeholderId, name: opt.name }];
-    });
+    setSelectedAssignees((prev) => withPick(prev, opt));
   }, []);
 
   const handleRemove = useCallback((id: number) => {
-    setSelectedAssignees((prev) => prev.filter((a) => a.id !== id));
+    setSelectedAssignees((prev) => withoutPick(prev, id));
   }, []);
 
   const { pending, summary, conflict, confirmDelete, setConfirmDelete, onSubmit, onDelete } =
@@ -98,6 +98,20 @@ export function DeliverableForm({
               ok: false as const,
               error: { code: "NOT_FOUND" as const, message: "" },
             }),
+      undo: sheetUndo<KeyDeliverableRow>({
+        moduleKey: "key-deliverables",
+        idOf: (row) => row.KeyDeliverableId,
+        nameOf: (row) => row.KeyRequirement,
+        before: deliverable ?? null,
+        toFormValues: deliverableFormValues,
+        update: updateKeyDeliverableAction,
+        create: createKeyDeliverableAction,
+        remove: (row) =>
+          deleteKeyDeliverableAction({
+            keyDeliverableId: row.KeyDeliverableId,
+            rowVer: row.RowVer,
+          }),
+      }),
     });
 
   return (

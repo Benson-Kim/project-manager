@@ -15,6 +15,6 @@ setup("sign in as e2e-pm and persist storage state", async ({ page }) => {
   await page.getByLabel(messages.auth.password).fill(password);
   await page.getByRole("button", { name: messages.auth.signIn }).click();
   await page.waitForURL("/");
-  await expect(page.getByRole("heading", { name: messages.app.name })).toBeVisible();
+  await expect(page.getByRole("heading", { name: messages.home.title })).toBeVisible();
   await page.context().storageState({ path: "e2e/.auth/pm.json" });
 });

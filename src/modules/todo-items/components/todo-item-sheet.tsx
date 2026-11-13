@@ -32,12 +32,19 @@ import {
 } from "../actions";
 import { PROJECT_OR_ACTIVITY, type TodoItemRow } from "../schemas/todo-item";
 import { REPEAT_UNITS, type TodoAlertRow } from "../schemas/todo-alert";
-import { todoItemFormSchema, updateTodoItemFormSchema } from "../schemas/todo-item-form";
+import {
+  todoItemFormSchema,
+  todoItemFormValues,
+  updateTodoItemFormSchema,
+} from "../schemas/todo-item-form";
 import { todoAlertFormSchema, updateTodoAlertFormSchema } from "../schemas/todo-alert-form";
 import type { TodoRecurrence } from "../schemas/todo-recurrence";
 import { TodoRecurrenceSection } from "./todo-recurrence-section";
 import type { DailyActivityOption } from "../repository/daily-activity-options";
 import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
+import { usePageHistory } from "@/components/undo/page-history";
+import { TODO_MODULE_KEY } from "../schemas/todo-item";
+import { sheetUndo } from "@/lib/undo/steps";
 
 /**
  * To-do item detail/edit sheet: URL-synced via
@@ -58,6 +65,7 @@ export function TodoItemSheet({
   canCreateAlert,
   canUpdateAlert,
   canDeleteAlert,
+  newDay = null,
 }: {
   todoItem: TodoItemRow | null;
   todoAlert: TodoAlertRow | null;
@@ -68,6 +76,8 @@ export function TodoItemSheet({
   dailyActivityOptions: DailyActivityOption[];
   canEdit: boolean;
   canDelete: boolean;
+  /** A new to-do opened from a calendar day starts and is due on that day ("YYYY-MM-DD"). */
+  newDay?: string | null;
   canCreateAlert: boolean;
   canUpdateAlert: boolean;
   canDeleteAlert: boolean;
@@ -76,6 +86,7 @@ export function TodoItemSheet({
   const { update } = useListUrlState();
   const { toast } = useToast();
   const { announce } = useAnnouncer();
+  const pageHistory = usePageHistory();
   const schema = todoItem ? updateTodoItemFormSchema : todoItemFormSchema;
   const alertSchema = todoAlert ? updateTodoAlertFormSchema : todoAlertFormSchema;
   const form = useZodForm(schema);
@@ -122,7 +133,7 @@ export function TodoItemSheet({
     pendingNavRef.current = null;
     resetDirty();
     setShowUnsaved(false);
-    update({ id: null });
+    update({ id: null, day: null });
   };
 
   const markItemFormDirty = () => {
@@ -179,7 +190,7 @@ export function TodoItemSheet({
     if (resume) {
       resume();
     } else {
-      update({ id: null });
+      update({ id: null, day: null });
     }
   };
 
@@ -192,6 +203,21 @@ export function TodoItemSheet({
     value: String(a.DailyActivityId),
     label: a.Label,
   }));
+
+  /** The save as a page step (ADR-0063): an edit goes back field by field, a new to-do is deleted. */
+  const recordSave = (saved: TodoItemRow, formData: FormData) => {
+    const step = sheetUndo<TodoItemRow>({
+      moduleKey: TODO_MODULE_KEY,
+      idOf: (row) => row.TodoItemId,
+      nameOf: (row) => row.TodoItem,
+      before: todoItem,
+      toFormValues: todoItemFormValues,
+      update: updateTodoItemAction,
+      create: createTodoItemAction,
+      remove: (row) => deleteTodoItemAction({ todoItemId: row.TodoItemId, rowVer: row.RowVer }),
+    })(saved, formData, pageHistory.book);
+    if (step) pageHistory.record(step);
+  };
 
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -209,6 +235,7 @@ export function TodoItemSheet({
         ? await updateTodoItemAction(formData)
         : await createTodoItemAction(formData);
       if (result.ok) {
+        recordSave(result.data, formData);
         toast({
           variant: "success",
           title: todoItem ? messages.feedback.saved : messages.feedback.created,
@@ -411,14 +438,20 @@ export function TodoItemSheet({
                   name="startDate"
                   errors={form.errors.startDate}
                 >
-                  <DatePicker name="startDate" defaultValue={toDateInput(todoItem?.StartDate)} />
+                  <DatePicker
+                    name="startDate"
+                    defaultValue={todoItem ? toDateInput(todoItem.StartDate) : (newDay ?? "")}
+                  />
                 </Field>
                 <Field
                   label={messages.todoItems.dueDate}
                   name="dueDate"
                   errors={form.errors.dueDate}
                 >
-                  <DatePicker name="dueDate" defaultValue={toDateInput(todoItem?.DueDate)} />
+                  <DatePicker
+                    name="dueDate"
+                    defaultValue={todoItem ? toDateInput(todoItem.DueDate) : (newDay ?? "")}
+                  />
                 </Field>
               </div>
               <Field label={messages.todoItems.projectOrActivity} name="projectOrActivity">

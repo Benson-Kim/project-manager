@@ -35,10 +35,11 @@ function getCreateAction(
 }
 
 const navLinkClass = (current: boolean, centred: string) =>
-  `flex items-center gap-3 rounded-xl p-3 text-base leading-6 font-medium ${centred}
-   hover:bg-accent-soft hover:text-accent ${
-     current ? "bg-surface text-accent" : "text-ink-muted hover:bg-surface-sunken"
-   }`;
+  `flex items-center gap-3 rounded-xl p-3 text-base leading-6 font-medium transition-colors duration-(--duration-fast) ${centred} ${
+    current
+      ? "bg-accent-soft font-semibold text-accent"
+      : "text-ink-muted hover:bg-hover hover:text-ink"
+  }`;
 
 /** The desktop sidebar's collapse control; the mobile drawer has none. */
 export interface SidebarRail {
@@ -115,7 +116,7 @@ export function SidebarContent({
           data-testid={
             createAction.href === "/projects/new" ? "shell-new-project" : "shell-new-action"
           }
-          className={`flex items-center gap-3 rounded-xl p-3 text-base leading-6 bg-accent text-on-accent hover:bg-accent-strong mb-2 ${centred}`}
+          className={`flex items-center gap-3 rounded-xl p-3 text-base leading-6 font-medium bg-primary text-on-primary shadow-sm shadow-primary/25 transition-colors duration-(--duration-fast) hover:bg-primary-hover active:bg-primary-active mb-2 ${centred}`}
         >
           <SidebarIcon name="add" />
           <span className={label}>{createAction.label}</span>
@@ -155,7 +156,7 @@ export function SidebarContent({
             <button
               type="submit"
               title={titleOf(messages.auth.signOut)}
-              className={`flex w-full items-center gap-3 rounded-xl p-3 text-left text-base leading-6 font-medium text-ink-muted hover:bg-surface-sunken ${centred}`}
+              className={`flex w-full items-center gap-3 rounded-xl p-3 text-left text-base leading-6 font-medium text-ink-muted transition-colors duration-(--duration-fast) hover:bg-hover hover:text-ink ${centred}`}
             >
               <SidebarIcon name="logout" />
               <span className={label}>{messages.auth.signOut}</span>

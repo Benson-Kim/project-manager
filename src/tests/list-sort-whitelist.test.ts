@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { BOARD_SORT } from "@/modules/boards/schemas/board-rules";
+import { CHECKLIST_ITEM_SORT } from "@/modules/checklists/schemas/checklist";
 import type { ListSort } from "@/lib/list-params";
 import { ASSUMPTION_CONSTRAINT_SORT } from "@/modules/assumptions-constraints/schemas/assumption-constraint";
 import { AUDIT_SORT } from "@/modules/audit/schemas/audit-log";
@@ -33,6 +34,7 @@ import { TODO_ITEM_SORT } from "@/modules/todo-items/schemas/todo-item";
  */
 const MODULES: Array<[string, ListSort, string]> = [
   ["boards", BOARD_SORT, "db/procs/board/usp_Board_List.sql"],
+  ["checklists", CHECKLIST_ITEM_SORT, "db/procs/checklist-item/usp_ChecklistItem_List.sql"],
   [
     "assumptions-constraints",
     ASSUMPTION_CONSTRAINT_SORT,
@@ -86,9 +88,9 @@ function sortTokens(path: string): string[] {
 
 describe("a module's sortable columns are exactly the ones its list proc applies", () => {
   it("reads every module that offers sorting", () => {
-    // Sixteen sortable modules. Objectives declares no ListSort
+    // Seventeen sortable modules. Objectives declares no ListSort
     // because its proc orders by ObjectiveId alone; adding one adds a row here.
-    expect(MODULES.length).toBe(16);
+    expect(MODULES.length).toBe(17);
     for (const [, , path] of MODULES) expect(sortTokens(path).length).toBeGreaterThan(0);
   });
 

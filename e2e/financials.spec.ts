@@ -175,6 +175,7 @@ test("budget a recurrent line in its cells: tax per cell, escalation, totals", a
 
 test("monitor invoices until the line is flagged, then export", async ({ page }) => {
   await page.goto(view("monitoring"));
+  await closeAlarmToast(page);
   await axe(page);
   const add = page.getByTestId("transaction-list").getByTestId("datasheet-add-row");
   const entry = (column: string) =>
@@ -290,10 +291,17 @@ test("guards: a line with invoices stays, another project's path is not found", 
   page,
 }) => {
   await page.goto(view("budget"));
-  await lineRow(page, "Project management")
-    .getByRole("button", { name: messages.datasheet.open("Project management") })
-    .click();
-  const remove = page.getByTestId("line-form").getByTestId("delete-line");
+  // A click before the sheet hydrates opens nothing, so try again until the line's form shows.
+  const form = page.getByTestId("line-form");
+  await expect(async () => {
+    if (!(await form.isVisible())) {
+      await lineRow(page, "Project management")
+        .getByRole("button", { name: messages.datasheet.open("Project management") })
+        .click({ timeout: 3_000 });
+    }
+    await expect(form).toBeVisible({ timeout: 3_000 });
+  }).toPass({ timeout: 20_000 });
+  const remove = form.getByTestId("delete-line");
   await expect(remove).toBeDisabled();
   await expect(remove).toHaveAttribute("title", M.lineInUse);
 

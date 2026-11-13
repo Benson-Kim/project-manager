@@ -64,7 +64,7 @@ export function BoardsList({
               {r.Name}
             </Link>
             <p className="text-sm text-ink-muted">
-              <ProjectLink projectId={r.ProjectId} className="underline">
+              <ProjectLink projectId={r.ProjectId} className="text-accent">
                 {r.ProjectName ?? M.noProject}
               </ProjectLink>
             </p>
@@ -77,7 +77,7 @@ export function BoardsList({
             header: M.name,
             priority: 1,
             render: (r) => (
-              <Link className="text-accent underline" href={boardHref(r.BoardId)}>
+              <Link className="text-accent" href={boardHref(r.BoardId)}>
                 {r.Name}
               </Link>
             ),

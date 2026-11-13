@@ -6,6 +6,9 @@ import type { ActionResult } from "@/lib/action";
 import { messages } from "@/lib/messages";
 import { useAnnouncer } from "@/components/ui/announcer";
 import { useToast } from "@/components/ui/toast";
+import type { UndoStep } from "@/lib/undo/history";
+import type { VersionBook } from "@/lib/undo/steps";
+import { usePageHistory } from "@/components/undo/page-history";
 import type { useZodForm } from "./use-zod-form";
 
 type ZodFormHandle = ReturnType<typeof useZodForm>;
@@ -28,6 +31,7 @@ export function useSheetFormActions<TCreate, TUpdate, TDelete = void>({
   createAction,
   updateAction,
   deleteAction,
+  undo,
 }: {
   isEdit: boolean;
   onSuccess: () => void;
@@ -35,7 +39,10 @@ export function useSheetFormActions<TCreate, TUpdate, TDelete = void>({
   createAction: (data: FormData) => Promise<ActionResult<TCreate>>;
   updateAction: (data: FormData) => Promise<ActionResult<TUpdate>>;
   deleteAction: (args: TDelete) => Promise<ActionResult<unknown>>;
+  /** The save as a page undo step (ADR-0063), from what it saved and the form it sent. */
+  undo?: (saved: TCreate | TUpdate, data: FormData, book: VersionBook) => UndoStep | null;
 }) {
+  const pageHistory = usePageHistory();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [summary, setSummary] = useState<string | null>(null);
@@ -68,6 +75,8 @@ export function useSheetFormActions<TCreate, TUpdate, TDelete = void>({
         const result = isEdit ? await updateAction(data) : await createAction(data);
 
         if (result.ok) {
+          const step = undo?.(result.data, data, pageHistory.book);
+          if (step) pageHistory.record(step);
           confirm(isEdit ? messages.feedback.saved : messages.feedback.created);
           onSuccess();
           router.refresh();
@@ -85,7 +94,7 @@ export function useSheetFormActions<TCreate, TUpdate, TDelete = void>({
         }
       });
     },
-    [isEdit, createAction, updateAction, onSuccess, form, router, confirm],
+    [isEdit, createAction, updateAction, onSuccess, form, router, confirm, undo, pageHistory],
   );
 
   const onDelete = useCallback(

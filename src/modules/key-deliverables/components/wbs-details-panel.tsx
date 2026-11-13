@@ -9,6 +9,7 @@ import { OPTION_COLORS, type OptionColor } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
 import { StakeholderMultiSelect } from "@/modules/stakeholders/components/stakeholder-picker";
 import type { StakeholderOption } from "@/modules/stakeholders/repository/stakeholder-options";
+import { withoutPick, withPick } from "@/modules/stakeholders/stakeholder-picks";
 import { budgetSchema } from "../schemas/key-deliverable";
 import { DONE_STATUS, parseDay, type WbsDetailsPatch, type WbsNode } from "../schemas/wbs";
 import { DraftInput } from "./draft-input";
@@ -252,13 +253,9 @@ export function WbsDetailsPanel({
                 emptyPlaceholder={K.unassigned}
                 onAdd={(option) => {
                   if (item.assignees.some((a) => a.id === option.stakeholderId)) return;
-                  on.update({
-                    assignees: [...item.assignees, { id: option.stakeholderId, name: option.name }],
-                  });
+                  on.update({ assignees: withPick(item.assignees, option) });
                 }}
-                onRemove={(id) =>
-                  on.update({ assignees: item.assignees.filter((a) => a.id !== id) })
-                }
+                onRemove={(id) => on.update({ assignees: withoutPick(item.assignees, id) })}
               />
             </Field>
           ) : (

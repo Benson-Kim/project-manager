@@ -1,6 +1,8 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildWbs, type WbsItem } from "../schemas/wbs";
-import { milestoneStrip, stripOnlyIds } from "../schemas/wbs-milestones";
+import { milestonePhase, milestoneStrip, stripOnlyIds } from "../schemas/wbs-milestones";
 
 function item(id: number, parentId: number | null, more: Partial<WbsItem> = {}) {
   return {
@@ -139,5 +141,42 @@ describe("stripOnlyIds", () => {
 
   it("keeps every box when the strip is hidden", () => {
     expect(stripOnlyIds(wbs, []).size).toBe(0);
+  });
+});
+
+describe("milestonePhase", () => {
+  it.each([
+    ["Pending", "notStarted"],
+    [null, "notStarted"],
+    ["In Progress", "inProgress"],
+    ["On Hold", "blocked"],
+    ["Blocked", "blocked"],
+    ["Completed", "done"],
+    ["Cancelled", "cancelled"],
+    ["Under review", null],
+    ["constructor", null],
+  ] as const)("reads %s as %s", (status, phase) => {
+    expect(milestonePhase(status)).toBe(phase);
+  });
+
+  it("maps every deliverable status the migrations seed", () => {
+    const sql = ["018_lookup_list.sql", "070_key_deliverable_blocked_status.sql"]
+      .map((file) => readFileSync(join(process.cwd(), "db", "migrations", file), "utf8"))
+      .join(String.fromCharCode(10));
+    const labels = [...sql.matchAll(/\(N'key-deliverable\.status',\s*N'([^']+)'/g)].map(
+      (m) => m[1]!,
+    );
+    expect(labels).toContain("Blocked");
+    expect(labels).toContain("Pending");
+    expect(labels.filter((label) => milestonePhase(label) === null)).toEqual([]);
+  });
+
+  it("puts the phase on each chip", () => {
+    const wbs = buildWbs([
+      milestone(1, null, "2026-03-01", { status: "On Hold" }),
+      milestone(2, null, "2026-03-02"),
+    ]);
+    const chips = milestoneStrip(wbs, day("2026-02-01"));
+    expect(chips.map((chip) => chip.phase)).toEqual(["blocked", "notStarted"]);
   });
 });

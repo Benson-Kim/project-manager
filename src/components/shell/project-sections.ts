@@ -2,21 +2,18 @@ import { messages } from "@/lib/messages";
 import { projectOverviewHref } from "@/modules/projects/project-links";
 
 /**
- * Project section registry (ADR-0018): mirrors nav-items.ts for the project
- * workspace. Each deployed module appends its entry so unbuilt sections do
- * not appear (no placeholders in the section nav).
- * Segment order per ADR-0018 point 3, amended by ADR-0046: charter (index) ·
- * requirements · objectives · deliverables · stakeholders · suppliers ·
- * activities · todos · keywords. The register comes first because the
- * deliverables under it are what satisfy it (ADR-0037), and it is its own nav
- * group rather than a Planning entry.
+ * Project section registry: every built page of a project workspace, then the
+ * menu groups that show them. A new page is one entry here plus its place in a
+ * group; pages that are not built are left out (no placeholders in the menu).
  */
 export interface ProjectSection {
-  /** Route segment under /projects/[id]; "." is the charter index route. */
+  /** Route segment under /projects/[id]; "." is the overview index route. */
   segment: string;
   label: string;
   /** "exact" for the index, "prefix" for sections with nested routes. */
   match: "exact" | "prefix";
+  /** A labelled sub-list inside the group panel (the Financials views). */
+  subgroup?: string;
 }
 
 /** A named group of sections shown as a collapsible disclosure in the nav. */
@@ -26,94 +23,126 @@ export interface ProjectSectionGroup {
   sections: ProjectSection[];
 }
 
+const P = messages.projects;
+const F = messages.financials;
+
+const financialsView = (segment: string, label: string): ProjectSection => ({
+  segment: `financials/${segment}`,
+  label,
+  match: "prefix",
+  subgroup: P.financialsSection,
+});
+
 export const projectSections: ProjectSection[] = [
-  { segment: ".", label: messages.projects.charterSection, match: "exact" },
-  { segment: "requirements", label: messages.projects.requirementsSection, match: "prefix" },
-  { segment: "objectives", label: messages.projects.objectivesSection, match: "prefix" },
-  { segment: "deliverables", label: messages.projects.deliverablesSection, match: "prefix" },
-  { segment: "stakeholders", label: messages.projects.stakeholdersSection, match: "prefix" },
-  { segment: "suppliers", label: messages.projects.suppliersSection, match: "prefix" },
-  { segment: "daily-activities", label: messages.projects.dailyActivitiesSection, match: "prefix" },
-  { segment: "todos", label: messages.projects.todosSection, match: "prefix" },
-  { segment: "keywords", label: messages.projects.keywordsSection, match: "prefix" },
-  {
-    segment: "questions-answers",
-    label: messages.projects.questionsAnswersSection,
-    match: "prefix",
-  },
-  { segment: "parking-lot", label: messages.projects.parkingLotSection, match: "prefix" },
-  {
-    segment: "assumptions-constraints",
-    label: messages.projects.assumptionsConstraintsSection,
-    match: "prefix",
-  },
-  { segment: "risks-issues", label: messages.projects.risksIssuesSection, match: "prefix" },
-  { segment: "decisions", label: messages.projects.decisionsSection, match: "prefix" },
-  { segment: "meetings", label: messages.projects.meetingsSection, match: "prefix" },
-  { segment: "boards", label: messages.projects.boardsSection, match: "prefix" },
-  { segment: "notes", label: messages.projects.notesSection, match: "prefix" },
-  // Financials (ADR-0029): one entry per view of the project's financial.
-  { segment: "financials/budget", label: messages.financials.budgetTab, match: "prefix" },
-  { segment: "financials/monitoring", label: messages.financials.monitoringTab, match: "prefix" },
-  {
-    segment: "financials/documents",
-    label: messages.financials.documentsTab,
-    match: "prefix",
-  },
-  { segment: "financials/settings", label: messages.financials.settings, match: "prefix" },
-  {
-    segment: "financials/project-math",
-    label: messages.financials.projectMath.title,
-    match: "prefix",
-  },
+  { segment: ".", label: P.charterSection, match: "exact" },
+  { segment: "requirements", label: P.requirementsSection, match: "prefix" },
+  { segment: "objectives", label: P.objectivesSection, match: "prefix" },
+  { segment: "deliverables", label: P.deliverablesSection, match: "prefix" },
+  { segment: "deliverables/canvas", label: P.requirementsBoardSection, match: "prefix" },
+  { segment: "stakeholders", label: P.stakeholderCommsSection, match: "prefix" },
+  { segment: "stakeholders/matrix", label: messages.stakeholders.matrix.title, match: "prefix" },
+  { segment: "responsibility", label: P.responsibilitySection, match: "prefix" },
+  { segment: "suppliers", label: P.suppliersSection, match: "prefix" },
+  { segment: "daily-activities", label: P.dailyActivitiesSection, match: "prefix" },
+  { segment: "todos", label: P.todoAlertsMenuSection, match: "prefix" },
+  { segment: "calendar", label: P.calendarSection, match: "prefix" },
+  { segment: "keywords", label: P.keywordsSection, match: "prefix" },
+  { segment: "questions-answers", label: P.questionsAnswersSection, match: "prefix" },
+  { segment: "parking-lot", label: P.parkingLotSection, match: "prefix" },
+  { segment: "assumptions-constraints", label: P.assumptionsConstraintsSection, match: "prefix" },
+  { segment: "risks-issues", label: P.risksIssuesSection, match: "prefix" },
+  { segment: "decisions", label: P.decisionsSection, match: "prefix" },
+  { segment: "bpmn", label: P.bpmnSection, match: "prefix" },
+  { segment: "meetings", label: P.meetingsSection, match: "prefix" },
+  { segment: "boards", label: P.boardsSection, match: "prefix" },
+  { segment: "checklists", label: P.checklistsSection, match: "prefix" },
+  { segment: "notes", label: P.notesSection, match: "prefix" },
+  financialsView("budget", F.budgetTab),
+  financialsView("monitoring", F.monitoringTab),
+  financialsView("documents", F.documentsTab),
+  financialsView("settings", F.settings),
+  financialsView("project-math", F.projectMath.title),
 ];
 
-/** Sections grouped for the disclosure nav (ADR-0018). */
+function sectionsIn(segments: readonly string[]): ProjectSection[] {
+  return segments.map((segment) => {
+    const section = projectSections.find((s) => s.segment === segment);
+    if (!section) throw new Error(`Unknown project section: ${segment}`);
+    return section;
+  });
+}
+
+const G = P.sectionGroups;
+
+/** The client's six menu groups, each listing its pages in the client's order. */
 export const projectSectionGroups: ProjectSectionGroup[] = [
   {
-    key: "overview",
-    label: messages.projects.charterSection,
-    sections: projectSections.filter((s) => s.segment === "."),
+    key: "strategy",
+    label: G.strategy,
+    sections: sectionsIn([
+      ".",
+      "objectives",
+      "financials/budget",
+      "financials/monitoring",
+      "financials/documents",
+      "financials/settings",
+      "financials/project-math",
+    ]),
   },
   {
     key: "requirements",
-    label: messages.projects.requirementsSection,
-    sections: projectSections.filter((s) => s.segment === "requirements"),
+    label: G.requirements,
+    sections: sectionsIn(["deliverables", "requirements", "deliverables/canvas"]),
   },
   {
-    key: "planning",
-    label: messages.planning.title,
-    sections: projectSections.filter((s) =>
-      [
-        "boards",
-        "objectives",
-        "deliverables",
-        "questions-answers",
-        "parking-lot",
-        "assumptions-constraints",
-        "risks-issues",
-        "decisions",
-      ].includes(s.segment),
-    ),
+    key: "execution",
+    label: G.execution,
+    sections: sectionsIn(["boards", "checklists", "daily-activities", "todos", "calendar"]),
   },
   {
-    key: "people",
-    label: messages.people.title,
-    sections: projectSections.filter((s) => ["stakeholders", "suppliers"].includes(s.segment)),
+    key: "governance",
+    label: G.governance,
+    sections: sectionsIn([
+      "decisions",
+      "risks-issues",
+      "assumptions-constraints",
+      "parking-lot",
+      "questions-answers",
+    ]),
   },
   {
-    key: "financials",
-    label: messages.projects.financialsSection,
-    sections: projectSections.filter((s) => s.segment.startsWith("financials/")),
+    key: "workspace",
+    label: G.workspace,
+    sections: sectionsIn(["bpmn", "meetings", "notes"]),
   },
   {
-    key: "activity",
-    label: messages.activity.title,
-    sections: projectSections.filter((s) =>
-      ["daily-activities", "todos", "keywords", "meetings", "notes"].includes(s.segment),
-    ),
+    key: "communication",
+    label: G.communication,
+    sections: sectionsIn([
+      "stakeholders/matrix",
+      "stakeholders",
+      "responsibility",
+      "suppliers",
+      "keywords",
+    ]),
   },
 ];
+
+export interface SectionRun {
+  subgroup?: string;
+  sections: ProjectSection[];
+}
+
+/** Consecutive sections of a group that share a sub-list label, in order. */
+export function sectionRuns(sections: readonly ProjectSection[]): SectionRun[] {
+  const runs: SectionRun[] = [];
+  for (const section of sections) {
+    const last = runs.at(-1);
+    if (last && last.subgroup === section.subgroup) last.sections.push(section);
+    else runs.push({ subgroup: section.subgroup, sections: [section] });
+  }
+  return runs;
+}
 
 export function sectionHref(projectId: number, section: ProjectSection): string {
   return section.segment === "."
@@ -133,15 +162,24 @@ export function sectionLinkHref(
     : href;
 }
 
+function routeMatches(path: string, projectId: number, section: ProjectSection): boolean {
+  const href = sectionHref(projectId, section);
+  if (section.match === "exact") return path === href;
+  return path === href || path.startsWith(`${href}/`);
+}
+
+/** A section nested under another (the canvas under deliverables) is current on its own routes. */
 export function isCurrentSection(
   pathname: string,
   projectId: number,
   section: ProjectSection,
 ): boolean {
-  const href = sectionHref(projectId, section);
   const path = pathname.replace(/\/+$/, "") || "/";
-  if (section.match === "exact") return path === href;
-  return path === href || path.startsWith(`${href}/`);
+  if (!routeMatches(path, projectId, section)) return false;
+  return !projectSections.some(
+    (nested) =>
+      nested.segment.startsWith(`${section.segment}/`) && routeMatches(path, projectId, nested),
+  );
 }
 
 /**

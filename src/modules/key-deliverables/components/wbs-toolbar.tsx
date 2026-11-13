@@ -3,6 +3,7 @@
 import { Spinner } from "@/components/ui/spinner";
 import { messages } from "@/lib/messages";
 import { GANTT_SCALES, type GanttScale } from "./gantt-scale";
+import { SaveDot } from "@/components/ui/save-dot";
 import { WBS_VIEWS, type WbsView } from "./wbs-diagram-layout";
 import { Segmented } from "./wbs-segmented";
 
@@ -29,6 +30,7 @@ export interface WbsToolbarProps {
   moveTo: ToolbarCommand;
   /** Takes back the last move or reschedule. */
   undo: ToolbarCommand;
+  redo: ToolbarCommand;
   rename: ToolbarCommand;
   details: ToolbarCommand;
   remove: ToolbarCommand;
@@ -61,9 +63,9 @@ const tool =
   "inline-flex min-h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md border px-3 text-sm font-medium whitespace-nowrap transition-colors disabled:pointer-events-none disabled:opacity-40";
 
 const TOOL_VARIANTS = {
-  primary: "border-accent bg-accent text-on-accent hover:bg-accent-strong",
-  secondary: "border-line bg-surface text-ink hover:bg-surface-raised",
-  danger: "border-line bg-surface text-danger hover:bg-surface-raised",
+  primary: "border-primary bg-primary text-on-primary hover:bg-primary-hover",
+  secondary: "border-line bg-surface text-ink hover:bg-hover",
+  danger: "border-danger/40 bg-surface text-danger hover:border-danger hover:bg-danger-soft",
 } as const;
 
 function Command({
@@ -221,6 +223,7 @@ export function WbsToolbar(props: WbsToolbarProps) {
         <Command label={W.moveDown} command={props.moveDown} testId="wbs-move-down" />
         <Command label={W.moveTo} command={props.moveTo} testId="wbs-move-to" />
         <Command label={W.undoMove} command={props.undo} testId="wbs-undo" />
+        <Command label={W.redoMove} command={props.redo} testId="wbs-redo" />
         <Command label={W.rename} command={props.rename} testId="wbs-rename" />
         <Command label={W.details} command={props.details} testId="wbs-details" />
         <Command label={W.delete} command={props.remove} testId="wbs-delete" variant="danger" />
@@ -229,13 +232,7 @@ export function WbsToolbar(props: WbsToolbarProps) {
             {W.notMet(props.unmet)}
           </span>
         ) : null}
-        <span
-          aria-hidden="true"
-          data-testid="wbs-saving"
-          className={`text-sm text-ink-muted ${props.saving ? "" : "invisible"}`}
-        >
-          {messages.feedback.savingState}
-        </span>
+        <SaveDot pending={props.saving} label={messages.feedback.savingState} testId="wbs-saving" />
       </div>
       <p className="text-xs text-ink-muted">{(gantt ? W.hints : W.diagramHints).join(" ")}</p>
     </div>

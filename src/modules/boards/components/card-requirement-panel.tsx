@@ -153,7 +153,7 @@ export function CardRequirementPanel({
             ) : null}
             <TypeBadge type={live.type} />
             <Link
-              className="text-accent underline"
+              className="text-accent"
               href={`/projects/${card.RequirementProjectId}/requirements?id=${live.id}`}
             >
               {live.ref}

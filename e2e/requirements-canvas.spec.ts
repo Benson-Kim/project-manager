@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 import { closeAlarmToast } from "./support/alarms";
 
@@ -256,13 +256,13 @@ test("focus shows a card's links only, and the board goes full page, to a previe
 
   await nodes.filter({ hasText: business }).click({ button: "right" });
   await page.getByTestId("canvas-menu-focus").click();
-  await expect(page.getByTestId("canvas-focus")).toBeVisible();
+  await expect(page.getByTestId("canvas-focus")).toBeAttached();
   await expect(nodes.filter({ hasText: loose })).toBeHidden();
   await expect(nodes.filter({ hasText: stakeholder })).toBeVisible();
   await page.getByTestId("canvas-focus-trace").click();
   await expect(page.getByTestId("canvas-focus-trace")).toBeHidden();
   await page.getByTestId("canvas-focus-clear").click();
-  await expect(page.getByTestId("canvas-focus")).toBeHidden();
+  await expect(page.getByTestId("canvas-focus")).toHaveCount(0);
   await expect(nodes.filter({ hasText: loose })).toBeVisible();
 
   const view = page.locator("[data-canvas-view]");
@@ -293,6 +293,106 @@ test("focus shows a card's links only, and the board goes full page, to a previe
   await expect(page.getByTestId("canvas-board")).toBeVisible();
   await expect(nodes.filter({ hasText: business })).toBeVisible();
   await page.emulateMedia({ media: "screen" });
+});
+
+/** Draws a link from the menu of `from` to `to`, then waits for the board to show `count` edges. */
+async function linkDown(page: Page, from: string, to: string, count: number) {
+  const nodes = page.locator(".react-flow__node");
+  await nodes.filter({ hasText: from }).click({ button: "right" });
+  await page.getByTestId("canvas-menu-link-downstream").click();
+  await nodes.filter({ hasText: to }).click();
+  await expect(page.locator(".react-flow__edge")).toHaveCount(count, { timeout: 15_000 });
+}
+
+/**
+ * Nothing lies over any part of the control, so each corner and its middle take the click. The
+ * corners are sampled inside the rounding, which itself never takes a click.
+ */
+async function expectUncovered(control: Locator) {
+  const covered = await control.evaluate((element) => {
+    const { left, right, top, bottom } = element.getBoundingClientRect();
+    const inset = Math.max(3, parseFloat(getComputedStyle(element).borderTopLeftRadius) || 0);
+    const points = [
+      [left + inset, top + inset],
+      [right - inset, top + inset],
+      [(left + right) / 2, (top + bottom) / 2],
+      [left + inset, bottom - inset],
+      [right - inset, bottom - inset],
+    ];
+    return points.filter(([x, y]) => {
+      const hit = document.elementFromPoint(x, y);
+      return !hit || !element.contains(hit);
+    }).length;
+  });
+  expect(covered).toBe(0);
+}
+
+test("a focus hides every link off its trace, leaves Undo uncovered, and Escape or Show all brings every link back", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const projectId = await createProject(page);
+  const stamp = Date.now();
+  const first = `E2E trace first need ${stamp}`;
+  const second = `E2E trace second need ${stamp}`;
+  const stakeholder = `E2E trace stakeholder ${stamp}`;
+  const functional = `E2E trace function ${stamp}`;
+  await addRequirement(page, projectId, "BR", first);
+  await addRequirement(page, projectId, "BR", second);
+  await addRequirement(page, projectId, "SR", stakeholder);
+  await addRequirement(page, projectId, "FR", functional);
+  await canvasWithAll(page, projectId, 4);
+
+  const nodes = page.locator(".react-flow__node");
+  const edges = page.locator(".react-flow__edge");
+  const undo = page.getByTestId("canvas-undo");
+  const redo = page.getByTestId("canvas-redo");
+  await linkDown(page, first, stakeholder, 1);
+  await linkDown(page, stakeholder, functional, 2);
+  await linkDown(page, second, stakeholder, 3);
+  await linkDown(page, first, functional, 4);
+
+  const focusFirst = async () => {
+    await nodes.filter({ hasText: first }).click({ button: "right" });
+    await page.getByTestId("canvas-menu-focus").click();
+  };
+
+  await focusFirst();
+  await expect(nodes.filter({ hasText: second })).toBeHidden();
+  await expect(nodes.filter({ hasText: stakeholder })).toBeVisible();
+  await expect(nodes.filter({ hasText: functional })).toBeVisible();
+  await expect(edges).toHaveCount(2);
+  const status = await page.getByTestId("canvas-focus").boundingBox();
+  expect(status?.width ?? 0).toBeLessThanOrEqual(1);
+
+  await expect(undo).toBeVisible();
+  await expect(undo).toBeEnabled();
+  await expectUncovered(undo);
+  await undo.click();
+  await expect(edges).toHaveCount(1, { timeout: 15_000 });
+  await expectUncovered(redo);
+  await redo.click();
+  await expect(edges).toHaveCount(2, { timeout: 15_000 });
+
+  await page.getByTestId("canvas-focus-trace").click();
+  await expect(page.getByTestId("canvas-focus-trace")).toBeHidden();
+  await expect(nodes.filter({ hasText: second })).toBeHidden();
+  await expect(edges).toHaveCount(3);
+  await expectUncovered(undo);
+
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("canvas-focus-clear")).toBeHidden();
+  await expect(nodes.filter({ hasText: second })).toBeVisible();
+  await expect(edges).toHaveCount(4);
+
+  await focusFirst();
+  await expect(edges).toHaveCount(2);
+  await page.getByTestId("canvas-focus-clear").click();
+  await expect(page.getByTestId("canvas-focus-clear")).toBeHidden();
+  await expect(nodes).toHaveCount(4);
+  await expect(edges).toHaveCount(4);
+  expect(errors).toEqual([]);
 });
 
 test("a WBS item labels its group, and a parent folds its sub-requirement and keeps it folded", async ({
@@ -460,6 +560,75 @@ test("Undo takes back a move, a link and a removal from the canvas, and they sta
   await expect(nodes).toHaveCount(2);
   await expect(edges).toHaveCount(0);
   expect(await transform()).toBe(laidOut);
+  expect(errors).toEqual([]);
+});
+
+test("Redo makes an undone move and link again, and a new change leaves it nothing to redo", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const projectId = await createProject(page);
+  const stamp = Date.now();
+  const business = `E2E redo business ${stamp}`;
+  const stakeholder = `E2E redo stakeholder ${stamp}`;
+  await addRequirement(page, projectId, "BR", business);
+  await addRequirement(page, projectId, "SR", stakeholder);
+  await canvasWithAll(page, projectId, 2);
+
+  const undo = page.getByTestId("canvas-undo");
+  const redo = page.getByTestId("canvas-redo");
+  const nodes = page.locator(".react-flow__node");
+  const edges = page.locator(".react-flow__edge");
+  const node = nodes.filter({ hasText: business });
+  const transform = () => node.evaluate((el) => (el as HTMLElement).style.transform);
+  await page.reload();
+  await expect(nodes).toHaveCount(2);
+  await expect(redo).toBeDisabled();
+
+  const actions = countActions(page);
+  const laidOut = await transform();
+  await node.click();
+  await node.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(actions, { timeout: 5_000 }).toBe(1);
+  await expect.poll(transform).not.toBe(laidOut);
+  const moved = await transform();
+  await page.keyboard.press("Control+z");
+  await expect.poll(actions, { timeout: 5_000 }).toBe(2);
+  await expect.poll(transform).toBe(laidOut);
+  await expect(redo).toBeEnabled();
+  await page.keyboard.press("Control+y");
+  await expect.poll(actions, { timeout: 5_000 }).toBe(3);
+  await expect.poll(transform).toBe(moved);
+  await expect(redo).toBeDisabled();
+  await expect(undo).toBeEnabled();
+
+  await node.click({ button: "right" });
+  await page.getByTestId("canvas-menu-link-downstream").click();
+  await nodes.filter({ hasText: stakeholder }).click();
+  await expect(edges).toHaveCount(1, { timeout: 15_000 });
+  await undo.click();
+  await expect(edges).toHaveCount(0, { timeout: 15_000 });
+  await node.focus();
+  await page.keyboard.press("Control+Shift+Z");
+  await expect(edges).toHaveCount(1, { timeout: 15_000 });
+  await expect(redo).toBeDisabled();
+
+  await undo.click();
+  await expect(edges).toHaveCount(0, { timeout: 15_000 });
+  await node.click();
+  await node.focus();
+  await expect(redo).toBeEnabled();
+  const saved = actions();
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(actions, { timeout: 5_000 }).toBe(saved + 1);
+  await expect(redo).toBeDisabled();
+
+  await page.reload();
+  await expect(nodes).toHaveCount(2);
+  await expect(edges).toHaveCount(0);
+  expect(await transform()).not.toBe(moved);
   expect(errors).toEqual([]);
 });
 

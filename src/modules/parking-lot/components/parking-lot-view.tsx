@@ -2,7 +2,7 @@
 
 import { listColumn, textColumn } from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
-import { formCellSaver } from "@/components/ui/data-view/datasheet";
+import { addUndo, formCellSaver } from "@/components/ui/data-view/datasheet";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
 import { ListBadge } from "@/components/ui/lookup-lists";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
@@ -11,7 +11,11 @@ import { rowAllows } from "@/lib/auth/actor-access";
 import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
-import { createParkingLotItemAction, updateParkingLotItemAction } from "../actions";
+import {
+  createParkingLotItemAction,
+  updateParkingLotItemAction,
+  deleteParkingLotItemAction,
+} from "../actions";
 import {
   PARKING_LOT_SORT,
   PARKING_LOT_STATUS,
@@ -147,6 +151,14 @@ export function ParkingLotView({
         saveCell,
         addRow: canCreate
           ? {
+              undo: addUndo(
+                (row: { ParkingLotItemId: number; RowVer: number }) => row.ParkingLotItemId,
+                (row) =>
+                  deleteParkingLotItemAction({
+                    parkingLotItemId: row.ParkingLotItemId,
+                    rowVer: row.RowVer,
+                  }),
+              ),
               add: (values) =>
                 createParkingLotItemAction({ ...values, projectId: String(projectId) }),
             }

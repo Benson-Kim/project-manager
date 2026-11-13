@@ -11,9 +11,74 @@ import {
   invalidFields,
   isCellChanged,
   isEditableTarget,
+  rowSaveQueue,
   singleLine,
   type CellEditor,
 } from "../data-view/datasheet";
+
+describe("rowSaveQueue: quick edits to one row", () => {
+  type Row = { id: number; rowVer: number; due: string; note: string };
+  const row: Row = { id: 7, rowVer: 1, due: "", note: "" };
+
+  /** A save that resolves when told to, refusing a stale RowVer the way the procs do. */
+  function server() {
+    let rowVer = 1;
+    const sent: number[] = [];
+    const waiting: (() => void)[] = [];
+    const write = (field: "due" | "note", value: string) => (current: Row) => {
+      sent.push(current.rowVer);
+      return new Promise<Row | null>((resolve) =>
+        waiting.push(() => {
+          if (current.rowVer !== rowVer) return resolve(null);
+          rowVer += 1;
+          resolve({ ...current, [field]: value, rowVer });
+        }),
+      );
+    };
+    const settle = async () => {
+      for (let round = 0; round < 10; round++) {
+        await new Promise((r) => setTimeout(r, 0));
+        waiting.shift()?.();
+      }
+    };
+    return { write, sent, settle };
+  }
+
+  it("a second edit made while the first is saving goes out with the RowVer the first returned", async () => {
+    const queue = rowSaveQueue<Row>();
+    const api = server();
+    const due = queue(row.id, row, api.write("due", "2026-12-01"));
+    const note = queue(row.id, row, api.write("note", "Ask legal first"));
+    await api.settle();
+    await expect(due).resolves.toBe(true);
+    await expect(note).resolves.toBe(true);
+    expect(api.sent).toEqual([1, 2]);
+  });
+
+  it("other rows do not wait, and a row is forgotten once its saves are done", async () => {
+    const queue = rowSaveQueue<Row>();
+    const api = server();
+    const first = queue(row.id, row, api.write("due", "2026-12-01"));
+    await api.settle();
+    await first;
+    const fresh = { ...row, rowVer: 2 };
+    const later = queue(row.id, fresh, api.write("note", "Later"));
+    await api.settle();
+    await expect(later).resolves.toBe(true);
+    expect(api.sent).toEqual([1, 2]);
+  });
+
+  it("a refused save reports false and the next edit still runs", async () => {
+    const queue = rowSaveQueue<Row>();
+    const write = vi
+      .fn<(r: Row) => Promise<Row | null>>()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(row);
+    await expect(queue(1, row, write)).resolves.toBe(false);
+    await expect(queue(1, row, write)).resolves.toBe(true);
+    expect(write).toHaveBeenCalledTimes(2);
+  });
+});
 import { choiceColumn, textColumn } from "../data-view/columns";
 
 interface Row {

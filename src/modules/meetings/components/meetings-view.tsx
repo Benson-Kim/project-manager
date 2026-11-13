@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { dateColumn, richTextColumn, textColumn } from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
-import { formCellSaver, type RichCellView } from "@/components/ui/data-view/datasheet";
+import { addUndo, formCellSaver, type RichCellView } from "@/components/ui/data-view/datasheet";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
 import { listEmptyState } from "@/components/ui/states";
 import { rowAllows } from "@/lib/auth/actor-access";
@@ -11,7 +11,7 @@ import { formatDate } from "@/lib/format";
 import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
-import { createMeetingAction, updateMeetingAction } from "../actions";
+import { createMeetingAction, updateMeetingAction, deleteMeetingAction } from "../actions";
 import type { MeetingListRow, MeetingRow } from "../schemas/meeting";
 import { attendanceSummary, meetingTimes } from "../schemas/meeting-display";
 import { meetingFormValues } from "../schemas/meeting-form";
@@ -151,6 +151,10 @@ export function MeetingsView({
         saveCell,
         addRow: canCreate
           ? {
+              undo: addUndo(
+                (row: { MeetingId: number; RowVer: number }) => row.MeetingId,
+                (row) => deleteMeetingAction({ meetingId: row.MeetingId, rowVer: row.RowVer }),
+              ),
               add: (values) => createMeetingAction({ ...values, projectId: String(projectId) }),
             }
           : undefined,

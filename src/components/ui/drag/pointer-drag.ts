@@ -59,3 +59,21 @@ export function insertionIndex(pointer: number, spans: readonly DragSpan[]): num
   }
   return spans.length;
 }
+
+/**
+ * The list with item `id` taken out and put back before `beforeId`, or at the end when there is no
+ * such item; the others keep their order. A list without `id` comes back as it was.
+ */
+export function moveBefore<T>(
+  items: readonly T[],
+  idOf: (item: T) => number,
+  id: number,
+  beforeId?: number,
+): T[] {
+  const moving = items.find((item) => idOf(item) === id);
+  if (moving === undefined) return [...items];
+  const rest = items.filter((item) => idOf(item) !== id);
+  const at = beforeId === undefined ? -1 : rest.findIndex((item) => idOf(item) === beforeId);
+  rest.splice(at < 0 ? rest.length : at, 0, moving);
+  return rest;
+}

@@ -294,7 +294,7 @@ export class PdfWriter {
     add(`<< /Type /Pages /Kids [${kids}] /Count ${pageCount} >>`);
     add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
     add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
-    add(`<< /Title ${pdfString(this.options.title)} /Producer (Project Manager) >>`);
+    add(`<< /Title ${pdfString(this.options.title)} /Producer (Modulus) >>`);
     this.pages.forEach((ops, i) => {
       const footer = `${this.options.footer ? `${this.options.footer}  ·  ` : ""}${i + 1} / ${pageCount}`;
       const footOps = `BT /F1 7 Tf ${num(this.margin)} ${num(this.margin - 14)} Td ${pdfString(footer)} Tj ET`;

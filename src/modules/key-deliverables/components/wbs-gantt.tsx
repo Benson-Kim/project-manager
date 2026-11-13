@@ -108,11 +108,14 @@ import { firstError, type QueuedChange } from "./wbs-queue";
 import { wbsCsv } from "./wbs-csv";
 import { useFullscreen } from "./use-fullscreen";
 import {
+  canRedo,
   canUndo,
   dropUndo,
   moveBack,
   pushUndo,
   rescheduleBack,
+  stepBack,
+  takeRedo,
   takeUndo,
   type UndoStep,
 } from "../schemas/wbs-undo";
@@ -409,11 +412,13 @@ export function WbsGantt({
 
   // Moves and reschedules can be taken back, newest first; each step back is a change of its own.
   const [undoStack, setUndoStack] = useState<UndoStep[]>([]);
+  const [redoStack, setRedoStack] = useState<UndoStep[]>([]);
   const undoKey = useRef(0);
 
-  /** Remembers a step back; a refused change forgets it again. */
+  /** Remembers a step back for a new change, which leaves nothing to redo; a refused change forgets it again. */
   function remember(step: UndoStep | null): (() => void) | undefined {
     if (!step) return undefined;
+    setRedoStack([]);
     setUndoStack((current) => pushUndo(current, step));
     return () => setUndoStack((current) => dropUndo(current, step.key));
   }
@@ -527,14 +532,18 @@ export function WbsGantt({
     });
   }
 
-  function move(id: number, placement: Placement | null, undoable = true) {
+  /**
+   * A change of its own is remembered for Undo. A step taken from the history passes `putBack`,
+   * which puts the history back as it was when the save is refused.
+   */
+  function move(id: number, placement: Placement | null, putBack?: () => void) {
     if (!canEdit || !placement) return;
     const code = buildWbs(applyMove(items, id, placement)).nodes.get(id)?.code;
     if (placement.parentId !== null) expand(placement.parentId);
-    const forget = undoable ? remember(moveBack(wbs, id, placement, ++undoKey.current)) : undefined;
+    const failed = putBack ?? remember(moveBack(wbs, id, placement, ++undoKey.current));
     enqueue({
       apply: (rows) => applyMove(rows, id, placement),
-      failed: forget,
+      failed,
       send: (current) =>
         withRowVer(current, id, (rowVer) =>
           moveWbsItemAction({
@@ -548,7 +557,7 @@ export function WbsGantt({
     if (code) announce(W.moved(code));
   }
 
-  function reschedule(id: number, { start, end }: Span, undoable = true) {
+  function reschedule(id: number, { start, end }: Span, putBack?: () => void) {
     const node = wbs.nodes.get(id);
     if (!canEdit || !node || (sameDay(node.start, start) && sameDay(node.end, end))) return;
     if (dayDiff(start, end) < 0) {
@@ -578,10 +587,10 @@ export function WbsGantt({
       return;
     }
     const carried = cascadeEffect(applyReschedule(items, wbs, id, start, end), links);
-    const forget = undoable ? remember(rescheduleBack(wbs, id, ++undoKey.current)) : undefined;
+    const failed = putBack ?? remember(rescheduleBack(wbs, id, ++undoKey.current));
     enqueue({
       apply: (rows) => applyReschedule(rows, buildWbs(rows), id, start, end),
-      failed: forget,
+      failed,
       send: (current) =>
         withRowVer(current, id, (rowVer) =>
           rescheduleWbsItemAction({
@@ -613,10 +622,35 @@ export function WbsGantt({
     const { step, rest } = takeUndo(undoStack, wbs);
     setUndoStack(rest);
     if (!step) return;
-    if (step.kind === "move") move(step.id, step.placement, false);
-    else reschedule(step.id, step, false);
-    setSelectedId(step.id);
+    const back = stepBack(wbs, step, ++undoKey.current);
+    setRedoStack((current) => pushUndo(current, back));
+    applyStep(step, () => {
+      if (back) setRedoStack((current) => dropUndo(current, back.key));
+      setUndoStack((current) => pushUndo(current, step));
+    });
     announce(W.moveUndone);
+  }
+
+  /** Makes the newest undone move or reschedule again; a nudge still waiting to save is a new change. */
+  function redo() {
+    if (!canEdit || preview !== null) return;
+    const { step, rest } = takeRedo(redoStack, wbs);
+    setRedoStack(rest);
+    if (!step) return;
+    const back = stepBack(wbs, step, ++undoKey.current);
+    setUndoStack((current) => pushUndo(current, back));
+    applyStep(step, () => {
+      if (back) setUndoStack((current) => dropUndo(current, back.key));
+      setRedoStack((current) => pushUndo(current, step));
+    });
+    announce(W.moveRedone);
+  }
+
+  /** Applies a step from the history; `putBack` restores the history if the save is refused. */
+  function applyStep(step: UndoStep, putBack: () => void) {
+    if (step.kind === "move") move(step.id, step.placement, putBack);
+    else reschedule(step.id, step, putBack);
+    setSelectedId(step.id);
   }
 
   async function copyText(text: string, copied: string, failed: string) {
@@ -633,21 +667,25 @@ export function WbsGantt({
   const copySummary = () =>
     copyText(ganttSummary(projectName, wbs), W.board.summaryCopied, W.board.summaryCopyFailed);
 
-  /** Ctrl+Z (Cmd+Z) belongs to the field being typed in; anywhere else in the editor it is Undo move. */
-  function undoKeys(event: React.KeyboardEvent<HTMLElement>) {
+  /**
+   * Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z (Cmd too) belong to the field being typed in; anywhere else in
+   * the editor they are Undo move and Redo move.
+   */
+  function historyKeys(event: React.KeyboardEvent<HTMLElement>) {
     const target = event.target as HTMLElement;
+    const key = event.key.toLowerCase();
     if (
       !(event.ctrlKey || event.metaKey) ||
-      event.shiftKey ||
       event.altKey ||
-      event.key.toLowerCase() !== "z" ||
+      (key !== "z" && key !== "y") ||
       (isEditableTarget(target) && target.tagName !== "BUTTON") ||
       !event.currentTarget.contains(target)
     ) {
       return;
     }
     event.preventDefault();
-    undo();
+    if (key === "z" && !event.shiftKey) undo();
+    else redo();
   }
 
   /**
@@ -1146,6 +1184,11 @@ export function WbsGantt({
         hidden: !canEdit,
         disabled: preview === null && !canUndo(undoStack, wbs),
       }}
+      redo={{
+        run: redo,
+        hidden: !canEdit,
+        disabled: preview !== null || !canRedo(redoStack, wbs),
+      }}
       rename={{
         run: () => selId !== null && startRename(selId),
         hidden: !canEdit,
@@ -1229,7 +1272,7 @@ export function WbsGantt({
         className={`flex flex-col gap-3 ${
           fullscreen.active ? "fixed inset-0 z-(--z-fullscreen) overflow-auto bg-surface p-4" : ""
         }`}
-        onKeyDown={undoKeys}
+        onKeyDown={historyKeys}
       >
         {toolbar}
 

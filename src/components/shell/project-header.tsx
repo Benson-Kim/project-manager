@@ -3,6 +3,7 @@
 import { useId, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { messages } from "@/lib/messages";
+import { rankByMatch } from "@/components/ui/form/rank-options";
 
 export interface ProjectOption {
   id: number;
@@ -24,12 +25,10 @@ export function ProjectHeader({
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const filtered = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return normalized
-      ? options.filter((option) => option.name.toLowerCase().includes(normalized))
-      : options;
-  }, [options, query]);
+  const filtered = useMemo(
+    () => rankByMatch(options, query, (option) => option.name).map(({ option }) => option),
+    [options, query],
+  );
 
   function selectProject(nextProjectId: number) {
     const currentPrefix = `/projects/${projectId}`;
@@ -103,7 +102,7 @@ export function ProjectHeader({
         aria-label={messages.projects.jumpToProject}
         aria-expanded={open}
         tabIndex={-1}
-        className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-ink-muted hover:bg-surface-sunken"
+        className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-ink-muted hover:bg-hover"
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => setOpen((current) => !current)}
       >
@@ -132,7 +131,7 @@ export function ProjectHeader({
             className={`flex min-h-11 cursor-pointer items-center px-4 py-2.5 text-sm whitespace-nowrap first:rounded-t-lg last:rounded-b-lg transition-colors duration-(--duration-fast) ${
               index === activeIndex
                 ? "bg-accent-soft text-ink"
-                : "text-ink-muted hover:text-ink hover:bg-surface-raised"
+                : "text-ink-muted hover:text-ink hover:bg-hover"
             }`}
             onMouseDown={(event) => event.preventDefault()}
             onMouseEnter={() => setActiveIndex(index)}

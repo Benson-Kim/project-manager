@@ -68,3 +68,50 @@ describe("todo alert service-worker lifecycle", () => {
     expect(restartedWorker.notifications[0][0]).toBe("After restart");
   });
 });
+
+function fetchHarness() {
+  const listeners = new Map<string, (event: unknown) => void>();
+  const self = {
+    addEventListener(type: string, listener: (event: unknown) => void) {
+      listeners.set(type, listener);
+    },
+    location: { origin: "http://localhost:3000" },
+  };
+  const caches = {
+    match: async () => undefined,
+    open: async () => ({ put: async () => undefined }),
+  };
+  const fetch = async () => ({ ok: true, clone: () => ({}) });
+  const source = readFileSync(new URL("../../public/sw.js", import.meta.url), "utf8");
+  runInNewContext(source, { self, URL, caches, fetch });
+  return {
+    answersFromWorker(path: string, mode: RequestMode = "cors", method = "GET") {
+      let answered = false;
+      listeners.get("fetch")?.({
+        request: { url: `http://localhost:3000${path}`, mode, method },
+        respondWith: () => {
+          answered = true;
+        },
+      });
+      return answered;
+    },
+  };
+}
+
+describe("service-worker fetch rules", () => {
+  it("never answers page data from its cache, so a refresh after a save shows the saved data", () => {
+    const worker = fetchHarness();
+    expect(worker.answersFromWorker("/projects/2/notes/160?_rsc=eupc6SzmXXU6Nh0h")).toBe(false);
+    expect(worker.answersFromWorker("/projects/2/notes")).toBe(false);
+    expect(worker.answersFromWorker("/api/files/7")).toBe(false);
+    expect(worker.answersFromWorker("/projects/2/notes/160", "cors", "POST")).toBe(false);
+  });
+
+  it("serves static files and keeps the offline page shell", () => {
+    const worker = fetchHarness();
+    expect(worker.answersFromWorker("/_next/static/chunks/app.js")).toBe(true);
+    expect(worker.answersFromWorker("/icons/icon-192x192.png")).toBe(true);
+    expect(worker.answersFromWorker("/favicon.ico")).toBe(true);
+    expect(worker.answersFromWorker("/projects/2/notes", "navigate")).toBe(true);
+  });
+});

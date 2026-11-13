@@ -54,7 +54,7 @@ BEGIN
                WHERE Allowed IS NULL
                   OR Verb IS NULL OR Verb NOT IN (N'create', N'update', N'delete')
                   OR [Module] IS NULL
-                  OR [Module] NOT IN (N'assumptions-constraints', N'boards', N'daily-activities', N'decisions', N'financial-tax-invoices',
+                  OR [Module] NOT IN (N'assumptions-constraints', N'boards', N'bpmn', N'checklists', N'daily-activities', N'decisions', N'financial-tax-invoices',
                                       N'financials',
                                       N'key-deliverables', N'keywords', N'meetings', N'notes', N'objectives', N'parking-lot',
                                       N'questions-answers', N'requirements', N'risks-issues', N'stakeholders', N'suppliers',

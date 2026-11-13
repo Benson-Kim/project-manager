@@ -28,6 +28,8 @@ const migration = [
   "056_project_business_case.sql",
   "057_decision_log.sql",
   "068_project_po_requisition_status.sql",
+  "070_key_deliverable_blocked_status.sql",
+  "075_bpmn_step_status.sql",
 ]
   .map((file) => read("db", "migrations", file))
   .join(String.fromCharCode(10));
@@ -82,6 +84,8 @@ describe("managed dropdown lists stay in step (ADR-0022)", () => {
         "key-deliverable.status:Completed",
         "key-deliverable.status:On Hold",
         "key-deliverable.status:Cancelled",
+        // milestonePhase() — src/modules/key-deliverables/schemas/wbs-milestones.ts
+        "key-deliverable.status:Blocked",
         // usp_Todo_BuildFromDailyActivity, the alert procs, isOverdue()/isApproachingDeadline()
         "todo-item.status:Not Started",
         "todo-item.status:Completed",

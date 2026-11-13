@@ -17,9 +17,15 @@ import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { useToast } from "@/components/ui/toast";
 import { toDateInput } from "@/lib/format";
 import { messages } from "@/lib/messages";
+import { sheetUndo } from "@/lib/undo/steps";
+import { usePageHistory } from "@/components/undo/page-history";
 import { richTextToPlain } from "@/lib/rich-text/plain-text";
 import { RISK_ISSUE_CATEGORY, RISK_ISSUE_STATUS, type RiskIssueRow } from "../schemas/risk-issue";
-import { riskIssueFormSchema, updateRiskIssueFormSchema } from "../schemas/risk-issue-form";
+import {
+  riskIssueFormSchema,
+  updateRiskIssueFormSchema,
+  riskIssueFormValues,
+} from "../schemas/risk-issue-form";
 import { createRiskIssueAction, deleteRiskIssueAction, updateRiskIssueAction } from "../actions";
 
 /** The record's own words, cut to fit a title or a confirmation. */
@@ -51,6 +57,17 @@ export function RiskIssueSheet({
   const { update, searchParams } = useListUrlState();
   const { toast } = useToast();
   const { announce } = useAnnouncer();
+  const pageHistory = usePageHistory();
+  const undoStep = sheetUndo<RiskIssueRow>({
+    moduleKey: "risks-issues",
+    idOf: (row) => row.RiskIssueId,
+    nameOf: (row) => row.Description,
+    before: item,
+    toFormValues: riskIssueFormValues,
+    update: updateRiskIssueAction,
+    create: createRiskIssueAction,
+    remove: (row) => deleteRiskIssueAction({ riskIssueId: row.RiskIssueId, rowVer: row.RowVer }),
+  });
   const schema = item ? updateRiskIssueFormSchema : riskIssueFormSchema;
   const form = useZodForm(schema);
   const [pending, startTransition] = useTransition();
@@ -108,6 +125,8 @@ export function RiskIssueSheet({
     startTransition(async () => {
       const result = item ? await updateRiskIssueAction(data) : await createRiskIssueAction(data);
       if (result.ok) {
+        const step = undoStep(result.data, data, pageHistory.book);
+        if (step) pageHistory.record(step);
         toast({
           variant: "success",
           title: item ? messages.feedback.saved : messages.feedback.created,

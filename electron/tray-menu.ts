@@ -43,7 +43,7 @@ export function trayMenuTemplate(a: TrayActions, s: TrayState): MenuItemConstruc
   return [
     ...update,
     ...copyNow,
-    { label: "Open Project Manager", click: a.open },
+    { label: "Open Modulus", click: a.open },
     { type: "separator" },
     { label: "Back up now", click: a.backupNow },
     { label: "Open backups folder", click: a.openBackupsFolder },
@@ -57,6 +57,6 @@ export function trayMenuTemplate(a: TrayActions, s: TrayState): MenuItemConstruc
     ...(a.checkForUpdates ? [{ label: "Check for updates", click: a.checkForUpdates }] : []),
     { label: `Version ${s.version}`, enabled: false },
     { type: "separator" },
-    { label: "Quit Project Manager", click: a.quit },
+    { label: "Quit Modulus", click: a.quit },
   ];
 }

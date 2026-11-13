@@ -285,7 +285,7 @@ function finalize() {
   const body =
     header +
     (notes || "- Maintenance release") +
-    "\n\n---\nNew PC: download `ProjectManager-Setup-" +
+    "\n\n---\nNew PC: download `Modulus-Setup-" +
     version +
     ".exe` (check it with the `.sha256` file) and run it. Installed apps update themselves.\n";
   writeFileSync(join(dist, "release-notes.md"), body);

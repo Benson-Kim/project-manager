@@ -16,10 +16,13 @@ import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
+import { sheetUndo } from "@/lib/undo/steps";
+import { usePageHistory } from "@/components/undo/page-history";
 import { PARKING_LOT_STATUS, type ParkingLotItemRow } from "../schemas/parking-lot-item";
 import {
   parkingLotItemFormSchema,
   updateParkingLotItemFormSchema,
+  parkingLotItemFormValues,
 } from "../schemas/parking-lot-item-form";
 import {
   createParkingLotItemAction,
@@ -50,6 +53,18 @@ export function ParkingLotItemSheet({
   const { update, searchParams } = useListUrlState();
   const { toast } = useToast();
   const { announce } = useAnnouncer();
+  const pageHistory = usePageHistory();
+  const undoStep = sheetUndo<ParkingLotItemRow>({
+    moduleKey: "parking-lot",
+    idOf: (row) => row.ParkingLotItemId,
+    nameOf: (row) => row.ParkingLotItem,
+    before: item,
+    toFormValues: parkingLotItemFormValues,
+    update: updateParkingLotItemAction,
+    create: createParkingLotItemAction,
+    remove: (row) =>
+      deleteParkingLotItemAction({ parkingLotItemId: row.ParkingLotItemId, rowVer: row.RowVer }),
+  });
   const schema = item ? updateParkingLotItemFormSchema : parkingLotItemFormSchema;
   const form = useZodForm(schema);
   const [pending, startTransition] = useTransition();
@@ -115,6 +130,8 @@ export function ParkingLotItemSheet({
         ? await updateParkingLotItemAction(data)
         : await createParkingLotItemAction(data);
       if (result.ok) {
+        const step = undoStep(result.data, data, pageHistory.book);
+        if (step) pageHistory.record(step);
         toast({
           variant: "success",
           title: item ? messages.feedback.saved : messages.feedback.created,

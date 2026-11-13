@@ -76,7 +76,7 @@ export function SidebarToggle({
       aria-controls={controls}
       title={collapsed ? messages.app.expandSidebar : messages.app.collapseSidebar}
       data-testid="sidebar-toggle"
-      className="flex min-h-9 min-w-9 shrink-0 items-center justify-center rounded-md text-ink-muted hover:bg-surface-sunken"
+      className="flex min-h-9 min-w-9 shrink-0 items-center justify-center rounded-md text-ink-muted hover:bg-hover"
       onClick={onToggle}
     >
       <CollapseIcon />

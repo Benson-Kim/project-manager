@@ -9,6 +9,9 @@ export interface ListDrop {
   beforeId?: number;
 }
 
+/** The direction a list runs: a column of cards is "y", a row of headings is "x". */
+export type DragAxis = "x" | "y";
+
 /** How long the lifted copy takes to settle into the spot it was dropped on. */
 export const DROP_MS = 180;
 
@@ -17,17 +20,19 @@ function sameDrop(a: ListDrop | null, b: ListDrop | null): boolean {
 }
 
 /** The lane and the gap under the pointer; the dragged item itself is not a gap. */
-function dropAt(x: number, y: number, itemId: number): ListDrop | null {
+function dropAt(x: number, y: number, itemId: number, axis: DragAxis): ListDrop | null {
   const lane = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-drag-lane]");
   if (!lane?.dataset.dragLane) return null;
   const items = [...lane.querySelectorAll<HTMLElement>("[data-drag-item]")].filter(
     (item) => Number(item.dataset.dragItem) !== itemId,
   );
   const index = insertionIndex(
-    y,
+    axis === "x" ? x : y,
     items.map((item) => {
       const box = item.getBoundingClientRect();
-      return { start: box.top, size: box.height };
+      return axis === "x"
+        ? { start: box.left, size: box.width }
+        : { start: box.top, size: box.height };
     }),
   );
   const before = items[index];
@@ -45,9 +50,13 @@ const GHOST_MASK = "linear-gradient(90deg, transparent, #000 14%, #000 86%, tran
 function liftCopy(item: HTMLElement): HTMLElement {
   const box = item.getBoundingClientRect();
   const copy = item.cloneNode(true) as HTMLElement;
-  for (const el of [copy, ...copy.querySelectorAll<HTMLElement>("[id], [data-drag-item]")]) {
+  for (const el of [
+    copy,
+    ...copy.querySelectorAll<HTMLElement>("[id], [data-drag-item], [data-testid]"),
+  ]) {
     el.removeAttribute("id");
     el.removeAttribute("data-drag-item");
+    el.removeAttribute("data-testid");
   }
   copy.setAttribute("aria-hidden", "true");
   copy.inert = true;
@@ -67,7 +76,7 @@ function liftCopy(item: HTMLElement): HTMLElement {
   return copy;
 }
 
-/** The copy glides onto the item's new place, then goes; with reduced motion it just goes. */
+/** The copy glides onto the item's new place, then goes; with reduced motion, or no place, it just goes. */
 function settle(copy: HTMLElement, find: () => HTMLElement | null) {
   requestAnimationFrame(() => {
     const target = find();
@@ -99,33 +108,48 @@ function swallowNextClick() {
   setTimeout(() => window.removeEventListener("click", swallow, { capture: true }), 0);
 }
 
-/**
- * Pointer drag for mouse, pen and touch; explicit move controls remain the keyboard path. A mouse
- * or pen drags the item from anywhere on it, and a press that does not move stays a click; touch
- * drags only from the item's `[data-drag-handle]`, so the page still scrolls under a finger. While
- * dragging, `over` is the gap under the pointer, so the caller can show the item there and its
- * neighbours make room. The window, not the item, follows the gesture: the item is remounted when
- * the caller moves it to another lane. Escape cancels.
- */
-export function usePointerDrag({
-  enabled,
-  onDrop,
-}: {
+export interface DragGesture<Id extends string | number, Drop> {
+  /** The item being dragged, once the press has moved far enough to count as a drag. */
+  dragging: Id | null;
+  /** What would take the item if it were let go now. */
+  over: Drop | null;
+  bind: (id: Id) => { onPointerDown: (event: React.PointerEvent<HTMLElement>) => void };
+}
+
+export interface DragGestureOptions<Id extends string | number, Drop> {
   enabled: boolean;
-  onDrop: (drop: ListDrop) => void;
-}) {
-  const [dragging, setDragging] = useState<number | null>(null);
-  const [over, setOver] = useState<ListDrop | null>(null);
-  const dropRef = useRef(onDrop);
+  /** What would take the item if it were let go at (x, y); `previous` is the last answer. */
+  locate: (x: number, y: number, id: Id, previous: Drop | null) => Drop | null;
+  /** Whether two answers look the same, so the caller re-renders only when the answer changes. */
+  same: (a: Drop | null, b: Drop | null) => boolean;
+  onDrop: (id: Id, drop: Drop) => void;
+  /** The dropped item in its new place, for the copy to glide onto. */
+  landing?: (id: Id, container: HTMLElement | null) => HTMLElement | null;
+}
+
+/**
+ * Pointer drag for mouse, pen and touch; explicit controls (move buttons, a click to add) remain the
+ * keyboard path. A mouse or pen drags the item from anywhere on it, and a press that does not move
+ * stays a click; touch drags only from the item's `[data-drag-handle]`, so the page still scrolls
+ * under a finger. A see-through copy follows the pointer and `locate` names what is under it; on
+ * release `onDrop` gets the last answer and the copy settles. The window, not the item, follows the
+ * gesture, so the item may be remounted while it moves. Escape cancels.
+ */
+export function useDragGesture<Id extends string | number, Drop>(
+  options: DragGestureOptions<Id, Drop>,
+): DragGesture<Id, Drop> {
+  const [dragging, setDragging] = useState<Id | null>(null);
+  const [over, setOver] = useState<Drop | null>(null);
+  const optionsRef = useRef(options);
   useEffect(() => {
-    dropRef.current = onDrop;
+    optionsRef.current = options;
   });
   const session = useRef<{
-    itemId: number;
-    item: HTMLElement | null;
+    id: Id;
+    item: HTMLElement;
     container: HTMLElement | null;
     copy: HTMLElement | null;
-    over: ListDrop | null;
+    over: Drop | null;
     x: number;
     y: number;
     startX: number;
@@ -138,11 +162,11 @@ export function usePointerDrag({
   const follow = () => {
     const state = session.current;
     if (!state?.moved) return;
-    const at = dropAt(state.x, state.y, state.itemId);
-    if (at && !sameDrop(at, state.over)) {
-      state.over = at;
-      setOver(at);
-    }
+    const { locate, same } = optionsRef.current;
+    const at = locate(state.x, state.y, state.id, state.over);
+    const changed = !same(at, state.over);
+    state.over = at;
+    if (changed) setOver(at);
     const lane = document
       .elementFromPoint(state.x, state.y)
       ?.closest<HTMLElement>("[data-drag-lane]");
@@ -164,12 +188,13 @@ export function usePointerDrag({
       document.documentElement.style.removeProperty("cursor");
       if (drop) swallowNextClick();
     }
-    if (drop && state.moved && state.over) dropRef.current(state.over);
+    const landed = drop && state.moved && state.over !== null;
+    if (landed) optionsRef.current.onDrop(state.id, state.over as Drop);
     if (state.copy) {
-      const { copy, container, itemId } = state;
-      if (drop && state.over) {
-        settle(copy, () => container?.querySelector(`[data-drag-item="${itemId}"]`) ?? null);
-      } else copy.remove();
+      const { copy, container, id } = state;
+      const { landing } = optionsRef.current;
+      if (landed) settle(copy, () => landing?.(id, container) ?? null);
+      else copy.remove();
     }
     setDragging(null);
     setOver(null);
@@ -182,14 +207,14 @@ export function usePointerDrag({
   return {
     dragging,
     over,
-    bind: (itemId: number) => ({
+    bind: (id: Id) => ({
       onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
-        if (!enabled || !event.isPrimary || event.button !== 0 || session.current) return;
+        if (!options.enabled || !event.isPrimary || event.button !== 0 || session.current) return;
         const target = event.target as Element;
         if (target.closest(NO_DRAG)) return;
         if (event.pointerType === "touch" && !target.closest("[data-drag-handle]")) return;
-        const item = event.currentTarget.closest<HTMLElement>("[data-drag-item]");
         const held = event.currentTarget;
+        const item = held.closest<HTMLElement>("[data-drag-item]") ?? held;
         const move = (e: PointerEvent) => {
           const state = session.current;
           if (!state || state.pointerId !== e.pointerId) return;
@@ -201,8 +226,8 @@ export function usePointerDrag({
             if (held.isConnected) held.setPointerCapture(e.pointerId);
             window.getSelection()?.removeAllRanges();
             document.documentElement.style.cursor = "grabbing";
-            state.copy = state.item ? liftCopy(state.item) : null;
-            setDragging(itemId);
+            state.copy = liftCopy(state.item);
+            setDragging(id);
             follow();
           }
           if (state.copy) {
@@ -226,9 +251,9 @@ export function usePointerDrag({
         window.addEventListener("pointercancel", cancel);
         window.addEventListener("keydown", key);
         session.current = {
-          itemId,
+          id,
           item,
-          container: item?.closest<HTMLElement>("[data-drag-container]") ?? null,
+          container: item.closest<HTMLElement>("[data-drag-container]"),
           copy: null,
           over: null,
           x: event.clientX,
@@ -247,4 +272,28 @@ export function usePointerDrag({
       },
     }),
   };
+}
+
+/**
+ * Reordering a list by pointer: `over` is the gap under the pointer, so the caller can show the item
+ * there while its neighbours make room, and the copy settles onto the item's new place on release.
+ * Lanes are `[data-drag-lane]`, their items `[data-drag-item]`, measured along `axis`.
+ */
+export function usePointerDrag({
+  enabled,
+  axis = "y",
+  onDrop,
+}: {
+  enabled: boolean;
+  axis?: DragAxis;
+  onDrop: (drop: ListDrop) => void;
+}): DragGesture<number, ListDrop> {
+  return useDragGesture<number, ListDrop>({
+    enabled,
+    locate: (x, y, itemId, previous) => dropAt(x, y, itemId, axis) ?? previous,
+    same: sameDrop,
+    onDrop: (_, drop) => onDrop(drop),
+    landing: (itemId, container) =>
+      container?.querySelector<HTMLElement>(`[data-drag-item="${itemId}"]`) ?? null,
+  });
 }

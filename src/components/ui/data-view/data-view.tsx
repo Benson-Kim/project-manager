@@ -13,6 +13,8 @@ import { optionColor, type LookupListKey, type OptionColor } from "@/lib/lookup-
 import { selectAllState, toggleAll } from "./selection";
 import { DEFAULT_PAGE_SIZE, totalPages, type SortDir, type ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
+import { createStep, editStep, recordKey } from "@/lib/undo/steps";
+import { usePageHistory } from "../../undo/page-history";
 import { useAnnouncer } from "../announcer";
 import { useLookupLists } from "../lookup-lists";
 import { EmptyState } from "../states";
@@ -26,6 +28,7 @@ import {
   failureMessage,
   isEditableTarget,
   RICH_TEXT_CLIP,
+  rowSaveQueue,
 } from "./datasheet";
 import {
   DatasheetAddRow,
@@ -85,6 +88,7 @@ export function DataView<Row>({
   const router = useRouter();
   const { searchParams, update } = useListUrlState();
   const { announce } = useAnnouncer();
+  const pageHistory = usePageHistory();
   const { toast } = useToast();
   const { canEdit: canEditLists, lists } = useLookupLists();
   const [selected, setSelected] = useState<Array<string | number>>([]);
@@ -207,22 +211,65 @@ export function DataView<Row>({
     active?.scrollIntoView({ block: "nearest" });
   }, [activeIndex]);
 
-  const saveCell = async (row: Row, column: DataViewColumn<Row>, value: string) => {
-    if (!sheet || !column.edit) return false;
-    const result = await sheet.saveCell(row, column.edit.field, value);
+  const [rowSaves] = useState(() => rowSaveQueue<Row>());
+  const saveCell = (row: Row, column: DataViewColumn<Row>, value: string) =>
+    rowSaves(getRowId(row), row, (latest) => writeCell(latest, column, value));
+
+  const writeCell = async (
+    row: Row,
+    column: DataViewColumn<Row>,
+    value: string,
+  ): Promise<Row | null> => {
+    if (!sheet || !column.edit) return null;
+    const edit = column.edit;
+    const result = await sheet.saveCell(row, edit.field, value);
     if (!result.ok) {
       toast({ variant: "error", title: failureMessage(result.error) });
-      return false;
+      return null;
     }
-    setSaved((current) => new Map(current).set(getRowId(row), { ...row, ...result.data }));
+    const id = getRowId(row);
+    const show = (next: Row) => setSaved((current) => new Map(current).set(id, next));
+    const written = { ...row, ...result.data };
+    show(written);
+    const before = edit.value(row);
+    if (before !== value) {
+      pageHistory.record(
+        editStep({
+          label: column.header,
+          key: recordKey(moduleKey, id),
+          row,
+          saved: result.data,
+          before: { [edit.field]: before },
+          after: { [edit.field]: value },
+          book: pageHistory.book,
+          current: (latest) => ({ [edit.field]: edit.value(latest) }),
+          write: (latest, values) => sheet.saveCell(latest, edit.field, String(values[edit.field])),
+          onSaved: show,
+        }),
+      );
+    }
     announce(messages.datasheet.saved(column.header));
     router.refresh();
-    return true;
+    return written;
   };
 
   const addEntry = async (values: Record<string, string>) => {
-    const result = await sheet!.addRow!.add(values);
+    const addRow = sheet!.addRow!;
+    const result = await addRow.add(values);
     if (result.ok) {
+      const undo = addRow.undo;
+      if (undo && result.data && typeof result.data === "object") {
+        pageHistory.record(
+          createStep({
+            label: messages.pageHistory.newRow,
+            created: result.data,
+            keyOf: (created) => recordKey(moduleKey, undo.id(created)),
+            book: pageHistory.book,
+            remove: undo.remove,
+            add: () => addRow.add(values),
+          }),
+        );
+      }
       announce(messages.datasheet.added);
       router.refresh();
     } else {

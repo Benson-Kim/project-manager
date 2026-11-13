@@ -205,7 +205,7 @@ export function setupAutoUpdater(
       const response = await ask({
         type: "info",
         title: "Update ready",
-        message: `Project Manager ${info.version} is ready to install.`,
+        message: `Modulus ${info.version} is ready to install.`,
         detail: `${whatsNew(info)}Save your work first: the app restarts to update.`,
         buttons: ["Restart and update", "Later"],
         defaultId: 0,
@@ -251,7 +251,7 @@ export function setupAutoUpdater(
     const response = await ask({
       type: "warning",
       title: "Required update",
-      message: `Project Manager ${info.version} is a required update.`,
+      message: `Modulus ${info.version} is a required update.`,
       detail: `${whatsNew(info)}Save your work: the app restarts to update in ${minutes} minutes.`,
       buttons: ["Restart now", `Restart in ${minutes} minutes`],
       defaultId: 1,
@@ -349,7 +349,7 @@ export function setupAutoUpdater(
         answer === "failed"
           ? "Could not check for updates. Check the internet connection."
           : answer === "downloading"
-            ? `Project Manager ${latest} is downloading.`
+            ? `Modulus ${latest} is downloading.`
             : `You have the latest version (${app.getVersion()}).`,
       buttons: ["OK"],
     });

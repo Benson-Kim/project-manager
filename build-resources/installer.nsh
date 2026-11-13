@@ -1,6 +1,6 @@
-; Project Manager - NSIS hooks (included via electron-builder.config.cjs: nsis.include).
+; Modulus - NSIS hooks (included via electron-builder.config.cjs: nsis.include).
 ;
-; The app is installed per user (%LOCALAPPDATA%\Programs\Project Manager), so
+; The app is installed per user (%LOCALAPPDATA%\Programs\Modulus), so
 ; installing it and every later update need no administrator rights. Only the
 ; database engine (a machine-wide SQL Server service) needs them, once per PC:
 ; provision.ps1 asks Windows for administrator approval itself, and is skipped
@@ -10,7 +10,7 @@
 ; write SQL Server's registry settings into WOW6432Node where the 64-bit engine
 ; never reads them, so we launch the 64-bit PowerShell through Sysnative.
 
-; The wizard names the product once, in its title bar ("Project Manager Setup"), so its
+; The wizard names the product once, in its title bar ("Modulus Setup"), so its
 ; pages and footer do not repeat it. This file is read before the pages are declared: the
 ; finish page takes these defines, customPageAfterChangeDir runs just before the Installing
 ; page, and customHeader runs after electron-builder sets its "<name> <version>" footer.
@@ -51,24 +51,39 @@
       MessageBox MB_OK|MB_ICONEXCLAMATION "The previous version of Project Manager could not be removed (code $R0).$\r$\n$\r$\nPlease uninstall the older 'Project Manager' in Settings > Apps.$\r$\nYour data is kept." /SD IDOK
   pm_old_done:
 
-  ; 2. Database engine: once per PC.
+  ; 2. Versions before the rename were installed under the old name. Remove that copy so this
+  ;    one is the only one. Its settings and data are kept.
+  StrCpy $R3 "$LOCALAPPDATA\Programs\Project Manager"
+  IfFileExists "$R3\Uninstall Project Manager.exe" 0 pm_legacy_done
+    DetailPrint "Removing the previous version..."
+    ExecWait '"$R3\Uninstall Project Manager.exe" /S /KEEP_APP_DATA _?=$R3' $R0
+    StrCmp $R0 "0" 0 pm_legacy_done
+      Delete "$R3\Uninstall Project Manager.exe"
+      RMDir "$R3"
+      Delete "$SMPROGRAMS\Project Manager.lnk"
+      Delete "$DESKTOP\Project Manager.lnk"
+  pm_legacy_done:
+
+  ; 3. Database engine: once per PC. A PC set up before the rename keeps its old folder.
+  IfFileExists "$R2\Modulus\machine.json" pm_db_ready 0
   IfFileExists "$R2\Project Manager\machine.json" 0 pm_provision
+  pm_db_ready:
     DetailPrint "The database engine is already set up on this PC."
     Goto pm_db_ok
   pm_provision:
-  DetailPrint "Setting up the Project Manager database engine..."
+  DetailPrint "Setting up the Modulus database engine..."
   DetailPrint "Windows asks for administrator approval. A first-time setup takes 5-15 minutes."
   nsExec::ExecToLog '"$R1" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\resources\setup\provision.ps1" -SqlInstaller "$INSTDIR\resources\sql-express\SQLEXPR_x64_ENU.exe"'
   Pop $R0
   StrCmp $R0 "0" pm_db_ok
   StrCmp $R0 "11" 0 pm_db_failed
-    MessageBox MB_OK|MB_ICONEXCLAMATION "The database engine was not set up because administrator approval was not given.$\r$\n$\r$\nOpen Project Manager and choose Repair, then approve the Windows prompt." /SD IDOK
+    MessageBox MB_OK|MB_ICONEXCLAMATION "The database engine was not set up because administrator approval was not given.$\r$\n$\r$\nOpen Modulus and choose Repair, then approve the Windows prompt." /SD IDOK
     Goto pm_db_ok
   pm_db_failed:
-    MessageBox MB_OK|MB_ICONEXCLAMATION "The database engine could not be set up (code $R0).$\r$\n$\r$\nProject Manager will offer to repair it when you open it.$\r$\nDetails: $R2\Project Manager\logs\provision.log" /SD IDOK
+    MessageBox MB_OK|MB_ICONEXCLAMATION "The database engine could not be set up (code $R0).$\r$\n$\r$\nModulus will offer to repair it when you open it.$\r$\nDetails: $R2\Modulus\logs\provision.log" /SD IDOK
   pm_db_ok:
 !macroend
 
 ; Uninstall keeps the database and its backups on purpose (client data).
 ; To remove them completely: uninstall "Microsoft SQL Server 2022" from
-; Apps & features and delete %ProgramData%\Project Manager.
+; Apps & features and delete %ProgramData%\Modulus.

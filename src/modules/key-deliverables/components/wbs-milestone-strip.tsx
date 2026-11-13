@@ -1,6 +1,6 @@
 import { toDateInput } from "@/lib/format";
 import { messages } from "@/lib/messages";
-import type { MilestoneChip, MilestoneState } from "../schemas/wbs-milestones";
+import { milestoneWords, type MilestoneChip, type MilestoneState } from "../schemas/wbs-milestones";
 
 const S = messages.keyDeliverables.wbs.milestoneStrip;
 const CHIP = "flex items-center gap-1.5 px-2.5 py-0.5";
@@ -64,6 +64,12 @@ export function MilestoneStrip({
             <span>{chip.name || messages.keyDeliverables.deliverableFallback(chip.id)}</span>
             <span className={`font-normal tabular-nums ${DATE_TEXT[chip.state]}`}>
               {shown ? toDateInput(shown) : S.noDate}
+            </span>
+            <span
+              className={`font-normal ${chip.phase === "cancelled" ? "text-ink-muted line-through" : "text-ink-muted"}`}
+              data-testid="wbs-milestone-words"
+            >
+              {milestoneWords(chip.status)}
             </span>
             <span className="sr-only">{state}</span>
           </>

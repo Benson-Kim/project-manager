@@ -720,6 +720,77 @@ test("WBS: Undo move takes back a move and a reschedule, from the button or Ctrl
   await expect(saving).toBeHidden({ timeout: 15_000 });
 });
 
+test("WBS: Redo move makes an undone move again, from the button, Ctrl+Y or Ctrl+Shift+Z", async ({
+  page,
+}) => {
+  test.slow();
+  const stamp = Date.now();
+  await page.goto("/projects/2/deliverables/gantt?view=wbs");
+  const diagram = page.getByTestId("wbs-diagram");
+  await expect(diagram).toBeVisible();
+  await closeAlarmToast(page);
+  const undo = page.getByTestId("wbs-undo");
+  const redo = page.getByTestId("wbs-redo");
+  const saving = page.getByTestId("wbs-saving");
+
+  async function addTopLevel(text: string): Promise<Locator> {
+    await page.getByTestId("wbs-add").click();
+    const field = page.locator("input:focus");
+    await expect(field).toHaveValue(W.newItemName, { timeout: 15_000 });
+    await field.fill(text);
+    await field.press("Enter");
+    const added = diagram.getByRole("treeitem", { name: new RegExp(escapeRegExp(text)) });
+    await expect(added).toBeFocused();
+    return added;
+  }
+  const leadId = await (await addTopLevel(`E2E redo lead ${stamp}`)).getAttribute("data-wbs-box");
+  const item = await addTopLevel(`E2E redo ${stamp}`);
+  const id = await item.getAttribute("data-wbs-box");
+  await expect(saving).toBeHidden({ timeout: 15_000 });
+  await expect(redo).toBeDisabled();
+
+  // The button makes the undone move again.
+  await page.keyboard.press("Alt+ArrowRight");
+  await expect(item).toHaveAttribute("aria-level", "2");
+  await undo.click();
+  await expect(item).toHaveAttribute("aria-level", "1");
+  await expect(redo).toBeEnabled();
+  await redo.click();
+  await expect(item).toHaveAttribute("aria-level", "2");
+  await expect(redo).toBeDisabled();
+  await expect(undo).toBeEnabled();
+
+  // So do Ctrl+Y and Ctrl+Shift+Z on the box.
+  await selectBox(page.getByTestId(`wbs-box-${id}`));
+  await item.press("Control+z");
+  await expect(item).toHaveAttribute("aria-level", "1");
+  await item.press("Control+y");
+  await expect(item).toHaveAttribute("aria-level", "2");
+  await item.press("Control+z");
+  await expect(item).toHaveAttribute("aria-level", "1");
+  await item.press("Control+Shift+z");
+  await expect(item).toHaveAttribute("aria-level", "2");
+
+  // A new move leaves nothing to redo, and the server keeps where the moves left the item.
+  await item.press("Control+z");
+  await expect(item).toHaveAttribute("aria-level", "1");
+  await expect(redo).toBeEnabled();
+  await item.press("Alt+ArrowRight");
+  await expect(item).toHaveAttribute("aria-level", "2");
+  await expect(redo).toBeDisabled();
+  await expect(saving).toBeHidden({ timeout: 15_000 });
+  await page.reload();
+  await expect(item).toHaveAttribute("aria-level", "2");
+
+  // Deleting the lead takes its sub-item with it.
+  await selectBox(page.getByTestId(`wbs-box-${leadId}`));
+  await page.getByTestId("wbs-delete").click();
+  await page.getByRole("button", { name: W.delete, exact: true }).last().click();
+  await expect(page.getByTestId(`wbs-box-${leadId}`)).toHaveCount(0);
+  await expect(page.getByTestId(`wbs-box-${id}`)).toHaveCount(0);
+  await expect(saving).toBeHidden({ timeout: 15_000 });
+});
+
 test("WBS toolbar: People shows the names on the boxes, Copy CSV puts the breakdown on the clipboard", async ({
   page,
   context,
@@ -864,6 +935,7 @@ test("WBS item menu: Assignees… opens the details on the picker; the box names
 test("WBS: a milestone is added as one day, converted either way, moved but not stretched", async ({
   page,
 }) => {
+  test.setTimeout(90_000);
   const stamp = Date.now();
   await page.goto("/projects/2/deliverables/gantt?view=gantt&scale=day");
   await expect(page.getByTestId("gantt-board")).toBeVisible();
@@ -962,10 +1034,35 @@ test("WBS: a milestone is added as one day, converted either way, moved but not 
     `/projects/2/deliverables?d=${gateId}`,
   );
   await expect(overview.getByText(`E2E span ${stamp}`)).toHaveCount(0);
+  await expect(gateRow.getByTestId("project-milestone-status")).toHaveText(
+    messages.projects.milestonePhases.notStarted,
+  );
   await gateRow.getByRole("link").click();
   await expect(
     page.getByTestId("deliverable-form").getByLabel(messages.keyDeliverables.deliverable),
   ).toHaveValue(`E2E gate ${stamp}`);
+  await page.goto("/projects/2/deliverables/gantt?view=wbs");
+  await expect(page.getByTestId(`wbs-box-${gateId}`)).toBeVisible({ timeout: 15_000 });
+
+  // A milestone put on hold reads Blocked on the Overview.
+  const statusItem = page.getByTestId("wbs-menu-status");
+  await expect(async () => {
+    if (!(await statusItem.isVisible())) {
+      await page
+        .getByTestId(`wbs-box-${gateId}`)
+        .click({ button: "right", position: { x: 4, y: 4 }, timeout: 2_000 });
+    }
+    await expect(statusItem).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await statusItem.click();
+  await page.getByTestId("wbs-status-On Hold").click();
+  await expect(async () => {
+    await page.goto("/projects/2");
+    await expect(gateRow.getByTestId("project-milestone-status")).toContainText(
+      messages.projects.milestonePhases.blocked,
+      { timeout: 2_000 },
+    );
+  }).toPass({ timeout: 20_000 });
   await page.goto("/projects/2/deliverables/gantt?view=wbs");
   await expect(page.getByTestId(`wbs-box-${gateId}`)).toBeVisible({ timeout: 15_000 });
 
@@ -1072,7 +1169,7 @@ test("WBS notes: a paperclip note on a box and the project's note autosave and c
   await add.click();
   const note = page.getByTestId("wbs-details-note-panel").getByRole("textbox");
   await note.fill(`Ring the supplier ${stamp}`);
-  await expect(page.getByTestId("wbs-details-note-panel")).toContainText(messages.feedback.saved, {
+  await expect(page.getByTestId("wbs-details-note-save")).toHaveAttribute("data-status", "saved", {
     timeout: 15_000,
   });
   // Typing in the note never reaches the box: no rename, no move.
@@ -1093,7 +1190,7 @@ test("WBS notes: a paperclip note on a box and the project's note autosave and c
   await page.getByTestId("wbs-plan-note").click();
   const planNote = page.getByTestId("wbs-plan-note-panel").getByRole("textbox");
   await planNote.fill(`Kick-off on Monday ${stamp}`);
-  await expect(page.getByTestId("wbs-plan-note-panel")).toContainText(messages.feedback.saved, {
+  await expect(page.getByTestId("wbs-plan-note-save")).toHaveAttribute("data-status", "saved", {
     timeout: 15_000,
   });
   await page.keyboard.press("Escape");
@@ -1103,7 +1200,7 @@ test("WBS notes: a paperclip note on a box and the project's note autosave and c
     `Kick-off on Monday ${stamp}`,
   );
   await page.getByTestId("wbs-plan-note-panel").getByRole("textbox").fill("");
-  await expect(page.getByTestId("wbs-plan-note-panel")).toContainText(messages.feedback.saved, {
+  await expect(page.getByTestId("wbs-plan-note-save")).toHaveAttribute("data-status", "saved", {
     timeout: 15_000,
   });
   await page.keyboard.press("Escape");
@@ -1717,4 +1814,98 @@ test("axe scan on the Gantt route has no serious or critical violations", async 
     ["serious", "critical"].includes(v.impact ?? ""),
   );
   expect(serious).toEqual([]);
+});
+
+test("Deliverable assignees: several stakeholders are picked one after another, saved and still there on reopening", async ({
+  page,
+}) => {
+  // Long: an item is created, its details sheet is opened three times and saved twice against a
+  // real database.
+  test.slow();
+  const K = messages.keyDeliverables;
+  const name = `E2E several assignees ${Date.now()}`;
+  await page.goto("/projects/2/deliverables/gantt?view=gantt");
+  await closeAlarmToast(page);
+  const id = await addInGantt(page, name);
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+
+  const form = page.getByTestId("deliverable-form");
+  const picker = form.getByRole("combobox", { name: K.assignees });
+  const picks = form.getByTestId("stakeholder-picks");
+  const listbox = form.getByRole("listbox");
+  const remove = (who: string) => picks.getByRole("button", { name: K.removeAssignee(who) });
+  await page.goto(`/projects/2/deliverables?d=${id}`);
+  await expect(form).toBeVisible();
+  await expect(picks.getByRole("listitem")).toHaveCount(0);
+  await expect(picker).toHaveAttribute(
+    "placeholder",
+    messages.stakeholders.addStakeholderPlaceholder,
+  );
+
+  // Two are clicked from the list; each lands on its own row with its ×, the box empties and
+  // keeps the caret, and someone picked is not offered again.
+  const names: string[] = [];
+  for (let n = 0; n < 2; n++) {
+    // A click before hydration opens nothing: retried until the list shows.
+    await expect(async () => {
+      await picker.click();
+      await expect(listbox).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
+    const option = listbox.getByRole("option").first();
+    const who = ((await option.textContent()) ?? "").trim();
+    expect(who).not.toBe("");
+    expect(names).not.toContain(who);
+    await option.click();
+    await expect(remove(who)).toBeVisible();
+    await expect(picker).toHaveValue("");
+    await expect(picker).toBeFocused();
+    await expect(listbox.getByRole("option", { name: who, exact: true })).toHaveCount(0);
+    names.push(who);
+  }
+
+  // The third is found by typing part of the name and taken with Enter.
+  await picker.press("ArrowDown");
+  const third = ((await listbox.getByRole("option").first().textContent()) ?? "").trim();
+  expect(names).not.toContain(third);
+  await picker.fill(third.slice(0, Math.max(3, third.length - 2)));
+  await expect(listbox.getByRole("option").first()).toHaveText(third);
+  await picker.press("Enter");
+  await expect(remove(third)).toBeVisible();
+  await expect(picker).toHaveValue("");
+  names.push(third);
+  await expect(picks.getByRole("listitem")).toHaveCount(3);
+
+  await page.getByTestId("deliverable-save").click();
+  await expect(
+    page.getByTestId("toast-success").filter({ hasText: messages.feedback.saved }).first(),
+  ).toBeVisible({ timeout: 15_000 });
+
+  // Reopened, all three are there, in the order they were picked.
+  await page.goto(`/projects/2/deliverables?d=${id}`);
+  await expect(form).toBeVisible();
+  await expect(picks.getByRole("listitem")).toHaveText(names);
+
+  // One is taken off; the other two stay after saving and reopening.
+  await expect(async () => {
+    await remove(names[1]).click();
+    await expect(remove(names[1])).toHaveCount(0, { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await page.getByTestId("deliverable-save").click();
+  await expect(
+    page.getByTestId("toast-success").filter({ hasText: messages.feedback.saved }).first(),
+  ).toBeVisible({ timeout: 15_000 });
+  await page.goto(`/projects/2/deliverables?d=${id}`);
+  await expect(picks.getByRole("listitem")).toHaveText([names[0], names[2]]);
+
+  // The item goes again, so reruns on the same database do not pile them up.
+  await page.getByTestId("deliverable-delete").click();
+  await expect(
+    page.getByRole("heading", {
+      name: messages.confirmDelete.title(K.entity, name),
+    }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: messages.actions.delete, exact: true }).last().click();
+  await expect(
+    page.getByTestId("toast-success").filter({ hasText: messages.feedback.deleted }).first(),
+  ).toBeVisible({ timeout: 15_000 });
 });

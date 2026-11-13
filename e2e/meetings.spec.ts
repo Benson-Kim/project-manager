@@ -70,10 +70,10 @@ async function axeClean(page: Page) {
 test("the section sits in the project nav and lists the seeded meeting", async ({ page }) => {
   await page.goto("/projects/2");
   const sections = page.getByRole("navigation", { name: messages.projects.sectionsNav });
-  await sections.getByRole("button", { name: messages.activity.title }).click();
+  await sections.getByRole("button", { name: messages.projects.sectionGroups.workspace }).click();
   // The group's panel is portalled to <body>, outside the nav.
   await page
-    .getByRole("group", { name: messages.activity.title })
+    .getByRole("group", { name: messages.projects.sectionGroups.workspace })
     .getByRole("link", { name: messages.projects.meetingsSection })
     .click();
   await expect(page).toHaveURL(/\/projects\/2\/meetings$/);

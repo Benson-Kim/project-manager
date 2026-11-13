@@ -257,6 +257,50 @@ test("calendar — one day of a daily series is marked done; the series stays li
   }
 });
 
+test("project Calendar section — New to-do and a day's + start a to-do; a bad day is ignored", async ({
+  page,
+}) => {
+  const title = `E2E calendar add ${Date.now()}`;
+  const day = new Date().toISOString().slice(0, 10);
+  await page.goto("/projects/2/calendar");
+  await closeAlarmToast(page);
+  await expect(
+    page.getByRole("heading", { name: messages.projects.calendarSection }),
+  ).toBeVisible();
+  await expect(page.getByTestId("view-calendar")).toHaveCount(0);
+
+  await page.getByTestId("calendar-new").click();
+  const form = page.getByTestId("todo-item-form");
+  await expect(form.locator('input[name="startDate"]')).toHaveValue("");
+  await page.goto("/projects/2/calendar?id=new&day=2026-02-30");
+  await expect(form.locator('input[name="startDate"]')).toHaveValue("");
+
+  await page.goto("/projects/2/calendar");
+  await page.locator(`[data-testid="calendar-add"][data-day="${day}"]:visible`).click();
+  await expect(form.locator('input[name="startDate"]')).toHaveValue(day);
+  await form.getByLabel(messages.todoItems.todoItem).fill(title);
+  await page.getByTestId("todo-item-save").click();
+  await expect(
+    page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(form).toHaveCount(0, { timeout: 15_000 });
+  const cell = page.locator(`[data-testid="calendar-day"][data-day="${day}"]`);
+  await expect(
+    cell
+      .getByTestId("calendar-entry")
+      .filter({ hasText: title })
+      .or(cell.getByTestId("calendar-more"))
+      .first(),
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(await calendarEntry(page, day, title)).toBeVisible();
+});
+
+test("axe scan on the project calendar has no serious or critical violations", async ({ page }) => {
+  await page.goto("/projects/2/calendar");
+  await expect(page.getByTestId("todo-calendar")).toBeVisible();
+  expect(await seriousViolations(page)).toEqual([]);
+});
+
 test("axe scan on the todos list has no serious or critical violations", async ({ page }) => {
   await page.goto("/projects/2/todos");
   await expect(page.getByRole("heading", { name: messages.todoItems.title })).toBeVisible();

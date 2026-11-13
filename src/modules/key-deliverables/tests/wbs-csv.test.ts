@@ -76,12 +76,12 @@ describe("wbsCsv", () => {
       }),
     ]);
     expect(rows[0]).toBe(
-      "WBS,Name,Type,MoSCoW,Assignee,Est. days,Start,End,Actual,Progress %,Budget",
+      "WBS,Name,Type,MoSCoW,Assignee,Est. days,Start,End,Actual,Progress %,Budget,Status",
     );
     expect(rows.slice(1)).toEqual([
-      "1,Item 1,Item,,,,2026-01-05,2026-02-20,,100,",
-      "1.1,Item 2,Item,,Ana; Bo,,2026-01-05,2026-02-20,,100,",
-      "2,Item 3,Milestone,,,,2026-03-01,2026-03-01,,0,",
+      "1,Item 1,Item,,,,2026-01-05,2026-02-20,,100,,",
+      "1.1,Item 2,Item,,Ana; Bo,,2026-01-05,2026-02-20,,100,,",
+      "2,Item 3,Milestone,,,,2026-03-01,2026-03-01,,0,,Not Started",
     ]);
   });
 
@@ -97,11 +97,11 @@ describe("wbsCsv", () => {
       }),
     ]);
     expect(rows.slice(1)).toEqual([
-      "1,Item 1,Item,,,3.5,,,,75,",
-      "FR-11,R11,FR,M,Ana,2.0,,,,50,",
-      "FR-13,R13,FR,,,,,,,0,",
-      "FR-12,R12,FR,,,1.5,,,,100,",
-      "NFR-1,R14,NFR,W,,,,,,100,",
+      "1,Item 1,Item,,,3.5,,,,75,,",
+      "FR-11,R11,FR,M,Ana,2.0,,,,50,,",
+      "FR-13,R13,FR,,,,,,,0,,",
+      "FR-12,R12,FR,,,1.5,,,,100,,",
+      "NFR-1,R14,NFR,W,,,,,,100,,",
     ]);
   });
 
@@ -111,7 +111,7 @@ describe("wbsCsv", () => {
       item(2, 1, { budget: 1200 }),
       item(3, 1, { budget: 300.5 }),
     ]);
-    expect(rows.slice(1).map((r) => r.split(",").at(-1))).toEqual(["1500.50", "1200.00", "300.50"]);
+    expect(rows.slice(1).map((r) => r.split(",").at(-2))).toEqual(["1500.50", "1200.00", "300.50"]);
   });
 
   it("rolls effort up to parents, counting the parent's own estimates", () => {
@@ -131,8 +131,29 @@ describe("wbsCsv", () => {
       item(1, null, { name: '=HYPERLINK("x")' }),
       item(2, null, { name: "Design, build" }),
     ]);
-    expect(rows[1]).toBe(`1,"'=HYPERLINK(""x"")",Item,,,,,,,0,`);
-    expect(rows[2]).toBe(`2,"Design, build",Item,,,,,,,0,`);
+    expect(rows[1]).toBe(`1,"'=HYPERLINK(""x"")",Item,,,,,,,0,,`);
+    expect(rows[2]).toBe(`2,"Design, build",Item,,,,,,,0,,`);
+  });
+
+  it("writes a milestone's status in milestone words, and an unmapped status as it is", () => {
+    const milestone = (id: number, status: string | null) =>
+      item(id, null, { isMilestone: true, status });
+    const rows = lines([
+      milestone(1, "In Progress"),
+      milestone(2, "On Hold"),
+      milestone(3, "Completed"),
+      milestone(4, "Cancelled"),
+      milestone(5, "Awaiting Client"),
+      item(6, null, { status: "In Progress" }),
+    ]);
+    expect(rows.slice(1).map((r) => r.split(",").at(-1))).toEqual([
+      "In Progress",
+      "Blocked",
+      "Done",
+      "Cancelled",
+      "Awaiting Client",
+      "",
+    ]);
   });
 
   it("writes the day an item was actually reached, blank until one is recorded", () => {

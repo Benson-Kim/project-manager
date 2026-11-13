@@ -20,7 +20,12 @@ import type { StakeholderOption } from "@/modules/stakeholders/repository/stakeh
 import { createDecisionAction, deleteDecisionAction, updateDecisionAction } from "../actions";
 import type { DecisionRow } from "../schemas/decision";
 import type { DecisionOption } from "../repository/decisions";
-import { createDecisionFormSchema, updateDecisionFormSchema } from "../schemas/decision-form";
+import {
+  createDecisionFormSchema,
+  decisionFormValues,
+  updateDecisionFormSchema,
+} from "../schemas/decision-form";
+import { sheetUndo } from "@/lib/undo/steps";
 
 const M = messages.decisions;
 
@@ -80,6 +85,16 @@ export function DecisionSheet({
               ok: false as const,
               error: { code: "NOT_FOUND" as const, message: "" },
             }),
+      undo: sheetUndo<DecisionRow>({
+        moduleKey: "decisions",
+        idOf: (row) => row.DecisionId,
+        nameOf: (row) => row.Title,
+        before: item,
+        toFormValues: decisionFormValues,
+        update: updateDecisionAction,
+        create: createDecisionAction,
+        remove: (row) => deleteDecisionAction({ decisionId: row.DecisionId, rowVer: row.RowVer }),
+      }),
     });
 
   const open = isNew || item !== null;

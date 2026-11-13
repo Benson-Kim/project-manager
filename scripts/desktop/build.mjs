@@ -1,6 +1,6 @@
 // One-command, repeatable build of the Windows desktop installer.
 //
-//   npm run electron:build        → dist-installer/ProjectManager-Setup-<version>.exe
+//   npm run electron:build        → dist-installer/Modulus-Setup-<version>.exe
 //   npm run electron:build:dir    → dist-installer/win-unpacked (no installer)
 //   node scripts/desktop/build.mjs --stage-only   (used by electron:dev)
 //   add --skip-next to reuse an existing `next build` while iterating
@@ -93,6 +93,7 @@ await esbuild({
   entryPoints: {
     main: join(root, "electron", "main.ts"),
     "grammar-worker": join(root, "electron", "grammar-worker.ts"),
+    preload: join(root, "electron", "preload.ts"),
   },
   outdir: appDir,
   bundle: true,
@@ -113,9 +114,9 @@ writeFileSync(
   JSON.stringify(
     {
       name: pkg.name,
-      productName: "Project Manager",
+      productName: "Modulus",
       version,
-      description: "Project Manager desktop edition",
+      description: "Modulus desktop edition",
       author: pkg.author,
       main: "main.js",
       private: true,
@@ -179,12 +180,12 @@ if (hasFeed && !dirOnly && !existsSync(join(unpacked, "app-update.yml"))) proble
 if (problems.length) throw new Error(`Package check failed:\n  - ${problems.join("\n  - ")}`);
 console.log(`  app.asar ${(statSync(join(unpacked, "app.asar")).size / 1024).toFixed(0)} KB; server, db scripts, SQL media, provisioning present; no .env files`);
 if (!dirOnly) {
-  const exe = join(root, "dist-installer", `ProjectManager-Setup-${version}.exe`);
+  const exe = join(root, "dist-installer", `Modulus-Setup-${version}.exe`);
   console.log(`\n✔ ${exe}`);
   const hash = await sha256(exe);
   // Ship this next to the installer so a copy (USB, download) can be checked on
   // the target PC: Get-FileHash <exe> must print the same value.
-  writeFileSync(`${exe}.sha256`, `${hash} *ProjectManager-Setup-${version}.exe\n`);
+  writeFileSync(`${exe}.sha256`, `${hash} *Modulus-Setup-${version}.exe\n`);
   console.log(`  size   ${(statSync(exe).size / 1048576).toFixed(1)} MB`);
   console.log(`  sha256 ${hash}  (also in ${basename(exe)}.sha256)`);
   if (hasFeed) {

@@ -54,7 +54,7 @@ export function NotesView({
       header: M.notebookTitle,
       priority: 1,
       render: (r) => (
-        <Link href={noteHref(r)} className="font-medium text-accent underline">
+        <Link href={noteHref(r)} className="font-medium text-accent">
           {label(r)}
         </Link>
       ),
@@ -99,7 +99,7 @@ export function NotesView({
           <p className="line-clamp-2 text-sm font-semibold text-ink">{label(row)}</p>
           {projectFilterOptions ? (
             <p className="text-xs text-ink-muted">
-              <ProjectLink projectId={row.ProjectId} className="underline">
+              <ProjectLink projectId={row.ProjectId} className="text-accent">
                 {row.ProjectName ?? messages.projectPicker.none}
               </ProjectLink>
             </p>

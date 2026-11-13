@@ -15,10 +15,13 @@ import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
+import { sheetUndo } from "@/lib/undo/steps";
+import { usePageHistory } from "@/components/undo/page-history";
 import type { AssumptionConstraintRow } from "../schemas/assumption-constraint";
 import {
   assumptionConstraintFormSchema,
   updateAssumptionConstraintFormSchema,
+  assumptionConstraintFormValues,
 } from "../schemas/assumption-constraint-form";
 import {
   createAssumptionConstraintAction,
@@ -48,6 +51,21 @@ export function AssumptionConstraintSheet({
   const { update, searchParams } = useListUrlState();
   const { toast } = useToast();
   const { announce } = useAnnouncer();
+  const pageHistory = usePageHistory();
+  const undoStep = sheetUndo<AssumptionConstraintRow>({
+    moduleKey: "assumptions-constraints",
+    idOf: (row) => row.AssumptionConstraintId,
+    nameOf: (row) => row.Description,
+    before: item,
+    toFormValues: assumptionConstraintFormValues,
+    update: updateAssumptionConstraintAction,
+    create: createAssumptionConstraintAction,
+    remove: (row) =>
+      deleteAssumptionConstraintAction({
+        assumptionConstraintId: row.AssumptionConstraintId,
+        rowVer: row.RowVer,
+      }),
+  });
   const schema = item ? updateAssumptionConstraintFormSchema : assumptionConstraintFormSchema;
   const form = useZodForm(schema);
   const [pending, startTransition] = useTransition();
@@ -113,6 +131,8 @@ export function AssumptionConstraintSheet({
         ? await updateAssumptionConstraintAction(data)
         : await createAssumptionConstraintAction(data);
       if (result.ok) {
+        const step = undoStep(result.data, data, pageHistory.book);
+        if (step) pageHistory.record(step);
         toast({
           variant: "success",
           title: item ? messages.feedback.saved : messages.feedback.created,

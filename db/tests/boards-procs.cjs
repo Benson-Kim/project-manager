@@ -7,18 +7,8 @@
 // everywhere (ADR-0021), so neither can stand in for a user with no access; the outsider checks
 // create their own user rather than naming a seeded id. Creates throwaway projects, boards and one
 // user, and leaves soft-deleted rows behind, so never point it at a real database.
-// Env: DB_SERVER, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (a .env file fills what is missing).
-try {
-  require("fs")
-    .readFileSync(".env", "utf8")
-    .split(/\r?\n/)
-    .forEach((l) => {
-      const m = l.match(/^([A-Z_0-9]+)=(.*)$/);
-      if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
-    });
-} catch {
-  // No .env: the environment must carry the DB_* values (CI).
-}
+// Env: DB_SERVER, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (DB_NAME must be set; .env fills the rest).
+require("./support/test-env.cjs");
 const sql = require("mssql");
 
 const ADMIN = 1;
@@ -80,7 +70,7 @@ async function main() {
     port: Number(process.env.DB_PORT || 1433),
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME || "ProjectManager",
+    database: process.env.DB_NAME,
     options: { encrypt: true, trustServerCertificate: true },
   }).connect();
 

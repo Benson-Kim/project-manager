@@ -61,12 +61,29 @@ function groupByDay(entries: readonly CalendarEntry[]): Map<string, CalendarEntr
   return byDay;
 }
 
+function AddOnDay({ day, onAdd }: { day: string; onAdd: (day: string) => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={C.addOn(formatDate(day))}
+      data-testid="calendar-add"
+      data-day={day}
+      onClick={() => onAdd(day)}
+      className="inline-flex min-h-11 min-w-11 items-center justify-center rounded text-base text-ink-muted hover:bg-surface-raised hover:text-ink md:min-h-6 md:min-w-6"
+    >
+      <span aria-hidden="true">+</span>
+    </button>
+  );
+}
+
 function EntryButton({
   entry,
   onOpen,
+  showNote = false,
 }: {
   entry: CalendarEntry;
   onOpen: (entry: CalendarEntry) => void;
+  showNote?: boolean;
 }) {
   const title = entry.todo.title ?? messages.app.untitled;
   const skipped = entry.occurrence?.isSkipped ?? false;
@@ -74,7 +91,7 @@ function EntryButton({
   return (
     <button
       type="button"
-      title={title}
+      title={entry.todo.noteLine ? `${title} — ${entry.todo.noteLine}` : title}
       data-testid="calendar-entry"
       data-key={entry.key}
       onClick={() => onOpen(entry)}
@@ -82,6 +99,11 @@ function EntryButton({
     >
       {entry.time ? <span className="shrink-0 tabular-nums">{entry.time}</span> : null}
       <span className="truncate">{title}</span>
+      {showNote && entry.todo.noteLine ? (
+        <span className="truncate text-ink-muted" data-testid="calendar-entry-note">
+          {entry.todo.noteLine}
+        </span>
+      ) : null}
       {skipped ? <span className="sr-only">{C.skipped}</span> : null}
     </button>
   );
@@ -93,12 +115,14 @@ function DayEntries({
   onOpen,
   onMore,
   limit = SHOWN_PER_DAY,
+  showNote = false,
 }: {
   day: string;
   byDay: Map<string, CalendarEntry[]>;
   onOpen: (entry: CalendarEntry) => void;
   onMore?: (day: string) => void;
   limit?: number;
+  showNote?: boolean;
 }) {
   const all = byDay.get(day) ?? [];
   if (all.length === 0) return null;
@@ -107,7 +131,7 @@ function DayEntries({
     <ul className="mt-1 flex flex-col gap-0.5">
       {shown.map((entry) => (
         <li key={entry.key}>
-          <EntryButton entry={entry} onOpen={onOpen} />
+          <EntryButton entry={entry} onOpen={onOpen} showNote={showNote} />
         </li>
       ))}
       {onMore && all.length > shown.length ? (
@@ -137,6 +161,8 @@ export function TodoCalendar({
   entries,
   cut,
   projectFilterOptions,
+  canAdd = false,
+  switchable = true,
 }: {
   /** "YYYY-MM". */
   month: string;
@@ -148,8 +174,13 @@ export function TodoCalendar({
   cut: number;
   /** /todo's project filter; omitted on a project page. */
   projectFilterOptions?: readonly { id: number; name: string }[];
+  /** Offers "New to-do" and a "+" on each day, which starts the to-do on that day. */
+  canAdd?: boolean;
+  /** False on a page that is only the calendar: no switch back to the list. */
+  switchable?: boolean;
 }) {
   const { update } = useListUrlState();
+  const addOn = (day: string | null) => update({ id: "new", day });
   const [openDay, setOpenDay] = useState<string | null>(null);
   const [occurrence, setOccurrence] = useState<CalendarEntry | null>(null);
   const byDay = groupByDay(entries);
@@ -207,8 +238,18 @@ export function TodoCalendar({
         >
           {C.today}
         </button>
-        <div className="ml-auto">
-          <CalendarSwitch on />
+        <div className="ml-auto flex items-center gap-2">
+          {canAdd ? (
+            <button
+              type="button"
+              data-testid="calendar-new"
+              onClick={() => addOn(null)}
+              className={navButton}
+            >
+              {messages.todoItems.newTodoItem}
+            </button>
+          ) : null}
+          {switchable ? <CalendarSwitch on /> : null}
         </div>
       </Toolbar>
 
@@ -243,13 +284,16 @@ export function TodoCalendar({
                   data-day={day}
                   className={`h-28 border border-line p-1 align-top ${inMonth(day) ? "bg-surface" : "bg-surface-sunken"}`}
                 >
-                  <span
-                    aria-current={day === today ? "date" : undefined}
-                    className={`inline-flex size-6 items-center justify-center rounded-full text-xs tabular-nums ${day === today ? "bg-accent-soft font-semibold text-accent" : inMonth(day) ? "text-ink" : "text-ink-muted"}`}
-                  >
-                    <span aria-hidden="true">{Number(day.slice(8))}</span>
-                    <span className="sr-only">{formatDate(day)}</span>
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span
+                      aria-current={day === today ? "date" : undefined}
+                      className={`inline-flex size-6 items-center justify-center rounded-full text-xs tabular-nums ${day === today ? "bg-accent-soft font-semibold text-accent" : inMonth(day) ? "text-ink" : "text-ink-muted"}`}
+                    >
+                      <span aria-hidden="true">{Number(day.slice(8))}</span>
+                      <span className="sr-only">{formatDate(day)}</span>
+                    </span>
+                    {canAdd ? <AddOnDay day={day} onAdd={addOn} /> : null}
+                  </div>
                   <DayEntries day={day} byDay={byDay} onOpen={open} onMore={setOpenDay} />
                 </td>
               ))}
@@ -261,12 +305,15 @@ export function TodoCalendar({
       <ol className="flex flex-col gap-3 md:hidden" data-testid="calendar-agenda">
         {agenda.map(({ day, weekday }) => (
           <li key={day} data-day={day} className="rounded-md border border-line p-2">
-            <p
-              aria-current={day === today ? "date" : undefined}
-              className={`text-sm font-semibold ${day === today ? "text-accent" : "text-ink"}`}
-            >
-              {weekday} {formatDate(day)}
-            </p>
+            <div className="flex items-center justify-between">
+              <p
+                aria-current={day === today ? "date" : undefined}
+                className={`text-sm font-semibold ${day === today ? "text-accent" : "text-ink"}`}
+              >
+                {weekday} {formatDate(day)}
+              </p>
+              {canAdd ? <AddOnDay day={day} onAdd={addOn} /> : null}
+            </div>
             <DayEntries day={day} byDay={byDay} onOpen={open} onMore={setOpenDay} />
           </li>
         ))}
@@ -279,7 +326,9 @@ export function TodoCalendar({
         }}
         title={openDay ? C.dayTitle(formatDate(openDay)) : ""}
       >
-        {openDay ? <DayEntries day={openDay} byDay={byDay} onOpen={open} limit={Infinity} /> : null}
+        {openDay ? (
+          <DayEntries day={openDay} byDay={byDay} onOpen={open} limit={Infinity} showNote />
+        ) : null}
       </Dialog>
       <TodoOccurrenceDialog
         entry={occurrence}

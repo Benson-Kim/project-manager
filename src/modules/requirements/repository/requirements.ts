@@ -38,12 +38,16 @@ export async function listRequirements(
   projectId: number,
   type: string | null = null,
   pageSize: number = DEFAULT_PAGE_SIZE,
+  /** Rows holding one choice of an added column (ADR-0067), by ids. */
+  choice: { columnId: number; optionId: number } | null = null,
 ): Promise<RequirementListRow[]> {
   const rows = await execProc<RequirementListRow>("usp_Requirement_List", {
     ActorUserId: actorUserId,
     ProjectId: projectId,
     Type: type,
     ...toProcListParams(params, pageSize),
+    CustomColumnId: choice?.columnId ?? null,
+    CustomOptionId: choice?.optionId ?? null,
   });
   return rows.map((r) => requirementListRowSchema.parse(r));
 }

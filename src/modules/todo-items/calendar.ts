@@ -131,6 +131,14 @@ export function calendarMonth(value: string | undefined, today: string): string 
   return value !== undefined && MONTH.test(value) ? value : today.slice(0, 7);
 }
 
+/** The day `?day=` names for a new to-do, or null when it is not a real "YYYY-MM-DD" date. */
+export function calendarDay(value: string | undefined): string | null {
+  if (value === undefined || !MONTH.test(value.slice(0, 7)) || !/^\d{4}-\d{2}-\d{2}$/.test(value))
+    return null;
+  const ms = dayOf(value);
+  return Number.isNaN(ms) || ymdOf(ms) !== value ? null : value;
+}
+
 export interface MonthGrid {
   /** Six Monday-first weeks: 42 days, "YYYY-MM-DD". */
   days: string[];

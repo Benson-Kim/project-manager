@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { buttonClass } from "@/components/ui/button-styles";
 import { auth } from "@/lib/auth/provider";
 import { can } from "@/lib/auth/rbac";
 import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
@@ -17,11 +18,7 @@ export const metadata: Metadata = {
 };
 
 const newProjectLink = (
-  <Link
-    href="/projects/new"
-    data-testid="new-project"
-    className="inline-flex min-h-10 items-center rounded-md bg-accent px-6 text-sm font-medium text-on-accent"
-  >
+  <Link href="/projects/new" data-testid="new-project" className={`${buttonClass("primary")} px-6`}>
     {messages.projects.newProject}
   </Link>
 );

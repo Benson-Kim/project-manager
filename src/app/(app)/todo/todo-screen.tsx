@@ -1,0 +1,229 @@
+import Link from "next/link";
+import { auth } from "@/lib/auth/provider";
+import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
+import { messages } from "@/lib/messages";
+import { getUserPreference } from "@/lib/repositories/user-preference";
+import { getListPreference } from "@/lib/repositories/view-preference";
+import { orNull } from "@/lib/row-access";
+import { formatDate } from "@/lib/format";
+import { PageHeader } from "@/components/ui/page-header";
+import { calendarDay } from "@/modules/todo-items/calendar";
+import { TodoCalendar } from "@/modules/todo-items/components/todo-calendar";
+import { TodoView } from "@/modules/todo-items/components/todo-view";
+import { TodoItemSheet } from "@/modules/todo-items/components/todo-item-sheet";
+import {
+  getUpcomingAlertRows,
+  listTodoItems,
+  getTodoItemById,
+  type TodoListFilters,
+} from "@/modules/todo-items/repository/todo-items";
+import { getTodoAlertByTodoItemId } from "@/modules/todo-items/repository/todo-alerts";
+import { getTodoRecurrence } from "@/modules/todo-items/repository/todo-recurrence";
+import { getTodoPermissions } from "@/modules/todo-items/repository/todo-access";
+import { loadTodoCalendar } from "@/modules/todo-items/queries/load-todo-calendar";
+import { TODO_ITEM_LISTS, TODO_ITEM_SORT } from "@/modules/todo-items/schemas/todo-item";
+import {
+  canAddWith,
+  filteredProjectId,
+  parseProjectFilter,
+  projectPicker,
+} from "@/modules/projects/project-options";
+import { listProjectOptions } from "@/modules/projects/repository/projects";
+import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
+import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
+
+/**
+ * The signed-in person's to-dos across projects: the list or the calendar (?view=calendar) on /todo,
+ * the calendar alone on the dashboard. Upcoming alerts panel + URL-synced Sheet for
+ * detail/edit/create. Todo items may be project-unscoped (ProjectId nullable), so creation is
+ * allowed via ?id=new (from a calendar day with ?day=) when the user has todo-items:create.
+ * Filter params (@Status, @Priority) forwarded server-side per module gap closure (#20);
+ * `?project=<id>|none` narrows to one project or to personal to-dos, and the
+ * datasheet's Project column moves to-dos between them.
+ */
+export async function TodoScreen({
+  raw,
+  calendarOnly,
+}: {
+  raw: Record<string, string | string[] | undefined>;
+  calendarOnly: boolean;
+}) {
+  const session = await auth.requireSession();
+  const flat = flattenSearchParams(raw);
+  const listParams = parseListParams(raw, TODO_ITEM_SORT);
+  const effectiveParams = listParams;
+
+  const isCalendar = calendarOnly || flat.view === "calendar";
+  const isNew = flat.id === "new";
+  const selectedId = flat.id && !isNew ? Number(flat.id) : null;
+
+  // Shared with the layout's project switcher (cached per request).
+  const projectOptions = await listProjectOptions(session.userId);
+  const projectFilter = parseProjectFilter(flat.project, projectOptions);
+  const filters: TodoListFilters = {
+    status: flat.status ?? null,
+    priority: flat.priority ?? null,
+    projectOrActivity: flat.projectOrActivity ?? null,
+    withoutProject: projectFilter.kind === "none",
+  };
+
+  const [rows, preference, alerts, selected, lookup, personal, userPreference, calendar] =
+    await Promise.all([
+      isCalendar
+        ? []
+        : listTodoItems(
+            effectiveParams,
+            session.userId,
+            filteredProjectId(projectFilter),
+            undefined,
+            filters,
+          ),
+      getListPreference(session.userId, "todo-items").catch(() => null),
+      getUpcomingAlertRows(session.userId).catch(() => []),
+      selectedId && Number.isInteger(selectedId) && selectedId > 0
+        ? orNull(getTodoItemById(selectedId, session.userId))
+        : null,
+      loadLookupLists(TODO_ITEM_LISTS, session),
+      // The new-entry row adds personal, project-less to-dos.
+      getTodoPermissions(null, session.userId),
+      getUserPreference(session.userId).catch(() => null),
+      isCalendar
+        ? loadTodoCalendar(
+            {
+              month: flat.month,
+              projectId: filteredProjectId(projectFilter),
+              withoutProject: projectFilter.kind === "none",
+            },
+            session.userId,
+          )
+        : null,
+    ]);
+
+  // Fetch the alert and the repeat rule only when a specific todo is selected.
+  const [selectedAlert, selectedRecurrence, allows] = await Promise.all([
+    selected
+      ? getTodoAlertByTodoItemId(selected.TodoItemId, session.userId).catch(() => null)
+      : null,
+    selected ? getTodoRecurrence(selected.TodoItemId, session.userId).catch(() => null) : null,
+    getTodoPermissions(selected, session.userId),
+  ]);
+
+  const totalCount = rows[0]?.TotalCount ?? 0;
+  const canCreate = allows("todo-items:create");
+  const canEdit = allows("todo-items:update");
+  const canDelete = allows("todo-items:delete");
+  const canCreateAlert = allows("todo-alerts:create");
+  const canUpdateAlert = allows("todo-alerts:update");
+  const canDeleteAlert = allows("todo-alerts:delete");
+  const filtersActive = Boolean(
+    effectiveParams.q ||
+    flat.status ||
+    flat.priority ||
+    flat.projectOrActivity ||
+    projectFilter.kind !== "all",
+  );
+  const projects = projectPicker(
+    projectOptions,
+    "todo-items:create",
+    personal("todo-items:create"),
+    filteredProjectId(projectFilter),
+  );
+
+  return (
+    <>
+      {/* The top bar shows the title; the page still needs its heading for assistive tech. */}
+      {calendarOnly ? (
+        <PageHeader title={messages.home.title} />
+      ) : (
+        <h1 className="sr-only">{messages.todoItems.title}</h1>
+      )}
+      {/* Upcoming alerts panel */}
+      {alerts.length > 0 ? (
+        <section
+          aria-labelledby="upcoming-alerts-heading"
+          className="mb-6 rounded-md border border-line bg-surface p-4"
+        >
+          <h2 id="upcoming-alerts-heading" className="mb-3 text-sm font-semibold text-ink">
+            {messages.todoItems.upcomingAlerts}
+          </h2>
+          <ul className="flex flex-col gap-2">
+            {alerts.map((alert) => (
+              <li key={alert.TodoItemId} className="flex items-center justify-between gap-4">
+                <span className="text-sm text-ink">{alert.TodoItem ?? messages.app.untitled}</span>
+                <div className="flex items-center gap-3 text-xs text-ink-muted">
+                  <span
+                    className={
+                      alert.AlertType === "Overdue"
+                        ? "font-semibold text-danger"
+                        : "font-semibold text-warning"
+                    }
+                  >
+                    {alert.AlertType === "Overdue"
+                      ? messages.todoItems.overdue
+                      : messages.todoItems.approachingDeadline}
+                  </span>
+                  <span>{formatDate(alert.DueDate)}</span>
+                  {alert.AlertDay && !alert.IsDismissed ? (
+                    <span data-testid="upcoming-alert-time">
+                      {messages.todoItems.alertAt(
+                        formatDate(alert.AlertDay),
+                        alert.AlertTime?.slice(0, 5) ?? null,
+                      )}
+                    </span>
+                  ) : null}
+                  <Link href={`/todo?id=${alert.TodoItemId}`} className="text-accent">
+                    {messages.actions.edit}
+                  </Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      <LookupListsScope {...lookup}>
+        <div className="flex flex-col flex-1">
+          {calendar ? (
+            <TodoCalendar
+              {...calendar}
+              projectFilterOptions={projectOptions}
+              canAdd={canCreate}
+              switchable={!calendarOnly}
+            />
+          ) : (
+            <TodoView
+              rows={rows}
+              dueSoonDays={userPreference?.dueSoonDays}
+              totalCount={totalCount}
+              page={effectiveParams.page}
+              initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}
+              layout={preference?.layout}
+              filtersActive={filtersActive}
+              projectId={null}
+              projects={projects}
+              projectFilterOptions={projectOptions}
+              canCreate={canAddWith(projects)}
+              emptyBody={messages.todoItems.emptyGlobalBody}
+            />
+          )}
+        </div>
+
+        {/* Sheet: create (project-unscoped, projectId=null) or edit when canEdit */}
+        <TodoItemSheet
+          todoItem={selected}
+          todoAlert={selectedAlert}
+          todoRecurrence={selectedRecurrence}
+          isNew={isNew && canCreate}
+          newDay={isNew ? calendarDay(flat.day) : null}
+          projectId={selected?.ProjectId ?? null}
+          dailyActivityOptions={[]}
+          canEdit={isNew ? canCreate : canEdit}
+          canDelete={canDelete}
+          canCreateAlert={canCreateAlert}
+          canUpdateAlert={canUpdateAlert}
+          canDeleteAlert={canDeleteAlert}
+        />
+      </LookupListsScope>
+    </>
+  );
+}

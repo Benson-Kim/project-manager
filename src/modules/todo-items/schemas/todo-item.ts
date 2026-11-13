@@ -32,6 +32,9 @@ export const TODO_ITEM_LISTS = [
  */
 export const PROJECT_OR_ACTIVITY = ["Project", "Daily Activity", "None"] as const;
 
+/** The to-do list's key: its saved view, and the records its undo steps name. */
+export const TODO_MODULE_KEY = "todo-items";
+
 export const todoItemRowSchema = z.object({
   TodoItemId: z.number().int(),
   ProjectId: z.number().int().nullable(),

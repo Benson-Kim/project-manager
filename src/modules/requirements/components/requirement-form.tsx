@@ -10,6 +10,7 @@ import { MultiSelect, type MultiSelectOption } from "@/components/ui/form/multi-
 import { useSheetFormActions } from "@/components/ui/form/use-sheet-form-actions";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { messages } from "@/lib/messages";
+import { sheetUndo } from "@/lib/undo/steps";
 import { type DeleteChoice, RequirementDeleteDialog } from "./requirement-delete-dialog";
 import {
   createRequirementAction,
@@ -21,6 +22,7 @@ import type { CanvasItem } from "../schemas/canvas";
 import type { RequirementOption, RequirementRow } from "../schemas/requirement";
 import {
   createRequirementFormSchema,
+  requirementFormValues,
   updateRequirementFormSchema,
 } from "../schemas/requirement-form";
 import {
@@ -145,6 +147,17 @@ export function RequirementForm({
               ok: false as const,
               error: { code: "NOT_FOUND" as const, message: "" },
             }),
+      undo: sheetUndo<RequirementRow>({
+        moduleKey: "requirements",
+        idOf: (row) => row.RequirementId,
+        nameOf: (row) => `${row.Ref} ${row.Requirement}`,
+        before: requirement,
+        toFormValues: requirementFormValues,
+        update: updateRequirementAction,
+        create: createRequirementAction,
+        remove: (row) =>
+          deleteRequirementAction({ requirementId: row.RequirementId, rowVer: row.RowVer }),
+      }),
     });
 
   const [warned, setWarned] = useState<{ text: string; refs: string } | null>(null);

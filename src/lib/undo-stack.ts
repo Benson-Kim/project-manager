@@ -1,5 +1,5 @@
 /** How many changes an editor can take back, newest first. */
-export const UNDO_LIMIT = 20;
+export const UNDO_LIMIT = 30;
 
 /** A step back carries the key a refused change forgets it by. */
 export type Keyed = { key: number };

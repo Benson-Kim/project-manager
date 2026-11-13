@@ -22,6 +22,8 @@ import { ACCESS_LEVELS, type AccessLevel, type Permission, type Role } from "./t
 export const CONTRIBUTOR_WRITE_MODULES = [
   "assumptions-constraints",
   "boards",
+  "bpmn",
+  "checklists",
   "daily-activities",
   "decisions",
   "meetings",
@@ -84,6 +86,8 @@ export function canInProject(level: AccessLevel | null, permission: Permission):
 export const OVERRIDABLE_MODULES = [
   "assumptions-constraints",
   "boards",
+  "bpmn",
+  "checklists",
   "daily-activities",
   "decisions",
   "financial-tax-invoices",

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { calendarEntries, calendarMonth, monthGrid } from "../calendar";
+import { calendarDay, calendarEntries, calendarMonth, monthGrid } from "../calendar";
+import { notesFirstLine } from "../schemas/todo-recurrence";
 import type { RecurrenceRule } from "../recurrence";
 import type { CalendarTodo, TodoOccurrenceRow } from "../schemas/todo-recurrence";
 
@@ -29,6 +30,7 @@ function todo(over: Partial<CalendarTodo> = {}): CalendarTodo {
     priority: null,
     status: "Not Started",
     assignee: null,
+    noteLine: null,
     rowVer: 9,
     actorAccess: "Manager",
     rule: null,
@@ -218,6 +220,27 @@ describe("calendarMonth", () => {
   );
 });
 
+describe("calendarDay", () => {
+  it.each(["2026-11-10", "2028-02-29", "2026-12-31"])("takes the real day %j", (value) => {
+    expect(calendarDay(value)).toBe(value);
+  });
+
+  it.each([
+    undefined,
+    "",
+    "2026-11",
+    "2026-02-30",
+    "2027-02-29",
+    "2026-13-01",
+    "2026-11-1",
+    "1800-01-01",
+    "2026-11-10T00:00",
+    "x2026-11-10",
+  ])("ignores %j", (value) => {
+    expect(calendarDay(value)).toBeNull();
+  });
+});
+
 describe("monthGrid", () => {
   it("covers six Monday-first weeks around the month", () => {
     const grid = monthGrid("2026-11");
@@ -236,5 +259,25 @@ describe("monthGrid", () => {
   it("crosses the year both ways", () => {
     expect(monthGrid("2027-01").previous).toBe("2026-12");
     expect(monthGrid("2026-12").next).toBe("2027-01");
+  });
+});
+
+describe("notesFirstLine", () => {
+  it("gives the first non-empty line as plain text", () => {
+    expect(notesFirstLine("<p></p><p>Bring <b>the</b> plans &amp; keys</p><p>Second</p>")).toBe(
+      "Bring the plans & keys",
+    );
+    expect(notesFirstLine("one<br>two")).toBe("one");
+  });
+
+  it("is null for no notes or empty markup", () => {
+    expect(notesFirstLine(null)).toBeNull();
+    expect(notesFirstLine("<p> </p>")).toBeNull();
+  });
+
+  it("cuts a long line", () => {
+    const line = notesFirstLine(`<p>${"a".repeat(300)}</p>`);
+    expect(line).toHaveLength(140);
+    expect(line?.endsWith("…")).toBe(true);
   });
 });

@@ -7,7 +7,7 @@ import {
   textColumn,
 } from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
-import { formCellSaver, richContent } from "@/components/ui/data-view/datasheet";
+import { addUndo, formCellSaver, richContent } from "@/components/ui/data-view/datasheet";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
 import type { WithRichViews } from "@/components/ui/rich-text/rich-views";
 import { ListBadge } from "@/components/ui/lookup-lists";
@@ -19,7 +19,7 @@ import type { OptionColor } from "@/lib/lookup-lists";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { richTextToPlain } from "@/lib/rich-text/plain-text";
-import { createRiskIssueAction, updateRiskIssueAction } from "../actions";
+import { createRiskIssueAction, updateRiskIssueAction, deleteRiskIssueAction } from "../actions";
 import {
   isClosed,
   RISK_ISSUE_CATEGORY,
@@ -215,6 +215,11 @@ export function RisksIssuesView({
         saveCell,
         addRow: canCreate
           ? {
+              undo: addUndo(
+                (row: { RiskIssueId: number; RowVer: number }) => row.RiskIssueId,
+                (row) =>
+                  deleteRiskIssueAction({ riskIssueId: row.RiskIssueId, rowVer: row.RowVer }),
+              ),
               add: (values) => createRiskIssueAction({ ...values, projectId: String(projectId) }),
             }
           : undefined,

@@ -26,7 +26,7 @@ export function ProjectLink({
   return (
     <Link
       href={projectOverviewHref(projectId)}
-      className={className ?? "text-accent underline"}
+      className={className ?? "text-accent"}
       onClick={(event) => event.stopPropagation()}
     >
       {children}

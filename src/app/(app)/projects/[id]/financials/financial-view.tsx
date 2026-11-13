@@ -6,6 +6,7 @@ import { Chevron } from "@/components/ui/chevron";
 import { Menu, MenuLink } from "@/components/ui/menu";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
+import { PrintLink } from "@/components/ui/print-link";
 import { EmptyState } from "@/components/ui/states";
 import { auth } from "@/lib/auth/provider";
 import { uploadsEnabled } from "@/lib/env";
@@ -206,9 +207,7 @@ export async function FinancialView({
           {f.templateName ? ` · ${f.templateName}` : ""}
         </p>
         <p className="flex flex-wrap gap-2" data-testid="financial-outputs">
-          <Link href={`${base}/print`} className={buttonClass("ghost")}>
-            {M.print}
-          </Link>
+          <PrintLink href={`${base}/print`} label={M.print} variant="ghost" />
           <a href={`${base}/pdf`} className={buttonClass("ghost")}>
             {M.downloadPdf}
           </a>

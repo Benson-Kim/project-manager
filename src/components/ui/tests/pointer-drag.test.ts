@@ -5,6 +5,7 @@ import {
   edgeScroll,
   exceedsSlop,
   insertionIndex,
+  moveBefore,
   type DragSpan,
 } from "../drag/pointer-drag";
 
@@ -63,5 +64,21 @@ describe("insertionIndex", () => {
   it("drops after an item once the pointer reaches its midpoint", () => {
     expect(insertionIndex(49, spans)).toBe(0);
     expect(insertionIndex(50, spans)).toBe(1);
+  });
+});
+
+describe("moveBefore", () => {
+  const ids = [1, 2, 3, 4];
+  const same = (n: number) => n;
+  it("puts the item before the named one and keeps the others in order", () => {
+    expect(moveBefore(ids, same, 1, 3)).toEqual([2, 1, 3, 4]);
+    expect(moveBefore(ids, same, 4, 1)).toEqual([4, 1, 2, 3]);
+  });
+  it("puts the item last when nothing follows it or the named one is gone", () => {
+    expect(moveBefore(ids, same, 2)).toEqual([1, 3, 4, 2]);
+    expect(moveBefore(ids, same, 2, 99)).toEqual([1, 3, 4, 2]);
+  });
+  it("returns the list unchanged when the item is not in it", () => {
+    expect(moveBefore(ids, same, 99, 1)).toEqual(ids);
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Placement } from "../canvas/board-model";
 import { itemKey } from "../canvas/gaps";
-import { linkBack, nodesBack, savedLink, undoApplies, unlinkBack } from "../canvas/undo";
+import { linkBack, nodesBack, savedLink, stepBack, undoApplies, unlinkBack } from "../canvas/undo";
 import type { CanvasItem, CanvasLink } from "../schemas/canvas";
 import type { LinkRule } from "../schemas/link-rules";
 
@@ -105,5 +105,31 @@ describe("canvas undo: links", () => {
     expect(undoApplies(step, [wbs, fr], [], [{ downstreamType: "FR", upstreamType: "WBS" }])).toBe(
       true,
     );
+  });
+});
+
+describe("canvas redo: the step back of an undo", () => {
+  it("puts moved nodes back where the undo found them", () => {
+    const undo = nodesBack([fr], new Map([[key(fr), at(30, 40)]]))!;
+    const moved = { ...fr, X: 30, Y: 40 };
+    expect(stepBack(undo, [br, moved], [], rules)).toEqual({
+      kind: "nodes",
+      before: new Map([[key(fr), at(30, 40)]]),
+    });
+  });
+
+  it("has nothing to take back when the nodes are already where the undo puts them", () => {
+    const undo = nodesBack([fr], new Map([[key(fr), at(30, 40)]]))!;
+    expect(stepBack(undo, [fr], [], rules)).toBeNull();
+  });
+
+  it("brings back the link an undo takes away", () => {
+    expect(stepBack(linkBack(br, fr), [br, fr], [link()], rules)).toEqual(unlinkBack(link()));
+    expect(stepBack(linkBack(br, fr), [br, fr], [], rules)).toBeNull();
+  });
+
+  it("takes away again the link an undo brings back", () => {
+    expect(stepBack(unlinkBack(link()), [br, fr], [], rules)).toEqual(linkBack(br, fr));
+    expect(stepBack(unlinkBack(link()), [br, fr], [link()], rules)).toBeNull();
   });
 });
