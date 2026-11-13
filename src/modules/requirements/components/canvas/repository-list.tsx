@@ -42,7 +42,9 @@ function RepositoryCard({
       }
       className="flex items-start gap-1"
     >
-      {placeable ? <GripIcon className="mt-2 h-3.5 w-2 shrink-0 cursor-grab fill-ink-muted" /> : null}
+      {placeable ? (
+        <GripIcon className="mt-2 h-3.5 w-2 shrink-0 cursor-grab fill-ink-muted" />
+      ) : null}
       <button
         type="button"
         aria-pressed={selected}
