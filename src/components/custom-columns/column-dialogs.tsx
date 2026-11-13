@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { buttonClass } from "@/components/ui/button-styles";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { failureMessage } from "@/components/ui/data-view/datasheet";
-import { Dialog } from "@/components/ui/dialog";
+import { Dialog, DialogActions } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { Input, Select } from "@/components/ui/form/inputs";
@@ -83,7 +83,7 @@ export function AddColumnButton({
         {M.addColumn}
       </button>
       <Dialog open={open} onOpenChange={setOpen} title={M.addColumnTitle}>
-        <form onSubmit={submit} className="flex flex-col items-stretch gap-3 text-left sm:w-80">
+        <form onSubmit={submit} className="flex flex-col gap-3 text-left">
           <Field label={M.columnName} name="name">
             <Input
               name="name"
@@ -128,9 +128,11 @@ export function AddColumnButton({
             </Field>
           ) : null}
           <ErrorSummary message={error} />
-          <Button type="submit" pending={pending} data-testid="add-column-save">
-            {M.add}
-          </Button>
+          <DialogActions onCancel={() => setOpen(false)}>
+            <Button type="submit" pending={pending} data-testid="add-column-save">
+              {M.add}
+            </Button>
+          </DialogActions>
         </form>
       </Dialog>
     </>
@@ -189,7 +191,7 @@ export function ColumnsButton({
         {M.columns}
       </button>
       <Dialog open={open} onOpenChange={setOpen} title={M.columnsTitle} description={M.columnsHint}>
-        <div className="flex flex-col gap-2 sm:w-[28rem]" data-testid="columns-dialog">
+        <div className="flex flex-col gap-2" data-testid="columns-dialog">
           {columns.length === 0 ? <p className="text-sm text-ink-muted">{M.noColumns}</p> : null}
           {columns.map((column, index) => (
             <form

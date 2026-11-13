@@ -166,11 +166,13 @@ export default async function RequirementCanvasPage({
           }
           action={
             canCreate ? (
-              <CanvasForm
-                projectId={projectId}
-                deliverableOptions={deliverableOptions}
-                defaultWbsId={defaultWbsFor(filter)}
-              />
+              <div className="sm:w-80">
+                <CanvasForm
+                  projectId={projectId}
+                  deliverableOptions={deliverableOptions}
+                  defaultWbsId={defaultWbsFor(filter)}
+                />
+              </div>
             ) : undefined
           }
         />

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { buttonClass } from "@/components/ui/button-styles";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { failureMessage } from "@/components/ui/data-view/datasheet";
-import { Dialog } from "@/components/ui/dialog";
+import { Dialog, DialogActions } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { Input, Select, Textarea } from "@/components/ui/form/inputs";
@@ -154,9 +154,9 @@ export function RegisterColumnsButton({
       >
         {M.open}
       </button>
-      <Dialog open={open} onOpenChange={setOpen} title={M.title} description={M.hint}>
+      <Dialog open={open} onOpenChange={setOpen} title={M.title} description={M.hint} wide>
         <div
-          className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto sm:w-[34rem]"
+          className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto"
           data-testid="register-columns-dialog"
         >
           <section className="flex flex-col gap-2">
@@ -500,9 +500,11 @@ export function RegisterColumnsButton({
                     />
                   </Field>
                 ) : null}
-                <Button type="submit" pending={pending} data-testid="register-column-add-save">
-                  {C.add}
-                </Button>
+                <DialogActions>
+                  <Button type="submit" pending={pending} data-testid="register-column-add-save">
+                    {C.add}
+                  </Button>
+                </DialogActions>
               </form>
             )
           ) : null}

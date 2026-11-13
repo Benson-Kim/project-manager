@@ -15,6 +15,7 @@ import "@xyflow/react/dist/style.css";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { menuPoint } from "@/components/ui/context-menu";
 import { isEditableTarget } from "@/components/ui/data-view/datasheet";
 import { messages } from "@/lib/messages";
 import {
@@ -82,13 +83,6 @@ interface BoardProps {
   onUnlink: (link: CanvasLink) => void;
   onInspect: (requirementId: number) => void;
   onToggleCollapse: (item: CanvasItem) => void;
-}
-
-/** Where a right-click opened the menu, or under the element when the keyboard opened it. */
-function menuPoint(event: React.MouseEvent): Point {
-  if (event.clientX !== 0 || event.clientY !== 0) return { x: event.clientX, y: event.clientY };
-  const { left, bottom } = (event.currentTarget as Element).getBoundingClientRect();
-  return { x: left, y: bottom };
 }
 
 /**

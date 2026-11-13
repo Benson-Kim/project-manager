@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { buttonClass } from "@/components/ui/button-styles";
-import { Dialog } from "@/components/ui/dialog";
+import { Dialog, DialogActions } from "@/components/ui/dialog";
 import { failureMessage } from "@/components/ui/data-view/datasheet";
 import { Field } from "@/components/ui/form/field";
 import { Input } from "@/components/ui/form/inputs";
@@ -78,7 +78,7 @@ export function DocumentLinkCell({
           href={safe}
           target="_blank"
           rel="noopener noreferrer"
-          className="truncate text-accent-strong underline underline-offset-2"
+          className="truncate text-accent-strong"
           title={safe}
           data-testid="custom-cell-link"
         >
@@ -101,7 +101,7 @@ export function DocumentLinkCell({
         </button>
       ) : null}
       <Dialog open={open} onOpenChange={setOpen} title={column}>
-        <form noValidate onSubmit={submit} className="flex flex-col items-stretch gap-2 sm:w-96">
+        <form noValidate onSubmit={submit} className="flex flex-col gap-2">
           <Field label={M.kinds.document} name="link" errors={error ? [error] : undefined}>
             <Input
               name="link"
@@ -117,9 +117,11 @@ export function DocumentLinkCell({
               }}
             />
           </Field>
-          <Button type="submit" pending={pending} data-testid="custom-cell-link-save">
-            {M.save}
-          </Button>
+          <DialogActions onCancel={() => setOpen(false)}>
+            <Button type="submit" pending={pending} data-testid="custom-cell-link-save">
+              {M.save}
+            </Button>
+          </DialogActions>
         </form>
       </Dialog>
     </div>
@@ -190,7 +192,7 @@ export function TodoCell({
     return (
       <Link
         href={todoHref}
-        className="text-xs text-accent-strong underline underline-offset-2"
+        className="text-xs text-accent-strong"
         data-testid="custom-cell-todo-link"
       >
         {M.openTodo}

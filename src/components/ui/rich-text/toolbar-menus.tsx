@@ -3,7 +3,7 @@
 import type { Editor } from "@tiptap/react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
+import { Dialog, DialogActions } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/form/field";
 import { Input } from "@/components/ui/form/inputs";
 import { Menu, MenuButton } from "@/components/ui/menu";
@@ -232,7 +232,13 @@ function StartNumberDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={t.startAt}>
-      {open ? <StartNumberFields initial={initial} onApply={onApply} /> : null}
+      {open ? (
+        <StartNumberFields
+          initial={initial}
+          onApply={onApply}
+          onCancel={() => onOpenChange(false)}
+        />
+      ) : null}
     </Dialog>
   );
 }
@@ -240,9 +246,11 @@ function StartNumberDialog({
 function StartNumberFields({
   initial,
   onApply,
+  onCancel,
 }: {
   initial: number;
   onApply: (start: number) => void;
+  onCancel: () => void;
 }) {
   const [value, setValue] = useState(String(initial));
   const [invalid, setInvalid] = useState(false);
@@ -279,9 +287,9 @@ function StartNumberFields({
           }}
         />
       </Field>
-      <div className="flex justify-end">
+      <DialogActions onCancel={onCancel}>
         <Button onClick={apply}>{t.applyStart}</Button>
-      </div>
+      </DialogActions>
     </div>
   );
 }

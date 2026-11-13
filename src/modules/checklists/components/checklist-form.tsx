@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { DialogActions } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/form/field";
 import { Input } from "@/components/ui/form/inputs";
 import { messages } from "@/lib/messages";
@@ -20,6 +21,7 @@ export function ChecklistForm({
 }: {
   projectId: number;
   rename?: Checklist;
+  /** Closes the dialog the form sits in; given, the form also shows Cancel. */
   onDone?: () => void;
 }) {
   const router = useRouter();
@@ -49,7 +51,7 @@ export function ChecklistForm({
   };
 
   return (
-    <form onSubmit={submit} className="flex flex-col items-stretch gap-2 text-left sm:w-80">
+    <form onSubmit={submit} className="flex flex-col gap-2 text-left">
       <Field label={M.name} name="name" errors={error ? [error] : undefined}>
         <Input
           name="name"
@@ -63,9 +65,11 @@ export function ChecklistForm({
           }}
         />
       </Field>
-      <Button type="submit" pending={pending} data-testid="checklist-save">
-        {rename ? messages.actions.save : M.create}
-      </Button>
+      <DialogActions onCancel={onDone}>
+        <Button type="submit" pending={pending} data-testid="checklist-save">
+          {rename ? messages.actions.save : M.create}
+        </Button>
+      </DialogActions>
     </form>
   );
 }

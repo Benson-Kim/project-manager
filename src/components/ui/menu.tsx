@@ -13,7 +13,8 @@ import { usePopoverPlacement } from "./popover-placement";
  * puts focus back on the trigger; a <MenuCheckbox> (menuitemcheckbox) toggles
  * and leaves the menu open, so several can be set in one visit. The panel opens under the trigger,
  * its right edge on the trigger's (`align="end"`) or its left edge (`"start"`),
- * moved sideways when that would cross the window's edge (360 px screens).
+ * moved sideways when that would cross the window's edge (360 px screens). A menu taller than
+ * the room on its side scrolls, so its last items never fall off the window.
  */
 const ITEM = '[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]';
 export const CLOSES = '[role="menuitem"], [role="menuitemradio"]';
@@ -22,13 +23,17 @@ export function menuItemsIn(root: HTMLElement | null) {
   return Array.from(root?.querySelectorAll<HTMLElement>(ITEM) ?? []);
 }
 
-/** Up and down arrows move focus through the items, stopping at either end. */
+/** Up and down arrows move focus through the items, stopping at either end; Home and End jump to them. */
 export function stepMenuFocus(event: React.KeyboardEvent, list: readonly HTMLElement[]) {
-  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-  event.preventDefault();
   const index = list.indexOf(document.activeElement as HTMLElement);
-  const next =
-    event.key === "ArrowDown" ? Math.min(index + 1, list.length - 1) : Math.max(index - 1, 0);
+  const next = {
+    ArrowDown: Math.min(index + 1, list.length - 1),
+    ArrowUp: Math.max(index - 1, 0),
+    Home: 0,
+    End: list.length - 1,
+  }[event.key];
+  if (next === undefined) return;
+  event.preventDefault();
   list[next]?.focus();
 }
 
@@ -55,7 +60,11 @@ export function Menu({
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  usePopoverPlacement(triggerRef, panelRef, open, { align });
+  usePopoverPlacement(triggerRef, panelRef, open, {
+    align,
+    fit: true,
+    maxHeight: Number.POSITIVE_INFINITY,
+  });
 
   const items = useCallback(() => menuItemsIn(rootRef.current), []);
 
@@ -108,7 +117,7 @@ export function Menu({
         role="menu"
         aria-label={label}
         hidden={!open}
-        className="fixed z-(--z-dropdown) max-w-[calc(100vw-1rem)] min-w-48 overflow-hidden rounded-lg border border-line bg-surface shadow-lg"
+        className="fixed z-(--z-dropdown) max-w-[calc(100vw-1rem)] min-w-48 overflow-y-auto overscroll-contain rounded-lg border border-line bg-surface shadow-lg"
         onClickCapture={(event) => {
           const target = event.target as HTMLElement;
           if (!target.closest(CLOSES)) return;
@@ -139,6 +148,9 @@ export function MenuButton({
   type = "button",
   onClick,
   checked,
+  icon,
+  shortcut,
+  tone = "default",
   testId,
   children,
 }: {
@@ -146,6 +158,12 @@ export function MenuButton({
   onClick?: () => void;
   /** One choice of several (a colour, a style): role=menuitemradio with aria-checked. */
   checked?: boolean;
+  /** A small icon before the text. */
+  icon?: React.ReactNode;
+  /** The key that does the same outside the menu, shown at the right, e.g. "F2" or "Del". */
+  shortcut?: { label: string; keys: string };
+  /** "danger" for an item that removes something. */
+  tone?: "default" | "danger";
   testId?: string;
   children: React.ReactNode;
 }) {
@@ -153,15 +171,29 @@ export function MenuButton({
     <button
       role={checked === undefined ? "menuitem" : "menuitemradio"}
       aria-checked={checked}
+      aria-keyshortcuts={shortcut?.keys}
       tabIndex={-1}
       type={type}
       onClick={onClick}
       data-testid={testId}
-      className={`${itemClass} gap-2 aria-checked:font-semibold`}
+      className={`${itemClass} gap-2 aria-checked:font-semibold ${tone === "danger" ? "text-danger" : ""}`}
     >
-      {children}
+      {icon ? (
+        <span className="flex size-4 shrink-0 items-center justify-center">{icon}</span>
+      ) : null}
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {shortcut ? (
+        <kbd aria-hidden="true" className="ml-4 shrink-0 font-sans text-xs text-ink-muted">
+          {shortcut.label}
+        </kbd>
+      ) : null}
     </button>
   );
+}
+
+/** A thin line between groups of items. */
+export function MenuSeparator() {
+  return <div role="separator" className="my-1 border-t border-line" />;
 }
 
 /** An on/off setting in a menu: toggling it keeps the menu open. */

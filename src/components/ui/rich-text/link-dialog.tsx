@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
+import { Dialog, DialogActions } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/form/field";
 import { Input } from "@/components/ui/form/inputs";
 import { normaliseLinkInput } from "@/lib/rich-text/links";
@@ -29,7 +29,14 @@ export function LinkDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={messages.richText.link}>
       {/* Remounted per opening, so the address starts from the current link. */}
-      {open ? <LinkFields initialHref={initialHref} onApply={onApply} onRemove={onRemove} /> : null}
+      {open ? (
+        <LinkFields
+          initialHref={initialHref}
+          onApply={onApply}
+          onRemove={onRemove}
+          onCancel={() => onOpenChange(false)}
+        />
+      ) : null}
     </Dialog>
   );
 }
@@ -38,10 +45,12 @@ function LinkFields({
   initialHref,
   onApply,
   onRemove,
+  onCancel,
 }: {
   initialHref: string;
   onApply: (href: string) => void;
   onRemove: () => void;
+  onCancel: () => void;
 }) {
   const [address, setAddress] = useState(initialHref);
   const [invalid, setInvalid] = useState(false);
@@ -77,14 +86,14 @@ function LinkFields({
           }}
         />
       </Field>
-      <div className="flex flex-wrap justify-end gap-2">
+      <DialogActions onCancel={onCancel}>
         {initialHref ? (
           <Button variant="secondary" onClick={onRemove}>
             {messages.richText.removeLink}
           </Button>
         ) : null}
         <Button onClick={apply}>{messages.richText.applyLink}</Button>
-      </div>
+      </DialogActions>
     </div>
   );
 }

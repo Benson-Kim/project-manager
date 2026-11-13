@@ -56,7 +56,7 @@ export function panelTop(anchor: Span, height: number, up: boolean): number {
  * form, sheet or dialog it sits in can cut it off or squeeze it: under the anchor, or above it when
  * it would be cut off below and above has more room. Measured before paint each time it opens, and
  * again when anything around it scrolls or the window resizes. With `fit`, the panel's height is
- * capped to the room on its side, for a scrolling list; a menu keeps its own height.
+ * capped to the room on its side and to `maxHeight`, and the panel scrolls.
  */
 export function usePopoverPlacement(
   anchorRef: React.RefObject<HTMLElement | null>,

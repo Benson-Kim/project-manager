@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { DialogActions } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/form/field";
 import { Input, Select } from "@/components/ui/form/inputs";
 import { messages } from "@/lib/messages";
@@ -26,6 +27,7 @@ export function CanvasForm({
   deliverableOptions: readonly WbsOption[];
   canvas?: CanvasSummary;
   defaultWbsId?: number | null;
+  /** Closes the dialog the form sits in; given, the form also shows Cancel. */
   onSaved?: () => void;
 }) {
   const router = useRouter();
@@ -57,7 +59,7 @@ export function CanvasForm({
   };
 
   return (
-    <form onSubmit={submit} className="flex flex-col items-stretch gap-2 text-left sm:w-80">
+    <form onSubmit={submit} className="flex flex-col gap-2 text-left">
       <Field label={M.nameLabel} name="name" errors={error ? [error] : undefined}>
         <Input
           name="name"
@@ -88,9 +90,11 @@ export function CanvasForm({
           </Select>
         </Field>
       ) : null}
-      <Button type="submit" pending={pending} data-testid="canvas-create">
-        {canvas ? messages.actions.save : M.create}
-      </Button>
+      <DialogActions onCancel={onSaved}>
+        <Button type="submit" pending={pending} data-testid="canvas-create">
+          {canvas ? messages.actions.save : M.create}
+        </Button>
+      </DialogActions>
     </form>
   );
 }

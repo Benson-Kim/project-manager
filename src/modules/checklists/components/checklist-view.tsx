@@ -45,7 +45,6 @@ type Row = ChecklistItemListRow;
 const M = messages.checklists;
 
 const canEditRow = rowAllows("checklists:update");
-const canMakeTodo = rowAllows("todo-items:create");
 
 const cellOf = (row: ChecklistItem, columnId: number) =>
   row.Cells.find((cell) => cell.columnId === columnId);
@@ -111,7 +110,7 @@ export function ChecklistView({
   initialView: ViewMode;
   layout?: ListLayout | null;
   filtersActive: boolean;
-  can: { create: boolean; update: boolean; delete: boolean };
+  can: { create: boolean; update: boolean; delete: boolean; makeTodo: boolean };
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -173,7 +172,7 @@ export function ChecklistView({
         canEdit: canEditRow,
         save: (row, value) => refreshing(() => setCell(row, column, value))(),
         todo: {
-          canRun: canMakeTodo,
+          canRun: () => can.makeTodo,
           run: (row) =>
             refreshing(() =>
               runTodoAction({ itemId: row.ChecklistItemId, columnId: column.ChecklistColumnId }),

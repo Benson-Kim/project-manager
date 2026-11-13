@@ -47,6 +47,7 @@ export default async function ChecklistsPage({
     create: allows("checklists:create"),
     update: allows("checklists:update"),
     delete: allows("checklists:delete"),
+    makeTodo: allows("todo-items:create"),
   };
   const current =
     checklists.find((each) => String(each.ChecklistId) === flat.checklist) ?? checklists[0];
@@ -58,7 +59,13 @@ export default async function ChecklistsPage({
         <EmptyState
           title={M.none}
           body={M.noneBody}
-          action={can.create ? <ChecklistForm projectId={projectId} /> : undefined}
+          action={
+            can.create ? (
+              <div className="sm:w-80">
+                <ChecklistForm projectId={projectId} />
+              </div>
+            ) : undefined
+          }
         />
       </>
     );

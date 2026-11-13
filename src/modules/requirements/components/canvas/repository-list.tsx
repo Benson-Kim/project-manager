@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { GripIcon } from "@/components/ui/action-icons";
 import { buttonClass } from "@/components/ui/button-styles";
 import { Input, Switch } from "@/components/ui/form/inputs";
 import { messages } from "@/lib/messages";
@@ -16,20 +17,6 @@ import { CANVAS_ITEM_MIME } from "./canvas-board";
 import { chip, GapChips, ItemBadge } from "./item-chips";
 
 const M = messages.requirements.canvas;
-
-function DragGrip() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 8 14"
-      className="mt-2 h-3.5 w-2 shrink-0 cursor-grab fill-ink-muted"
-    >
-      {[1, 7, 13].flatMap((cy) =>
-        [1, 7].map((cx) => <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="1" />),
-      )}
-    </svg>
-  );
-}
 
 function RepositoryCard({
   item,
@@ -55,7 +42,7 @@ function RepositoryCard({
       }
       className="flex items-start gap-1"
     >
-      {placeable ? <DragGrip /> : null}
+      {placeable ? <GripIcon className="mt-2 h-3.5 w-2 shrink-0 cursor-grab fill-ink-muted" /> : null}
       <button
         type="button"
         aria-pressed={selected}

@@ -72,6 +72,15 @@ describe("an option picker closes its panel when it commits a choice", () => {
     },
   );
 
+  it("caps the menu to the room in the window and scrolls it, so its last items stay reachable", () => {
+    // Ten matrices in the responsibility menu pushed New, Rename and Delete under the window's
+    // bottom edge, where a clipped panel left no way to reach them.
+    const menu = source(MENU);
+    expect(menu).toMatch(/usePopoverPlacement\([^)]*fit: true/);
+    expect(menu).toContain("overflow-y-auto");
+    expect(menu).not.toMatch(/role="menu"[\s\S]*?overflow-hidden/);
+  });
+
   it.each([MULTI, COMBO])("%s floats the panel on the dropdown layer", (path) => {
     // --z-dropdown (55) sits above --z-sheet and --z-dialog, so the panel is not ordered against
     // the overlay it opens inside.
