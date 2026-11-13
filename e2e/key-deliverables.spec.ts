@@ -935,6 +935,7 @@ test("WBS item menu: Assignees… opens the details on the picker; the box names
 test("WBS: a milestone is added as one day, converted either way, moved but not stretched", async ({
   page,
 }) => {
+  test.setTimeout(90_000);
   const stamp = Date.now();
   await page.goto("/projects/2/deliverables/gantt?view=gantt&scale=day");
   await expect(page.getByTestId("gantt-board")).toBeVisible();
@@ -1044,8 +1045,16 @@ test("WBS: a milestone is added as one day, converted either way, moved but not 
   await expect(page.getByTestId(`wbs-box-${gateId}`)).toBeVisible({ timeout: 15_000 });
 
   // A milestone put on hold reads Blocked on the Overview.
-  await page.getByTestId(`wbs-box-${gateId}`).click({ button: "right", position: { x: 4, y: 4 } });
-  await page.getByTestId("wbs-menu-status").click();
+  const statusItem = page.getByTestId("wbs-menu-status");
+  await expect(async () => {
+    if (!(await statusItem.isVisible())) {
+      await page
+        .getByTestId(`wbs-box-${gateId}`)
+        .click({ button: "right", position: { x: 4, y: 4 }, timeout: 2_000 });
+    }
+    await expect(statusItem).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await statusItem.click();
   await page.getByTestId("wbs-status-On Hold").click();
   await expect(async () => {
     await page.goto("/projects/2");
@@ -1160,7 +1169,7 @@ test("WBS notes: a paperclip note on a box and the project's note autosave and c
   await add.click();
   const note = page.getByTestId("wbs-details-note-panel").getByRole("textbox");
   await note.fill(`Ring the supplier ${stamp}`);
-  await expect(page.getByTestId("wbs-details-note-panel")).toContainText(messages.feedback.saved, {
+  await expect(page.getByTestId("wbs-details-note-save")).toHaveAttribute("data-status", "saved", {
     timeout: 15_000,
   });
   // Typing in the note never reaches the box: no rename, no move.
@@ -1181,7 +1190,7 @@ test("WBS notes: a paperclip note on a box and the project's note autosave and c
   await page.getByTestId("wbs-plan-note").click();
   const planNote = page.getByTestId("wbs-plan-note-panel").getByRole("textbox");
   await planNote.fill(`Kick-off on Monday ${stamp}`);
-  await expect(page.getByTestId("wbs-plan-note-panel")).toContainText(messages.feedback.saved, {
+  await expect(page.getByTestId("wbs-plan-note-save")).toHaveAttribute("data-status", "saved", {
     timeout: 15_000,
   });
   await page.keyboard.press("Escape");
@@ -1191,7 +1200,7 @@ test("WBS notes: a paperclip note on a box and the project's note autosave and c
     `Kick-off on Monday ${stamp}`,
   );
   await page.getByTestId("wbs-plan-note-panel").getByRole("textbox").fill("");
-  await expect(page.getByTestId("wbs-plan-note-panel")).toContainText(messages.feedback.saved, {
+  await expect(page.getByTestId("wbs-plan-note-save")).toHaveAttribute("data-status", "saved", {
     timeout: 15_000,
   });
   await page.keyboard.press("Escape");

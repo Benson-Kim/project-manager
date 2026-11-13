@@ -1,5 +1,6 @@
 "use client";
 
+import { UndoIcon } from "@/components/ui/action-icons";
 import { messages } from "@/lib/messages";
 import { usePageHistory } from "./page-history";
 
@@ -7,24 +8,6 @@ const H = messages.pageHistory;
 
 const buttonClass =
   "flex min-h-10 min-w-10 items-center justify-center rounded-md text-ink-muted hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent";
-
-function ArrowIcon({ flip }: { flip?: boolean }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={flip ? "size-5 -scale-x-100" : "size-5"}
-    >
-      <path d="M9 14 4 9l5-5" />
-      <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
-    </svg>
-  );
-}
 
 /** The page's Undo and Redo, in the header of every page; each names the change it takes. */
 export function UndoButtons() {
@@ -42,7 +25,7 @@ export function UndoButtons() {
         disabled={!undoLabel || busy}
         onClick={() => void run("undo")}
       >
-        <ArrowIcon />
+        <UndoIcon />
       </button>
       <button
         type="button"
@@ -53,7 +36,7 @@ export function UndoButtons() {
         disabled={!redoLabel || busy}
         onClick={() => void run("redo")}
       >
-        <ArrowIcon flip />
+        <UndoIcon redo />
       </button>
     </div>
   );

@@ -532,14 +532,18 @@ export function WbsGantt({
     });
   }
 
-  function move(id: number, placement: Placement | null, undoable = true) {
+  /**
+   * A change of its own is remembered for Undo. A step taken from the history passes `putBack`,
+   * which puts the history back as it was when the save is refused.
+   */
+  function move(id: number, placement: Placement | null, putBack?: () => void) {
     if (!canEdit || !placement) return;
     const code = buildWbs(applyMove(items, id, placement)).nodes.get(id)?.code;
     if (placement.parentId !== null) expand(placement.parentId);
-    const forget = undoable ? remember(moveBack(wbs, id, placement, ++undoKey.current)) : undefined;
+    const failed = putBack ?? remember(moveBack(wbs, id, placement, ++undoKey.current));
     enqueue({
       apply: (rows) => applyMove(rows, id, placement),
-      failed: forget,
+      failed,
       send: (current) =>
         withRowVer(current, id, (rowVer) =>
           moveWbsItemAction({
@@ -553,7 +557,7 @@ export function WbsGantt({
     if (code) announce(W.moved(code));
   }
 
-  function reschedule(id: number, { start, end }: Span, undoable = true) {
+  function reschedule(id: number, { start, end }: Span, putBack?: () => void) {
     const node = wbs.nodes.get(id);
     if (!canEdit || !node || (sameDay(node.start, start) && sameDay(node.end, end))) return;
     if (dayDiff(start, end) < 0) {
@@ -583,10 +587,10 @@ export function WbsGantt({
       return;
     }
     const carried = cascadeEffect(applyReschedule(items, wbs, id, start, end), links);
-    const forget = undoable ? remember(rescheduleBack(wbs, id, ++undoKey.current)) : undefined;
+    const failed = putBack ?? remember(rescheduleBack(wbs, id, ++undoKey.current));
     enqueue({
       apply: (rows) => applyReschedule(rows, buildWbs(rows), id, start, end),
-      failed: forget,
+      failed,
       send: (current) =>
         withRowVer(current, id, (rowVer) =>
           rescheduleWbsItemAction({
@@ -618,8 +622,12 @@ export function WbsGantt({
     const { step, rest } = takeUndo(undoStack, wbs);
     setUndoStack(rest);
     if (!step) return;
-    setRedoStack((current) => pushUndo(current, stepBack(wbs, step, ++undoKey.current)));
-    applyStep(step);
+    const back = stepBack(wbs, step, ++undoKey.current);
+    setRedoStack((current) => pushUndo(current, back));
+    applyStep(step, () => {
+      if (back) setRedoStack((current) => dropUndo(current, back.key));
+      setUndoStack((current) => pushUndo(current, step));
+    });
     announce(W.moveUndone);
   }
 
@@ -629,14 +637,19 @@ export function WbsGantt({
     const { step, rest } = takeRedo(redoStack, wbs);
     setRedoStack(rest);
     if (!step) return;
-    setUndoStack((current) => pushUndo(current, stepBack(wbs, step, ++undoKey.current)));
-    applyStep(step);
+    const back = stepBack(wbs, step, ++undoKey.current);
+    setUndoStack((current) => pushUndo(current, back));
+    applyStep(step, () => {
+      if (back) setUndoStack((current) => dropUndo(current, back.key));
+      setRedoStack((current) => pushUndo(current, step));
+    });
     announce(W.moveRedone);
   }
 
-  function applyStep(step: UndoStep) {
-    if (step.kind === "move") move(step.id, step.placement, false);
-    else reschedule(step.id, step, false);
+  /** Applies a step from the history; `putBack` restores the history if the save is refused. */
+  function applyStep(step: UndoStep, putBack: () => void) {
+    if (step.kind === "move") move(step.id, step.placement, putBack);
+    else reschedule(step.id, step, putBack);
     setSelectedId(step.id);
   }
 

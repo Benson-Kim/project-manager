@@ -3,6 +3,7 @@
 import { Spinner } from "@/components/ui/spinner";
 import { messages } from "@/lib/messages";
 import { GANTT_SCALES, type GanttScale } from "./gantt-scale";
+import { SaveDot } from "@/components/ui/save-dot";
 import { WBS_VIEWS, type WbsView } from "./wbs-diagram-layout";
 import { Segmented } from "./wbs-segmented";
 
@@ -231,13 +232,7 @@ export function WbsToolbar(props: WbsToolbarProps) {
             {W.notMet(props.unmet)}
           </span>
         ) : null}
-        <span
-          aria-hidden="true"
-          data-testid="wbs-saving"
-          className={`text-sm text-ink-muted ${props.saving ? "" : "invisible"}`}
-        >
-          {messages.feedback.savingState}
-        </span>
+        <SaveDot pending={props.saving} label={messages.feedback.savingState} testId="wbs-saving" />
       </div>
       <p className="text-xs text-ink-muted">{(gantt ? W.hints : W.diagramHints).join(" ")}</p>
     </div>

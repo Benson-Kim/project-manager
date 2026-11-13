@@ -30,6 +30,19 @@ import { historyShortcut } from "./shortcut";
 /** Pages whose history is kept while the user moves between them; the oldest goes first. */
 const MAX_PAGES = 20;
 
+/** What an editor with its own history, such as a drawing, offers to Undo and Redo. */
+export interface EditorHistory {
+  canUndo: boolean;
+  canRedo: boolean;
+  undo: () => void;
+  redo: () => void;
+}
+
+/** An editor history that the header's Undo and Redo drive while the editor is open. */
+export interface LentHistory extends EditorHistory {
+  label: string;
+}
+
 export interface PageHistory {
   /** Records a change this page made; it empties Redo. */
   record: (step: UndoStep) => void;
@@ -39,6 +52,8 @@ export interface PageHistory {
   redoLabel: string | null;
   busy: boolean;
   run: (direction: Direction) => Promise<void>;
+  /** Hands the header's Undo and Redo to an editor's own history; null gives them back. */
+  lend: (history: LentHistory | null) => void;
 }
 
 const PageHistoryContext = createContext<PageHistory | null>(null);
@@ -55,7 +70,22 @@ const NO_HISTORY: PageHistory = {
   redoLabel: null,
   busy: false,
   run: async () => {},
+  lend: () => {},
 };
+
+/**
+ * While the calling editor is mounted, the header's Undo and Redo, and Ctrl+Z anywhere on the page,
+ * take its steps. Pass null when it cannot be edited. `undo` and `redo` must be stable.
+ */
+export function useLendHistory(history: LentHistory | null) {
+  const { lend } = usePageHistory();
+  const { label, canUndo, canRedo, undo, redo } = history ?? {};
+  useEffect(() => {
+    if (label === undefined || !undo || !redo) return;
+    lend({ label, canUndo: Boolean(canUndo), canRedo: Boolean(canRedo), undo, redo });
+    return () => lend(null);
+  }, [lend, label, canUndo, canRedo, undo, redo]);
+}
 
 /**
  * One undo history per page (ADR-0063), keyed by the path, which carries the project. It lives in
@@ -69,6 +99,7 @@ export function PageHistoryProvider({ children }: { children: ReactNode }) {
   const { announce } = useAnnouncer();
   const [pages, setPages] = useState<ReadonlyMap<string, History>>(() => new Map());
   const [busy, setBusy] = useState(false);
+  const [lent, setLent] = useState<LentHistory | null>(null);
   const running = useRef(false);
   const [book] = useState(() => new VersionBook());
 
@@ -91,6 +122,10 @@ export function PageHistoryProvider({ children }: { children: ReactNode }) {
 
   const run = useCallback(
     async (direction: Direction) => {
+      if (lent) {
+        lent[direction]();
+        return;
+      }
       const step = nextStep(history, direction);
       if (!step || running.current) return;
       running.current = true;
@@ -116,7 +151,7 @@ export function PageHistoryProvider({ children }: { children: ReactNode }) {
         if (outcome === "stale") router.refresh();
       }
     },
-    [announce, history, page, router, toast, update],
+    [announce, history, lent, page, router, toast, update],
   );
 
   useEffect(() => {
@@ -134,12 +169,21 @@ export function PageHistoryProvider({ children }: { children: ReactNode }) {
     () => ({
       record,
       book,
-      undoLabel: nextStep(history, "undo")?.label ?? null,
-      redoLabel: nextStep(history, "redo")?.label ?? null,
+      undoLabel: lent
+        ? lent.canUndo
+          ? lent.label
+          : null
+        : (nextStep(history, "undo")?.label ?? null),
+      redoLabel: lent
+        ? lent.canRedo
+          ? lent.label
+          : null
+        : (nextStep(history, "redo")?.label ?? null),
       busy,
       run,
+      lend: setLent,
     }),
-    [record, book, history, busy, run],
+    [record, book, history, lent, busy, run],
   );
 
   return <PageHistoryContext.Provider value={value}>{children}</PageHistoryContext.Provider>;

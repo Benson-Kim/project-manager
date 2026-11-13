@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { messages } from "@/lib/messages";
+import { SaveDot } from "./save-dot";
 import { AnchoredPanel } from "./dialog";
 import { panelPosition, type PanelPosition } from "./data-view/datasheet";
 
-export type NoteSaveState = "idle" | "saving" | "saved" | "failed";
+export type NoteSaveState = "idle" | "pending" | "saving" | "saved" | "failed";
 
 const AUTOSAVE_MS = 800;
 const NOTE_SIZE = { minWidth: 320, minBelow: 220 };
@@ -81,6 +82,7 @@ export function NotePopover({
     if (readOnly) return;
     latest.current = text;
     setDraft(text);
+    setState(text === saved.current ? "saved" : "pending");
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => void flush(), AUTOSAVE_MS);
   }
@@ -148,16 +150,22 @@ export function NotePopover({
             autoFocus
             className="w-full resize-y rounded-md border border-tone-yellow-ink/30 bg-tone-yellow-soft p-3 text-sm text-ink focus-visible:outline-2 focus-visible:outline-coral"
           />
-          <p role="status" className="flex min-h-6 items-center gap-2 text-xs text-ink-muted">
-            {state === "saving" ? messages.feedback.savingState : null}
-            {state === "saved" ? messages.feedback.saved : null}
+          <p className="flex min-h-6 items-center gap-2 text-xs text-ink-muted">
+            <SaveDot
+              pending={state === "pending" || state === "saving"}
+              label={messages.feedback.savingState}
+              testId={testId ? `${testId}-save` : undefined}
+              status={state}
+            />
             {state === "failed" ? (
               <>
-                <span className="text-danger">{messages.feedback.notSaved}</span>
+                <span role="alert" className="text-danger">
+                  {messages.feedback.notSaved}
+                </span>
                 <button
                   type="button"
                   onClick={() => void flush()}
-                  className="rounded-sm underline underline-offset-2 hover:text-ink"
+                  className="rounded-sm text-accent hover:text-accent-strong"
                 >
                   {messages.feedback.retry}
                 </button>

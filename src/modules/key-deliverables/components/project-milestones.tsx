@@ -27,7 +27,7 @@ export function ProjectMilestones({
       title={P.milestonesSection}
       testId="project-milestones"
       action={
-        <Link href={`${base}/gantt?view=wbs`} className="text-sm text-accent underline">
+        <Link href={`${base}/gantt?view=wbs`} className="text-sm text-accent">
           {K.ganttLink}
         </Link>
       }
@@ -57,7 +57,7 @@ export function ProjectMilestones({
               {chips.map((chip) => (
                 <tr key={chip.id}>
                   <th scope="row" className={`${CELL} font-normal`}>
-                    <Link href={`${base}?d=${chip.id}`} className="text-accent underline">
+                    <Link href={`${base}?d=${chip.id}`} className="text-accent">
                       {chip.code} {chip.name || K.deliverableFallback(chip.id)}
                     </Link>
                   </th>
