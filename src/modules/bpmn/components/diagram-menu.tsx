@@ -14,6 +14,7 @@ import { firstError } from "@/modules/key-deliverables/components/wbs-queue";
 import { deleteDiagramAction } from "../actions";
 import type { DiagramSummary } from "../schemas/bpmn";
 import { DiagramForm } from "./diagram-form";
+import type { WithRowVer } from "./use-diagram-save";
 
 const M = messages.bpmn;
 
@@ -26,14 +27,14 @@ export function DiagramMenu({
   current,
   can,
   rowVer,
-  adoptRowVer,
+  withRowVer,
 }: {
   projectId: number;
   diagrams: readonly DiagramSummary[];
   current: { BpmnDiagramId: number; Name: string };
   can: { create: boolean; update: boolean; delete: boolean };
   rowVer: () => number;
-  adoptRowVer: (rowVer: number) => void;
+  withRowVer: WithRowVer;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -115,8 +116,7 @@ export function DiagramMenu({
           rename={{
             diagramId: current.BpmnDiagramId,
             name: current.Name,
-            rowVer,
-            adopt: adoptRowVer,
+            withRowVer,
           }}
           onDone={() => setOpen(null)}
         />

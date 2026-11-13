@@ -38,8 +38,8 @@ import type {
 import {
   canRedo,
   canUndo,
-  dropUndo,
   pushUndo,
+  putBackRefused,
   setBack,
   stepBack,
   takeRedo,
@@ -330,11 +330,7 @@ export function ResponsibilityView({
       send: () => setResponsibilityCellsAction({ projectId, matrixId, writes: writesOf(step) }),
       done: refresh,
       failed: () =>
-        setHistory((h) =>
-          which === "undo"
-            ? { ...h, redo: dropUndo(h.redo, back.key) }
-            : { ...h, undo: dropUndo(h.undo, back.key) },
-        ),
+        setHistory((h) => (h.matrixId === matrixId ? putBackRefused(h, which, step, back.key) : h)),
     });
   }
 

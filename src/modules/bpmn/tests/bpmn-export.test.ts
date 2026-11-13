@@ -91,6 +91,13 @@ describe("BPMN XML export", () => {
     expect(xml).toContain('<bpmn:process id="Process_main"');
   });
 
+  it("gives the shapes outside every pool a participant of their own", () => {
+    expect(xml).toContain('<bpmn:participant id="Participant_main" processRef="Process_main"/>');
+    const participants = xml.match(/<bpmn:participant /g) ?? [];
+    const processes = xml.match(/<bpmn:process /g) ?? [];
+    expect(participants).toHaveLength(processes.length);
+  });
+
   it("writes symbols with their names, defaults and event types", () => {
     expect(xml).toContain('<bpmn:exclusiveGateway id="gate" name="In stock?" default="f2"/>');
     expect(xml).toContain('<bpmn:userTask id="pick" name="Pick &lt;items&gt;"/>');

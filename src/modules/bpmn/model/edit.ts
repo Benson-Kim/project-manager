@@ -20,7 +20,7 @@ import {
   type StepDetails,
   type StepField,
 } from "./diagram";
-import { SHAPE_SPECS } from "./shapes";
+import { flowKindFor, SHAPE_SPECS } from "./shapes";
 
 /**
  * Every change to a diagram is one of these pure functions (ADR-0064): the canvas, Undo and the
@@ -291,13 +291,29 @@ export const setFlowLabel = (diagram: BpmnDiagram, id: string, label: string): B
   flows: diagram.flows.map((flow) => (flow.id === id ? { ...flow, label: cut(label) } : flow)),
 });
 
+/** The kind a flow between two shapes may have: one to or from an artifact is an association. */
+function kindBetween(
+  diagram: BpmnDiagram,
+  source: string,
+  target: string,
+  picked: FlowKind,
+): FlowKind {
+  const kindOf = (id: string) => diagram.shapes.find((shape) => shape.id === id)?.kind;
+  const [from, to] = [kindOf(source), kindOf(target)];
+  return from && to ? flowKindFor(from, to, picked) : picked;
+}
+
 /** A flow keeps its kind when the new one would join its shapes the way another flow already does. */
-export const setFlowKind = (diagram: BpmnDiagram, id: string, kind: FlowKind): BpmnDiagram => ({
-  ...diagram,
-  flows: diagram.flows.map((flow) =>
-    flow.id === id && !joined(diagram, { ...flow, kind }, id) ? { ...flow, kind } : flow,
-  ),
-});
+export function setFlowKind(diagram: BpmnDiagram, id: string, picked: FlowKind): BpmnDiagram {
+  return {
+    ...diagram,
+    flows: diagram.flows.map((flow) => {
+      if (flow.id !== id) return flow;
+      const kind = kindBetween(diagram, flow.source, flow.target, picked);
+      return joined(diagram, { ...flow, kind }, id) ? flow : { ...flow, kind };
+    }),
+  };
+}
 
 export function reconnect(
   diagram: BpmnDiagram,
@@ -308,10 +324,12 @@ export function reconnect(
   const ids = new Set(diagram.shapes.map((shape) => shape.id));
   if (!ids.has(ends.source) || !ids.has(ends.target)) return diagram;
   const flow = diagram.flows.find((each) => each.id === id);
-  if (!flow || joined(diagram, { ...ends, kind: flow.kind }, id)) return diagram;
+  if (!flow) return diagram;
+  const kind = kindBetween(diagram, ends.source, ends.target, flow.kind);
+  if (joined(diagram, { ...ends, kind }, id)) return diagram;
   return {
     ...diagram,
-    flows: diagram.flows.map((flow) => (flow.id === id ? { ...flow, ...ends } : flow)),
+    flows: diagram.flows.map((each) => (each.id === id ? { ...each, ...ends, kind } : each)),
   };
 }
 

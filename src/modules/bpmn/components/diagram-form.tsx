@@ -10,10 +10,11 @@ import { messages } from "@/lib/messages";
 import { firstError } from "@/modules/key-deliverables/components/wbs-queue";
 import { createDiagramAction, renameDiagramAction } from "../actions";
 import { DIAGRAM_NAME_MAX } from "../model/diagram";
+import type { WithRowVer } from "./use-diagram-save";
 
 const M = messages.bpmn;
 
-/** Names a new diagram, or with `rename`, renames the open one under the version the editor holds. */
+/** Names a new diagram, or with `rename`, renames the open one between the editor's saves. */
 export function DiagramForm({
   projectId,
   rename,
@@ -23,8 +24,7 @@ export function DiagramForm({
   rename?: {
     diagramId: number;
     name: string;
-    rowVer: () => number;
-    adopt: (rowVer: number) => void;
+    withRowVer: WithRowVer;
   };
   /** Closes the dialog the form sits in; given, the form also shows Cancel. */
   onDone?: () => void;
@@ -38,13 +38,10 @@ export function DiagramForm({
     event.preventDefault();
     startTransition(async () => {
       if (rename) {
-        const result = await renameDiagramAction({
-          diagramId: rename.diagramId,
-          name,
-          rowVer: rename.rowVer(),
-        });
+        const result = await rename.withRowVer((rowVer) =>
+          renameDiagramAction({ diagramId: rename.diagramId, name, rowVer }),
+        );
         if (!result.ok) return setError(firstError(result.error));
-        rename.adopt(result.data.RowVer);
         onDone?.();
         return;
       }

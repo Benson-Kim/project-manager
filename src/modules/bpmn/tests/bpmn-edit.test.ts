@@ -121,6 +121,20 @@ describe("connectors", () => {
     expect(message.flows).toHaveLength(2);
   });
 
+  it("keeps a connector to or from an artifact an association", () => {
+    const withData = addShape(base(), "dataObject", { x: 400, y: 400 }, "data");
+    const d = connect(withData, {
+      ...base().flows[0]!,
+      id: "f2",
+      target: "data",
+      kind: "association",
+    });
+    expect(setFlowKind(d, "f2", "sequence").flows[1]!.kind).toBe("association");
+    const ends = { sourceSide: "right", targetSide: "left" } as const;
+    const toData = reconnect(d, "f1", { ...ends, source: "bottom", target: "data" });
+    expect(toData.flows[0]).toMatchObject({ target: "data", kind: "association" });
+  });
+
   it("never changes a connector into a twin of another", () => {
     const d = connect(base(), { ...base().flows[0]!, id: "f2", kind: "message" });
     expect(setFlowKind(d, "f2", "sequence")).toEqual(d);

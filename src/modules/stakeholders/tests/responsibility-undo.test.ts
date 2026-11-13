@@ -6,6 +6,7 @@ import {
   canUndo,
   dropUndo,
   pushUndo,
+  putBackRefused,
   setBack,
   stepBack,
   takeUndo,
@@ -93,5 +94,20 @@ describe("responsibility undo", () => {
     const a = setBack(now([]).grid, row, 7, "INFORMED", [], 1)!;
     const b = setBack(now([]).grid, row, 8, "INFORMED", [], 2)!;
     expect(dropUndo(pushUndo(pushUndo([], a), b), 2)).toEqual([a]);
+  });
+});
+
+describe("a refused replay", () => {
+  const step = { key: 1, changes: [{ row, stakeholderId: 7, from: "R", to: "A" }] };
+  const back = stepBack(step, 2);
+
+  it("puts an undo back on the undo stack and takes its redo away", () => {
+    const h = putBackRefused({ matrixId: 5, undo: [], redo: [back] }, "undo", step, back.key);
+    expect(h).toEqual({ matrixId: 5, undo: [step], redo: [] });
+  });
+
+  it("puts a redo back on the redo stack and takes its undo away", () => {
+    const h = putBackRefused({ undo: [back], redo: [] }, "redo", step, back.key);
+    expect(h).toEqual({ undo: [], redo: [step] });
   });
 });

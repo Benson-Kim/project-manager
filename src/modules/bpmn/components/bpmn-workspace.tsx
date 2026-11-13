@@ -174,7 +174,7 @@ function Workspace({ projectId, row, diagrams, can }: WorkspaceProps) {
             current={row}
             can={can}
             rowVer={saver.rowVer}
-            adoptRowVer={saver.adoptRowVer}
+            withRowVer={saver.withRowVer}
           />
         ) : null}
         {!canEdit && notice ? <p className="text-xs text-ink-muted">{notice}</p> : null}

@@ -198,7 +198,11 @@ export function ChecklistView({
     return result.ok ? { ok: true, data: result.data } : result;
   };
 
-  /** A new row: its title first, then any cells typed into the new-entry row, in turn. */
+  /**
+   * A new row: its title first, then any cells typed into the new-entry row, in turn. A cell that
+   * does not save takes the new row away again, so the typed values stay in the new-entry row and
+   * saving again makes no second row.
+   */
   const addRow = async (values: Record<string, string>): Promise<ActionResult<ChecklistItem>> => {
     const created = await createItemAction({
       checklistId: checklist.ChecklistId,
@@ -211,8 +215,8 @@ export function ChecklistView({
       if (!column || value.trim() === "") continue;
       const result = await setCell(row, column, value);
       if (!result.ok) {
-        toast({ variant: "error", title: failureMessage(result.error) });
-        break;
+        await deleteItemAction({ itemId: row.ChecklistItemId, rowVer: row.RowVer });
+        return result;
       }
       row = result.data;
     }

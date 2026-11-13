@@ -77,6 +77,27 @@ export function writesOf(step: ResponsibilityStep): CellWrite[] {
 export const pushUndo = pushStep<ResponsibilityStep>;
 export const dropUndo = dropStep<ResponsibilityStep>;
 
+/** Both stacks of one matrix's history. */
+export interface ResponsibilityHistory {
+  undo: ResponsibilityStep[];
+  redo: ResponsibilityStep[];
+}
+
+/**
+ * The history after the server refuses a replayed step: the step goes back on the stack it was
+ * taken from, so it can be tried again, and the way back that was pushed for it leaves the other.
+ */
+export function putBackRefused<H extends ResponsibilityHistory>(
+  history: H,
+  from: "undo" | "redo",
+  step: ResponsibilityStep,
+  backKey: number,
+): H {
+  return from === "undo"
+    ? { ...history, undo: pushUndo(history.undo, step), redo: dropUndo(history.redo, backKey) }
+    : { ...history, undo: dropUndo(history.undo, backKey), redo: pushUndo(history.redo, step) };
+}
+
 /** A step applies while every row and member is still there and every cell still holds `from`. */
 function applies(now: MatrixNow, step: ResponsibilityStep): boolean {
   const rows = new Set(now.rows.map(rowKey));

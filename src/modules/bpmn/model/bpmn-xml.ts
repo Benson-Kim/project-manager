@@ -126,13 +126,18 @@ export function diagramToBpmnXml(diagram: BpmnDiagram, name: string): string {
   const messages = between.filter((flow) => flow.kind !== "association");
   const associations = between.filter((flow) => flow.kind === "association");
   const collaborate = diagram.pools.length > 0 || messages.length > 0;
+  // Every process in a collaboration has a participant, the shapes outside every pool included.
+  const participants = [
+    ...diagram.pools.map(
+      (pool) =>
+        `<bpmn:participant id="Participant_${pool.id}"${attr("name", pool.name)} processRef="${processId(pool.id)}"/>`,
+    ),
+    ...(processIds.includes(FREE)
+      ? [`<bpmn:participant id="Participant_main" processRef="${processId(FREE)}"/>`]
+      : []),
+  ];
   const collaboration = collaborate
-    ? `<bpmn:collaboration id="Collaboration_1">${diagram.pools
-        .map(
-          (pool) =>
-            `<bpmn:participant id="Participant_${pool.id}"${attr("name", pool.name)} processRef="${processId(pool.id)}"/>`,
-        )
-        .join("")}${messages.map((flow) => flowXml(flow, true)).join("")}${associations
+    ? `<bpmn:collaboration id="Collaboration_1">${participants.join("")}${messages.map((flow) => flowXml(flow, true)).join("")}${associations
         .map((flow) => flowXml(flow))
         .join("")}</bpmn:collaboration>`
     : "";
