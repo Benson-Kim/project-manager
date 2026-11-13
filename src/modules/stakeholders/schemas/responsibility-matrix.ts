@@ -97,7 +97,22 @@ export const setCellInput = matrixInput.extend({
   moveSingle: z.boolean().optional(),
 });
 
+export const setCellsInput = matrixInput.extend({
+  writes: z
+    .array(
+      z.object({
+        row: rowRefSchema,
+        stakeholderId: id,
+        roleCode: roleCode.nullable(),
+        expectedRoleCode: roleCode.nullable(),
+      }),
+    )
+    .min(1)
+    .max(50),
+});
+
 export type SetCellInput = z.input<typeof setCellInput>;
+export type SetCellsInput = z.input<typeof setCellsInput>;
 export type MatrixInput = z.input<typeof matrixInput>;
 export type CreateMatrixInput = z.input<typeof createMatrixInput>;
 export type RenameMatrixInput = z.input<typeof renameMatrixInput>;

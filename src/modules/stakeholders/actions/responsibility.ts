@@ -11,6 +11,7 @@ import {
   removeResponsibilityMember,
   renameResponsibilityMatrix,
   setResponsibilityCell,
+  setResponsibilityCells,
 } from "../repository/responsibility";
 import {
   createMatrixInput,
@@ -21,6 +22,7 @@ import {
   projectInput,
   renameMatrixInput,
   setCellInput,
+  setCellsInput,
 } from "../schemas/responsibility-matrix";
 
 const READ = "stakeholders:read" as const;
@@ -96,4 +98,12 @@ export const setResponsibilityCellAction = action({
   permission: UPDATE,
   revalidate: [],
   handler: (input, ctx) => setResponsibilityCell(input, ctx.session.userId),
+});
+
+export const setResponsibilityCellsAction = action({
+  name: "responsibility.setCells",
+  schema: setCellsInput,
+  permission: UPDATE,
+  revalidate: [],
+  handler: (input, ctx) => setResponsibilityCells(input, ctx.session.userId),
 });

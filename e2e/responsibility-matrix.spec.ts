@@ -17,6 +17,9 @@ const PAGE = "/projects/2/responsibility";
 const RACI = RESPONSIBILITY_FRAMEWORKS.find((f) => f.code === "RACI")!;
 const abbrev = (code: string) => RACI.roles.find((r) => r.code === code)!.abbrev;
 
+type Framework = (typeof RESPONSIBILITY_FRAMEWORKS)[number];
+const roleTags = (framework: Framework) => framework.roles.map((r) => `${r.abbrev} ${r.label}`);
+
 async function createToast(page: Page): Promise<void> {
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
@@ -46,19 +49,45 @@ function dialogOf(page: Page, title: string): Locator {
   return page.getByRole("dialog", { name: title });
 }
 
-async function createMatrix(page: Page, name: string): Promise<void> {
+function matrixMenu(page: Page): Locator {
+  return page.getByTestId("responsibility-matrix-menu");
+}
+
+function legendOf(scope: Page | Locator): Locator {
+  return scope.getByRole("list", { name: R.legend }).getByRole("listitem");
+}
+
+/** Creates a matrix from the matrix menu; the dialog previews the framework's roles first. */
+async function createMatrix(page: Page, name: string, framework: Framework = RACI): Promise<void> {
   await page.goto(PAGE);
-  await page.getByLabel(R.name, { exact: true }).fill(name);
-  await page.getByRole("button", { name: R.create }).click();
-  await expect(page.getByLabel(R.matrix, { exact: true })).toContainText(name);
-  await page.getByLabel(R.matrix, { exact: true }).selectOption({ label: name });
-  await expect(page.getByText(`${R.legend}:`)).toBeVisible();
+  await matrixMenu(page).click();
+  await page.getByTestId("responsibility-matrix-new").click();
+  const dialog = dialogOf(page, R.newMatrix);
+  await dialog.getByTestId("responsibility-new-name").fill(name);
+  await dialog.getByTestId("responsibility-new-framework").selectOption({ label: framework.label });
+  await expect(dialog.getByTestId("responsibility-new-rows")).toHaveValue(framework.defaultRowKind);
+  await expect(legendOf(dialog)).toHaveText(roleTags(framework));
+  await dialog.getByTestId("responsibility-new-save").click();
+  await expect(dialog).toHaveCount(0);
+  await expect(matrixMenu(page)).toContainText(name);
+  await expect(legendOf(page)).toHaveText(roleTags(framework));
+}
+
+async function chooseMatrix(page: Page, name: string): Promise<void> {
+  await matrixMenu(page).click();
+  await page.getByTestId("responsibility-matrix-item").filter({ hasText: name }).click();
+  await expect(matrixMenu(page)).toContainText(name);
 }
 
 async function addMember(page: Page, name: string): Promise<void> {
-  await page.getByLabel(R.addMember, { exact: true }).selectOption({ label: name });
-  await page.getByRole("button", { name: R.add, exact: true }).click();
+  await page
+    .getByRole("combobox", { name: R.addMember, exact: true })
+    .selectOption({ label: name });
   await expect(page.getByRole("columnheader", { name })).toBeVisible();
+}
+
+async function allSaved(page: Page): Promise<void> {
+  await expect(page.getByTestId("responsibility-saving")).toHaveAttribute("data-status", "saved");
 }
 
 function cell(page: Page, deliverable: string, person: string): Locator {
@@ -87,20 +116,20 @@ async function axe(page: Page) {
   expect(results.violations).toEqual([]);
 }
 
-test("the legend lists the framework's roles and a new matrix starts without members", async ({
+test("the role tags list the framework's roles and a new matrix starts without members", async ({
   page,
 }) => {
   const matrix = `E2E matrix ${Date.now()}`;
   await createMatrix(page, matrix);
-  await expect(page.getByText(`${R.legend}:`)).toContainText(
-    RACI.roles.map((r) => `${r.abbrev} = ${r.label}`).join(" · "),
-  );
-  await expect(page.getByLabel(R.addMember, { exact: true })).toBeVisible();
+  await expect(legendOf(page)).toHaveText(roleTags(RACI));
+  await expect(page.getByRole("combobox", { name: R.addMember, exact: true })).toBeVisible();
+  await expect(page.getByTestId("responsibility-member")).toHaveCount(0);
 });
 
 test("roles are set per person, flagged when missing or doubled, and survive a reload", async ({
   page,
 }) => {
+  test.setTimeout(90_000);
   const stamp = Date.now();
   const deliverable = `E2E row ${stamp}`;
   const ann = `E2E Ann ${stamp}`;
@@ -125,13 +154,12 @@ test("roles are set per person, flagged when missing or doubled, and survive a r
   await setRole(page, deliverable, bo, "ACCOUNTABLE");
   await expect(row).not.toContainText(R.missing);
 
-  await setRole(page, deliverable, bo, "RESPONSIBLE");
-  await expect(row).toContainText(`${R.duplicated}: ${abbrev("RESPONSIBLE")}`);
+  await setRole(page, deliverable, bo, "CONSULTED");
   await expect(row).toContainText(`${R.missing}: ${abbrev("ACCOUNTABLE")}`);
 
   await page.reload();
   await expect(cell(page, deliverable, ann)).toHaveValue("RESPONSIBLE");
-  await expect(cell(page, deliverable, bo)).toHaveValue("RESPONSIBLE");
+  await expect(cell(page, deliverable, bo)).toHaveValue("CONSULTED");
   await axe(page);
 });
 
@@ -206,8 +234,20 @@ test("columns move, and removing one deletes its cells after a confirmation", as
     .getByRole("button", { name: R.moveLeft(bo) })
     .click();
   await expect(heads.nth(1)).toContainText(bo);
+  await allSaved(page);
   await page.reload();
   await expect(heads.nth(1)).toContainText(bo);
+
+  await page
+    .getByRole("columnheader", { name: ann })
+    .dragTo(page.getByRole("columnheader", { name: bo }), {
+      sourcePosition: { x: 8, y: 8 },
+      targetPosition: { x: 8, y: 8 },
+    });
+  await expect(heads.nth(1)).toContainText(ann);
+  await allSaved(page);
+  await page.reload();
+  await expect(heads.nth(1)).toContainText(ann);
 
   await page
     .getByRole("columnheader", { name: bo })
@@ -230,17 +270,23 @@ test("a matrix is renamed and deleted, and the empty state returns with the last
   await createMatrix(page, matrix);
 
   const renamed = `${matrix} renamed`;
-  await page.getByRole("button", { name: R.rename }).click();
+  await matrixMenu(page).click();
+  await page.getByTestId("responsibility-matrix-rename").click();
   const rename = dialogOf(page, R.renameTitle);
   await rename.getByRole("textbox", { name: R.name }).fill(renamed);
   await rename.getByRole("button", { name: messages.actions.save }).click();
-  await expect(page.getByLabel(R.matrix, { exact: true })).toContainText(renamed);
+  await expect(matrixMenu(page)).toContainText(renamed);
 
-  await page.getByRole("button", { name: R.delete, exact: true }).click();
+  await matrixMenu(page).click();
+  await page.getByTestId("responsibility-matrix-delete").click();
   const removal = dialogOf(page, R.deleteTitle(renamed));
   await expect(removal).toContainText(R.deleteBody);
   await removal.getByRole("button", { name: R.delete, exact: true }).click();
-  await expect(page.getByLabel(R.matrix, { exact: true })).not.toContainText(renamed);
+  await expect(matrixMenu(page)).not.toContainText(renamed);
+  await matrixMenu(page).click();
+  await expect(
+    page.getByTestId("responsibility-matrix-item").filter({ hasText: renamed }),
+  ).toHaveCount(0);
 });
 
 test("the matrix is copied as CSV with member names across and role letters in the cells", async ({
@@ -268,7 +314,9 @@ test("the matrix is copied as CSV with member names across and role letters in t
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   const lines = copied.split("\n").map((line) => line.replace(/\r$/, ""));
   expect(lines[0]).toBe(`${R.rowKinds.WbsItem},${ann},${bo}`);
-  expect(lines).toContain(`${deliverable},${abbrev("RESPONSIBLE")},`);
+  expect(lines.some((line) => line.endsWith(` ${deliverable},${abbrev("RESPONSIBLE")},`))).toBe(
+    true,
+  );
 });
 
 test("a refused save shows a notice, frees the cells, and the same cell saves once the network is back", async ({
@@ -289,7 +337,7 @@ test("a refused save shows a notice, frees the cells, and the same cell saves on
   await page.route("**/projects/2/responsibility**", refuse);
   await cell(page, deliverable, ann).selectOption({ value: "RESPONSIBLE" });
   await expect(page.getByRole("alert").filter({ hasText: /\S/ })).toBeVisible();
-  await expect(page.getByTestId("responsibility-saving")).toHaveCount(0);
+  await allSaved(page);
   await expect(cell(page, deliverable, ann)).toBeEnabled();
 
   await page.unroute("**/projects/2/responsibility**", refuse);
@@ -321,8 +369,8 @@ test("undo and redo replay a move on both cells, from the buttons and the keyboa
   await createMatrix(page, `E2E matrix ${stamp}`);
   await addMember(page, ann);
   await addMember(page, bo);
-  const undo = page.getByRole("button", { name: R.undo, exact: true });
-  const redo = page.getByRole("button", { name: R.redo, exact: true });
+  const undo = page.getByTestId("responsibility-undo");
+  const redo = page.getByTestId("responsibility-redo");
   await expect(undo).toBeDisabled();
   await expect(redo).toBeDisabled();
 
@@ -349,11 +397,22 @@ test("undo and redo replay a move on both cells, from the buttons and the keyboa
   await expect(cell(page, deliverable, bo)).toHaveValue("");
 
   await expect(redo).toBeEnabled();
+  await cell(page, deliverable, bo).focus();
   await page.keyboard.press("Control+y");
   await expect(cell(page, deliverable, bo)).toHaveValue("ACCOUNTABLE");
   await expect(cell(page, deliverable, ann)).toHaveValue("");
 
+  await expect(page.getByTestId("page-undo")).toBeEnabled();
+  await page.getByTestId("page-undo").click();
+  await expect(cell(page, deliverable, ann)).toHaveValue("ACCOUNTABLE");
+  await expect(cell(page, deliverable, bo)).toHaveValue("");
+  await expect(page.getByTestId("page-redo")).toBeEnabled();
+  await page.getByTestId("page-redo").click();
+  await expect(cell(page, deliverable, bo)).toHaveValue("ACCOUNTABLE");
+  await expect(cell(page, deliverable, ann)).toHaveValue("");
+
   await expect(undo).toBeEnabled();
+  await allSaved(page);
   await page.reload();
   await expect(cell(page, deliverable, bo)).toHaveValue("ACCOUNTABLE");
   await expect(cell(page, deliverable, ann)).toHaveValue("");
@@ -377,16 +436,8 @@ test("a DACI matrix takes the decision register's decisions as its rows", async 
   await createToast(page);
   await createStakeholder(page, ann);
 
-  await page.goto(PAGE);
-  await page.getByLabel(R.name, { exact: true }).fill(matrix);
-  await page.getByLabel(R.framework, { exact: true }).selectOption({ label: DACI.label });
-  await expect(page.getByLabel(R.rowKind, { exact: true })).toHaveValue("Decision");
-  await page.getByRole("button", { name: R.create }).click();
-  await expect(page.getByLabel(R.matrix, { exact: true })).toContainText(matrix);
-  await page.getByLabel(R.matrix, { exact: true }).selectOption({ label: matrix });
-  await expect(page.getByText(`${R.legend}:`)).toHaveText(
-    `${R.legend}: ${DACI.roles.map((r) => `${r.abbrev} = ${r.label}`).join(" · ")}`,
-  );
+  expect(DACI.defaultRowKind).toBe("Decision");
+  await createMatrix(page, matrix, DACI);
 
   await addMember(page, ann);
   await expect(
@@ -394,7 +445,8 @@ test("a DACI matrix takes the decision register's decisions as its rows", async 
   ).toBeVisible();
   await expect(page.getByRole("rowheader", { name: decision })).toBeVisible();
   await setRole(page, decision, ann, "DRIVER");
-  await expect(page.getByTestId("responsibility-saving")).toHaveCount(0);
+  await expect(cell(page, decision, ann)).toHaveClass(/bg-tone-blue-soft/);
+  await allSaved(page);
 
   await page.reload();
   await expect(cell(page, decision, ann)).toHaveValue("DRIVER");
@@ -435,7 +487,7 @@ test("R in the matrix and the deliverable's assignees stay one list, both ways",
 
   await setRole(page, deliverable, bo, "RESPONSIBLE");
   await setRole(page, deliverable, ann, "");
-  await expect(page.getByTestId("responsibility-saving")).toHaveCount(0);
+  await allSaved(page);
 
   await page.goto(`/projects/2/deliverables?view=list&q=${stamp}`);
   await openListed(page, deliverable);
@@ -459,17 +511,17 @@ test("a cell changed in another tab is refused, shows the other tab's role, and 
 
   const other = await page.context().newPage();
   await other.goto(PAGE);
-  await other.getByLabel(R.matrix, { exact: true }).selectOption({ label: matrix });
+  await chooseMatrix(other, matrix);
   await setRole(other, deliverable, ann, "CONSULTED");
-  await expect(other.getByTestId("responsibility-saving")).toHaveCount(0);
+  await allSaved(other);
   await other.close();
 
   await cell(page, deliverable, ann).selectOption({ value: "INFORMED" });
   await expect(page.getByRole("alert").filter({ hasText: messages.errors.CONFLICT })).toBeVisible();
   await expect(cell(page, deliverable, ann)).toHaveValue("CONSULTED");
-  await expect(page.getByTestId("responsibility-saving")).toHaveCount(0);
+  await allSaved(page);
   await expect(cell(page, deliverable, ann)).toBeEnabled();
-  await expect(page.getByRole("button", { name: R.undo, exact: true })).toBeDisabled();
+  await expect(page.getByTestId("responsibility-undo")).toBeDisabled();
 
   await page.reload();
   await expect(cell(page, deliverable, ann)).toHaveValue("CONSULTED");

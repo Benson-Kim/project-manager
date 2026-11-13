@@ -1,4 +1,4 @@
-import { execProc, execProcSets } from "@/lib/db";
+import { execProc, execProcSets, execProcTx, withTransaction } from "@/lib/db";
 import {
   cellRowSchema,
   createdMatrixRowSchema,
@@ -13,6 +13,7 @@ import {
   rowVerRowSchema,
   setCellInput,
   setCellRowSchema,
+  setCellsInput,
   type CreateMatrixInput,
   type DeleteMatrixInput,
   type MatrixInput,
@@ -25,6 +26,7 @@ import {
   type RowVer,
   type SetCellInput,
   type SetCellResult,
+  type SetCellsInput,
 } from "../schemas/responsibility-matrix";
 
 export async function listResponsibilityMatrices(
@@ -137,7 +139,31 @@ export async function setResponsibilityCell(
   actorUserId: number,
 ): Promise<SetCellResult> {
   const p = setCellInput.parse(input);
-  const rows = await execProc("usp_ResponsibilityAssignment_Set", {
+  const rows = await execProc("usp_ResponsibilityAssignment_Set", cellParams(p, actorUserId));
+  return setCellRowSchema.parse(rows[0]);
+}
+
+export async function setResponsibilityCells(
+  input: SetCellsInput,
+  actorUserId: number,
+): Promise<SetCellResult[]> {
+  const { writes, ...matrix } = setCellsInput.parse(input);
+  return withTransaction(async (tx) => {
+    const results: SetCellResult[] = [];
+    for (const write of writes) {
+      const rows = await execProcTx(
+        tx,
+        "usp_ResponsibilityAssignment_Set",
+        cellParams({ ...matrix, ...write, moveSingle: false }, actorUserId),
+      );
+      results.push(setCellRowSchema.parse(rows[0]));
+    }
+    return results;
+  });
+}
+
+function cellParams(p: ReturnType<typeof setCellInput.parse>, actorUserId: number) {
+  return {
     ProjectId: p.projectId,
     ResponsibilityMatrixId: p.matrixId,
     KeyDeliverableId: p.row.kind === "WbsItem" ? p.row.keyDeliverableId : null,
@@ -147,6 +173,5 @@ export async function setResponsibilityCell(
     ExpectedRoleCode: p.expectedRoleCode,
     MoveSingle: p.moveSingle ?? false,
     ActorUserId: actorUserId,
-  });
-  return setCellRowSchema.parse(rows[0]);
+  };
 }

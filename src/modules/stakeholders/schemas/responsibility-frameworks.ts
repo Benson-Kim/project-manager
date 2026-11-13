@@ -176,3 +176,52 @@ export function frameworkRole(
 ): ResponsibilityRole | undefined {
   return framework.roles.find((r) => r.code === roleCode);
 }
+
+/** Roles that stand for the same thing across models, nearest first. */
+const ROLE_MEANINGS: readonly (readonly string[])[] = [
+  ["ACCOUNTABLE", "APPROVER", "DECIDE", "DECIDER", "AUTHORITY", "SIGN_OFF", "VERIFIER", "MANAGER"],
+  ["RESPONSIBLE", "DRIVER", "PERFORM", "EXECUTION", "OWNER", "TASK"],
+  [
+    "CONSULTED",
+    "CONTRIBUTOR",
+    "INPUT",
+    "ADVISOR",
+    "RECOMMEND",
+    "RECOMMENDER",
+    "AGREE",
+    "SUPPORT",
+    "HELPER",
+    "PARTICIPANT",
+  ],
+  ["INFORMED"],
+];
+
+/** The role of `framework` that stands for `code`: the same role, else the nearest with its meaning. */
+export function equivalentRole(
+  framework: ResponsibilityFramework,
+  code: string,
+): ResponsibilityRole | undefined {
+  const byCode = (each: string) => framework.roles.find((role) => role.code === each);
+  const meaning = ROLE_MEANINGS.find((codes) => codes.includes(code)) ?? [];
+  return byCode(code) ?? meaning.map(byCode).find(Boolean);
+}
+
+/** The one person a step answers to: Accountable, or its nearest role in the model. */
+export function accountableRole(framework: ResponsibilityFramework): ResponsibilityRole {
+  return equivalentRole(framework, "ACCOUNTABLE") ?? framework.roles[0];
+}
+
+/** Names carried into the roles `to` leaves empty, from the matching roles of `from`; the rest stay. */
+export function carryNames(
+  people: Readonly<Record<string, string>>,
+  from: ResponsibilityFramework,
+  to: ResponsibilityFramework,
+): Record<string, string> {
+  const next = { ...people };
+  for (const role of from.roles) {
+    const name = people[role.code];
+    const target = name ? equivalentRole(to, role.code) : undefined;
+    if (target && !next[target.code]) next[target.code] = name;
+  }
+  return next;
+}

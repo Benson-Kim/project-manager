@@ -65,6 +65,7 @@ export default async function ResponsibilityPage({
         stakeholders={stakeholders}
         canCreate={allows("stakeholders:create")}
         canEdit={allows("stakeholders:update")}
+        canEditAssignees={allows("key-deliverables:update")}
         canDelete={allows("stakeholders:delete")}
       />
     </>
