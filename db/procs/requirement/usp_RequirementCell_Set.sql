@@ -60,17 +60,20 @@ BEGIN
 
     BEGIN TRAN;
 
-    -- A choice is checked again under the column lock that deleting a choice takes, so a choice
-    -- deleted meanwhile is never stored.
-    IF @OptionId IS NOT NULL
-    BEGIN
-        DECLARE @ColumnLock INT;
-        SELECT @ColumnLock = RequirementColumnId FROM app.RequirementColumn WITH (UPDLOCK, HOLDLOCK)
-        WHERE RequirementColumnId = @RequirementColumnId;
-        IF NOT EXISTS (SELECT 1 FROM app.RequirementColumnOption
-                       WHERE RequirementColumnOptionId = @OptionId AND IsDeleted = 0)
-            THROW 50004, N'VALIDATION:Pick one of the column''s choices', 1;
-    END;
+    -- The column and its choice are checked again under the column lock that deleting the column,
+    -- changing its kind or deleting a choice takes, so no value lands in a column or choice that is
+    -- gone or now holds something else.
+    DECLARE @LockedKind VARCHAR(20);
+    SELECT @LockedKind = Kind FROM app.RequirementColumn WITH (UPDLOCK, HOLDLOCK)
+    WHERE RequirementColumnId = @RequirementColumnId AND IsDeleted = 0;
+    IF @LockedKind IS NULL
+        THROW 50001, N'NOT_FOUND:Column not found', 1;
+    IF @LockedKind <> @Kind
+        THROW 50002, N'CONFLICT:Someone else changed this column', 1;
+    IF @OptionId IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM app.RequirementColumnOption
+        WHERE RequirementColumnOptionId = @OptionId AND IsDeleted = 0)
+        THROW 50004, N'VALIDATION:Pick one of the column''s choices', 1;
 
     UPDATE app.Requirement SET UpdatedAtUtc = SYSUTCDATETIME(), UpdatedBy = @ActorUserId
     WHERE RequirementId = @RequirementId AND IsDeleted = 0 AND CAST(RowVer AS BIGINT) = @RowVer;
