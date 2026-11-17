@@ -6,12 +6,13 @@ let actions: TrayActions | null = null;
 let appVersion = "";
 let readyVersion: string | null = null;
 let copyOverdue = false;
+let licensed = false;
 
 function refresh(): void {
   if (!tray || !actions) return;
   tray.setContextMenu(
     Menu.buildFromTemplate(
-      trayMenuTemplate(actions, { version: appVersion, readyVersion, copyOverdue }),
+      trayMenuTemplate(actions, { version: appVersion, readyVersion, copyOverdue, licensed }),
     ),
   );
   tray.setToolTip(readyVersion ? `Modulus — update ${readyVersion} ready` : "Modulus");
@@ -37,6 +38,13 @@ export function setTrayUpdateReady(version: string | null): void {
 export function setTrayCopyOverdue(overdue: boolean): void {
   if (overdue === copyOverdue) return;
   copyOverdue = overdue;
+  refresh();
+}
+
+/** Shows "Send feedback…" only while a trial or licence is held. */
+export function setTrayLicensed(held: boolean): void {
+  if (held === licensed) return;
+  licensed = held;
   refresh();
 }
 

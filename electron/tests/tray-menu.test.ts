@@ -16,10 +16,17 @@ const everything: TrayActions = {
   checkForUpdates: noop,
   installUpdate: noop,
   setUpAttachments: noop,
+  licence: noop,
+  feedback: noop,
 };
 
-const labels = (actions: TrayActions, readyVersion: string | null = null, copyOverdue = false) =>
-  trayMenuTemplate(actions, { version: "1.0.9", readyVersion, copyOverdue })
+const labels = (
+  actions: TrayActions,
+  readyVersion: string | null = null,
+  copyOverdue = false,
+  licensed = false,
+) =>
+  trayMenuTemplate(actions, { version: "1.0.9", readyVersion, copyOverdue, licensed })
     .map((item) => item.label)
     .filter((label): label is string => Boolean(label));
 
@@ -52,7 +59,7 @@ describe("trayMenuTemplate", () => {
     const backupNow = vi.fn();
     const item = trayMenuTemplate(
       { ...base, backupNow },
-      { version: "1.0.9", readyVersion: null, copyOverdue: true },
+      { version: "1.0.9", readyVersion: null, copyOverdue: true, licensed: false },
     )[0]!;
     (item.click as () => void)();
     expect(backupNow).toHaveBeenCalledOnce();
@@ -61,6 +68,17 @@ describe("trayMenuTemplate", () => {
   it("offers the attachments setup only while it is needed", () => {
     expect(labels(base)).not.toContain("Set up attachments (administrator)…");
     expect(labels(everything)).toContain("Set up attachments (administrator)…");
+  });
+
+  it("offers the licence window only in a build that checks its licence", () => {
+    expect(labels(base)).not.toContain("Licence…");
+    expect(labels(everything)).toContain("Licence…");
+  });
+
+  it("offers feedback only while a trial or licence is held", () => {
+    expect(labels(everything)).not.toContain("Send feedback…");
+    expect(labels(everything, null, false, true)).toContain("Send feedback…");
+    expect(labels(base, null, false, true)).not.toContain("Send feedback…");
   });
 
   it("shows the version and ends with Quit", () => {

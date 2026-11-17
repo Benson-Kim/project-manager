@@ -46,9 +46,12 @@ module.exports = {
   files: [
     "main.js",
     "grammar-worker.js",
+    "preload.js",
+    "licence-preload.js",
     "harper_wasm_slim_bg.wasm",
     "splash.html",
     "splash-logo.png",
+    "licence.html",
     "package.json",
   ],
 

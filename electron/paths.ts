@@ -26,4 +26,6 @@ export const paths = {
     : path.join(repoRoot, "build-resources", "icon.ico"),
   splash: path.join(__dirname, "splash.html"),
   preload: path.join(__dirname, "preload.js"),
+  licenceHtml: path.join(__dirname, "licence.html"),
+  licencePreload: path.join(__dirname, "licence-preload.js"),
 };
