@@ -105,9 +105,7 @@ export function KanbanCardBody({
       ) : card.DeliverableState === "removed" ? (
         <p className="text-xs text-ink-muted">{M.removedDeliverable}</p>
       ) : null}
-      {description ? (
-        <p className="line-clamp-2 text-[11px] leading-snug text-ink-muted">{description}</p>
-      ) : null}
+      {description ? <p className={kanbanDescriptionClass}>{description}</p> : null}
       {window ? <p className="text-xs text-ink-muted">{window}</p> : null}
       {health.moscow.length ? (
         <div role="group" className="flex flex-wrap gap-1" aria-label={K.moscowPresent}>
@@ -138,6 +136,11 @@ export function KanbanCardBody({
     </>
   );
 }
+
+/** The title and the description differ in colour so a card reads at a glance. */
+export const kanbanTitleClass =
+  "line-clamp-3 w-full cursor-pointer text-left text-[13px] leading-snug font-semibold text-accent-strong";
+export const kanbanDescriptionClass = "line-clamp-2 text-[11px] leading-snug text-ink-muted";
 
 /** Shown on hover or focus where a pointer can hover; always on a touch screen. */
 export const kanbanReveal =

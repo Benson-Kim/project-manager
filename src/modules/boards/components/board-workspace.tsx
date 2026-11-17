@@ -47,6 +47,7 @@ import {
   hasCardTags,
   kanbanCardClass,
   kanbanReveal,
+  kanbanTitleClass,
 } from "./kanban-card";
 import { CopyJsonButton, KanbanFilterBar, KanbanStatsRow } from "./kanban-toolbar";
 import { PackageRequirementsButton } from "./package-requirements";
@@ -379,7 +380,7 @@ export function BoardWorkspace({
                           <h3 className="m-0 min-w-0 flex-1">
                             <button
                               type="button"
-                              className="line-clamp-3 w-full cursor-pointer text-left text-[13px] leading-snug font-semibold text-ink"
+                              className={kanbanTitleClass}
                               disabled={pending}
                               onClick={() => open(card)}
                             >
