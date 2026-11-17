@@ -1,6 +1,7 @@
 import { execProc, execProcSets } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
+import { messages } from "@/lib/messages";
 import {
   boardCreatedRowSchema,
   boardDetailRowSchema,
@@ -8,6 +9,7 @@ import {
   boardOptionRowSchema,
   boardProjectSetRowSchema,
   boardRowSchema,
+  createBoardFromChecklistInput,
   createBoardInput,
   setBoardProjectInput,
   updateBoardInput,
@@ -16,11 +18,13 @@ import {
   type BoardOptionRow,
   type BoardProjectSetRow,
   type BoardRow,
+  type CreateBoardFromChecklistInput,
   type CreateBoardInput,
   type SetBoardProjectInput,
   type UpdateBoardInput,
 } from "../schemas/board";
 import { boardCardListRowSchema } from "../schemas/board-card";
+import { defaultBoardColumns } from "../schemas/board-rules";
 import {
   boardAssigneeRowSchema,
   boardHeaderRowSchema,
@@ -97,6 +101,25 @@ export async function createBoard(input: CreateBoardInput, actorUserId: number) 
     Description: parsed.description ?? null,
     // The proc reads every value out of this array and checks it before inserting.
     ColumnsJson: JSON.stringify(parsed.columns),
+    ActorUserId: actorUserId,
+  });
+  return boardCreatedRowSchema.parse(rows[0]);
+}
+
+/** One transaction: the board, the default columns, one card per item and, for Scrum, a first sprint. */
+export async function createBoardFromChecklist(
+  input: CreateBoardFromChecklistInput,
+  actorUserId: number,
+) {
+  const parsed = createBoardFromChecklistInput.parse(input);
+  const columns = defaultBoardColumns().map(({ name, category }) => ({ name, category }));
+  const rows = await execProc("usp_Board_CreateFromChecklist", {
+    ChecklistId: parsed.checklistId,
+    ProjectId: parsed.projectId,
+    Name: parsed.name,
+    Method: parsed.method,
+    ColumnsJson: JSON.stringify(columns),
+    SprintName: parsed.method === "scrum" ? messages.boards.firstSprintName : null,
     ActorUserId: actorUserId,
   });
   return boardCreatedRowSchema.parse(rows[0]);

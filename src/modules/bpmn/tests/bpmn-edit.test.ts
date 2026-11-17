@@ -6,6 +6,7 @@ import {
   addPool,
   addShape,
   connect,
+  connectShapes,
   diagramBounds,
   duplicateShape,
   laneAt,
@@ -164,6 +165,26 @@ describe("connectors", () => {
     expect(flowKindFor("task", "dataObject", "sequence")).toBe("association");
     expect(flowKindFor("textAnnotation", "task", "message")).toBe("association");
     expect(flowKindFor("task", "endEvent", "message")).toBe("message");
+  });
+
+  it("joins two shapes by id with the picked type, right side to left by default", () => {
+    const d = connectShapes(twoLanes(), { source: "top", target: "outside" }, "sequence", "f9");
+    expect(d.flows).toEqual([
+      {
+        id: "f9",
+        kind: "sequence",
+        source: "top",
+        target: "outside",
+        sourceSide: "right",
+        targetSide: "left",
+        label: "",
+      },
+    ]);
+    const data = addShape(d, "dataObject", { x: 400, y: 80 }, "data");
+    expect(
+      connectShapes(data, { source: "top", target: "data" }, "message", "f10").flows[1]!.kind,
+    ).toBe("association");
+    expect(connectShapes(d, { source: "top", target: "gone" }, "sequence", "f11")).toBe(d);
   });
 
   it("removes a shape's connectors with it", () => {

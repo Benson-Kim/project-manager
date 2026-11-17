@@ -10,6 +10,7 @@ import { messages } from "@/lib/messages";
 import { firstError } from "@/modules/key-deliverables/components/wbs-queue";
 import { createChecklistAction, renameChecklistAction } from "../actions";
 import { CHECKLIST_NAME_MAX, type Checklist } from "../schemas/checklist";
+import { notifySaved } from "@/lib/cross-window";
 
 const M = messages.checklists;
 
@@ -41,6 +42,7 @@ export function ChecklistForm({
         if (!result.ok) return setError(firstError(result.error));
         onDone?.();
         router.refresh();
+        notifySaved();
         return;
       }
       const result = await createChecklistAction({ projectId, name });

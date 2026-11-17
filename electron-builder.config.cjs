@@ -12,21 +12,42 @@
 //   PM_VERSION        — app version (CI sets it per release; default: package.json).
 //   PM_UPDATE_GITHUB  — owner/repo whose GitHub Releases are the update feed
 //                       (default: this repo; CI publishes there, see docs/DESKTOP.md).
-//   PM_UPDATE_URL     — alternative feed: a static HTTPS folder with latest.yml + installer.
+//   PM_UPDATE_URL     — alternative feed: a public HTTPS folder with latest.yml + installer.
 //   PM_UPDATE_FEED=off — build without a feed (auto-update disabled).
-//   CSC_LINK / CSC_KEY_PASSWORD — code-signing certificate; with PM_PUBLISHER (its subject)
-//                       installed apps verify every update against it (ADR-0034).
+//   Code signing (ADR-0034), exactly one of:
+//     PM_AZURE_SIGN_ENDPOINT / _ACCOUNT / _PROFILE — Microsoft Trusted Signing (with the
+//                       AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET it signs in with);
+//     PM_SIGN_CERT_SHA1 — a CA certificate whose key the CA's signing tool holds;
+//     CSC_LINK / CSC_KEY_PASSWORD — the self-issued PFX, for the bridging release only.
+//   PM_PUBLISHER      — the signing certificate's subject, verified by installed apps.
+//   PM_NEXT_PUBLISHER — the subject that signs the releases after this one (bridging release).
 
 const fs = require("fs");
 const path = require("path");
-const { signingConfig } = require("./scripts/desktop/signing.cjs");
+const { signingConfig, SIGN_EXTS } = require("./scripts/desktop/signing.cjs");
 const { updateFeed } = require("./scripts/desktop/update-feed.cjs");
 
 const root = __dirname;
 const r = (...p) => path.join(root, ...p);
-// The office's publisher certificate (public half), trusted on each PC by provision.ps1.
+// The self-issued publisher certificate (public half), trusted on each PC by provision.ps1.
 const PUBLISHER_CER = r("build-resources", "publisher.cer");
 const signing = signingConfig(process.env, fs.existsSync(PUBLISHER_CER));
+const feed = updateFeed(process.env);
+
+// The Next server's native modules sit outside the folders electron-builder signs by itself.
+async function signServerBinaries(packager, dir) {
+  if (!signing.signed) return;
+  if (typeof packager.signIf !== "function") {
+    throw new Error(
+      "electron-builder no longer exposes signIf: the server's native modules would ship unsigned.",
+    );
+  }
+  const kinds = SIGN_EXTS.filter((ext) => !ext.startsWith("!"));
+  const files = fs.readdirSync(dir, { recursive: true }).map((f) => path.join(dir, String(f)));
+  for (const file of files.filter((f) => kinds.some((ext) => f.endsWith(ext)))) {
+    await packager.signIf(file);
+  }
+}
 
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
@@ -43,12 +64,26 @@ module.exports = {
   nodeGypRebuild: false,
   asar: true,
   electronLanguages: ["en-US"],
+  // Flipped in the Electron binary before it is signed (ADR-0034). runAsNode stays on:
+  // next-server.ts forks the Next server with this binary running as Node.
+  electronFuses: {
+    runAsNode: true,
+    onlyLoadAppFromAsar: true,
+    enableEmbeddedAsarIntegrityValidation: true,
+    enableNodeCliInspectArguments: false,
+    enableNodeOptionsEnvironmentVariable: false,
+  },
+  // Every file build.mjs stages; anything left out is missing from app.asar at runtime
+  // (scripts/desktop/tests/packaged-files.test.mjs).
   files: [
     "main.js",
     "grammar-worker.js",
+    "preload.js",
+    "licence-preload.js",
     "harper_wasm_slim_bg.wasm",
     "splash.html",
     "splash-logo.png",
+    "licence.html",
     "package.json",
   ],
 
@@ -68,12 +103,8 @@ module.exports = {
     target: [{ target: "nsis", arch: ["x64"] }],
     icon: r("build-resources", "icon.ico"),
     artifactName: "Modulus-Setup-${version}.${ext}",
-    // Keep Microsoft's signature on the SQL Server media: provision.ps1 refuses
-    // to run an installer that isn't Microsoft-signed.
-    signExts: ["!SQLEXPR_x64_ENU.exe"],
-    // Written to resources/app-update.yml: electron-updater then refuses an installer whose
-    // Authenticode signature is not valid on this PC or not from this subject (ADR-0034).
-    ...(signing.publisherName ? { publisherName: signing.publisherName } : {}),
+    // Signing method, timestamping and the files signed (scripts/desktop/signing.cjs).
+    ...signing.win,
   },
 
   nsis: {
@@ -102,7 +133,12 @@ module.exports = {
   // Writes resources/app-update.yml (read by electron-updater) and, next to
   // the installer, latest.yml + .blockmap (uploaded by the release workflow).
   // Nothing is uploaded from here: build.mjs passes --publish never.
-  publish: updateFeed(process.env),
+  // publisherName lands in app-update.yml: electron-updater then refuses an installer whose
+  // Authenticode signature is not valid on the PC or not from one of these subjects (ADR-0034).
+  publish:
+    feed && signing.publisherName
+      ? feed.map((entry) => ({ ...entry, publisherName: signing.publisherName }))
+      : feed,
 
   // The Next.js standalone server is copied here rather than via
   // extraResources: electron-builder 26 silently drops node_modules and
@@ -123,5 +159,6 @@ module.exports = {
         return !(name === ".env" || name.startsWith(".env.") || name.endsWith(".map"));
       },
     });
+    await signServerBinaries(context.packager, dest);
   },
 };

@@ -38,6 +38,8 @@ import {
   deleteAgendaItemAction,
   deleteDiscussionPointAction,
   deleteMeetingAction,
+  logDiscussionPointDecisionAction,
+  logDiscussionPointAssumptionAction,
   reorderActionItemsAction,
   reorderAgendaItemsAction,
   reorderDiscussionPointsAction,
@@ -209,6 +211,22 @@ const CASES: {
     answers: "workspace",
     revalidates: [LIST],
   },
+  {
+    name: "logDiscussionPointDecision",
+    run: logDiscussionPointDecisionAction,
+    input: { meetingDiscussionPointId: 1, rowVer: 4, title: "Use the new vendor" },
+    proc: "usp_MeetingDiscussionPoint_LogDecision",
+    answers: "workspace",
+    revalidates: [],
+  },
+  {
+    name: "logDiscussionPointAssumption",
+    run: logDiscussionPointAssumptionAction,
+    input: { meetingDiscussionPointId: 1, rowVer: 4 },
+    proc: "usp_MeetingDiscussionPoint_LogAssumption",
+    answers: "workspace",
+    revalidates: [],
+  },
 ];
 
 function answerProcs() {
@@ -302,6 +320,38 @@ describe("meetings actions", () => {
     const result = await createActionItemAction({ action: "Orphan" });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.fieldErrors?.agendaItemId).toBeDefined();
+    expect(execProc).not.toHaveBeenCalled();
+  });
+
+  it("logs a point as a decision with the point's stamp and the trimmed title", async () => {
+    answerProcs();
+    await logDiscussionPointDecisionAction({
+      meetingDiscussionPointId: 9,
+      rowVer: 4,
+      title: "  Use the new vendor ",
+    });
+    expect(execProc.mock.calls[0]).toEqual([
+      "usp_MeetingDiscussionPoint_LogDecision",
+      { MeetingDiscussionPointId: 9, RowVer: 4, Title: "Use the new vendor", ActorUserId: 7 },
+    ]);
+  });
+
+  it("logs a point as an assumption with the point's stamp only", async () => {
+    answerProcs();
+    await logDiscussionPointAssumptionAction({ meetingDiscussionPointId: 9, rowVer: 4 });
+    expect(execProc.mock.calls[0]).toEqual([
+      "usp_MeetingDiscussionPoint_LogAssumption",
+      { MeetingDiscussionPointId: 9, RowVer: 4, ActorUserId: 7 },
+    ]);
+  });
+
+  it("refuses a blank decision title before reaching the proc", async () => {
+    const result = await logDiscussionPointDecisionAction({
+      meetingDiscussionPointId: 9,
+      rowVer: 4,
+      title: "   ",
+    });
+    expect(result).toMatchObject({ ok: false, error: { code: "VALIDATION" } });
     expect(execProc).not.toHaveBeenCalled();
   });
 });

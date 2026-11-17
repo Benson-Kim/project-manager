@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 import { customColumn } from "@/components/custom-columns/custom-column";
 import { PackageRequirementsButton } from "@/modules/boards/components/package-requirements";
 import { useFullPage } from "@/components/shell/use-full-page";
-import { useRefreshOnFocus } from "@/components/shell/use-refresh-on-focus";
 import { Button } from "@/components/ui/button";
 import { booleanColumn, choiceColumn, textColumn } from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
@@ -55,6 +54,7 @@ import {
 } from "./register-model";
 import { RegisterColumnsButton } from "./register-columns-dialog";
 import { RequirementsToolbar } from "./requirements-toolbar";
+import { notifySaved } from "@/lib/cross-window";
 
 type Row = RequirementListRow;
 const M = messages.requirements;
@@ -124,7 +124,6 @@ export function RequirementsView({
 }) {
   const router = useRouter();
   const { update, searchParams } = useListUrlState();
-  useRefreshOnFocus();
   const [fullPage, setFullPage] = useState(false);
   useFullPage(fullPage, () => setFullPage(false));
 
@@ -239,7 +238,10 @@ export function RequirementsView({
             value,
             rowVer: row.RowVer,
           });
-          if (result.ok) router.refresh();
+          if (result.ok) {
+            router.refresh();
+            notifySaved();
+          }
           return result;
         },
       }),
@@ -266,6 +268,7 @@ export function RequirementsView({
       value,
       rowVer: row.RowVer,
     });
+    if (result.ok) notifySaved();
     return result.ok ? { ok: true as const, data: result.data as Partial<Row> } : result;
   };
 

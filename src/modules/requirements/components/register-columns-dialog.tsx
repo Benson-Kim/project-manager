@@ -36,6 +36,7 @@ import {
   type ColumnLabel,
   type RegisterColumn,
 } from "../schemas/register-columns";
+import { notifySaved } from "@/lib/cross-window";
 
 const M = messages.requirements.columns;
 const C = messages.customColumns;
@@ -137,6 +138,7 @@ export function RegisterColumnsButton({
       if (!result.ok) return setError(failureMessage(result.error));
       after?.();
       router.refresh();
+      notifySaved();
     });
 
   const labelOf = (key: string) => labels.find((label) => label.ColumnKey === key);

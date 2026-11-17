@@ -21,6 +21,7 @@ import { createProjectAction, deleteProjectAction, updateProjectAction } from ".
 import type { ProjectRow } from "../schemas/project";
 import { projectFormSchema, updateProjectFormSchema } from "../schemas/project-form";
 import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
+import { notifySaved } from "@/lib/cross-window";
 
 /**
  * The charter workspace form (ADR-0010 full-route exception):
@@ -110,6 +111,7 @@ export function ProjectForm({
         : await createProjectAction(formData);
       if (result.ok) {
         clean();
+        notifySaved();
         toast({
           variant: "success",
           title: project ? messages.feedback.saved : messages.feedback.created,
@@ -135,6 +137,7 @@ export function ProjectForm({
       setConfirmDelete(false);
       if (result.ok) {
         clean();
+        notifySaved();
         toast({ variant: "success", title: messages.feedback.deleted });
         announce(messages.feedback.deleted);
         router.push("/projects");

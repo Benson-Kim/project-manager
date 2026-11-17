@@ -6,6 +6,7 @@ import { GANTT_SCALES, type GanttScale } from "./gantt-scale";
 import { SaveDot } from "@/components/ui/save-dot";
 import { WBS_VIEWS, type WbsView } from "./wbs-diagram-layout";
 import { Segmented } from "./wbs-segmented";
+import { fullscreenLabel } from "./use-fullscreen";
 
 const W = messages.keyDeliverables.wbs;
 
@@ -196,7 +197,7 @@ export function WbsToolbar(props: WbsToolbarProps) {
           ) : null}
           {props.fullscreen ? (
             <Toggle
-              label={W.fullscreen}
+              label={fullscreenLabel(props.fullscreen.value)}
               pressed={props.fullscreen.value}
               onChange={props.fullscreen.onChange}
               testId="wbs-fullscreen"

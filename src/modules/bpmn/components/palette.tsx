@@ -69,18 +69,21 @@ function PoolIcon() {
 /**
  * The symbols: a click places one in the middle of the view, a drag places it where it is dropped;
  * on a touch screen a tap places it, so the palette still scrolls under a finger.
- * The connector type picked here is the one new connections take.
+ * The connector type picked here is the one new connections take;
+ * dragging one onto a symbol joins the selected symbol to it.
  */
 export function Palette({
   connector,
   onConnector,
   onAdd,
   drag,
+  connectorDrag,
 }: {
   connector: FlowKind;
   onConnector: (kind: FlowKind) => void;
   onAdd: (item: PaletteItem) => void;
   drag: DragGesture<PaletteItem, unknown>;
+  connectorDrag: DragGesture<FlowKind, unknown>;
 }) {
   return (
     <aside
@@ -137,6 +140,7 @@ export function Palette({
                   : "border-transparent hover:border-line hover:bg-surface-raised"
               }`}
               onClick={() => onConnector(kind)}
+              {...connectorDrag.bind(kind)}
             >
               <FlowIcon kind={kind} />
               <span>{M.flows[kind]}</span>

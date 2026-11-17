@@ -16,6 +16,8 @@ import {
   deleteFollowUpAction,
   reorderActionItemsAction,
   reorderAgendaItemsAction,
+  logDiscussionPointAssumptionAction,
+  logDiscussionPointDecisionAction,
   reorderDiscussionPointsAction,
   reorderFollowUpsAction,
   setActionItemStatusAction,
@@ -36,6 +38,7 @@ import {
   personOptions,
   type Sibling,
 } from "../schemas/minutes";
+import { decisionTitle } from "../schemas/meeting-form";
 import {
   MinutesContext,
   type DeleteTarget,
@@ -46,6 +49,7 @@ import {
 } from "./minutes-context";
 import { AgendaItemForm, OnHoldReasonDialog } from "./minutes-forms";
 import { ActionStatusCell, AgendaBlock, OverdueBadge } from "./minutes-tree";
+import { notifySaved } from "@/lib/cross-window";
 
 const M = messages.meetings;
 
@@ -112,6 +116,10 @@ export function MinutesEditor({
   canCreate,
   canEdit,
   canDelete,
+  canLogDecision,
+  decisionsHref,
+  canLogAssumption,
+  assumptionsHref,
 }: {
   workspace: MeetingWorkspace;
   /** Each discussion point's formatted view, rendered on the server (RichTextView). */
@@ -123,6 +131,10 @@ export function MinutesEditor({
   canCreate: boolean;
   canEdit: boolean;
   canDelete: boolean;
+  canLogDecision: boolean;
+  decisionsHref: string;
+  canLogAssumption: boolean;
+  assumptionsHref: string;
 }) {
   const router = useRouter();
   const { announce } = useAnnouncer();
@@ -274,6 +286,47 @@ export function MinutesEditor({
     [busy, writeStatus],
   );
 
+  const logDecision = useCallback(
+    (point: WorkspaceDiscussionPoint, name: string) => {
+      if (busy) return;
+      setFailure(null);
+      startTransition(async () => {
+        const result = await logDiscussionPointDecisionAction({
+          meetingDiscussionPointId: point.MeetingDiscussionPointId,
+          rowVer: point.RowVer,
+          title: decisionTitle(previewText(point.DiscussionPoint), M.discussionPoint),
+        });
+        if (!result.ok) {
+          fail(result.error);
+          return;
+        }
+        answer(result.data);
+        announce(M.decisionLogged(name));
+      });
+    },
+    [busy, answer, fail, announce],
+  );
+
+  const logAssumption = useCallback(
+    (point: WorkspaceDiscussionPoint, name: string) => {
+      if (busy) return;
+      setFailure(null);
+      startTransition(async () => {
+        const result = await logDiscussionPointAssumptionAction({
+          meetingDiscussionPointId: point.MeetingDiscussionPointId,
+          rowVer: point.RowVer,
+        });
+        if (!result.ok) {
+          fail(result.error);
+          return;
+        }
+        answer(result.data);
+        announce(M.assumptionLogged(name));
+      });
+    },
+    [busy, answer, fail, announce],
+  );
+
   // The server's formatted view while it matches; plain text until a refresh brings the new one.
   const pointView = useCallback(
     (point: WorkspaceDiscussionPoint) => {
@@ -300,6 +353,12 @@ export function MinutesEditor({
     pointView,
     people,
     setStatus,
+    canLogDecision,
+    decisionsHref,
+    logDecision,
+    canLogAssumption,
+    assumptionsHref,
+    logAssumption,
     today,
   };
 
@@ -424,6 +483,7 @@ export function MinutesEditor({
                     onClick={() => {
                       setFailure(null);
                       router.refresh();
+                      notifySaved();
                     }}
                   >
                     {M.reload}

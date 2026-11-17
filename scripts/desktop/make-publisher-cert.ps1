@@ -1,4 +1,9 @@
-# One-time: create the publisher certificate that signs desktop releases (ADR-0034).
+# Superseded (ADR-0034): releases are signed with a publicly trusted certificate (Microsoft
+# Trusted Signing, or an OV certificate). Do not create a new self-issued certificate. This
+# script stays for the record of how the old one was made; if one was ever deployed, its PFX
+# signs the single bridging release (docs/RELEASE-CHECKLIST.md) and is then retired.
+#
+# One-time: create the publisher certificate that signs desktop releases.
 #
 #   powershell -ExecutionPolicy Bypass -File scripts/desktop/make-publisher-cert.ps1 `
 #     -Subject "CN=Burton Project Manager, O=Burton" -OutDir C:\secure\pm-signing
@@ -10,9 +15,8 @@
 #                  installer ships it and provision.ps1 trusts it on each PC, once.
 # and prints the repository variable PM_PUBLISHER (the subject, verified by every app).
 #
-# A certificate from a public CA works the same way (skip this script, set the three
-# values from the CA's PFX, no .cer to ship). Rotation: run again, replace the secret,
-# the variable and the .cer; PCs pick the new publisher up at their next Repair.
+# Rotation of a self-issued certificate: run again, replace the secret, the variable and
+# the .cer; PCs pick the new publisher up at their next Repair.
 param(
   [Parameter(Mandatory = $true)] [string] $Subject,
   [string] $OutDir = '.',

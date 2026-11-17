@@ -47,6 +47,7 @@ import { headerSort, sortTokenOf } from "./sorting";
 import { StickyScrollbar } from "./sticky-scrollbar";
 import { priorityClass, rowSelectionLabel, type DataViewColumn, type DataViewProps } from "./types";
 import { useListUrlState } from "./use-list-url-state";
+import { notifySaved } from "@/lib/cross-window";
 
 /**
  * The ONE list component (ADR-0006): grid/list toggle (persisted per user per
@@ -250,6 +251,7 @@ export function DataView<Row>({
     }
     announce(messages.datasheet.saved(column.header));
     router.refresh();
+    notifySaved();
     return written;
   };
 
@@ -272,6 +274,7 @@ export function DataView<Row>({
       }
       announce(messages.datasheet.added);
       router.refresh();
+      notifySaved();
     } else {
       toast({ variant: "error", title: failureMessage(result.error) });
     }

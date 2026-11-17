@@ -15,6 +15,8 @@ export interface NextServerOptions {
   uploadsDir?: string;
   /** This PC's backup-status.json, read by Settings > Backup status. */
   backupStatusFile?: string;
+  /** Licence checks for the server; absent means off. */
+  licence?: { enforce: boolean; machineHash: string; publicKeys: string; markKey: string };
   log: Logger;
   /** Called after an unexpected exit has been recovered (new URL). */
   onRestarted?: (url: string) => void;
@@ -35,7 +37,10 @@ export const SLOW_START_MS = 45_000;
 
 /** The server's environment: loopback only, the machine's database and its folders. */
 export function nextServerEnv(
-  opts: Pick<NextServerOptions, "db" | "authSecret" | "uploadsDir" | "backupStatusFile">,
+  opts: Pick<
+    NextServerOptions,
+    "db" | "authSecret" | "uploadsDir" | "backupStatusFile" | "licence"
+  >,
   port: number,
   base: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
@@ -61,6 +66,10 @@ export function nextServerEnv(
     BACKUP_STATUS_FILE: opts.backupStatusFile ?? "",
     TRUSTED_PROXY_COUNT: "0",
     NEXT_TELEMETRY_DISABLED: "1",
+    PM_LICENCE_ENFORCE: opts.licence?.enforce ? "1" : "",
+    PM_LICENCE_PUBLIC_KEYS: opts.licence?.publicKeys ?? "",
+    PM_LICENCE_MARK_KEY: opts.licence?.markKey ?? "",
+    PM_LICENCE_MACHINE: opts.licence?.machineHash ?? "",
   };
 }
 

@@ -38,6 +38,9 @@ import { contextMenuTemplate } from "./context-menu";
 import { createExclusive } from "./exclusive";
 import { GrammarChecker } from "./grammar";
 import { PRINT_PREVIEW_CHANNEL } from "./ipc-channels";
+import { registerLicenceIpc } from "./licence/ipc";
+import type { LicenceStatus } from "./licence/policy";
+import { startLicence, type LicenceSetup } from "./licence/start";
 import { createLogger, describeError } from "./log";
 import { APP_ID, APP_NAME, carryOverProfile, programDataDir } from "./app-folders";
 import { readMachineConfig, SetupRequiredError, type MachineConfig } from "./machine-config";
@@ -58,6 +61,7 @@ import {
   destroyTray,
   initTray,
   setTrayCopyOverdue,
+  setTrayLicensed,
   setTrayUpdateActions,
   setTrayUpdateReady,
   showTrayHint,
@@ -108,6 +112,9 @@ const showPrintPreview = createPrintPreview({
   openWindow: (options) => new BrowserWindow({ ...options, icon: paths.icon }),
 });
 let mainWindow: BrowserWindow | null = null;
+let licenceWindow: BrowserWindow | null = null;
+let licenceSetup: LicenceSetup | null = null;
+let licencePrompt: "starting" | "due" | "live" = "starting";
 let splash: BrowserWindow | null = null;
 let quitting = false;
 /** Backups and restores, one at a time; `backups.current()` is non-null while one runs or waits. */
@@ -326,6 +333,58 @@ function showMain(): void {
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
+}
+
+function openLicenceWindow(view?: "feedback"): void {
+  const options = view ? { query: { view } } : {};
+  const load = (win: BrowserWindow) =>
+    win
+      .loadFile(paths.licenceHtml, options)
+      .catch((err) => log.error("[licence] load failed", err));
+  if (licenceWindow) {
+    void load(licenceWindow);
+    if (licenceWindow.isMinimized()) licenceWindow.restore();
+    licenceWindow.show();
+    licenceWindow.focus();
+    return;
+  }
+  const win = new BrowserWindow({
+    width: 480,
+    height: 560,
+    title: "Modulus",
+    icon: paths.icon,
+    show: false,
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: paths.licencePreload,
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  win.webContents.on("will-navigate", (event) => event.preventDefault());
+  win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  win.once("ready-to-show", () => win.show());
+  win.on("closed", () => {
+    licenceWindow = null;
+    const manager = licenceSetup?.manager;
+    if (manager) setTrayLicensed(manager.licence() !== null);
+  });
+  licenceWindow = win;
+  void load(win);
+}
+
+const LICENCE_NEEDS_ACTION: ReadonlySet<LicenceStatus> = new Set([
+  "unlicensed",
+  "expired",
+  "reconnect",
+]);
+
+function onLicenceStatus(status: LicenceStatus): void {
+  setTrayLicensed(status !== "unlicensed" && status !== "off");
+  if (!LICENCE_NEEDS_ACTION.has(status)) return;
+  if (licencePrompt === "live") openLicenceWindow();
+  else licencePrompt = "due";
 }
 
 async function message(
@@ -744,12 +803,31 @@ async function bootstrap(): Promise<void> {
     const adminPassword = await ensureAdminAccount(cfg.sql, loadArgon2(), log);
 
     setSplashStatus("Starting Modulus…");
+    const licence = await startLicence({
+      target: cfg.sql,
+      userData: app.getPath("userData"),
+      appPath: app.getAppPath(),
+      log,
+      onStatus: onLicenceStatus,
+    });
+    licenceSetup = licence;
+    if (licence.manager) {
+      registerLicenceIpc({
+        handle: (channel, handler) => ipcMain.handle(channel, handler),
+        manager: licence.manager,
+        isLicenceWindow: (sender) => licenceWindow !== null && sender === licenceWindow.webContents,
+        appVersion: app.getVersion(),
+        logError: (text, err) => log.error(`[licence] ${text}`, err),
+        onChanged: onLicenceStatus,
+      });
+    }
     server = new NextServer({
       standaloneDir: paths.standaloneDir,
       db: cfg.sql,
       authSecret: cfg.authSecret,
       uploadsDir: cfg.uploadsDir,
       backupStatusFile,
+      licence: licence.server,
       log,
       onRestarted: (url) => mainWindow?.loadURL(url).catch(() => undefined),
       onSlowStart: () =>
@@ -782,9 +860,14 @@ async function bootstrap(): Promise<void> {
         openLogs: () => void shell.openPath(path.dirname(log.file)),
         quit: () => app.quit(),
         ...(cfg.uploadsDir ? {} : { setUpAttachments: () => void setUpAttachmentsAction() }),
+        ...(licence.manager
+          ? { licence: () => openLicenceWindow(), feedback: () => openLicenceWindow("feedback") }
+          : {}),
       },
       app.getVersion(),
     );
+    if (licencePrompt === "due") openLicenceWindow();
+    licencePrompt = "live";
     const updater = setupAutoUpdater(log, settings, {
       getWindow: () => mainWindow,
       showWindow: showMain,
@@ -872,6 +955,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on("will-quit", () => {
     grammar.stop();
     server?.stop();
+    licenceSetup?.stop();
     destroyTray();
     log.info("=== quit ===");
   });

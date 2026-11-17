@@ -23,6 +23,13 @@ RETURN
            du.DisplayName AS DoneByName,
            i.SortOrder,
            i.CreatedAtUtc,
+           CONVERT(CHAR(10), i.StartDate, 23) AS StartDate,
+           CONVERT(CHAR(10), i.DueDate, 23) AS DueDate,
+           i.AssigneeStakeholderId,
+           CONCAT_WS(N' ', au.FirstName, au.LastName) AS AssigneeName,
+           i.Priority,
+           i.Notes,
+           lt.TodoItemId,
            CAST(i.RowVer AS BIGINT) AS RowVer,
            acc.AccessLevel AS ActorAccess,
            ov.Grants AS ActorGrants,
@@ -43,6 +50,8 @@ RETURN
             FOR JSON PATH) AS Cells
     FROM app.ChecklistItem i
     LEFT JOIN auth.[User] du ON du.UserId = i.DoneBy
+    LEFT JOIN app.Stakeholder au ON au.StakeholderId = i.AssigneeStakeholderId
+    LEFT JOIN app.TodoItem lt ON lt.TodoItemId = i.TodoItemId AND lt.IsDeleted = 0
     OUTER APPLY dbo.ufn_AccessLevel_Resolve(@ActorRole, @ActorUserId, i.ProjectId, 0) acc
     OUTER APPLY dbo.ufn_Permission_Overrides(@ActorRole, @ActorUserId, i.ProjectId, N'checklists') ov
     WHERE i.ChecklistItemId = @ChecklistItemId;

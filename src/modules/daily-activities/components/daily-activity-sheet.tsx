@@ -31,6 +31,7 @@ import {
 import { buildTodoFromDailyActivityAction } from "@/modules/todo-items/actions";
 import type { AttachmentRow } from "@/modules/file-storage/schemas/attachment";
 import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
+import { notifySaved } from "@/lib/cross-window";
 
 /**
  * Daily Activity detail/edit sheet  default pattern): edit is the
@@ -91,6 +92,7 @@ export function DailyActivitySheet({
       if (result.ok) {
         toast({ variant: "success", title: messages.dailyActivities.todoCreated });
         router.refresh();
+        notifySaved();
       } else {
         setBuildSummary(result.error.message);
       }

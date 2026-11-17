@@ -2,7 +2,10 @@
 -- ADR-0028): one row with the meeting's header fields and its child collections as JSON columns
 -- (execProc reads a single recordset), each ordered for display:
 --   AgendaItemsJson      [{MeetingAgendaItemId, AgendaItem, SortOrder, RowVer}]
---   DiscussionPointsJson [{MeetingDiscussionPointId, AgendaItemId, DiscussionPoint, SortOrder, RowVer}]
+--   DiscussionPointsJson [{MeetingDiscussionPointId, AgendaItemId, DiscussionPoint, SortOrder, RowVer,
+--                          DecisionId, DecisionNumber, AssumptionConstraintId}] (the decision-log
+--                          and assumption entries the point was logged as; null when none or
+--                          when that entry was deleted)
 --   ActionItemsJson      [{MeetingActionItemId, AgendaItemId, DiscussionPointId, Action,
 --                          AssignedToStakeholderId, AssigneeName (null when nobody is responsible),
 --                          DueDate, Status, OnHoldReason (ADR-0044; null unless on hold),
@@ -72,8 +75,12 @@ BEGIN
             ORDER BY a.SortOrder, a.MeetingAgendaItemId
             FOR JSON PATH, INCLUDE_NULL_VALUES) AS AgendaItemsJson,
            (SELECT dp.MeetingDiscussionPointId, dp.AgendaItemId, dp.DiscussionPoint, dp.SortOrder,
-                   CAST(dp.RowVer AS BIGINT) AS RowVer
+                   CAST(dp.RowVer AS BIGINT) AS RowVer, d.DecisionId, d.DecisionNumber,
+                   ac.AssumptionConstraintId
             FROM app.MeetingDiscussionPoint AS dp
+            LEFT JOIN app.Decision AS d ON d.DecisionId = dp.DecisionId AND d.IsDeleted = 0
+            LEFT JOIN app.AssumptionConstraint AS ac
+                ON ac.AssumptionConstraintId = dp.AssumptionConstraintId AND ac.IsDeleted = 0
             JOIN app.MeetingAgendaItem AS a
                 ON a.MeetingAgendaItemId = dp.AgendaItemId AND a.IsDeleted = 0
             WHERE a.MeetingId = m.MeetingId AND dp.IsDeleted = 0

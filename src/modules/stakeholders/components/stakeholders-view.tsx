@@ -172,7 +172,9 @@ export function StakeholdersView({
       onOpen={(row) =>
         update({ id: String(row.StakeholderId), page: searchParams.get("page") ?? null })
       }
-      renderToolbar={(viewToggle) => <StakeholdersToolbar>{viewToggle}</StakeholdersToolbar>}
+      renderToolbar={(viewToggle) => (
+        <StakeholdersToolbar projectId={projectId}>{viewToggle}</StakeholdersToolbar>
+      )}
       renderCard={(row) => (
         <div className="flex flex-col gap-2">
           <p className="text-sm font-semibold text-ink">{fullName(row)}</p>

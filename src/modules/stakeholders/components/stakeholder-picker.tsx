@@ -13,6 +13,7 @@ import { createStakeholderAction } from "../actions";
 import { stakeholderOption, typedNameValues } from "../names";
 import type { StakeholderOption } from "../repository/stakeholder-options";
 import { namesAPick, unpickedOptions, type PickedStakeholder } from "../stakeholder-picks";
+import { notifySaved } from "@/lib/cross-window";
 
 /**
  * The shared stakeholder picker (ADR-0001: key deliverables use it), laid out like the project
@@ -84,6 +85,7 @@ export function StakeholderMultiSelect({
         clear();
         toast({ variant: "success", title: messages.stakeholders.stakeholderAdded(option.name) });
         router.refresh();
+        notifySaved();
       }),
     [projectId, onAdd, toast, router],
   );

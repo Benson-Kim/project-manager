@@ -17,6 +17,9 @@ export interface TrayActions {
   installUpdate?(): void;
   /** Present only while this PC has no attachments folder (ADR-0026 §9). */
   setUpAttachments?(): void;
+  /** Present only in a build that checks its licence. */
+  licence?(): void;
+  feedback?(): void;
 }
 
 export interface TrayState {
@@ -25,6 +28,8 @@ export interface TrayState {
   readyVersion: string | null;
   /** Nothing has been copied to the backup copy folder for too long. */
   copyOverdue: boolean;
+  /** A trial or licence is held, so feedback can be sent. */
+  licensed: boolean;
 }
 
 export const COPY_NOW_LABEL = "Back up and copy now";
@@ -50,6 +55,8 @@ export function trayMenuTemplate(a: TrayActions, s: TrayState): MenuItemConstruc
     { label: "Choose backup copy folder…", click: a.chooseBackupCopyFolder },
     { label: "Restore from backup…", click: a.restore },
     { type: "separator" },
+    ...(a.licence ? [{ label: "Licence…", click: a.licence }] : []),
+    ...(a.feedback && s.licensed ? [{ label: "Send feedback…", click: a.feedback }] : []),
     ...(a.setUpAttachments
       ? [{ label: "Set up attachments (administrator)…", click: a.setUpAttachments }]
       : []),

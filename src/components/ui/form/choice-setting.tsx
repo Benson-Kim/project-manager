@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/form/inputs";
 import { useToast } from "@/components/ui/toast";
 import type { ActionResult } from "@/lib/action";
 import { messages } from "@/lib/messages";
+import { notifySaved } from "@/lib/cross-window";
 
 interface ChoiceSettingProps {
   testId: string;
@@ -52,6 +53,7 @@ export function ChoiceSetting({
             }
             toast({ variant: "success", title: messages.feedback.saved });
             router.refresh();
+            notifySaved();
           } catch {
             setError(messages.errors.INTERNAL);
           }

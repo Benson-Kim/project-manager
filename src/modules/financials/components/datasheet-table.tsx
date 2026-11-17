@@ -20,6 +20,7 @@ import {
 import type { DataViewColumn } from "@/components/ui/data-view/types";
 import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
+import { notifySaved } from "@/lib/cross-window";
 
 /**
  * The financials datasheets (budget lines, transactions) are the list modules'
@@ -172,10 +173,12 @@ export function useDatasheetFeedback() {
     saved: (header: string) => {
       announce(messages.datasheet.saved(header));
       router.refresh();
+      notifySaved();
     },
     added: () => {
       announce(messages.datasheet.added);
       router.refresh();
+      notifySaved();
     },
     failed: (error: { message: string; fieldErrors?: Record<string, string[]> }) =>
       toast({ variant: "error", title: failureMessage(error) }),

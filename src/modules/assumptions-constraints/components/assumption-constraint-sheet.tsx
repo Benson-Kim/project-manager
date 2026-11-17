@@ -28,6 +28,7 @@ import {
   deleteAssumptionConstraintAction,
   updateAssumptionConstraintAction,
 } from "../actions";
+import { notifySaved } from "@/lib/cross-window";
 
 /**
  * Assumption/constraint detail/edit sheet (ADR-0010 default pattern):
@@ -140,6 +141,7 @@ export function AssumptionConstraintSheet({
         announce(item ? messages.feedback.saved : messages.feedback.created);
         close();
         router.refresh();
+        notifySaved();
       } else {
         form.applyResult(result);
         setSummary(result.error.message);
@@ -164,6 +166,7 @@ export function AssumptionConstraintSheet({
         announce(messages.feedback.deleted);
         close();
         router.refresh();
+        notifySaved();
       } else {
         setSummary(result.error.message);
         if (result.error.code === "CONFLICT") setConflict(true);

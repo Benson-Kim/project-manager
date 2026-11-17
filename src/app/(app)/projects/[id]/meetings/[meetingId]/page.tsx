@@ -107,6 +107,12 @@ export default async function MeetingPage({
                 canCreate={allows("meetings:create")}
                 canEdit={allows("meetings:update")}
                 canDelete={allows("meetings:delete")}
+                canLogDecision={allows("meetings:update") && allows("decisions:create")}
+                decisionsHref={`/projects/${projectId}/decisions`}
+                canLogAssumption={
+                  allows("meetings:update") && allows("assumptions-constraints:create")
+                }
+                assumptionsHref={`/projects/${projectId}/assumptions-constraints`}
               />
             </section>
           </div>

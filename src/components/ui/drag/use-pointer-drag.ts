@@ -171,11 +171,11 @@ export function useDragGesture<Id extends string | number, Drop>(
       .elementFromPoint(state.x, state.y)
       ?.closest<HTMLElement>("[data-drag-lane]");
     const container = lane?.closest<HTMLElement>("[data-drag-container]");
-    if (container) {
-      const box = container.getBoundingClientRect();
-      container.scrollLeft += edgeScroll(state.x, box.left, box.right);
-    }
-    window.scrollBy(0, edgeScroll(state.y, 0, window.innerHeight));
+    const box = container?.getBoundingClientRect();
+    const dx = box ? edgeScroll(state.x, box.left, box.right) : 0;
+    const dy = edgeScroll(state.y, 0, window.innerHeight);
+    if (container) container.scrollLeft += dx;
+    window.scrollBy(0, dy);
     frame.current = requestAnimationFrame(follow);
   };
   const end = (drop: boolean) => {
@@ -187,6 +187,9 @@ export function useDragGesture<Id extends string | number, Drop>(
     if (state.moved) {
       document.documentElement.style.removeProperty("cursor");
       if (drop) swallowNextClick();
+    }
+    if (drop && state.moved) {
+      state.over = optionsRef.current.locate(state.x, state.y, state.id, state.over);
     }
     const landed = drop && state.moved && state.over !== null;
     if (landed) optionsRef.current.onDrop(state.id, state.over as Drop);

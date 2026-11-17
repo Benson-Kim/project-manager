@@ -6,6 +6,7 @@ import { useAnnouncer } from "@/components/ui/announcer";
 import { useToast } from "@/components/ui/toast";
 import type { ActionResult } from "@/lib/action";
 import { messages } from "@/lib/messages";
+import { notifySaved } from "@/lib/cross-window";
 
 /**
  * One outcome rule for every financials form (ADR-0029): success toasts,
@@ -45,6 +46,7 @@ export function useFinancialAction() {
           announce(title);
           onSuccess?.(result.data);
           router.refresh();
+          notifySaved();
           return;
         }
         if (result.error.code === "UNAUTHENTICATED") {
@@ -62,6 +64,7 @@ export function useFinancialAction() {
   const reload = useCallback(() => {
     reset();
     router.refresh();
+    notifySaved();
   }, [reset, router]);
 
   return {

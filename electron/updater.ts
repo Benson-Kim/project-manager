@@ -5,6 +5,7 @@ import path from "path";
 import type { Logger } from "./log";
 import { paths } from "./paths";
 import { alignDifferentialBase, updaterCacheDir, type BaseState } from "./update-cache";
+import { isSignatureRefusal, trustedPublishers } from "./update-publishers";
 import {
   checkAnswer,
   installOutcome,
@@ -94,12 +95,12 @@ export function setupAutoUpdater(
   autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.disableWebInstaller = true; // we ship the full NSIS installer
   // ADR-0034: with a publisherName in the feed, electron-updater checks the downloaded
-  // installer's Authenticode signature (valid chain + this subject) before installing.
+  // installer's Authenticode signature (valid chain + one of these subjects) before installing.
   const feed = fs.readFileSync(feedFile, "utf8");
-  const publisher = /^publisherName:\s*(.*)$/m.exec(feed)?.[1]?.trim();
+  const publishers = trustedPublishers(feed);
   log.info(
-    publisher
-      ? `[updater] installer signatures are verified against ${publisher}`
+    publishers.length
+      ? `[updater] installer signatures are verified against ${publishers.join(" | ")}`
       : "[updater] releases are unsigned: installer signatures are not verified",
   );
   const cacheDir = updaterCacheDir(feed);
@@ -108,6 +109,8 @@ export function setupAutoUpdater(
   let requiredTimer: NodeJS.Timeout | null = null;
   let installTimer: NodeJS.Timeout | null = null;
   let lastNotice = { version: "", at: 0 };
+  let available = "";
+  let refused = "";
   let installing = false;
   let offering = false;
   let base: BaseState | null = null;
@@ -277,6 +280,7 @@ export function setupAutoUpdater(
 
   autoUpdater.on("update-available", (info: UpdateInfo) => {
     const kind = isRequired(info) ? "required" : "optional";
+    available = info.version;
     log.info(`[updater] ${info.version} available (${kind}), downloading`);
     if (ready && isNewer(info.version, ready.version) && !installing) {
       log.info(`[updater] ${info.version} replaces ${ready.version}, which is no longer offered`);
@@ -293,8 +297,21 @@ export function setupAutoUpdater(
     else announce(info);
   });
 
-  // Offline, GitHub down, rate limit…: log only, never bother the user.
-  autoUpdater.on("error", (err) => log.warn(`[updater] ${err?.message ?? String(err)}`));
+  // Offline, GitHub down, rate limit…: log only, never bother the user. A refused signature
+  // is different: this PC will never install that release by itself (ADR-0034), so say so once.
+  autoUpdater.on("error", (err) => {
+    if (!isSignatureRefusal(err)) {
+      log.warn(`[updater] ${err?.message ?? String(err)}`);
+      return;
+    }
+    log.error(`[updater] installer refused, not from a trusted publisher: ${err.message}`);
+    if (!available || refused === available) return;
+    refused = available;
+    hooks.notify(
+      "Update not installed",
+      `Modulus ${available} could not be verified, so it was not installed. Download the latest installer to keep updating.`,
+    );
+  });
 
   const alignBase = (): void => {
     if (!cacheDir) return;

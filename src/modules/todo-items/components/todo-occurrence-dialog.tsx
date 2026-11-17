@@ -14,6 +14,7 @@ import { messages } from "@/lib/messages";
 import { setTodoOccurrenceAction } from "../actions";
 import type { CalendarEntry } from "../calendar";
 import { COMPLETED_STATUS, isClosedStatus } from "../schemas/todo-item";
+import { notifySaved } from "@/lib/cross-window";
 
 const C = messages.todoItems.calendar;
 
@@ -80,6 +81,7 @@ function OccurrenceChoices({
         announce(messages.feedback.saved);
         onClose();
         router.refresh();
+        notifySaved();
       } else {
         setSummary(result.error.message);
       }

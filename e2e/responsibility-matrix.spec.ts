@@ -26,8 +26,8 @@ async function createToast(page: Page): Promise<void> {
   ).toBeVisible({ timeout: 15_000 });
 }
 
-async function createStakeholder(page: Page, firstName: string): Promise<void> {
-  await page.goto("/projects/2/stakeholders?id=new");
+async function createStakeholder(page: Page, firstName: string, projectId = "2"): Promise<void> {
+  await page.goto(`/projects/${projectId}/stakeholders?id=new`);
   const form = page.getByTestId("stakeholder-form");
   await expect(form).toBeVisible();
   await form.getByLabel(S.firstName).fill(firstName);
@@ -57,10 +57,22 @@ function legendOf(scope: Page | Locator): Locator {
   return scope.getByRole("list", { name: R.legend }).getByRole("listitem");
 }
 
-/** Creates a matrix from the matrix menu; the dialog previews the framework's roles first. */
-async function createMatrix(page: Page, name: string, framework: Framework = RACI): Promise<void> {
-  await page.goto(PAGE);
-  await matrixMenu(page).click();
+async function createProject(page: Page): Promise<string> {
+  await page.goto("/projects/new");
+  await page.getByLabel(messages.projects.name).fill(`E2E matrix project ${Date.now()}`);
+  await page.getByTestId("project-save").click();
+  await page.waitForURL(/\/projects\/\d+/);
+  return new URL(page.url()).pathname.split("/")[2]!;
+}
+
+/** Creates a matrix with the New button beside the switcher; the dialog previews the framework's roles first. */
+async function createMatrix(
+  page: Page,
+  name: string,
+  framework: Framework = RACI,
+  projectId = "2",
+): Promise<void> {
+  await page.goto(`/projects/${projectId}/responsibility`);
   await page.getByTestId("responsibility-matrix-new").click();
   const dialog = dialogOf(page, R.newMatrix);
   await dialog.getByTestId("responsibility-new-name").fill(name);
@@ -124,6 +136,15 @@ test("the role tags list the framework's roles and a new matrix starts without m
   await expect(legendOf(page)).toHaveText(roleTags(RACI));
   await expect(page.getByRole("combobox", { name: R.addMember, exact: true })).toBeVisible();
   await expect(page.getByTestId("responsibility-member")).toHaveCount(0);
+
+  const fullscreen = page.getByTestId("responsibility-fullscreen");
+  await expect(fullscreen).toHaveText("Full screen");
+  await fullscreen.click();
+  await expect(fullscreen).toHaveAttribute("aria-pressed", "true");
+  await expect(fullscreen).toHaveText("Exit full screen");
+  await fullscreen.click();
+  await expect(fullscreen).toHaveAttribute("aria-pressed", "false");
+  await expect(fullscreen).toHaveText("Full screen");
 });
 
 test("roles are set per person, flagged when missing or doubled, and survive a reload", async ({
@@ -270,20 +291,19 @@ test("a matrix is renamed and deleted, and the empty state returns with the last
   await createMatrix(page, matrix);
 
   const renamed = `${matrix} renamed`;
-  await matrixMenu(page).click();
   await page.getByTestId("responsibility-matrix-rename").click();
   const rename = dialogOf(page, R.renameTitle);
   await rename.getByRole("textbox", { name: R.name }).fill(renamed);
   await rename.getByRole("button", { name: messages.actions.save }).click();
   await expect(matrixMenu(page)).toContainText(renamed);
 
-  await matrixMenu(page).click();
   await page.getByTestId("responsibility-matrix-delete").click();
   const removal = dialogOf(page, R.deleteTitle(renamed));
   await expect(removal).toContainText(R.deleteBody);
   await removal.getByRole("button", { name: R.delete, exact: true }).click();
-  await expect(matrixMenu(page)).not.toContainText(renamed);
-  await matrixMenu(page).click();
+  await expect(matrixMenu(page).filter({ hasText: renamed })).toHaveCount(0);
+  await expect(page.getByTestId("responsibility-matrix-new")).toBeVisible();
+  if ((await matrixMenu(page).count()) > 0) await matrixMenu(page).click();
   await expect(
     page.getByTestId("responsibility-matrix-item").filter({ hasText: renamed }),
   ).toHaveCount(0);
@@ -525,4 +545,36 @@ test("a cell changed in another tab is refused, shows the other tab's role, and 
 
   await page.reload();
   await expect(cell(page, deliverable, ann)).toHaveValue("CONSULTED");
+});
+
+test("once everyone is in the matrix, the add box gives way to a link for adding a stakeholder", async ({
+  page,
+}) => {
+  test.slow();
+  const projectId = await createProject(page);
+  await createStakeholder(page, `Everyone ${Date.now()}`, projectId);
+  await createMatrix(page, `Everyone ${Date.now()}`, RACI, projectId);
+  const add = page.getByTestId("responsibility-add-member");
+  while (await add.isVisible()) {
+    const left = await add.locator("option").count();
+    await add.selectOption({ index: 1 });
+    await expect(add.locator("option")).not.toHaveCount(left);
+  }
+  await expect(page.getByTestId("responsibility-no-one-to-add")).toContainText(R.everyoneAdded);
+  await expect(page.getByTestId("responsibility-add-stakeholder")).toHaveAttribute(
+    "href",
+    `/projects/${projectId}/stakeholders?id=new`,
+  );
+});
+
+test("on a project with no stakeholders, the matrix says why no one can be added and links to adding one", async ({
+  page,
+}) => {
+  test.slow();
+  const projectId = await createProject(page);
+  await createMatrix(page, `Nobody ${Date.now()}`, RACI, projectId);
+  await expect(page.getByTestId("responsibility-add-member")).toHaveCount(0);
+  await expect(page.getByTestId("responsibility-no-one-to-add")).toContainText(R.noOneToAdd);
+  await page.getByTestId("responsibility-add-stakeholder").click();
+  await page.waitForURL(`**/projects/${projectId}/stakeholders?id=new`);
 });

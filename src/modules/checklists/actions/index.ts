@@ -2,6 +2,7 @@
 
 import { action } from "@/lib/action";
 import {
+  addItemsToCalendar,
   createChecklist,
   createColumn,
   createItem,
@@ -13,10 +14,12 @@ import {
   renameColumn,
   runTodo,
   setCell,
+  setItemDetails,
   setItemDone,
   updateItem,
 } from "../repository/checklists";
 import {
+  addItemsToCalendarInput,
   createChecklistInput,
   createColumnInput,
   createItemInput,
@@ -28,6 +31,7 @@ import {
   renameColumnInput,
   runTodoInput,
   setCellInput,
+  setItemDetailsInput,
   setItemDoneInput,
   updateItemInput,
 } from "../schemas/checklist";
@@ -117,6 +121,13 @@ export const setItemDoneAction = action({
   handler: (input, ctx) => setItemDone(input, ctx.session.userId),
 });
 
+export const setItemDetailsAction = action({
+  name: "checklists.item.details",
+  schema: setItemDetailsInput,
+  permission: "checklists:update",
+  handler: (input, ctx) => setItemDetails(input, ctx.session.userId),
+});
+
 export const deleteItemAction = action({
   name: "checklists.item.delete",
   schema: deleteItemInput,
@@ -138,4 +149,12 @@ export const runTodoAction = action({
   permission: "todo-items:create",
   revalidate: ["/projects/[id]/todos"],
   handler: (input, ctx) => runTodo(input, ctx.session.userId),
+});
+
+export const addItemsToCalendarAction = action({
+  name: "checklists.item.calendar",
+  schema: addItemsToCalendarInput,
+  permission: "todo-items:create",
+  revalidate: ["/projects/[id]/todos", "/projects/[id]/calendar"],
+  handler: (input, ctx) => addItemsToCalendar(input, ctx.session.userId),
 });

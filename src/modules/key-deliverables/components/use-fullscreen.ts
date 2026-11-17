@@ -1,6 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { messages } from "@/lib/messages";
+
+export function fullscreenLabel(active: boolean): string {
+  const W = messages.keyDeliverables.wbs;
+  return active ? W.exitFullscreen : W.fullscreen;
+}
 
 /**
  * Full screen for one view. The whole page goes full screen, not the view's element, because
@@ -43,5 +49,5 @@ export function useFullscreen() {
     }
   }, []);
 
-  return { active, supported, toggle };
+  return { active, supported, toggle, label: fullscreenLabel(active) };
 }

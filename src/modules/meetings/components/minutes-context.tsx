@@ -58,6 +58,18 @@ export interface MinutesContextValue {
     name: string,
     current?: string | null,
   ) => void;
+  /** Meeting edits and new decision-log entries are both allowed. */
+  canLogDecision: boolean;
+  /** The project's decision log; a point already logged links to it. */
+  decisionsHref: string;
+  /** Logs the point in the decision log; a point already logged keeps its decision. */
+  logDecision: (point: WorkspaceDiscussionPoint, name: string) => void;
+  /** Meeting edits and new assumptions are both allowed. */
+  canLogAssumption: boolean;
+  /** The project's assumptions and constraints register; a logged point links to its entry. */
+  assumptionsHref: string;
+  /** Logs the point as an assumption; a point already logged keeps it. */
+  logAssumption: (point: WorkspaceDiscussionPoint, name: string) => void;
   /** "YYYY-MM-DD" on the server's calendar: actions due before it are overdue. */
   today: string;
 }

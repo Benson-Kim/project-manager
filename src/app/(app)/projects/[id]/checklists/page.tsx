@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
+import { withRichViews } from "@/components/ui/rich-text/rich-views";
 import { EmptyState } from "@/components/ui/states";
 import { auth } from "@/lib/auth/provider";
 import { flattenSearchParams, initialViewOf, parseListParams } from "@/lib/list-params";
@@ -11,7 +12,10 @@ import { ChecklistForm } from "@/modules/checklists/components/checklist-form";
 import { ChecklistView } from "@/modules/checklists/components/checklist-view";
 import { listChecklists, listColumns, listItems } from "@/modules/checklists/repository/checklists";
 import { CHECKLIST_ITEM_SORT } from "@/modules/checklists/schemas/checklist";
+import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
+import { loadLookupLists } from "@/modules/lookup-lists/queries/load-lookup-lists";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
+import { listStakeholderOptions } from "@/modules/stakeholders/repository/stakeholder-options";
 import { parseProjectId } from "../project-id";
 
 const M = messages.checklists;
@@ -48,6 +52,7 @@ export default async function ChecklistsPage({
     update: allows("checklists:update"),
     delete: allows("checklists:delete"),
     makeTodo: allows("todo-items:create"),
+    makeBoard: allows("boards:create"),
   };
   const current =
     checklists.find((each) => String(each.ChecklistId) === flat.checklist) ?? checklists[0];
@@ -71,13 +76,15 @@ export default async function ChecklistsPage({
     );
   }
 
-  const [columns, rows] = await Promise.all([
+  const [columns, rows, people, lookup] = await Promise.all([
     orNotFound(listColumns(current.ChecklistId, session.userId)),
     orNotFound(listItems(current.ChecklistId, listParams, session.userId)),
+    listStakeholderOptions(projectId, session.userId),
+    loadLookupLists(["todo-item.priority"], session),
   ]);
 
   return (
-    <>
+    <LookupListsScope {...lookup}>
       <PageHeader title={current.Name} />
       <div className="mt-3 flex flex-1 flex-col">
         <ChecklistView
@@ -86,15 +93,16 @@ export default async function ChecklistsPage({
           checklist={current}
           checklists={checklists}
           columns={columns}
-          rows={rows}
+          rows={withRichViews(rows, ["Notes"])}
           totalCount={rows[0]?.TotalCount ?? 0}
           page={listParams.page}
           initialView={initialViewOf(listParams.view, preference?.viewMode)}
           layout={preference?.layout}
           filtersActive={Boolean(listParams.q)}
           can={can}
+          people={people}
         />
       </div>
-    </>
+    </LookupListsScope>
   );
 }

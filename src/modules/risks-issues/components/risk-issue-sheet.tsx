@@ -27,6 +27,7 @@ import {
   riskIssueFormValues,
 } from "../schemas/risk-issue-form";
 import { createRiskIssueAction, deleteRiskIssueAction, updateRiskIssueAction } from "../actions";
+import { notifySaved } from "@/lib/cross-window";
 
 /** The record's own words, cut to fit a title or a confirmation. */
 function label(item: RiskIssueRow | null, max: number): string {
@@ -134,6 +135,7 @@ export function RiskIssueSheet({
         announce(item ? messages.feedback.saved : messages.feedback.created);
         close();
         router.refresh();
+        notifySaved();
       } else {
         form.applyResult(result);
         setSummary(result.error.message);
@@ -158,6 +160,7 @@ export function RiskIssueSheet({
         announce(messages.feedback.deleted);
         close();
         router.refresh();
+        notifySaved();
       } else {
         setSummary(result.error.message);
         if (result.error.code === "CONFLICT") setConflict(true);

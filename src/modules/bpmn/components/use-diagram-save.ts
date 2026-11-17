@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActionResult } from "@/lib/action";
 import { saveDiagramAction } from "../actions";
 import { DIAGRAM_LIMITS, type BpmnDiagram } from "../model/diagram";
+import { notifySaved } from "@/lib/cross-window";
 
 export type SaveStatus = "saved" | "unsaved" | "saving" | "failed" | "conflict" | "tooLarge";
 
@@ -59,6 +60,7 @@ export function useDiagramSave(
             if (result.ok) {
               rowVer.current = result.data.RowVer;
               savedJson.current = json;
+              notifySaved();
             } else if (result.error.code === "CONFLICT" || result.error.code === "NOT_FOUND") {
               stopped.current = true;
               queued.current = null;
@@ -88,7 +90,10 @@ export function useDiagramSave(
     inFlight.current = true;
     try {
       const result = await task(rowVer.current);
-      if (result.ok) rowVer.current = result.data.RowVer;
+      if (result.ok) {
+        rowVer.current = result.data.RowVer;
+        notifySaved();
+      }
       return result;
     } finally {
       inFlight.current = false;

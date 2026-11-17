@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; form-action 'none'; base-uri 'none'"
+    />
+    <title>Modulus</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 28px 32px;
+        min-height: 100vh;
+        font-family:
+          "Segoe UI",
+          system-ui,
+          -apple-system,
+          sans-serif;
+        font-size: 14px;
+        color: #e2e8f0;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 20px;
+        font-weight: 600;
+      }
+      h2 {
+        margin: 22px 0 8px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #38bdf8;
+      }
+      p {
+        margin: 0 0 10px;
+        line-height: 1.45;
+      }
+      label {
+        display: block;
+        margin: 0 0 4px;
+        color: #94a3b8;
+      }
+      input[type="email"],
+      input[type="text"],
+      textarea {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid #334155;
+        border-radius: 6px;
+        background: #0f172a;
+        color: #e2e8f0;
+        font: inherit;
+      }
+      textarea {
+        resize: vertical;
+        min-height: 96px;
+      }
+      input:focus,
+      textarea:focus,
+      button:focus-visible {
+        outline: 2px solid #38bdf8;
+        outline-offset: 1px;
+      }
+      form {
+        margin: 0 0 12px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: flex-end;
+      }
+      .row > div {
+        flex: 1;
+      }
+      .check {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin: 10px 0 6px;
+        color: #e2e8f0;
+      }
+      button {
+        padding: 8px 14px;
+        border: 0;
+        border-radius: 6px;
+        background: #38bdf8;
+        color: #0f172a;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+      #status {
+        color: #e2e8f0;
+      }
+      #message {
+        min-height: 20px;
+        color: #818cf8;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <section id="activation">
+      <h1>Licence</h1>
+      <p id="status"></p>
+      <button id="reconnect" type="button" hidden>Try again</button>
+      <div id="start" hidden>
+        <h2>Start a trial</h2>
+        <form id="trial-email">
+          <label for="email">Email</label>
+          <div class="row">
+            <div>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                maxlength="254"
+                autocomplete="email"
+                required
+              />
+            </div>
+            <button type="submit">Send code</button>
+          </div>
+        </form>
+        <form id="trial-code" hidden>
+          <label for="trial-code-input">Code from the email</label>
+          <div class="row">
+            <div>
+              <input
+                id="trial-code-input"
+                name="code"
+                type="text"
+                inputmode="numeric"
+                maxlength="6"
+                pattern="[0-9]{6}"
+                autocomplete="one-time-code"
+                required
+              />
+            </div>
+            <button type="submit">Start trial</button>
+          </div>
+        </form>
+      </div>
+      <h2>Licence code</h2>
+      <form id="redeem">
+        <label for="redeem-code">Code</label>
+        <div class="row">
+          <div>
+            <input
+              id="redeem-code"
+              name="code"
+              type="text"
+              maxlength="22"
+              spellcheck="false"
+              required
+            />
+          </div>
+          <button type="submit">Activate</button>
+        </div>
+      </form>
+    </section>
+    <section id="feedback" hidden>
+      <h1>Send feedback</h1>
+      <form id="feedback-form">
+        <label for="body">What works, what doesn't, what you'd change</label>
+        <textarea id="body" name="body" maxlength="5000" required></textarea>
+        <p></p>
+        <button type="submit">Send</button>
+      </form>
+      <h2>Quoting you</h2>
+      <form id="consent">
+        <label class="check"><input name="testimonial" type="checkbox" /> You may quote me</label>
+        <textarea name="quote" maxlength="2000" aria-label="Quote"></textarea>
+        <label class="check"
+          ><input name="name" type="checkbox" /> You may show my name with it</label
+        >
+        <input name="displayName" type="text" maxlength="120" aria-label="Name to show" />
+        <p></p>
+        <button type="submit">Save</button>
+      </form>
+    </section>
+    <p id="message" role="status" aria-live="polite"></p>
+  </body>
+</html>

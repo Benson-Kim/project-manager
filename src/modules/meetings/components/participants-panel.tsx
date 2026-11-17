@@ -28,6 +28,7 @@ import {
   type Attendance,
   type Choices,
 } from "../schemas/participant-roster";
+import { notifySaved } from "@/lib/cross-window";
 
 const M = messages.meetings;
 const NO_CHOICES: Choices = new Map();
@@ -125,6 +126,7 @@ export function ParticipantsPanel({
     setConflict(false);
     markClean();
     router.refresh();
+    notifySaved();
   };
 
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -155,6 +157,7 @@ export function ParticipantsPanel({
         toast({ variant: "success", title: messages.feedback.saved });
         announce(messages.feedback.saved);
         router.refresh();
+        notifySaved();
       } else if (result.error.code === "UNAUTHENTICATED") {
         router.push("/login?reason=expired");
       } else {

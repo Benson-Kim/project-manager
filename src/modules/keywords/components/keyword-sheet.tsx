@@ -19,6 +19,7 @@ import { messages } from "@/lib/messages";
 import { type KeywordRow } from "../schemas/keyword";
 import { keywordFormSchema, updateKeywordFormSchema } from "../schemas/keyword-form";
 import { createKeywordAction, deleteKeywordAction, updateKeywordAction } from "../actions";
+import { notifySaved } from "@/lib/cross-window";
 
 /**
  * Keyword detail/edit sheet  default pattern): URL-synced via ?id=
@@ -107,6 +108,7 @@ export function KeywordSheet({
         announce(keyword ? messages.feedback.saved : messages.feedback.created);
         close();
         router.refresh();
+        notifySaved();
       } else {
         form.applyResult(result);
         setSummary(result.error.message);
@@ -128,6 +130,7 @@ export function KeywordSheet({
         announce(messages.feedback.deleted);
         close();
         router.refresh();
+        notifySaved();
       } else {
         setSummary(result.error.message);
         if (result.error.code === "CONFLICT") setConflict(true);

@@ -17,6 +17,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import {
+  addItemsToCalendarAction,
   createColumnAction,
   moveColumnAction,
   runTodoAction,
@@ -35,6 +36,13 @@ function itemRow(overrides: Record<string, unknown> = {}) {
     DoneByName: null,
     SortOrder: 1,
     CreatedAtUtc: new Date("2026-11-12T08:00:00Z"),
+    StartDate: null,
+    DueDate: "2026-12-05",
+    AssigneeStakeholderId: null,
+    AssigneeName: null,
+    Priority: "High",
+    Notes: "<p>Bring the <strong>signed</strong> copy</p>",
+    TodoItemId: null,
     RowVer: "90",
     ActorAccess: "Contributor",
     ActorGrants: null,
@@ -158,5 +166,25 @@ describe("checklist actions (ADR-0066)", () => {
       ChecklistColumnId: 9,
       ActorUserId: 7,
     });
+  });
+
+  it("add to calendar sends the ids as JSON and answers each row with its to-do", async () => {
+    execProc.mockResolvedValue([
+      itemRow({ TodoItemId: 88 }),
+      itemRow({ ChecklistItemId: 22, TodoItemId: 89 }),
+    ]);
+    const result = await addItemsToCalendarAction({ itemIds: [21, 22] });
+    expect(result.ok && result.data.map((i) => i.TodoItemId)).toEqual([88, 89]);
+    expect(execProc).toHaveBeenLastCalledWith("usp_ChecklistItem_AddToCalendar", {
+      ChecklistItemIdsJson: "[21,22]",
+      ActorUserId: 7,
+    });
+    execProc.mockClear();
+    expect((await addItemsToCalendarAction({ itemIds: [] })).ok).toBe(false);
+    expect(
+      (await addItemsToCalendarAction({ itemIds: Array.from({ length: 201 }, (_, i) => i + 1) }))
+        .ok,
+    ).toBe(false);
+    expect(execProc).not.toHaveBeenCalled();
   });
 });

@@ -9,7 +9,7 @@ import { Chevron } from "@/components/ui/chevron";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogActions } from "@/components/ui/dialog";
 import { Input, Select } from "@/components/ui/form/inputs";
-import { Menu, MenuButton, MenuSeparator } from "@/components/ui/menu";
+import { Menu, MenuButton } from "@/components/ui/menu";
 import { messages } from "@/lib/messages";
 import {
   RESPONSIBILITY_FRAMEWORKS,
@@ -33,7 +33,7 @@ export interface NewMatrix {
 
 type Open = "new" | "rename" | "delete" | null;
 
-/** Switches between the project's matrices, and creates, renames or deletes one. */
+/** Switches between the project's matrices; New, Rename and Delete sit beside the switcher. */
 export function ResponsibilityMatrixMenu({
   matrices,
   selected,
@@ -60,55 +60,66 @@ export function ResponsibilityMatrixMenu({
 
   return (
     <>
-      <Menu
-        label={t.matrices}
-        align="start"
-        testId="responsibility-matrix-menu"
-        trigger={
-          <>
-            {selected
-              ? `${selected.name} · ${responsibilityFramework(selected.frameworkCode).label}`
-              : t.matrices}
-            <Chevron />
-          </>
-        }
-        triggerClassName={buttonClass("secondary", "compact")}
-      >
-        {matrices.map((each) => (
-          <MenuButton
-            key={each.id}
-            checked={each.id === selected?.id}
-            testId="responsibility-matrix-item"
-            onClick={() => router.push(`?m=${each.id}`)}
+      <div className="flex flex-wrap items-center gap-2">
+        {matrices.length > 0 ? (
+          <Menu
+            label={t.matrices}
+            align="start"
+            testId="responsibility-matrix-menu"
+            trigger={
+              <>
+                {selected
+                  ? `${selected.name} · ${responsibilityFramework(selected.frameworkCode).label}`
+                  : t.matrices}
+                <Chevron />
+              </>
+            }
+            triggerClassName={buttonClass("secondary", "compact")}
           >
-            {each.name}
-          </MenuButton>
-        ))}
-        {matrices.length > 0 && (can.create || canRename) ? <MenuSeparator /> : null}
+            {matrices.map((each) => (
+              <MenuButton
+                key={each.id}
+                checked={each.id === selected?.id}
+                testId="responsibility-matrix-item"
+                onClick={() => router.push(`?m=${each.id}`)}
+              >
+                {each.name}
+              </MenuButton>
+            ))}
+          </Menu>
+        ) : null}
         {can.create ? (
-          <MenuButton testId="responsibility-matrix-new" onClick={() => setOpen("new")}>
+          <Button
+            variant="secondary"
+            size="compact"
+            data-testid="responsibility-matrix-new"
+            onClick={() => setOpen("new")}
+          >
             {t.newMatrix}
-          </MenuButton>
+          </Button>
         ) : null}
         {canRename ? (
-          <MenuButton testId="responsibility-matrix-rename" onClick={() => setOpen("rename")}>
+          <Button
+            variant="secondary"
+            size="compact"
+            data-testid="responsibility-matrix-rename"
+            onClick={() => setOpen("rename")}
+          >
             {t.renameTitle}
-          </MenuButton>
+          </Button>
         ) : null}
         {canDelete ? (
-          <>
-            <MenuSeparator />
-            <MenuButton
-              testId="responsibility-matrix-delete"
-              tone="danger"
-              icon={<BinIcon />}
-              onClick={() => setOpen("delete")}
-            >
-              {t.deleteMatrix}
-            </MenuButton>
-          </>
+          <Button
+            variant="danger"
+            size="compact"
+            data-testid="responsibility-matrix-delete"
+            onClick={() => setOpen("delete")}
+          >
+            <BinIcon />
+            {t.deleteMatrix}
+          </Button>
         ) : null}
-      </Menu>
+      </div>
       <Dialog open={open === "new"} onOpenChange={closed} title={t.newMatrix}>
         <NewMatrixForm
           onCancel={() => setOpen(null)}

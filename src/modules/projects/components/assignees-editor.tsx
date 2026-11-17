@@ -18,6 +18,7 @@ import { setProjectAssigneesAction } from "../actions";
 import type { UserOption } from "../repository/user-options";
 import type { ProjectAssigneeRow } from "../schemas/project";
 import { PermissionsDialog, type PermissionsTarget } from "./permissions-dialog";
+import { notifySaved } from "@/lib/cross-window";
 
 const TITLES = "project-assignee.title" as const;
 /** The title a new member starts with, when the list still has it. */
@@ -142,6 +143,7 @@ export function AssigneesEditor({
         announce(messages.projects.teamSaved);
         after?.();
         router.refresh();
+        notifySaved();
       } else {
         setMembers(before);
         setSummary(result.error.message);

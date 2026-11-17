@@ -5,6 +5,7 @@ import {
   checklistItemListRowSchema,
   checklistItemSchema,
   checklistSchema,
+  type AddItemsToCalendarInput,
   type Checklist,
   type ChecklistColumn,
   type ChecklistItem,
@@ -20,6 +21,7 @@ import {
   type RenameColumnInput,
   type RunTodoInput,
   type SetCellParsed,
+  type SetItemDetailsInput,
   type SetItemDoneInput,
   type UpdateItemInput,
 } from "../schemas/checklist";
@@ -194,6 +196,24 @@ export async function setItemDone(
   );
 }
 
+export async function setItemDetails(
+  input: SetItemDetailsInput,
+  actorUserId: number,
+): Promise<ChecklistItem> {
+  return parseItem(
+    await execProc("usp_ChecklistItem_SetDetails", {
+      ChecklistItemId: input.itemId,
+      StartDate: input.startDate,
+      DueDate: input.dueDate,
+      AssigneeStakeholderId: input.assigneeStakeholderId,
+      Priority: input.priority,
+      Notes: input.notes,
+      RowVer: input.rowVer,
+      ActorUserId: actorUserId,
+    }),
+  );
+}
+
 export async function deleteItem(input: DeleteItemInput, actorUserId: number): Promise<void> {
   await execProc("usp_ChecklistItem_Delete", {
     ChecklistItemId: input.itemId,
@@ -223,4 +243,15 @@ export async function runTodo(input: RunTodoInput, actorUserId: number): Promise
       ActorUserId: actorUserId,
     }),
   );
+}
+
+export async function addItemsToCalendar(
+  input: AddItemsToCalendarInput,
+  actorUserId: number,
+): Promise<ChecklistItem[]> {
+  const rows = await execProc("usp_ChecklistItem_AddToCalendar", {
+    ChecklistItemIdsJson: JSON.stringify(input.itemIds),
+    ActorUserId: actorUserId,
+  });
+  return rows.map((row) => checklistItemSchema.parse(row));
 }

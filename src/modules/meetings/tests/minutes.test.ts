@@ -43,6 +43,9 @@ function point(id: number, agendaId: number, sort: number): WorkspaceDiscussionP
     DiscussionPoint: `<p>Point ${id}</p>`,
     SortOrder: sort,
     RowVer: 200 + id,
+    DecisionId: null,
+    DecisionNumber: null,
+    AssumptionConstraintId: null,
   };
 }
 

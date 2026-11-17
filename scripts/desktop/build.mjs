@@ -94,6 +94,7 @@ await esbuild({
     main: join(root, "electron", "main.ts"),
     "grammar-worker": join(root, "electron", "grammar-worker.ts"),
     preload: join(root, "electron", "preload.ts"),
+    "licence-preload": join(root, "electron", "licence", "licence-preload.ts"),
   },
   outdir: appDir,
   bundle: true,
@@ -105,6 +106,7 @@ await esbuild({
   logLevel: "warning",
 });
 for (const f of ["splash.html", "splash-logo.png"]) cpSync(join(root, "electron", f), join(appDir, f));
+cpSync(join(root, "electron", "licence", "licence.html"), join(appDir, "licence.html"));
 const grammarWasm = "harper_wasm_slim_bg.wasm";
 cpSync(join(root, "node_modules", "harper.js", "dist", grammarWasm), join(appDir, grammarWasm));
 const commit = git(["rev-parse", "--short", "HEAD"]);

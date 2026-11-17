@@ -30,6 +30,7 @@ import { BoardForm, BoardField } from "./board-form";
 import { CardDeliverablePanel } from "./card-deliverable-panel";
 import { CardRequirementPanel } from "./card-requirement-panel";
 import { CardSourceSwitch, DeliverablePicker, type CardSource } from "./deliverable-source";
+import { notifySaved } from "@/lib/cross-window";
 const M = messages.boards;
 const U = M.ui;
 export function CardDialog({
@@ -204,8 +205,10 @@ function CardTodoAlert({ boardCardId, dueDate }: { boardCardId: number; dueDate:
       setError("");
       try {
         const result = await buildTodoFromBoardCardAction({ boardCardId });
-        if (result.ok) setTodo(result.data);
-        else setError(result.error.message);
+        if (result.ok) {
+          notifySaved();
+          setTodo(result.data);
+        } else setError(result.error.message);
       } catch {
         setError(messages.errors.INTERNAL);
       }

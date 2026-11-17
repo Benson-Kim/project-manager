@@ -123,6 +123,7 @@ const VERBS: Record<string, string> = {
   // Stopping a to-do repeating edits the to-do.
   Clear: "update",
   Set: "update",
+  SetDetails: "update",
   Delete: "delete",
   // Attachments (ADR-0026): reading them is reading the record; adding, renaming or removing one
   // edits it, so even RemoveFile is the owner's update (user decision 2026-10-10).
@@ -206,6 +207,22 @@ const CROSS_SCOPE: Record<
     { entity: "Board", level: "Contributor", permission: "boards:create" },
     { entity: "Project", level: "Viewer", permission: "key-deliverables:read" },
   ],
+  usp_ChecklistItem_AddToCalendar: [
+    { entity: "Project", level: "Contributor", permission: "checklists:update" },
+    { entity: "Project", level: "Contributor", permission: "todo-items:create" },
+  ],
+  usp_Board_CreateFromChecklist: [
+    { entity: "Project", level: "Contributor", permission: "boards:create" },
+    { entity: "Project", level: "Viewer", permission: "checklists:read" },
+  ],
+  usp_MeetingDiscussionPoint_LogDecision: [
+    { entity: "Project", level: "Contributor", permission: "meetings:update" },
+    { entity: "Project", level: "Contributor", permission: "decisions:create" },
+  ],
+  usp_MeetingDiscussionPoint_LogAssumption: [
+    { entity: "Project", level: "Contributor", permission: "meetings:update" },
+    { entity: "Project", level: "Contributor", permission: "assumptions-constraints:create" },
+  ],
   usp_BoardCard_LinkRequirement: [
     { entity: "Board", level: "Contributor", permission: "boards:update" },
     { entity: "Project", level: "Viewer", permission: "requirements:read" },
@@ -226,8 +243,12 @@ const CROSS_SCOPE: Record<
 /** The procs whose second check is in another module (a card's source, a WBS item's assignees). */
 const SECOND_CHECK_MODULE: Record<string, string> = {
   usp_BoardCard_Package: "requirements",
+  usp_ChecklistItem_AddToCalendar: "todo-items",
   usp_BoardCard_LinkRequirement: "requirements",
   usp_BoardCard_PackageDeliverables: "key-deliverables",
+  usp_Board_CreateFromChecklist: "checklists",
+  usp_MeetingDiscussionPoint_LogDecision: "decisions",
+  usp_MeetingDiscussionPoint_LogAssumption: "assumptions-constraints",
   usp_ResponsibilityAssignment_Set: "key-deliverables",
 };
 
@@ -422,6 +443,8 @@ const UNSCOPED: Record<string, string> = {
     "the append-only audit writer for app-layer events, and the audit log reads, Admin only in the procs",
   "file-attachment": "owner-scoped (ADR-0026): its own helper asserts the owner's access",
   "financial-template": "global templates, not any project's rows",
+  licence:
+    "per-install licence state keyed by machine hash, read by the licence gate outside any user session",
   "login-attempt": "pre-authentication lockout counters keyed by IP; there is no actor yet",
   "lookup-list": "global dropdown lists; usp_LookupList_Set is Admin-only in-proc",
   "project-permission": "per-person overrides; it asserts the project itself",

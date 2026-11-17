@@ -286,6 +286,26 @@ export function connect(diagram: BpmnDiagram, flow: NewFlow): BpmnDiagram {
   return { ...diagram, flows: [...diagram.flows, { ...flow, label: cut(flow.label ?? "") }] };
 }
 
+/** Joins two shapes with the picked connector, or the kind BPMN allows between them. */
+export function connectShapes(
+  diagram: BpmnDiagram,
+  ends: { source: string; target: string; sourceSide?: Side; targetSide?: Side },
+  picked: FlowKind,
+  id: string,
+): BpmnDiagram {
+  const source = diagram.shapes.find((shape) => shape.id === ends.source);
+  const target = diagram.shapes.find((shape) => shape.id === ends.target);
+  if (!source || !target) return diagram;
+  return connect(diagram, {
+    id,
+    kind: flowKindFor(source.kind, target.kind, picked),
+    source: source.id,
+    target: target.id,
+    sourceSide: ends.sourceSide ?? "right",
+    targetSide: ends.targetSide ?? "left",
+  });
+}
+
 export const setFlowLabel = (diagram: BpmnDiagram, id: string, label: string): BpmnDiagram => ({
   ...diagram,
   flows: diagram.flows.map((flow) => (flow.id === id ? { ...flow, label: cut(label) } : flow)),

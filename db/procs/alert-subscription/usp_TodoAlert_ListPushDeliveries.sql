@@ -1,5 +1,6 @@
 -- usp_TodoAlert_ListPushDeliveries — due todo alerts joined to active browser
 -- subscriptions. The dispatch route sends one Web Push message per row.
+-- An alert goes to its RecipientUserId when set, otherwise to the to-do's creator.
 --
 -- Rotation guarantee: after a successful send the dispatch route calls
 -- usp_AlertSubscription_RecordDelivery which stamps LastPushSentAtUtc on the
@@ -32,10 +33,11 @@ BEGIN
     FROM app.AlertSubscription AS s
     INNER JOIN auth.[User] AS u
         ON u.UserId = s.UserId AND u.IsDeleted = 0 AND u.IsActive = 1
-    INNER JOIN app.TodoItem AS t
-        ON t.CreatedBy = s.UserId AND t.IsDeleted = 0
     INNER JOIN app.TodoAlert AS a
-        ON a.TodoItemId = t.TodoItemId AND a.IsDeleted = 0
+        ON a.IsDeleted = 0
+    INNER JOIN app.TodoItem AS t
+        ON t.TodoItemId = a.TodoItemId AND t.IsDeleted = 0
+       AND COALESCE(a.RecipientUserId, t.CreatedBy) = s.UserId
     WHERE s.IsDeleted = 0
       AND (s.ExpirationTimeUtc IS NULL OR s.ExpirationTimeUtc > @NowUtc)
       -- Skip subscriptions already delivered today so each invocation

@@ -287,12 +287,13 @@ function Set-AccessControl {
 function Import-PublisherCertificate {
   # Updates are verified against the publisher (ADR-0034): an installed app refuses an
   # installer whose Authenticode signature does not chain to a root this PC trusts with
-  # that subject. The installer ships the office's self-issued certificate; trust it
-  # here, once, while elevated. Never fatal: the app runs without it, updates wait for
-  # the next Repair.
+  # that subject. Only a build signed with the self-issued certificate ships it; trust it
+  # here, once, while elevated. A publicly trusted certificate already chains to a root
+  # Windows trusts, so nothing is imported. Never fatal: the app runs without it, updates
+  # wait for the next Repair.
   $cer = Join-Path $PSScriptRoot 'publisher.cer'
   if (-not (Test-Path -LiteralPath $cer)) {
-    Write-Log 'No publisher.cer shipped: update signatures are not verified on this PC.'
+    Write-Log 'No publisher.cer shipped: nothing to trust (public certificate or unsigned build).'
     return
   }
   try {

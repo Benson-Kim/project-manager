@@ -23,6 +23,7 @@ import {
 } from "@/modules/file-storage/schemas/attachment";
 import { LocationDialog, RenameDialog } from "./attachment-dialogs";
 import { downloadUrl, preflight, uploadFile } from "./upload-file";
+import { notifySaved } from "@/lib/cross-window";
 
 /**
  * A record's attachments (ADR-0026 §10, checklist rows 43–44): uploaded files
@@ -106,6 +107,7 @@ export function Attachments({
       if (outcome.ok) {
         confirm(messages.attachments.uploaded(outcome.fileName));
         router.refresh();
+        notifySaved();
       } else {
         fail(file.name, outcome.message);
       }
@@ -124,6 +126,7 @@ export function Attachments({
         if (result.ok) {
           confirm(success);
           router.refresh();
+          notifySaved();
           resolve({ ok: true });
           return;
         }

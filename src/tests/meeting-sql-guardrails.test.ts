@@ -65,7 +65,7 @@ function escape(text: string): string {
 
 describe("meeting SQL guardrails", () => {
   it("finds every meeting proc", () => {
-    expect(PROCS.size).toBe(39);
+    expect(PROCS.size).toBe(41);
   });
 
   it("labels participants the same way everywhere, guests included", () => {

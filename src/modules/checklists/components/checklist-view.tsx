@@ -4,9 +4,17 @@ import { useRouter } from "next/navigation";
 import { useOptimistic, useTransition } from "react";
 import { AddColumnButton, ColumnsButton } from "@/components/custom-columns/column-dialogs";
 import { customColumn } from "@/components/custom-columns/custom-column";
-import { textColumn } from "@/components/ui/data-view/columns";
+import {
+  choiceColumn,
+  dateColumn,
+  listColumn,
+  richTextColumn,
+  textColumn,
+} from "@/components/ui/data-view/columns";
+import { Button } from "@/components/ui/button";
 import { DataView } from "@/components/ui/data-view/data-view";
 import { addUndo, failureMessage } from "@/components/ui/data-view/datasheet";
+import type { WithRichViews } from "@/components/ui/rich-text/rich-views";
 import { SearchInput } from "@/components/ui/data-view/search-input";
 import type { DataViewColumn } from "@/components/ui/data-view/types";
 import { listEmptyState } from "@/components/ui/states";
@@ -19,7 +27,9 @@ import { formatDateTime } from "@/lib/format";
 import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
+import type { StakeholderOption } from "@/modules/stakeholders/repository/stakeholder-options";
 import {
+  addItemsToCalendarAction,
   createColumnAction,
   createItemAction,
   deleteColumnAction,
@@ -28,6 +38,7 @@ import {
   renameColumnAction,
   runTodoAction,
   setCellAction,
+  setItemDetailsAction,
   setItemDoneAction,
   updateItemAction,
 } from "../actions";
@@ -40,11 +51,23 @@ import {
   type ChecklistItemListRow,
 } from "../schemas/checklist";
 import { ChecklistMenu } from "./checklist-menu";
+import { notifySaved } from "@/lib/cross-window";
 
-type Row = ChecklistItemListRow;
+type Row = WithRichViews<ChecklistItemListRow, "Notes">;
 const M = messages.checklists;
 
 const canEditRow = rowAllows("checklists:update");
+
+const DETAIL_FIELDS = new Set([
+  "startDate",
+  "dueDate",
+  "assigneeStakeholderId",
+  "priority",
+  "notes",
+]);
+
+const detailValue = (field: string, value: string) =>
+  value.trim() === "" ? null : field === "assigneeStakeholderId" ? Number(value) : value;
 
 const cellOf = (row: ChecklistItem, columnId: number) =>
   row.Cells.find((cell) => cell.columnId === columnId);
@@ -99,6 +122,7 @@ export function ChecklistView({
   layout,
   filtersActive,
   can,
+  people,
 }: {
   projectId: number;
   checklist: Checklist;
@@ -110,7 +134,8 @@ export function ChecklistView({
   initialView: ViewMode;
   layout?: ListLayout | null;
   filtersActive: boolean;
-  can: { create: boolean; update: boolean; delete: boolean; makeTodo: boolean };
+  can: { create: boolean; update: boolean; delete: boolean; makeTodo: boolean; makeBoard: boolean };
+  people: readonly StakeholderOption[];
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -120,7 +145,10 @@ export function ChecklistView({
     <T,>(act: () => Promise<ActionResult<T>>) =>
     async (): Promise<ActionResult<T>> => {
       const result = await act();
-      if (result.ok) router.refresh();
+      if (result.ok) {
+        router.refresh();
+        notifySaved();
+      }
       return result;
     };
 
@@ -140,6 +168,7 @@ export function ChecklistView({
       rowVer: row.RowVer,
     });
     if (!result.ok) toast({ variant: "error", title: failureMessage(result.error) });
+    else notifySaved();
     router.refresh();
   };
 
@@ -158,6 +187,59 @@ export function ChecklistView({
       value: (row) => row.Title,
       placeholder: M.itemPlaceholder,
       maxLength: ITEM_TITLE_MAX,
+      editable: canEditRow,
+    }),
+    dateColumn<Row>({
+      key: "StartDate",
+      header: messages.todoItems.startDate,
+      priority: 3,
+      field: "startDate",
+      value: (row) => (row.StartDate ? new Date(`${row.StartDate}T00:00:00Z`) : null),
+      placeholder: messages.todoItems.placeholders.startDate,
+      editable: canEditRow,
+    }),
+    dateColumn<Row>({
+      key: "DueDate",
+      header: messages.todoItems.dueDate,
+      priority: 2,
+      field: "dueDate",
+      value: (row) => (row.DueDate ? new Date(`${row.DueDate}T00:00:00Z`) : null),
+      placeholder: messages.todoItems.placeholders.dueDate,
+      editable: canEditRow,
+    }),
+    listColumn<Row>({
+      key: "Priority",
+      header: messages.todoItems.priority,
+      priority: 2,
+      field: "priority",
+      list: "todo-item.priority",
+      value: (row) => row.Priority,
+      placeholder: messages.todoItems.placeholders.priority,
+      editable: canEditRow,
+    }),
+    choiceColumn<Row>({
+      key: "AssigneeStakeholderId",
+      header: M.assignee,
+      priority: 3,
+      field: "assigneeStakeholderId",
+      value: (row) =>
+        row.AssigneeStakeholderId === null ? null : String(row.AssigneeStakeholderId),
+      choices: people.map((person) => ({
+        value: String(person.stakeholderId),
+        label: person.name,
+      })),
+      clearable: true,
+      placeholder: M.assigneePlaceholder,
+      editable: canEditRow,
+    }),
+    richTextColumn<Row>({
+      key: "Notes",
+      header: M.notes,
+      priority: 3,
+      field: "notes",
+      value: (row) => row.Notes,
+      view: (row) => row.views.Notes,
+      placeholder: M.notesPlaceholder,
       editable: canEditRow,
     }),
     ...columns.map((column) =>
@@ -194,7 +276,19 @@ export function ChecklistView({
     const column = columnId === null ? undefined : columnById.get(columnId);
     const result = column
       ? await setCell(row, column, value)
-      : await updateItemAction({ itemId: row.ChecklistItemId, title: value, rowVer: row.RowVer });
+      : DETAIL_FIELDS.has(field)
+        ? await setItemDetailsAction({
+            itemId: row.ChecklistItemId,
+            startDate: row.StartDate,
+            dueDate: row.DueDate,
+            assigneeStakeholderId: row.AssigneeStakeholderId,
+            priority: row.Priority,
+            notes: row.Notes,
+            rowVer: row.RowVer,
+            [field]: detailValue(field, value),
+          })
+        : await updateItemAction({ itemId: row.ChecklistItemId, title: value, rowVer: row.RowVer });
+    if (result.ok) notifySaved();
     return result.ok ? { ok: true, data: result.data } : result;
   };
 
@@ -220,6 +314,27 @@ export function ChecklistView({
       }
       row = result.data;
     }
+    const typed = (field: string) => (values[field]?.trim() ? values[field] : null);
+    if ([...DETAIL_FIELDS].some((field) => typed(field) !== null)) {
+      const result = await setItemDetailsAction({
+        itemId: row.ChecklistItemId,
+        startDate: typed("startDate"),
+        dueDate: typed("dueDate"),
+        assigneeStakeholderId:
+          typed("assigneeStakeholderId") === null
+            ? row.AssigneeStakeholderId
+            : Number(typed("assigneeStakeholderId")),
+        priority: typed("priority"),
+        notes: typed("notes"),
+        rowVer: row.RowVer,
+      });
+      if (!result.ok) {
+        await deleteItemAction({ itemId: row.ChecklistItemId, rowVer: row.RowVer });
+        return result;
+      }
+      row = result.data;
+    }
+    notifySaved();
     return { ok: true, data: row };
   };
 
@@ -262,7 +377,30 @@ export function ChecklistView({
             }
           : undefined,
       }}
-      bulkActions={undefined}
+      bulkActions={
+        can.makeTodo
+          ? (selectedIds, clear) => (
+              <Button
+                data-testid="checklist-add-to-calendar"
+                onClick={async () => {
+                  const result = await addItemsToCalendarAction({
+                    itemIds: selectedIds.map(Number),
+                  });
+                  if (!result.ok) {
+                    toast({ variant: "error", title: failureMessage(result.error) });
+                    return;
+                  }
+                  toast({ variant: "success", title: M.addedToCalendar });
+                  clear();
+                  router.refresh();
+                  notifySaved();
+                }}
+              >
+                {M.addToCalendar}
+              </Button>
+            )
+          : undefined
+      }
       renderToolbar={(viewToggle) => (
         <Toolbar>
           <ChecklistMenu

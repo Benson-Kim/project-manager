@@ -33,6 +33,7 @@ import {
   type RuleErrors,
 } from "../recurrence-draft";
 import { recurrenceRuleSchema, type TodoRecurrence } from "../schemas/todo-recurrence";
+import { notifySaved } from "@/lib/cross-window";
 
 const R = messages.todoItems.repeat;
 
@@ -89,6 +90,7 @@ export function TodoRecurrenceSection({
       toast({ variant: "success", title: messages.feedback.saved });
       announce(messages.feedback.saved);
       router.refresh();
+      notifySaved();
     } else {
       setSummary(result.error.message);
       if (result.error.code === "CONFLICT") setConflict(true);

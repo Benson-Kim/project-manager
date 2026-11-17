@@ -15,6 +15,7 @@ import { deleteDiagramAction } from "../actions";
 import type { DiagramSummary } from "../schemas/bpmn";
 import { DiagramForm } from "./diagram-form";
 import type { WithRowVer } from "./use-diagram-save";
+import { notifySaved } from "@/lib/cross-window";
 
 const M = messages.bpmn;
 
@@ -55,6 +56,7 @@ export function DiagramMenu({
         rowVer: rowVer(),
       });
       if (!result.ok) return setError(firstError(result.error));
+      notifySaved();
       setOpen(null);
       router.push(pathname);
     });

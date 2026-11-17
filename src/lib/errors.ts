@@ -15,6 +15,7 @@ export const APP_ERROR_CODES = [
   "UNAUTHENTICATED",
   "FORBIDDEN",
   "RATE_LIMITED", // too many requests in a minute (429; ADR-0031), never from a proc
+  "LICENCE_INACTIVE", // changes paused: this copy has no active licence (viewing and export still work)
   "INTERNAL",
 ] as const;
 
