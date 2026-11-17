@@ -3,7 +3,6 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useMemo, useState } from "react";
 import { useFullPage } from "@/components/shell/use-full-page";
-import { useRefreshOnFocus } from "@/components/shell/use-refresh-on-focus";
 import { Button } from "@/components/ui/button";
 import { PrintButton } from "@/components/ui/print-button";
 import { messages } from "@/lib/messages";
@@ -43,7 +42,6 @@ export function CanvasWorkspace({
   inspector?: ReactNode;
 }) {
   const router = useRouter();
-  useRefreshOnFocus();
   const pathname = usePathname();
   const search = useSearchParams();
   const inspect = (requirementId: number) => {

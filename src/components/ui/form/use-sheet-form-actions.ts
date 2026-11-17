@@ -10,6 +10,7 @@ import type { UndoStep } from "@/lib/undo/history";
 import type { VersionBook } from "@/lib/undo/steps";
 import { usePageHistory } from "@/components/undo/page-history";
 import type { useZodForm } from "./use-zod-form";
+import { notifySaved } from "@/lib/cross-window";
 
 type ZodFormHandle = ReturnType<typeof useZodForm>;
 
@@ -80,6 +81,7 @@ export function useSheetFormActions<TCreate, TUpdate, TDelete = void>({
           confirm(isEdit ? messages.feedback.saved : messages.feedback.created);
           onSuccess();
           router.refresh();
+          notifySaved();
         } else {
           const { code, message } = result.error;
           if (code === "CONFLICT") {
@@ -107,6 +109,7 @@ export function useSheetFormActions<TCreate, TUpdate, TDelete = void>({
           confirm(messages.feedback.deleted);
           onSuccess();
           router.refresh();
+          notifySaved();
         } else {
           setConfirmDelete(false);
           setSummary(result.error.message ?? messages.errors.INTERNAL);

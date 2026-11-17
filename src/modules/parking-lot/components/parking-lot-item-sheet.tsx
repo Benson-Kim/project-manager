@@ -30,6 +30,7 @@ import {
   updateParkingLotItemAction,
 } from "../actions";
 import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
+import { notifySaved } from "@/lib/cross-window";
 
 /**
  * Parking lot detail/edit sheet (ADR-0010 default pattern): URL-synced via ?id=
@@ -139,6 +140,7 @@ export function ParkingLotItemSheet({
         announce(item ? messages.feedback.saved : messages.feedback.created);
         close();
         router.refresh();
+        notifySaved();
       } else {
         if (result.error.code === "UNAUTHENTICATED") {
           router.push(`/login?reason=expired`);
@@ -164,6 +166,7 @@ export function ParkingLotItemSheet({
         announce(messages.feedback.deleted);
         close();
         router.refresh();
+        notifySaved();
       } else {
         if (result.error.code === "UNAUTHENTICATED") {
           router.push(`/login?reason=expired`);

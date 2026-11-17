@@ -6,6 +6,7 @@ import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
 import type { ActionResult } from "@/lib/action";
+import { notifySaved } from "@/lib/cross-window";
 
 /** Asynchronous board operations compose the one shared destructive-confirmation pattern. */
 export function BoardConfirm<T extends z.ZodType>({
@@ -52,6 +53,7 @@ export function BoardConfirm<T extends z.ZodType>({
           try {
             const result = await save(parsed.data);
             if (result.ok) {
+              notifySaved();
               toast({ variant: "success", title: messages.feedback.saved });
               close();
             } else setError(result.error.message);

@@ -18,6 +18,7 @@ import { usePageHistory } from "@/components/undo/page-history";
 import { deleteMeetingAction, updateMeetingAction } from "../actions";
 import type { MeetingRow } from "../schemas/meeting";
 import { meetingFormValues, updateMeetingFormSchema } from "../schemas/meeting-form";
+import { notifySaved } from "@/lib/cross-window";
 
 const M = messages.meetings;
 
@@ -96,6 +97,7 @@ export function MeetingHeaderForm({
         toast({ variant: "success", title: messages.feedback.saved });
         announce(messages.feedback.saved);
         router.refresh();
+        notifySaved();
       } else if (!expired(result.error.code)) {
         form.applyResult(result);
         setSummary(result.error.message);

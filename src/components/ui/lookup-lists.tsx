@@ -13,6 +13,7 @@ import {
   type SaveLookupListInput,
 } from "@/lib/lookup-lists";
 import { Badge } from "./badge";
+import { notifySaved } from "@/lib/cross-window";
 
 /**
  * Managed dropdown lists on the client (ADR-0022): one provider per page holds
@@ -58,6 +59,7 @@ export function LookupListsProvider({
       if (result.ok) {
         setCurrent((all) => ({ ...all, [result.data.key]: result.data }));
         router.refresh();
+        notifySaved();
       }
       return result;
     },

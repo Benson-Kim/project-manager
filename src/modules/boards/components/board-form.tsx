@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { messages } from "@/lib/messages";
 import { hasUnshownIssue } from "../schemas/board-form";
+import { notifySaved } from "@/lib/cross-window";
 export { toDateInput as isoDate } from "@/lib/format";
 
 const Errors = createContext<Record<string, string[]>>({});
@@ -96,6 +97,7 @@ function FormContent<T extends z.ZodType, R>({
               const result = await save(parsed.data);
               form.applyResult(result);
               if (result.ok) {
+                notifySaved();
                 unsaved.markClean();
                 toast({ variant: "success", title: messages.feedback.saved });
                 onSaved?.(result.data);

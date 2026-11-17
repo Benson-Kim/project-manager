@@ -27,6 +27,7 @@ import {
   updateQuestionAnswerAction,
 } from "../actions";
 import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
+import { notifySaved } from "@/lib/cross-window";
 
 /**
  * Q&A detail/edit sheet (ADR-0010 default pattern): URL-synced via ?id=
@@ -126,6 +127,7 @@ export function QuestionAnswerSheet({
         announce(questionAnswer ? messages.feedback.saved : messages.feedback.created);
         close();
         router.refresh();
+        notifySaved();
       } else {
         form.applyResult(result);
         setSummary(result.error.message);
@@ -147,6 +149,7 @@ export function QuestionAnswerSheet({
         announce(messages.feedback.deleted);
         close();
         router.refresh();
+        notifySaved();
       } else {
         setSummary(result.error.message);
         if (result.error.code === "CONFLICT") setConflict(true);

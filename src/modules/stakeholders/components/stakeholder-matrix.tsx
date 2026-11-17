@@ -17,6 +17,7 @@ import {
 } from "../matrix";
 import type { StakeholderMatrixRow } from "../schemas/stakeholder";
 import { MatrixGrid } from "./matrix-grid";
+import { notifySaved } from "@/lib/cross-window";
 
 const S = messages.stakeholders;
 
@@ -126,6 +127,7 @@ export function StakeholderMatrix({
     }
     refuse(id, firstError(result.error));
     router.refresh();
+    notifySaved();
   }
 
   function move(id: number, power: number, interest: number) {

@@ -15,6 +15,7 @@ import { deleteCanvasAction } from "../../actions";
 import { defaultWbsFor, type WbsFilter, wbsFilterParam } from "../../canvas/canvas-filter";
 import type { CanvasSummary } from "../../schemas/canvas";
 import { CanvasForm, type WbsOption } from "./create-canvas-form";
+import { notifySaved } from "@/lib/cross-window";
 
 const M = messages.requirements.canvas;
 
@@ -67,6 +68,7 @@ export function CanvasPicker({
         rowVer: canvas.RowVer,
       });
       if (!result.ok) return setError(firstError(result.error));
+      notifySaved();
       setOpen(null);
       go({ canvas: null });
     });

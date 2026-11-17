@@ -128,6 +128,7 @@ import { WbsToolbar } from "./wbs-toolbar";
 import { useWbsRequirements } from "./use-wbs-requirements";
 import { RequirementOwnersContext } from "./wbs-requirement-more";
 import { StickyScrollbar } from "@/components/ui/data-view/sticky-scrollbar";
+import { notifySaved } from "@/lib/cross-window";
 
 const W = messages.keyDeliverables.wbs;
 
@@ -457,6 +458,7 @@ export function WbsGantt({
             if (result) {
               toast({ variant: "error", title: firstError(result.error) });
               router.refresh();
+              notifySaved();
             }
             op.failed?.();
           }

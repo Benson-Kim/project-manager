@@ -10,6 +10,7 @@ import { messages } from "@/lib/messages";
 import { firstError } from "@/modules/key-deliverables/components/wbs-queue";
 import { createCanvasAction, updateCanvasAction } from "../../actions";
 import { CANVAS_NAME_MAX, type CanvasSummary } from "../../schemas/canvas";
+import { notifySaved } from "@/lib/cross-window";
 
 const M = messages.requirements.canvas;
 
@@ -49,6 +50,7 @@ export function CanvasForm({
         if (!result.ok) return setError(firstError(result.error));
         onSaved?.();
         router.refresh();
+        notifySaved();
         return;
       }
       const result = await createCanvasAction({ projectId, name, keyDeliverableId: wbsId });

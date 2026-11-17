@@ -39,6 +39,7 @@ import {
   deleteTodoItemAction,
 } from "../actions";
 import { TodoToolbar } from "./todo-toolbar";
+import { notifySaved } from "@/lib/cross-window";
 
 type Row = TodoItemListRow;
 const P = messages.todoItems.placeholders;
@@ -81,6 +82,7 @@ function ReorderControls({
         rowVer: row.RowVer,
       });
       router.refresh();
+      notifySaved();
     });
   };
 

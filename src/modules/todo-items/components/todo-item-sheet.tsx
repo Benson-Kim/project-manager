@@ -45,6 +45,7 @@ import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
 import { usePageHistory } from "@/components/undo/page-history";
 import { TODO_MODULE_KEY } from "../schemas/todo-item";
 import { sheetUndo } from "@/lib/undo/steps";
+import { notifySaved } from "@/lib/cross-window";
 
 /**
  * To-do item detail/edit sheet: URL-synced via
@@ -243,6 +244,7 @@ export function TodoItemSheet({
         announce(todoItem ? messages.feedback.saved : messages.feedback.created);
         close();
         router.refresh();
+        notifySaved();
       } else {
         form.applyResult(result);
         setItemSummary(result.error.message);
@@ -271,6 +273,7 @@ export function TodoItemSheet({
         toast({ variant: "success", title: messages.feedback.saved });
         announce(messages.feedback.saved);
         router.refresh();
+        notifySaved();
       } else {
         alertForm.applyResult(result);
         setAlertSummary(result.error.message);
@@ -293,6 +296,7 @@ export function TodoItemSheet({
         toast({ variant: "success", title: messages.feedback.deleted });
         announce(messages.feedback.deleted);
         router.refresh();
+        notifySaved();
       } else {
         setAlertSummary(result.error.message);
       }
@@ -312,6 +316,7 @@ export function TodoItemSheet({
         toast({ variant: "success", title: messages.todoItems.snoozed });
         announce(messages.todoItems.snoozed);
         router.refresh();
+        notifySaved();
       } else {
         setAlertSummary(result.error.message);
       }
@@ -329,6 +334,7 @@ export function TodoItemSheet({
         toast({ variant: "success", title: messages.todoItems.dismissed });
         announce(messages.todoItems.dismissed);
         router.refresh();
+        notifySaved();
       } else {
         setAlertSummary(result.error.message);
       }

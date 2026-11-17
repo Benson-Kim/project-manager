@@ -15,6 +15,7 @@ import {
   ThemeToggle,
   type ShellAlert,
 } from "./header-actions";
+import { CrossWindowSync } from "./cross-window-sync";
 import { pageTitleFor } from "./nav-items";
 import { OfflineBanner } from "./offline-banner";
 import { RouteProgress } from "./route-progress";
@@ -143,6 +144,7 @@ export function AppShell({
             >
               {children}
             </main>
+            <CrossWindowSync />
           </div>
         </div>
       </div>

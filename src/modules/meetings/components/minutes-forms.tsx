@@ -54,6 +54,7 @@ import {
   samePoint,
 } from "../schemas/minutes";
 import { useMinutes, type MinutesAnswer } from "./minutes-context";
+import { notifySaved } from "@/lib/cross-window";
 
 const M = messages.meetings;
 
@@ -152,6 +153,7 @@ function MinutesForm<S extends z.ZodType>({
             onClick={() => {
               close();
               router.refresh();
+              notifySaved();
             }}
           >
             {M.reload}

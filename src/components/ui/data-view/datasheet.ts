@@ -7,6 +7,7 @@ import {
   type LookupListKey,
   type LookupLists,
 } from "@/lib/lookup-lists";
+import { notifySaved } from "@/lib/cross-window";
 
 /**
  * Datasheet mode of the DataView (ADR-0023, client feedback §2–4): in list
@@ -163,6 +164,7 @@ export function formCellSaver<Row, Result>(
 ): DatasheetConfig<Row>["saveCell"] {
   return async (row, field, value) => {
     const result = await update({ ...toFormValues(row), [field]: value });
+    if (result.ok) notifySaved();
     return result.ok ? { ok: true, data: result.data as Partial<Row> } : result;
   };
 }

@@ -15,6 +15,7 @@ import { oneAtATime } from "../../canvas/one-at-a-time";
 import { linkBack, unlinkBack, type CanvasUndo } from "../../canvas/undo";
 import type { CanvasItem, CanvasLink } from "../../schemas/canvas";
 import type { Remember } from "./use-canvas-undo";
+import { notifySaved } from "@/lib/cross-window";
 
 const linkKey = (upKind: CanvasItem["Kind"], upId: number, downId: number) =>
   `${upKind}:${upId}>${downId}`;
@@ -36,7 +37,10 @@ export function useCanvasLinks(remember: Remember) {
     run(key, async () => {
       const forget = remember(back);
       const result = await request();
-      if (result.ok) return;
+      if (result.ok) {
+        notifySaved();
+        return;
+      }
       forget();
       toast({ variant: "error", title: firstError(result.error) });
     });

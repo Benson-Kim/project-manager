@@ -18,6 +18,7 @@ import type { Point } from "../../canvas/layout";
 import { nodesBack } from "../../canvas/undo";
 import type { CanvasItem } from "../../schemas/canvas";
 import type { Remember } from "./use-canvas-undo";
+import { notifySaved } from "@/lib/cross-window";
 
 type Moved = { id: string } & Point;
 interface NodeMove {
@@ -60,7 +61,10 @@ export function useCanvasNodes(canvasId: number, items: readonly CanvasItem[], r
     const forget = undoable ? remember(nodesBack(shown, changes)) : undefined;
     setOverlay((current) => new Map([...current, ...changes]));
     const result = await save();
-    if (result.ok) return true;
+    if (result.ok) {
+      notifySaved();
+      return true;
+    }
     forget?.();
     toast({ variant: "error", title: firstError(result.error) });
     setOverlay((current) => rollbackPlacements(current, changes, before));

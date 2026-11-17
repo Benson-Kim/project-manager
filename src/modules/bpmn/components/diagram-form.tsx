@@ -11,6 +11,7 @@ import { firstError } from "@/modules/key-deliverables/components/wbs-queue";
 import { createDiagramAction, renameDiagramAction } from "../actions";
 import { DIAGRAM_NAME_MAX } from "../model/diagram";
 import type { WithRowVer } from "./use-diagram-save";
+import { notifySaved } from "@/lib/cross-window";
 
 const M = messages.bpmn;
 
@@ -47,6 +48,7 @@ export function DiagramForm({
       }
       const result = await createDiagramAction({ projectId, name });
       if (!result.ok) return setError(firstError(result.error));
+      notifySaved();
       onDone?.();
       router.push(`?diagram=${result.data.BpmnDiagramId}`);
     });

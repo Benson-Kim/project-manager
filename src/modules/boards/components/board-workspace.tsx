@@ -50,6 +50,7 @@ import {
 } from "./kanban-card";
 import { CopyJsonButton, KanbanFilterBar, KanbanStatsRow } from "./kanban-toolbar";
 import { PackageRequirementsButton } from "./package-requirements";
+import { notifySaved } from "@/lib/cross-window";
 
 const M = messages.boards;
 const U = M.ui;
@@ -123,7 +124,10 @@ export function BoardWorkspace({
       try {
         const result = await operation();
         if (!result.ok) setError(result.error.message);
-        else if (notify) toast({ variant: "success", title: messages.feedback.saved });
+        else {
+          notifySaved();
+          if (notify) toast({ variant: "success", title: messages.feedback.saved });
+        }
       } catch {
         setError(messages.errors.INTERNAL);
       }
@@ -425,6 +429,7 @@ export function BoardWorkspace({
           canSetTodoAlert={canSetTodoAlert}
           onCardChange={setEditing}
           onChanged={() => {
+            notifySaved();
             sheetChanged.current = true;
           }}
           close={() => {

@@ -35,6 +35,7 @@ import {
   type NoteTabRow,
 } from "../schemas/note";
 import { MoveButtons, TabStrip } from "./note-tab-strip";
+import { notifySaved } from "@/lib/cross-window";
 
 const M = messages.notes;
 
@@ -123,6 +124,7 @@ export function NotebookWorkspace({
         onOk(result.data);
         if (okMessage) toast({ variant: "success", title: okMessage });
         router.refresh();
+        notifySaved();
       } else if (result.error.code === "UNAUTHENTICATED") {
         router.push("/login?reason=expired");
       } else {

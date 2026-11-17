@@ -26,6 +26,7 @@ import {
 } from "@/lib/undo/history";
 import { VersionBook } from "@/lib/undo/steps";
 import { historyShortcut } from "./shortcut";
+import { notifySaved } from "@/lib/cross-window";
 
 /** Pages whose history is kept while the user moves between them; the oldest goes first. */
 const MAX_PAGES = 20;
@@ -144,6 +145,7 @@ export function PageHistoryProvider({ children }: { children: ReactNode }) {
           direction === "undo" ? messages.pageHistory.undone : messages.pageHistory.redone;
         announce(said(step.label));
         router.refresh();
+        notifySaved();
       } else {
         const title =
           outcome === "stale" ? messages.pageHistory.stale : messages.pageHistory.failed;

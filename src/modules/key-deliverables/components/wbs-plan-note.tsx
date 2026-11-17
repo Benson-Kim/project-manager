@@ -9,6 +9,7 @@ import { setPlanNoteAction } from "../actions";
 import { MAX_NOTE_LENGTH } from "../schemas/key-deliverable";
 import { PaperclipIcon } from "./wbs-box-note";
 import { firstError } from "./wbs-queue";
+import { notifySaved } from "@/lib/cross-window";
 
 /**
  * The project's sticky note beside the work breakdown (ADR-0052). Each save carries the project's
@@ -51,6 +52,7 @@ export function PlanNote({
     }
     toast({ variant: "error", title: firstError(result.error) });
     router.refresh();
+    notifySaved();
     return false;
   }
 
