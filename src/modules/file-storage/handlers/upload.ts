@@ -11,6 +11,7 @@ import {
   type ReceivedUpload,
 } from "@/lib/files/store";
 import { messages } from "@/lib/messages";
+import { errorMessage } from "@/lib/licence/messages";
 import type { AttachmentQuota, StoredFileInput } from "../repository/attachments";
 import {
   MAX_UPLOAD_BYTES,
@@ -61,7 +62,7 @@ export interface UploadDeps {
 let reservedBytes = 0;
 
 function fail(status: number, code: AppErrorCode, message?: string): Response {
-  return json({ ok: false, error: { code, message: message ?? messages.errors[code] } }, status);
+  return json({ ok: false, error: { code, message: message ?? errorMessage(code) } }, status);
 }
 
 /** Proc errors → HTTP. NOT_FOUND and FORBIDDEN_ROW look the same, so nothing leaks. */

@@ -240,6 +240,7 @@ export const setDueSoonDaysAction = action({
   name: "todo-items.setDueSoonDays",
   schema: dueSoonDaysInput,
   permission: "todo-items:read",
+  licence: "read",
   handler: async (input, ctx) => {
     await setDueSoonDays(ctx.session.userId, input.dueSoonDays);
     return { dueSoonDays: input.dueSoonDays };

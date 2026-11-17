@@ -29,6 +29,7 @@ export const searchProjectsAction = action({
   name: "projects.search",
   schema: z.object({ prefix: z.string().trim().min(1).max(100) }),
   permission: "projects:read",
+  licence: "read",
   handler: (input, ctx) => searchProjects(input.prefix, ctx.session.userId),
 });
 

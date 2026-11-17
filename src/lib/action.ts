@@ -6,6 +6,8 @@ import { can } from "./auth/rbac";
 import { takeUserSlot } from "./rate-limit";
 import type { Permission, Session } from "./auth/types";
 import { AppError, type AppErrorCode } from "./errors";
+import { allowsChanges, currentLicenceStatus } from "./licence/gate";
+import { licenceMessages } from "./licence/messages";
 import { messages } from "./messages";
 // Installs the rich-text sanitiser for richTextSchema (ADR-0025): every action
 // input is parsed here, and a server-side parse without it throws.
@@ -50,6 +52,8 @@ export interface ActionOptions<TSchema extends z.ZodType, TOutput> {
    * string matches nothing.
    */
   revalidate?: string[];
+  /** "read" for an action that changes no shared data: it keeps working while the licence is inactive. */
+  licence?: "read";
   handler: (input: z.output<TSchema>, ctx: ActionContext) => Promise<TOutput>;
 }
 
@@ -90,6 +94,7 @@ function detailOf(err: unknown): FailureDetail {
  * instead: it is the only failure the user has to report.
  */
 function failureMessage(code: ActionErrorCode, reference: string): string {
+  if (code === "LICENCE_INACTIVE") return licenceMessages.inactive;
   const copy: string | undefined = code === "INTERNAL" ? undefined : messages.errors[code];
   return copy ?? messages.errors.internalWithReference(reference);
 }
@@ -158,6 +163,9 @@ export function action<TSchema extends z.ZodType, TOutput>(
           : options.permission;
       // The permission is the reason, and it is a name from a closed set.
       if (!can(session.role, permission)) return fail("FORBIDDEN", { reason: permission });
+      if (options.licence !== "read" && !allowsChanges(await currentLicenceStatus())) {
+        return fail("LICENCE_INACTIVE");
+      }
 
       // 4. Execute (procs enforce row-level access and write audit rows).
       const data = await options.handler(parsed.data, { session });
