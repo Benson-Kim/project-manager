@@ -10,7 +10,12 @@ export default defineConfig({
   test: {
     testTimeout: 15000,
     // electron/ and scripts/desktop/ hold the desktop host and its release helper.
-    include: ["src/**/*.test.ts", "electron/**/*.test.ts", "scripts/**/*.test.mjs"],
+    include: [
+      "src/**/*.test.ts",
+      "electron/**/*.test.ts",
+      "services/**/*.test.ts",
+      "scripts/**/*.test.mjs",
+    ],
     environment: "node",
     // The action throttle (ADR-0031) is off in the unit suite; rate-limit.test.ts tests it.
     env: { RATE_LIMIT_ACTIONS_PER_MINUTE: "0", RATE_LIMIT_EXPORTS_PER_MINUTE: "0" },
