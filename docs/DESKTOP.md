@@ -79,33 +79,30 @@ the next version over it → data still there).
 
 ### Code signing ([ADR-0034](adr/ADR-0034-desktop-update-signing.md))
 
-Releases are signed with the office's own publisher certificate, and every
-installed app verifies an update's signature (valid chain on that PC + the
-publisher's subject) before installing it. One-time setup:
+Releases are signed with a publicly trusted certificate, and every installed app
+verifies an update's signature (valid chain + one of the publisher subjects baked into
+the app) before installing it. Nothing is imported into the PC's trust store.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/desktop/make-publisher-cert.ps1 `
-  -Subject "CN=Burton Project Manager, O=Burton" -OutDir C:\secure\pm-signing
-```
-
-It prints the three GitHub settings: secrets `WIN_CSC_LINK` (base64 of the
-PFX) and `WIN_CSC_KEY_PASSWORD`, repository variable `PM_PUBLISHER` (the
-subject). Commit the public half as `build-resources/publisher.cer`: the
-installer ships it and provisioning trusts it on each PC, once, while
-elevated (first install or Repair). Keep the PFX with the office's other
-secrets; it is git-ignored.
-
-- Without the secrets the release job builds unsigned (with a warning) and
-  apps do not verify signatures, as before 2026-10-16.
-- A certificate from a public CA works the same way: set the three values
-  from its PFX and drop the `.cer`. Only such a certificate (with reputation)
-  removes SmartScreen's "Windows protected your PC" on the **first** install;
-  the self-issued one does not, so the user clicks *More info → Run anyway*
-  once and checks the `.sha256`. Updates installed by the app never show it.
-- Rotation: run the script again, replace secret, variable and `.cer`,
-  release. PCs trust the new publisher at their next Repair.
-- Local builds: set `CSC_LINK` (path or base64 of the PFX), `CSC_KEY_PASSWORD`
-  and `PM_PUBLISHER` together; the build refuses one without the other.
+- **Methods** (`scripts/desktop/signing.cjs`, exactly one per build):
+  Microsoft Artifact Signing, formerly Trusted Signing (`PM_AZURE_SIGN_ENDPOINT`,
+  `_ACCOUNT`, `_PROFILE` + `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`,
+  `AZURE_CLIENT_SECRET`); an OV certificate whose key the CA's signing tool holds
+  (`PM_SIGN_CERT_SHA1`); or the old self-issued PFX (`CSC_LINK`), kept only for a
+  bridging release. `PM_PUBLISHER` is the signing certificate's full subject.
+- CI reads them from the `desktop-release` GitHub environment (variables and secrets);
+  set-up and the per-release steps are in [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md).
+- Every exe, DLL and native module is signed with an RFC 3161 timestamp, except the
+  Microsoft-signed SQL Server media. A signed build that fails to sign any file fails,
+  and CI checks the installer's signer and timestamp before publishing it.
+- Without signing settings the release job builds unsigned (with a warning) and apps
+  do not verify signatures. That is every release up to 2026-11-17.
+- Changing the signing subject needs one **bridging release**: signed the old way, with
+  `PM_NEXT_PUBLISHER` set to the new subject (RELEASE-CHECKLIST.md).
+- SmartScreen can still show "Windows protected your PC" on a first install until the
+  new certificate builds reputation; the person clicks *More info → Run anyway* once and
+  checks the `.sha256`. Updates installed by the app never show it.
+- Local builds: set one method's variables and `PM_PUBLISHER` together; the build
+  refuses one without the other.
 
 ## Updates
 
@@ -222,8 +219,11 @@ version would ignore the release.
 - Each Windows account that uses the app installs it once (no admin rights
   needed once the PC's database engine is set up). They share the same data.
 - Feed settings at build time: `PM_UPDATE_GITHUB=owner/repo` (default: this
-  repo), `PM_UPDATE_URL=<https folder>` for a self-hosted feed, or
-  `PM_UPDATE_FEED=off`. A self-hosted folder must answer HTTP range requests and
+  repo), `PM_UPDATE_URL=<https folder>` for a self-hosted feed (the public tester
+  feed; CI takes it from the `desktop-release` environment), or
+  `PM_UPDATE_FEED=off`. The folder URL is readable in every installer, so the build
+  refuses `http`, credentials, query strings (signed links) and fragments. A
+  self-hosted folder must answer HTTP range requests and
   keep the older releases' `.blockmap` files next to their installers. The app
   fetches each changed part with its own request, as it does from GitHub: a single
   multi-range request timed out on a slow PC, which then downloaded the whole installer.
@@ -406,11 +406,11 @@ scripts/desktop/     build.mjs (refuses a standalone with build-machine files or
   **Repair** runs once (the app offers it; it needs an administrator). The login block is
   executed for real by `npm run electron:test-db` (throwaway login and databases).
 - **Updates are verified** ([ADR-0034](adr/ADR-0034-desktop-update-signing.md)): a
-  downloaded installer must carry a valid Authenticode signature from the office's
-  publisher, which provisioning trusted on the PC (`LocalMachine\\Root` +
-  `TrustedPublisher`, code-signing use only). Writing a GitHub release is not enough
-  to put code on a client PC; the signing key is. The first installer a PC ever runs
-  is the one trust-on-first-install step: check its `.sha256`.
+  downloaded installer must carry a valid, timestamped Authenticode signature from one
+  of the publisher subjects the installed app names, on a chain Windows already trusts.
+  Writing a release is not enough to put code on a PC; the signing identity is. The
+  first installer a PC ever runs is checked by the person installing it: its publisher
+  in the UAC prompt and its `.sha256`.
 - **Backups leave the PC in clear.** The daily `.bak` copied to the backup folder (OneDrive by
   default) is not encrypted by SQL Server; it relies on the account's OneDrive protection and
   BitLocker on the disk. Point the copy at a folder you consider safe for project financials.

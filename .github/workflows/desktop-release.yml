@@ -18,6 +18,9 @@ jobs:
     name: Build & publish installer
     runs-on: windows-latest
     timeout-minutes: 60
+    # Signing secrets live in this environment, limited to develop: ci.yml passes no
+    # repository secrets to this workflow, and no other branch can read them.
+    environment: desktop-release
     permissions:
       contents: write
     # One release at a time; a newer merge waits instead of racing for the version number.
@@ -65,16 +68,33 @@ jobs:
         env:
           PM_VERSION: ${{ steps.plan.outputs.version }}
           PM_UPDATE_GITHUB: ${{ github.repository }}
-          # Code signing (ADR-0034): the publisher certificate from the repository's secrets
-          # and its subject from the PM_PUBLISHER variable. Absent = unsigned, with a warning.
+          # Public feed for testers instead of this repository's releases (empty = GitHub).
+          PM_UPDATE_URL: ${{ vars.PM_UPDATE_URL }}
+          # Code signing (ADR-0034), one method: Microsoft Trusted Signing, an OV certificate
+          # held by the CA's signing tool, or the self-issued PFX for the bridging release.
+          PM_AZURE_SIGN_ENDPOINT: ${{ vars.PM_AZURE_SIGN_ENDPOINT }}
+          PM_AZURE_SIGN_ACCOUNT: ${{ vars.PM_AZURE_SIGN_ACCOUNT }}
+          PM_AZURE_SIGN_PROFILE: ${{ vars.PM_AZURE_SIGN_PROFILE }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          PM_SIGN_CERT_SHA1: ${{ vars.PM_SIGN_CERT_SHA1 }}
           CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
           PM_PUBLISHER: ${{ vars.PM_PUBLISHER }}
+          PM_NEXT_PUBLISHER: ${{ vars.PM_NEXT_PUBLISHER }}
         run: |
-          if [ -z "$CSC_LINK" ]; then
-            echo "::warning::Unsigned installer: installed apps will not verify this release's signature. Set WIN_CSC_LINK, WIN_CSC_KEY_PASSWORD and PM_PUBLISHER (docs/DESKTOP.md, Code signing)."
+          if [ -z "$PM_AZURE_SIGN_ACCOUNT$PM_SIGN_CERT_SHA1$CSC_LINK" ]; then
+            echo "::warning::Unsigned installer: installed apps will not verify this release's signature. Set up signing in the desktop-release environment (docs/RELEASE-CHECKLIST.md)."
           fi
           npm run electron:build
+
+      - name: Verify installer signature
+        if: steps.plan.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+          PM_PUBLISHER: ${{ vars.PM_PUBLISHER }}
+        run: node scripts/desktop/verify-signature.mjs "dist-installer/Modulus-Setup-${VERSION}.exe"
 
       - name: Update policy and release notes
         if: steps.plan.outputs.skip != 'true'
