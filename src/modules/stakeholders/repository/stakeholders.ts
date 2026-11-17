@@ -141,3 +141,25 @@ export async function deleteStakeholder(
     ActorUserId: actorUserId,
   });
 }
+
+const EXPORT_PAGE_SIZE = 100;
+const EXPORT_MAX_PAGES = 100;
+
+/** Every stakeholder on a project, read in pages the list proc allows (it caps a page at 100). */
+export async function listStakeholdersForExport(
+  actorUserId: number,
+  projectId: number,
+): Promise<StakeholderListRow[]> {
+  const all: StakeholderListRow[] = [];
+  for (let page = 1; page <= EXPORT_MAX_PAGES; page++) {
+    const rows = await listStakeholders(
+      { q: undefined, page, dir: "asc" },
+      actorUserId,
+      { project: projectId },
+      EXPORT_PAGE_SIZE,
+    );
+    all.push(...rows);
+    if (rows.length < EXPORT_PAGE_SIZE) break;
+  }
+  return all;
+}

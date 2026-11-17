@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { toCsv } from "../src/lib/csv";
 import { messages } from "../src/lib/messages";
+import { stakeholderCsvRows } from "../src/modules/stakeholders/export";
 import { expectListed, openListed } from "./support/datasheet";
 
 /**
@@ -128,4 +130,20 @@ test("the communication plan dropdowns offer the seeded options, not a fixed set
   for (const label of ["Daily", "Weekly", "Monthly", "Milestone-Driven", "Ad-Hoc"]) {
     await expect(frequency.filter({ hasText: label })).toHaveCount(1);
   }
+});
+
+test("comms export: the CSV link serves the register with its heading row; print is offered", async ({
+  page,
+}) => {
+  await page.goto("/projects/2/stakeholders");
+  await expect(page.getByTestId("stakeholders-export-csv")).toHaveAttribute(
+    "href",
+    "/projects/2/stakeholders/export",
+  );
+  await expect(page.getByTestId("stakeholders-print")).toBeVisible();
+  const response = await page.request.get("/projects/2/stakeholders/export");
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toContain("text/csv");
+  const firstLine = (csv: string) => csv.split("\r\n")[0];
+  expect(firstLine(await response.text())).toBe(firstLine(toCsv(stakeholderCsvRows([]))));
 });
