@@ -1341,7 +1341,7 @@ export const messages = {
       search: "Filter requirements",
       types: "Filter by type",
       all: "All",
-      gapsOnly: "Show gaps only",
+      gapsOnly: "Only requirements missing a test case or a link",
       onCanvasCount: (count: number) => `${count} on canvas`,
       onCanvas: "On canvas",
       missingTest: "Missing test case",
