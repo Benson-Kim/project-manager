@@ -842,14 +842,17 @@ test("WBS toolbar: People shows the names on the boxes, Copy CSV puts the breakd
   const fullscreen = page.getByTestId("wbs-fullscreen");
   if ((await fullscreen.count()) > 0) {
     const editor = page.getByTestId("wbs-editor");
+    await expect(fullscreen).toHaveText("Full screen");
     await fullscreen.click();
     await expect(fullscreen).toHaveAttribute("aria-pressed", "true");
+    await expect(fullscreen).toHaveText("Exit full screen");
     await expect(editor).toHaveClass(/\bfixed\b/);
     expect(await page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(
       true,
     );
     await fullscreen.click();
     await expect(fullscreen).toHaveAttribute("aria-pressed", "false");
+    await expect(fullscreen).toHaveText("Full screen");
     await expect(editor).not.toHaveClass(/\bfixed\b/);
   }
 

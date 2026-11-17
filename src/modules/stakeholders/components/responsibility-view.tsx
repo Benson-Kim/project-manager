@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type KeyboardEvent, useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { buttonClass } from "@/components/ui/button-styles";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DRAG_SOURCE } from "@/components/ui/drag/drag-look";
 import { moveBefore } from "@/components/ui/drag/pointer-drag";
@@ -397,6 +399,22 @@ export function ResponsibilityView({
               ))}
             </Select>
           </div>
+        ) : selected && canEdit ? (
+          <p
+            className="flex flex-wrap items-center gap-2 text-xs text-ink-muted"
+            data-testid="responsibility-no-one-to-add"
+          >
+            {stakeholders.length === 0 ? t.noOneToAdd : t.everyoneAdded}
+            {canCreate ? (
+              <Link
+                href={`/projects/${projectId}/stakeholders?id=new`}
+                className={buttonClass("secondary", "compact")}
+                data-testid="responsibility-add-stakeholder"
+              >
+                {t.addStakeholder}
+              </Link>
+            ) : null}
+          </p>
         ) : null}
         {selected && framework && grid ? (
           <div className="ml-auto flex flex-wrap items-center gap-1">
@@ -427,7 +445,7 @@ export function ResponsibilityView({
                 data-testid="responsibility-fullscreen"
                 onClick={() => void fullscreen.toggle()}
               >
-                {messages.keyDeliverables.wbs.fullscreen}
+                {fullscreen.label}
               </Button>
             ) : null}
           </div>

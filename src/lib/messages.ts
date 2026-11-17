@@ -959,6 +959,7 @@ export const messages = {
       redoMove: "Redo move",
       moveRedone: "Move redone",
       fullscreen: "Full screen",
+      exitFullscreen: "Exit full screen",
       filter: {
         search: "Search the breakdown",
         types: "Show requirement types",
@@ -1127,6 +1128,9 @@ export const messages = {
     deleteTitle: (name: string) => `Delete the matrix "${name}"?`,
     deleteBody: "All its assignments are deleted.",
     addMember: "Add person",
+    noOneToAdd: "No one can be added: this project has no stakeholders yet.",
+    everyoneAdded: "Everyone on this project is already in the matrix.",
+    addStakeholder: "Add a stakeholder",
     add: "Add",
     moveLeft: (name: string) => `Move ${name} left`,
     moveRight: (name: string) => `Move ${name} right`,
