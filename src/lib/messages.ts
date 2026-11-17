@@ -2492,7 +2492,7 @@ export const messages = {
       association: "Association",
     },
     connectorHint:
-      "Drag from a dot on one symbol to another symbol. New connectors use the type picked here.",
+      "Drag from a dot to another symbol, or select one and drag a connector onto the next.",
     pool: "Pool with lanes",
     newPoolName: "Pool",
     laneName: (n: number) => `Lane ${n}`,

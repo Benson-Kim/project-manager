@@ -10,7 +10,7 @@ import { HistoryButtons } from "@/components/undo/history-buttons";
 import { useLendHistory } from "@/components/undo/page-history";
 import { messages } from "@/lib/messages";
 import { readDiagram, type FlowKind } from "../model/diagram";
-import { addPool, addShape, NEW_POOL, type Point } from "../model/edit";
+import { addPool, addShape, connectShapes, NEW_POOL, type Point } from "../model/edit";
 import { diagramSvg } from "../model/svg";
 import type { DiagramRow, DiagramSummary } from "../schemas/bpmn";
 import { newId } from "./board-model";
@@ -99,6 +99,28 @@ function Workspace({ projectId, row, diagrams, can }: WorkspaceProps) {
     },
     same: (a, b) => (a === null) === (b === null),
     onDrop: (item, at) => place(item, screenToFlowPosition(at)),
+  });
+  const isShape = (id: string) => editor.diagram.shapes.some((shape) => shape.id === id);
+  const connectorDrag = useDragGesture<FlowKind, string>({
+    enabled: canEdit,
+    locate: (x, y) => {
+      const board = boardRef.current;
+      if (!board) return null;
+      for (const under of document.elementsFromPoint(x, y)) {
+        if (!board.contains(under)) continue;
+        const id = under.closest(".react-flow__node")?.getAttribute("data-id");
+        if (id && isShape(id)) return id;
+      }
+      return null;
+    },
+    same: (a, b) => a === b,
+    onDrop: (kind, target) => {
+      setConnector(kind);
+      const [source, ...more] = [...selected].filter((id) => id !== target && isShape(id));
+      if (source && more.length === 0)
+        editor.change((d) => connectShapes(d, { source, target }, kind, newId("flow")));
+      setSelected(new Set([target]));
+    },
   });
 
   const printSrc = useMemo(() => svgDataUrl(diagramSvg(editor.diagram).svg), [editor.diagram]);
@@ -256,6 +278,7 @@ function Workspace({ projectId, row, diagrams, can }: WorkspaceProps) {
             onConnector={setConnector}
             onAdd={placeInView}
             drag={paletteDrag}
+            connectorDrag={connectorDrag}
           />
         ) : null}
         {layout === "canvas" ? (

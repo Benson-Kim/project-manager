@@ -118,6 +118,32 @@ test.describe("BPMN diagrams", () => {
     ).toBe(true);
   });
 
+  test("a connector dragged onto a symbol joins the selected symbol to it", async ({ page }) => {
+    test.setTimeout(120_000);
+    const projectId = await createProject(page);
+    await createDiagram(page, projectId);
+    const board = page.getByTestId("bpmn-board");
+    await dropInto(page, "task", board, 160);
+    await dropInto(page, "endEvent", board, 520);
+    await expect(page.getByTestId("bpmn-shape")).toHaveCount(2);
+    const task = page.locator('[data-testid="bpmn-shape"][data-kind="task"]');
+    const end = page.locator('[data-testid="bpmn-shape"][data-kind="endEvent"]');
+
+    await task.click();
+    const message = page.getByTestId("bpmn-connector-message");
+    await message.scrollIntoViewIfNeeded();
+    const from = centre(await box(message));
+    const to = centre(await box(end));
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: 12 });
+    await page.mouse.up();
+    await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+    await waitForSave(page);
+    await page.reload();
+    await expect(page.locator(".react-flow__edge")).toHaveCount(1, { timeout: 30_000 });
+  });
+
   test("undo takes a shape back, redo puts it back, and the XML export names the pool", async ({
     page,
   }) => {

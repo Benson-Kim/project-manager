@@ -24,7 +24,7 @@ import { messages } from "@/lib/messages";
 import { FLOW_KINDS, type FlowKind } from "../model/diagram";
 import {
   addLane,
-  connect,
+  connectShapes,
   duplicateShape,
   movePool,
   moveShapes,
@@ -41,7 +41,6 @@ import {
   setShapeLabel,
   type Point,
 } from "../model/edit";
-import { flowKindFor } from "../model/shapes";
 import { BoardContext, type BoardActions } from "./board-context";
 import { BoardMenu, type BoardMenuActions, type MenuTarget } from "./board-menu";
 import { asSide, newId, toEdges, toNodes, type BoardNode } from "./board-model";
@@ -183,19 +182,19 @@ export function BpmnBoard({
     select(changes.flatMap((c) => (c.type === "select" ? [c] : [])));
 
   const onConnect = (connection: Connection) =>
-    change((d) => {
-      const source = d.shapes.find((shape) => shape.id === connection.source);
-      const target = d.shapes.find((shape) => shape.id === connection.target);
-      if (!source || !target) return d;
-      return connect(d, {
-        id: newId("flow"),
-        kind: flowKindFor(source.kind, target.kind, connector),
-        source: source.id,
-        target: target.id,
-        sourceSide: asSide(connection.sourceHandle, "right"),
-        targetSide: asSide(connection.targetHandle, "left"),
-      });
-    });
+    change((d) =>
+      connectShapes(
+        d,
+        {
+          source: connection.source,
+          target: connection.target,
+          sourceSide: asSide(connection.sourceHandle, "right"),
+          targetSide: asSide(connection.targetHandle, "left"),
+        },
+        connector,
+        newId("flow"),
+      ),
+    );
 
   const onReconnect = (old: FlowFlowEdge, connection: Connection) =>
     change((d) =>
