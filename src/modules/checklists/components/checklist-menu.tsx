@@ -9,14 +9,16 @@ import { Dialog } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Menu, MenuButton } from "@/components/ui/menu";
 import { messages } from "@/lib/messages";
+import { BoardFromChecklistForm } from "@/modules/boards/components/board-from-checklist-form";
 import { firstError } from "@/modules/key-deliverables/components/wbs-queue";
 import { deleteChecklistAction } from "../actions";
 import type { Checklist } from "../schemas/checklist";
 import { ChecklistForm } from "./checklist-form";
+import { notifySaved } from "@/lib/cross-window";
 
 const M = messages.checklists;
 
-type Open = "new" | "rename" | "delete" | null;
+type Open = "new" | "rename" | "delete" | "board" | null;
 
 /** Switches between the project's checklists, and creates, renames or deletes one. */
 export function ChecklistMenu({
@@ -28,7 +30,7 @@ export function ChecklistMenu({
   projectId: number;
   checklists: readonly Checklist[];
   current: Checklist;
-  can: { create: boolean; update: boolean; delete: boolean };
+  can: { create: boolean; update: boolean; delete: boolean; makeBoard?: boolean };
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -49,6 +51,7 @@ export function ChecklistMenu({
         rowVer: current.RowVer,
       });
       if (!result.ok) return setError(firstError(result.error));
+      notifySaved();
       setOpen(null);
       router.push(pathname);
     });
@@ -87,12 +90,25 @@ export function ChecklistMenu({
             {M.rename}
           </MenuButton>
         ) : null}
+        {can.makeBoard ? (
+          <MenuButton testId="checklist-board" onClick={() => show("board")}>
+            {M.makeBoard}
+          </MenuButton>
+        ) : null}
         {can.delete ? (
           <MenuButton testId="checklist-delete" onClick={() => show("delete")}>
             {M.delete}
           </MenuButton>
         ) : null}
       </Menu>
+      <Dialog open={open === "board"} onOpenChange={toggle("board")} title={M.makeBoardTitle}>
+        <BoardFromChecklistForm
+          projectId={projectId}
+          checklistId={current.ChecklistId}
+          defaultName={current.Name}
+          onDone={() => setOpen(null)}
+        />
+      </Dialog>
       <Dialog open={open === "new"} onOpenChange={toggle("new")} title={M.createTitle}>
         <ChecklistForm projectId={projectId} onDone={() => setOpen(null)} />
       </Dialog>

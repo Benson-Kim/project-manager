@@ -41,7 +41,8 @@ BEGIN
     CROSS APPLY dbo.ufn_TodoItem_AccessLevel(@ActorRole, @ActorUserId, t.ProjectId, t.CreatedBy) acc
     WHERE a.IsDeleted = 0
       AND a.IsDismissed = 0
-      AND (a.CreatedBy = @ActorUserId OR t.CreatedBy = @ActorUserId)
+      AND (a.RecipientUserId = @ActorUserId
+           OR (a.RecipientUserId IS NULL AND (a.CreatedBy = @ActorUserId OR t.CreatedBy = @ActorUserId)))
       AND acc.AccessLevel IS NOT NULL
       AND t.[Status] NOT IN (N'Completed', N'Cancelled')
       AND a.AlertDay IS NOT NULL

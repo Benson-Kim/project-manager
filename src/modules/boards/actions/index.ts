@@ -4,6 +4,7 @@ import { z } from "zod";
 import { action } from "@/lib/action";
 import {
   createBoard,
+  createBoardFromChecklist,
   deleteBoard,
   getBoard,
   listBoardOptions,
@@ -44,6 +45,7 @@ import {
   updateBoardSprint,
 } from "../repository/board-sprints";
 import {
+  createBoardFromChecklistInput,
   createBoardInput,
   deleteBoardInput,
   setBoardProjectInput,
@@ -99,6 +101,18 @@ export const createBoardAction = action({
   permission: "boards:create",
   handler: async (input, ctx) => {
     const board = await createBoard(input, ctx.session.userId);
+    revalidateBoards(board.ProjectId);
+    return board;
+  },
+});
+
+/** Make a board from a checklist (boards:create; the proc checks the checklist's project and both levels). */
+export const createBoardFromChecklistAction = action({
+  name: "boards.createFromChecklist",
+  schema: createBoardFromChecklistInput,
+  permission: "boards:create",
+  handler: async (input, ctx) => {
+    const board = await createBoardFromChecklist(input, ctx.session.userId);
     revalidateBoards(board.ProjectId);
     return board;
   },
@@ -267,6 +281,7 @@ export const readBoardCardAction = action({
   name: "boards.cardDetails",
   schema: readBoardCardInput,
   permission: "boards:read",
+  licence: "read",
   handler: async (input, ctx) => getBoardCardById(input.boardCardId, ctx.session.userId),
 });
 
@@ -290,6 +305,7 @@ export const readDeliverableOptionsAction = action({
   name: "boards.deliverableOptions",
   schema: z.object({ projectId: z.number().int().positive() }),
   permission: "boards:read",
+  licence: "read",
   handler: (input, ctx) => listDeliverableOptions(input.projectId, ctx.session.userId),
 });
 
@@ -297,6 +313,7 @@ export const readPackagingOptionsAction = action({
   name: "boards.packageOptions",
   schema: z.object({ projectId: z.number().int().positive() }),
   permission: "boards:read",
+  licence: "read",
   handler: async (input, ctx) => {
     const [requirements, boards] = await Promise.all([
       listPackagingRequirementOptions(input.projectId, ctx.session.userId),
@@ -312,6 +329,7 @@ export const readPackagingBoardAction = action({
   name: "boards.packageColumns",
   schema: z.object({ boardId: z.number().int().positive() }),
   permission: "boards:read",
+  licence: "read",
   handler: async (input, ctx) => {
     const board = await getBoard({ boardId: input.boardId, cardsPerList: 1 }, ctx.session.userId);
     return { columns: board.columns, activeSprintId: board.header.ActiveSprintId };

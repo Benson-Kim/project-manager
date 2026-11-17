@@ -8,6 +8,7 @@ import {
   parseCellValue,
 } from "@/lib/custom-columns/kinds";
 import type { ListSort } from "@/lib/list-params";
+import { RICH_TEXT_FIELD_MAX, richTextSchema } from "@/lib/rich-text/schema";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 
 /** Checklists (ADR-0066): rows are read and written through the procs only. */
@@ -71,6 +72,13 @@ export const checklistItemSchema = z.object({
   DoneByName: z.string().nullable(),
   SortOrder: z.number().int(),
   CreatedAtUtc: dateTime,
+  StartDate: z.string().nullable(),
+  DueDate: z.string().nullable(),
+  AssigneeStakeholderId: z.number().int().nullable(),
+  AssigneeName: z.string().nullable(),
+  Priority: z.string().nullable(),
+  Notes: z.string().nullable(),
+  TodoItemId: z.number().int().nullable(),
   RowVer: rowVerSchema,
   ...actorAccessFields,
   Cells: cellsSchema,
@@ -151,6 +159,36 @@ export const setItemDoneInput = z.strictObject({
 });
 export type SetItemDoneInput = z.infer<typeof setItemDoneInput>;
 
+const isoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine(
+    (v) =>
+      !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) &&
+      new Date(`${v}T00:00:00Z`).toISOString().startsWith(v),
+  );
+
+export const setItemDetailsInput = z
+  .strictObject({
+    itemId: idSchema,
+    startDate: isoDate.nullable(),
+    dueDate: isoDate.nullable(),
+    assigneeStakeholderId: idSchema.nullable(),
+    priority: z
+      .string()
+      .trim()
+      .max(255)
+      .nullable()
+      .transform((v) => v || null),
+    notes: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
+    rowVer: rowVerSchema,
+  })
+  .refine((v) => !v.startDate || !v.dueDate || v.startDate <= v.dueDate, {
+    path: ["dueDate"],
+    message: "The start date must be on or before the due date",
+  });
+export type SetItemDetailsInput = z.infer<typeof setItemDetailsInput>;
+
 export const deleteItemInput = z.strictObject({ itemId: idSchema, rowVer: rowVerSchema });
 export type DeleteItemInput = z.infer<typeof deleteItemInput>;
 
@@ -185,3 +223,8 @@ export type SetCellParsed = z.output<typeof setCellInput>;
 
 export const runTodoInput = z.strictObject({ itemId: idSchema, columnId: idSchema });
 export type RunTodoInput = z.infer<typeof runTodoInput>;
+
+export const addItemsToCalendarInput = z.strictObject({
+  itemIds: z.array(idSchema).min(1).max(200),
+});
+export type AddItemsToCalendarInput = z.infer<typeof addItemsToCalendarInput>;

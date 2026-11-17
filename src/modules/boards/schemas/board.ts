@@ -84,6 +84,19 @@ export const createBoardInput = z.object({
 
 export type CreateBoardInput = z.input<typeof createBoardInput>;
 
+export const BOARD_METHODS = ["kanban", "scrum"] as const;
+export type BoardMethod = (typeof BOARD_METHODS)[number];
+
+/** A board made from a checklist: one card per item; a Scrum board also gets a first sprint. */
+export const createBoardFromChecklistInput = z.object({
+  checklistId: z.number().int().positive(),
+  projectId: z.number().int().positive(),
+  name: boardName,
+  method: z.enum(BOARD_METHODS),
+});
+
+export type CreateBoardFromChecklistInput = z.input<typeof createBoardFromChecklistInput>;
+
 export const updateBoardInput = z.object({
   boardId: z.number().int().positive(),
   rowVer: rowVerSchema,

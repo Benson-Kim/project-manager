@@ -51,6 +51,18 @@ async function addItem(page: Page, title: string) {
   });
 }
 
+async function createStakeholder(page: Page, projectId: string, firstName: string) {
+  await page.goto(`/projects/${projectId}/stakeholders?id=new`);
+  const form = page.getByTestId("stakeholder-form");
+  await expect(form).toBeVisible();
+  await form.getByLabel(messages.stakeholders.firstName).fill(firstName);
+  await page.getByTestId("stakeholder-save").click();
+  await expect(
+    page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(form).toHaveCount(0);
+}
+
 test.describe("checklists (ADR-0066)", () => {
   test("columns of every kind are added, filled, renamed and kept across a reload", async ({
     page,
@@ -144,6 +156,68 @@ test.describe("checklists (ADR-0066)", () => {
     // The to-do the button made is a real to-do of this project.
     await reloaded.getByTestId("custom-cell-todo-link").click();
     await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/todos\\?id=\\d+`));
+  });
+
+  test("start, due, priority and the assigned stakeholder are saved and kept across a reload", async ({
+    page,
+  }) => {
+    const projectId = await createProject(page);
+    const person = `Wanjiru ${Date.now()}`;
+    await createStakeholder(page, projectId, person);
+    await createChecklist(page, projectId, `Handover ${Date.now()}`);
+
+    const title = `Book the venue ${Date.now()}`;
+    await addItem(page, title);
+    const announcer = page.getByTestId("live-announcer");
+    const T = messages.todoItems;
+
+    const start = page.getByLabel(cell(T.startDate, title));
+    await start.fill("2026-12-01");
+    await start.press("Enter");
+    await expect(announcer).toHaveText(D.saved(T.startDate), { timeout: 30_000 });
+    const due = page.getByLabel(cell(T.dueDate, title));
+    await due.fill("2026-12-10");
+    await due.press("Enter");
+    await expect(announcer).toHaveText(D.saved(T.dueDate), { timeout: 30_000 });
+    await page.getByRole("combobox", { name: cell(T.priority, title) }).selectOption("High");
+    await expect(announcer).toHaveText(D.saved(T.priority), { timeout: 30_000 });
+    await page
+      .getByRole("combobox", { name: cell(M.assignee, title) })
+      .selectOption({ label: person });
+    await expect(announcer).toHaveText(D.saved(M.assignee), { timeout: 30_000 });
+
+    await page.reload();
+    await expect(page.getByLabel(cell(T.startDate, title))).toHaveValue("2026-12-01");
+    await expect(page.getByLabel(cell(T.dueDate, title))).toHaveValue("2026-12-10");
+    await expect(
+      page.getByRole("combobox", { name: cell(T.priority, title) }).locator("option:checked"),
+    ).toHaveText("High");
+    await expect(
+      page.getByRole("combobox", { name: cell(M.assignee, title) }).locator("option:checked"),
+    ).toHaveText(person);
+  });
+
+  test("selected items go on the to-do calendar with their dates", async ({ page }) => {
+    const projectId = await createProject(page);
+    await createChecklist(page, projectId, `Launch ${Date.now()}`);
+    const title = `Print the badges ${Date.now()}`;
+    await addItem(page, title);
+    const T = messages.todoItems;
+    const due = page.getByLabel(cell(T.dueDate, title));
+    await due.fill("2026-12-10");
+    await due.press("Enter");
+    await expect(page.getByTestId("live-announcer")).toHaveText(D.saved(T.dueDate), {
+      timeout: 30_000,
+    });
+
+    await page.getByRole("checkbox", { name: messages.list.selectRow(title) }).check();
+    await page.getByTestId("checklist-add-to-calendar").click();
+    await expect(page.getByTestId("toast-success")).toHaveText(M.addedToCalendar, {
+      timeout: 30_000,
+    });
+
+    await page.goto(`/projects/${projectId}/todos`);
+    await expect(page.getByText(title)).toBeVisible({ timeout: 30_000 });
   });
 
   test("search finds items by title and deleting a column asks first", async ({ page }) => {
