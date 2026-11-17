@@ -215,6 +215,14 @@ const CROSS_SCOPE: Record<
     { entity: "Project", level: "Contributor", permission: "boards:create" },
     { entity: "Project", level: "Viewer", permission: "checklists:read" },
   ],
+  usp_MeetingDiscussionPoint_LogDecision: [
+    { entity: "Project", level: "Contributor", permission: "meetings:update" },
+    { entity: "Project", level: "Contributor", permission: "decisions:create" },
+  ],
+  usp_MeetingDiscussionPoint_LogAssumption: [
+    { entity: "Project", level: "Contributor", permission: "meetings:update" },
+    { entity: "Project", level: "Contributor", permission: "assumptions-constraints:create" },
+  ],
   usp_BoardCard_LinkRequirement: [
     { entity: "Board", level: "Contributor", permission: "boards:update" },
     { entity: "Project", level: "Viewer", permission: "requirements:read" },
@@ -239,6 +247,8 @@ const SECOND_CHECK_MODULE: Record<string, string> = {
   usp_BoardCard_LinkRequirement: "requirements",
   usp_BoardCard_PackageDeliverables: "key-deliverables",
   usp_Board_CreateFromChecklist: "checklists",
+  usp_MeetingDiscussionPoint_LogDecision: "decisions",
+  usp_MeetingDiscussionPoint_LogAssumption: "assumptions-constraints",
   usp_ResponsibilityAssignment_Set: "key-deliverables",
 };
 

@@ -29,6 +29,8 @@ import type {
   UpdateActionItemValues,
   UpdateAgendaItemValues,
   UpdateDiscussionPointValues,
+  LogDiscussionPointDecisionValues,
+  LogDiscussionPointAssumptionValues,
   UpdateFollowUpValues,
   UpdateMeetingFormValues,
 } from "../schemas/meeting-form";
@@ -309,6 +311,34 @@ export function updateDiscussionPoint(input: UpdateDiscussionPointValues, actorU
       DiscussionPoint: input.discussionPoint,
       RowVer: input.rowVer,
     },
+    actorUserId,
+  );
+}
+
+/** Logs the point in the project's decision log and links the two; a linked point keeps its decision. */
+export function logDiscussionPointDecision(
+  input: LogDiscussionPointDecisionValues,
+  actorUserId: number,
+) {
+  return workspaceAfter(
+    "usp_MeetingDiscussionPoint_LogDecision",
+    {
+      MeetingDiscussionPointId: input.meetingDiscussionPointId,
+      RowVer: input.rowVer,
+      Title: input.title,
+    },
+    actorUserId,
+  );
+}
+
+/** Logs the point as an assumption in the project's register and links the two; a linked point keeps it. */
+export function logDiscussionPointAssumption(
+  input: LogDiscussionPointAssumptionValues,
+  actorUserId: number,
+) {
+  return workspaceAfter(
+    "usp_MeetingDiscussionPoint_LogAssumption",
+    { MeetingDiscussionPointId: input.meetingDiscussionPointId, RowVer: input.rowVer },
     actorUserId,
   );
 }

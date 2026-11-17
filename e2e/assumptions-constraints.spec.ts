@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
-import { expectListed, expectNotListed } from "./support/datasheet";
+import { expectListed, expectNotListed, openListed } from "./support/datasheet";
 
 /**
  * Assumptions & constraints module (#13) — project-scoped route
@@ -12,7 +12,6 @@ import { expectListed, expectNotListed } from "./support/datasheet";
  *   id=1: Type=Constraint, Description="I will make it on time", Validated=Yes
  *   id=2: Type=Assumption, Description="Is this constraint validated?"
  *   id=3: Type=Assumption, Description="This ia an assumption"
- *   id=5: Type=Assumption, Description="Assumption" (used for delete test)
  *   id=6: Type=Constraint, Description="Constraint"
  *   id=7: Type=Assumption, Description="Assumption and Constraint", Impact=High
  */
@@ -94,15 +93,25 @@ test("edit seeded item — updated value persists in the list and re-open shows 
   await expect(descField).toHaveValue(updatedDesc);
 });
 
-test("delete seeded item — record disappears from the list", async ({ page }) => {
-  // Use id=5 ("Assumption") — not used by other tests
-  await page.goto("/projects/2/assumptions-constraints?id=5");
+test("delete item — record disappears from the list", async ({ page }) => {
+  const description = `E2E delete ${Date.now()}`;
+  await page.goto("/projects/2/assumptions-constraints?id=new");
   const form = page.getByTestId("assumption-constraint-form");
+  await expect(form).toBeVisible();
+  await form.getByLabel(messages.assumptionsConstraints.description).fill(description);
+  await form.getByLabel(messages.assumptionsConstraints.type).selectOption("Assumption");
+  await page.getByTestId("assumption-constraint-save").click();
+  await expect(
+    page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(form).toHaveCount(0);
+
+  await page.goto(`/projects/2/assumptions-constraints?q=${encodeURIComponent(description)}`);
+  await openListed(page, description);
   await expect(form).toBeVisible();
 
   await page.getByTestId("assumption-constraint-delete").click();
 
-  // Confirm delete dialog
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: messages.actions.delete }).click();
@@ -111,6 +120,9 @@ test("delete seeded item — record disappears from the list", async ({ page }) 
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.deleted }).first(),
   ).toBeVisible({ timeout: 15_000 });
   await expect(form).toHaveCount(0);
+
+  await page.goto(`/projects/2/assumptions-constraints?q=${encodeURIComponent(description)}`);
+  await expectNotListed(page, description);
 });
 
 test("type filter — Constraint only shows Constraint rows", async ({ page }) => {

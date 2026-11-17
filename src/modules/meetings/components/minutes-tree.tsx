@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { previewText } from "@/components/ui/data-view/datasheet";
 import { formatDate } from "@/lib/format";
@@ -524,7 +525,17 @@ function PointBlock({
   agendaItemId: number;
   siblings: Sibling[];
 }) {
-  const { focusSoon, pointView } = useMinutes();
+  const {
+    focusSoon,
+    pointView,
+    busy,
+    canLogDecision,
+    decisionsHref,
+    logDecision,
+    canLogAssumption,
+    assumptionsHref,
+    logAssumption,
+  } = useMinutes();
   const [editing, setEditing] = useState(false);
   const point = node.point;
   const id = point.MeetingDiscussionPointId;
@@ -548,6 +559,51 @@ function PointBlock({
             <span className="shrink-0 text-ink-muted tabular-nums">{code}</span>{" "}
             <div className="min-w-0 flex-1 wrap-anywhere">{pointView(point)}</div>
           </div>
+          {point.DecisionNumber !== null ? (
+            <Link
+              href={decisionsHref}
+              aria-label={M.openDecision(messages.decisions.ref(point.DecisionNumber))}
+              className={`${textButton} text-accent tabular-nums`}
+              data-testid="point-decision"
+            >
+              {messages.decisions.ref(point.DecisionNumber)}
+            </Link>
+          ) : canLogDecision ? (
+            <button
+              type="button"
+              aria-label={M.logDecisionOf(name)}
+              aria-disabled={busy || undefined}
+              className={textButton}
+              onClick={() => {
+                if (!busy) logDecision(point, name);
+              }}
+            >
+              {M.logDecision}
+            </button>
+          ) : null}
+          {point.AssumptionConstraintId !== null ? (
+            <Link
+              href={`${assumptionsHref}?id=${point.AssumptionConstraintId}`}
+              aria-label={M.openAssumptionOf(name)}
+              className={`${textButton} text-accent`}
+              data-testid="point-assumption"
+            >
+              {M.assumptionLink}
+            </Link>
+          ) : canLogAssumption ? (
+            <button
+              type="button"
+              aria-label={M.logAssumptionOf(name)}
+              aria-disabled={busy || undefined}
+              className={textButton}
+              data-testid="point-log-assumption"
+              onClick={() => {
+                if (!busy) logAssumption(point, name);
+              }}
+            >
+              {M.logAssumption}
+            </button>
+          ) : null}
           <ItemControls
             name={name}
             focusKey={key}

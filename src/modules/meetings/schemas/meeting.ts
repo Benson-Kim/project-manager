@@ -108,6 +108,9 @@ export const workspaceDiscussionPointSchema = z.object({
   DiscussionPoint: z.string().nullable(),
   SortOrder: z.number().int(),
   RowVer: rowVerSchema,
+  DecisionId: z.number().int().nullable(),
+  DecisionNumber: z.number().int().nullable(),
+  AssumptionConstraintId: z.number().int().nullable(),
 });
 export type WorkspaceDiscussionPoint = z.infer<typeof workspaceDiscussionPointSchema>;
 

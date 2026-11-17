@@ -318,6 +318,28 @@ export const setParticipantsSchema = z.object({
 export type CreateAgendaItemValues = z.output<typeof createAgendaItemSchema>;
 export type UpdateAgendaItemValues = z.output<typeof updateAgendaItemSchema>;
 export type CreateDiscussionPointValues = z.output<typeof createDiscussionPointSchema>;
+const DECISION_TITLE_MAX = 255;
+
+export const logDiscussionPointDecisionSchema = z.object({
+  meetingDiscussionPointId: id,
+  rowVer: rowVerSchema,
+  title: z.string().trim().min(1).max(DECISION_TITLE_MAX),
+});
+
+/** A decision's title from the point's plain text, cut to fit; `fallback` when the point has no text. */
+export function decisionTitle(plainText: string, fallback: string): string {
+  return plainText.trim().slice(0, DECISION_TITLE_MAX).trim() || fallback;
+}
+
+export type LogDiscussionPointDecisionValues = z.output<typeof logDiscussionPointDecisionSchema>;
+
+export const logDiscussionPointAssumptionSchema = z.object({
+  meetingDiscussionPointId: id,
+  rowVer: rowVerSchema,
+});
+export type LogDiscussionPointAssumptionValues = z.output<
+  typeof logDiscussionPointAssumptionSchema
+>;
 export type UpdateDiscussionPointValues = z.output<typeof updateDiscussionPointSchema>;
 export type CreateActionItemValues = z.output<typeof createActionItemSchema>;
 export type UpdateActionItemValues = z.output<typeof updateActionItemSchema>;

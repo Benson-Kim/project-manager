@@ -49,6 +49,9 @@ export function workspaceDbRow(overrides: Record<string, unknown> = {}) {
         DiscussionPoint: "<p>Over by 5%</p>",
         SortOrder: 1,
         RowVer: 2002,
+        DecisionId: null,
+        DecisionNumber: null,
+        AssumptionConstraintId: null,
       },
     ]),
     ActionItemsJson: JSON.stringify([

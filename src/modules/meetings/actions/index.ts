@@ -22,6 +22,8 @@ import {
   updateActionItem,
   updateAgendaItem,
   updateDiscussionPoint,
+  logDiscussionPointDecision,
+  logDiscussionPointAssumption,
   updateFollowUp,
   updateMeeting,
 } from "../repository/meetings";
@@ -46,6 +48,8 @@ import {
   updateActionItemSchema,
   updateAgendaItemSchema,
   updateDiscussionPointSchema,
+  logDiscussionPointDecisionSchema,
+  logDiscussionPointAssumptionSchema,
   updateFollowUpSchema,
   updateMeetingFormSchema,
 } from "../schemas/meeting-form";
@@ -145,6 +149,20 @@ export const updateDiscussionPointAction = action({
   schema: updateDiscussionPointSchema,
   permission: "meetings:update",
   handler: (input, ctx) => updateDiscussionPoint(input, ctx.session.userId),
+});
+
+export const logDiscussionPointDecisionAction = action({
+  name: "meetings.discussion-log-decision",
+  schema: logDiscussionPointDecisionSchema,
+  permission: "meetings:update",
+  handler: (input, ctx) => logDiscussionPointDecision(input, ctx.session.userId),
+});
+
+export const logDiscussionPointAssumptionAction = action({
+  name: "meetings.discussion-log-assumption",
+  schema: logDiscussionPointAssumptionSchema,
+  permission: "meetings:update",
+  handler: (input, ctx) => logDiscussionPointAssumption(input, ctx.session.userId),
 });
 
 /** Deletes the discussion point with its actions. */

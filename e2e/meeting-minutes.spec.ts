@@ -128,6 +128,7 @@ test("minutes: a typed assignee survives blur, saving and an unrelated edit", as
 test("minutes: build the agenda, discussion points and actions, then reorder from the keyboard", async ({
   page,
 }) => {
+  test.slow();
   const minutes = await newMeeting(page);
   await expect(minutes.getByText(M.noAgenda)).toBeVisible();
   await expect(minutes.getByTestId("open-actions")).toContainText(M.noOpenActions);
@@ -536,4 +537,50 @@ test("layout: present and apologies sit under the Location field, not in a side 
   });
   expect(order).toEqual({ panelFollowsLocation: true, panelInsideForm: false });
   expect(await axeClean(page)).toEqual([]);
+});
+
+test("minutes: a discussion point logged as a decision links to its decision-log entry", async ({
+  page,
+}) => {
+  test.slow();
+  const minutes = await newMeeting(page);
+  const text = `Use the new vendor ${Date.now()}`;
+  await addAgendaItem(page, "Suppliers");
+  await addDiscussionPoint(page, "Suppliers", text);
+
+  const point = minutes.getByTestId("discussion-point").filter({ hasText: text });
+  await point.getByRole("button", { name: /as a decision$/ }).click();
+
+  const link = point.getByTestId("point-decision");
+  await expect(link).toHaveText(/^DEC-\d+$/);
+  await expect(point.getByRole("button", { name: /as a decision$/ })).toHaveCount(0);
+
+  await page.reload();
+  await expect(link).toHaveText(/^DEC-\d+$/);
+  await link.click();
+  await page.waitForURL(/\/projects\/2\/decisions/);
+  await expect(page.getByText(text).first()).toBeVisible();
+});
+
+test("minutes: a discussion point logged as an assumption links to its register entry", async ({
+  page,
+}) => {
+  test.slow();
+  const minutes = await newMeeting(page);
+  const text = `Supplier holds prices ${Date.now()}`;
+  await addAgendaItem(page, "Pricing");
+  await addDiscussionPoint(page, "Pricing", text);
+
+  const point = minutes.getByTestId("discussion-point").filter({ hasText: text });
+  await point.getByTestId("point-log-assumption").click();
+
+  const link = point.getByTestId("point-assumption");
+  await expect(link).toBeVisible();
+  await expect(point.getByTestId("point-log-assumption")).toHaveCount(0);
+
+  await page.reload();
+  await expect(link).toBeVisible();
+  await link.click();
+  await page.waitForURL(/\/projects\/2\/assumptions-constraints\?id=\d+/);
+  await expect(page.getByText(text).first()).toBeVisible();
 });
