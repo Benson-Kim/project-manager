@@ -163,6 +163,7 @@ test("desktop sidebar collapses to an icon rail from the keyboard, stays so afte
 test("axe scan on the shell (dashboard) has no serious or critical violations in both themes", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
   const light = await new AxeBuilder({ page }).analyze();
   expect(light.violations.filter((v) => v.impact === "serious" || v.impact === "critical")).toEqual(
