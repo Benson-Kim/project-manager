@@ -22,7 +22,7 @@ const sideOf: Record<Position, Side> = {
 export function RoutedEdge(props: EdgeProps) {
   const laid = useContext(LinkLayoutContext).get(props.id);
   const style = (props.data as LinkEdge["data"])?.style;
-  const dot = `dot-${props.id.replace(/[^w-]/g, "_")}`;
+  const dot = `dot-${props.id.replace(/[^\w-]/g, "_")}`;
   const dots = style?.startEnd === "dot" || style?.endEnd === "dot";
   const points =
     laid?.points ??

@@ -22,6 +22,12 @@ export const MARK_EVERY = 5 * 60 * 1000;
 
 const RANK: Record<LicenceKind, number> = { trial: 0, free: 1, full: 2 };
 
+function supersedes(offered: Licence, held: Licence | null): boolean {
+  if (!held) return true;
+  if (RANK[offered.kind] !== RANK[held.kind]) return RANK[offered.kind] > RANK[held.kind];
+  return offered.startsAt > held.startsAt;
+}
+
 export type MirroredState = Pick<LicenceState, "licence" | "checkIn" | "mark">;
 
 export interface LicenceMirror {
@@ -236,7 +242,7 @@ export class LicenceManager {
     if (!mirrored) return;
     const next = { ...this.state };
     const theirs = openLicence(mirrored.licence, this.deps.keys);
-    if (!this.licence() && theirs?.machineHash === this.deps.machineHash) {
+    if (theirs?.machineHash === this.deps.machineHash && supersedes(theirs, this.licence())) {
       next.licence = mirrored.licence;
       next.checkIn = mirrored.checkIn;
     }

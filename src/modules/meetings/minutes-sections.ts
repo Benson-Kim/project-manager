@@ -5,7 +5,7 @@ import { z } from "zod";
  * CHECK on app.MeetingMinutesSection.SectionKey and the proc that saves it;
  * a guardrail test keeps the three in step.
  */
-export const MINUTES_SECTION_KEYS = ["CarryOver", "Agenda", "Discussion", "Conclusion"] as const;
+export const MINUTES_SECTION_KEYS = ["CarryOver", "Agenda"] as const;
 
 export const minutesSectionKeySchema = z.enum(MINUTES_SECTION_KEYS);
 export type MinutesSectionKey = z.infer<typeof minutesSectionKeySchema>;

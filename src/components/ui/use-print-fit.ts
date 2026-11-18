@@ -11,8 +11,8 @@ export function printZoom(contentWidth: number, pageWidth = PRINT_WIDTH_PX): num
   return Math.floor((pageWidth / contentWidth) * 1000) / 1000;
 }
 
-/** The shell wrappers the print stylesheet strips of padding and borders (globals.css, Gantt report). */
-const PRINT_STRIPPED = "body, body > div, body > div > div";
+/** The shell wrappers the print stylesheet strips of padding and borders (globals.css). */
+const PRINT_STRIPPED = "body, body > div, body > div > div, [data-print-bare]";
 
 /** The side padding and borders that `el`'s containers keep on the printed page. */
 function insetWithinPage(el: HTMLElement): number {

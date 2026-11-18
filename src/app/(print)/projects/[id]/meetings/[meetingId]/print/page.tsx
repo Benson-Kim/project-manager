@@ -342,10 +342,7 @@ export default async function MeetingMinutesPrintPage({
             </section>
           ))}
 
-        <RichBlock
-          title={sectionTitle(workspace.sections, "Conclusion", M.conclusion)}
-          html={meeting.Conclusion}
-        />
+        <RichBlock title={M.conclusion} html={meeting.Conclusion} />
         <Details items={[[M.nextMeeting, formatDate(meeting.NextMeeting)]]} />
       </div>
     </main>

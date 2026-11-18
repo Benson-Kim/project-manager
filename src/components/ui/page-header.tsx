@@ -4,7 +4,7 @@
  */
 export function PageHeader({ title, action }: { title?: string; action?: React.ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 py-4">
+    <div className="flex flex-wrap items-center justify-between gap-3 py-4 print:pt-0">
       <h1 className=" text-base font-medium text-ink">{title}</h1>
       {action ? <div className="max-w-full shrink-0 print:hidden">{action}</div> : null}
     </div>

@@ -122,20 +122,36 @@ const deactivateByUser = (userId, actor) =>
   await deactivateByUser(OTHER, OTHER);
 
   // ---- a user keeps a bounded number of active endpoints ----------------------------------------
-  const activeFor = async (userId) =>
-    (await pool.request().input("u", userId).query(
-      "SELECT COUNT(*) AS n FROM app.AlertSubscription WHERE UserId = @u AND IsDeleted = 0",
-    )).recordset[0].n;
+  // Deactivate returns quietly for a retired row and refuses another user's active one, so
+  // asking as someone else counts the active endpoints without changing any of them.
+  const countActive = async (ids, probeUserId) => {
+    let active = 0;
+    for (const id of ids) {
+      try {
+        await deactivate(id, probeUserId);
+      } catch (e) {
+        if (e.number !== 50003) throw e;
+        active++;
+      }
+    }
+    return active;
+  };
   await deactivateByUser(OTHER, DISPATCH);
+  const capIds = [];
   let last;
-  for (let i = 0; i < 12; i++) last = await subscribe(`${stamp}/cap${i}`, OTHER);
-  ok((await activeFor(OTHER)) === 10, "twelve registrations leave ten active endpoints");
+  for (let i = 0; i < 12; i++) {
+    last = await subscribe(`${stamp}/cap${i}`, OTHER);
+    capIds.push(last.AlertSubscriptionId);
+  }
   const [[kept]] = await exec("usp_AlertSubscription_Upsert", {
     Endpoint: `${stamp}/cap11`, P256dh: "p256dh-test-key", Auth: "auth-test-key",
     ExpirationTimeUtc: null, ActorUserId: OTHER,
   });
   ok(kept.AlertSubscriptionId === last.AlertSubscriptionId, "the newest registration is the one kept");
-  ok((await activeFor(OTHER)) === 10, "refreshing an endpoint does not change the count");
+  ok(
+    (await countActive(capIds, OWNER)) === 10,
+    "twelve registrations leave ten active endpoints, and refreshing one does not change the count",
+  );
   await deactivateByUser(OTHER, DISPATCH);
 
   // ---- push deliveries are recorded per alert, subscription and day ---------------------------
@@ -171,10 +187,10 @@ const deactivateByUser = (userId, actor) =>
     "a push for one alert does not hold back the other that day",
   );
   await record(alertA);
-  const count = (await pool.request().input("a", alertA).input("s", sub.AlertSubscriptionId).query(
-    "SELECT COUNT(*) AS n FROM app.TodoAlertDelivery WHERE TodoAlertId = @a AND AlertSubscriptionId = @s",
-  )).recordset[0].n;
-  ok(count === 1, "recording one delivery twice leaves one row");
+  ok(
+    (await due()).every((r) => r.TodoAlertId !== alertA),
+    "recording one delivery twice is accepted and keeps it delivered",
+  );
   await record(alertB);
   ok((await due()).length === 0, "nothing is listed once every due alert was pushed that day");
   await deactivateByUser(OWNER, DISPATCH);

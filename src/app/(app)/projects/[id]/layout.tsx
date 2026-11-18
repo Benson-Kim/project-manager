@@ -33,10 +33,12 @@ export default async function ProjectWorkspaceLayout({
 
   return (
     <div className="flex flex-col flex-1">
-      <div className="px-4 pt-4 sm:px-6 sm:pt-6">
+      <div className="px-4 pt-4 sm:px-6 sm:pt-6 print:hidden">
         <ProjectSectionNav projectId={projectId} />
       </div>
-      <main className="flex flex-col flex-1 py-6 sm:py-8">{children}</main>
+      <main data-print-bare className="flex flex-col flex-1 py-6 sm:py-8">
+        {children}
+      </main>
     </div>
   );
 }

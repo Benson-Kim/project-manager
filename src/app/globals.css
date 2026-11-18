@@ -728,6 +728,14 @@ button:focus-visible {
     display: none !important;
   }
 
+  [data-print-bare] {
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    min-height: unset !important;
+  }
+
   select {
     appearance: none;
     background-image: none !important;

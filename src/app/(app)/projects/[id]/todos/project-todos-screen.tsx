@@ -87,7 +87,11 @@ export async function ProjectTodosScreen({
     isCalendar && !isPlanner
       ? orNotFound(loadTodoCalendar({ month: flat.month, projectId }, session.userId))
       : null,
-    isPlanner ? orNotFound(loadTodoPlanner({ days: flat.days, projectId }, session.userId)) : null,
+    isPlanner
+      ? orNotFound(
+          loadTodoPlanner({ days: flat.days, projectId, search: flat.find }, session.userId),
+        )
+      : null,
   ]);
 
   // A deep link to a todo from another project is treated as not found.
@@ -136,6 +140,8 @@ export async function ProjectTodosScreen({
               data={planner}
               projectId={projectId}
               canAdd={canCreate}
+              canEdit={canEdit}
+              canDelete={canDelete}
               switchable={!calendarOnly}
             />
           ) : calendar ? (

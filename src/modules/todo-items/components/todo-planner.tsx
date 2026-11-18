@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { Toolbar } from "@/components/ui/toolbar";
+import { canInProject } from "@/lib/auth/rbac";
 import { notifySaved } from "@/lib/cross-window";
 import { messages } from "@/lib/messages";
 import {
@@ -154,12 +155,16 @@ export function TodoPlanner({
   data,
   projectId,
   canAdd = false,
+  canEdit = false,
+  canDelete = false,
   switchable = true,
   filter,
 }: {
   data: TodoPlannerData;
   projectId: number | null;
   canAdd?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
   switchable?: boolean;
   filter?: ReactNode;
 }) {
@@ -196,6 +201,10 @@ export function TodoPlanner({
       : entry;
   });
   const selected = shown.find((entry) => entry.todoItemId === selectedId) ?? null;
+  const editable = (entry: PlannerEntry) =>
+    canEdit && canInProject(entry.actorAccess, "todo-items:update");
+  const deletable = (entry: PlannerEntry) =>
+    canDelete && canInProject(entry.actorAccess, "todo-items:delete");
 
   function run(work: () => Promise<Outcome>, undo?: () => void, done?: () => void) {
     startTransition(async () => {
@@ -279,6 +288,10 @@ export function TodoPlanner({
   function onPointerDown(e: PointerEvent<HTMLElement>, entry: PlannerEntry, mode: Gesture["mode"]) {
     if (e.button !== 0) return;
     e.stopPropagation();
+    if (!editable(entry)) {
+      select(entry);
+      return;
+    }
     e.currentTarget.setPointerCapture(e.pointerId);
     gesture.current = { entry, mode, x: e.clientX, y: e.clientY, moved: false };
   }
@@ -519,7 +532,7 @@ export function TodoPlanner({
         >
           <p className="w-full truncate text-sm font-medium text-ink">{selected.title}</p>
           <SlotFields days={days} draft={selectedDraft} onChange={setSelectedDraft} />
-          <button type="submit" className={accentButton} disabled={pending}>
+          <button type="submit" className={accentButton} disabled={pending || !editable(selected)}>
             {P.save}
           </button>
           <button
@@ -529,17 +542,24 @@ export function TodoPlanner({
           >
             {P.open}
           </button>
-          <button type="button" className={navButton} disabled={pending} onClick={unschedule}>
-            {P.unschedule}
-          </button>
           <button
             type="button"
             className={navButton}
-            disabled={pending}
-            onClick={() => setConfirmDelete(true)}
+            disabled={pending || !editable(selected)}
+            onClick={unschedule}
           >
-            {messages.actions.delete}
+            {P.unschedule}
           </button>
+          {deletable(selected) ? (
+            <button
+              type="button"
+              className={navButton}
+              disabled={pending}
+              onClick={() => setConfirmDelete(true)}
+            >
+              {messages.actions.delete}
+            </button>
+          ) : null}
           <button type="button" className={navButton} onClick={() => setSelectedId(null)}>
             {P.cancel}
           </button>
@@ -614,7 +634,7 @@ export function TodoPlanner({
                         aria-label={`${entry.title} ${slotTimes(entry)}`}
                         data-testid="planner-entry"
                         data-todo-id={entry.todoItemId}
-                        className={`absolute cursor-grab touch-none select-none overflow-hidden rounded-md border bg-accent-soft px-1.5 py-0.5 text-xs text-accent ${
+                        className={`absolute ${editable(entry) ? "cursor-grab" : "cursor-pointer"} touch-none select-none overflow-hidden rounded-md border bg-accent-soft px-1.5 py-0.5 text-xs text-accent ${
                           selectedId === entry.todoItemId
                             ? "border-accent ring-2 ring-accent"
                             : "border-accent/40"
@@ -637,13 +657,15 @@ export function TodoPlanner({
                       >
                         <span className="block truncate font-medium">{entry.title}</span>
                         <span className="block tabular-nums">{slotTimes(entry)}</span>
-                        <span
-                          aria-hidden
-                          title={P.resize}
-                          data-testid="planner-entry-resize"
-                          className="absolute inset-x-0 bottom-0 h-1.5 cursor-ns-resize"
-                          onPointerDown={(e) => onPointerDown(e, entry, "resize")}
-                        />
+                        {editable(entry) ? (
+                          <span
+                            aria-hidden
+                            title={P.resize}
+                            data-testid="planner-entry-resize"
+                            className="absolute inset-x-0 bottom-0 h-1.5 cursor-ns-resize"
+                            onPointerDown={(e) => onPointerDown(e, entry, "resize")}
+                          />
+                        ) : null}
                       </div>
                     ))}
                   </div>
@@ -660,6 +682,24 @@ export function TodoPlanner({
             className="flex w-full flex-col gap-2 rounded-md border border-line p-3 lg:w-72"
           >
             <h2 className="text-sm font-semibold text-ink">{P.todos}</h2>
+            <form
+              role="search"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const value = String(new FormData(e.currentTarget).get("find") ?? "").trim();
+                update({ find: value || null });
+              }}
+            >
+              <input
+                type="search"
+                name="find"
+                defaultValue={data.search}
+                aria-label={P.findTodos}
+                placeholder={P.findTodos}
+                data-testid="planner-find"
+                className="min-h-11 w-full rounded-md border border-line bg-surface px-2 text-sm text-ink"
+              />
+            </form>
             {data.unplaced.length === 0 ? (
               <p className="text-sm text-ink-muted">{P.noTodos}</p>
             ) : (
@@ -673,7 +713,7 @@ export function TodoPlanner({
                   {data.unplaced.map((todo) => (
                     <li
                       key={todo.todoItemId}
-                      draggable
+                      draggable={canEdit}
                       data-testid="planner-todo"
                       className="cursor-grab rounded-md border border-line bg-surface px-2 py-1.5 text-sm text-ink"
                       onDragStart={(e) => {
@@ -714,7 +754,11 @@ export function TodoPlanner({
                     </select>
                   </label>
                   <SlotFields days={days} draft={placeDraft} onChange={setPlaceDraft} />
-                  <button type="submit" className={accentButton} disabled={pending || !placeId}>
+                  <button
+                    type="submit"
+                    className={accentButton}
+                    disabled={pending || !placeId || !canEdit}
+                  >
                     {P.schedule}
                   </button>
                 </form>

@@ -15,7 +15,7 @@ IF OBJECT_ID(N'app.MeetingMinutesSection', N'U') IS NULL
             CONSTRAINT FK_MeetingMinutesSection_Meeting REFERENCES app.Meeting (MeetingId),
         SectionKey              NVARCHAR(32)  NULL
             CONSTRAINT CK_MeetingMinutesSection_Key
-            CHECK (SectionKey IN (N'CarryOver', N'Agenda', N'Discussion', N'Conclusion')),
+            CHECK (SectionKey IN (N'CarryOver', N'Agenda')),
         Title                   NVARCHAR(200) NOT NULL
             CONSTRAINT CK_MeetingMinutesSection_Title CHECK (LEN(Title) > 0),
         Body                    NVARCHAR(MAX) NULL,

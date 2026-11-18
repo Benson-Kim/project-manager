@@ -410,4 +410,51 @@ describe("licence manager service calls", () => {
     expect(warnings.some((message) => message.includes("disk full"))).toBe(true);
     expect((await mirror.read())?.licence).toEqual(licenceDoc);
   });
+
+  it("restores a paid licence from the database copy when only the trial reached the file", async () => {
+    const fullDoc = signDoc({
+      licenceId: "F".repeat(22),
+      kind: "full",
+      machineHash: machine,
+      startsAt: START + DAY,
+      expiresAt: null,
+      updatesUntil: null,
+    });
+    const store = memoryStore({ licence: licenceDoc });
+    const manager = new LicenceManager({
+      enforce: true,
+      keys,
+      machineHash: machine,
+      store,
+      mirror: memoryMirror({ licence: fullDoc, checkIn: null, mark: null }),
+      service: null,
+      wall: () => START + 2 * DAY,
+    });
+    await manager.start();
+    expect(manager.licence()?.kind).toBe("full");
+    expect(store.peek().licence).toEqual(fullDoc);
+  });
+
+  it("keeps the held licence when the database copy is older or lower", async () => {
+    const store = memoryStore({ licence: licenceDoc });
+    const older = signDoc({
+      licenceId: "O".repeat(22),
+      kind: "trial",
+      machineHash: machine,
+      startsAt: START - DAY,
+      expiresAt: START + 13 * DAY,
+      updatesUntil: null,
+    });
+    const manager = new LicenceManager({
+      enforce: true,
+      keys,
+      machineHash: machine,
+      store,
+      mirror: memoryMirror({ licence: older, checkIn: null, mark: null }),
+      service: null,
+      wall: () => START + DAY,
+    });
+    await manager.start();
+    expect(store.peek().licence).toEqual(licenceDoc);
+  });
 });

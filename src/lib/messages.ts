@@ -575,6 +575,7 @@ export const messages = {
       showTodos: "Show to-dos",
       hideTodos: "Hide to-dos",
       dragHint: "Drag a to-do onto a time, or choose one and press Put on the calendar.",
+      findTodos: "Find a to-do",
       noTodos: "Every to-do here is on the calendar.",
       newEntry: "New entry",
       title: "Title",

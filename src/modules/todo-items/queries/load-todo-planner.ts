@@ -17,11 +17,17 @@ export interface TodoPlannerData {
   today: string;
   entries: PlannerEntry[];
   unplaced: UnplacedTodo[];
+  search: string;
 }
 
 /** The three days `?days=` asks for, and the newest to-dos not yet on the calendar. */
 export async function loadTodoPlanner(
-  scope: { days: string | undefined; projectId: number | null; withoutProject?: boolean },
+  scope: {
+    days: string | undefined;
+    projectId: number | null;
+    withoutProject?: boolean;
+    search?: string;
+  },
   actorUserId: number,
   today: string = new Date().toISOString().slice(0, 10),
 ): Promise<TodoPlannerData> {
@@ -29,7 +35,7 @@ export async function loadTodoPlanner(
   const [scheduled, page] = await Promise.all([
     listTodoSchedule({ from: window.from, to: window.to, projectId: scope.projectId }, actorUserId),
     listTodoItems(
-      { q: undefined, sort: "TodoItemId", dir: "desc", page: 1 },
+      { q: scope.search?.trim() || undefined, sort: "TodoItemId", dir: "desc", page: 1 },
       actorUserId,
       scope.projectId,
       UNPLACED_PAGE,
@@ -48,5 +54,5 @@ export async function loadTodoPlanner(
     projectName: row.ProjectName,
     rowVer: row.RowVer,
   }));
-  return { window, today, entries, unplaced };
+  return { window, today, entries, unplaced, search: scope.search?.trim() ?? "" };
 }

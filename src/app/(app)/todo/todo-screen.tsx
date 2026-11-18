@@ -102,6 +102,7 @@ export async function TodoScreen({
         ? loadTodoPlanner(
             {
               days: flat.days,
+              search: flat.find,
               projectId: filteredProjectId(projectFilter),
               withoutProject: projectFilter.kind === "none",
             },
@@ -199,6 +200,8 @@ export async function TodoScreen({
               data={planner}
               projectId={filteredProjectId(projectFilter)}
               canAdd={canCreate}
+              canEdit={canEdit}
+              canDelete={canDelete}
               switchable={!calendarOnly}
               filter={<ProjectFilter options={projectOptions} />}
             />
