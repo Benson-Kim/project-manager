@@ -21,6 +21,7 @@ describe("link and save status guardrails", () => {
   it("shows autosave as a dot rather than words that come and go", () => {
     for (const file of [
       "src/modules/bpmn/components/bpmn-workspace.tsx",
+      "src/modules/whiteboard/components/whiteboard-workspace.tsx",
       "src/modules/key-deliverables/components/wbs-toolbar.tsx",
       "src/components/ui/note-popover.tsx",
     ]) {

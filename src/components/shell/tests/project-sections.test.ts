@@ -143,8 +143,9 @@ describe("projectSectionGroups", () => {
     ]);
   });
 
-  it("Workspace: BPMN, meeting minutes, notes (notes matched as a prefix for its workspace route)", () => {
-    expect(segmentsOf("workspace")).toEqual(["bpmn", "meetings", "notes"]);
+  it("Workspace: whiteboard first, then BPMN, meeting minutes, notes (notes matched as a prefix for its workspace route)", () => {
+    expect(segmentsOf("workspace")).toEqual(["whiteboard", "bpmn", "meetings", "notes"]);
+    expect(section("whiteboard").label).toBe("Whiteboard");
     expect(section("meetings").label).toBe("Meeting minutes");
     expect(group("workspace").sections.at(-1)?.match).toBe("prefix");
   });

@@ -44,6 +44,10 @@ and prints `N passed, M failed`.
   each needs and a member of another project refused by id; a stale RowVer, non-JSON, a wrong document
   version and a drawing over 300,000 characters refused; saves audited by element count; two saves on
   one version, one of which lands.
+- `whiteboard-procs.cjs` — migration 086: whiteboard create, list, open, rename, save and delete; the
+  level each needs and a member of another project refused by id; a stale RowVer, non-JSON, a wrong scene
+  version, elements that are not a list and a scene over 800,000 characters refused; saves audited by
+  element count; names and scene text shaped like SQL stored as typed; two saves on one version, one lands.
 - `checklist-procs.cjs` — ADR-0066: checklists, added columns of every kind, rows, the done tick,
   cells (a bad date, a `javascript:` link, a typed to-do refused), sign-off and the to-do button (one
   live to-do per cell); the level each needs; a stale RowVer; the 30-column cap; a column of another

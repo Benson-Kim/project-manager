@@ -52,6 +52,7 @@ export const projectSections: ProjectSection[] = [
   { segment: "assumptions-constraints", label: P.assumptionsConstraintsSection, match: "prefix" },
   { segment: "risks-issues", label: P.risksIssuesSection, match: "prefix" },
   { segment: "decisions", label: P.decisionsSection, match: "prefix" },
+  { segment: "whiteboard", label: P.whiteboardSection, match: "prefix" },
   { segment: "bpmn", label: P.bpmnSection, match: "prefix" },
   { segment: "meetings", label: P.meetingsSection, match: "prefix" },
   { segment: "boards", label: P.boardsSection, match: "prefix" },
@@ -113,7 +114,7 @@ export const projectSectionGroups: ProjectSectionGroup[] = [
   {
     key: "workspace",
     label: G.workspace,
-    sections: sectionsIn(["bpmn", "meetings", "notes"]),
+    sections: sectionsIn(["whiteboard", "bpmn", "meetings", "notes"]),
   },
   {
     key: "communication",

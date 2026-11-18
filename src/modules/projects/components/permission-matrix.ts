@@ -40,6 +40,7 @@ export const SECTION_LABELS: Record<OverridableModule, string> = {
   suppliers: P.suppliersSection,
   "todo-alerts": P.permissions.todoAlertsSection,
   "todo-items": P.todosSection,
+  whiteboard: P.whiteboardSection,
 };
 
 export const VERB_LABELS: Record<OverrideVerb, string> = {

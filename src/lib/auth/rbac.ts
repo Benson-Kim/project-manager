@@ -34,6 +34,7 @@ export const CONTRIBUTOR_WRITE_MODULES = [
   "risks-issues",
   "todo-alerts",
   "todo-items",
+  "whiteboard",
 ] as const;
 
 function parse(permission: Permission): [module: string, verb: string] | null {
@@ -105,6 +106,7 @@ export const OVERRIDABLE_MODULES = [
   "suppliers",
   "todo-alerts",
   "todo-items",
+  "whiteboard",
 ] as const;
 
 export type OverridableModule = (typeof OVERRIDABLE_MODULES)[number];
