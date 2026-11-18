@@ -1,6 +1,7 @@
 "use client";
 
-import { useLayoutEffect, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useState, type RefObject } from "react";
+import { orthogonalPoints, pathOf, type Side } from "@/lib/connector-route";
 import type { Wbs } from "../schemas/wbs";
 import { isSatisfied, type DependencyType, type WbsLink } from "../schemas/wbs-dependencies";
 
@@ -27,17 +28,36 @@ interface Segment {
   satisfied: boolean;
 }
 
-/** Where a link leaves its predecessor and meets its successor, by type. */
-const EDGES: Record<DependencyType, { from: "start" | "end"; to: "start" | "end" }> = {
-  FS: { from: "end", to: "start" },
-  SS: { from: "start", to: "start" },
-  FF: { from: "end", to: "end" },
-  SF: { from: "start", to: "end" },
+/** The bar side a link leaves its predecessor through and meets its successor at, by type. */
+const EDGES: Record<DependencyType, { from: Side; to: Side }> = {
+  FS: { from: "right", to: "left" },
+  SS: { from: "left", to: "left" },
+  FF: { from: "right", to: "right" },
+  SF: { from: "left", to: "right" },
 };
 
 /** How far an elbow stands off a bar before it turns, in pixels. */
 const STANDOFF = 10;
 const HEAD = 4;
+
+export interface GanttBar {
+  left: number;
+  right: number;
+  middle: number;
+}
+
+/** The line and arrow head for one link between two measured bars. */
+export function dependencyLine(type: DependencyType, from: GanttBar, to: GanttBar) {
+  const edges = EDGES[type];
+  const start = { x: edges.from === "right" ? from.right : from.left, y: from.middle };
+  const end = { x: edges.to === "right" ? to.right : to.left, y: to.middle };
+  const d = pathOf(orthogonalPoints(start, edges.from, end, edges.to, STANDOFF));
+  // The head points the way the arrow arrives: into a left edge from the left, into a right edge
+  // from the right.
+  const dir = edges.to === "right" ? 1 : -1;
+  const head = `M ${end.x} ${end.y} l ${dir * HEAD} ${-HEAD} M ${end.x} ${end.y} l ${dir * HEAD} ${HEAD}`;
+  return { d, head };
+}
 
 export function WbsDependencyArrows({
   scrollRef,
@@ -56,6 +76,17 @@ export function WbsDependencyArrows({
 }) {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+  const [resized, setResized] = useState(0);
+
+  // On mount the chart's scroll box gets its ref only after this layer's layout effect has run,
+  // so the first measure finds no container; the observer's first callback measures again.
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(() => setResized((n) => n + 1));
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [scrollRef]);
 
   useLayoutEffect(() => {
     const container = scrollRef.current;
@@ -72,7 +103,7 @@ export function WbsDependencyArrows({
       const anchor = anchorOf(id);
       return anchor === null ? null : container.querySelector(`[data-gantt-bar="${anchor}"]`);
     };
-    const barOf = (el: Element | null) => {
+    const barOf = (el: Element | null): GanttBar | null => {
       if (!el) return null;
       const r = el.getBoundingClientRect();
       return {
@@ -87,20 +118,11 @@ export function WbsDependencyArrows({
       const fromEl = elementOf(link.predecessorId);
       const toEl = elementOf(link.successorId);
       // Two items drawn in one card have nothing to join on screen.
-      if (fromEl === toEl) continue;
+      if (fromEl && fromEl === toEl) continue;
       const from = barOf(fromEl);
       const to = barOf(toEl);
       if (!from || !to) continue;
-      const edges = EDGES[link.type];
-      const x1 = edges.from === "end" ? from.right : from.left;
-      const x2 = edges.to === "end" ? to.right : to.left;
-      const out = edges.from === "end" ? x1 + STANDOFF : x1 - STANDOFF;
-      const into = edges.to === "end" ? x2 + STANDOFF : x2 - STANDOFF;
-      const d = `M ${x1} ${from.middle} H ${out} V ${to.middle} H ${into} H ${x2}`;
-      // The head points the way the arrow arrives: into a start edge from the left, into an end
-      // edge from the right.
-      const dir = edges.to === "end" ? 1 : -1;
-      const head = `M ${x2} ${to.middle} l ${dir * HEAD} ${-HEAD} M ${x2} ${to.middle} l ${dir * HEAD} ${HEAD}`;
+      const { d, head } = dependencyLine(link.type, from, to);
       next.push({
         id: link.id,
         predecessorId: link.predecessorId,
@@ -112,7 +134,7 @@ export function WbsDependencyArrows({
     }
     setSegments(next);
     setSize({ width: container.scrollWidth, height: container.scrollHeight });
-  }, [scrollRef, links, wbs, geometryKey, anchorOf]);
+  }, [scrollRef, links, wbs, geometryKey, anchorOf, resized]);
 
   if (segments.length === 0 || !size) return null;
 

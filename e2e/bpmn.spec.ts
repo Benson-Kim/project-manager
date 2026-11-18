@@ -53,6 +53,8 @@ const within = (
   point: { x: number; y: number },
   b: { x: number; y: number; width: number; height: number },
 ) => point.x >= b.x && point.x <= b.x + b.width && point.y >= b.y && point.y <= b.y + b.height;
+const rounded = (d: string | null) =>
+  (d ?? "").replace(/-?\d+(\.\d+)?/g, (n) => String(Math.round(Number(n))));
 
 async function waitForSave(page: Page) {
   await expect(page.getByTestId("bpmn-save-status")).toHaveAttribute("data-status", "saved", {
@@ -142,6 +144,48 @@ test.describe("BPMN diagrams", () => {
     await waitForSave(page);
     await page.reload();
     await expect(page.locator(".react-flow__edge")).toHaveCount(1, { timeout: 30_000 });
+  });
+
+  test("straighten lines turns a crooked flow right-angle, undoes in one step and survives a reload", async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    const projectId = await createProject(page);
+    await createDiagram(page, projectId);
+    await page.getByTestId("bpmn-palette-pool").click();
+    const lanes = page.getByTestId("bpmn-lane");
+    await expect(lanes).toHaveCount(2);
+    await dropInto(page, "task", lanes.first(), 160);
+    await dropInto(page, "userTask", lanes.nth(1), 460);
+    const task = page.locator('[data-testid="bpmn-shape"][data-kind="task"]');
+    const userTask = page.locator('[data-testid="bpmn-shape"][data-kind="userTask"]');
+    await expect(page.getByTestId("bpmn-shape")).toHaveCount(2);
+
+    await task.hover();
+    const from = centre(await box(task.locator(".react-flow__handle-right")));
+    const to = centre(await box(userTask.locator(".react-flow__handle-left")));
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: 12 });
+    await page.mouse.up();
+    const path = page.locator(".react-flow__edge .react-flow__edge-path");
+    await expect(path).toHaveCount(1);
+    await page.getByTestId("bpmn-board").click({ position: { x: 8, y: 8 } });
+    const crooked = await path.getAttribute("d");
+
+    await page.getByTestId("bpmn-straighten").click();
+    await expect(path).not.toHaveAttribute("d", crooked!);
+    const straightened = await path.getAttribute("d");
+    await page.getByTestId("bpmn-undo").click();
+    await expect(path).toHaveAttribute("d", crooked!);
+    await page.getByTestId("bpmn-redo").click();
+    await expect(path).toHaveAttribute("d", straightened!);
+
+    await waitForSave(page);
+    await page.reload();
+    await expect
+      .poll(async () => rounded(await path.getAttribute("d")), { timeout: 30_000 })
+      .toBe(rounded(straightened));
   });
 
   test("undo takes a shape back, redo puts it back, and the XML export names the pool", async ({

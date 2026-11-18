@@ -20,7 +20,7 @@ import { dayCentre, periodCells, todayLeft, type Timeline } from "./gantt-scale"
 import { shifted, type Span } from "./gantt-span";
 import { isMenuKey, menuBelow, type MenuRequest } from "./wbs-context-menu";
 import { useGanttDrag, type GanttDragHandlers } from "./use-gantt-drag";
-import { usePrintFit } from "./use-print-fit";
+import { usePrintFit } from "@/components/ui/use-print-fit";
 import { WbsDependencyArrows } from "./wbs-dependency-arrows";
 
 const W = messages.keyDeliverables.wbs;
