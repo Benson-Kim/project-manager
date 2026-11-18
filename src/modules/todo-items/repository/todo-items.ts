@@ -75,6 +75,8 @@ export interface TodoListFilters {
   projectOrActivity?: string | null;
   /** Only project-less to-dos (the cross-project page's "No project" filter). */
   withoutProject?: boolean;
+  /** Only to-dos with no planner slot (the planner's to-do panel). */
+  unscheduled?: boolean;
 }
 
 export async function listTodoItems(
@@ -92,6 +94,7 @@ export async function listTodoItems(
     Priority: filters.priority ?? null,
     ProjectOrActivity: filters.projectOrActivity ?? null,
     WithoutProject: filters.withoutProject ?? false,
+    Unscheduled: filters.unscheduled ?? false,
   });
   const today = new Date().toISOString().slice(0, 10);
   return rows.map((r) => {

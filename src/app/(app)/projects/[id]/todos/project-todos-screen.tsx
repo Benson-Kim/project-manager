@@ -2,6 +2,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
 import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
+import { listForView } from "@/lib/list-print";
 import { messages } from "@/lib/messages";
 import { getUserPreference } from "@/lib/repositories/user-preference";
 import { getListPreference } from "@/lib/repositories/view-preference";
@@ -11,8 +12,10 @@ import { getProjectPermissions } from "@/modules/projects/repository/project-acc
 import { calendarDay } from "@/modules/todo-items/calendar";
 import { TodoItemSheet } from "@/modules/todo-items/components/todo-item-sheet";
 import { TodoCalendar } from "@/modules/todo-items/components/todo-calendar";
+import { TodoPlanner } from "@/modules/todo-items/components/todo-planner";
 import { TodoView } from "@/modules/todo-items/components/todo-view";
 import { loadTodoCalendar } from "@/modules/todo-items/queries/load-todo-calendar";
+import { loadTodoPlanner } from "@/modules/todo-items/queries/load-todo-planner";
 import {
   getTodoItemById,
   listTodoItems,
@@ -44,7 +47,8 @@ export async function ProjectTodosScreen({
   const listParams = parseListParams(raw, TODO_ITEM_SORT);
   const effectiveParams = listParams;
 
-  const isCalendar = calendarOnly || flat.view === "calendar";
+  const isPlanner = flat.view === "planner";
+  const isCalendar = calendarOnly || flat.view === "calendar" || isPlanner;
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
@@ -54,23 +58,37 @@ export async function ProjectTodosScreen({
     projectOrActivity: flat.projectOrActivity ?? null,
   };
 
-  const [rows, preference, activityOptions, selectedRaw, allows, lookup, userPreference, calendar] =
-    await Promise.all([
-      isCalendar
-        ? []
-        : orNotFound(listTodoItems(effectiveParams, session.userId, projectId, undefined, filters)),
-      getListPreference(session.userId, "todo-items").catch(() => null),
-      listDailyActivityOptions(projectId, session.userId).catch(() => []),
-      selectedId && Number.isInteger(selectedId) && selectedId > 0
-        ? orNull(getTodoItemById(selectedId, session.userId))
-        : null,
-      getProjectPermissions(projectId, session.userId),
-      loadLookupLists(TODO_ITEM_LISTS, session),
-      getUserPreference(session.userId).catch(() => null),
-      isCalendar
-        ? orNotFound(loadTodoCalendar({ month: flat.month, projectId }, session.userId))
-        : null,
-    ]);
+  const [
+    rows,
+    preference,
+    activityOptions,
+    selectedRaw,
+    allows,
+    lookup,
+    userPreference,
+    calendar,
+    planner,
+  ] = await Promise.all([
+    isCalendar
+      ? []
+      : orNotFound(
+          listForView(effectiveParams, (p, size) =>
+            listTodoItems(p, session.userId, projectId, size, filters),
+          ),
+        ),
+    getListPreference(session.userId, "todo-items").catch(() => null),
+    listDailyActivityOptions(projectId, session.userId).catch(() => []),
+    selectedId && Number.isInteger(selectedId) && selectedId > 0
+      ? orNull(getTodoItemById(selectedId, session.userId))
+      : null,
+    getProjectPermissions(projectId, session.userId),
+    loadLookupLists(TODO_ITEM_LISTS, session),
+    getUserPreference(session.userId).catch(() => null),
+    isCalendar && !isPlanner
+      ? orNotFound(loadTodoCalendar({ month: flat.month, projectId }, session.userId))
+      : null,
+    isPlanner ? orNotFound(loadTodoPlanner({ days: flat.days, projectId }, session.userId)) : null,
+  ]);
 
   // A deep link to a todo from another project is treated as not found.
   const selected = guardProjectScope(selectedRaw, projectId);
@@ -113,7 +131,14 @@ export async function ProjectTodosScreen({
       />
       <LookupListsScope {...lookup}>
         <div className="mt-3 flex flex-col flex-1">
-          {calendar ? (
+          {planner ? (
+            <TodoPlanner
+              data={planner}
+              projectId={projectId}
+              canAdd={canCreate}
+              switchable={!calendarOnly}
+            />
+          ) : calendar ? (
             <TodoCalendar {...calendar} canAdd={canCreate} switchable={!calendarOnly} />
           ) : (
             <TodoView

@@ -38,7 +38,7 @@ export function SearchInput({
   };
 
   return (
-    <label className={compact ? "w-full min-w-0 sm:w-56" : "min-w-0 flex-1"}>
+    <label className={`${compact ? "w-full min-w-0 sm:w-56" : "min-w-0 flex-1"} print:hidden`}>
       <span className="sr-only">{placeholder ?? messages.list.search}</span>
       <input
         type="search"

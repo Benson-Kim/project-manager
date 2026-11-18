@@ -34,6 +34,7 @@ export const listParamsSchema = z.object({
   dir: z.enum(SORT_DIRS).default("asc"),
   view: z.enum(VIEW_MODES).optional(),
   page: z.coerce.number().int().min(1).default(1),
+  print: z.literal("all").optional(),
 });
 
 export type ListParams = z.infer<typeof listParamsSchema>;

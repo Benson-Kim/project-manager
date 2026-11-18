@@ -108,6 +108,7 @@ describe("todo-items repository", () => {
       Priority: null,
       ProjectOrActivity: null,
       WithoutProject: false,
+      Unscheduled: false,
     });
   });
 
@@ -143,6 +144,15 @@ describe("todo-items repository", () => {
     expect(params.Status).toBe("In Progress");
     expect(params.Priority).toBe("High");
     expect(params.ProjectOrActivity).toBe("Project");
+  });
+
+  it("list asks the database for unplaced to-dos only, so the filter runs before the page", async () => {
+    execProc.mockResolvedValue([]);
+    await listTodoItems(listParamsSchema.parse({ sort: "TodoItemId", dir: "desc" }), 7, 3, 100, {
+      unscheduled: true,
+    });
+    const [, params] = execProc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(params).toMatchObject({ Unscheduled: true, SortBy: "TodoItemId", SortDir: "desc" });
   });
 
   it("list sends null filter params when filters object is empty", async () => {
