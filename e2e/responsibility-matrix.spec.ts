@@ -92,9 +92,8 @@ async function chooseMatrix(page: Page, name: string): Promise<void> {
 }
 
 async function addMember(page: Page, name: string): Promise<void> {
-  await page
-    .getByRole("combobox", { name: R.addMember, exact: true })
-    .selectOption({ label: name });
+  await page.getByRole("combobox", { name: R.addMember, exact: true }).fill(name);
+  await page.getByRole("option", { name, exact: true }).click();
   await expect(page.getByRole("columnheader", { name })).toBeVisible();
 }
 
@@ -547,7 +546,7 @@ test("a cell changed in another tab is refused, shows the other tab's role, and 
   await expect(cell(page, deliverable, ann)).toHaveValue("CONSULTED");
 });
 
-test("once everyone is in the matrix, the add box gives way to a link for adding a stakeholder", async ({
+test("once everyone is in the matrix, the add box offers only a new stakeholder", async ({
   page,
 }) => {
   test.slow();
@@ -555,26 +554,35 @@ test("once everyone is in the matrix, the add box gives way to a link for adding
   await createStakeholder(page, `Everyone ${Date.now()}`, projectId);
   await createMatrix(page, `Everyone ${Date.now()}`, RACI, projectId);
   const add = page.getByTestId("responsibility-add-member");
-  while (await add.isVisible()) {
-    const left = await add.locator("option").count();
-    await add.selectOption({ index: 1 });
-    await expect(add.locator("option")).not.toHaveCount(left);
+  const input = add.getByRole("combobox");
+  const people = add.locator('[role="option"]:not([data-testid="combobox-add-new"])');
+  await input.click();
+  while ((await people.count()) > 0) {
+    const name = (await people.first().textContent()) ?? "";
+    await people.first().click();
+    await expect(people.filter({ hasText: name })).toHaveCount(0);
+    await allSaved(page);
+    await input.click();
   }
+  await expect(add.getByTestId("combobox-add-new")).toBeVisible();
   await expect(page.getByTestId("responsibility-no-one-to-add")).toContainText(R.everyoneAdded);
-  await expect(page.getByTestId("responsibility-add-stakeholder")).toHaveAttribute(
-    "href",
-    `/projects/${projectId}/stakeholders?id=new`,
-  );
 });
 
-test("on a project with no stakeholders, the matrix says why no one can be added and links to adding one", async ({
+test("on a project with no stakeholders, Add new creates one in place and adds them to the matrix", async ({
   page,
 }) => {
   test.slow();
   const projectId = await createProject(page);
   await createMatrix(page, `Nobody ${Date.now()}`, RACI, projectId);
-  await expect(page.getByTestId("responsibility-add-member")).toHaveCount(0);
   await expect(page.getByTestId("responsibility-no-one-to-add")).toContainText(R.noOneToAdd);
-  await page.getByTestId("responsibility-add-stakeholder").click();
-  await page.waitForURL(`**/projects/${projectId}/stakeholders?id=new`);
+  const add = page.getByTestId("responsibility-add-member");
+  await add.getByRole("combobox").fill("Nadia Newcomer");
+  await add.getByTestId("combobox-add-new").click();
+  const quick = page.getByTestId("stakeholder-quick-create");
+  await expect(quick.getByLabel(S.firstName)).toHaveValue("Nadia");
+  await quick.getByRole("button", { name: messages.actions.save }).click();
+  await expect(quick).toHaveCount(0);
+  await allSaved(page);
+  await expect(page.getByTestId("responsibility-no-one-to-add")).toContainText(R.everyoneAdded);
+  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/responsibility`));
 });

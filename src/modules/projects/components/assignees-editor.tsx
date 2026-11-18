@@ -14,6 +14,10 @@ import { useToast } from "@/components/ui/toast";
 import type { PermissionOverride } from "@/lib/auth/rbac";
 import { ACCESS_LEVELS, type AccessLevel } from "@/lib/auth/types";
 import { messages } from "@/lib/messages";
+import {
+  StakeholderQuickCreate,
+  useStakeholderQuickCreate,
+} from "@/modules/stakeholders/components/stakeholder-quick-create";
 import { setProjectAssigneesAction } from "../actions";
 import type { UserOption } from "../repository/user-options";
 import type { ProjectAssigneeRow } from "../schemas/project";
@@ -73,12 +77,15 @@ export function AssigneesEditor({
   overrides: initialOverrides,
   actorUserId,
   isAdmin,
+  canAddStakeholder,
 }: {
   projectId: number;
   initial: ProjectAssigneeRow[];
   users: UserOption[];
   stakeholders: string[];
   canEdit: boolean;
+  /** The person picker may create a stakeholder in place (stakeholders:create). */
+  canAddStakeholder: boolean;
   /** Each member's permission overrides by user id (loaded for Managers only). */
   overrides: Record<number, PermissionOverride[]>;
   actorUserId: number;
@@ -103,6 +110,9 @@ export function AssigneesEditor({
   const [newTitle, setNewTitle] = useState(defaultTitle);
   const [newAccess, setNewAccess] = useState<AccessLevel>("Contributor");
   const [comboboxKey, setComboboxKey] = useState(0);
+  const [pickedValue, setPickedValue] = useState("");
+  const [created, setCreated] = useState<string[]>([]);
+  const quick = useStakeholderQuickCreate(canEdit && canAddStakeholder);
 
   // Combobox values: "user:<id>" for accounts, "name:<name>" for stakeholders.
   const people = useMemo(
@@ -112,12 +122,12 @@ export function AssigneesEditor({
           `user:${u.UserId}`,
           { personName: u.DisplayName, userId: u.UserId },
         ]),
-        ...stakeholders.map((name): [string, Person] => [
+        ...[...stakeholders, ...created].map((name): [string, Person] => [
           `name:${name}`,
           { personName: name, userId: null },
         ]),
       ]),
-    [users, stakeholders],
+    [users, stakeholders, created],
   );
   const personOptions = useMemo(
     () =>
@@ -166,6 +176,7 @@ export function AssigneesEditor({
     if (members.some((m) => sameSlot(m, member))) return;
     saveTeam([...members, member], () => {
       setPicked(null);
+      setPickedValue("");
       setComboboxKey((k) => k + 1);
       toast({ variant: "success", title: messages.projects.teamSaved });
     });
@@ -341,6 +352,8 @@ export function AssigneesEditor({
                     placeholder={messages.projects.newMemberPlaceholder}
                     inCell
                     options={personOptions}
+                    defaultValue={pickedValue}
+                    addNew={quick.addNew}
                     onSelect={(option) => {
                       setPicked(option ? (people.get(option.value) ?? null) : null);
                       if (option) setSummary(null);
@@ -386,6 +399,24 @@ export function AssigneesEditor({
           </tbody>
         </table>
       </div>
+      {quick.draft === null ? null : (
+        <div className="px-4 pb-4">
+          <StakeholderQuickCreate
+            projectId={projectId}
+            typed={quick.draft}
+            onCancel={quick.close}
+            onCreated={(option) => {
+              const value = `name:${option.name}`;
+              setCreated((names) => [...names, option.name]);
+              setPicked({ personName: option.name, userId: null });
+              setPickedValue(value);
+              setComboboxKey((k) => k + 1);
+              setSummary(null);
+              quick.close();
+            }}
+          />
+        </div>
+      )}
 
       <PermissionsDialog
         projectId={projectId}

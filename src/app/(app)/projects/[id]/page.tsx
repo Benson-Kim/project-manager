@@ -86,6 +86,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
               overrides={overrides}
               actorUserId={session.userId}
               isAdmin={session.role === "Admin"}
+              canAddStakeholder={allows("stakeholders:create")}
             />
           </LookupListsScope>
         </aside>

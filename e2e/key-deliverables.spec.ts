@@ -4,6 +4,7 @@ import { formatDate } from "../src/lib/format";
 import { messages } from "../src/lib/messages";
 import { closeAlarmToast } from "./support/alarms";
 import { escapeRegExp, expectListed } from "./support/datasheet";
+import { listedPeople } from "./support/picker";
 
 // These editors mutate the same seeded project's tree. Run this file's tests in order so one
 // test's refresh cannot replace another test's focused new item while it is being renamed.
@@ -919,7 +920,7 @@ test("WBS item menu: Assignees… opens the details on the picker; the box names
   await picker.press("ArrowDown");
   // The picker's own listbox, not the page's first option: the Status and Priority fields above it
   // are native selects whose "None" option comes first in the DOM and can never be clicked.
-  const option = form.getByRole("listbox").getByRole("option").first();
+  const option = listedPeople(form).first();
   const who = ((await option.textContent()) ?? "").trim();
   expect(who).not.toBe("");
   await option.click();
@@ -1259,27 +1260,33 @@ test("WBS details panel: priority, budget, colour, assignees and Done save and c
   await expect(assignees).toHaveText(K.unassigned);
   const assigneeBox = panel.getByRole("combobox", { name: K.assignees });
 
-  // A typed name that is no stakeholder is not added, and the field says why.
+  // A typed name that is no stakeholder is not added: Enter picks nothing, and "Add new" leads
+  // the list, above the people who do not match.
   await assigneeBox.fill("Nobody Zzqx");
   await assigneeBox.press("Enter");
-  await expect(panel.getByTestId("stakeholder-no-match")).toContainText(
-    messages.stakeholders.notAStakeholder("Nobody Zzqx"),
+  await expect(panel.getByRole("listbox").getByRole("option").first()).toHaveAttribute(
+    "data-testid",
+    "combobox-add-new",
   );
   await expect(assignees).toHaveText(K.unassigned);
   await assigneeBox.fill("");
-  await expect(panel.getByTestId("stakeholder-no-match")).toBeHidden();
 
-  // Someone who may create stakeholders adds the typed name as one, and it is picked at once.
+  // Someone who may create stakeholders adds the typed name as one in place, and it is picked
+  // at once: the form starts from the typed text and the page does not change.
   const newcomer = `E2E Zzadded${stamp}`;
+  const url = page.url();
   await assigneeBox.fill(newcomer);
-  await panel
-    .getByRole("button", { name: messages.stakeholders.addAsStakeholder(newcomer) })
-    .click();
+  await panel.getByTestId("combobox-add-new").click();
+  const quick = panel.getByTestId("stakeholder-quick-create");
+  await expect(quick.getByLabel(messages.stakeholders.firstName)).toHaveValue("E2E");
+  await expect(quick.getByLabel(messages.stakeholders.lastName)).toHaveValue(`Zzadded${stamp}`);
+  await quick.getByRole("button", { name: messages.actions.save }).click();
+  await expect(quick).toBeHidden({ timeout: 15_000 });
+  expect(page.url()).toBe(url);
   const unassignNewcomer = panel.getByRole("button", { name: K.removeAssignee(newcomer) });
   await expect(unassignNewcomer).toBeVisible();
   await expect(assignees.getByRole("img", { name: newcomer })).toBeVisible();
   await expect(assigneeBox).toHaveValue("");
-  await expect(panel.getByTestId("stakeholder-no-match")).toBeHidden();
   await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
   await unassignNewcomer.click();
   await expect(assignees).toHaveText(K.unassigned);
@@ -1290,7 +1297,7 @@ test("WBS details panel: priority, budget, colour, assignees and Done save and c
   await assigneeBox.fill("");
 
   await assigneeBox.click();
-  const option = panel.getByRole("listbox").getByRole("option").first();
+  const option = listedPeople(panel).first();
   const who = ((await option.textContent()) ?? "").trim();
   expect(who).not.toBe("");
   await option.click();
@@ -1758,6 +1765,33 @@ test("WBS: two items are linked, the successor is pushed, and the link goes with
     `[data-gantt-dependency-from="${firstId}"][data-gantt-dependency-to="${secondId}"]`,
   );
   await expect(dependency.locator("path").first()).toBeVisible();
+
+  // A fresh load draws it too, from the end of the first bar to the start of the second.
+  await page.reload();
+  const line = dependency.locator("path").first();
+  await expect(line).toBeVisible();
+  const ends = await line.evaluate(
+    (el, ids) => {
+      const path = el as SVGPathElement;
+      const ctm = path.getScreenCTM()!;
+      const at = (length: number) => {
+        const p = path.getPointAtLength(length);
+        return new DOMPoint(p.x, p.y).matrixTransform(ctm);
+      };
+      const bar = (id: string) =>
+        document.querySelector(`[data-gantt-bar="${id}"]`)!.getBoundingClientRect();
+      const [from, to] = [bar(ids[0]), bar(ids[1])];
+      const [start, end] = [at(0), at(path.getTotalLength())];
+      return [
+        start.x - from.right,
+        start.y - (from.top + from.height / 2),
+        end.x - to.left,
+        end.y - (to.top + to.height / 2),
+      ].map((gap) => Math.abs(gap));
+    },
+    [firstId, secondId],
+  );
+  for (const gap of ends) expect(gap).toBeLessThan(1.5);
   await pickFromGanttMenu(page, secondName, "wbs-menu-dependencies", panel);
   await expect(panel).toContainText(`E2E pour ${stamp}`);
   await page.keyboard.press("Escape");
@@ -1840,10 +1874,7 @@ test("Deliverable assignees: several stakeholders are picked one after another, 
   await page.goto(`/projects/2/deliverables?d=${id}`);
   await expect(form).toBeVisible();
   await expect(picks.getByRole("listitem")).toHaveCount(0);
-  await expect(picker).toHaveAttribute(
-    "placeholder",
-    messages.stakeholders.addStakeholderPlaceholder,
-  );
+  await expect(picker).toHaveAttribute("placeholder", messages.stakeholders.picker.placeholder);
 
   // Two are clicked from the list; each lands on its own row with its ×, the box empties and
   // keeps the caret, and someone picked is not offered again.
@@ -1854,7 +1885,7 @@ test("Deliverable assignees: several stakeholders are picked one after another, 
       await picker.click();
       await expect(listbox).toBeVisible({ timeout: 2_000 });
     }).toPass({ timeout: 20_000 });
-    const option = listbox.getByRole("option").first();
+    const option = listedPeople(form).first();
     const who = ((await option.textContent()) ?? "").trim();
     expect(who).not.toBe("");
     expect(names).not.toContain(who);
@@ -1868,10 +1899,10 @@ test("Deliverable assignees: several stakeholders are picked one after another, 
 
   // The third is found by typing part of the name and taken with Enter.
   await picker.press("ArrowDown");
-  const third = ((await listbox.getByRole("option").first().textContent()) ?? "").trim();
+  const third = ((await listedPeople(form).first().textContent()) ?? "").trim();
   expect(names).not.toContain(third);
   await picker.fill(third.slice(0, Math.max(3, third.length - 2)));
-  await expect(listbox.getByRole("option").first()).toHaveText(third);
+  await expect(listedPeople(form).first()).toHaveText(third);
   await picker.press("Enter");
   await expect(remove(third)).toBeVisible();
   await expect(picker).toHaveValue("");
