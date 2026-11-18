@@ -170,7 +170,11 @@ const deactivateByUser = (userId, actor) =>
   const alertB = await makeAlert("b");
   const due = async () => {
     const [rows] = await exec("usp_TodoAlert_ListPushDeliveries", { LocalNow: new Date() });
-    return rows.filter((r) => r.AlertSubscriptionId === sub.AlertSubscriptionId);
+    return rows.filter(
+      (r) =>
+        r.AlertSubscriptionId === sub.AlertSubscriptionId &&
+        (r.TodoAlertId === alertA || r.TodoAlertId === alertB),
+    );
   };
   const first = await due();
   ok(first.length === 2, "two alerts due for one subscription are both listed");
