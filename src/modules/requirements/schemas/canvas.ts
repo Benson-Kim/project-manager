@@ -1,4 +1,13 @@
 import { z } from "zod";
+import {
+  HEX_COLOUR,
+  LINE_ATTACH,
+  LINE_ENDS,
+  LINE_PATTERNS,
+  LINE_SHAPES,
+  LINE_SIDES,
+  connectorStyleSchema,
+} from "@/lib/connector-style";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 import { idSchema } from "./requirement-link";
 import { requirementTypeSchema } from "./requirement-types";
@@ -38,6 +47,18 @@ export const canvasLinkSchema = z.object({
   DownstreamId: z.number().int(),
   LinkStatus: z.enum(["Proposed", "Active"]),
   RowVer: rowVerSchema,
+  LineShape: z.enum(LINE_SHAPES).nullish(),
+  LinePattern: z.enum(LINE_PATTERNS).nullish(),
+  StartEnd: z.enum(LINE_ENDS).nullish(),
+  EndEnd: z.enum(LINE_ENDS).nullish(),
+  LineWeight: z.number().int().min(1).max(6).nullish(),
+  LineColour: z.string().regex(HEX_COLOUR).nullish().catch(null),
+  Attach: z.enum(LINE_ATTACH).nullish(),
+  SourceSide: z.enum(LINE_SIDES).nullish(),
+  TargetSide: z.enum(LINE_SIDES).nullish(),
+  Jumps: z.boolean().nullish(),
+  BranchFromId: z.number().int().nullish(),
+  BranchAt: z.number().int().min(0).max(100).nullish(),
 });
 export type CanvasLink = z.infer<typeof canvasLinkSchema>;
 
@@ -98,11 +119,26 @@ export const unallocateRequirementInput = allocateRequirementInput.extend({
   rowVer: rowVerSchema,
 });
 
+export const setCanvasLinkStyleInput = z
+  .object({
+    canvasId: idSchema,
+    upstreamKind: itemKindSchema,
+    upstreamId: idSchema,
+    downstreamId: idSchema,
+    style: connectorStyleSchema,
+    branchFromId: idSchema.nullable(),
+    branchAt: z.number().int().min(0).max(100).nullable(),
+  })
+  .strict()
+  .refine((v) => v.branchAt === null || v.branchFromId !== null)
+  .refine((v) => v.branchFromId !== v.downstreamId);
+
 export type CanvasNodeRef = { kind: z.infer<typeof itemKindSchema>; itemId: number };
 export type CreateCanvasInput = z.output<typeof createCanvasInput>;
 export type UpdateCanvasInput = z.output<typeof updateCanvasInput>;
 export type DeleteCanvasInput = z.output<typeof deleteCanvasInput>;
 export type AddCanvasNodeInput = z.output<typeof addCanvasNodeInput>;
 export type MoveCanvasNodesInput = z.output<typeof moveCanvasNodesInput>;
+export type SetCanvasLinkStyleInput = z.output<typeof setCanvasLinkStyleInput>;
 export type RemoveCanvasNodeInput = z.output<typeof removeCanvasNodeInput>;
 export type AllocateRequirementInput = z.output<typeof allocateRequirementInput>;

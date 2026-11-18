@@ -1,11 +1,11 @@
-/** Runs one task per key at a time. A call for a key that is still running is dropped. */
+/** Runs one task per key at a time. A call for a key that is still running is dropped (undefined). */
 export function oneAtATime() {
   const running = new Set<string>();
-  return async (key: string, task: () => Promise<void>): Promise<void> => {
-    if (running.has(key)) return;
+  return async <T>(key: string, task: () => Promise<T>): Promise<T | undefined> => {
+    if (running.has(key)) return undefined;
     running.add(key);
     try {
-      await task();
+      return await task();
     } finally {
       running.delete(key);
     }

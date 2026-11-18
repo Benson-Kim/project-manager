@@ -1,16 +1,23 @@
 import type { Edge, Node } from "@xyflow/react";
+import { dashFor, drawnStyle, type ConnectorStyle, type LineEnd } from "@/lib/connector-style";
 import type { CanvasItem, CanvasLink } from "../schemas/canvas";
 import { allowsLink, type LinkRule } from "../schemas/link-rules";
 import { layoutClusters } from "./cluster-layout";
 import { itemKey } from "./gaps";
 import { NODE_HEIGHT, NODE_WIDTH } from "./layout";
+import { defaultsFor, isPlainLook, lookOf, type LinkBranch } from "./link-layout";
 import { canvasClusters, focusTrace, foldLinks, type Trace } from "./scale";
 
 export type Placement = Pick<CanvasItem, "OnCanvas" | "X" | "Y" | "IsCollapsed">;
 export type Placements = ReadonlyMap<string, Placement>;
 export type ItemNode = Node<{ item: CanvasItem }, "item">;
 export type ItemConnection = { up: CanvasItem; down: CanvasItem };
-export type LinkEdge = Edge<{ link?: CanvasLink; count: number }>;
+export type LinkEdge = Edge<{
+  link?: CanvasLink;
+  count: number;
+  style?: ConnectorStyle;
+  branch?: LinkBranch;
+}>;
 
 const keyOf = (item: CanvasItem) => itemKey(item.Kind, item.ItemId);
 
@@ -36,7 +43,9 @@ export function itemConnection(
 }
 
 /** Where a link drag began. From the downstream handle the start is the upstream end. */
-export type LinkStart = { key: string; fromDownstream: boolean };
+/** A new line that starts on an existing one: the line's downstream id and the spot (0-100, null = its label). */
+export type BranchStart = { fromId: number; at: number | null };
+export type LinkStart = { key: string; fromDownstream: boolean; branch?: BranchStart };
 
 const NO_KEYS: ReadonlySet<string> = new Set();
 
@@ -158,10 +167,46 @@ export function collapsibleKeys(items: readonly CanvasItem[]): ReadonlySet<strin
   return found;
 }
 
+const MARKERS = { arrow: "arrowclosed", open: "arrow" } as const;
+
+const markerFor = (end: LineEnd, colour: string | null) =>
+  end === "arrow" || end === "open"
+    ? { type: MARKERS[end], ...(colour ? { color: colour } : {}) }
+    : undefined;
+
+/** How a link someone styled or branched is drawn; null for a plain link, which keeps the usual look. */
+function styledEdge(link: CanvasLink, source: string): Partial<LinkEdge> | null {
+  const look = lookOf(link);
+  if (isPlainLook(look)) return null;
+  const drawn = drawnStyle(look.style, defaultsFor(link.LinkStatus === "Proposed"));
+  return {
+    markerStart: markerFor(drawn.startEnd, drawn.colour),
+    markerEnd: markerFor(drawn.endEnd, drawn.colour),
+    style: {
+      strokeDasharray: dashFor(drawn.pattern, drawn.weight),
+      strokeLinecap: drawn.pattern === "dotted" ? "round" : undefined,
+      strokeWidth: drawn.weight ?? undefined,
+      stroke: drawn.colour ?? undefined,
+    },
+    data: {
+      link,
+      count: 1,
+      style: look.style,
+      branch:
+        look.branchFromId === null
+          ? undefined
+          : {
+              fromEdge: `${source}>${itemKey("Requirement", look.branchFromId)}`,
+              at: look.branchAt,
+            },
+    },
+  };
+}
+
 /**
  * Links with both ends on the canvas, pointing downstream, one edge per shown pair. An edge that
  * stands for several links, or for a folded end, shows the count and carries no single link.
- * A link that is only Proposed is dashed. Under a focus, an edge none of whose links the trace
+ * A link that is only Proposed is dashed, and a single link drawn its own way keeps that look. Under a focus, an edge none of whose links the trace
  * followed is hidden, even when both its cards are shown.
  */
 export function boardEdges(
@@ -186,6 +231,7 @@ export function boardEdges(
         : undefined;
     return {
       id: `${source}>${target}`,
+      type: "routed",
       source,
       target,
       sourceHandle: "downstream",
@@ -197,6 +243,7 @@ export function boardEdges(
       ...(folded.every((link) => link.LinkStatus === "Proposed")
         ? { style: { strokeDasharray: "6 4" } }
         : {}),
+      ...(own ? styledEdge(own, source) : null),
     };
   });
 }

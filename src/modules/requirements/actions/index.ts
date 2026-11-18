@@ -8,6 +8,7 @@ import {
   deleteCanvas,
   moveCanvasNodes,
   removeCanvasNode,
+  setCanvasLinkStyle,
   updateCanvas,
 } from "../repository/canvases";
 import {
@@ -34,6 +35,7 @@ import {
   deleteCanvasInput,
   moveCanvasNodesInput,
   removeCanvasNodeInput,
+  setCanvasLinkStyleInput,
   unallocateRequirementInput,
   updateCanvasInput,
 } from "../schemas/canvas";
@@ -190,6 +192,14 @@ export const moveCanvasNodesAction = action({
   schema: moveCanvasNodesInput,
   permission: "requirements:update",
   handler: (input, ctx) => moveCanvasNodes(input, ctx.session.userId),
+});
+
+export const setCanvasLinkStyleAction = action({
+  name: "requirements.setCanvasLinkStyle",
+  schema: setCanvasLinkStyleInput,
+  permission: "requirements:update",
+  revalidate: CANVAS_TARGETS,
+  handler: (input, ctx) => setCanvasLinkStyle(input, ctx.session.userId),
 });
 
 export const removeCanvasNodeAction = action({

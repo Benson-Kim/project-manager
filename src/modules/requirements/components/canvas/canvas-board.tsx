@@ -30,22 +30,30 @@ import {
   unlinkableKeys,
   withHidden,
   type Focus,
+  type BranchStart,
+  type LinkEdge,
   type LinkStart,
   type ItemNode,
 } from "../../canvas/board-model";
+import { plainPoints, type LinkLook } from "../../canvas/link-layout";
+import { nearestAt, type Rect } from "@/lib/connector-route";
 import { LinkMenu } from "./link-menu";
+import { LinkStylePanel } from "./link-style-panel";
 import type { CanvasGaps } from "../../canvas/gaps";
 import { canvasClusters, collapsedView } from "../../canvas/scale";
 import type { Point } from "../../canvas/layout";
 import type { CanvasItem, CanvasLink } from "../../schemas/canvas";
 import { BoardContext, ItemNodeView } from "./item-node";
 import { NodeMenu } from "./node-menu";
+import { RoutedEdge } from "./routed-edge";
+import { LinkLayoutContext, useLinkLayout } from "./use-link-layout";
 
 const M = messages.requirements.canvas;
 
 export const CANVAS_ITEM_MIME = "application/x-canvas-item";
 
 const nodeTypes = { item: ItemNodeView };
+const edgeTypes = { routed: RoutedEdge };
 const SAVE_DELAY_MS = 300;
 /**
  * Fit options shared by every fitView call. maxZoom 1 keeps a one- or two-node board at actual
@@ -81,6 +89,8 @@ interface BoardProps {
   canLink: (sourceKey: string, targetKey: string) => boolean;
   onLink: (sourceKey: string, targetKey: string) => void;
   onUnlink: (link: CanvasLink) => void;
+  onStyle: (link: CanvasLink, look: LinkLook) => void;
+  onBranch: (sourceKey: string, targetKey: string, branch: BranchStart) => void;
   onInspect: (requirementId: number) => void;
   onToggleCollapse: (item: CanvasItem) => void;
 }
@@ -209,7 +219,7 @@ function Toolbar({
 
 function Board(props: BoardProps) {
   const { items, links, gaps, canEdit, selectedKey, onSelect, onHide, onDropItem } = props;
-  const { screenToFlowPosition, fitView } = useReactFlow();
+  const { screenToFlowPosition, fitView, getInternalNode } = useReactFlow();
   const { hiddenBy, hiddenCount } = useMemo(() => collapsedView(items), [items]);
   const collapsible = useMemo(() => collapsibleKeys(items), [items]);
   const [focus, setFocus] = useState<Focus | null>(null);
@@ -226,6 +236,7 @@ function Board(props: BoardProps) {
     () => boardEdges(items, links, hiddenBy, focused?.links ?? null),
     [items, links, hiddenBy, focused],
   );
+  const linkLayout = useLinkLayout(edges);
   const unsaved = useRef(new Map<string, { id: string } & Point>());
   const [nodes, setNodes] = useState(wanted);
   const [seen, setSeen] = useState(wanted);
@@ -374,8 +385,31 @@ function Board(props: BoardProps) {
     const [up, down] = linkEnds(picking, key);
     if (!props.canLink(up, down)) return;
     setPicking(null);
-    props.onLink(up, down);
+    if (picking.branch) props.onBranch(up, down, picking.branch);
+    else props.onLink(up, down);
   };
+
+  const rectOf = (key: string): Rect | undefined => {
+    const node = getInternalNode(key);
+    return node
+      ? {
+          ...node.internals.positionAbsolute,
+          width: node.measured.width ?? 0,
+          height: node.measured.height ?? 0,
+        }
+      : undefined;
+  };
+  const spotOn = (edge: LinkEdge, at: Point) => {
+    const rects = new Map<string, Rect>();
+    for (const key of [edge.source, edge.target]) {
+      const rect = rectOf(key);
+      if (rect) rects.set(key, rect);
+    }
+    const points = linkLayout.get(edge.id)?.points ?? plainPoints(edge, rects);
+    return points ? Math.round(nearestAt(points, screenToFlowPosition(at)) * 100) : null;
+  };
+  const [styling, setStyling] = useState<string | null>(null);
+  const styledLink = styling ? edges.find((edge) => edge.id === styling)?.data?.link : undefined;
 
   const openMenu =
     (of: "node" | "edge") =>
@@ -387,6 +421,7 @@ function Board(props: BoardProps) {
   const itemOf = (key: string) => nodes.find((node) => node.id === key)?.data.item;
   const menuItem = menu?.of === "node" ? itemOf(menu.key) : undefined;
   const menuEdge = menu?.of === "edge" ? edges.find((edge) => edge.id === menu.key) : undefined;
+  const menuLink = menuEdge?.data?.link;
 
   const { onToggleCollapse } = props;
   const context = useMemo(
@@ -396,118 +431,144 @@ function Board(props: BoardProps) {
 
   return (
     <BoardContext.Provider value={context}>
-      <ReactFlow
-        className={THEME}
-        proOptions={{ hideAttribution: true }}
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        onNodesChange={onNodesChange}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
-        nodesDraggable={canEdit}
-        nodesConnectable={canEdit}
-        isValidConnection={(connection) => props.canLink(connection.source, connection.target)}
-        onConnect={(connection) => props.onLink(connection.source, connection.target)}
-        onConnectStart={(_, { nodeId, handleType }) => {
-          setPicking(null);
-          setLinkStart(nodeId ? { key: nodeId, fromDownstream: handleType === "source" } : null);
-        }}
-        onConnectEnd={() => setLinkStart(null)}
-        onNodeContextMenu={openMenu("node")}
-        onEdgeContextMenu={canEdit ? openMenu("edge") : undefined}
-        onNodeClick={(event, node) => {
-          if (!(event.target as HTMLElement).closest("button")) pick(node.id);
-        }}
-        onPaneClick={() => setPicking(null)}
-        onKeyDown={(event) => {
-          const shortcut = historyKey(event);
-          if (shortcut) {
-            event.preventDefault();
-            if (shortcut === "undo") undo();
-            else redo();
-            return;
-          }
-          const target = event.target as HTMLElement;
-          const id = target.classList.contains("react-flow__node") ? target.dataset.id : undefined;
-          if (event.key === "Enter" && id) pick(id);
-        }}
-        deleteKeyCode={null}
-        selectionKeyCode={null}
-        multiSelectionKeyCode={null}
-        onlyRenderVisibleElements
-        minZoom={0.1}
-        fitView
-        fitViewOptions={FIT_OPTIONS}
-      >
-        <Background />
-        <ViewportPortal>
-          {labels.map((label) => (
-            <p
-              key={label.key}
-              data-testid="canvas-cluster-label"
-              style={{ transform: `translate(${label.x}px, ${label.y}px)` }}
-              className="pointer-events-none absolute max-w-[40rem] truncate text-sm font-semibold text-ink-muted"
-            >
-              {label.text}
-            </p>
-          ))}
-        </ViewportPortal>
-        <Toolbar
-          items={items}
-          canEdit={canEdit}
-          onAutoLayout={() => {
-            dropUnsaved();
-            props.onAutoLayout();
+      <LinkLayoutContext.Provider value={linkLayout}>
+        <ReactFlow
+          className={THEME}
+          proOptions={{ hideAttribution: true }}
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          onNodesChange={onNodesChange}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
+          nodesDraggable={canEdit}
+          nodesConnectable={canEdit}
+          isValidConnection={(connection) => props.canLink(connection.source, connection.target)}
+          onConnect={(connection) => props.onLink(connection.source, connection.target)}
+          onConnectStart={(_, { nodeId, handleType }) => {
+            setPicking(null);
+            setLinkStart(nodeId ? { key: nodeId, fromDownstream: handleType === "source" } : null);
           }}
-          onUndo={undo}
-          canUndo={props.canUndo}
-          onRedo={redo}
-          canRedo={props.canRedo}
-          focus={focus}
-          onFocus={focusOn}
-        />
-        <Panel position="bottom-center" data-canvas-chrome className="print:hidden">
-          <div role="status">
-            {picking ? (
+          onConnectEnd={() => setLinkStart(null)}
+          onNodeContextMenu={openMenu("node")}
+          onEdgeContextMenu={canEdit ? openMenu("edge") : undefined}
+          onNodeClick={(event, node) => {
+            if (!(event.target as HTMLElement).closest("button")) pick(node.id);
+          }}
+          onPaneClick={() => setPicking(null)}
+          onKeyDown={(event) => {
+            const shortcut = historyKey(event);
+            if (shortcut) {
+              event.preventDefault();
+              if (shortcut === "undo") undo();
+              else redo();
+              return;
+            }
+            const target = event.target as HTMLElement;
+            const id = target.classList.contains("react-flow__node")
+              ? target.dataset.id
+              : undefined;
+            if (event.key === "Enter" && id) pick(id);
+          }}
+          deleteKeyCode={null}
+          selectionKeyCode={null}
+          multiSelectionKeyCode={null}
+          onlyRenderVisibleElements
+          minZoom={0.1}
+          fitView
+          fitViewOptions={FIT_OPTIONS}
+        >
+          <Background />
+          <ViewportPortal>
+            {labels.map((label) => (
               <p
-                data-testid="canvas-picking"
-                className="rounded-md border border-line bg-surface-raised px-3 py-1.5 text-sm text-ink shadow"
+                key={label.key}
+                data-testid="canvas-cluster-label"
+                style={{ transform: `translate(${label.x}px, ${label.y}px)` }}
+                className="pointer-events-none absolute max-w-[40rem] truncate text-sm font-semibold text-ink-muted"
               >
-                {M.picking}
+                {label.text}
               </p>
-            ) : null}
-            {focus ? (
-              <p data-testid="canvas-focus" className="sr-only">
-                {M.focusing(itemOf(focus.key)?.Ref ?? focus.key)}
-              </p>
-            ) : null}
-          </div>
-        </Panel>
-      </ReactFlow>
-      {menu && menuItem ? (
-        <NodeMenu
-          key={`${menu.key}@${menu.x},${menu.y}`}
-          item={menuItem}
-          at={menu}
-          canEdit={canEdit}
-          onClose={() => setMenu(null)}
-          onInspect={props.onInspect}
-          onStartLink={(fromDownstream) => setPicking({ key: menu.key, fromDownstream })}
-          onFocus={() => focusOn({ key: menu.key, depth: 1 })}
-          onHide={onHide}
-        />
-      ) : null}
-      {menu && menuEdge?.data?.link ? (
-        <LinkMenu
-          key={`${menu.key}@${menu.x},${menu.y}`}
-          from={itemOf(menuEdge.source)?.Ref ?? menuEdge.source}
-          to={itemOf(menuEdge.target)?.Ref ?? menuEdge.target}
-          at={menu}
-          onClose={() => setMenu(null)}
-          onRemove={() => menuEdge.data?.link && props.onUnlink(menuEdge.data.link)}
-        />
-      ) : null}
+            ))}
+          </ViewportPortal>
+          <Toolbar
+            items={items}
+            canEdit={canEdit}
+            onAutoLayout={() => {
+              dropUnsaved();
+              props.onAutoLayout();
+            }}
+            onUndo={undo}
+            canUndo={props.canUndo}
+            onRedo={redo}
+            canRedo={props.canRedo}
+            focus={focus}
+            onFocus={focusOn}
+          />
+          <Panel position="bottom-center" data-canvas-chrome className="print:hidden">
+            <div role="status">
+              {picking ? (
+                <p
+                  data-testid="canvas-picking"
+                  className="rounded-md border border-line bg-surface-raised px-3 py-1.5 text-sm text-ink shadow"
+                >
+                  {picking.branch ? M.branching : M.picking}
+                </p>
+              ) : null}
+              {focus ? (
+                <p data-testid="canvas-focus" className="sr-only">
+                  {M.focusing(itemOf(focus.key)?.Ref ?? focus.key)}
+                </p>
+              ) : null}
+            </div>
+          </Panel>
+          {styledLink ? (
+            <LinkStylePanel
+              link={styledLink}
+              onStyle={(look) => props.onStyle(styledLink, look)}
+              onClose={() => setStyling(null)}
+            />
+          ) : null}
+        </ReactFlow>
+        {menu && menuItem ? (
+          <NodeMenu
+            key={`${menu.key}@${menu.x},${menu.y}`}
+            item={menuItem}
+            at={menu}
+            canEdit={canEdit}
+            onClose={() => setMenu(null)}
+            onInspect={props.onInspect}
+            onStartLink={(fromDownstream) => setPicking({ key: menu.key, fromDownstream })}
+            onFocus={() => focusOn({ key: menu.key, depth: 1 })}
+            onHide={onHide}
+          />
+        ) : null}
+        {menu && menuEdge && menuLink ? (
+          <LinkMenu
+            key={`${menu.key}@${menu.x},${menu.y}`}
+            from={itemOf(menuEdge.source)?.Ref ?? menuEdge.source}
+            to={itemOf(menuEdge.target)?.Ref ?? menuEdge.target}
+            at={menu}
+            onClose={() => setMenu(null)}
+            onRemove={() => props.onUnlink(menuLink)}
+            onStyle={() => setStyling(menuEdge.id)}
+            onBranch={
+              menuEdge.data?.branch
+                ? undefined
+                : (fromLabel) =>
+                    setPicking({
+                      key: menuEdge.source,
+                      fromDownstream: true,
+                      branch: {
+                        fromId: menuLink.DownstreamId,
+                        at: fromLabel ? null : spotOn(menuEdge, menu),
+                      },
+                    })
+            }
+          />
+        ) : null}
+      </LinkLayoutContext.Provider>
     </BoardContext.Provider>
   );
 }
