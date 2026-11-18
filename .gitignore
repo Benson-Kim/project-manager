@@ -45,6 +45,9 @@ installers/
 
 .claude/
 
+# Excalidraw fonts, copied from node_modules by scripts/copy-excalidraw-assets.mjs
+/public/excalidraw-assets/
+
 # Licence service local deploy config and Wrangler state
 wrangler.toml
 .dev.vars
