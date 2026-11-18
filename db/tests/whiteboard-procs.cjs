@@ -60,8 +60,6 @@ const save = async (id, json, rowVer, actor = PM) =>
   (await exec("usp_Whiteboard_Update", { WhiteboardId: id, BoardJson: json, RowVer: rowVer, ActorUserId: actor }))[0][0];
 const remove = async (id, rowVer, actor = PM) =>
   (await exec("usp_Whiteboard_Delete", { WhiteboardId: id, RowVer: rowVer, ActorUserId: actor }))[0][0];
-const tableExists = async () =>
-  (await pool.request().query("SELECT OBJECT_ID(N'app.Whiteboard', N'U') AS Id")).recordset[0].Id !== null;
 let trail;
 const audits = (id) => trail.of("app.Whiteboard", id, { withJson: true });
 
@@ -164,7 +162,7 @@ const scene = (label) => JSON.stringify({
   ok(second.Name === "a' OR '1'='1", "a rename with quotes is stored as typed");
   ok((await create(P, "100%_done")).Name === "100%_done", "a name with LIKE wildcards is accepted");
   ok((await create(P, "100X-done")).Name === "100X-done", "and does not clash with a name it would match as a pattern");
-  ok(await tableExists(), "the whiteboard table is still there");
+  ok((await list(P)).some((r) => r.WhiteboardId === b.WhiteboardId), "the whiteboard table is still there");
   ok((await get(b.WhiteboardId)).Name === "Brainstorm", "other whiteboards are untouched");
 
   // Rename.
