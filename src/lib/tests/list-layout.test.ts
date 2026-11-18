@@ -4,6 +4,8 @@ import {
   clampWidth,
   COLUMN_WIDTH_MAX,
   COLUMN_WIDTH_MIN,
+  LAYOUT_TEXT_MAX,
+  listLayoutSchema,
   moveKey,
   normalizeLayout,
   orderColumns,
@@ -11,6 +13,7 @@ import {
   ROW_HEIGHT_MAX,
   ROW_HEIGHT_MIN,
 } from "../list-layout";
+import { customCellField } from "../custom-columns/kinds";
 import { initialViewOf } from "../list-params";
 
 const cols = ["Project", "Requester", "Task", "Status"].map((key) => ({ key }));
@@ -83,6 +86,30 @@ describe("datasheet layout (ADR-0023, migration 019)", () => {
     });
     expect(parseListLayout('{"widths":{"Task":5}}')).toBeNull();
     expect(parseListLayout('{"order":["bad key!"]}')).toBeNull();
+  });
+
+  it("keeps a custom column's layout (client feedback 2026-11-18)", () => {
+    const def = ["Task", "Done", customCellField(12)];
+    const layout = {
+      order: [customCellField(12), "Task", "Done"],
+      widths: { [customCellField(12)]: 240 },
+    };
+    expect(listLayoutSchema.safeParse(layout).success).toBe(true);
+    expect(parseListLayout(JSON.stringify(normalizeLayout(def, layout)))).toEqual(layout);
+    expect(listLayoutSchema.safeParse({ order: ["cell 12"] }).success).toBe(false);
+  });
+
+  it("drops other pages' widths, oldest first, so the layout fits its store", () => {
+    const shown = ["Task", customCellField(1)];
+    const widths: Record<string, number> = { Task: 300 };
+    for (let id = 1000; id < 1200; id += 1) widths[customCellField(id)] = 200;
+    widths[customCellField(1)] = 240;
+    const stored = normalizeLayout(shown, { order: [...shown].reverse(), widths })!;
+    expect(JSON.stringify(stored).length).toBeLessThanOrEqual(LAYOUT_TEXT_MAX);
+    expect(stored.widths).toMatchObject({ Task: 300, [customCellField(1)]: 240 });
+    expect(stored.widths).not.toHaveProperty(customCellField(1000));
+    expect(stored.widths).toHaveProperty(customCellField(1199));
+    expect(listLayoutSchema.safeParse(stored).success).toBe(true);
   });
 });
 
