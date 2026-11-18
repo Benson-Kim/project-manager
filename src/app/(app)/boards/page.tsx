@@ -1,6 +1,7 @@
 import { BOARD_SORT } from "@/modules/boards/schemas/board-rules";
 import { auth } from "@/lib/auth/provider";
 import { parseListParams } from "@/lib/list-params";
+import { listForView } from "@/lib/list-print";
 import { listProjectOptions } from "@/modules/projects/repository/projects";
 import { listBoards } from "@/modules/boards/repository/boards";
 import { BoardsList } from "@/modules/boards/components/boards-list";
@@ -15,8 +16,8 @@ export default async function Page({
   const projects = await listProjectOptions(session.userId);
   const selected = Number(raw.project);
   const projectId = projects.some((p) => p.id === selected) ? selected : null;
-  const rows = await listBoards(params, session.userId, projectId, undefined, {
-    withoutProject: raw.project === "none",
-  });
+  const rows = await listForView(params, (p, size) =>
+    listBoards(p, session.userId, projectId, size, { withoutProject: raw.project === "none" }),
+  );
   return <BoardsList rows={rows} page={params.page} projects={projects} projectId={projectId} />;
 }

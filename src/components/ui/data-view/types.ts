@@ -86,12 +86,15 @@ export interface DataViewProps<Row> {
    * and the user can clear the filter when zero rows match.
    */
   filtersActive?: boolean;
+  /** Offers a full-screen toggle beside the view buttons that pins the whole list over the app. */
+  fullscreen?: boolean;
 }
 
+/** Narrow screens drop the lower-priority columns; the printed page keeps them all. */
 export const priorityClass: Record<1 | 2 | 3, string> = {
   1: "",
-  2: "hidden sm:table-cell",
-  3: "hidden lg:table-cell",
+  2: "hidden sm:table-cell print:table-cell",
+  3: "hidden lg:table-cell print:table-cell",
 };
 
 /**

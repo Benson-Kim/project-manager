@@ -80,7 +80,7 @@ export function Toaster({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       <div
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-(--z-toast) flex flex-col items-center gap-2 p-4 pb-[calc(env(safe-area-inset-bottom)+5rem)] sm:items-end sm:pb-4"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-(--z-toast) flex flex-col items-center gap-2 p-4 pb-[calc(env(safe-area-inset-bottom)+5rem)] sm:items-end sm:pb-4 print:hidden"
         role="region"
         aria-label="Notifications"
         onPointerDownCapture={(event) => toastPointerDowns.add(event.nativeEvent)}

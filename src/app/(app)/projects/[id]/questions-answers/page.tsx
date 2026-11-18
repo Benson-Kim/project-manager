@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
 import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
+import { listForView } from "@/lib/list-print";
 import { messages } from "@/lib/messages";
 import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNotFound, orNull } from "@/lib/row-access";
@@ -65,7 +66,11 @@ export default async function QuestionsAnswersPage({
   };
 
   const [rows, preference, selectedRaw, allows, lookup] = await Promise.all([
-    orNotFound(listQuestionAnswers(effectiveParams, session.userId, projectId, filters)),
+    orNotFound(
+      listForView(effectiveParams, (p, size) =>
+        listQuestionAnswers(p, session.userId, projectId, filters, size),
+      ),
+    ),
     getListPreference(session.userId, "questions-answers").catch(() => null),
     selectedId ? orNull(getQuestionAnswerById(selectedId, session.userId)) : null,
     getProjectPermissions(projectId, session.userId),

@@ -205,6 +205,17 @@ export function singleLine(value: string): string {
   return value.replace(/\r?\n/g, " ");
 }
 
+/**
+ * Whether a cell's text stays on one line when shown or printed: a YYYY-MM-DD date (with or
+ * without a time), or a short value with no letters, such as a phone number, amount or code.
+ * Wrapping would split it at a "-" or space.
+ */
+export function keepsOnOneLine(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const text = value.trim();
+  return /^\d{4}-\d{2}-\d{2}/.test(text) || /^[^\p{L}\n]{1,24}$/u.test(text);
+}
+
 /** Whether a committed value differs from the row's (text compares trimmed, like the form schemas). */
 export function isCellChanged(kind: CellKind, original: string, next: string): boolean {
   return kind === "text" ? original.trim() !== next.trim() : original !== next;
@@ -306,7 +317,7 @@ export const DEFAULT_ROW_HEIGHT = 48;
  * smallest row (ROW_HEIGHT_MIN) still fits one line.
  */
 export const RICH_TEXT_CLIP =
-  "block max-h-[round(down,var(--row-h)_-_1rem,1.5rem)] overflow-hidden";
+  "block max-h-[round(down,var(--row-h)_-_1rem,1.5rem)] overflow-hidden print:max-h-none";
 
 /** Minimum width per kind so cells stay readable (client feedback §2: spacious cells). */
 export const CELL_WIDTH: Record<CellKind, string> = {

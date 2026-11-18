@@ -27,6 +27,7 @@ import {
   DEFAULT_ROW_HEIGHT,
   failureMessage,
   isEditableTarget,
+  keepsOnOneLine,
   RICH_TEXT_CLIP,
   rowSaveQueue,
 } from "./datasheet";
@@ -48,6 +49,10 @@ import { StickyScrollbar } from "./sticky-scrollbar";
 import { priorityClass, rowSelectionLabel, type DataViewColumn, type DataViewProps } from "./types";
 import { useListUrlState } from "./use-list-url-state";
 import { notifySaved } from "@/lib/cross-window";
+import { FULLSCREEN_FRAME, useFullscreen } from "@/components/shell/use-fullscreen";
+import { Button } from "../button";
+import { PrintButton, usePrintWhenReady } from "../print-button";
+import { usePrintFit } from "../use-print-fit";
 
 /**
  * The ONE list component (ADR-0006): grid/list toggle (persisted per user per
@@ -85,6 +90,7 @@ export function DataView<Row>({
   renderToolbar,
   empty,
   filtersActive = false,
+  fullscreen = false,
 }: DataViewProps<Row>) {
   const router = useRouter();
   const { searchParams, update } = useListUrlState();
@@ -97,6 +103,12 @@ export function DataView<Row>({
   const containerRef = useRef<HTMLDivElement>(null);
   // The table's scroll box, mirrored by the sticky horizontal scrollbar.
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const fullPage = useFullscreen();
+  usePrintFit(scrollerRef);
+  // ?print=all: the page sent every row, so print them, then go back to the page that was open.
+  const printingAll = searchParams.get("print") === "all";
+  const keptPage = page > 1 ? String(page) : null;
+  usePrintWhenReady(printingAll, () => update({ print: null, page: keptPage }));
   // Rows the datasheet saved since the server last sent this page (new RowVer),
   // so a second edit before the refresh lands doesn't conflict.
   const [saved, setSaved] = useState<Map<string | number, Row>>(() => new Map());
@@ -433,9 +445,27 @@ export function DataView<Row>({
 
   // Modules place this in their toolbar (renderToolbar); "Arrange columns" sits beside the toggle.
   const viewToggle = (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 print:hidden">
       {arrangeButton}
       {viewModes}
+      {fullscreen ? (
+        <Button
+          type="button"
+          variant="ghost"
+          className="min-h-11"
+          aria-pressed={fullPage.active}
+          data-testid={`${moduleKey}-fullscreen`}
+          onClick={() => void fullPage.toggle()}
+        >
+          {fullPage.label}
+        </Button>
+      ) : null}
+      <PrintButton
+        label={messages.list.print}
+        testId={`${moduleKey}-print`}
+        variant="ghost"
+        onPrint={() => update({ print: "all", page: keptPage })}
+      />
     </div>
   );
 
@@ -445,7 +475,13 @@ export function DataView<Row>({
   const actionsColumn = Boolean(sheet && (onOpen || sheet.addRow));
 
   return (
-    <div className="flex flex-col gap-3">
+    <div
+      className={
+        fullscreen && fullPage.active
+          ? `${FULLSCREEN_FRAME} flex flex-col gap-3 p-4`
+          : "flex flex-col gap-3"
+      }
+    >
       {renderToolbar ? (
         renderToolbar(viewToggle)
       ) : (
@@ -458,7 +494,7 @@ export function DataView<Row>({
       )}
 
       {selected.length > 0 && bulkActions ? (
-        <div className="flex items-center justify-between gap-2 rounded-md border border-accent bg-accent-soft p-2">
+        <div className="flex items-center justify-between gap-2 rounded-md border border-accent bg-accent-soft p-2 print:hidden">
           <p className="text-sm font-medium text-ink">
             {messages.list.selectedCount(selected.length)}
           </p>
@@ -535,17 +571,19 @@ export function DataView<Row>({
                 <div
                   ref={scrollerRef}
                   data-testid="data-view-scroller"
+                  data-print-fit
                   className="relative max-h-[var(--fit-h,calc(100dvh-5rem))] scroll-pt-14 overflow-auto mb-[calc(var(--hbar,0px)*-1)] print:mb-0 print:max-h-none print:overflow-visible"
                 >
                   <table
                     data-testid="data-view-table"
+                    data-print-table
                     style={{ "--row-h": `${rowHeight}px` } as React.CSSProperties}
                     className="w-full border-collapse border border-line text-sm"
                   >
                     <thead className="sticky top-0 z-20 print:static">
                       <tr>
                         {bulkActions ? (
-                          <th className={`w-11 ${headerCellClass} p-2`}>
+                          <th className={`w-11 ${headerCellClass} p-2 print:hidden`}>
                             <SelectAllBox
                               state={allState}
                               disabled={shownIds.length === 0}
@@ -588,7 +626,7 @@ export function DataView<Row>({
                         })}
                         {actionsColumn ? (
                           <th
-                            className={`w-24 ${headerCellClass} px-3 py-2 text-left font-medium text-ink-muted`}
+                            className={`w-24 ${headerCellClass} px-3 py-2 text-left font-medium text-ink-muted print:hidden`}
                           >
                             <span className="sr-only">{messages.datasheet.actions}</span>
                           </th>
@@ -636,7 +674,7 @@ export function DataView<Row>({
                             className={`${onOpen ? "cursor-pointer" : ""} ${tone ? TONES[tone].fill : index === activeIndex ? "bg-surface-raised" : ""}`}
                           >
                             {bulkActions ? (
-                              <td className={`relative w-11 ${cellClass} px-2`}>
+                              <td className={`relative w-11 ${cellClass} px-2 print:hidden`}>
                                 <input
                                   type="checkbox"
                                   aria-label={rowSelectionLabel(row, getRowLabel) ?? String(id)}
@@ -651,6 +689,7 @@ export function DataView<Row>({
                             {shownColumns.map((col, colIndex) => {
                               const handle = !bulkActions && colIndex === 0 ? rowHandle : null;
                               const style = columnStyle(col);
+                              const rendered = col.render(row);
                               return editable && col.edit && (col.edit.editable?.(row) ?? true) ? (
                                 <td
                                   key={col.key}
@@ -675,20 +714,20 @@ export function DataView<Row>({
                                 <td
                                   key={col.key}
                                   style={style}
-                                  className={`relative ${cellClass} whitespace-pre-line ${style ? "wrap-anywhere" : "wrap-break-word"} ${priorityClass[col.priority]}`}
+                                  className={`relative ${cellClass} ${keepsOnOneLine(rendered) ? "whitespace-nowrap" : `whitespace-pre-line ${style ? "wrap-anywhere" : "wrap-break-word"}`} ${priorityClass[col.priority]}`}
                                 >
                                   {col.edit?.kind === "rich" ? (
                                     // Rich text keeps to the row height, as in the editable cell.
-                                    <div className={RICH_TEXT_CLIP}>{col.render(row)}</div>
+                                    <div className={RICH_TEXT_CLIP}>{rendered}</div>
                                   ) : (
-                                    col.render(row)
+                                    rendered
                                   )}
                                   {handle}
                                 </td>
                               );
                             })}
                             {actionsColumn ? (
-                              <td className={`${cellClass} py-1`}>
+                              <td className={`${cellClass} py-1 print:hidden`}>
                                 {onOpen ? (
                                   <IconButton
                                     label={messages.datasheet.open(rowLabel(row))}
@@ -721,7 +760,7 @@ export function DataView<Row>({
         </div>
       )}
 
-      <ListPager page={page} pages={pages} />
+      {printingAll ? null : <ListPager page={page} pages={pages} />}
 
       <TableLayoutDialog
         columns={shownColumns}

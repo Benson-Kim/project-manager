@@ -162,6 +162,7 @@ export function StakeholdersView({
   return (
     <DataView
       moduleKey="stakeholders"
+      fullscreen
       rows={rows}
       totalCount={totalCount}
       page={page}

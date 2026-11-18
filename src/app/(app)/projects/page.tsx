@@ -4,6 +4,7 @@ import { buttonClass } from "@/components/ui/button-styles";
 import { auth } from "@/lib/auth/provider";
 import { can } from "@/lib/auth/rbac";
 import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
+import { listForView } from "@/lib/list-print";
 import { messages } from "@/lib/messages";
 import { getListPreference } from "@/lib/repositories/view-preference";
 import { ProjectsView } from "@/modules/projects/components/projects-view";
@@ -36,7 +37,7 @@ export default async function ProjectsPage({
   const filters = filtersParsed.success ? filtersParsed.data : {};
 
   const [rows, preference, lookup] = await Promise.all([
-    listProjects(params, session.userId, filters),
+    listForView(params, (p, size) => listProjects(p, session.userId, filters, size)),
     getListPreference(session.userId, "projects").catch(() => null),
     loadLookupLists(PROJECT_LISTS, session),
   ]);

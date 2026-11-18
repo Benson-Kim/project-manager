@@ -3,13 +3,13 @@
 import { SearchInput } from "@/components/ui/data-view/search-input";
 import { ListFilter } from "@/components/ui/data-view/list-filter";
 import { buttonClass } from "@/components/ui/button-styles";
-import { PrintButton } from "@/components/ui/print-button";
 import { Toolbar } from "@/components/ui/toolbar";
 import { messages } from "@/lib/messages";
 
 /**
- * Stakeholders toolbar: debounced search, engagement-level filter, CSV export and print, then the
- * view toggle (passed as children by DataView's renderToolbar). Project scope comes from the route.
+ * Stakeholders toolbar: debounced search, engagement-level filter and CSV export, then the view
+ * toggle with print and full screen (passed as children by DataView's renderToolbar). Project scope
+ * comes from the route.
  */
 export function StakeholdersToolbar({
   projectId,
@@ -36,11 +36,6 @@ export function StakeholdersToolbar({
       >
         {messages.stakeholders.exportCsv}
       </a>
-      <PrintButton
-        label={messages.stakeholders.print}
-        testId="stakeholders-print"
-        variant="ghost"
-      />
       {children}
     </Toolbar>
   );

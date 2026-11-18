@@ -8,6 +8,7 @@ import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNotFound, orNull } from "@/lib/row-access";
 import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
+import { listForView } from "@/lib/list-print";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 
 import { PageHeader } from "@/components/ui/page-header";
@@ -54,7 +55,11 @@ export default async function SuppliersPage({
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
   const [rows, preference, selectedRaw, allows, lookup] = await Promise.all([
-    orNotFound(listSuppliers(effectiveParams, session.userId, projectId, filters)),
+    orNotFound(
+      listForView(effectiveParams, (p, size) =>
+        listSuppliers(p, session.userId, projectId, filters, size),
+      ),
+    ),
     getListPreference(session.userId, "suppliers").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? orNull(getSupplierById(selectedId, session.userId))

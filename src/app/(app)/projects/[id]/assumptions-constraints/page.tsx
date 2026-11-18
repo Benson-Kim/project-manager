@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
 import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
+import { listForView } from "@/lib/list-print";
 import { messages } from "@/lib/messages";
 import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNotFound, orNull } from "@/lib/row-access";
@@ -57,7 +58,11 @@ export default async function AssumptionsConstraintsPage({
   };
 
   const [rows, preference, selectedRaw, allows, lookup] = await Promise.all([
-    orNotFound(listAssumptionConstraints(listParams, session.userId, projectId, filters)),
+    orNotFound(
+      listForView(listParams, (p, size) =>
+        listAssumptionConstraints(p, session.userId, projectId, filters, size),
+      ),
+    ),
     getListPreference(session.userId, "assumptions-constraints").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? orNull(getAssumptionConstraintById(selectedId, session.userId))

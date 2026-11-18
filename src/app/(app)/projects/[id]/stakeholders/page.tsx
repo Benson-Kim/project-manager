@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
 import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
+import { listForView } from "@/lib/list-print";
 import { messages } from "@/lib/messages";
 import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNotFound, orNull } from "@/lib/row-access";
@@ -62,7 +63,9 @@ export default async function StakeholdersPage({
   };
 
   const [rows, preference, selectedRaw, allows, lookup] = await Promise.all([
-    orNotFound(listStakeholders(listParams, session.userId, filters, undefined)),
+    orNotFound(
+      listForView(listParams, (p, size) => listStakeholders(p, session.userId, filters, size)),
+    ),
     getListPreference(session.userId, "stakeholders").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? orNull(getStakeholderById(selectedId, session.userId))
