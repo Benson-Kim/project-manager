@@ -20,8 +20,17 @@ jobs:
         env:
           ACCEPT_EULA: "Y"
           MSSQL_PID: "Developer"
-          MSSQL_SA_PASSWORD: "${{ secrets.MSSQL_SA_PASSWORD || 'Backup-Rehearsal-Sa-2026!' }}"
+          MSSQL_SA_PASSWORD: "${{ secrets.MSSQL_SA_PASSWORD }}"
     steps:
+      - name: Require the SQL Server password secret
+        env:
+          SA_PASSWORD_SET: ${{ secrets.MSSQL_SA_PASSWORD != '' }}
+        run: |
+          if [ "$SA_PASSWORD_SET" != "true" ]; then
+            echo "::error::The MSSQL_SA_PASSWORD secret is not set; the rehearsal does not fall back to a built-in password."
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
@@ -42,7 +51,7 @@ jobs:
 
       - name: Wait for SQL Server
         env:
-          DB_ADMIN_PASSWORD: "${{ secrets.MSSQL_SA_PASSWORD || 'Backup-Rehearsal-Sa-2026!' }}"
+          DB_ADMIN_PASSWORD: "${{ secrets.MSSQL_SA_PASSWORD }}"
         run: |
           for i in $(seq 1 30); do
             sqlcmd -S tcp:localhost,1433 -U sa -P "$DB_ADMIN_PASSWORD" -C -Q "SELECT 1" >/dev/null 2>&1 && break
@@ -54,7 +63,7 @@ jobs:
         env:
           DB_SERVER: localhost
           DB_ADMIN_USER: sa
-          DB_ADMIN_PASSWORD: "${{ secrets.MSSQL_SA_PASSWORD || 'Backup-Rehearsal-Sa-2026!' }}"
+          DB_ADMIN_PASSWORD: "${{ secrets.MSSQL_SA_PASSWORD }}"
           SEED_ADMIN_PASSWORD: "Backup-Rehearsal-Admin-2026"
         run: |
           npm ci --prefer-offline
@@ -65,14 +74,14 @@ jobs:
         env:
           DB_SERVER: localhost
           DB_ADMIN_USER: sa
-          DB_ADMIN_PASSWORD: "${{ secrets.MSSQL_SA_PASSWORD || 'Backup-Rehearsal-Sa-2026!' }}"
+          DB_ADMIN_PASSWORD: "${{ secrets.MSSQL_SA_PASSWORD }}"
         run: sh scripts/backup.sh
 
       - name: Run Restore Rehearsal
         env:
           DB_SERVER: localhost
           DB_ADMIN_USER: sa
-          DB_ADMIN_PASSWORD: "${{ secrets.MSSQL_SA_PASSWORD || 'Backup-Rehearsal-Sa-2026!' }}"
+          DB_ADMIN_PASSWORD: "${{ secrets.MSSQL_SA_PASSWORD }}"
         run: sh scripts/restore-rehearsal.sh
 
       - name: Upload Backup Artifacts

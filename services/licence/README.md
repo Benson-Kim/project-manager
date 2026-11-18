@@ -7,14 +7,20 @@ signed with Ed25519; the desktop app holds only the public key.
 ## Deploy
 
 1. Copy `wrangler.toml.example` to `wrangler.toml` (it is not committed) and set `MAIL_FROM`.
-2. Create the database and load the schema:
+2. Run `npm ci` in `services/licence` once; it installs the pinned wrangler used by the `npx wrangler` steps below. Then create the database, load the base schema and apply the migrations:
 
    ```bash
    npx wrangler d1 create modulus-licence
-   npx wrangler d1 execute modulus-licence --remote --file=schema.sql
    ```
 
-   Put the `database_id` it prints into `wrangler.toml`.
+   Put the `database_id` it prints into `wrangler.toml`, then:
+
+   ```bash
+   npx wrangler d1 execute modulus-licence --remote --file=schema.sql
+   npx wrangler d1 migrations apply modulus-licence --remote
+   ```
+
+   Migrations live in `migrations/` as `NNNN_name.sql` and are recorded by wrangler, so re-running the apply step only applies new ones. A database that already holds the base schema only needs the second command.
 3. Make a signing key pair. This prints both keys once; never save the private key to a file:
 
    ```bash
@@ -30,16 +36,17 @@ signed with Ed25519; the desktop app holds only the public key.
    ```
 
    `ADMIN_TOKEN` must be at least 32 characters; shorter tokens refuse every admin call.
+   Optionally set `ADMIN_READ_TOKEN` (also 32 or more characters): it can list testers and feedback but cannot convert or mint licences. Every admin action is recorded in the append-only `admin_event` table. To rotate a token, run `wrangler secret put` again with a new value.
 5. Deploy, then point the app at the service:
 
    ```bash
    npx wrangler deploy
    ```
 
-   In `electron/licence/keys.ts`, add the public key to `LICENCE_PUBLIC_KEYS` under the same
-   `SIGNING_KID`, and set `LICENCE_SERVICE_URL` to the `https://` address the deploy printed.
-   A build with an empty `LICENCE_SERVICE_URL` cannot start a trial or check in, so an enforcing
-   build must never ship without it. `PM_LICENCE_URL` overrides it for local testing only.
+   In the desktop repository's Actions variables, set `PM_LICENCE_PUBLIC_KEYS` to a JSON object
+   holding the public key under the same `SIGNING_KID` (for example `{"k1":"MCow..."}`), and
+   `PM_LICENCE_SERVICE_URL` to the `https://` address the deploy printed. The build bakes both into
+   the app; with `PM_LICENSING` set to `enforce`, it stops when either is missing. `PM_LICENCE_URL` overrides it for local testing only.
 
 ## Rotating the signing key
 

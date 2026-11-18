@@ -12,11 +12,16 @@ export type CsvCell = string | number | null | undefined | { number: string };
 /** Byte order mark: Excel reads the file as UTF-8. */
 const BOM = String.fromCharCode(0xfeff);
 
-const FORMULA_START = /^[=+\-@\t\r]/;
+const FORMULA_START = /^(?:[\t\r]|[\s"']*[=+\-@])/;
 const DECIMAL = /^-?\d+(\.\d+)?$/;
 
+/** Prefixes text a spreadsheet would run as a formula, before any quoting. */
+export function defuseFormula(value: string): string {
+  return FORMULA_START.test(value) ? `'${value}` : value;
+}
+
 function text(value: string): string {
-  const safe = FORMULA_START.test(value) ? `'${value}` : value;
+  const safe = defuseFormula(value);
   return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 

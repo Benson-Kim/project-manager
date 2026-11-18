@@ -77,6 +77,7 @@ export const pushDeliveryRowSchema = z.object({
   TodoAlertId: z.number().int().positive(),
   TodoItemId: z.number().int().positive(),
   TodoItem: z.string().nullable(),
+  AlertDate: z.date(),
 });
 
 export type PushDeliveryRow = z.infer<typeof pushDeliveryRowSchema>;

@@ -33,6 +33,12 @@ Configure `NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY`,
 `WEB_PUSH_VAPID_PRIVATE_KEY`, `WEB_PUSH_VAPID_SUBJECT`, and a random
 `ALERT_PUSH_DISPATCH_TOKEN`. Keep the private key and dispatch token server-side.
 
+Alert days and times are the local clock of the PC that runs the server. The dispatcher reads
+that clock in the PC's own time zone. `ORGANISATION_TIME_ZONE` (an IANA name such as
+`Africa/Nairobi`) is an optional override; an invalid value is logged once and ignored. Each push is recorded per
+alert, subscription and local day, so every alert due that day is delivered once. A user keeps
+at most 10 push subscriptions; registering another retires the oldest.
+
 ## Push-service endpoint allowlist
 
 Subscription endpoints are validated against an explicit hostname allowlist in

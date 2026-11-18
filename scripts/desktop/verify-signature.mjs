@@ -50,14 +50,22 @@ const isMain =
   process.argv[1] &&
   fileURLToPath(import.meta.url).toLowerCase() === resolve(process.argv[1]).toLowerCase();
 if (isMain) {
-  const [file] = process.argv.slice(2);
+  const argv = process.argv.slice(2);
+  const allowUnsigned = argv.includes("--allow-unsigned");
+  const [file] = argv.filter((a) => !a.startsWith("--"));
   const publisher = (process.env.PM_PUBLISHER || "").trim();
   if (!file) {
-    console.error("usage: node scripts/desktop/verify-signature.mjs <installer.exe>");
+    console.error("usage: node scripts/desktop/verify-signature.mjs [--allow-unsigned] <installer.exe>");
     process.exit(2);
   }
   if (!publisher) {
-    console.log("Unsigned build (no PM_PUBLISHER): nothing to verify.");
+    if (!allowUnsigned) {
+      console.error(
+        "::error::No PM_PUBLISHER: this installer would be published unsigned and installed apps would refuse it. Configure signing, or deliberately set PM_ALLOW_UNSIGNED_RELEASE=true for this release.",
+      );
+      process.exit(1);
+    }
+    console.log("::warning::Unsigned release allowed on purpose (PM_ALLOW_UNSIGNED_RELEASE): nothing to verify.");
     process.exit(0);
   }
   const problems = signatureProblems(readSignature(file), publisher);

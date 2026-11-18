@@ -21,6 +21,7 @@ vi.mock("@/lib/push/config", () => ({
           privateKey: "priv",
           subject: "mailto:test@example.com",
           dispatchToken: VALID_TOKEN,
+          timeZone: "Africa/Nairobi",
         }
       : null,
 }));
@@ -59,7 +60,12 @@ function makeDelivery(id: number): PushDeliveryRow {
     TodoAlertId: id * 10,
     TodoItemId: id * 100,
     TodoItem: `Task ${id}`,
+    AlertDate: new Date("2026-11-18T00:00:00Z"),
   };
+}
+
+function due(deliveries: PushDeliveryRow[], skipped = 0) {
+  return { deliveries, skipped };
 }
 
 function makeRequest(token: string): Request {
@@ -91,7 +97,7 @@ describe("POST /api/internal/todo-alerts/dispatch", () => {
   // ── Auth guard ───────────────────────────────────────────────────────────
 
   it("returns 401 for a missing Authorization header", async () => {
-    listDuePushDeliveries.mockResolvedValue([]);
+    listDuePushDeliveries.mockResolvedValue(due([]));
     const req = new Request("http://localhost/api/internal/todo-alerts/dispatch", {
       method: "POST",
     });
@@ -100,7 +106,7 @@ describe("POST /api/internal/todo-alerts/dispatch", () => {
   });
 
   it("returns 401 for a wrong token", async () => {
-    listDuePushDeliveries.mockResolvedValue([]);
+    listDuePushDeliveries.mockResolvedValue(due([]));
     const res = await POST(makeRequest("b".repeat(32)));
     expect(res.status).toBe(401);
   });
@@ -115,47 +121,67 @@ describe("POST /api/internal/todo-alerts/dispatch", () => {
   // ── Empty queue ──────────────────────────────────────────────────────────
 
   it("returns 200 with zero counters when there are no deliveries", async () => {
-    listDuePushDeliveries.mockResolvedValue([]);
+    listDuePushDeliveries.mockResolvedValue(due([]));
     const res = await POST(makeRequest(VALID_TOKEN));
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
-    expect(body).toEqual({ attempted: 0, sent: 0, failed: 0, retired: 0 });
+    expect(body).toEqual({ attempted: 0, sent: 0, failed: 0, retired: 0, skipped: 0 });
     expect(sendTodoAlertPush).not.toHaveBeenCalled();
   });
 
   // ── dispatchOne paths ────────────────────────────────────────────────────
 
   it("counts a successful send and stamps delivery", async () => {
-    listDuePushDeliveries.mockResolvedValue([makeDelivery(1)]);
+    listDuePushDeliveries.mockResolvedValue(due([makeDelivery(1)]));
     sendTodoAlertPush.mockResolvedValue(undefined);
     const res = await POST(makeRequest(VALID_TOKEN));
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
-    expect(body).toEqual({ attempted: 1, sent: 1, failed: 0, retired: 0 });
-    expect(recordAlertSubscriptionDelivery).toHaveBeenCalledWith(1);
+    expect(body).toEqual({ attempted: 1, sent: 1, failed: 0, retired: 0, skipped: 0 });
+    expect(recordAlertSubscriptionDelivery).toHaveBeenCalledWith(
+      1,
+      10,
+      new Date("2026-11-18T00:00:00Z"),
+    );
     expect(deactivateAlertSubscription).not.toHaveBeenCalled();
   });
 
   it("counts an expired subscription (404) as retired, not failed", async () => {
-    listDuePushDeliveries.mockResolvedValue([makeDelivery(2)]);
+    listDuePushDeliveries.mockResolvedValue(due([makeDelivery(2)]));
     const expiredErr = { statusCode: 404, body: "gone" };
     sendTodoAlertPush.mockRejectedValue(expiredErr);
     isExpiredPushSubscription.mockReturnValue(true);
     const res = await POST(makeRequest(VALID_TOKEN));
     const body = (await res.json()) as Record<string, unknown>;
-    expect(body).toEqual({ attempted: 1, sent: 0, failed: 0, retired: 1 });
+    expect(body).toEqual({ attempted: 1, sent: 0, failed: 0, retired: 1, skipped: 0 });
     expect(deactivateAlertSubscription).toHaveBeenCalledWith(2);
     expect(recordAlertSubscriptionDelivery).not.toHaveBeenCalled();
   });
 
   it("counts a non-expired push error as failed", async () => {
-    listDuePushDeliveries.mockResolvedValue([makeDelivery(3)]);
+    listDuePushDeliveries.mockResolvedValue(due([makeDelivery(3)]));
     sendTodoAlertPush.mockRejectedValue({ statusCode: 500 });
     isExpiredPushSubscription.mockReturnValue(false);
     const res = await POST(makeRequest(VALID_TOKEN));
     const body = (await res.json()) as Record<string, unknown>;
-    expect(body).toEqual({ attempted: 1, sent: 0, failed: 1, retired: 0 });
+    expect(body).toEqual({ attempted: 1, sent: 0, failed: 1, retired: 0, skipped: 0 });
     expect(deactivateAlertSubscription).not.toHaveBeenCalled();
+  });
+
+  it("sends the valid rows and reports the skipped ones with status 200", async () => {
+    listDuePushDeliveries.mockResolvedValue(due([makeDelivery(1)], 1));
+    sendTodoAlertPush.mockResolvedValue(undefined);
+    const res = await POST(makeRequest(VALID_TOKEN));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ attempted: 1, sent: 1, failed: 0, retired: 0, skipped: 1 });
+  });
+
+  it("asks for the due list on the organisation's wall clock", async () => {
+    listDuePushDeliveries.mockResolvedValue(due([]));
+    await POST(makeRequest(VALID_TOKEN));
+    const arg = listDuePushDeliveries.mock.calls[0]?.[0] as Date;
+    expect(arg).toBeInstanceOf(Date);
+    expect(Math.abs(arg.getTime() - Date.now() - 3 * 3600_000)).toBeLessThan(60_000);
   });
 
   // ── Batch loop accumulation ───────────────────────────────────────────────
@@ -163,7 +189,7 @@ describe("POST /api/internal/todo-alerts/dispatch", () => {
   it("accumulates counters correctly across multiple batches (> DISPATCH_CONCURRENCY)", async () => {
     // 10 deliveries: first 8 succeed, next 2 — one expires (retired), one fails.
     const deliveries = Array.from({ length: 10 }, (_, i) => makeDelivery(i + 1));
-    listDuePushDeliveries.mockResolvedValue(deliveries);
+    listDuePushDeliveries.mockResolvedValue(due(deliveries));
 
     sendTodoAlertPush.mockImplementation(async (d: ReturnType<typeof makeDelivery>) => {
       const id = d.AlertSubscriptionId;
@@ -177,7 +203,7 @@ describe("POST /api/internal/todo-alerts/dispatch", () => {
     const res = await POST(makeRequest(VALID_TOKEN));
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
-    expect(body).toEqual({ attempted: 10, sent: 8, failed: 1, retired: 1 });
+    expect(body).toEqual({ attempted: 10, sent: 8, failed: 1, retired: 1, skipped: 0 });
     // deactivate called only for the 410
     expect(deactivateAlertSubscription).toHaveBeenCalledOnce();
     expect(deactivateAlertSubscription).toHaveBeenCalledWith(9);

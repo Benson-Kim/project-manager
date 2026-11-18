@@ -170,4 +170,10 @@ describe("toCsv", () => {
     ]).split("\n")[1];
     expect(line).toBe('"Acme, ""Big"" Co","","","","50","","Call, then email"');
   });
+
+  it("defuses formula text in the clipboard copy", () => {
+    const line = toCsv([row({ name: "=1+1", plan: "  @SUM(A1)" })]).split("\n")[1];
+    expect(line.startsWith(`"'=1+1"`)).toBe(true);
+    expect(line.endsWith(`"'  @SUM(A1)"`)).toBe(true);
+  });
 });

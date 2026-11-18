@@ -5,7 +5,9 @@ import {
   listDuePushDeliveries,
   recordAlertSubscriptionDelivery,
 } from "@/modules/todo-items/repository/alert-subscriptions";
+import { wallClockInZone } from "@/lib/local-time";
 import { getPushConfig } from "@/lib/push/config";
+import type { PushDeliveryRow } from "@/modules/todo-items/schemas/alert-subscription";
 import { isExpiredPushSubscription, sendTodoAlertPush } from "@/lib/push/sender";
 
 export const runtime = "nodejs";
@@ -31,14 +33,17 @@ const DISPATCH_CONCURRENCY = 8;
  * concurrent tasks.
  */
 async function dispatchOne(
-  delivery: Awaited<ReturnType<typeof listDuePushDeliveries>>[number],
+  delivery: PushDeliveryRow,
 ): Promise<{ sent: number; failed: number; retired: number }> {
   try {
     await sendTodoAlertPush(delivery);
-    // Stamp LastPushSentAtUtc so the next same-day scheduler invocation
-    // skips this subscription.  Best-effort: a failure here must not
-    // suppress the sent count or prevent other deliveries.
-    await recordAlertSubscriptionDelivery(delivery.AlertSubscriptionId).catch((err) => {
+    // Record the delivery so the next same-day invocation skips this alert for this
+    // subscription. Best-effort: a failure here must not suppress the sent count.
+    await recordAlertSubscriptionDelivery(
+      delivery.AlertSubscriptionId,
+      delivery.TodoAlertId,
+      delivery.AlertDate,
+    ).catch((err) => {
       console.warn("[alerts] recordDelivery failed:", {
         alertSubscriptionId: delivery.AlertSubscriptionId,
         err,
@@ -75,7 +80,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const deliveries = await listDuePushDeliveries();
+  const localNow = wallClockInZone(config.timeZone);
+  if (!localNow) return NextResponse.json({ error: "Time zone is not valid" }, { status: 503 });
+
+  const { deliveries, skipped } = await listDuePushDeliveries(localNow);
   let sent = 0;
   let failed = 0;
   let retired = 0;
@@ -95,5 +103,5 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
   }
 
-  return NextResponse.json({ attempted: deliveries.length, sent, failed, retired });
+  return NextResponse.json({ attempted: deliveries.length, sent, failed, retired, skipped });
 }

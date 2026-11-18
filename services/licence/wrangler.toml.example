@@ -6,6 +6,7 @@ compatibility_date = "2026-11-01"
 binding = "DB"
 database_name = "modulus-licence"
 database_id = "set-from-wrangler-d1-create"
+migrations_dir = "migrations"
 
 [triggers]
 crons = ["0 3 * * *"]

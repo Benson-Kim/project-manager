@@ -1,6 +1,14 @@
 import { execFile } from "child_process";
 import { createHash } from "crypto";
 
+export const MACHINE_GUID_QUERY = [
+  "query",
+  String.raw`HKLM\SOFTWARE\Microsoft\Cryptography`,
+  "/v",
+  "MachineGuid",
+  "/reg:64",
+] as const;
+
 const GUID = /MachineGuid\s+REG_SZ\s+([0-9a-fA-F-]{36})/;
 
 export function hashMachineGuid(guid: string): string {
@@ -15,7 +23,7 @@ export function readMachineHash(): Promise<string | null> {
   return new Promise((resolve) => {
     execFile(
       "reg.exe",
-      ["query", "HKLM\SOFTWARE\Microsoft\Cryptography", "/v", "MachineGuid", "/reg:64"],
+      MACHINE_GUID_QUERY,
       { windowsHide: true, timeout: 5000 },
       (error, stdout) => {
         const guid = error ? null : parseMachineGuid(String(stdout));

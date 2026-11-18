@@ -57,7 +57,15 @@ function isDocument(value: unknown): value is SignedDocument {
   );
 }
 
-function openPayload(document: unknown, keys: PublicKeys): Record<string, unknown> | null {
+export const DOCUMENT_ISSUER = "modulus-licence-service";
+export const DOCUMENT_AUDIENCE = "modulus-desktop";
+export type DocumentType = "licence" | "checkin";
+
+function openPayload(
+  document: unknown,
+  keys: PublicKeys,
+  typ: DocumentType,
+): Record<string, unknown> | null {
   if (!isDocument(document) || !Object.hasOwn(keys, document.kid)) return null;
   try {
     const key = createPublicKey({
@@ -70,8 +78,16 @@ function openPayload(document: unknown, keys: PublicKeys): Record<string, unknow
     const payload = JSON.parse(
       Buffer.from(document.payload, "base64url").toString("utf8"),
     ) as unknown;
-    if (typeof payload !== "object" || payload === null || (payload as { v?: unknown }).v !== 1)
+    if (typeof payload !== "object" || payload === null) return null;
+    const claims = payload as { v?: unknown; typ?: unknown; aud?: unknown; iss?: unknown };
+    if (
+      claims.typ !== typ ||
+      claims.aud !== DOCUMENT_AUDIENCE ||
+      claims.iss !== DOCUMENT_ISSUER ||
+      claims.v !== 1
+    ) {
       return null;
+    }
     return payload as Record<string, unknown>;
   } catch {
     return null;
@@ -79,7 +95,7 @@ function openPayload(document: unknown, keys: PublicKeys): Record<string, unknow
 }
 
 export function openLicence(document: unknown, keys: PublicKeys): Licence | null {
-  const p = openPayload(document, keys);
+  const p = openPayload(document, keys, "licence");
   if (
     !p ||
     typeof p.licenceId !== "string" ||
@@ -107,7 +123,7 @@ export function openCheckIn(
   keys: PublicKeys,
   expected: { licenceId: string; machineHash: string; nonce?: string },
 ): CheckIn | null {
-  const p = openPayload(document, keys);
+  const p = openPayload(document, keys, "checkin");
   if (
     !p ||
     p.licenceId !== expected.licenceId ||

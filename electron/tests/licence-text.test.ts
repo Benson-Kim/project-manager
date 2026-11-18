@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { consentChoices, nameAllowed } from "../licence/consent";
-import { reasonText, statusText, type LicenceView } from "../licence/licence-text";
+import {
+  reasonText,
+  statusText,
+  updateNotIncludedText,
+  type LicenceView,
+} from "../licence/licence-text";
+
+describe("updateNotIncludedText", () => {
+  it("names the version and the last day of included updates", () => {
+    expect(updateNotIncludedText("1.0.30", Date.UTC(2027, 10, 17))).toBe(
+      "Modulus 1.0.30 is not included with your licence, which covers updates released until 2027-11-17.",
+    );
+  });
+});
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 10, 17, 12);

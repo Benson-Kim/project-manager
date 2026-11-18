@@ -8,6 +8,8 @@
  * forced version is still made to update.
  */
 
+import type { Licence } from "./licence/policy";
+
 type Version = [number, number, number];
 
 function parseVersion(v: string): Version {
@@ -43,6 +45,20 @@ export function isNewer(candidate: string, than: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * True when the licence includes a release published at `releaseDate` (the feed's ISO text).
+ * A free licence includes releases up to its updatesUntil. The feed's date is not signed, so
+ * a missing or unreadable one is not included. Every other licence, and none, includes all.
+ */
+export function releaseIncluded(
+  licence: Pick<Licence, "kind" | "updatesUntil"> | null,
+  releaseDate: unknown,
+): boolean {
+  if (licence?.kind !== "free" || licence.updatesUntil === null) return true;
+  const released = typeof releaseDate === "string" ? Date.parse(releaseDate) : Number.NaN;
+  return Number.isFinite(released) && released <= licence.updatesUntil;
 }
 
 export type CheckAnswer = "offer-ready" | "downloading" | "up-to-date" | "failed";

@@ -5,8 +5,44 @@ import {
   installOutcome,
   isMandatory,
   isNewer,
+  releaseIncluded,
   releaseNotesText,
 } from "../update-policy";
+
+describe("releaseIncluded", () => {
+  const UNTIL = Date.UTC(2027, 10, 17);
+  const free = { kind: "free" as const, updatesUntil: UNTIL };
+
+  it("includes a free licence's releases up to its last update day", () => {
+    expect(releaseIncluded(free, "2027-11-16T09:00:00.000Z")).toBe(true);
+    expect(releaseIncluded(free, new Date(UNTIL).toISOString())).toBe(true);
+  });
+
+  it("leaves out a release published after a free licence's updates end", () => {
+    expect(releaseIncluded(free, "2027-11-17T00:00:00.001Z")).toBe(false);
+    expect(releaseIncluded(free, "2028-01-05T10:00:00.000Z")).toBe(false);
+  });
+
+  it("leaves out a release whose date is missing or unreadable for a free licence", () => {
+    for (const date of [undefined, null, "", "soon", 1767225600000, { at: 0 }]) {
+      expect(releaseIncluded(free, date)).toBe(false);
+    }
+  });
+
+  it("includes every release for a full licence, a trial, no limit or no licence", () => {
+    expect(releaseIncluded({ kind: "full", updatesUntil: null }, "2030-01-01T00:00:00Z")).toBe(
+      true,
+    );
+    expect(releaseIncluded({ kind: "full", updatesUntil: UNTIL }, "2030-01-01T00:00:00Z")).toBe(
+      true,
+    );
+    expect(releaseIncluded({ kind: "trial", updatesUntil: null }, undefined)).toBe(true);
+    expect(releaseIncluded({ kind: "free", updatesUntil: null }, "2030-01-01T00:00:00Z")).toBe(
+      true,
+    );
+    expect(releaseIncluded(null, undefined)).toBe(true);
+  });
+});
 
 describe("isNewer", () => {
   it("is true only for a later version", () => {

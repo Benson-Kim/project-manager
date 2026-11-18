@@ -1,6 +1,8 @@
 import { generateKeyPairSync, randomBytes, sign, type KeyObject } from "crypto";
 import { describe, expect, it } from "vitest";
 import {
+  DOCUMENT_AUDIENCE,
+  DOCUMENT_ISSUER,
   evaluate,
   licensingEnforced,
   OFFLINE_GRACE,
@@ -19,7 +21,12 @@ const pair = generateKeyPairSync("ed25519");
 const keys = { k1: pair.publicKey.export({ type: "spki", format: "der" }).toString("base64url") };
 
 function signDoc(body: object, privateKey: KeyObject = pair.privateKey, kid = "k1") {
-  const payload = Buffer.from(JSON.stringify({ v: 1, ...body })).toString("base64url");
+  const claims = {
+    typ: "nonce" in body ? "checkin" : "licence",
+    aud: DOCUMENT_AUDIENCE,
+    iss: DOCUMENT_ISSUER,
+  };
+  const payload = Buffer.from(JSON.stringify({ v: 1, ...claims, ...body })).toString("base64url");
   return {
     kid,
     payload,
@@ -88,6 +95,47 @@ describe("licence policy", () => {
         lastServerTime: START,
       }),
     ).toBe("unlicensed");
+  });
+
+  it("accepts a document with the right claims and rejects a missing or wrong type, audience or issuer", () => {
+    expect(openLicence(signDoc(trialBody), keys)).not.toBeNull();
+    const withClaims = (claims: Record<string, unknown>) => {
+      const payload = Buffer.from(JSON.stringify({ v: 1, ...trialBody, ...claims })).toString(
+        "base64url",
+      );
+      return {
+        kid: "k1",
+        payload,
+        sig: sign(null, Buffer.from(payload, "ascii"), pair.privateKey).toString("base64url"),
+      };
+    };
+    const good = { typ: "licence", aud: DOCUMENT_AUDIENCE, iss: DOCUMENT_ISSUER };
+    expect(openLicence(withClaims(good), keys)).not.toBeNull();
+    for (const name of ["typ", "aud", "iss"] as const) {
+      const missing = { ...good } as Record<string, unknown>;
+      delete missing[name];
+      const doc = (claims: Record<string, unknown>) => ({
+        ...withClaims({ typ: undefined, aud: undefined, iss: undefined, ...claims }),
+      });
+      expect(openLicence(doc(missing), keys)).toBeNull();
+      expect(openLicence(doc({ ...good, [name]: "other" }), keys)).toBeNull();
+    }
+    expect(openLicence(withClaims({ ...good, typ: "checkin" }), keys)).toBeNull();
+  });
+
+  it("does not accept a licence document where a check-in is expected", () => {
+    const licenceDoc = signDoc(trialBody);
+    const asCheckIn = signDoc({
+      licenceId: trialBody.licenceId,
+      machineHash: machine,
+      serverTime: START,
+      nonce: "n",
+      licence: licenceDoc,
+      typ: "licence",
+    });
+    expect(
+      openCheckIn(asCheckIn, keys, { licenceId: trialBody.licenceId, machineHash: machine }),
+    ).toBeNull();
   });
 
   it("rejects a tampered high-water mark and asks to reconnect", () => {

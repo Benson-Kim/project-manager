@@ -22,8 +22,17 @@ export function fromBase64Url(text: string): Uint8Array {
   return Uint8Array.from(binary, (c) => c.charCodeAt(0));
 }
 
-export async function signDocument(signer: Signer, body: unknown): Promise<SignedDocument> {
-  const payload = toBase64Url(encoder.encode(JSON.stringify(body)));
+export const DOCUMENT_ISSUER = "modulus-licence-service";
+export const DOCUMENT_AUDIENCE = "modulus-desktop";
+export type DocumentType = "licence" | "checkin";
+
+export async function signDocument(
+  signer: Signer,
+  typ: DocumentType,
+  body: Record<string, unknown>,
+): Promise<SignedDocument> {
+  const claims = { typ, aud: DOCUMENT_AUDIENCE, iss: DOCUMENT_ISSUER };
+  const payload = toBase64Url(encoder.encode(JSON.stringify({ ...body, ...claims })));
   const sig = await signer.sign(encoder.encode(payload));
   return { kid: signer.kid, payload, sig: toBase64Url(sig) };
 }

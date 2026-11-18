@@ -13,6 +13,7 @@ import {
   type PublicKeys,
   type SignedDocument,
 } from "./policy";
+import type { ConsentChoice } from "./consent";
 import { LicenceServiceError } from "./service-client";
 import type { LicenceState, StateStore } from "./state-file";
 
@@ -36,13 +37,6 @@ export type LicenceReply = { ok: true; status: LicenceStatus } | { ok: false; re
 
 type Sent = { ok: true; reply: unknown } | { ok: false; reason: string };
 
-export interface ConsentChoice {
-  kind: "testimonial" | "name";
-  granted: boolean;
-  quote: string;
-  displayName: string | null;
-}
-
 export interface ManagerDeps {
   enforce: boolean;
   keys: PublicKeys;
@@ -50,13 +44,18 @@ export interface ManagerDeps {
   store: StateStore;
   mirror: LicenceMirror | null;
   service: LicenceService | null;
+  log?: { warn(message: string): void };
   wall?: () => number;
   monotonic?: () => number;
 }
 
+const describe = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 export class LicenceManager {
   private state: LicenceState;
   private anchor: Anchor | null = null;
+  private mirrorStale = false;
   private readonly wall: () => number;
   private readonly monotonic: () => number;
 
@@ -118,6 +117,7 @@ export class LicenceManager {
   }
 
   async checkIn(): Promise<LicenceStatus> {
+    await this.flushMirror();
     const licence = this.licence();
     if (!licence || !this.deps.service) return this.status();
     const nonce = randomBytes(18).toString("base64url");
@@ -248,8 +248,23 @@ export class LicenceManager {
   }
 
   private async persist(): Promise<void> {
-    this.deps.store.write(this.state);
+    try {
+      this.deps.store.write(this.state);
+    } catch (error) {
+      this.deps.log?.warn(`licence: saving the state failed: ${describe(error)}`);
+    }
+    this.mirrorStale = true;
+    await this.flushMirror();
+  }
+
+  private async flushMirror(): Promise<void> {
+    if (!this.mirrorStale || !this.deps.mirror) return;
     const { licence, checkIn, mark } = this.state;
-    await this.deps.mirror?.write({ licence, checkIn, mark }).catch(() => undefined);
+    try {
+      await this.deps.mirror.write({ licence, checkIn, mark });
+      this.mirrorStale = false;
+    } catch (error) {
+      this.deps.log?.warn(`licence: saving the database copy failed: ${describe(error)}`);
+    }
   }
 }

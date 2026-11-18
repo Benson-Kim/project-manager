@@ -2,6 +2,8 @@ import { app, BrowserWindow, dialog, Notification, type MessageBoxOptions } from
 import type { UpdateInfo } from "electron-updater";
 import fs from "fs";
 import path from "path";
+import { updateNotIncludedText } from "./licence/licence-text";
+import type { Licence } from "./licence/policy";
 import type { Logger } from "./log";
 import { paths } from "./paths";
 import { alignDifferentialBase, updaterCacheDir, type BaseState } from "./update-cache";
@@ -11,6 +13,7 @@ import {
   installOutcome,
   isMandatory,
   isNewer,
+  releaseIncluded,
   releaseNotesText,
   type CheckAnswer,
 } from "./update-policy";
@@ -45,6 +48,8 @@ export interface UpdaterHooks {
   onReadyChanged(version: string | null): void;
   /** A short notice that needs no answer. */
   notify(title: string, body: string): void;
+  /** This PC's licence; null when licensing is off or there is none. */
+  licence(): Pick<Licence, "kind" | "updatesUntil"> | null;
 }
 
 export interface Updater {
@@ -59,7 +64,7 @@ export interface Updater {
  * resources/app-update.yml; CI points it at this repo's GitHub Releases).
  *
  * - New versions download quietly in the background (only the changed blocks,
- *   see update-cache.ts).
+ *   see update-cache.ts), once the licence is known to include them.
  * - Optional update: a Windows notification and a tray item. Nothing installs
  *   until someone clicks "Restart and update"; quitting does NOT install it.
  * - Required update (release marked with minimumVersion): a warning, then the
@@ -91,7 +96,7 @@ export function setupAutoUpdater(
     error: (m: unknown) => log.error(String(m)),
     debug: () => {},
   };
-  autoUpdater.autoDownload = true;
+  autoUpdater.autoDownload = false; // "update-available" downloads what the licence includes
   autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.disableWebInstaller = true; // we ship the full NSIS installer
   // ADR-0034: with a publisherName in the feed, electron-updater checks the downloaded
@@ -111,6 +116,7 @@ export function setupAutoUpdater(
   let lastNotice = { version: "", at: 0 };
   let available = "";
   let refused = "";
+  let excluded = "";
   let installing = false;
   let offering = false;
   let base: BaseState | null = null;
@@ -278,7 +284,22 @@ export function setupAutoUpdater(
     autoUpdater.autoInstallOnAppQuit = false;
   };
 
+  const included = (info: UpdateInfo): boolean => {
+    const licence = hooks.licence();
+    if (releaseIncluded(licence, info.releaseDate)) return true;
+    log.info(`[updater] ${info.version} is not included with this licence; not downloaded`);
+    if (excluded !== info.version && licence?.updatesUntil != null) {
+      excluded = info.version;
+      hooks.notify(
+        "Update not included",
+        updateNotIncludedText(info.version, licence.updatesUntil),
+      );
+    }
+    return false;
+  };
+
   autoUpdater.on("update-available", (info: UpdateInfo) => {
+    if (!included(info)) return;
     const kind = isRequired(info) ? "required" : "optional";
     available = info.version;
     log.info(`[updater] ${info.version} available (${kind}), downloading`);
@@ -286,6 +307,8 @@ export function setupAutoUpdater(
       log.info(`[updater] ${info.version} replaces ${ready.version}, which is no longer offered`);
       dropReady();
     }
+    // A failed download is reported through the "error" event.
+    autoUpdater.downloadUpdate().catch(() => undefined);
   });
 
   autoUpdater.on("update-downloaded", (info: UpdateInfo) => {
@@ -345,7 +368,11 @@ export function setupAutoUpdater(
   setInterval(() => void check(), CHECK_INTERVAL_MS);
 
   /** Asks the feed first, so an update downloaded earlier is never offered over a newer one. */
-  const freshCheck = async (): Promise<{ answer: CheckAnswer; latest: string | null }> => {
+  const freshCheck = async (): Promise<{
+    answer: CheckAnswer;
+    latest: string | null;
+    notIncluded: string | null;
+  }> => {
     let result: Awaited<ReturnType<typeof autoUpdater.checkForUpdates>> = null;
     let failed = false;
     try {
@@ -354,12 +381,16 @@ export function setupAutoUpdater(
       failed = true;
       log.warn(`[updater] check failed: ${err instanceof Error ? err.message : String(err)}`);
     }
-    const latest = result?.isUpdateAvailable ? result.updateInfo.version : null;
-    return { answer: checkAnswer(ready?.version ?? null, latest, failed), latest };
+    const offered = result?.isUpdateAvailable ? result.updateInfo : null;
+    const latest =
+      offered && releaseIncluded(hooks.licence(), offered.releaseDate) ? offered.version : null;
+    const notIncluded = offered && !latest ? offered.version : null;
+    return { answer: checkAnswer(ready?.version ?? null, latest, failed), latest, notIncluded };
   };
 
-  const tell = (answer: CheckAnswer, latest: string | null) =>
-    ask({
+  const tell = ({ answer, latest, notIncluded }: Awaited<ReturnType<typeof freshCheck>>) => {
+    const updatesUntil = hooks.licence()?.updatesUntil;
+    return ask({
       type: answer === "failed" ? "warning" : "info",
       title: "Updates",
       message:
@@ -367,22 +398,25 @@ export function setupAutoUpdater(
           ? "Could not check for updates. Check the internet connection."
           : answer === "downloading"
             ? `Modulus ${latest} is downloading.`
-            : `You have the latest version (${app.getVersion()}).`,
+            : notIncluded && updatesUntil != null
+              ? updateNotIncludedText(notIncluded, updatesUntil)
+              : `You have the latest version (${app.getVersion()}).`,
       buttons: ["OK"],
     });
+  };
 
   const offerNewest = async (): Promise<void> => {
-    const { answer, latest } = await freshCheck();
-    if (answer === "offer-ready") return offer();
-    await tell(answer, latest);
+    const checked = await freshCheck();
+    if (checked.answer === "offer-ready") return offer();
+    await tell(checked);
   };
 
   return {
     checkNow: offerNewest,
     async installNow() {
-      const { answer, latest } = await freshCheck();
-      if (answer === "offer-ready") return install();
-      await tell(answer, latest);
+      const checked = await freshCheck();
+      if (checked.answer === "offer-ready") return install();
+      await tell(checked);
     },
   };
 }

@@ -21,6 +21,10 @@
 //     CSC_LINK / CSC_KEY_PASSWORD — the self-issued PFX, for the bridging release only.
 //   PM_PUBLISHER      — the signing certificate's subject, verified by installed apps.
 //   PM_NEXT_PUBLISHER — the subject that signs the releases after this one (bridging release).
+// Read by scripts/desktop/build.mjs (scripts/desktop/licensing.cjs), not here:
+//   PM_LICENSING           — "enforce" turns licensing on; empty leaves it off.
+//   PM_LICENCE_PUBLIC_KEYS — JSON object of key id to base64url Ed25519 public key.
+//   PM_LICENCE_SERVICE_URL — the licence service's https:// address.
 
 const fs = require("fs");
 const path = require("path");

@@ -1,5 +1,6 @@
 import { LICENCE_CHANNELS } from "../ipc-channels";
-import type { ConsentChoice, LicenceManager, LicenceReply } from "./manager";
+import type { ConsentChoice } from "./consent";
+import type { LicenceManager, LicenceReply } from "./manager";
 import type { LicenceStatus } from "./policy";
 
 type Handler = (event: { sender: unknown }, input?: unknown) => Promise<unknown>;

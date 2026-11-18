@@ -237,6 +237,33 @@ const audits = async (entity, id) => (await trail.of(entity, id)).map((r) => r.A
   const kinds = await audits("app.Checklist", a.ChecklistId);
   ok(kinds[0] === "Create" && kinds.includes("Update") && kinds[kinds.length - 1] === "Delete", `checklist changes are audited, got ${kinds}`);
 
+  // The detail form: the priority comes from the to-do list, and clearing both dates clears the
+  // alert day of a row on the calendar.
+  const d = await checklist(P, `Details ${stamp}`);
+  let dRow = await item(d.ChecklistId, "Details row");
+  const details = (row, extra) =>
+    one("usp_ChecklistItem_SetDetails", {
+      ChecklistItemId: row.ChecklistItemId, StartDate: null, DueDate: null, AssigneeStakeholderId: null,
+      Priority: null, Notes: null, RowVer: row.RowVer, ActorUserId: PM, ...extra,
+    });
+  const priority = (await exec("usp_LookupList_GetOptions", { ActorUserId: PM, ListKeys: '["todo-item.priority"]' }))[0]
+    .find((o) => o.Label)?.Label;
+  ok(Boolean(priority), "the to-do priority list has an option");
+  await expectCode(50004, "a priority off the list is refused", () => details(dRow, { Priority: `Not listed ${stamp}` }));
+  dRow = await details(dRow, { Priority: priority.toLowerCase(), DueDate: "2026-12-05" });
+  ok(dRow.Priority === priority, `a listed priority takes the list's spelling, got ${dRow.Priority}`);
+  dRow = (await exec("usp_ChecklistItem_AddToCalendar", {
+    ChecklistItemIdsJson: JSON.stringify([dRow.ChecklistItemId]), ActorUserId: PM,
+  }))[0][0];
+  ok(Number.isInteger(dRow.TodoItemId), "the row goes on the calendar");
+  const alertDay = async () =>
+    (await exec("usp_TodoAlert_List", { ActorUserId: PM, TodoItemId: dRow.TodoItemId }))[0][0]?.AlertDay ?? null;
+  ok((await alertDay()) !== null, "a calendar row has an alert day");
+  dRow = await details(dRow, { Priority: dRow.Priority });
+  ok((await alertDay()) === null, "clearing both dates clears the alert day");
+  dRow = await details(dRow, { Priority: dRow.Priority, StartDate: "2026-12-07" });
+  ok((await alertDay())?.toISOString().slice(0, 10) === "2026-12-07", "a new date sets the alert day again");
+
   // Two people on one row at once: exactly one lands.
   const b = await checklist(P, `Race ${stamp}`);
   const bCol = await column(b.ChecklistId, "Note", "text");

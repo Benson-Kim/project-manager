@@ -1,3 +1,4 @@
+import { defuseFormula } from "@/lib/csv";
 import { messages } from "@/lib/messages";
 
 const S = messages.stakeholders;
@@ -146,7 +147,10 @@ export function summarise(rows: readonly MatrixStakeholder[]): MatrixSummary {
   };
 }
 
-const csvCell = (value: string | number | null) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+const csvCell = (value: string | number | null) => {
+  const cell = typeof value === "string" ? defuseFormula(value) : String(value ?? "");
+  return `"${cell.replace(/"/g, '""')}"`;
+};
 
 /** RFC 4180 CSV of the whole register, placed or not, for the clipboard. */
 export function toCsv(rows: readonly MatrixStakeholder[]): string {

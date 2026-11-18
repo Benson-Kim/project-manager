@@ -1,5 +1,6 @@
 import { latestConsents } from "./memory-store";
 import type {
+  AdminEvent,
   ConsentKind,
   ConsentRecord,
   FeedbackRecord,
@@ -19,6 +20,7 @@ export interface D1Statement {
 
 export interface D1Like {
   prepare(sql: string): D1Statement;
+  batch(statements: D1Statement[]): Promise<unknown>;
 }
 
 interface LicenceRow {
@@ -85,10 +87,14 @@ export class D1Store implements LicenceStore {
     return row ? toLicence(row) : null;
   }
 
-  async findByRedeemCode(codeHash: string): Promise<LicenceRecord | null> {
+  async bindRedeemCode(codeHash: string, machineHash: string): Promise<LicenceRecord | null> {
     const row = await this.db
-      .prepare(`SELECT ${LICENCE_COLUMNS} FROM licence WHERE redeem_code_hash = ?`)
-      .bind(codeHash)
+      .prepare(
+        `UPDATE licence SET machine_hash = ?1
+         WHERE redeem_code_hash = ?2 AND (machine_hash IS NULL OR machine_hash = ?1)
+         RETURNING ${LICENCE_COLUMNS}`,
+      )
+      .bind(machineHash, codeHash)
       .first<LicenceRow>();
     return row ? toLicence(row) : null;
   }
@@ -114,18 +120,66 @@ export class D1Store implements LicenceStore {
       .run();
   }
 
-  async saveTester(emailHash: string, email: string, at: number): Promise<void> {
-    await this.db
-      .prepare(
-        "INSERT INTO tester (email_hash, email, first_seen) VALUES (?, ?, ?) ON CONFLICT (email_hash) DO NOTHING",
-      )
-      .bind(emailHash, email, at)
-      .run();
+  async createTrial(r: LicenceRecord, email: string): Promise<"created" | "conflict"> {
+    try {
+      await this.db.batch([
+        this.db
+          .prepare(
+            "INSERT INTO trial_claim (email_hash, machine_hash, licence_id, claimed_at) VALUES (?, ?, ?, ?)",
+          )
+          .bind(r.emailHash, r.machineHash, r.licenceId, r.issuedAt),
+        this.db
+          .prepare(`INSERT INTO licence (${LICENCE_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+          .bind(
+            r.licenceId,
+            r.kind,
+            r.emailHash,
+            r.machineHash,
+            r.issuedAt,
+            r.startsAt,
+            r.expiresAt,
+            r.updatesUntil,
+            r.redeemCodeHash,
+          ),
+        this.db
+          .prepare(
+            "INSERT INTO tester (email_hash, email, first_seen) VALUES (?, ?, ?) ON CONFLICT (email_hash) DO NOTHING",
+          )
+          .bind(r.emailHash, email, r.issuedAt),
+      ]);
+      return "created";
+    } catch (error) {
+      if (error instanceof Error && /UNIQUE|constraint/i.test(error.message)) return "conflict";
+      throw error;
+    }
   }
 
-  async getCode(key: string): Promise<PendingCode | null> {
+  async issueCode(
+    key: string,
+    code: Omit<PendingCode, "attempts">,
+    now: number,
+    maxAttempts: number,
+  ): Promise<boolean> {
     const row = await this.db
-      .prepare("SELECT code_hash, email, expires_at, attempts FROM pending_code WHERE code_key = ?")
+      .prepare(
+        `INSERT INTO pending_code (code_key, code_hash, email, expires_at, attempts) VALUES (?1, ?2, ?3, ?4, 0)
+         ON CONFLICT (code_key) DO UPDATE SET code_hash = excluded.code_hash, email = excluded.email,
+           expires_at = excluded.expires_at,
+           attempts = CASE WHEN pending_code.expires_at > ?5 THEN pending_code.attempts ELSE 0 END
+         WHERE NOT (pending_code.expires_at > ?5 AND pending_code.attempts >= ?6)
+         RETURNING attempts`,
+      )
+      .bind(key, code.codeHash, code.email, code.expiresAt, now, maxAttempts)
+      .first<{ attempts: number }>();
+    return row !== null;
+  }
+
+  async consumeCodeAttempt(key: string): Promise<PendingCode | null> {
+    const row = await this.db
+      .prepare(
+        `UPDATE pending_code SET attempts = attempts + 1 WHERE code_key = ?
+         RETURNING code_hash, email, expires_at, attempts`,
+      )
       .bind(key)
       .first<{ code_hash: string; email: string; expires_at: number; attempts: number }>();
     return row
@@ -138,18 +192,18 @@ export class D1Store implements LicenceStore {
       : null;
   }
 
-  async saveCode(key: string, code: PendingCode | null): Promise<void> {
-    if (!code) {
-      await this.db.prepare("DELETE FROM pending_code WHERE code_key = ?").bind(key).run();
-      return;
-    }
+  async peekHits(bucket: string, windowStart: number): Promise<number> {
+    const row = await this.db
+      .prepare("SELECT hits FROM rate_hit WHERE bucket = ? AND window_start = ?")
+      .bind(bucket, windowStart)
+      .first<{ hits: number }>();
+    return row?.hits ?? 0;
+  }
+
+  async addAdminEvent(e: AdminEvent): Promise<void> {
     await this.db
-      .prepare(
-        `INSERT INTO pending_code (code_key, code_hash, email, expires_at, attempts) VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT (code_key) DO UPDATE SET code_hash = excluded.code_hash, email = excluded.email,
-           expires_at = excluded.expires_at, attempts = excluded.attempts`,
-      )
-      .bind(key, code.codeHash, code.email, code.expiresAt, code.attempts)
+      .prepare("INSERT INTO admin_event (at, action, scope, client, detail) VALUES (?, ?, ?, ?, ?)")
+      .bind(e.at, e.action, e.scope, e.client, e.detail)
       .run();
   }
 

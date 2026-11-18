@@ -44,3 +44,8 @@ dist-installer/
 installers/
 
 .claude/
+
+# Licence service local deploy config and Wrangler state
+wrangler.toml
+.dev.vars
+.wrangler/

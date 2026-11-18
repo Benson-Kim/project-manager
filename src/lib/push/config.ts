@@ -1,9 +1,25 @@
 import { z } from "zod";
+import { resolveTimeZone } from "@/lib/local-time";
 
 /** Sentinel value that shipped in .env.example prior to 2026-09 — reject it
  *  so an operator who copies the example file cannot accidentally enable the
  *  dispatch endpoint with a publicly known bearer token. */
 const DISPATCH_TOKEN_SENTINEL = "replace-with-at-least-32-random-characters";
+
+let invalidZoneLogged = false;
+
+function organisationTimeZone(): string {
+  return resolveTimeZone({
+    override: process.env.ORGANISATION_TIME_ZONE,
+    onInvalidOverride: (value) => {
+      if (invalidZoneLogged) return;
+      invalidZoneLogged = true;
+      console.warn(
+        `ORGANISATION_TIME_ZONE "${value}" is not an IANA time zone; using this PC's time zone`,
+      );
+    },
+  });
+}
 
 const pushConfigSchema = z.object({
   publicKey: z.string().min(1),
@@ -16,6 +32,7 @@ const pushConfigSchema = z.object({
       (v) => v !== DISPATCH_TOKEN_SENTINEL,
       "ALERT_PUSH_DISPATCH_TOKEN must be replaced with a random secret",
     ),
+  timeZone: z.string().min(1),
 });
 
 export type PushConfig = z.infer<typeof pushConfigSchema>;
@@ -27,6 +44,7 @@ export function getPushConfig(): PushConfig | null {
     privateKey: process.env.WEB_PUSH_VAPID_PRIVATE_KEY,
     subject: process.env.WEB_PUSH_VAPID_SUBJECT,
     dispatchToken: process.env.ALERT_PUSH_DISPATCH_TOKEN,
+    timeZone: organisationTimeZone(),
   });
   return result.success ? result.data : null;
 }

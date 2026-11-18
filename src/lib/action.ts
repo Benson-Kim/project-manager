@@ -6,8 +6,8 @@ import { can } from "./auth/rbac";
 import { takeUserSlot } from "./rate-limit";
 import type { Permission, Session } from "./auth/types";
 import { AppError, type AppErrorCode } from "./errors";
-import { allowsChanges, currentLicenceStatus } from "./licence/gate";
 import { licenceMessages } from "./licence/messages";
+import { refuseIfReadOnly } from "./licence/write-check";
 import { messages } from "./messages";
 // Installs the rich-text sanitiser for richTextSchema (ADR-0025): every action
 // input is parsed here, and a server-side parse without it throws.
@@ -163,7 +163,7 @@ export function action<TSchema extends z.ZodType, TOutput>(
           : options.permission;
       // The permission is the reason, and it is a name from a closed set.
       if (!can(session.role, permission)) return fail("FORBIDDEN", { reason: permission });
-      if (options.licence !== "read" && !allowsChanges(await currentLicenceStatus())) {
+      if (options.licence !== "read" && (await refuseIfReadOnly())) {
         return fail("LICENCE_INACTIVE");
       }
 

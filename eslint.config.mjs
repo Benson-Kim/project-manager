@@ -72,6 +72,14 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    // The licence Worker keeps its own Cloudflare D1 store, and db/tests read
+    // tables to check what a proc left there; neither is app data access.
+    files: ["services/licence/**/*.ts", "db/tests/**"],
+    rules: {
+      "no-restricted-syntax": "off",
+    },
+  },
+  {
     // electron-builder loads its config as CommonJS.
     files: ["**/*.cjs"],
     rules: { "@typescript-eslint/no-require-imports": "off" },

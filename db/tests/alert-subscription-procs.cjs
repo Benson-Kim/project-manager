@@ -121,6 +121,64 @@ const deactivateByUser = (userId, actor) =>
     deactivate(taken.AlertSubscriptionId, OWNER));
   await deactivateByUser(OTHER, OTHER);
 
+  // ---- a user keeps a bounded number of active endpoints ----------------------------------------
+  const activeFor = async (userId) =>
+    (await pool.request().input("u", userId).query(
+      "SELECT COUNT(*) AS n FROM app.AlertSubscription WHERE UserId = @u AND IsDeleted = 0",
+    )).recordset[0].n;
+  await deactivateByUser(OTHER, DISPATCH);
+  let last;
+  for (let i = 0; i < 12; i++) last = await subscribe(`${stamp}/cap${i}`, OTHER);
+  ok((await activeFor(OTHER)) === 10, "twelve registrations leave ten active endpoints");
+  const [[kept]] = await exec("usp_AlertSubscription_Upsert", {
+    Endpoint: `${stamp}/cap11`, P256dh: "p256dh-test-key", Auth: "auth-test-key",
+    ExpirationTimeUtc: null, ActorUserId: OTHER,
+  });
+  ok(kept.AlertSubscriptionId === last.AlertSubscriptionId, "the newest registration is the one kept");
+  ok((await activeFor(OTHER)) === 10, "refreshing an endpoint does not change the count");
+  await deactivateByUser(OTHER, DISPATCH);
+
+  // ---- push deliveries are recorded per alert, subscription and day ---------------------------
+  const sub = await subscribe(`${stamp}/push`, OWNER);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const makeAlert = async (label) => {
+    const [[todo]] = await exec("usp_TodoItem_Create", {
+      TodoItem: `push ${label} ${Date.now()}`, Status: "Not Started", ActorUserId: OWNER,
+    });
+    const [[alert]] = await exec("usp_TodoAlert_Create", {
+      TodoItemId: todo.TodoItemId, AlertDay: yesterday, IsDismissed: 0, ActorUserId: OWNER,
+    });
+    return alert.TodoAlertId;
+  };
+  const alertA = await makeAlert("a");
+  const alertB = await makeAlert("b");
+  const due = async () => {
+    const [rows] = await exec("usp_TodoAlert_ListPushDeliveries", { LocalNow: new Date() });
+    return rows.filter((r) => r.AlertSubscriptionId === sub.AlertSubscriptionId);
+  };
+  const first = await due();
+  ok(first.length === 2, "two alerts due for one subscription are both listed");
+  const day = first[0].AlertDate;
+  const record = (alertId) =>
+    exec("usp_AlertSubscription_RecordDelivery", {
+      AlertSubscriptionId: sub.AlertSubscriptionId, TodoAlertId: alertId, AlertDate: day,
+      ActorUserId: DISPATCH,
+    });
+  await record(alertA);
+  const afterA = await due();
+  ok(
+    afterA.length === 1 && afterA[0].TodoAlertId === alertB,
+    "a push for one alert does not hold back the other that day",
+  );
+  await record(alertA);
+  const count = (await pool.request().input("a", alertA).input("s", sub.AlertSubscriptionId).query(
+    "SELECT COUNT(*) AS n FROM app.TodoAlertDelivery WHERE TodoAlertId = @a AND AlertSubscriptionId = @s",
+  )).recordset[0].n;
+  ok(count === 1, "recording one delivery twice leaves one row");
+  await record(alertB);
+  ok((await due()).length === 0, "nothing is listed once every due alert was pushed that day");
+  await deactivateByUser(OWNER, DISPATCH);
+
   console.log(`${passes} passed, ${failures} failed`);
   await pool.close();
   process.exit(failures ? 1 : 0);

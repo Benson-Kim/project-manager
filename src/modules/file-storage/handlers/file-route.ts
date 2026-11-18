@@ -1,8 +1,8 @@
 import type { Session } from "@/lib/auth/types";
 import type { AppErrorCode } from "@/lib/errors";
 import { isSameOrigin, json } from "@/lib/files/http";
-import { allowsChanges, currentLicenceStatus } from "@/lib/licence/gate";
 import { errorMessage, licenceMessages } from "@/lib/licence/messages";
+import { refuseIfReadOnly } from "@/lib/licence/write-check";
 import { getFileSession } from "./session";
 
 /**
@@ -31,7 +31,7 @@ export function fileRoute<Context = unknown>(handler: FileHandler<Context>) {
     if (!safe && !isSameOrigin(request.headers)) return refuse(403, "FORBIDDEN");
     const session = await getFileSession();
     if (!session) return refuse(401, "UNAUTHENTICATED");
-    if (!safe && !allowsChanges(await currentLicenceStatus())) {
+    if (!safe && (await refuseIfReadOnly())) {
       return json(
         { ok: false, error: { code: "LICENCE_INACTIVE", message: licenceMessages.inactive } },
         403,

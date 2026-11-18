@@ -27,6 +27,14 @@ export interface FeedbackRecord {
   at: number;
 }
 
+export interface AdminEvent {
+  at: number;
+  action: string;
+  scope: string;
+  client: string;
+  detail: string | null;
+}
+
 export interface ConsentRecord {
   licenceId: string;
   kind: ConsentKind;
@@ -46,12 +54,19 @@ export interface TesterSummary {
 export interface LicenceStore {
   findByIdentity(emailHash: string, machineHash: string): Promise<LicenceRecord[]>;
   getLicence(licenceId: string): Promise<LicenceRecord | null>;
-  findByRedeemCode(codeHash: string): Promise<LicenceRecord | null>;
+  bindRedeemCode(codeHash: string, machineHash: string): Promise<LicenceRecord | null>;
   saveLicence(record: LicenceRecord): Promise<void>;
-  saveTester(emailHash: string, email: string, at: number): Promise<void>;
-  getCode(key: string): Promise<PendingCode | null>;
-  saveCode(key: string, code: PendingCode | null): Promise<void>;
+  createTrial(record: LicenceRecord, email: string): Promise<"created" | "conflict">;
+  issueCode(
+    key: string,
+    code: Omit<PendingCode, "attempts">,
+    now: number,
+    maxAttempts: number,
+  ): Promise<boolean>;
+  consumeCodeAttempt(key: string): Promise<PendingCode | null>;
   countHit(bucket: string, windowStart: number): Promise<number>;
+  peekHits(bucket: string, windowStart: number): Promise<number>;
+  addAdminEvent(event: AdminEvent): Promise<void>;
   addFeedback(record: FeedbackRecord): Promise<void>;
   addConsent(record: ConsentRecord): Promise<void>;
   listTesters(): Promise<TesterSummary[]>;
