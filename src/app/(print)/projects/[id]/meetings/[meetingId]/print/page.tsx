@@ -11,6 +11,7 @@ import { messages } from "@/lib/messages";
 import { guardProjectScope } from "@/lib/project-page-helpers";
 import { orNotFound } from "@/lib/row-access";
 import { PrintMinutesButton } from "@/modules/meetings/components/print-minutes-button";
+import { sectionTitle } from "@/modules/meetings/minutes-sections";
 import { getMeetingWorkspace } from "@/modules/meetings/repository/meetings";
 import { meetingTimes } from "@/modules/meetings/schemas/meeting-display";
 import {
@@ -142,11 +143,11 @@ function ActionsTable({ actions, name }: { actions: ActionNode[]; name: string }
 }
 
 /** The unfinished actions this meeting inherits from the project's earlier ones (ADR-0043). */
-function CarriedOverTable({ rows }: { rows: CarriedOver[] }) {
+function CarriedOverTable({ rows, title }: { rows: CarriedOver[]; title: string }) {
   if (rows.length === 0) return null;
   return (
     <section className="flex flex-col gap-1" data-testid="print-carried-over">
-      <h2 className="text-base font-semibold">{M.carriedOver}</h2>
+      <h2 className="text-base font-semibold">{title}</h2>
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-line text-left">
@@ -262,10 +263,15 @@ export default async function MeetingMinutesPrintPage({
         <RichBlock title={M.objective} html={meeting.Objective} />
         <RichBlock title={M.description} html={meeting.Description} />
 
-        <CarriedOverTable rows={carried} />
+        <CarriedOverTable
+          rows={carried}
+          title={sectionTitle(workspace.sections, "CarryOver", M.carriedOver)}
+        />
 
         <section className="flex flex-col gap-3">
-          <h2 className="text-base font-semibold">{M.agenda}</h2>
+          <h2 className="text-base font-semibold">
+            {sectionTitle(workspace.sections, "Agenda", M.agenda)}
+          </h2>
           {agenda.length === 0 ? (
             <p className="text-sm text-ink-muted">{M.noAgenda}</p>
           ) : (
@@ -321,7 +327,25 @@ export default async function MeetingMinutesPrintPage({
           )}
         </section>
 
-        <RichBlock title={M.conclusion} html={meeting.Conclusion} />
+        {workspace.sections
+          .filter((section) => section.SectionKey === null)
+          .map((section) => (
+            <section
+              key={section.MeetingMinutesSectionId}
+              className="flex flex-col gap-1"
+              data-testid="print-custom-section"
+            >
+              <h2 className="text-base font-semibold wrap-anywhere">{section.Title}</h2>
+              {section.Body ? (
+                <p className="text-sm whitespace-pre-wrap wrap-anywhere">{section.Body}</p>
+              ) : null}
+            </section>
+          ))}
+
+        <RichBlock
+          title={sectionTitle(workspace.sections, "Conclusion", M.conclusion)}
+          html={meeting.Conclusion}
+        />
         <Details items={[[M.nextMeeting, formatDate(meeting.NextMeeting)]]} />
       </div>
     </main>

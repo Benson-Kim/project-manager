@@ -40,6 +40,10 @@ import {
   deleteMeetingAction,
   logDiscussionPointDecisionAction,
   logDiscussionPointAssumptionAction,
+  setActionLogLinksAction,
+  saveMinutesSectionAction,
+  setActionWbsLinksAction,
+  deleteMinutesSectionAction,
   reorderActionItemsAction,
   reorderAgendaItemsAction,
   reorderDiscussionPointsAction,
@@ -227,6 +231,45 @@ const CASES: {
     answers: "workspace",
     revalidates: [],
   },
+  {
+    name: "setActionLogLinks",
+    run: setActionLogLinksAction,
+    input: { meetingActionItemId: 1, rowVer: 4, kinds: ["Decision"], title: "Book the room" },
+    proc: "usp_MeetingActionItem_SetLogLinks",
+    answers: "workspace",
+    revalidates: [],
+  },
+  {
+    name: "saveMinutesSection",
+    run: saveMinutesSectionAction,
+    input: {
+      meetingId: 3,
+      meetingMinutesSectionId: null,
+      sectionKey: "Agenda",
+      title: "Topics",
+      body: null,
+      rowVer: null,
+    },
+    proc: "usp_MeetingMinutesSection_Save",
+    answers: "workspace",
+    revalidates: [],
+  },
+  {
+    name: "setActionWbsLinks",
+    run: setActionWbsLinksAction,
+    input: { meetingActionItemId: 1, rowVer: 4, keyDeliverableIds: [7] },
+    proc: "usp_MeetingActionItem_SetWbsLinks",
+    answers: "workspace",
+    revalidates: [],
+  },
+  {
+    name: "deleteMinutesSection",
+    run: deleteMinutesSectionAction,
+    input: { meetingMinutesSectionId: 5, rowVer: 4 },
+    proc: "usp_MeetingMinutesSection_Delete",
+    answers: "workspace",
+    revalidates: [],
+  },
 ];
 
 function answerProcs() {
@@ -334,6 +377,96 @@ describe("meetings actions", () => {
       "usp_MeetingDiscussionPoint_LogDecision",
       { MeetingDiscussionPointId: 9, RowVer: 4, Title: "Use the new vendor", ActorUserId: 7 },
     ]);
+  });
+
+  it("sends the ticked logs once each as a list, with the trimmed title", async () => {
+    answerProcs();
+    await setActionLogLinksAction({
+      meetingActionItemId: 9,
+      rowVer: 4,
+      kinds: ["RiskIssue", "Decision", "RiskIssue"],
+      title: "  Book the room ",
+    });
+    expect(execProc.mock.calls[0]).toEqual([
+      "usp_MeetingActionItem_SetLogLinks",
+      {
+        MeetingActionItemId: 9,
+        RowVer: 4,
+        Kinds: "RiskIssue,Decision",
+        Title: "Book the room",
+        ActorUserId: 7,
+      },
+    ]);
+  });
+
+  it("sends each linked task once, as a list", async () => {
+    answerProcs();
+    await setActionWbsLinksAction({
+      meetingActionItemId: 9,
+      rowVer: 4,
+      keyDeliverableIds: [12, 3, 12],
+    });
+    expect(execProc.mock.calls[0]).toEqual([
+      "usp_MeetingActionItem_SetWbsLinks",
+      { MeetingActionItemId: 9, RowVer: 4, KeyDeliverableIds: "12,3", ActorUserId: 7 },
+    ]);
+  });
+
+  it("adds a box with a trimmed title and drops a blank body", async () => {
+    answerProcs();
+    await saveMinutesSectionAction({
+      meetingId: 3,
+      meetingMinutesSectionId: null,
+      sectionKey: null,
+      title: "  Risks raised ",
+      body: "   ",
+      rowVer: null,
+    });
+    expect(execProc.mock.calls[0]).toEqual([
+      "usp_MeetingMinutesSection_Save",
+      {
+        MeetingId: 3,
+        MeetingMinutesSectionId: null,
+        SectionKey: null,
+        Title: "Risks raised",
+        Body: null,
+        RowVer: null,
+        ActorUserId: 7,
+      },
+    ]);
+  });
+
+  it("refuses an unknown section or a blank title before reaching the proc", async () => {
+    const unknown = await saveMinutesSectionAction({
+      meetingId: 3,
+      meetingMinutesSectionId: null,
+      sectionKey: "Budget",
+      title: "Money",
+      body: null,
+      rowVer: null,
+    });
+    const blank = await saveMinutesSectionAction({
+      meetingId: 3,
+      meetingMinutesSectionId: null,
+      sectionKey: null,
+      title: "   ",
+      body: null,
+      rowVer: null,
+    });
+    expect(unknown.ok).toBe(false);
+    expect(blank.ok).toBe(false);
+    expect(execProc).not.toHaveBeenCalled();
+  });
+
+  it("refuses a log that is not one of the five before reaching the proc", async () => {
+    const result = await setActionLogLinksAction({
+      meetingActionItemId: 9,
+      rowVer: 4,
+      kinds: ["Budget"],
+      title: "Book the room",
+    });
+    expect(result.ok).toBe(false);
+    expect(execProc).not.toHaveBeenCalled();
   });
 
   it("logs a point as an assumption with the point's stamp only", async () => {

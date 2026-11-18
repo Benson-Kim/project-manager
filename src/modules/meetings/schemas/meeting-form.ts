@@ -3,6 +3,12 @@ import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
 import { toDateInput } from "@/lib/format";
 import { messages } from "@/lib/messages";
 import { guestKey } from "./participant-roster";
+import { GOVERNANCE_LOG_KINDS, governanceLogKindSchema } from "../governance-logs";
+import {
+  MINUTES_SECTION_BODY_MAX,
+  MINUTES_SECTION_TITLE_MAX,
+  minutesSectionKeySchema,
+} from "../minutes-sections";
 import { richTextSchema } from "@/lib/rich-text/schema";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 import {
@@ -340,6 +346,18 @@ export const logDiscussionPointAssumptionSchema = z.object({
 export type LogDiscussionPointAssumptionValues = z.output<
   typeof logDiscussionPointAssumptionSchema
 >;
+
+/** The logs an action item is recorded in; `title` names the records a newly ticked log creates. */
+export const setActionLogLinksSchema = z.object({
+  meetingActionItemId: id,
+  rowVer: rowVerSchema,
+  kinds: z
+    .array(governanceLogKindSchema)
+    .max(GOVERNANCE_LOG_KINDS.length)
+    .transform((kinds) => [...new Set(kinds)]),
+  title: z.string().trim().min(1).max(DECISION_TITLE_MAX),
+});
+export type SetActionLogLinksValues = z.output<typeof setActionLogLinksSchema>;
 export type UpdateDiscussionPointValues = z.output<typeof updateDiscussionPointSchema>;
 export type CreateActionItemValues = z.output<typeof createActionItemSchema>;
 export type UpdateActionItemValues = z.output<typeof updateActionItemSchema>;
@@ -351,3 +369,35 @@ export type ReorderDiscussionPointsValues = z.output<typeof reorderDiscussionPoi
 export type ReorderActionItemsValues = z.output<typeof reorderActionItemsSchema>;
 export type ReorderFollowUpsValues = z.output<typeof reorderFollowUpsSchema>;
 export type SetParticipantsValues = z.output<typeof setParticipantsSchema>;
+
+/** A built-in section's new title, or a box a user added (migration 087); no id adds one. */
+const blankAsNull = <T extends z.ZodType>(schema: T) =>
+  z.preprocess((value) => (value === "" || value === undefined ? null : value), schema.nullable());
+
+export const saveMinutesSectionSchema = z.object({
+  meetingId: id,
+  meetingMinutesSectionId: blankAsNull(id),
+  sectionKey: blankAsNull(minutesSectionKeySchema),
+  title: z.string().trim().min(1, M.sectionTitleRequired).max(MINUTES_SECTION_TITLE_MAX),
+  body: blankAsNull(z.string().max(MINUTES_SECTION_BODY_MAX)).transform((body) =>
+    body && body.trim() ? body : null,
+  ),
+  rowVer: blankAsNull(rowVerSchema),
+});
+export const deleteMinutesSectionSchema = z.object({
+  meetingMinutesSectionId: id,
+  rowVer: rowVerSchema,
+});
+export type SaveMinutesSectionValues = z.output<typeof saveMinutesSectionSchema>;
+export type DeleteMinutesSectionValues = z.output<typeof deleteMinutesSectionSchema>;
+
+/** The full set of WBS tasks an action is about (migration 085). */
+export const setActionWbsLinksSchema = z.object({
+  meetingActionItemId: id,
+  rowVer: rowVerSchema,
+  keyDeliverableIds: z
+    .array(id)
+    .max(500)
+    .transform((ids) => [...new Set(ids)]),
+});
+export type SetActionWbsLinksValues = z.output<typeof setActionWbsLinksSchema>;

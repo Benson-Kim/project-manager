@@ -59,6 +59,8 @@ function action(
     MeetingActionItemId: id,
     AgendaItemId: parent.agendaId,
     DiscussionPointId: parent.pointId ?? null,
+    LogLinksJson: [],
+    WbsLinksJson: [],
     Action: `Action ${id}`,
     AssignedToStakeholderId: null,
     AssigneeName: null,

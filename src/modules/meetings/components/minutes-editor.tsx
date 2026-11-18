@@ -14,6 +14,7 @@ import {
   deleteAgendaItemAction,
   deleteDiscussionPointAction,
   deleteFollowUpAction,
+  deleteMinutesSectionAction,
   reorderActionItemsAction,
   reorderAgendaItemsAction,
   logDiscussionPointAssumptionAction,
@@ -21,11 +22,15 @@ import {
   reorderDiscussionPointsAction,
   reorderFollowUpsAction,
   setActionItemStatusAction,
+  setActionLogLinksAction,
+  setActionWbsLinksAction,
 } from "../actions";
+import type { GovernanceLogKind } from "../governance-logs";
 import type {
   ActionStatus,
   MeetingWorkspace,
   RosterEntry,
+  WorkspaceActionItem,
   WorkspaceDiscussionPoint,
 } from "../schemas/meeting";
 import {
@@ -47,6 +52,8 @@ import {
   type MoveRequest,
   type PickedPerson,
 } from "./minutes-context";
+import { ActionItemsTable } from "./action-items-table";
+import { CustomSections, SectionHeading } from "./minutes-sections";
 import { AgendaItemForm, OnHoldReasonDialog } from "./minutes-forms";
 import { ActionStatusCell, AgendaBlock, OverdueBadge } from "./minutes-tree";
 import { notifySaved } from "@/lib/cross-window";
@@ -81,6 +88,9 @@ function requestDelete(target: DeleteTarget): Promise<MinutesAnswer> {
   if (target.kind === "followUp") {
     return deleteFollowUpAction({ meetingActionFollowUpId: id, rowVer });
   }
+  if (target.kind === "section") {
+    return deleteMinutesSectionAction({ meetingMinutesSectionId: id, rowVer });
+  }
   return deleteActionItemAction({ meetingActionItemId: id, rowVer });
 }
 
@@ -89,12 +99,14 @@ const ENTITY = {
   point: M.pointEntity,
   action: M.actionEntity,
   followUp: M.followUpEntity,
+  section: M.sectionEntity,
 } as const;
 const DELETE_BODY = {
   agenda: M.deleteAgendaBody,
   point: M.deletePointBody,
   action: messages.confirmDelete.body,
   followUp: messages.confirmDelete.body,
+  section: messages.confirmDelete.body,
 } as const;
 
 /**
@@ -120,6 +132,10 @@ export function MinutesEditor({
   decisionsHref,
   canLogAssumption,
   assumptionsHref,
+  projectId,
+  canAddStakeholder,
+  logKinds,
+  taskOptions,
 }: {
   workspace: MeetingWorkspace;
   /** Each discussion point's formatted view, rendered on the server (RichTextView). */
@@ -135,6 +151,10 @@ export function MinutesEditor({
   decisionsHref: string;
   canLogAssumption: boolean;
   assumptionsHref: string;
+  projectId: number;
+  canAddStakeholder: boolean;
+  logKinds: readonly GovernanceLogKind[];
+  taskOptions: readonly { id: number; label: string }[];
 }) {
   const router = useRouter();
   const { announce } = useAnnouncer();
@@ -327,6 +347,49 @@ export function MinutesEditor({
     [busy, answer, fail, announce],
   );
 
+  const setLogLinks = useCallback(
+    (action: WorkspaceActionItem, kinds: GovernanceLogKind[], name: string) => {
+      if (busy) return;
+      setFailure(null);
+      startTransition(async () => {
+        const result = await setActionLogLinksAction({
+          meetingActionItemId: action.MeetingActionItemId,
+          rowVer: action.RowVer,
+          kinds,
+          title: decisionTitle(previewText(action.Action), M.action),
+        });
+        if (!result.ok) {
+          fail(result.error);
+          return;
+        }
+        answer(result.data);
+        announce(M.logLinksSaved(name));
+      });
+    },
+    [busy, answer, fail, announce],
+  );
+
+  const setTaskLinks = useCallback(
+    (action: WorkspaceActionItem, keyDeliverableIds: number[], name: string) => {
+      if (busy) return;
+      setFailure(null);
+      startTransition(async () => {
+        const result = await setActionWbsLinksAction({
+          meetingActionItemId: action.MeetingActionItemId,
+          rowVer: action.RowVer,
+          keyDeliverableIds,
+        });
+        if (!result.ok) {
+          fail(result.error);
+          return;
+        }
+        answer(result.data);
+        announce(M.tasksSaved(name));
+      });
+    },
+    [busy, answer, fail, announce],
+  );
+
   // The server's formatted view while it matches; plain text until a refresh brings the new one.
   const pointView = useCallback(
     (point: WorkspaceDiscussionPoint) => {
@@ -339,6 +402,8 @@ export function MinutesEditor({
 
   const context: MinutesContextValue = {
     meetingId,
+    projectId,
+    canAddStakeholder,
     canCreate,
     canEdit,
     canDelete,
@@ -360,6 +425,10 @@ export function MinutesEditor({
     assumptionsHref,
     logAssumption,
     today,
+    logKinds,
+    setLogLinks,
+    taskOptions,
+    setTaskLinks,
   };
 
   const siblings = agendaSiblings(tree);
@@ -416,9 +485,16 @@ export function MinutesEditor({
           className="flex flex-col gap-2 rounded-md border border-line p-4"
         >
           <div className="flex flex-col gap-0.5">
-            <h3 id="carried-over-heading" className="text-sm font-medium text-ink">
-              {M.carriedOver}
-            </h3>
+            <SectionHeading
+              sectionKey="CarryOver"
+              fallback={M.carriedOver}
+              sections={shown.sections}
+              heading={(title) => (
+                <h3 id="carried-over-heading" className="text-sm font-medium text-ink">
+                  {title}
+                </h3>
+              )}
+            />
             <p className="text-xs text-ink-muted">{M.carriedOverHint}</p>
           </div>
           {carried.length === 0 ? (
@@ -461,14 +537,21 @@ export function MinutesEditor({
         </section>
 
         <section aria-labelledby="agenda-heading" className="flex flex-col gap-3">
-          <h3
-            id="agenda-heading"
-            tabIndex={-1}
-            data-focus-key="agenda-heading"
-            className="text-sm font-medium text-ink focus:outline-none"
-          >
-            {M.agenda}
-          </h3>
+          <SectionHeading
+            sectionKey="Agenda"
+            fallback={M.agenda}
+            sections={shown.sections}
+            heading={(title) => (
+              <h3
+                id="agenda-heading"
+                tabIndex={-1}
+                data-focus-key="agenda-heading"
+                className="text-sm font-medium text-ink focus:outline-none"
+              >
+                {title}
+              </h3>
+            )}
+          />
           {failure ? (
             <div
               role="alert"
@@ -529,6 +612,10 @@ export function MinutesEditor({
             )
           ) : null}
         </section>
+
+        <CustomSections sections={shown.sections} />
+
+        <ActionItemsTable actions={shown.actionItems} />
       </div>
 
       <ConfirmDialog

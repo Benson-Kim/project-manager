@@ -17,6 +17,7 @@ import { BoxNote } from "./wbs-box-note";
 import { budgetText } from "./wbs-box-meta";
 import { BRANCH_LAYOUTS, type BranchLayout } from "./wbs-diagram-layout";
 import { Segmented } from "./wbs-segmented";
+import { TaskMeetingActions } from "./task-meeting-actions";
 
 const K = messages.keyDeliverables;
 const P = K.wbs.panel;
@@ -320,6 +321,8 @@ export function WbsDetailsPanel({
           </div>
         ) : null}
       </div>
+
+      <TaskMeetingActions projectId={projectId} keyDeliverableId={item.id} />
 
       {canEdit && canDone ? (
         <div>

@@ -9,10 +9,14 @@
 --   ActionItemsJson      [{MeetingActionItemId, AgendaItemId, DiscussionPointId, Action,
 --                          AssignedToStakeholderId, AssigneeName (null when nobody is responsible),
 --                          DueDate, Status, OnHoldReason (ADR-0044; null unless on hold),
---                          SortOrder, RowVer}]
+--                          SortOrder, RowVer, LogLinksJson [{LogKind, RecordId}] (the governance-log
+--                          records the action is logged in, live ones only; null when none),
+--                          WbsLinksJson [{KeyDeliverableId}] (085: the live WBS tasks it is about; null when none)}]
 --   FollowUpsJson        [{MeetingActionFollowUpId, MeetingActionItemId, FollowUp,
 --                          AssignedToStakeholderId, AssigneeName, FollowUpDate, DueDate, SortOrder,
 --                          RowVer}] — the one-to-many under an action item (ADR-0043)
+--   SectionsJson         [{MeetingMinutesSectionId, SectionKey, Title, Body, SortOrder, RowVer}] (087):
+--                          renamed built-in sections (SectionKey CarryOver|Agenda|Discussion|Conclusion) and the boxes a user added (null key)
 --   CarriedOverJson      [{MeetingActionItemId, Action, Status, OnHoldReason, AssignedToStakeholderId,
 --                          AssigneeName, DueDate, RowVer, FromMeetingId, FromSubject,
 --                          FromStartDate}] — the unfinished actions of this project's EARLIER
@@ -91,7 +95,29 @@ BEGIN
                    COALESCE(NULLIF(TRIM(CONCAT(s.FirstName, N' ', s.LastName)), N''), ai.[AssigneeOther]) AS AssigneeName,
                    CAST(ai.DueDate AS DATE) AS DueDate,
                    ai.[Status], ai.[OnHoldReason],
-                   ai.SortOrder, CAST(ai.RowVer AS BIGINT) AS RowVer
+                   ai.SortOrder, CAST(ai.RowVer AS BIGINT) AS RowVer,
+                   (SELECT l.LogKind, l.RecordId
+                    FROM app.MeetingActionLogLink AS l
+                    WHERE l.MeetingActionItemId = ai.MeetingActionItemId
+                      AND (   (l.LogKind = N'Decision' AND EXISTS (SELECT 1 FROM app.Decision AS r
+                                   WHERE r.DecisionId = l.RecordId AND r.IsDeleted = 0))
+                           OR (l.LogKind = N'AssumptionConstraint' AND EXISTS (SELECT 1 FROM app.AssumptionConstraint AS r
+                                   WHERE r.AssumptionConstraintId = l.RecordId AND r.IsDeleted = 0))
+                           OR (l.LogKind = N'RiskIssue' AND EXISTS (SELECT 1 FROM app.RiskIssue AS r
+                                   WHERE r.RiskIssueId = l.RecordId AND r.IsDeleted = 0))
+                           OR (l.LogKind = N'QuestionAnswer' AND EXISTS (SELECT 1 FROM app.QuestionAnswer AS r
+                                   WHERE r.QuestionAnswerId = l.RecordId AND r.IsDeleted = 0))
+                           OR (l.LogKind = N'ParkingLotItem' AND EXISTS (SELECT 1 FROM app.ParkingLotItem AS r
+                                   WHERE r.ParkingLotItemId = l.RecordId AND r.IsDeleted = 0)))
+                    ORDER BY l.LogKind
+                    FOR JSON PATH) AS LogLinksJson,
+                   (SELECT w.KeyDeliverableId
+                    FROM app.MeetingActionWbsLink AS w
+                    JOIN app.KeyDeliverable AS kd
+                        ON kd.KeyDeliverableId = w.KeyDeliverableId AND kd.IsDeleted = 0
+                    WHERE w.MeetingActionItemId = ai.MeetingActionItemId
+                    ORDER BY w.KeyDeliverableId
+                    FOR JSON PATH) AS WbsLinksJson
             FROM app.MeetingActionItem AS ai
             LEFT JOIN app.Stakeholder AS s ON s.StakeholderId = ai.AssignedToStakeholderId
             WHERE ai.MeetingId = m.MeetingId AND ai.IsDeleted = 0
@@ -109,6 +135,12 @@ BEGIN
             WHERE ai.MeetingId = m.MeetingId AND fu.IsDeleted = 0
             ORDER BY fu.MeetingActionItemId, fu.SortOrder, fu.MeetingActionFollowUpId
             FOR JSON PATH, INCLUDE_NULL_VALUES) AS FollowUpsJson,
+           (SELECT ms.MeetingMinutesSectionId, ms.SectionKey, ms.Title, ms.Body, ms.SortOrder,
+                   CAST(ms.RowVer AS BIGINT) AS RowVer
+            FROM app.MeetingMinutesSection AS ms
+            WHERE ms.MeetingId = m.MeetingId AND ms.IsDeleted = 0
+            ORDER BY ms.SortOrder, ms.MeetingMinutesSectionId
+            FOR JSON PATH, INCLUDE_NULL_VALUES) AS SectionsJson,
            (SELECT TOP (@CarryOverMax)
                    ai.MeetingActionItemId, ai.[Action], ai.[Status], ai.[OnHoldReason],
                    ai.AssignedToStakeholderId,

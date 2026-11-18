@@ -31,6 +31,10 @@ import type {
   UpdateDiscussionPointValues,
   LogDiscussionPointDecisionValues,
   LogDiscussionPointAssumptionValues,
+  SetActionLogLinksValues,
+  SaveMinutesSectionValues,
+  SetActionWbsLinksValues,
+  DeleteMinutesSectionValues,
   UpdateFollowUpValues,
   UpdateMeetingFormValues,
 } from "../schemas/meeting-form";
@@ -168,6 +172,7 @@ export async function getMeetingWorkspace(
     DiscussionPointsJson,
     ActionItemsJson,
     FollowUpsJson,
+    SectionsJson,
     CarriedOverJson,
     ParticipantsJson,
     ParticipantsStamp,
@@ -183,6 +188,7 @@ export async function getMeetingWorkspace(
     })),
     actionItems: ActionItemsJson,
     followUps: FollowUpsJson,
+    sections: SectionsJson,
     carriedOver: CarriedOverJson,
     participants: ParticipantsJson,
     participantsStamp: ParticipantsStamp,
@@ -339,6 +345,61 @@ export function logDiscussionPointAssumption(
   return workspaceAfter(
     "usp_MeetingDiscussionPoint_LogAssumption",
     { MeetingDiscussionPointId: input.meetingDiscussionPointId, RowVer: input.rowVer },
+    actorUserId,
+  );
+}
+
+/**
+ * Records the action in each ticked log and keeps those records in step with its text; an
+ * unticked log keeps its record and only loses the link.
+ */
+export function setActionLogLinks(input: SetActionLogLinksValues, actorUserId: number) {
+  return workspaceAfter(
+    "usp_MeetingActionItem_SetLogLinks",
+    {
+      MeetingActionItemId: input.meetingActionItemId,
+      RowVer: input.rowVer,
+      Kinds: input.kinds.join(","),
+      Title: input.title,
+    },
+    actorUserId,
+  );
+}
+
+/** Points an action at exactly these WBS tasks of its project. */
+export function setActionWbsLinks(input: SetActionWbsLinksValues, actorUserId: number) {
+  return workspaceAfter(
+    "usp_MeetingActionItem_SetWbsLinks",
+    {
+      MeetingActionItemId: input.meetingActionItemId,
+      RowVer: input.rowVer,
+      KeyDeliverableIds: input.keyDeliverableIds.join(","),
+    },
+    actorUserId,
+  );
+}
+
+/** Renames a built-in minutes section, or adds or edits a box a user added. */
+export function saveMinutesSection(input: SaveMinutesSectionValues, actorUserId: number) {
+  return workspaceAfter(
+    "usp_MeetingMinutesSection_Save",
+    {
+      MeetingId: input.meetingId,
+      MeetingMinutesSectionId: input.meetingMinutesSectionId,
+      SectionKey: input.sectionKey,
+      Title: input.title,
+      Body: input.body,
+      RowVer: input.rowVer,
+    },
+    actorUserId,
+  );
+}
+
+/** Removes a box a user added, or gives a built-in section its default title back. */
+export function deleteMinutesSection(input: DeleteMinutesSectionValues, actorUserId: number) {
+  return workspaceAfter(
+    "usp_MeetingMinutesSection_Delete",
+    { MeetingMinutesSectionId: input.meetingMinutesSectionId, RowVer: input.rowVer },
     actorUserId,
   );
 }

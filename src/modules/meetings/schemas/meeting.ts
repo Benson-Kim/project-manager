@@ -2,6 +2,8 @@ import { z } from "zod";
 import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
+import { actionLogLinksSchema } from "@/modules/meetings/governance-logs";
+import { minutesSectionKeySchema } from "@/modules/meetings/minutes-sections";
 
 /**
  * Meetings — zod contracts for the rows of usp_Meeting_* and the child procs
@@ -127,6 +129,12 @@ export const workspaceActionItemSchema = z.object({
   OnHoldReason: onHoldReasonSchema,
   SortOrder: z.number().int(),
   RowVer: rowVerSchema,
+  LogLinksJson: actionLogLinksSchema,
+  /** The live WBS tasks the action is about (migration 085). */
+  WbsLinksJson: z
+    .array(z.object({ KeyDeliverableId: z.number().int() }))
+    .nullish()
+    .transform((links) => links ?? []),
 });
 export type WorkspaceActionItem = z.infer<typeof workspaceActionItemSchema>;
 
@@ -150,6 +158,24 @@ export const workspaceFollowUpSchema = z.object({
   RowVer: rowVerSchema,
 });
 export type WorkspaceFollowUp = z.infer<typeof workspaceFollowUpSchema>;
+
+/** A renamed built-in section (SectionKey set) or a box a user added (SectionKey null), migration 087. */
+export const workspaceSectionSchema = z.object({
+  MeetingMinutesSectionId: z.number().int(),
+  SectionKey: minutesSectionKeySchema
+    .nullable()
+    .optional()
+    .transform((key) => key ?? null),
+  Title: z.string(),
+  Body: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((body) => body ?? null),
+  SortOrder: z.number().int(),
+  RowVer: rowVerSchema,
+});
+export type WorkspaceSection = z.infer<typeof workspaceSectionSchema>;
 
 /**
  * An unfinished action of one of this project's earlier meetings, which carries
@@ -194,6 +220,7 @@ export const meetingWorkspaceRowSchema = z.object({
   DiscussionPointsJson: jsonArray(workspaceDiscussionPointSchema),
   ActionItemsJson: jsonArray(workspaceActionItemSchema),
   FollowUpsJson: jsonArray(workspaceFollowUpSchema),
+  SectionsJson: jsonArray(workspaceSectionSchema),
   CarriedOverJson: jsonArray(carriedOverActionSchema),
   ParticipantsJson: jsonArray(workspaceParticipantSchema),
   ParticipantsStamp: rowVerSchema,
@@ -207,6 +234,8 @@ export interface MeetingWorkspace {
   discussionPoints: WorkspaceDiscussionPoint[];
   actionItems: WorkspaceActionItem[];
   followUps: WorkspaceFollowUp[];
+  /** Renamed built-in sections and added boxes, in display order (migration 087). */
+  sections: WorkspaceSection[];
   /** This project's earlier meetings' unfinished actions (ADR-0043). */
   carriedOver: CarriedOverAction[];
   participants: WorkspaceParticipant[];

@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { messages } from "../src/lib/messages";
+import { closeAlarmToast } from "./support/alarms";
 
 /**
  * Meeting minutes (module #10, M4): the agenda → discussion points → actions
@@ -22,6 +23,7 @@ async function newMeeting(page: Page) {
   await expect(header.getByRole("textbox", { name: M.objective, exact: true })).toBeVisible({
     timeout: 15_000,
   });
+  await closeAlarmToast(page);
   return page.getByTestId("minutes");
 }
 
@@ -111,7 +113,10 @@ test("minutes: a typed assignee survives blur, saving and an unrelated edit", as
   const item = page.getByTestId("action-item").filter({ hasText: "Ask the external reviewer" });
   await expect(item).toContainText("External reviewer");
   await page.reload();
-  await page.getByRole("button", { name: M.editItem("Ask the external reviewer") }).click();
+  await page
+    .getByRole("button", { name: M.editItem("Ask the external reviewer") })
+    .first()
+    .click();
   const edit = page.getByRole("form", { name: M.editItem(M.actionEntity) });
   const storedPerson = edit.getByRole("combobox", { name: M.personResponsible });
   await expect(storedPerson).toHaveValue("External reviewer");
@@ -183,7 +188,10 @@ test("minutes: build the agenda, discussion points and actions, then reorder fro
   await expect(agenda).toHaveText(["1. Risks", "2. Budget and costs"]);
   await expect(page.getByRole("button", { name: M.editItem("Budget and costs") })).toBeFocused();
 
-  await page.getByRole("button", { name: M.editItem("Send the revised budget") }).click();
+  await page
+    .getByRole("button", { name: M.editItem("Send the revised budget") })
+    .first()
+    .click();
   const editAction = page.getByRole("form", { name: M.editItem(M.actionEntity) });
   await expect(editAction.getByRole("combobox", { name: M.personResponsible })).toHaveValue(GARY);
   await editAction.getByLabel(M.dueDate, { exact: true }).fill("");
@@ -583,4 +591,99 @@ test("minutes: a discussion point logged as an assumption links to its register 
   await link.click();
   await page.waitForURL(/\/projects\/2\/assumptions-constraints\?id=\d+/);
   await expect(page.getByText(text).first()).toBeVisible();
+});
+
+test("minutes: an action is logged in each log ticked under Log in, its chip opening the record", async ({
+  page,
+}) => {
+  test.slow();
+  const minutes = await newMeeting(page);
+  const text = `Order the badges ${Date.now()}`;
+  await addAgendaItem(page, "Logistics");
+  await addAction(page, "Logistics", { text });
+
+  const row = () => minutes.getByTestId("action-table-row").filter({ hasText: text });
+  await row()
+    .getByRole("button", { name: /^Logs for / })
+    .click();
+  const decision = row().getByRole("checkbox", { name: "Decision log" });
+  const risk = row().getByRole("checkbox", { name: "Risks & issues" });
+  await decision.click();
+  await expect(decision).toBeChecked();
+  await risk.click();
+  await expect(risk).toBeChecked();
+  await expect(row().getByTestId("action-log-chip")).toHaveCount(2);
+  await risk.click();
+  await expect(risk).not.toBeChecked();
+  await expect(row().getByTestId("action-log-chip")).toHaveText(["Decision log"]);
+
+  await page.reload();
+  const chip = row().getByTestId("action-log-chip");
+  await expect(chip).toHaveText("Decision log");
+  await expect(chip).toHaveAttribute("href", /\/projects\/2\/decisions\?id=\d+$/);
+  await chip.click();
+  await page.waitForURL(/\/projects\/2\/decisions\?id=\d+/);
+  await expect(page.getByText(text).first()).toBeVisible();
+});
+
+test("minutes: a section is renamed and a box added, both kept and printed", async ({ page }) => {
+  test.slow();
+  const minutes = await newMeeting(page);
+  const meetingUrl = page.url();
+
+  await minutes.getByTestId("rename-Agenda").click();
+  const rename = minutes.getByTestId("section-form");
+  await rename.getByLabel(M.sectionTitle, { exact: true }).fill("Topics");
+  await rename.getByRole("button", { name: messages.actions.save }).click();
+  await expect(rename).toHaveCount(0);
+  await expect(minutes.locator("#agenda-heading")).toHaveText("Topics");
+
+  await minutes.getByTestId("add-section").click();
+  const add = minutes.getByTestId("section-form");
+  await add.getByLabel(M.sectionTitle, { exact: true }).fill("Risks raised");
+  await add.getByLabel(M.sectionBody, { exact: true }).fill("Supplier may be late");
+  await add.getByRole("button", { name: messages.actions.save }).click();
+  await expect(add).toHaveCount(0);
+  await expect(minutes.getByTestId("custom-section")).toContainText("Supplier may be late");
+
+  await page.reload();
+  await expect(minutes.locator("#agenda-heading")).toHaveText("Topics");
+  await expect(minutes.getByTestId("custom-section")).toHaveCount(1);
+
+  await page.goto(`${meetingUrl}/print`);
+  await expect(page.getByRole("heading", { name: "Topics", exact: true })).toBeVisible();
+  await expect(page.getByTestId("print-custom-section")).toContainText("Supplier may be late");
+});
+
+test("gantt minutes: an action pointed at a task is listed in that task's details, opening the meeting", async ({
+  page,
+}) => {
+  test.slow();
+  await page.goto("/projects/2/deliverables/gantt?view=gantt");
+  await expect(page.getByTestId("gantt-board")).toBeVisible({ timeout: 15_000 });
+  const card = page.locator("[data-gantt-handle], button[data-gantt-item]").first();
+  await card.click();
+  const taskName = await page.getByTestId("wbs-details-name").inputValue();
+  expect(taskName).not.toBe("");
+
+  const minutes = await newMeeting(page);
+  const meetingUrl = page.url();
+  const text = `Check the task ${Date.now()}`;
+  await addAgendaItem(page, "Plan");
+  await addAction(page, "Plan", { text });
+  const row = minutes.getByTestId("action-table-row").filter({ hasText: text });
+  await row.getByRole("button", { name: /^Tasks for / }).click();
+  await row.getByRole("searchbox").fill(taskName);
+  const option = row.getByRole("checkbox").first();
+  await option.click();
+  await expect(option).toBeChecked();
+  await expect(row.getByTestId("action-task-chip")).toHaveCount(1);
+
+  await page.goto("/projects/2/deliverables/gantt?view=gantt");
+  await expect(page.getByTestId("gantt-board")).toBeVisible({ timeout: 15_000 });
+  await page.locator("[data-gantt-handle], button[data-gantt-item]").first().click();
+  const list = page.getByTestId("wbs-details-meeting-actions");
+  await expect(list.getByRole("link", { name: text })).toBeVisible();
+  await list.getByRole("link", { name: text }).click();
+  await page.waitForURL(meetingUrl);
 });

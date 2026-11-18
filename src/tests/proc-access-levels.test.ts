@@ -53,8 +53,10 @@ const MODULES: Record<string, string> = {
   "meeting-agenda-item": "meetings",
   "meeting-discussion-point": "meetings",
   "meeting-action-item": "meetings",
+  "meeting-minutes-section": "meetings",
   "meeting-action-followup": "meetings",
   "meeting-participant": "meetings",
+  whiteboard: "whiteboard",
 };
 
 /** Proc name suffix -> permission verb. */
@@ -62,6 +64,8 @@ const VERBS: Record<string, string> = {
   GetById: "read",
   List: "read",
   ListCalendar: "read",
+  // The planner's placed to-dos (migration 082).
+  ListSchedule: "read",
   ListOptions: "read",
   ListPackagingOptions: "read",
   GanttData: "read",
@@ -92,6 +96,8 @@ const VERBS: Record<string, string> = {
   // Work breakdown (ADR-0027): placing, dating and naming an item edit it.
   Move: "update",
   Reschedule: "update",
+  // Placing, moving or clearing a to-do's planner slot edits the to-do.
+  Schedule: "update",
   Rename: "update",
   // Requirements (ADR-0037): taking a requirement off one deliverable is an update of it.
   Unallocate: "update",
@@ -137,12 +143,16 @@ const VERBS: Record<string, string> = {
 
 /** Procs that legitimately call no access helper, and why. */
 const EXEMPT: Record<string, string> = {
+  usp_TodoItem_AssertSlot:
+    "internal: runs inside the to-do create and schedule procs, after their access check",
   usp_RequirementColumn_AssertName:
     "internal: runs inside the register label and column write procs, after their access check",
   usp_Checklist_AssertName:
     "internal: runs inside the checklist create and rename procs, after their access check",
   usp_BpmnDiagram_AssertName:
     "internal: runs inside the diagram create and rename procs, after their access check",
+  usp_Whiteboard_AssertName:
+    "internal: runs inside the whiteboard create and rename procs, after their access check",
   usp_RequirementCanvas_AssertDetails:
     "internal: runs inside the canvas write procs, after their access check",
   usp_Todo_FollowBoardCards:
@@ -223,6 +233,27 @@ const CROSS_SCOPE: Record<
     { entity: "Project", level: "Contributor", permission: "meetings:update" },
     { entity: "Project", level: "Contributor", permission: "assumptions-constraints:create" },
   ],
+  usp_MeetingActionItem_SetLogLinks: [
+    { entity: "Project", level: "Contributor", permission: "meetings:update" },
+    { entity: "Project", level: "Contributor", permission: "decisions:create" },
+    { entity: "Project", level: "Contributor", permission: "decisions:update" },
+    { entity: "Project", level: "Contributor", permission: "assumptions-constraints:create" },
+    { entity: "Project", level: "Contributor", permission: "assumptions-constraints:update" },
+    { entity: "Project", level: "Contributor", permission: "risks-issues:create" },
+    { entity: "Project", level: "Contributor", permission: "risks-issues:update" },
+    { entity: "Project", level: "Contributor", permission: "questions-answers:create" },
+    { entity: "Project", level: "Contributor", permission: "questions-answers:update" },
+    { entity: "Project", level: "Contributor", permission: "parking-lot:create" },
+    { entity: "Project", level: "Contributor", permission: "parking-lot:update" },
+  ],
+  usp_MeetingActionItem_SetWbsLinks: [
+    { entity: "Project", level: "Contributor", permission: "meetings:update" },
+    { entity: "Project", level: "Viewer", permission: "key-deliverables:read" },
+  ],
+  usp_KeyDeliverable_ListMeetingActions: [
+    { entity: "Project", level: "Viewer", permission: "key-deliverables:read" },
+    { entity: "Project", level: "Viewer", permission: "meetings:read" },
+  ],
   usp_BoardCard_LinkRequirement: [
     { entity: "Board", level: "Contributor", permission: "boards:update" },
     { entity: "Project", level: "Viewer", permission: "requirements:read" },
@@ -241,8 +272,17 @@ const CROSS_SCOPE: Record<
 };
 
 /** The procs whose second check is in another module (a card's source, a WBS item's assignees). */
-const SECOND_CHECK_MODULE: Record<string, string> = {
+const SECOND_CHECK_MODULE: Record<string, string | readonly string[]> = {
+  usp_MeetingActionItem_SetLogLinks: [
+    "decisions",
+    "assumptions-constraints",
+    "risks-issues",
+    "questions-answers",
+    "parking-lot",
+  ],
   usp_BoardCard_Package: "requirements",
+  usp_MeetingActionItem_SetWbsLinks: "key-deliverables",
+  usp_KeyDeliverable_ListMeetingActions: "meetings",
   usp_ChecklistItem_AddToCalendar: "todo-items",
   usp_BoardCard_LinkRequirement: "requirements",
   usp_BoardCard_PackageDeliverables: "key-deliverables",
@@ -285,11 +325,16 @@ const entityOf = (folder: string) =>
  * or removing one edits that requirement, as saving its links through usp_Requirement_Update does.
  */
 const VERB_BY_PROC: Record<string, string> = {
+  usp_MeetingActionItem_SetLogLinks: "update",
+  usp_MeetingMinutesSection_Save: "update",
+  usp_MeetingActionItem_SetWbsLinks: "update",
+  usp_KeyDeliverable_ListMeetingActions: "read",
   usp_RequirementLink_Create: "update",
   usp_RequirementLink_Delete: "update",
   usp_Requirement_DeleteImpact: "delete",
   usp_RequirementCanvas_Items: "read",
   usp_RequirementCanvas_Links: "read",
+  usp_RequirementCanvasLink_SetStyle: "update",
   usp_RequirementCanvasNode_Add: "update",
   usp_RequirementCanvasNode_Remove: "update",
   usp_Requirement_Allocate: "update",
@@ -409,9 +454,10 @@ describe("a cross-scope proc asks every scope it crosses (ADR-0038 decision 23)"
       expect(call, `${name} call ${i + 1}`).toContain(`@Permission = N'${want.permission}'`);
       // The level the UI computes for that permission, so proc and cog cannot drift apart.
       expect(requiredLevel(want.permission), `${name}: ${want.permission}`).toBe(want.level);
-      expect(want.permission.split(":")[0], `${name}: ${want.permission}`).toBe(
-        i === 1 && name in SECOND_CHECK_MODULE ? SECOND_CHECK_MODULE[name] : MODULES[proc!.folder],
-      );
+      const scope = want.permission.split(":")[0];
+      if (i > 0 && name in SECOND_CHECK_MODULE)
+        expect([SECOND_CHECK_MODULE[name]!].flat(), `${name}: ${want.permission}`).toContain(scope);
+      else expect(scope, `${name}: ${want.permission}`).toBe(MODULES[proc!.folder]);
     });
   });
 

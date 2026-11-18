@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { RichTextView } from "@/components/ui/rich-text/rich-text-view";
 import { auth } from "@/lib/auth/provider";
 import { flattenSearchParams, initialViewOf, parseListParams } from "@/lib/list-params";
+import { listForView } from "@/lib/list-print";
 import { messages } from "@/lib/messages";
 import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNotFound } from "@/lib/row-access";
@@ -44,7 +45,11 @@ export default async function MeetingsPage({
   const dateTo = meetingDateFilter(flat.to);
 
   const [rows, preference, allows] = await Promise.all([
-    orNotFound(listMeetings(projectId, listParams, session.userId, { dateFrom, dateTo })),
+    orNotFound(
+      listForView(listParams, (p, size) =>
+        listMeetings(projectId, p, session.userId, { dateFrom, dateTo }, size),
+      ),
+    ),
     getListPreference(session.userId, "meetings").catch(() => null),
     getProjectPermissions(projectId, session.userId),
   ]);

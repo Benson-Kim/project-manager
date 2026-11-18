@@ -24,6 +24,10 @@ import {
   updateDiscussionPoint,
   logDiscussionPointDecision,
   logDiscussionPointAssumption,
+  setActionLogLinks,
+  saveMinutesSection,
+  setActionWbsLinks,
+  deleteMinutesSection,
   updateFollowUp,
   updateMeeting,
 } from "../repository/meetings";
@@ -50,6 +54,10 @@ import {
   updateDiscussionPointSchema,
   logDiscussionPointDecisionSchema,
   logDiscussionPointAssumptionSchema,
+  setActionLogLinksSchema,
+  saveMinutesSectionSchema,
+  setActionWbsLinksSchema,
+  deleteMinutesSectionSchema,
   updateFollowUpSchema,
   updateMeetingFormSchema,
 } from "../schemas/meeting-form";
@@ -163,6 +171,38 @@ export const logDiscussionPointAssumptionAction = action({
   schema: logDiscussionPointAssumptionSchema,
   permission: "meetings:update",
   handler: (input, ctx) => logDiscussionPointAssumption(input, ctx.session.userId),
+});
+
+/** The proc also checks create and update on each log it writes to. */
+export const setActionLogLinksAction = action({
+  name: "meetings.action-set-log-links",
+  schema: setActionLogLinksSchema,
+  permission: "meetings:update",
+  handler: (input, ctx) => setActionLogLinks(input, ctx.session.userId),
+});
+
+/** Points an action at the WBS tasks it is about; the proc also checks the tasks can be read. */
+export const setActionWbsLinksAction = action({
+  name: "meetings.action-set-wbs-links",
+  schema: setActionWbsLinksSchema,
+  permission: "meetings:update",
+  handler: (input, ctx) => setActionWbsLinks(input, ctx.session.userId),
+});
+
+/** Renames a built-in minutes section, or adds or edits a box a user added. */
+export const saveMinutesSectionAction = action({
+  name: "meetings.section-save",
+  schema: saveMinutesSectionSchema,
+  permission: "meetings:update",
+  handler: (input, ctx) => saveMinutesSection(input, ctx.session.userId),
+});
+
+/** Removes a box a user added, or gives a built-in section its default title back. */
+export const deleteMinutesSectionAction = action({
+  name: "meetings.section-delete",
+  schema: deleteMinutesSectionSchema,
+  permission: "meetings:delete",
+  handler: (input, ctx) => deleteMinutesSection(input, ctx.session.userId),
 });
 
 /** Deletes the discussion point with its actions. */
