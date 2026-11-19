@@ -710,9 +710,7 @@ async function backupIfDue(): Promise<void> {
         "warning",
         "Backup copy failed",
         "Today's backup was saved on this PC, but copying it to your backup folder failed.",
-        `${settings.get().backupCopyDir}\n\n${
-          result.copyError
-        }\n\nUse the tray menu → "Choose backup copy folder…" to pick another location.`,
+        `${settings.get().backupCopyDir}\n\n${result.copyError}\n\nUse the tray menu → "Choose backup copy folder…" to pick another location.`,
       );
     }
   } catch (err) {
@@ -733,9 +731,7 @@ async function backupNowAction(): Promise<void> {
       r.copyError ? "warning" : "info",
       "Backup complete",
       r.copyError ? "Backup saved on this PC, but the copy failed." : "Backup complete.",
-      `${r.file}${r.copy ? `\n\nCopied to:\n${r.copy}` : ""}${
-        r.copyError ? `\n\nCopy error: ${r.copyError}` : ""
-      }`,
+      `${r.file}${r.copy ? `\n\nCopied to:\n${r.copy}` : ""}${r.copyError ? `\n\nCopy error: ${r.copyError}` : ""}`,
     );
   } catch (err) {
     log.error("[backup] manual backup failed", err);
@@ -846,9 +842,7 @@ async function restoreAction(): Promise<void> {
 async function restoreAttachmentFiles(cfg: MachineConfig, bakFile: string): Promise<string> {
   const sources = restoreSources(bakFile, settings.get().backupCopyDir);
   if (!cfg.uploadsDir) {
-    return `Attachments are off on this PC, so their files were not copied back. They stay in ${sources.join(
-      " and ",
-    )}.`;
+    return `Attachments are off on this PC, so their files were not copied back. They stay in ${sources.join(" and ")}.`;
   }
   try {
     const { copied, damaged } = await restoreUploads(sources, cfg.uploadsDir);
@@ -1070,3 +1064,4 @@ if (!app.requestSingleInstanceLock()) {
   });
   app.whenReady().then(bootstrap);
 }
+
