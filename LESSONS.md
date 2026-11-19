@@ -493,3 +493,9 @@ Numbered 35, not 33: when this was written `feature/wbs-requirements` held an un
 
 - 2026-11-05 PR #54: the decision Save trace sent no POST while lazy rich-text editors replaced their placeholders and moved the button. Wait for each real editor textbox before acting on a sheet; parking-lot creation had the same race.
 - 2026-11-05 PR #54 (supersedes the 2026-11-04 exact list-view advice): editable date cells render inputs, while grid cards show the due-soon label. Assert the exact dated grid label. Scope record helpers to data-view-grid/data-view-table: a hidden notification can hold the same title and win the first match.
+
+## Desktop connection recovery (2026-11-19, PR #63)
+
+- 2026-11-19: startup must try to start a stopped SQL service before waiting for a login. Share that recovery with sign-in, resume and the watchdog; pending/unknown states are not stopped. Older installs can lack start permission because upgrades skip provisioning, so offer service-only repair inside the app and preserve credentials/configuration while its server is running.
+- 2026-11-19: desktop sign-in preflight must finish before Auth.js receives credentials. Never pass credentials through IPC or replay authentication after recovery. A client form action returning an error can still reset uncontrolled inputs; keep sign-in fields controlled so a declined repair preserves the entered values.
+- 2026-11-19: a Windows test that stubs native command failures must clear its simulated global LASTEXITCODE before returning; the GitHub PowerShell wrapper otherwise fails a passing test. Keep real Windows security-descriptor coverage for service ACL changes.
