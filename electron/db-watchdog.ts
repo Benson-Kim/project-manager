@@ -1,5 +1,4 @@
 import type { Logger } from "./log";
-import type { ServiceState } from "./sql-service";
 
 /**
  * Notices a database engine that stopped while the app runs (client PC,
@@ -10,11 +9,8 @@ import type { ServiceState } from "./sql-service";
  */
 export interface WatchdogDeps {
   reachable: () => Promise<boolean>;
-  serviceState: () => Promise<ServiceState>;
-  /** false when Windows refused (a standard user before provisioning granted the right). */
-  startService: () => Promise<boolean>;
-  /** Resolves when the engine accepts logins again; rejects on timeout. */
-  waitForSql: () => Promise<void>;
+  /** Joins startup/sign-in recovery and proves SQL login readiness. */
+  ensureReady: () => Promise<boolean>;
   onRecovered: () => void;
   onDown: () => void;
   log: Logger;
@@ -26,35 +22,32 @@ export function createDbWatchdog(deps: WatchdogDeps): { check: () => Promise<Che
   let running = false;
   let told = false;
 
-  const recover = async (): Promise<boolean> => {
-    const state = await deps.serviceState();
-    deps.log.warn(`[db-watchdog] the database engine is not answering (service ${state})`);
-    if (state !== "stopped" || !(await deps.startService())) return false;
-    try {
-      await deps.waitForSql();
-      return true;
-    } catch (err) {
-      deps.log.error("[db-watchdog] started, but the engine did not come up", err);
-      return false;
-    }
-  };
-
   return {
     async check() {
       if (running) return "busy";
       running = true;
       try {
         if (await deps.reachable()) {
-          if (told) deps.log.info("[db-watchdog] the database engine is back");
+          if (told) {
+            deps.log.info("[db-watchdog] the database engine is back");
+            deps.onRecovered();
+          }
           told = false;
           return "ok";
         }
-        if (await recover()) {
+        if (await deps.ensureReady()) {
           deps.log.info("[db-watchdog] restarted the database engine");
           told = false;
           deps.onRecovered();
           return "recovered";
         }
+        if (!told) {
+          told = true;
+          deps.onDown();
+        }
+        return "down";
+      } catch (err) {
+        deps.log.error("[db-watchdog] check failed", err);
         if (!told) {
           told = true;
           deps.onDown();
@@ -66,3 +59,4 @@ export function createDbWatchdog(deps: WatchdogDeps): { check: () => Promise<Che
     },
   };
 }
+
