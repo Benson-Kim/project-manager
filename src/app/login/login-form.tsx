@@ -55,7 +55,7 @@ export function LoginForm() {
       }}
       className="flex flex-col gap-4"
     >
-      <ErrorSummary message={serverError} />
+      <ErrorSummary message={serverError} title={messages.auth.loginErrorTitle} />
       <Field label={messages.auth.username} name="username" errors={form.errors.username}>
         <Input
           name="username"
