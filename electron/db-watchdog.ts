@@ -59,4 +59,3 @@ export function createDbWatchdog(deps: WatchdogDeps): { check: () => Promise<Che
     },
   };
 }
-
