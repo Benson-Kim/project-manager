@@ -19,7 +19,10 @@ function setup(url: string | undefined = "http://127.0.0.1:3001") {
 
 function event(url: string, mainFrame = true): IpcMainInvokeEvent {
   const frame = { url };
-  return { senderFrame: frame, sender: { mainFrame: mainFrame ? frame : {} } } as unknown as IpcMainInvokeEvent;
+  return {
+    senderFrame: frame,
+    sender: { mainFrame: mainFrame ? frame : {} },
+  } as unknown as IpcMainInvokeEvent;
 }
 
 describe("database readiness IPC", () => {
@@ -31,7 +34,10 @@ describe("database readiness IPC", () => {
   });
 
   it.each([
-    "https://example.com/login", "http://127.0.0.1:3002/login", "file:///C:/app/login.html", "not a URL",
+    "https://example.com/login",
+    "http://127.0.0.1:3002/login",
+    "file:///C:/app/login.html",
+    "not a URL",
   ])("rejects an untrusted or stale server URL: %s", async (url) => {
     const d = setup();
     await expect(d.invoke(event(url))).rejects.toThrow("app's own pages");
@@ -50,14 +56,22 @@ describe("database readiness IPC", () => {
     const notStarted = setup();
     // Change the supplied server URL before registration, matching bootstrap before a server exists.
     let invoke!: (e: IpcMainInvokeEvent) => Promise<boolean>;
-    registerDatabaseIpc({ handle: (_channel, handler) => { invoke = handler; }, serverUrl: () => undefined, ensureReady: notStarted.ensureReady });
+    registerDatabaseIpc({
+      handle: (_channel, handler) => {
+        invoke = handler;
+      },
+      serverUrl: () => undefined,
+      ensureReady: notStarted.ensureReady,
+    });
     await expect(invoke(event("http://127.0.0.1:3001/login"))).rejects.toThrow();
     expect(notStarted.ensureReady).not.toHaveBeenCalled();
   });
 
   it("rejects renderer-supplied targets or commands", async () => {
     const d = setup();
-    await expect(d.invoke(event("http://127.0.0.1:3001/login"), { instanceName: "other" })).rejects.toThrow();
+    await expect(
+      d.invoke(event("http://127.0.0.1:3001/login"), { instanceName: "other" }),
+    ).rejects.toThrow();
     expect(d.ensureReady).not.toHaveBeenCalled();
   });
 
