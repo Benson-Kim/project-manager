@@ -17,12 +17,9 @@ export function registerDatabaseIpc(deps: DatabaseIpcDeps): void {
     const serverUrl = deps.serverUrl();
     let allowed = false;
     try {
-      allowed = Boolean(
-        serverUrl &&
-          frame &&
-          frame === event.sender.mainFrame &&
-          new URL(frame.url).origin === new URL(serverUrl).origin,
-      );
+      if (serverUrl && frame && frame === event.sender.mainFrame) {
+        allowed = new URL(frame.url).origin === new URL(serverUrl).origin;
+      }
     } catch {
       allowed = false;
     }
