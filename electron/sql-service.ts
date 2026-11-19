@@ -84,18 +84,21 @@ export async function runElevatedRepair(
 export async function runElevatedServiceRepair(
   scriptPath: string,
   sqlInstaller: string,
-  target: { instanceName: string; port: number },
+  target: { instanceName: string; port: number; dataRoot: string },
   log: Logger,
 ): Promise<number> {
   serviceName(target.instanceName);
   if (!Number.isInteger(target.port) || target.port < 1 || target.port > 65535) {
     throw new Error("Invalid SQL Server port.");
   }
+  if (!target.dataRoot || /["\r\n]/.test(target.dataRoot)) {
+    throw new Error("Invalid database configuration folder.");
+  }
   return runProvisioning(
     scriptPath,
     sqlInstaller,
     log,
-    ` -ServiceOnly -InstanceName ${target.instanceName} -Port ${target.port}`,
+    ` -ServiceOnly -InstanceName ${target.instanceName} -Port ${target.port} -DataRoot "${target.dataRoot}"`,
   );
 }
 
