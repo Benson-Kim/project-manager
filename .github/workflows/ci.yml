@@ -44,6 +44,23 @@ jobs:
           result=$?
           set -e
           cat "${RUNNER_TEMP}/modulus-format.log"
+          node --input-type=module - <<'JSFORMAT'
+          import fs from 'node:fs';
+          import prettier from 'prettier';
+          const log = fs.readFileSync(`${process.env.RUNNER_TEMP}/modulus-format.log`, 'utf8')
+            .replace(/\x1b\[[0-9;]*m/g, '');
+          const files = [...log.matchAll(/^\[warn\] (.+\.tsx?)$/gm)].map(match => match[1]);
+          const changes = [];
+          for (const file of files.slice(0, 3)) {
+            const original = fs.readFileSync(file, 'utf8');
+            const formatted = await prettier.format(original, { ...await prettier.resolveConfig(file), filepath: file });
+            const before = original.split('\n');
+            const after = formatted.split('\n');
+            const line = after.findIndex((value, index) => value !== before[index]);
+            if (line >= 0) changes.push(`${file}:${line + 1} ${JSON.stringify(after.slice(line, line + 6))}`);
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `diff=${changes.join(' | ').slice(0, 1500)}\n`);
+          JSFORMAT
           python3 - <<'PY'
           import os, re
           from pathlib import Path
@@ -56,6 +73,10 @@ jobs:
           exit "$result"
 
       - name: "Formatting diagnostics: ${{ steps.formatting.outputs.summary }}"
+        if: failure() && steps.formatting.outcome == 'failure'
+        run: "true"
+
+      - name: "Expected formatting: ${{ steps.formatting.outputs.diff }}"
         if: failure() && steps.formatting.outcome == 'failure'
         run: "true"
 
