@@ -108,4 +108,6 @@ $commands = $branch.Clauses[0].Item2.FindAll({ param($node) $node -is [System.Ma
 foreach ($command in $commands) {
   Assert-True ($command.GetCommandName() -in $allowed) 'Service-only repair must not change SQL logins, data folders or machine.json'
 }
+# The negative cases simulate native failures; do not leak their exit code to the CI host.
+$global:LASTEXITCODE = 0
 Write-Host 'Windows service recovery checks passed: permissions, idempotence, errors, pending states and service-only isolation.'
