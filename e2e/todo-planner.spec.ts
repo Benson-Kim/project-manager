@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page, type Request } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 import { addDays, HOUR_PX } from "../src/modules/todo-items/planner";
 import { closeAlarmToast } from "./support/alarms";
@@ -35,6 +35,44 @@ async function drag(page: Page, from: { x: number; y: number }, dy: number, dx =
   await page.mouse.down();
   await page.mouse.move(from.x + dx, from.y + dy, { steps: 8 });
   await page.mouse.up();
+}
+
+async function saveTodo(page: Page, form: Locator, title: string) {
+  const actions: Array<{ status: number | null; result: string }> = [];
+  const capture = (request: Request) => {
+    if (request.method() !== "POST" || !request.headers()["next-action"]) return;
+    const action = { status: null as number | null, result: "pending" };
+    actions.push(action);
+    void request
+      .response()
+      .then(async (response) => {
+        action.status = response?.status() ?? null;
+        const body = await response?.text();
+        action.result = body?.includes('"ok":true')
+          ? "ok"
+          : (/"code":"([A-Z_]+)"/.exec(body ?? "")?.[1] ?? "no result");
+      })
+      .catch(() => {
+        action.result = "response unavailable";
+      });
+  };
+  page.on("request", capture);
+  try {
+    await page.getByTestId("todo-item-save").click();
+    await expect(form).toHaveCount(0, { timeout: 15_000 });
+  } catch (cause) {
+    const state = {
+      url: new URL(page.url()).pathname + new URL(page.url()).search,
+      titleKept: (await form.getByLabel(messages.todoItems.todoItem).inputValue()) === title,
+      disabled: await page.getByTestId("todo-item-save").isDisabled(),
+      alerts: await page.getByRole("alert").allTextContents(),
+      success: await page.getByTestId("toast-success").allTextContents(),
+      actions,
+    };
+    throw new Error(`To-do save state: ${JSON.stringify(state)}`, { cause });
+  } finally {
+    page.off("request", capture);
+  }
 }
 
 test("planner — three days at a time, opens at 08:00, switches with Month", async ({ page }) => {
@@ -114,8 +152,7 @@ test("planner — drag a to-do onto 14:00, stretch to 15:30, move an hour, delet
   await page.getByTestId("new-todo-item").click();
   const form = page.getByTestId("todo-item-form");
   await form.getByLabel(messages.todoItems.todoItem).fill(title);
-  await page.getByTestId("todo-item-save").click();
-  await expect(form).toHaveCount(0, { timeout: 15_000 });
+  await saveTodo(page, form, title);
 
   await openPlanner(page, "/projects/2/calendar", day);
   const todo = page.getByTestId("planner-todo").filter({ hasText: title });
