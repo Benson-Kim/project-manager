@@ -152,10 +152,14 @@ export function isListening(host: string, port: number, timeoutMs = 5_000): Prom
 export async function startService(instanceName: string, log: Logger): Promise<boolean> {
   const name = serviceName(instanceName);
   try {
-    await execFileAsync(path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "sc.exe"), ["start", name], {
-      windowsHide: true,
-      timeout: 30_000,
-    });
+    await execFileAsync(
+      path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "sc.exe"),
+      ["start", name],
+      {
+        windowsHide: true,
+        timeout: 30_000,
+      },
+    );
     return true;
   } catch (err) {
     const e = err as { code?: number | string; stdout?: string; stderr?: string };
@@ -168,4 +172,3 @@ export async function startService(instanceName: string, log: Logger): Promise<b
     return false;
   }
 }
-
