@@ -35,9 +35,10 @@ async function addNew(page: Page, scope: Locator, box: Locator, typed: string): 
   const url = page.url();
   await box.click();
   await box.fill(typed);
-  const options = scope.getByRole("listbox").getByRole("option");
+  const list = scope.locator(`[id="${await box.getAttribute("aria-controls")}"]`);
+  const options = list.getByRole("option");
   await expect(options.first()).toHaveAttribute("data-testid", "combobox-add-new");
-  await scope.getByTestId("combobox-add-new").click();
+  await list.getByTestId("combobox-add-new").click();
   const quick = page.getByTestId("stakeholder-quick-create");
   const [first, ...rest] = typed.split(" ");
   await expect(quick.getByLabel(S.firstName)).toHaveValue(first);
@@ -162,7 +163,7 @@ test("the Overview team's new-member box is searched, picked, and added new in p
 
   const newcomer = `E2E Zzteam${Date.now()}`;
   await addNew(page, row, box, newcomer);
-  await expect(box).toHaveValue(newcomer);
+  await expect(box).toHaveValue(P.assigneeStakeholderOption(newcomer));
   await addToTeam.click();
   const team = page.getByTestId("assignee-list");
   const remove = team.getByRole("button", { name: P.removeAssignee(newcomer) });
