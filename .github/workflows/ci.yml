@@ -37,7 +37,49 @@ jobs:
         run: npm run lint
 
       - name: Check Formatting
-        run: npm run format:check
+        id: formatting
+        run: |
+          set +e
+          npm run format:check > "${RUNNER_TEMP}/modulus-format.log" 2>&1
+          result=$?
+          set -e
+          cat "${RUNNER_TEMP}/modulus-format.log"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          lines = Path(os.environ['RUNNER_TEMP'], 'modulus-format.log').read_text().splitlines()
+          warnings = [line for line in lines if line.startswith('[warn]')]
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('summary=' + ' | '.join(warnings[:15])[:1500] + '\n')
+          PY
+          exit "$result"
+
+      - name: "Formatting diagnostics: ${{ steps.formatting.outputs.summary }}"
+        if: failure() && steps.formatting.outcome == 'failure'
+        run: 'true'
+
+  windows-database-recovery:
+    name: Windows Database Recovery
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Check service recovery on Windows PowerShell
+        id: recovery
+        shell: powershell
+        run: |
+          try {
+            & .\electron\tests\service-recovery.ps1
+          } catch {
+            $summary = $_.Exception.Message -replace '[\r\n]+', ' '
+            "summary=$summary" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            throw
+          }
+
+      - name: "Windows recovery diagnostics: ${{ steps.recovery.outputs.summary }}"
+        if: failure() && steps.recovery.outcome == 'failure'
+        run: 'true'
 
   typecheck:
     name: TypeScript Check
@@ -233,7 +275,7 @@ jobs:
     name: Playwright E2E Smoke Tests
     runs-on: ubuntu-latest
     needs: [build, db-apply]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || contains(github.event.head_commit.message, '[e2e]')
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || contains(github.event.head_commit.message, '[e2e]')
     services:
       mssql:
         image: mcr.microsoft.com/mssql/server:2022-latest
