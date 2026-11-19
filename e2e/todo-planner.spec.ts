@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page, type Request } from "@playwright
 import { messages } from "../src/lib/messages";
 import { addDays, HOUR_PX } from "../src/modules/todo-items/planner";
 import { closeAlarmToast } from "./support/alarms";
+import { waitForRichTextEditors } from "./support/editor";
 
 /**
  * To-do Planner: three days at a time, 24 hours from 08:00, entries typed, dragged,
@@ -58,6 +59,7 @@ async function saveTodo(page: Page, form: Locator, title: string) {
   };
   page.on("request", capture);
   try {
+    await waitForRichTextEditors(form);
     await page.getByTestId("todo-item-save").click();
     await expect(form).toHaveCount(0, { timeout: 15_000 });
   } catch (cause) {
