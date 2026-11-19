@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
 import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
+import { listForView } from "@/lib/list-print";
 import { messages } from "@/lib/messages";
 import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNotFound, orNull } from "@/lib/row-access";
@@ -44,7 +45,9 @@ export default async function ObjectivesPage({
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
   const [rows, preference, selectedRaw, allows] = await Promise.all([
-    orNotFound(listObjectives(listParams, session.userId, projectId, undefined)),
+    orNotFound(
+      listForView(listParams, (p, size) => listObjectives(p, session.userId, projectId, size)),
+    ),
     getListPreference(session.userId, "objectives").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? orNull(getObjectiveById(selectedId, session.userId))

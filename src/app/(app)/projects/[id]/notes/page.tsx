@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
 import { initialViewOf, parseListParams } from "@/lib/list-params";
+import { listForView } from "@/lib/list-print";
 import { messages } from "@/lib/messages";
 import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNotFound } from "@/lib/row-access";
@@ -33,7 +34,7 @@ export default async function NotesPage({
   const listParams = parseListParams(await searchParams, NOTE_SORT);
 
   const [rows, preference, allows] = await Promise.all([
-    orNotFound(listNotes(listParams, session.userId, projectId)),
+    orNotFound(listForView(listParams, (p, size) => listNotes(p, session.userId, projectId, size))),
     getListPreference(session.userId, "notes").catch(() => null),
     getProjectPermissions(projectId, session.userId),
   ]);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Placement } from "../canvas/board-model";
 import { itemKey } from "../canvas/gaps";
+import { lookOf } from "../canvas/link-layout";
 import { linkBack, nodesBack, savedLink, stepBack, undoApplies, unlinkBack } from "../canvas/undo";
 import type { CanvasItem, CanvasLink } from "../schemas/canvas";
 import type { LinkRule } from "../schemas/link-rules";
@@ -131,5 +132,22 @@ describe("canvas redo: the step back of an undo", () => {
   it("takes away again the link an undo brings back", () => {
     expect(stepBack(unlinkBack(link()), [br, fr], [], rules)).toEqual(linkBack(br, fr));
     expect(stepBack(unlinkBack(link()), [br, fr], [link()], rules)).toBeNull();
+  });
+});
+
+describe("style undo", () => {
+  const step = { kind: "style" as const, upKey: key(br), downId: 2, before: lookOf(link()) };
+
+  it("keeps the look a link has now, so Redo can put it back", () => {
+    const back = stepBack(step, [br, fr], [link({ LineShape: "curved", BranchFromId: 5 })], rules);
+    expect(back).toMatchObject({ kind: "style", upKey: key(br), downId: 2 });
+    expect(back?.kind === "style" && back.before.style.shape).toBe("curved");
+    expect(back?.kind === "style" && back.before.branchFromId).toBe(5);
+  });
+
+  it("applies only while the link is there", () => {
+    expect(undoApplies(step, [br, fr], [link()], rules)).toBe(true);
+    expect(undoApplies(step, [br, fr], [], rules)).toBe(false);
+    expect(stepBack(step, [br, fr], [], rules)).toBeNull();
   });
 });

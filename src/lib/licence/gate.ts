@@ -1,5 +1,6 @@
 import {
   evaluate,
+  OFFLINE_GRACE,
   openCheckIn,
   openLicence,
   readMark,
@@ -9,7 +10,7 @@ import {
 } from "./policy";
 import { readStoredLicence, type StoredLicence } from "./repository";
 
-export const GATE_CACHE_FOR = 30_000;
+export const GATE_CACHE_FOR = 5_000;
 
 export interface GateEnv {
   enforce: boolean;
@@ -39,12 +40,13 @@ export function gateEnv(env: NodeJS.ProcessEnv = process.env): GateEnv {
   };
 }
 
-export function licenceStatus(
+function assess(
   env: GateEnv,
   stored: StoredLicence | null,
   wall: number,
-): LicenceStatus {
-  if (!env.enforce) return "off";
+  seenMark = 0,
+): { status: LicenceStatus; changesAt: number; mark: number } {
+  if (!env.enforce) return { status: "off", changesAt: Infinity, mark: seenMark };
   const licence = openLicence(stored?.licence, env.keys);
   const checkIn = licence
     ? openCheckIn(stored?.checkIn, env.keys, {
@@ -54,8 +56,9 @@ export function licenceStatus(
     : null;
   const mark = readMark(stored?.mark, env.markKey);
   const lastServerTime = checkIn?.serverTime ?? null;
-  const floors = [typeof mark === "number" ? mark : 0, lastServerTime ?? 0];
-  return evaluate({
+  const highest = Math.max(seenMark, typeof mark === "number" ? mark : 0);
+  const floors = [highest, lastServerTime ?? 0];
+  const status = evaluate({
     enforce: true,
     licence,
     machineHash: env.machineHash,
@@ -63,29 +66,60 @@ export function licenceStatus(
     lastServerTime,
     markTrusted: typeof mark === "number",
   });
+  const changesAt =
+    licence?.kind === "trial"
+      ? Math.min(licence.expiresAt ?? Infinity, (lastServerTime ?? Infinity) + OFFLINE_GRACE)
+      : Infinity;
+  return { status, changesAt, mark: highest };
+}
+
+export function licenceStatus(
+  env: GateEnv,
+  stored: StoredLicence | null,
+  wall: number,
+): LicenceStatus {
+  return assess(env, stored, wall).status;
 }
 
 export function allowsChanges(status: LicenceStatus): boolean {
   return status === "active" || status === "off";
 }
 
+export type LicenceGate = (() => Promise<LicenceStatus>) & { invalidate(): void };
+
 export function createLicenceGate(deps: {
   env: () => GateEnv;
   read: (machineHash: string) => Promise<StoredLicence | null>;
   wall: () => number;
-}): () => Promise<LicenceStatus> {
-  let cached: { status: LicenceStatus; until: number } | null = null;
-  return async () => {
+}): LicenceGate {
+  let seenMark = 0;
+  let cached: { status: LicenceStatus; from: number; until: number } | null = null;
+  let pending: Promise<LicenceStatus> | null = null;
+  const load = async (env: GateEnv, wall: number) => {
+    const stored = env.machineHash ? await deps.read(env.machineHash) : null;
+    const { status, changesAt, mark } = assess(env, stored, wall, seenMark);
+    seenMark = mark;
+    cached =
+      status === "active"
+        ? { status, from: wall, until: Math.min(wall + GATE_CACHE_FOR, changesAt) }
+        : null;
+    return status;
+  };
+  const gate = async () => {
     const env = deps.env();
     if (!env.enforce) return "off";
     const wall = deps.wall();
-    if (cached && wall >= cached.until - GATE_CACHE_FOR && wall < cached.until)
-      return cached.status;
-    const stored = env.machineHash ? await deps.read(env.machineHash) : null;
-    const status = licenceStatus(env, stored, wall);
-    cached = { status, until: wall + GATE_CACHE_FOR };
-    return status;
+    if (cached && wall >= cached.from && wall < cached.until) return cached.status;
+    pending ??= load(env, wall).finally(() => {
+      pending = null;
+    });
+    return pending;
   };
+  return Object.assign(gate, {
+    invalidate() {
+      cached = null;
+    },
+  });
 }
 
 export const currentLicenceStatus = createLicenceGate({

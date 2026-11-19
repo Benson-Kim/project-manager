@@ -1,14 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type KeyboardEvent, useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { buttonClass } from "@/components/ui/button-styles";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DRAG_SOURCE } from "@/components/ui/drag/drag-look";
 import { moveBefore } from "@/components/ui/drag/pointer-drag";
 import { DROP_MS, usePointerDrag } from "@/components/ui/drag/use-pointer-drag";
+import { Combobox } from "@/components/ui/form/combobox";
 import { Select } from "@/components/ui/form/inputs";
 import { useFlip } from "@/components/ui/motion/use-flip";
 import { SaveDot } from "@/components/ui/save-dot";
@@ -16,7 +15,7 @@ import { HistoryButtons } from "@/components/undo/history-buttons";
 import { type EditorHistory, useLendHistory } from "@/components/undo/page-history";
 import type { ActionResult } from "@/lib/action";
 import { messages } from "@/lib/messages";
-import { useFullscreen } from "@/modules/key-deliverables/components/use-fullscreen";
+import { FULLSCREEN_FRAME, useFullscreen } from "@/components/shell/use-fullscreen";
 import {
   addResponsibilityMemberAction,
   createResponsibilityMatrixAction,
@@ -54,6 +53,7 @@ import { ResponsibilityCsvButton } from "./responsibility-csv-button";
 import { type NewMatrix, ResponsibilityMatrixMenu } from "./responsibility-matrix-menu";
 import { MEMBER_LANE, ResponsibilityMemberHeads } from "./responsibility-member-heads";
 import { RoleChips, roleTone } from "./role-chips";
+import { StakeholderQuickCreate, useStakeholderQuickCreate } from "./stakeholder-quick-create";
 import { useLatestReplay } from "./use-latest-replay";
 import { useSaveQueue } from "./use-save-queue";
 
@@ -160,6 +160,11 @@ export function ResponsibilityView({
 
   function member(stakeholderId: number) {
     return { projectId, matrixId: selected!.id, stakeholderId, rowVer: selected!.rowVer };
+  }
+
+  const quick = useStakeholderQuickCreate(canCreate);
+  function addMember(stakeholderId: number) {
+    run(() => addResponsibilityMemberAction(member(stakeholderId)));
   }
 
   // A moved column stays where it was put until the page comes back with the saved order.
@@ -360,9 +365,7 @@ export function ResponsibilityView({
   return (
     <div
       className={
-        fullscreen.active
-          ? "fixed inset-0 z-(--z-fullscreen) flex flex-col gap-2 overflow-auto bg-surface p-2"
-          : "flex flex-col gap-2"
+        fullscreen.active ? `${FULLSCREEN_FRAME} flex flex-col gap-2 p-2` : "flex flex-col gap-2"
       }
       onKeyDown={onHistoryKey}
     >
@@ -379,41 +382,22 @@ export function ResponsibilityView({
           onRename={renameMatrix}
           onDelete={deleteMatrix}
         />
-        {selected && canEdit && addable.length > 0 ? (
-          <div className="w-56">
-            <Select
-              aria-label={t.addMember}
-              data-testid="responsibility-add-member"
-              value=""
-              disabled={busy}
-              onChange={(event) => {
-                const stakeholderId = Number(event.target.value);
-                if (stakeholderId) run(() => addResponsibilityMemberAction(member(stakeholderId)));
+        {selected && canEdit && (addable.length > 0 || canCreate) ? (
+          <div className="w-56" data-testid="responsibility-add-member">
+            <Combobox
+              ariaLabel={t.addMember}
+              placeholder={t.addPersonPlaceholder}
+              options={addable.map((s) => ({ value: String(s.stakeholderId), label: s.name }))}
+              addNew={quick.addNew}
+              onPick={(choice) => {
+                if (!busy) addMember(Number(choice.value));
               }}
-            >
-              <option value="">{t.addPersonPlaceholder}</option>
-              {addable.map((s) => (
-                <option key={s.stakeholderId} value={s.stakeholderId}>
-                  {s.name}
-                </option>
-              ))}
-            </Select>
+            />
           </div>
-        ) : selected && canEdit ? (
-          <p
-            className="flex flex-wrap items-center gap-2 text-xs text-ink-muted"
-            data-testid="responsibility-no-one-to-add"
-          >
+        ) : null}
+        {selected && canEdit && addable.length === 0 ? (
+          <p className="text-xs text-ink-muted" data-testid="responsibility-no-one-to-add">
             {stakeholders.length === 0 ? t.noOneToAdd : t.everyoneAdded}
-            {canCreate ? (
-              <Link
-                href={`/projects/${projectId}/stakeholders?id=new`}
-                className={buttonClass("secondary", "compact")}
-                data-testid="responsibility-add-stakeholder"
-              >
-                {t.addStakeholder}
-              </Link>
-            ) : null}
           </p>
         ) : null}
         {selected && framework && grid ? (
@@ -436,21 +420,33 @@ export function ResponsibilityView({
               rows={rows.map((r) => ({ ref: refOf(r.id), label: r.label }))}
               grid={grid}
             />
-            {fullscreen.supported ? (
-              <Button
-                type="button"
-                variant="secondary"
-                size="compact"
-                aria-pressed={fullscreen.active}
-                data-testid="responsibility-fullscreen"
-                onClick={() => void fullscreen.toggle()}
-              >
-                {fullscreen.label}
-              </Button>
-            ) : null}
+            <Button
+              type="button"
+              variant="secondary"
+              size="compact"
+              aria-pressed={fullscreen.active}
+              data-testid="responsibility-fullscreen"
+              onClick={() => void fullscreen.toggle()}
+            >
+              {fullscreen.label}
+            </Button>
           </div>
         ) : null}
       </div>
+
+      {selected && canEdit && quick.draft !== null ? (
+        <div className="max-w-xl px-2">
+          <StakeholderQuickCreate
+            projectId={projectId}
+            typed={quick.draft}
+            onCancel={quick.close}
+            onCreated={(option) => {
+              quick.close();
+              addMember(option.stakeholderId);
+            }}
+          />
+        </div>
+      ) : null}
 
       {notice ? (
         <p role="alert" className="px-2 text-xs text-danger">

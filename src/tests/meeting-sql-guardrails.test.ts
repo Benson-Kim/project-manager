@@ -65,7 +65,7 @@ function escape(text: string): string {
 
 describe("meeting SQL guardrails", () => {
   it("finds every meeting proc", () => {
-    expect(PROCS.size).toBe(41);
+    expect(PROCS.size).toBe(43);
   });
 
   it("labels participants the same way everywhere, guests included", () => {
@@ -327,7 +327,7 @@ describe("meeting SQL guardrails", () => {
 
   it("keeps null keys in the workspace's JSON collections", () => {
     const workspace = sql("usp_Meeting_GetWorkspace");
-    expect(workspace.match(/FOR JSON PATH, INCLUDE_NULL_VALUES\) AS \w+Json/g)).toHaveLength(6);
+    expect(workspace.match(/FOR JSON PATH, INCLUDE_NULL_VALUES\) AS \w+Json/g)).toHaveLength(7);
     expect(sql("usp_Meeting_GetRoster")).toContain(
       "FOR JSON PATH, INCLUDE_NULL_VALUES) AS RosterJson",
     );

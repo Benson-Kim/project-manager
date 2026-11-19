@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { auth } from "@/lib/auth/provider";
 import { uploadsEnabled } from "@/lib/env";
 import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
+import { listForView } from "@/lib/list-print";
 import { messages } from "@/lib/messages";
 import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNull } from "@/lib/row-access";
@@ -66,12 +67,8 @@ export default async function GlobalDailyActivitiesPage({
   };
 
   const [rows, preference, lookup, projectless, selected] = await Promise.all([
-    listDailyActivities(
-      effectiveParams,
-      session.userId,
-      filteredProjectId(projectFilter),
-      undefined,
-      filters,
+    listForView(effectiveParams, (p, size) =>
+      listDailyActivities(p, session.userId, filteredProjectId(projectFilter), size, filters),
     ),
     getListPreference(session.userId, "daily-activities").catch(() => null),
     loadLookupLists(DAILY_ACTIVITY_LISTS, session),

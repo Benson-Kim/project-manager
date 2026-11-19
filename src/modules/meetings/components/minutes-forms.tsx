@@ -65,7 +65,7 @@ const M = messages.meetings;
  * vanished row offers Reload, which drops the draft and reads the meeting
  * again.
  */
-function MinutesForm<S extends z.ZodType>({
+export function MinutesForm<S extends z.ZodType>({
   part,
   schema,
   label,
@@ -462,7 +462,7 @@ export function ActionItemForm({
   action?: WorkspaceActionItem;
   onDone: (saved: boolean) => void;
 }) {
-  const { answer, people } = useMinutes();
+  const { answer, people, projectId, canAddStakeholder } = useMinutes();
   const [started] = useState(action);
   const common = {
     label: action ? M.editItem(M.actionEntity) : M.addAction,
@@ -492,6 +492,8 @@ export function ActionItemForm({
           */}
           <StakeholderSelect
             name="assignedToStakeholderId"
+            projectId={projectId}
+            canAdd={canAddStakeholder}
             options={people(
               action && action.AssignedToStakeholderId !== null
                 ? { id: action.AssignedToStakeholderId, name: action.AssigneeName }
@@ -574,7 +576,7 @@ export function FollowUpForm({
   followUp?: WorkspaceFollowUp;
   onDone: (saved: boolean) => void;
 }) {
-  const { answer, people } = useMinutes();
+  const { answer, people, projectId, canAddStakeholder } = useMinutes();
   const [started] = useState(followUp);
   const common = {
     label: followUp ? M.editItem(M.followUpEntity) : M.addFollowUp,
@@ -602,6 +604,8 @@ export function FollowUpForm({
         >
           <StakeholderSelect
             name="assignedToStakeholderId"
+            projectId={projectId}
+            canAdd={canAddStakeholder}
             options={people(
               followUp
                 ? { id: followUp.AssignedToStakeholderId, name: followUp.AssigneeName }

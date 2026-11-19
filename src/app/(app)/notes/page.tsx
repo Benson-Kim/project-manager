@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { auth } from "@/lib/auth/provider";
 import { flattenSearchParams, initialViewOf, parseListParams } from "@/lib/list-params";
+import { listForView } from "@/lib/list-print";
 import { messages } from "@/lib/messages";
 import { getListPreference } from "@/lib/repositories/view-preference";
 import { NewNoteButton } from "@/modules/notes/components/new-note-button";
@@ -35,9 +36,11 @@ export default async function GlobalNotesPage({
   const targetProjectId = filteredProjectId(projectFilter);
 
   const [rows, preference, allows] = await Promise.all([
-    listNotes(listParams, session.userId, targetProjectId, undefined, {
-      withoutProject: projectFilter.kind === "none",
-    }),
+    listForView(listParams, (p, size) =>
+      listNotes(p, session.userId, targetProjectId, size, {
+        withoutProject: projectFilter.kind === "none",
+      }),
+    ),
     getListPreference(session.userId, "notes").catch(() => null),
     getProjectPermissions(targetProjectId, session.userId),
   ]);

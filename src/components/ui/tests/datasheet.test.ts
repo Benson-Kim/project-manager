@@ -11,10 +11,35 @@ import {
   invalidFields,
   isCellChanged,
   isEditableTarget,
+  keepsOnOneLine,
   rowSaveQueue,
   singleLine,
   type CellEditor,
 } from "../data-view/datasheet";
+
+describe("keepsOnOneLine: cell text that must not wrap on screen or paper", () => {
+  it.each([
+    "2026-11-18",
+    "2026-11-18 09:30",
+    "+1 561 6718 677",
+    "(020) 123-4567",
+    "1,250.00",
+    "42",
+  ])("keeps %s on one line", (text) => expect(keepsOnOneLine(text)).toBe(true));
+
+  it.each([
+    "",
+    "Organization and efficiency",
+    "E2E comms plan 1793782268175",
+    "0123456789 0123456789 0123",
+    "1\n2",
+  ])("lets %j wrap", (text) => expect(keepsOnOneLine(text)).toBe(false));
+
+  it("lets anything but plain text wrap", () => {
+    expect(keepsOnOneLine(null)).toBe(false);
+    expect(keepsOnOneLine(42)).toBe(false);
+  });
+});
 
 describe("rowSaveQueue: quick edits to one row", () => {
   type Row = { id: number; rowVer: number; due: string; note: string };

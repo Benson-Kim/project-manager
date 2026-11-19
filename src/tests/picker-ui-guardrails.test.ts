@@ -43,8 +43,13 @@ describe("an option picker closes its panel when it commits a choice", () => {
     expect(source(path)).toContain("onFocus={() => setOpen(true)}");
   });
 
-  it.each([MULTI, COMBO])("%s takes the panel out of the tree when it is closed", (path) => {
-    expect(source(path)).toContain("hidden={!open || filtered.length === 0}");
+  it("the multi-select takes the panel out of the tree when it is closed", () => {
+    expect(source(MULTI)).toContain("hidden={!open || filtered.length === 0}");
+  });
+
+  it("the combobox takes the panel out of the tree when it is closed or has nothing to list", () => {
+    expect(source(COMBO)).toContain("const listed = open && itemCount > 0;");
+    expect(source(COMBO)).toContain("hidden={!listed}");
   });
 
   it("places the multi-select's panel against the whole field, so opening up never covers a chip", () => {
@@ -86,5 +91,42 @@ describe("an option picker closes its panel when it commits a choice", () => {
     // the overlay it opens inside.
     expect(source(path)).toContain("z-(--z-dropdown)");
     expect(source(path)).not.toContain("z-(--z-dialog)");
+  });
+});
+
+describe("the combobox's Add new item comes first and is never taken by accident", () => {
+  const combo = source(COMBO);
+
+  it("draws Add new before the listed options", () => {
+    const addNew = combo.indexOf('data-testid="combobox-add-new"');
+    expect(addNew).toBeGreaterThan(-1);
+    expect(combo.indexOf("{ranked.map(", addNew)).toBeGreaterThan(addNew);
+    expect(combo.lastIndexOf("{ranked.map(", addNew)).toBe(-1);
+  });
+
+  it("lets the arrow keys reach Add new at the top and nowhere above it", () => {
+    expect(combo).toContain("const firstIndex = addNew ? ADD_NEW : 0;");
+    expect(combo).toContain("setActiveIndex((i) => Math.max(i - 1, firstIndex));");
+  });
+
+  it("takes Add new on Enter only after the arrow keys moved to it, so typing then Enter never creates", () => {
+    expect(combo).toContain("if (open && onAddNew && keyedRef.current) {");
+    expect(combo).toContain(
+      "if (open && active && (keyedRef.current || active.rank < NO_MATCH)) {",
+    );
+  });
+
+  it("starts the typed text over in a box that adds each pick, once Add new takes it", () => {
+    expect(callback(COMBO, "chooseAddNew")).toContain('if (onPick) setQuery("");');
+  });
+
+  it("rounds Add new with the list, which has no padding of its own", () => {
+    const item = combo.slice(combo.indexOf('data-testid="combobox-add-new"'));
+    expect(item.slice(0, item.indexOf("onMouseDown"))).toContain(
+      "first:rounded-t-md last:rounded-b-md",
+    );
+    const list = /role="listbox"[\s\S]*?className="([^"]*)"/.exec(combo)?.[1] ?? "";
+    expect(list).toContain("rounded-md");
+    expect(list).not.toMatch(/(^|\s)p[xy]?-\d/);
   });
 });

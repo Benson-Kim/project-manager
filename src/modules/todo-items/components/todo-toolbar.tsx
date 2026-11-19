@@ -27,7 +27,9 @@ export function TodoToolbar({
 
   return (
     <Toolbar>
-      <SearchInput testId="todo-search" placeholder={messages.list.search} />
+      <div className="flex min-w-48 flex-1">
+        <SearchInput testId="todo-search" placeholder={messages.list.search} />
+      </div>
       {projectFilterOptions ? <ProjectFilter options={projectFilterOptions} /> : null}
 
       {/* Status filter */}

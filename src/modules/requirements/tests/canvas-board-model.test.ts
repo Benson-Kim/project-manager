@@ -129,6 +129,11 @@ describe("canvas board model", () => {
     expect(edge?.data?.link).toBe(saved);
   });
 
+  it("draws every link through the shared router, straight or right-angle, never curved", () => {
+    const [edge] = boardEdges([item({ ItemId: 1 }), item({ ItemId: 2 })], [link()]);
+    expect(edge?.type).toBe("routed");
+  });
+
   it("lays placements over the server's items and leaves the others alone", () => {
     const placement = { OnCanvas: true, X: 5, Y: 6, IsCollapsed: true };
     const [first, second] = applyPlacements(
@@ -461,5 +466,41 @@ describe("canvas cluster labels", () => {
     expect(clusterLabels(items, folded, clusters)).toEqual([
       { key: "Wbs:1", text: "1 Build", x: 100, y: 200 - CLUSTER_LABEL_RISE },
     ]);
+  });
+});
+
+describe("styled edges", () => {
+  const items = [item({ ItemId: 1 }), item({ ItemId: 2 }), item({ ItemId: 3 })];
+
+  it("draws a link nobody styled as today's edge", () => {
+    const plain = link({ LineShape: null, LineColour: null, BranchFromId: null });
+    expect(boardEdges(items, [plain])[0]).toEqual({
+      id: "Requirement:1>Requirement:2",
+      type: "routed",
+      source: "Requirement:1",
+      target: "Requirement:2",
+      sourceHandle: "downstream",
+      targetHandle: "upstream",
+      markerEnd: { type: "arrowclosed" },
+      hidden: false,
+      data: { link: plain, count: 1 },
+    });
+  });
+
+  it("carries a link's weight, colour, dashes and branch onto its edge", () => {
+    const styled = link({
+      UpstreamId: 1,
+      DownstreamId: 3,
+      LinePattern: "dashed",
+      LineWeight: 3,
+      LineColour: "#3366CC",
+      BranchFromId: 2,
+      BranchAt: 40,
+    });
+    const [edge] = boardEdges(items, [styled]);
+    expect(edge?.style?.strokeWidth).toBe(3);
+    expect(edge?.style?.stroke).toBe("#3366CC");
+    expect(edge?.style?.strokeDasharray).toBeTruthy();
+    expect(edge?.data?.branch).toEqual({ fromEdge: "Requirement:1>Requirement:2", at: 40 });
   });
 });

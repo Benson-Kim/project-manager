@@ -38,6 +38,7 @@ import {
   updateTodoItemAction,
   deleteTodoItemAction,
 } from "../actions";
+import { slotOf, slotText } from "../planner";
 import { TodoToolbar } from "./todo-toolbar";
 import { notifySaved } from "@/lib/cross-window";
 
@@ -116,14 +117,38 @@ function ReorderControls({
   );
 }
 
+const PILL =
+  "inline-flex items-center rounded-full border border-line bg-surface-sunken px-1.5 py-0.5 text-xs font-medium text-ink-muted";
+
 /** A series (ADR-0059): the list shows it once, marked so it is not taken for a one-off. */
 function RepeatsBadge({ className = "" }: { className?: string }) {
   return (
-    <span
-      className={`inline-flex items-center rounded-full border border-line bg-surface-sunken px-1.5 py-0.5 text-xs font-medium text-ink-muted ${className}`}
-      data-testid="todo-repeats-badge"
-    >
+    <span className={`${PILL} ${className}`} data-testid="todo-repeats-badge">
       {messages.todoItems.repeats}
+    </span>
+  );
+}
+
+/** A to-do placed on the planner: a lit dot, as on the diagram's save light, and when it is. */
+function CalendarMarker({
+  row,
+  className = "",
+}: {
+  row: Pick<Row, "ScheduledStart" | "ScheduledEnd">;
+  className?: string;
+}) {
+  const slot = slotOf(row.ScheduledStart, row.ScheduledEnd);
+  if (!slot) return null;
+  const when = slotText(slot);
+  return (
+    <span
+      className={`${PILL} gap-1 ${className}`}
+      title={messages.todoItems.planner.markerTitle(when)}
+      data-testid="todo-calendar-marker"
+    >
+      <span aria-hidden="true" className="size-2 rounded-full bg-accent" />
+      {messages.todoItems.planner.marker}
+      <span className="sr-only">{when}</span>
     </span>
   );
 }
@@ -152,6 +177,12 @@ function buildColumns(
         </>
       ),
     }),
+    {
+      key: "Calendar",
+      header: messages.todoItems.planner.marker,
+      priority: 2,
+      render: (r) => <CalendarMarker row={r} />,
+    },
     listColumn({
       key: "Status",
       header: messages.todoItems.status,
@@ -303,6 +334,7 @@ export function TodoView({
             <Badge value={row.Status} />
             <Badge value={row.Priority} />
             {row.Repeats ? <RepeatsBadge /> : null}
+            <CalendarMarker row={row} />
           </div>
           {projects && row.ProjectName ? (
             <p className="text-xs text-ink-muted">

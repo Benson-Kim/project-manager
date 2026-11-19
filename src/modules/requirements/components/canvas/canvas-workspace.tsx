@@ -5,8 +5,9 @@ import { type ReactNode, useMemo, useState } from "react";
 import { useFullPage } from "@/components/shell/use-full-page";
 import { Button } from "@/components/ui/button";
 import { PrintButton } from "@/components/ui/print-button";
+import { PLAIN_STYLE } from "@/lib/connector-style";
 import { messages } from "@/lib/messages";
-import { itemConnection } from "../../canvas/board-model";
+import { itemConnection, type BranchStart } from "../../canvas/board-model";
 import { canvasGaps, itemKey } from "../../canvas/gaps";
 import type { Point } from "../../canvas/layout";
 import { savedLink, stepBack, undoApplies, type CanvasUndo } from "../../canvas/undo";
@@ -17,6 +18,7 @@ import { CanvasBoard, type CanvasView } from "./canvas-board";
 const M = messages.requirements.canvas;
 import { RepositoryList } from "./repository-list";
 import { useCanvasLinks } from "./use-canvas-links";
+import { useCanvasLinkStyles } from "./use-canvas-link-styles";
 import { useCanvasNodes } from "./use-canvas-nodes";
 import { useCanvasUndo } from "./use-canvas-undo";
 
@@ -27,7 +29,7 @@ import { useCanvasUndo } from "./use-canvas-undo";
 export function CanvasWorkspace({
   canvasId,
   items,
-  links,
+  links: savedLinks,
   linkRules,
   canEdit,
   newRequirementHref,
@@ -57,6 +59,7 @@ export function CanvasWorkspace({
     history.remember,
   );
   const { connect, disconnect } = useCanvasLinks(history.remember);
+  const { links, setLook } = useCanvasLinkStyles(canvasId, savedLinks, history.remember);
   const gaps = useMemo(() => canvasGaps(shown, links), [shown, links]);
 
   const linkFor = (sourceKey: string, targetKey: string) =>
@@ -64,6 +67,21 @@ export function CanvasWorkspace({
   const link = (sourceKey: string, targetKey: string) => {
     const made = linkFor(sourceKey, targetKey);
     if (made) void connect(made);
+  };
+  const branch = async (sourceKey: string, targetKey: string, from: BranchStart) => {
+    const made = linkFor(sourceKey, targetKey);
+    if (!made || !(await connect(made))) return;
+    void setLook(
+      {
+        UpstreamKind: made.up.Kind,
+        UpstreamId: made.up.ItemId,
+        DownstreamId: made.down.ItemId,
+        LinkStatus: "Proposed",
+        RowVer: 0,
+      },
+      { style: PLAIN_STYLE, branchFromId: from.fromId, branchAt: from.at },
+      false,
+    );
   };
 
   const applies = (step: CanvasUndo) => undoApplies(step, shown, links, linkRules);
@@ -78,6 +96,10 @@ export function CanvasWorkspace({
     if (step?.kind === "relink") {
       const made = linkFor(step.upKey, step.downKey);
       if (made) void connect(made, false);
+    }
+    if (step?.kind === "style") {
+      const saved = savedLink(links, step.upKey, step.downId);
+      if (saved) void setLook(saved, step.before, false);
     }
   };
   const undo = () => {
@@ -185,7 +207,9 @@ export function CanvasWorkspace({
             canRedo={history.canRedo(applies)}
             canLink={(sourceKey, targetKey) => linkFor(sourceKey, targetKey) !== null}
             onLink={link}
+            onBranch={(sourceKey, targetKey, from) => void branch(sourceKey, targetKey, from)}
             onUnlink={(saved) => void disconnect(saved)}
+            onStyle={(saved, look) => void setLook(saved, look)}
             onInspect={inspect}
             onToggleCollapse={(item) => void toggleCollapse(item)}
           />

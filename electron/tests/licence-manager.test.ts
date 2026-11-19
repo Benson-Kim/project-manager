@@ -10,7 +10,12 @@ const machine = "a".repeat(64);
 const pair = generateKeyPairSync("ed25519");
 const keys = { k1: pair.publicKey.export({ type: "spki", format: "der" }).toString("base64url") };
 const signDoc = (body: object) => {
-  const payload = Buffer.from(JSON.stringify({ v: 1, ...body })).toString("base64url");
+  const claims = {
+    typ: "nonce" in body ? "checkin" : "licence",
+    aud: "modulus-desktop",
+    iss: "modulus-licence-service",
+  };
+  const payload = Buffer.from(JSON.stringify({ v: 1, ...claims, ...body })).toString("base64url");
   return {
     kid: "k1",
     payload,
@@ -266,6 +271,31 @@ describe("licence manager service calls", () => {
     expect(store.peek().licence).toEqual(fullDoc);
   });
 
+  it("replaces a held full licence with the free licence the next check-in returns", async () => {
+    const own = (id: string, kind: string) =>
+      signDoc({
+        licenceId: id.repeat(22),
+        kind,
+        machineHash: machine,
+        startsAt: START,
+        expiresAt: null,
+        updatesUntil: kind === "free" ? START + 365 * DAY : null,
+      });
+    const fullDoc = own("F", "full");
+    let served: unknown = fullDoc;
+    const svc = scripted({
+      "/v1/checkin": (body) => signDoc({ ...body, serverTime: START + DAY, licence: served }),
+    });
+    const store = memoryStore({ licence: fullDoc });
+    const manager = make(svc, store);
+    expect(await manager.checkIn()).toBe("active");
+    expect(manager.licence()?.kind).toBe("full");
+    served = own("F", "free");
+    expect(await manager.checkIn()).toBe("active");
+    expect(manager.licence()?.kind).toBe("free");
+    expect(store.peek().licence).toEqual(served);
+  });
+
   it("returns the service's refusal instead of throwing, and offline when there is no service", async () => {
     const svc = scripted({
       "/v1/trial/start": () => {
@@ -321,5 +351,110 @@ describe("licence manager service calls", () => {
         },
       },
     ]);
+  });
+
+  it("logs a failing mirror, keeps going, and writes the mirror again at the next check-in", async () => {
+    const svc = service(() => START + DAY);
+    const store = memoryStore();
+    const written: MirroredState[] = [];
+    let fail = true;
+    const mirror = {
+      read: async () => null,
+      write: async (next: MirroredState) => {
+        if (fail) throw new Error("db down");
+        written.push(next);
+      },
+    };
+    const warnings: string[] = [];
+    const manager = new LicenceManager({
+      enforce: true,
+      keys,
+      machineHash: machine,
+      store,
+      mirror,
+      service: { post: svc.post },
+      log: { warn: (message) => warnings.push(message) },
+      wall: () => START + DAY,
+      monotonic: () => 0,
+    });
+    await manager.adopt(licenceDoc);
+    expect(warnings.length).toBeGreaterThan(0);
+    expect(store.peek().licence).toEqual(licenceDoc);
+    expect(written).toHaveLength(0);
+    fail = false;
+    await manager.checkIn();
+    expect(written.length).toBeGreaterThan(0);
+    expect(written.at(-1)?.checkIn).not.toBeNull();
+  });
+
+  it("still writes the mirror and logs when the state file cannot be written", async () => {
+    const svc = service(() => START + DAY);
+    const store = {
+      ...memoryStore(),
+      write: () => {
+        throw new Error("disk full");
+      },
+    };
+    const mirror = memoryMirror();
+    const warnings: string[] = [];
+    const manager = new LicenceManager({
+      enforce: true,
+      keys,
+      machineHash: machine,
+      store,
+      mirror,
+      service: { post: svc.post },
+      log: { warn: (message) => warnings.push(message) },
+    });
+    await manager.adopt(licenceDoc);
+    expect(warnings.some((message) => message.includes("disk full"))).toBe(true);
+    expect((await mirror.read())?.licence).toEqual(licenceDoc);
+  });
+
+  it("restores a paid licence from the database copy when only the trial reached the file", async () => {
+    const fullDoc = signDoc({
+      licenceId: "F".repeat(22),
+      kind: "full",
+      machineHash: machine,
+      startsAt: START + DAY,
+      expiresAt: null,
+      updatesUntil: null,
+    });
+    const store = memoryStore({ licence: licenceDoc });
+    const manager = new LicenceManager({
+      enforce: true,
+      keys,
+      machineHash: machine,
+      store,
+      mirror: memoryMirror({ licence: fullDoc, checkIn: null, mark: null }),
+      service: null,
+      wall: () => START + 2 * DAY,
+    });
+    await manager.start();
+    expect(manager.licence()?.kind).toBe("full");
+    expect(store.peek().licence).toEqual(fullDoc);
+  });
+
+  it("keeps the held licence when the database copy is older or lower", async () => {
+    const store = memoryStore({ licence: licenceDoc });
+    const older = signDoc({
+      licenceId: "O".repeat(22),
+      kind: "trial",
+      machineHash: machine,
+      startsAt: START - DAY,
+      expiresAt: START + 13 * DAY,
+      updatesUntil: null,
+    });
+    const manager = new LicenceManager({
+      enforce: true,
+      keys,
+      machineHash: machine,
+      store,
+      mirror: memoryMirror({ licence: older, checkIn: null, mark: null }),
+      service: null,
+      wall: () => START + DAY,
+    });
+    await manager.start();
+    expect(store.peek().licence).toEqual(licenceDoc);
   });
 });

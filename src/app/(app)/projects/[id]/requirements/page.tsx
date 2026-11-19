@@ -4,12 +4,8 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { CanvasLink } from "@/modules/requirements/components/canvas/canvas-link";
 import { auth } from "@/lib/auth/provider";
-import {
-  DEFAULT_PAGE_SIZE,
-  flattenSearchParams,
-  initialViewOf,
-  parseListParams,
-} from "@/lib/list-params";
+import { flattenSearchParams, initialViewOf, parseListParams } from "@/lib/list-params";
+import { listForView } from "@/lib/list-print";
 import { messages } from "@/lib/messages";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { getListPreference } from "@/lib/repositories/view-preference";
@@ -86,13 +82,8 @@ export default async function RequirementsPage({
     registerColumns,
   ] = await Promise.all([
     orNotFound(
-      listRequirements(
-        listParams,
-        session.userId,
-        projectId,
-        filterType,
-        DEFAULT_PAGE_SIZE,
-        choiceFilter,
+      listForView(listParams, (p, size) =>
+        listRequirements(p, session.userId, projectId, filterType, size, choiceFilter),
       ),
     ),
     getListPreference(session.userId, "requirements").catch(() => null),

@@ -8,7 +8,7 @@ export type ButtonVariant = "primary" | "secondary" | "danger" | "destructive" |
 export type ButtonSize = "default" | "compact";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium cursor-pointer " +
+  "inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium cursor-pointer print:hidden " +
   "transition-colors duration-(--duration-fast) disabled:pointer-events-none disabled:opacity-50";
 
 const sizes: Record<ButtonSize, string> = {

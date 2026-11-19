@@ -11,6 +11,8 @@ import { guardProjectScope } from "@/lib/project-page-helpers";
 import { orNotFound } from "@/lib/row-access";
 import { MeetingHeaderForm } from "@/modules/meetings/components/meeting-header-form";
 import { MinutesEditor } from "@/modules/meetings/components/minutes-editor";
+import { GOVERNANCE_LOG_KINDS, governanceLogPermission } from "@/modules/meetings/governance-logs";
+import { listDeliverableOptions } from "@/modules/key-deliverables/repository/key-deliverables";
 import { ParticipantsPanel } from "@/modules/meetings/components/participants-panel";
 import { getMeetingRoster, getMeetingWorkspace } from "@/modules/meetings/repository/meetings";
 import { todayIso } from "@/modules/meetings/schemas/minutes";
@@ -48,6 +50,10 @@ export default async function MeetingPage({
   ]);
   const meeting = guardProjectScope(workspace.meeting, projectId);
   if (!meeting) notFound();
+  const taskOptions =
+    allows("meetings:update") && allows("key-deliverables:read")
+      ? await listDeliverableOptions(projectId, session.userId)
+      : [];
 
   const listHref = `/projects/${projectId}/meetings`;
   const title = meeting.Subject ?? messages.app.untitled;
@@ -88,16 +94,9 @@ export default async function MeetingPage({
               />
             </section>
             <section aria-labelledby="meeting-minutes-heading" className="flex flex-col gap-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 id="meeting-minutes-heading" className="text-base font-medium text-ink">
-                  {M.minutes}
-                </h2>
-                <PrintLink
-                  href={`${listHref}/${meeting.MeetingId}/print`}
-                  testId="minutes-print-link"
-                  label={M.printView}
-                />
-              </div>
+              <h2 id="meeting-minutes-heading" className="text-base font-medium text-ink">
+                {M.minutes}
+              </h2>
               <MinutesEditor
                 workspace={workspace}
                 pointViews={pointViews}
@@ -113,7 +112,26 @@ export default async function MeetingPage({
                   allows("meetings:update") && allows("assumptions-constraints:create")
                 }
                 assumptionsHref={`/projects/${projectId}/assumptions-constraints`}
+                projectId={projectId}
+                canAddStakeholder={allows("stakeholders:create")}
+                logKinds={
+                  allows("meetings:update")
+                    ? GOVERNANCE_LOG_KINDS.filter(
+                        (kind) =>
+                          allows(governanceLogPermission(kind, "create")) &&
+                          allows(governanceLogPermission(kind, "update")),
+                      )
+                    : []
+                }
+                taskOptions={taskOptions}
               />
+              <div className="flex justify-end">
+                <PrintLink
+                  href={`${listHref}/${meeting.MeetingId}/print`}
+                  testId="minutes-print-link"
+                  label={M.printView}
+                />
+              </div>
             </section>
           </div>
         </div>

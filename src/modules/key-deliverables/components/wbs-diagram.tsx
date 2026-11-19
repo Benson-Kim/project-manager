@@ -32,7 +32,7 @@ import { shownWbs, type WbsShown } from "../schemas/wbs-filter";
 import { stripOnlyIds, type MilestoneChip } from "../schemas/wbs-milestones";
 import { DraftInput } from "./draft-input";
 import { flipKey, useFlip } from "./use-flip";
-import { usePrintFit } from "./use-print-fit";
+import { usePrintFit } from "@/components/ui/use-print-fit";
 import { BoxMeta, BoxTooltip, PlanMeta } from "./wbs-box-meta";
 import { PrioritySelect } from "./priority-select";
 import { BoxNote } from "./wbs-box-note";

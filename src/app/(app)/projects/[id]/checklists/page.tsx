@@ -5,6 +5,7 @@ import { withRichViews } from "@/components/ui/rich-text/rich-views";
 import { EmptyState } from "@/components/ui/states";
 import { auth } from "@/lib/auth/provider";
 import { flattenSearchParams, initialViewOf, parseListParams } from "@/lib/list-params";
+import { listForView } from "@/lib/list-print";
 import { messages } from "@/lib/messages";
 import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNotFound } from "@/lib/row-access";
@@ -78,7 +79,9 @@ export default async function ChecklistsPage({
 
   const [columns, rows, people, lookup] = await Promise.all([
     orNotFound(listColumns(current.ChecklistId, session.userId)),
-    orNotFound(listItems(current.ChecklistId, listParams, session.userId)),
+    orNotFound(
+      listForView(listParams, (p, size) => listItems(current.ChecklistId, p, session.userId, size)),
+    ),
     listStakeholderOptions(projectId, session.userId),
     loadLookupLists(["todo-item.priority"], session),
   ]);

@@ -90,6 +90,10 @@ The release job does these by itself: it signs every exe, DLL and native module 
 RFC 3161 timestamp (a file that fails to sign fails the build), checks the installer's signer
 and timestamp, writes the `.sha256`, and publishes the GitHub Release. Then, by hand:
 
+A build enforces licensing only when the repository variable `PM_LICENSING` is `enforce`; it then
+needs `PM_LICENCE_PUBLIC_KEYS` and `PM_LICENCE_SERVICE_URL` set, or the build stops. Leave
+`PM_LICENSING` empty on the client's repository.
+
 No build whose `package.json` sets `"licensing": "enforce"` may reach the client's update feed
 (PM2026) until every one of the client's installs holds a full licence. Until then their builds
 leave the setting out, so licensing stays off.

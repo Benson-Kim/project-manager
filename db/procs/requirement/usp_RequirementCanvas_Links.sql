@@ -23,18 +23,28 @@ BEGIN
          @MinLevel = N'Viewer', @AllowProjectless = 0;
 
     SELECT 'Requirement' AS UpstreamKind, t.ValidatesRequirementId AS UpstreamId,
-           t.RequirementId AS DownstreamId, t.LinkStatus, CAST(t.RowVer AS BIGINT) AS RowVer
+           t.RequirementId AS DownstreamId, t.LinkStatus, CAST(t.RowVer AS BIGINT) AS RowVer,
+           s.LineShape, s.LinePattern, s.StartEnd, s.EndEnd, s.LineWeight, s.LineColour, s.Attach,
+           s.SourceSide, s.TargetSide, s.Jumps, s.BranchFromId, s.BranchAt
     FROM app.Requirement AS r
     JOIN app.RequirementTrace AS t ON t.RequirementId = r.RequirementId
     JOIN app.Requirement AS u
         ON u.RequirementId = t.ValidatesRequirementId AND u.IsDeleted = 0
+    LEFT JOIN app.RequirementCanvasLinkStyle AS s
+        ON s.RequirementCanvasId = @RequirementCanvasId AND s.UpstreamKind = 'Requirement'
+       AND s.UpstreamId = t.ValidatesRequirementId AND s.DownstreamId = t.RequirementId
     WHERE r.ProjectId = @RowProjectId AND r.IsDeleted = 0 AND t.LinkStatus <> 'Retired'
     UNION ALL
-    SELECT 'Wbs', d.KeyDeliverableId, d.RequirementId, d.LinkStatus, CAST(d.RowVer AS BIGINT)
+    SELECT 'Wbs', d.KeyDeliverableId, d.RequirementId, d.LinkStatus, CAST(d.RowVer AS BIGINT),
+           s.LineShape, s.LinePattern, s.StartEnd, s.EndEnd, s.LineWeight, s.LineColour, s.Attach,
+           s.SourceSide, s.TargetSide, s.Jumps, s.BranchFromId, s.BranchAt
     FROM app.Requirement AS r
     JOIN app.RequirementDeliverable AS d ON d.RequirementId = r.RequirementId
     JOIN app.KeyDeliverable AS kd
         ON kd.KeyDeliverableId = d.KeyDeliverableId AND kd.IsDeleted = 0
+    LEFT JOIN app.RequirementCanvasLinkStyle AS s
+        ON s.RequirementCanvasId = @RequirementCanvasId AND s.UpstreamKind = 'Wbs'
+       AND s.UpstreamId = d.KeyDeliverableId AND s.DownstreamId = d.RequirementId
     WHERE r.ProjectId = @RowProjectId AND r.IsDeleted = 0 AND d.LinkStatus <> 'Retired';
 END;
 GO

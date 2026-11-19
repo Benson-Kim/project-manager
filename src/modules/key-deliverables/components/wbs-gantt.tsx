@@ -106,7 +106,7 @@ import { WbsDetailsPanel } from "./wbs-details-panel";
 import { PlanNote } from "./wbs-plan-note";
 import { firstError, type QueuedChange } from "./wbs-queue";
 import { wbsCsv } from "./wbs-csv";
-import { useFullscreen } from "./use-fullscreen";
+import { FULLSCREEN_FRAME, useFullscreen } from "@/components/shell/use-fullscreen";
 import {
   canRedo,
   canUndo,
@@ -1211,11 +1211,7 @@ export function WbsGantt({
         disabled: parents.length === 0,
       }}
       copyCsv={{ run: () => void copyCsv(), disabled: items.length === 0 }}
-      fullscreen={
-        fullscreen.supported
-          ? { value: fullscreen.active, onChange: () => void fullscreen.toggle() }
-          : null
-      }
+      fullscreen={{ value: fullscreen.active, onChange: () => void fullscreen.toggle() }}
       people={
         view === "wbs"
           ? {
@@ -1271,9 +1267,7 @@ export function WbsGantt({
       <div
         ref={editorRef}
         data-testid="wbs-editor"
-        className={`flex flex-col gap-3 ${
-          fullscreen.active ? "fixed inset-0 z-(--z-fullscreen) overflow-auto bg-surface p-4" : ""
-        }`}
+        className={`flex flex-col gap-3 ${fullscreen.active ? `${FULLSCREEN_FRAME} p-4` : ""}`}
         onKeyDown={historyKeys}
       >
         {toolbar}

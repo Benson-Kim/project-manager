@@ -2,12 +2,17 @@ import type { CanvasItem, CanvasLink } from "../schemas/canvas";
 import type { LinkRule } from "../schemas/link-rules";
 import { itemConnection, type Placement, type Placements } from "./board-model";
 import { itemKey } from "./gaps";
+import { lookOf, type LinkLook } from "./link-layout";
 
-/** What takes one board change back: the nodes as they were, the new link gone, the old link back. */
+/**
+ * What takes one board change back: the nodes as they were, the new link gone, the old link back,
+ * or a link drawn as it was.
+ */
 export type CanvasUndo =
   | { kind: "nodes"; before: Placements }
   | { kind: "unlink"; upKey: string; downId: number }
-  | { kind: "relink"; upKey: string; downKey: string };
+  | { kind: "relink"; upKey: string; downKey: string }
+  | { kind: "style"; upKey: string; downId: number; before: LinkLook };
 
 const placementOf = ({ OnCanvas, X, Y, IsCollapsed }: CanvasItem): Placement => ({
   OnCanvas,
@@ -61,6 +66,10 @@ export function stepBack(
   rules: readonly LinkRule[],
 ): CanvasUndo | null {
   if (step.kind === "nodes") return nodesBack(items, step.before);
+  if (step.kind === "style") {
+    const saved = savedLink(links, step.upKey, step.downId);
+    return saved ? { ...step, before: lookOf(saved) } : null;
+  }
   if (step.kind === "unlink") {
     const saved = savedLink(links, step.upKey, step.downId);
     return saved ? unlinkBack(saved) : null;
@@ -76,7 +85,9 @@ export function undoApplies(
   links: readonly CanvasLink[],
   rules: readonly LinkRule[],
 ): boolean {
-  if (step.kind === "unlink") return savedLink(links, step.upKey, step.downId) !== undefined;
+  if (step.kind === "unlink" || step.kind === "style") {
+    return savedLink(links, step.upKey, step.downId) !== undefined;
+  }
   if (step.kind === "relink") {
     return itemConnection(items, links, rules, step.upKey, step.downKey) !== null;
   }

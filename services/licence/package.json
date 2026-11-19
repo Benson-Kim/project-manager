@@ -1,0 +1,11 @@
+{
+  "name": "modulus-licence-service",
+  "private": true,
+  "description": "Cloudflare Worker that issues and checks Modulus licences",
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "4.154.0"
+  }
+}

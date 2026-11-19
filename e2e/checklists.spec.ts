@@ -217,7 +217,7 @@ test.describe("checklists (ADR-0066)", () => {
     });
 
     await page.goto(`/projects/${projectId}/todos`);
-    await expect(page.getByText(title)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(title).filter({ visible: true })).toBeVisible({ timeout: 30_000 });
   });
 
   test("search finds items by title and deleting a column asks first", async ({ page }) => {

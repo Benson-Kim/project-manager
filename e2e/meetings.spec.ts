@@ -78,6 +78,8 @@ test("the section sits in the project nav and lists the seeded meeting", async (
     .click();
   await expect(page).toHaveURL(/\/projects\/2\/meetings$/);
   await expect(page.getByRole("heading", { name: M.title, level: 1 })).toBeVisible();
+  await page.getByTestId("meetings-search").fill("Progress Achieved");
+  await expect(page).toHaveURL(/[?&]q=Progress/);
   await expectListed(page, "Progress Achieved");
 });
 

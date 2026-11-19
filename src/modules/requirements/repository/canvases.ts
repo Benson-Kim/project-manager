@@ -13,6 +13,7 @@ import {
   type DeleteCanvasInput,
   type MoveCanvasNodesInput,
   type RemoveCanvasNodeInput,
+  type SetCanvasLinkStyleInput,
   type UpdateCanvasInput,
 } from "../schemas/canvas";
 import { execForProjectId } from "./requirements";
@@ -102,6 +103,32 @@ export function moveCanvasNodes(input: MoveCanvasNodesInput, actorUserId: number
   return execForProjectId("usp_RequirementCanvasNode_Move", {
     RequirementCanvasId: input.canvasId,
     NodesJson: JSON.stringify(input.nodes),
+    ActorUserId: actorUserId,
+  });
+}
+
+export function setCanvasLinkStyle(
+  input: SetCanvasLinkStyleInput,
+  actorUserId: number,
+): Promise<number> {
+  const { style } = input;
+  return execForProjectId("usp_RequirementCanvasLink_SetStyle", {
+    RequirementCanvasId: input.canvasId,
+    UpstreamKind: input.upstreamKind,
+    UpstreamId: input.upstreamId,
+    DownstreamId: input.downstreamId,
+    LineShape: style.shape,
+    LinePattern: style.pattern,
+    StartEnd: style.startEnd,
+    EndEnd: style.endEnd,
+    LineWeight: style.weight,
+    LineColour: style.colour,
+    Attach: style.attach,
+    SourceSide: style.sourceSide,
+    TargetSide: style.targetSide,
+    Jumps: style.jumps,
+    BranchFromId: input.branchFromId,
+    BranchAt: input.branchAt,
     ActorUserId: actorUserId,
   });
 }

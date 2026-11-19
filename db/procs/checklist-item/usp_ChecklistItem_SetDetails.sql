@@ -1,7 +1,9 @@
 -- usp_ChecklistItem_SetDetails — set a row's dates, assignee, priority and notes in one call.
 -- Access: Contributor + checklists:update. A stale @RowVer answers 409. The assignee must be a
--- stakeholder of the row's project; the caller sanitizes the notes HTML before calling.
--- A row on the calendar (live TodoItemId) also moves its to-do's dates and its alert's day, and
+-- stakeholder of the row's project, and the priority an option of the to-do priority list; the
+-- caller sanitizes the notes HTML before calling.
+-- A row on the calendar (live TodoItemId) also moves its to-do's dates and its alert's day (no day
+-- once both dates are cleared), and
 -- sends the alert to the new assignee's user, or else to the to-do's creator.
 USE ProjectManager;
 GO
@@ -19,8 +21,8 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    DECLARE @ProjectId INT, @CurrentVer BIGINT;
-    SELECT @ProjectId = ProjectId, @CurrentVer = CAST(RowVer AS BIGINT)
+    DECLARE @ProjectId INT, @CurrentVer BIGINT, @CurrentPriority NVARCHAR(255);
+    SELECT @ProjectId = ProjectId, @CurrentVer = CAST(RowVer AS BIGINT), @CurrentPriority = Priority
     FROM app.ChecklistItem WHERE ChecklistItemId = @ChecklistItemId AND IsDeleted = 0;
     IF @ProjectId IS NULL
         THROW 50001, N'NOT_FOUND:Row not found', 1;
@@ -38,6 +40,8 @@ BEGIN
     SET @Priority = NULLIF(TRIM(@Priority), N'');
     IF LEN(@Priority) > 255
         THROW 50004, N'VALIDATION:A priority has at most 255 characters', 1;
+    EXEC dbo.usp_LookupList_AssertLabel
+         @ListKey = N'todo-item.priority', @Label = @Priority OUTPUT, @CurrentLabel = @CurrentPriority;
     IF LEN(@Notes) = 0 SET @Notes = NULL;
 
     BEGIN TRAN;
@@ -92,8 +96,9 @@ BEGIN
         DECLARE @AlertDay DATETIME2 = CAST(COALESCE(@DueDate, @StartDate) AS DATETIME2);
 
         UPDATE app.TodoAlert
-        SET AlertDay = COALESCE(@AlertDay, AlertDay),
-            IsDismissed = CASE WHEN @AlertDay IS NOT NULL AND @AlertDay <> AlertDay THEN 0 ELSE IsDismissed END,
+        SET AlertDay = @AlertDay,
+            IsDismissed = CASE WHEN @AlertDay IS NOT NULL AND (AlertDay IS NULL OR @AlertDay <> AlertDay)
+                               THEN 0 ELSE IsDismissed END,
             RecipientUserId = COALESCE(@Recipient, @TodoCreator)
         WHERE TodoItemId = @TodoId AND IsDeleted = 0;
 

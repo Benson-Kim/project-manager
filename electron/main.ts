@@ -881,6 +881,7 @@ async function bootstrap(): Promise<void> {
       },
       onReadyChanged: setTrayUpdateReady,
       notify: showTrayNotice,
+      licence: () => licenceSetup?.manager?.licence() ?? null,
     });
     if (updater) {
       setTrayUpdateActions({

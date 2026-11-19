@@ -14,16 +14,19 @@ export const ROW_HEIGHT_MIN = 40;
 export const ROW_HEIGHT_MAX = 240;
 /** Keyboard step of a resize handle (arrow keys). */
 export const RESIZE_STEP = 16;
+/** The stored Layout text's limit (usp_ViewPreference_SetLayout @Layout NVARCHAR(2000)). */
+export const LAYOUT_TEXT_MAX = 2000;
 
+/** A column key; a custom column's is "cell:<id>" (customCellField). */
 const columnKey = z
   .string()
   .min(1)
   .max(50)
-  .regex(/^[A-Za-z0-9_-]+$/);
+  .regex(/^[A-Za-z0-9_:-]+$/);
 
 export const listLayoutSchema = z.object({
   /** Column keys (DataViewColumn.key) in display order. */
-  order: z.array(columnKey).max(40).optional(),
+  order: z.array(columnKey).max(100).optional(),
   /** Column widths in pixels, by column key. */
   widths: z
     .record(columnKey, z.number().int().min(COLUMN_WIDTH_MIN).max(COLUMN_WIDTH_MAX))
@@ -75,7 +78,9 @@ export const clampRowHeight = (px: number) =>
 
 /**
  * What to store: the layout without members that equal the default (an order
- * that is the module's own, no widths), or null when nothing is left.
+ * that is the module's own, no widths), or null when nothing is left. Widths of
+ * columns this page does not show (another checklist's own columns) stay while
+ * the text fits LAYOUT_TEXT_MAX, oldest out first, so it never outgrows the store.
  */
 export function normalizeLayout(
   defaultKeys: readonly string[],
@@ -92,6 +97,14 @@ export function normalizeLayout(
   }
   if (layout.widths && Object.keys(layout.widths).length > 0) result.widths = { ...layout.widths };
   if (layout.rowHeight !== undefined) result.rowHeight = layout.rowHeight;
+  if (result.widths) {
+    const shown = new Set(defaultKeys);
+    const others = Object.keys(result.widths).filter((key) => !shown.has(key));
+    while (others.length > 0 && JSON.stringify(result).length > LAYOUT_TEXT_MAX) {
+      delete result.widths[others.shift()!];
+    }
+    if (Object.keys(result.widths).length === 0) delete result.widths;
+  }
   return Object.keys(result).length > 0 ? result : null;
 }
 

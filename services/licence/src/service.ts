@@ -29,6 +29,8 @@ export const CODE_ATTEMPTS = 5;
 const LIMITS = {
   startPerEmail: { max: 5, window: HOUR },
   startPerMachine: { max: 5, window: HOUR },
+  startPerClient: { max: 20, window: HOUR },
+  adminFailure: { max: 10, window: HOUR },
   verify: { max: 10, window: HOUR },
   checkin: { max: 120, window: HOUR },
   redeem: { max: 10, window: HOUR },
@@ -36,7 +38,12 @@ const LIMITS = {
 } as const;
 
 export type ServiceError =
-  "invalid_code" | "trial_used" | "rate_limited" | "unknown_licence" | "not_found";
+  | "invalid_code"
+  | "trial_used"
+  | "rate_limited"
+  | "unknown_licence"
+  | "not_found"
+  | "mail_unavailable";
 
 export type Outcome<T> = { ok: true; value: T } | { ok: false; error: ServiceError };
 
@@ -48,6 +55,7 @@ export interface ServiceDeps {
   mailer: Mailer;
   clock: Clock;
   signer: Signer;
+  mailTimeoutMs?: number;
 }
 
 export function normaliseEmail(email: string): string {
@@ -61,20 +69,32 @@ export function hashEmail(email: string): Promise<string> {
 export class LicenceService {
   constructor(private readonly deps: ServiceDeps) {}
 
-  async startTrial(email: string, machineHash: string): Promise<Outcome<null>> {
+  async startTrial(
+    email: string,
+    machineHash: string,
+    client: string | null = null,
+  ): Promise<Outcome<null>> {
+    const { store } = this.deps;
     const emailHash = await hashEmail(email);
     const allowed =
-      (await this.allow(`start:e:${emailHash}`, LIMITS.startPerEmail)) &&
-      (await this.allow(`start:m:${machineHash}`, LIMITS.startPerMachine));
+      (await this.allow(`start:e:${emailHash}:${machineHash}`, LIMITS.startPerEmail)) &&
+      (await this.allow(`start:m:${machineHash}`, LIMITS.startPerMachine)) &&
+      (client === null || (await this.allow(`start:ip:${client}`, LIMITS.startPerClient)));
     if (!allowed) return fail("rate_limited");
     const code = randomDigits(6);
-    await this.deps.store.saveCode(codeKey(emailHash, machineHash), {
-      codeHash: await sha256Hex(code),
-      email: normaliseEmail(email),
-      expiresAt: this.now() + CODE_LIFETIME,
-      attempts: 0,
-    });
-    await this.deps.mailer.sendCode(normaliseEmail(email), code);
+    const address = normaliseEmail(email);
+    const issued = await store.issueCode(
+      codeKey(emailHash, machineHash),
+      { codeHash: await sha256Hex(code), email: address, expiresAt: this.now() + CODE_LIFETIME },
+      this.now(),
+      CODE_ATTEMPTS,
+    );
+    if (!issued) return ok(null);
+    try {
+      await this.sendWithinLimit(address, code);
+    } catch {
+      return fail("mail_unavailable");
+    }
     return ok(null);
   }
 
@@ -87,20 +107,22 @@ export class LicenceService {
     const emailHash = await hashEmail(email);
     const key = codeKey(emailHash, machineHash);
     if (!(await this.allow(`verify:${key}`, LIMITS.verify))) return fail("rate_limited");
-    const pending = await store.getCode(key);
-    if (!pending || pending.expiresAt <= this.now() || pending.attempts >= CODE_ATTEMPTS) {
+    const pending = await store.consumeCodeAttempt(key);
+    if (!pending || pending.expiresAt <= this.now() || pending.attempts > CODE_ATTEMPTS) {
       return fail("invalid_code");
     }
-    if (!(await sameSecret(await sha256Hex(code), pending.codeHash))) {
-      await store.saveCode(key, { ...pending, attempts: pending.attempts + 1 });
-      return fail("invalid_code");
-    }
-    await store.saveCode(key, null);
+    if (!(await sameSecret(await sha256Hex(code), pending.codeHash))) return fail("invalid_code");
 
-    const known = await store.findByIdentity(emailHash, machineHash);
-    const same = known.find((l) => l.emailHash === emailHash && l.machineHash === machineHash);
-    if (same) return ok(await this.signLicence(same));
-    if (known.length > 0) return fail("trial_used");
+    const sameIdentity = async () => {
+      const known = await store.findByIdentity(emailHash, machineHash);
+      return {
+        same: known.find((l) => l.emailHash === emailHash && l.machineHash === machineHash),
+        any: known.length > 0,
+      };
+    };
+    const existing = await sameIdentity();
+    if (existing.same) return ok(await this.signLicence(existing.same));
+    if (existing.any) return fail("trial_used");
 
     const now = this.now();
     const record: LicenceRecord = {
@@ -114,9 +136,11 @@ export class LicenceService {
       updatesUntil: null,
       redeemCodeHash: null,
     };
-    await store.saveLicence(record);
-    await store.saveTester(emailHash, pending.email, now);
-    return ok(await this.signLicence(record));
+    if ((await store.createTrial(record, pending.email)) === "created") {
+      return ok(await this.signLicence(record));
+    }
+    const winner = await sameIdentity();
+    return winner.same ? ok(await this.signLicence(winner.same)) : fail("trial_used");
   }
 
   async checkIn(
@@ -124,12 +148,14 @@ export class LicenceService {
     machineHash: string,
     nonce: string,
   ): Promise<Outcome<SignedDocument>> {
-    if (!(await this.allow(`checkin:${licenceId}`, LIMITS.checkin))) return fail("rate_limited");
     const record = await this.boundLicence(licenceId, machineHash);
     if (!record) return fail("unknown_licence");
+    if (!(await this.allow(`checkin:${licenceId}:${machineHash}`, LIMITS.checkin))) {
+      return fail("rate_limited");
+    }
     const licence = await this.signLicence(record);
     return ok(
-      await signDocument(this.deps.signer, {
+      await signDocument(this.deps.signer, "checkin", {
         v: 1,
         licenceId,
         machineHash,
@@ -142,13 +168,8 @@ export class LicenceService {
 
   async redeem(code: string, machineHash: string): Promise<Outcome<SignedDocument>> {
     if (!(await this.allow(`redeem:${machineHash}`, LIMITS.redeem))) return fail("rate_limited");
-    const record = await this.deps.store.findByRedeemCode(await sha256Hex(code));
-    if (!record || (record.machineHash && record.machineHash !== machineHash)) {
-      return fail("invalid_code");
-    }
-    const bound = { ...record, machineHash };
-    await this.deps.store.saveLicence(bound);
-    return ok(await this.signLicence(bound));
+    const bound = await this.deps.store.bindRedeemCode(await sha256Hex(code), machineHash);
+    return bound ? ok(await this.signLicence(bound)) : fail("invalid_code");
   }
 
   async recordFeedback(
@@ -157,8 +178,10 @@ export class LicenceService {
     body: string,
     appVersion: string,
   ): Promise<Outcome<null>> {
-    if (!(await this.allow(`feedback:${licenceId}`, LIMITS.feedback))) return fail("rate_limited");
     if (!(await this.boundLicence(licenceId, machineHash))) return fail("unknown_licence");
+    if (!(await this.allow(`feedback:${licenceId}:${machineHash}`, LIMITS.feedback))) {
+      return fail("rate_limited");
+    }
     await this.deps.store.addFeedback({ licenceId, appVersion, body, at: this.now() });
     return ok(null);
   }
@@ -168,8 +191,10 @@ export class LicenceService {
     machineHash: string,
     consent: { kind: ConsentKind; granted: boolean; quote: string; displayName: string | null },
   ): Promise<Outcome<null>> {
-    if (!(await this.allow(`feedback:${licenceId}`, LIMITS.feedback))) return fail("rate_limited");
     if (!(await this.boundLicence(licenceId, machineHash))) return fail("unknown_licence");
+    if (!(await this.allow(`feedback:${licenceId}:${machineHash}`, LIMITS.feedback))) {
+      return fail("rate_limited");
+    }
     await this.deps.store.addConsent({ licenceId, ...consent, at: this.now() });
     return ok(null);
   }
@@ -221,7 +246,7 @@ export class LicenceService {
   }
 
   private signLicence(record: LicenceRecord): Promise<SignedDocument> {
-    return signDocument(this.deps.signer, {
+    return signDocument(this.deps.signer, "licence", {
       v: 1,
       licenceId: record.licenceId,
       kind: record.kind,
@@ -234,9 +259,46 @@ export class LicenceService {
     });
   }
 
+  async adminBlocked(client: string): Promise<boolean> {
+    return (
+      (await this.deps.store.peekHits(
+        `admin-fail:${client}`,
+        this.windowStart(LIMITS.adminFailure.window),
+      )) >= LIMITS.adminFailure.max
+    );
+  }
+
+  async noteAdminFailure(client: string): Promise<void> {
+    await this.allow(`admin-fail:${client}`, LIMITS.adminFailure);
+  }
+
+  recordAdminEvent(event: {
+    action: string;
+    scope: string;
+    client: string;
+    detail: string | null;
+  }) {
+    return this.deps.store.addAdminEvent({ ...event, at: this.now() });
+  }
+
+  private async sendWithinLimit(email: string, code: string): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("mail timeout")), this.deps.mailTimeoutMs ?? 8000);
+    });
+    try {
+      await Promise.race([this.deps.mailer.sendCode(email, code), timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private windowStart(window: number) {
+    return Math.floor(this.now() / window) * window;
+  }
+
   private async allow(bucket: string, limit: { max: number; window: number }) {
-    const windowStart = Math.floor(this.now() / limit.window) * limit.window;
-    return (await this.deps.store.countHit(bucket, windowStart)) <= limit.max;
+    return (await this.deps.store.countHit(bucket, this.windowStart(limit.window))) <= limit.max;
   }
 
   private now() {

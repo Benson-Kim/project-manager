@@ -4,6 +4,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { ActionResult } from "@/lib/action";
 import { clampWidth, COLUMN_WIDTH_MIN, RESIZE_STEP } from "@/lib/list-layout";
 import { optionColor, type LookupListKey } from "@/lib/lookup-lists";
+import { formatDate } from "@/lib/format";
 import { messages } from "@/lib/messages";
 import { EDIT_LIST, useLookupLists } from "../lookup-lists";
 import { TONES } from "../tones";
@@ -16,6 +17,7 @@ import {
   hasDraft,
   invalidFields,
   isCellChanged,
+  keepsOnOneLine,
   previewText,
   singleLine,
   type CellEditor,
@@ -35,7 +37,7 @@ import { priorityClass, type DataViewColumn } from "./types";
  * Grid borders and spacious cells for every list table (client feedback §2).
  * Rows follow the user's row height: DataView sets --row-h on the table.
  */
-export const cellClass = "h-(--row-h) border border-line px-3 py-2 align-middle";
+export const cellClass = "h-(--row-h) border border-line px-3 py-2 align-middle print:h-auto";
 
 /**
  * A header cell, stuck to the top of the table's scroll box. `sticky` sits on
@@ -47,7 +49,7 @@ export const cellClass = "h-(--row-h) border border-line px-3 py-2 align-middle"
 export const headerCellClass =
   "sticky top-0 z-20 border border-line bg-surface-raised " +
   "shadow-[inset_0_-1px_0_var(--line),inset_-1px_0_0_var(--line)] print:static print:shadow-none";
-export const editableCellClass = "h-(--row-h) border border-line p-0 align-middle";
+export const editableCellClass = "h-(--row-h) border border-line p-0 align-middle print:h-auto";
 
 /**
  * Cells read as text until touched: hover tints them, focus turns them into a
@@ -90,6 +92,25 @@ interface CellControlProps<Row> {
   display?: React.ReactNode;
   /** Rich text: takes the editor's HTML; resolves true when it was kept. */
   onCommitRich?: (html: string) => Promise<boolean>;
+}
+
+/** What a control prints as: its plain value, with no box, chevron or placeholder. */
+function PrintValue({
+  text,
+  nowrap,
+  className,
+}: {
+  text: string;
+  nowrap?: boolean;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`hidden px-3 py-1.5 print:block ${nowrap || keepsOnOneLine(text) ? "whitespace-nowrap" : "wrap-break-word whitespace-pre-line"} ${className ?? ""}`}
+    >
+      {text}
+    </span>
+  );
 }
 
 function CellControl<Row>({
@@ -153,65 +174,83 @@ function CellControl<Row>({
   if (editor.kind === "select") {
     // A coloured value tints its cell (migration 020).
     const tone = editor.list ? optionColor(lists[editor.list], value) : null;
+    const toneClass = tone ? `${TONES[tone].fill} font-medium` : "";
     return (
-      <select
-        {...aria}
-        value={value}
-        onChange={(e) => {
-          if (e.target.value === EDIT_LIST) {
-            onEditList?.();
-            return;
-          }
-          onChange(e.target.value);
-          if (commitSelect) onEnter(e.target.value);
-        }}
-        onKeyDown={onKeyDown}
-        className={`${controlClass} cursor-pointer ${tone ? `${TONES[tone].fill} font-medium` : ""}`}
-      >
-        {editor.clearable === false ? null : (
-          <option value="">{placeholder ?? editor.emptyLabel ?? messages.datasheet.noValue}</option>
-        )}
-        {choices.map((choice) => (
-          <option key={choice.value} value={choice.value}>
-            {choice.label}
-          </option>
-        ))}
-        {onEditList ? <option value={EDIT_LIST}>{messages.lookupLists.editInline}</option> : null}
-      </select>
+      <>
+        <select
+          {...aria}
+          value={value}
+          onChange={(e) => {
+            if (e.target.value === EDIT_LIST) {
+              onEditList?.();
+              return;
+            }
+            onChange(e.target.value);
+            if (commitSelect) onEnter(e.target.value);
+          }}
+          onKeyDown={onKeyDown}
+          className={`${controlClass} cursor-pointer print:hidden ${toneClass}`}
+        >
+          {editor.clearable === false ? null : (
+            <option value="">
+              {placeholder ?? editor.emptyLabel ?? messages.datasheet.noValue}
+            </option>
+          )}
+          {choices.map((choice) => (
+            <option key={choice.value} value={choice.value}>
+              {choice.label}
+            </option>
+          ))}
+          {onEditList ? <option value={EDIT_LIST}>{messages.lookupLists.editInline}</option> : null}
+        </select>
+        <PrintValue
+          text={choices.find((choice) => choice.value === value)?.label ?? ""}
+          className={toneClass}
+        />
+      </>
     );
   }
 
   if (editor.kind === "text") {
     return (
-      <textarea
-        {...aria}
-        rows={1}
-        value={value}
-        placeholder={placeholder}
-        maxLength={editor.maxLength}
-        inputMode={editor.numeric ? "decimal" : undefined}
-        onChange={(e) => onChange(editor.multiline ? e.target.value : singleLine(e.target.value))}
-        onKeyDown={onKeyDown}
-        onBlur={onBlur ? (e) => onBlur(e.currentTarget.value) : undefined}
-        className={`${textControlClass} cursor-text ${editor.numeric ? "text-right tabular-nums" : ""}`}
-      />
+      <>
+        <textarea
+          {...aria}
+          rows={1}
+          value={value}
+          placeholder={placeholder}
+          maxLength={editor.maxLength}
+          inputMode={editor.numeric ? "decimal" : undefined}
+          onChange={(e) => onChange(editor.multiline ? e.target.value : singleLine(e.target.value))}
+          onKeyDown={onKeyDown}
+          onBlur={onBlur ? (e) => onBlur(e.currentTarget.value) : undefined}
+          className={`${textControlClass} cursor-text print:hidden ${editor.numeric ? "text-right tabular-nums" : ""}`}
+        />
+        <PrintValue text={value} className={editor.numeric ? "text-right tabular-nums" : ""} />
+      </>
     );
   }
 
   return (
-    <input
-      {...aria}
-      type={editor.kind}
-      value={value}
-      placeholder={placeholder}
-      maxLength={editor.maxLength}
-      min={editor.min}
-      max={editor.max}
-      onChange={(e) => onChange(e.target.value)}
-      onKeyDown={onKeyDown}
-      onBlur={onBlur ? (e) => onBlur(e.currentTarget.value) : undefined}
-      className={`${controlClass} cursor-text`}
-    />
+    <>
+      <input
+        {...aria}
+        type={editor.kind}
+        value={value}
+        placeholder={placeholder}
+        maxLength={editor.maxLength}
+        min={editor.min}
+        max={editor.max}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={onKeyDown}
+        onBlur={onBlur ? (e) => onBlur(e.currentTarget.value) : undefined}
+        className={`${controlClass} cursor-text print:hidden`}
+      />
+      <PrintValue
+        text={editor.kind === "date" ? formatDate(value) : value}
+        nowrap={editor.kind === "date"}
+      />
+    </>
   );
 }
 
@@ -349,7 +388,7 @@ export function DatasheetAddRow<Row>({
   };
 
   return (
-    <tr ref={rowRef} data-testid="datasheet-add-row" className="bg-surface-raised">
+    <tr ref={rowRef} data-testid="datasheet-add-row" className="bg-surface-raised print:hidden">
       {hasSelectColumn ? <td className={cellClass} /> : null}
       {columns.map((column) => {
         const edit = column.edit;
@@ -473,7 +512,7 @@ function SortButton({
         e.stopPropagation();
         onSort();
       }}
-      className="flex min-h-10 min-w-9 shrink-0 items-center justify-center rounded-md text-ink-muted hover:bg-surface-sunken"
+      className="flex min-h-10 min-w-9 shrink-0 items-center justify-center rounded-md text-ink-muted hover:bg-surface-sunken print:hidden"
     >
       <svg viewBox="0 0 8 16" className="h-4 w-2" aria-hidden="true">
         <path
@@ -690,7 +729,7 @@ export function IconButton({
         e.stopPropagation();
         onClick();
       }}
-      className={`flex min-h-10 min-w-9 items-center justify-center rounded-md hover:bg-surface-sunken disabled:opacity-40 ${className ?? "text-ink-muted"}`}
+      className={`flex min-h-10 min-w-9 items-center justify-center rounded-md hover:bg-surface-sunken disabled:opacity-40 print:hidden ${className ?? "text-ink-muted"}`}
     >
       <svg
         viewBox="0 0 16 16"

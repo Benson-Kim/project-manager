@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
 import { uploadsEnabled } from "@/lib/env";
 import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
+import { listForView } from "@/lib/list-print";
 import { messages } from "@/lib/messages";
 import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNotFound, orNull } from "@/lib/row-access";
@@ -67,7 +68,9 @@ export default async function DailyActivitiesPage({
   const [rows, preference, lookup, selectedRaw, allows, projectOptions, projectless] =
     await Promise.all([
       orNotFound(
-        listDailyActivities(effectiveParams, session.userId, projectId, undefined, filters),
+        listForView(effectiveParams, (p, size) =>
+          listDailyActivities(p, session.userId, projectId, size, filters),
+        ),
       ),
       getListPreference(session.userId, "daily-activities").catch(() => null),
       loadLookupLists(DAILY_ACTIVITY_LISTS, session),

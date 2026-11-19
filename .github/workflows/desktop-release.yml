@@ -63,6 +63,17 @@ jobs:
           path: installers/sql-express
           key: sql-express-${{ hashFiles('scripts/desktop/sql-express.pin.json') }}
 
+      # The web build and the Electron bundle run here, without the signing secrets.
+      - name: Stage the app
+        if: steps.plan.outputs.skip != 'true'
+        env:
+          PM_VERSION: ${{ steps.plan.outputs.version }}
+          # Licensing: "enforce" needs both public values below; empty builds without licensing.
+          PM_LICENSING: ${{ vars.PM_LICENSING }}
+          PM_LICENCE_PUBLIC_KEYS: ${{ vars.PM_LICENCE_PUBLIC_KEYS }}
+          PM_LICENCE_SERVICE_URL: ${{ vars.PM_LICENCE_SERVICE_URL }}
+        run: node scripts/desktop/build.mjs --stage-only
+
       - name: Build installer
         if: steps.plan.outputs.skip != 'true'
         env:
@@ -83,18 +94,28 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
           PM_PUBLISHER: ${{ vars.PM_PUBLISHER }}
           PM_NEXT_PUBLISHER: ${{ vars.PM_NEXT_PUBLISHER }}
+          # Set to "true" only for a release that is meant to ship unsigned.
+          PM_ALLOW_UNSIGNED_RELEASE: ${{ vars.PM_ALLOW_UNSIGNED_RELEASE }}
         run: |
           if [ -z "$PM_AZURE_SIGN_ACCOUNT$PM_SIGN_CERT_SHA1$CSC_LINK" ]; then
-            echo "::warning::Unsigned installer: installed apps will not verify this release's signature. Set up signing in the desktop-release environment (docs/RELEASE-CHECKLIST.md)."
+            if [ "$PM_ALLOW_UNSIGNED_RELEASE" != "true" ]; then
+              echo "::error::No signing is configured in the desktop-release environment, so this release would be unsigned and installed apps would refuse it. Set up signing (docs/RELEASE-CHECKLIST.md), or set PM_ALLOW_UNSIGNED_RELEASE=true to ship unsigned on purpose."
+              exit 1
+            fi
+            echo "::warning::Unsigned installer shipped on purpose (PM_ALLOW_UNSIGNED_RELEASE): installed apps will not verify this release's signature."
           fi
-          npm run electron:build
+          node scripts/desktop/build.mjs --package-only
 
       - name: Verify installer signature
         if: steps.plan.outputs.skip != 'true'
         env:
           VERSION: ${{ steps.plan.outputs.version }}
           PM_PUBLISHER: ${{ vars.PM_PUBLISHER }}
-        run: node scripts/desktop/verify-signature.mjs "dist-installer/Modulus-Setup-${VERSION}.exe"
+          PM_ALLOW_UNSIGNED_RELEASE: ${{ vars.PM_ALLOW_UNSIGNED_RELEASE }}
+        run: |
+          allow=""
+          if [ "$PM_ALLOW_UNSIGNED_RELEASE" = "true" ]; then allow="--allow-unsigned"; fi
+          node scripts/desktop/verify-signature.mjs $allow "dist-installer/Modulus-Setup-${VERSION}.exe"
 
       - name: Update policy and release notes
         if: steps.plan.outputs.skip != 'true'

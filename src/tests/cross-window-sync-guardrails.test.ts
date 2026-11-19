@@ -19,6 +19,9 @@ const POSTERS = [
   "src/modules/boards/components/board-confirm.tsx",
   "src/modules/boards/components/board-workspace.tsx",
   "src/modules/bpmn/components/use-diagram-save.ts",
+  "src/modules/whiteboard/components/use-whiteboard-save.ts",
+  "src/modules/whiteboard/components/whiteboard-form.tsx",
+  "src/modules/whiteboard/components/whiteboard-menu.tsx",
 ];
 
 const LISTENERS = new Set(["src/components/shell/cross-window-sync.tsx"]);

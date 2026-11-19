@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fullscreenLabel } from "../components/use-fullscreen";
+import { fullscreenLabel } from "@/components/shell/use-fullscreen";
 
 describe("fullscreenLabel", () => {
   it("offers full screen while the view is not full screen", () => {

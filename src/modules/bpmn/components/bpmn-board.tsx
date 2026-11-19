@@ -22,6 +22,7 @@ import { Select } from "@/components/ui/form/inputs";
 import { HistoryButtons } from "@/components/undo/history-buttons";
 import { messages } from "@/lib/messages";
 import { FLOW_KINDS, type FlowKind } from "../model/diagram";
+import { straightenFlows, straightenScope } from "../model/straighten";
 import {
   addLane,
   connectShapes,
@@ -353,6 +354,17 @@ export function BpmnBoard({
               >
                 {M.fit}
               </Button>
+              {canEdit && diagram.flows.length > 0 ? (
+                <Button
+                  type="button"
+                  size="compact"
+                  variant="secondary"
+                  data-testid="bpmn-straighten"
+                  onClick={() => change((d) => straightenFlows(d, straightenScope(selected)))}
+                >
+                  {M.straighten}
+                </Button>
+              ) : null}
             </div>
             {canEdit && selected.size > 0 ? (
               <div className="mt-1 flex flex-wrap items-center justify-end gap-1">

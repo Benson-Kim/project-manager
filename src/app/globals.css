@@ -717,6 +717,69 @@ button:focus-visible {
   }
 }
 
+/* ── Print: every page ─────────────────────────────────────────────────────────
+   Paper shows the title, the column headers and every row as plain text: no
+   controls, search, filters or toolbars. Tables lay out at the page's width;
+   [data-print-measure] applies the same layout while usePrintFit measures. */
+@media print {
+  [role="toolbar"],
+  [role="search"],
+  input[type="search"] {
+    display: none !important;
+  }
+
+  [data-print-bare] {
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    min-height: unset !important;
+  }
+
+  select {
+    appearance: none;
+    background-image: none !important;
+  }
+
+  table[data-print-table] {
+    width: 100% !important;
+  }
+
+  table[data-print-table] thead {
+    display: table-header-group;
+  }
+
+  table[data-print-table] tr {
+    break-inside: avoid;
+  }
+}
+
+@media print {
+  table[data-print-table] :is(th, td) {
+    min-width: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    overflow-wrap: break-word !important;
+  }
+}
+
+[data-print-measure] table[data-print-table] {
+  width: 100% !important;
+}
+
+[data-print-measure] table[data-print-table] :is(th, td) {
+  min-width: 0 !important;
+  width: auto !important;
+  max-width: none !important;
+  height: auto !important;
+  overflow-wrap: break-word !important;
+}
+
+[data-print-measure] .print\:hidden {
+  display: none !important;
+}
+
 /* ── Print stylesheet (Gantt report) ──────────────────────────────────────────
    Hides the entire app chrome; lets the Gantt chart fill the page width.
    Bars already carry [print-color-adjust:exact] so colours survive.

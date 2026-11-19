@@ -13,7 +13,7 @@ import { messages } from "../src/lib/messages";
 const M = messages.meetings;
 
 test("viewer sees the list but no New meeting and no editable cells", async ({ page }) => {
-  await page.goto("/projects/2/meetings?view=list");
+  await page.goto("/projects/2/meetings?view=list&q=Progress%20Achieved");
   await expect(page.getByRole("heading", { name: M.title, level: 1 })).toBeVisible();
   await expect(page.getByText("Progress Achieved")).toBeVisible();
   await expect(page.getByTestId("new-meeting")).toHaveCount(0);

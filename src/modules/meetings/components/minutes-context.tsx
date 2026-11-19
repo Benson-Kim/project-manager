@@ -2,7 +2,13 @@
 
 import { createContext, useContext } from "react";
 import type { ActionResult } from "@/lib/action";
-import type { ActionStatus, MeetingWorkspace, WorkspaceDiscussionPoint } from "../schemas/meeting";
+import type { GovernanceLogKind } from "../governance-logs";
+import type {
+  ActionStatus,
+  MeetingWorkspace,
+  WorkspaceActionItem,
+  WorkspaceDiscussionPoint,
+} from "../schemas/meeting";
 import type { Sibling } from "../schemas/minutes";
 import type { StakeholderOption } from "@/modules/stakeholders/repository/stakeholder-options";
 
@@ -16,7 +22,7 @@ export type MoveRequest =
   | { kind: "followUp"; meetingActionItemId: number };
 
 export interface DeleteTarget {
-  kind: "agenda" | "point" | "action" | "followUp";
+  kind: "agenda" | "point" | "action" | "followUp" | "section";
   id: number;
   rowVer: number;
   name: string;
@@ -30,6 +36,9 @@ export interface PickedPerson {
 
 export interface MinutesContextValue {
   meetingId: number;
+  projectId: number;
+  /** A person picker may create a stakeholder in place (stakeholders:create). */
+  canAddStakeholder: boolean;
   canCreate: boolean;
   canEdit: boolean;
   canDelete: boolean;
@@ -72,6 +81,14 @@ export interface MinutesContextValue {
   logAssumption: (point: WorkspaceDiscussionPoint, name: string) => void;
   /** "YYYY-MM-DD" on the server's calendar: actions due before it are overdue. */
   today: string;
+  /** The logs this user may link an action to (create and update in that log). */
+  logKinds: readonly GovernanceLogKind[];
+  /** Links the action to exactly these logs; an unticked log keeps its record. */
+  setLogLinks: (action: WorkspaceActionItem, kinds: GovernanceLogKind[], name: string) => void;
+  /** The project's WBS tasks an action may point at; empty when the user may not link them. */
+  taskOptions: readonly { id: number; label: string }[];
+  /** Points the action at exactly these WBS tasks. */
+  setTaskLinks: (action: WorkspaceActionItem, keyDeliverableIds: number[], name: string) => void;
 }
 
 export const MinutesContext = createContext<MinutesContextValue | null>(null);

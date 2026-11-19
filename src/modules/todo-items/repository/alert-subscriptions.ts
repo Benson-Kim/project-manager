@@ -20,9 +20,30 @@ export async function upsertAlertSubscription(
   });
 }
 
-export async function listDuePushDeliveries(): Promise<PushDeliveryRow[]> {
-  const rows = await execProc<PushDeliveryRow>("usp_TodoAlert_ListPushDeliveries");
-  return rows.map((row) => pushDeliveryRowSchema.parse(row));
+export interface DuePushDeliveries {
+  deliveries: PushDeliveryRow[];
+  skipped: number;
+}
+
+export async function listDuePushDeliveries(localNow: Date): Promise<DuePushDeliveries> {
+  const rows = await execProc<PushDeliveryRow>("usp_TodoAlert_ListPushDeliveries", {
+    LocalNow: localNow,
+  });
+  const deliveries: PushDeliveryRow[] = [];
+  let skipped = 0;
+  for (const row of rows) {
+    const parsed = pushDeliveryRowSchema.safeParse(row);
+    if (parsed.success) {
+      deliveries.push(parsed.data);
+    } else {
+      skipped += 1;
+      console.warn("[alerts] skipped a malformed subscription row:", {
+        alertSubscriptionId: (row as { AlertSubscriptionId?: unknown }).AlertSubscriptionId,
+        todoAlertId: (row as { TodoAlertId?: unknown }).TodoAlertId,
+      });
+    }
+  }
+  return { deliveries, skipped };
 }
 
 export async function deactivateAlertSubscription(alertSubscriptionId: number): Promise<void> {
@@ -33,13 +54,18 @@ export async function deactivateAlertSubscription(alertSubscriptionId: number): 
 }
 
 /**
- * Stamp LastPushSentAtUtc on a subscription row after a successful Web Push
- * send.  This advances the row past the delivery-list filter so subsequent
- * same-day scheduler invocations skip it, preventing starvation of later rows.
+ * Record a successful Web Push of one alert to one subscription for a local day, so later
+ * same-day scheduler invocations skip it while other alerts due that day are still sent.
  */
-export async function recordAlertSubscriptionDelivery(alertSubscriptionId: number): Promise<void> {
+export async function recordAlertSubscriptionDelivery(
+  alertSubscriptionId: number,
+  todoAlertId: number,
+  alertDate: Date,
+): Promise<void> {
   await execProc("usp_AlertSubscription_RecordDelivery", {
     AlertSubscriptionId: alertSubscriptionId,
+    TodoAlertId: todoAlertId,
+    AlertDate: alertDate,
     ActorUserId: 0,
   });
 }

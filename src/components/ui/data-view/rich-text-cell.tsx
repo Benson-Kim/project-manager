@@ -157,7 +157,7 @@ export function RichTextCell({
           event.preventDefault();
           open(event.shiftKey ? "zoom" : "panel");
         }}
-        className="block h-(--row-h) w-full cursor-text overflow-hidden px-3 py-2 text-left text-sm text-inherit hover:bg-surface-sunken focus:bg-surface focus:text-ink data-invalid:bg-danger-soft"
+        className="block h-(--row-h) w-full cursor-text overflow-hidden px-3 py-2 text-left text-sm text-inherit hover:bg-surface-sunken focus:bg-surface focus:text-ink data-invalid:bg-danger-soft print:h-auto print:overflow-visible"
       >
         {preview ? (
           // Inert: links in the text are not separate stops inside the cell's button.
@@ -165,7 +165,7 @@ export function RichTextCell({
             {display}
           </span>
         ) : placeholder ? (
-          <span aria-hidden="true" className="text-ink-muted">
+          <span aria-hidden="true" className="text-ink-muted print:hidden">
             {placeholder}
           </span>
         ) : null}

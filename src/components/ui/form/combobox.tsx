@@ -54,7 +54,14 @@ export interface ComboboxProps {
    * `clear` empties the box, for a control in it that has dealt with the name some other way.
    */
   noMatch?: (text: string, clear: () => void) => React.ReactNode;
+  /**
+   * A first list item, always there while the list is open, that hands the typed text over to
+   * create what is not in the list yet. The arrows reach it above the first option.
+   */
+  addNew?: { label: string; onChoose: (text: string) => void };
 }
+
+const ADD_NEW = -1;
 
 export function Combobox({
   name,
@@ -69,6 +76,7 @@ export function Combobox({
   onPick,
   autoFocus = false,
   noMatch,
+  addNew,
 }: ComboboxProps) {
   const listboxId = useId();
   const aria = useFieldAria();
@@ -96,9 +104,14 @@ export function Combobox({
   );
   const filtered = ranked.map((r) => r.option);
   const unmatched = noMatch !== undefined && matchesNone(options, query, (o) => o.label);
-  usePopoverPlacement(inputRef, listRef, open && filtered.length > 0, {
+  const firstIndex = addNew ? ADD_NEW : 0;
+  const lastIndex = Math.max(filtered.length - 1, firstIndex);
+  const onAddNew = addNew !== undefined && activeIndex === ADD_NEW;
+  const itemCount = filtered.length + (addNew ? 1 : 0);
+  const listed = open && itemCount > 0;
+  usePopoverPlacement(inputRef, listRef, listed, {
     fit: true,
-    contentKey: filtered.length,
+    contentKey: itemCount,
   });
 
   const clear = useCallback(() => {
@@ -124,17 +137,31 @@ export function Combobox({
     [onPick, onSelect, clear],
   );
 
+  const chooseAddNew = useCallback(() => {
+    if (!addNew) return;
+    const text = query === selected?.label ? "" : query.trim();
+    keyedRef.current = false;
+    setOpen(false);
+    if (onPick) setQuery("");
+    addNew.onChoose(text);
+  }, [addNew, query, selected, onPick]);
+
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
       keyedRef.current = true;
       if (!open) setOpen(true);
-      else setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+      else setActiveIndex((i) => Math.min(i + 1, lastIndex));
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
       keyedRef.current = true;
-      setActiveIndex((i) => Math.max(i - 1, 0));
+      setActiveIndex((i) => Math.max(i - 1, firstIndex));
     } else if (event.key === "Enter") {
+      if (open && onAddNew && keyedRef.current) {
+        event.preventDefault();
+        chooseAddNew();
+        return;
+      }
       const active = ranked[activeIndex];
       if (open && active && (keyedRef.current || active.rank < NO_MATCH)) {
         event.preventDefault();
@@ -161,7 +188,13 @@ export function Combobox({
         aria-controls={listboxId}
         aria-autocomplete="list"
         aria-activedescendant={
-          open && filtered[activeIndex] ? `${listboxId}-${filtered[activeIndex].value}` : undefined
+          !open
+            ? undefined
+            : onAddNew
+              ? `${listboxId}-add-new`
+              : filtered[activeIndex]
+                ? `${listboxId}-${filtered[activeIndex].value}`
+                : undefined
         }
         autoComplete="off"
         aria-label={ariaLabel}
@@ -192,15 +225,34 @@ export function Combobox({
         {...aria}
       />
       <span className="pointer-events-none absolute right-3 top-0 flex h-10 items-center text-ink-muted">
-        <Chevron open={open && filtered.length > 0} />
+        <Chevron open={listed} />
       </span>
       <ul
         ref={listRef}
         id={listboxId}
         role="listbox"
-        hidden={!open || filtered.length === 0}
+        hidden={!listed}
         className="fixed z-(--z-dropdown) max-h-60 overflow-auto rounded-md border border-line bg-surface-raised shadow-lg"
       >
+        {addNew ? (
+          <li
+            id={`${listboxId}-add-new`}
+            role="option"
+            aria-selected={false}
+            data-testid="combobox-add-new"
+            className={`flex min-h-10 cursor-pointer items-center gap-2 px-6 text-sm font-medium text-accent first:rounded-t-md last:rounded-b-md ${
+              filtered.length > 0 ? "border-b border-line" : ""
+            } ${onAddNew ? "bg-accent-soft" : ""}`}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              chooseAddNew();
+            }}
+            onMouseEnter={() => setActiveIndex(ADD_NEW)}
+          >
+            <span aria-hidden="true">+</span>
+            {addNew.label}
+          </li>
+        ) : null}
         {ranked.map(({ option, rank }, index) => (
           <li
             key={option.value}

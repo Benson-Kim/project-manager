@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth/provider";
 import { orNotFound } from "@/lib/row-access";
 import { parseListParams } from "@/lib/list-params";
+import { listForView } from "@/lib/list-print";
 import { listBoards } from "@/modules/boards/repository/boards";
 import { listProjectOptions } from "@/modules/projects/repository/projects";
 import { BoardsList } from "@/modules/boards/components/boards-list";
@@ -20,7 +21,7 @@ export default async function Page({
   const raw = await searchParams;
   const list = parseListParams(raw, BOARD_SORT);
   const [rows, projects] = await Promise.all([
-    orNotFound(listBoards(list, session.userId, id)),
+    orNotFound(listForView(list, (p, size) => listBoards(p, session.userId, id, size))),
     listProjectOptions(session.userId),
   ]);
   const allows = await orNotFound(getProjectPermissions(id, session.userId));

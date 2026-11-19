@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { withRichViews } from "@/components/ui/rich-text/rich-views";
 import { auth } from "@/lib/auth/provider";
 import { flattenSearchParams, initialViewOf, parseListParams } from "@/lib/list-params";
+import { listForView } from "@/lib/list-print";
 import { messages } from "@/lib/messages";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { getListPreference } from "@/lib/repositories/view-preference";
@@ -66,7 +67,11 @@ export default async function DecisionsPage({
 
   const [rows, preference, selectedRaw, allows, lookup, people, decisionOptions] =
     await Promise.all([
-      orNotFound(listDecisions(listParams, session.userId, projectId, filters)),
+      orNotFound(
+        listForView(listParams, (p, size) =>
+          listDecisions(p, session.userId, projectId, filters, size),
+        ),
+      ),
       getListPreference(session.userId, "decisions").catch(() => null),
       selectedId ? orNull(getDecisionById(selectedId, session.userId)) : null,
       getProjectPermissions(projectId, session.userId),
@@ -121,6 +126,7 @@ export default async function DecisionsPage({
           decisionOptions={decisionOptions}
           canEdit={isNew ? canCreate : canEdit}
           canDelete={canDelete}
+          canAddStakeholder={allows("stakeholders:create")}
         />
       </LookupListsScope>
     </>

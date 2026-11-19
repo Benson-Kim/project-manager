@@ -5,24 +5,31 @@
   "rangeStrategy": "bump",
   "packageRules": [
     {
+      "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "automerge": true,
       "automergeType": "pr"
     },
     {
-      "matchDepTypes": ["devDependencies"],
-      "automerge": true
+      "matchPackageNames": [
+        "electron",
+        "electron-builder",
+        "electron-updater",
+        "builder-util-runtime",
+        "esbuild"
+      ],
+      "automerge": false
     }
   ],
   "vulnerabilityAlerts": {
     "enabled": true,
-    "automerge": true,
+    "automerge": false,
     "labels": ["security"]
   },
   "osvVulnerabilityAlerts": true,
   "lockFileMaintenance": {
     "enabled": true,
-    "automerge": true,
+    "automerge": false,
     "schedule": ["before 6am on monday"]
   },
   "labels": ["dependencies"],

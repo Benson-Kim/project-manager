@@ -46,9 +46,15 @@ payload bytes. The app embeds only public keys, by `kid`, so a key can be rotate
 public key one release before the service starts using it. The private key lives only in the
 service's secret store.
 
-- Licence: `{ v, licenceId, kind: trial | free | full, machineHash, emailHash, issuedAt, startsAt,
+Every document also carries `typ` (`licence` or `checkin`), `aud` (`modulus-desktop`) and `iss`
+(`modulus-licence-service`). The desktop and the bundled server check all three, and the type that
+fits the place the document is used, after the signature and before any other field, and refuse a
+document where one is missing or different. No build that enforces licensing has shipped, so no
+document without these claims is held by a user.
+
+- Licence: `{ v, typ, aud, iss, licenceId, kind: trial | free | full, machineHash, emailHash, issuedAt, startsAt,
   expiresAt | null, updatesUntil | null }`. Free and full licences have no `expiresAt`.
-- Check-in: `{ v, licenceId, machineHash, nonce, serverTime, licence }` where `licence` is the
+- Check-in: `{ v, typ, aud, iss, licenceId, machineHash, nonce, serverTime, licence }` where `licence` is the
   current signed licence.
 
 ### 3. The machine hash ignores the install
@@ -78,7 +84,9 @@ the app must check in online before it can be used, so deleting files only force
 
 ### 5. Check-in, offline and expiry
 
-The app checks in at start and hourly. A trial is usable while `trustedNow < expiresAt` and
+The app checks in at start and every six hours. The interval is shorter than the 24-hour offline
+grace on purpose, so a PC that is online keeps several check-ins in hand before the grace runs out.
+A trial is usable while `trustedNow < expiresAt` and
 `trustedNow - lastServerTime <= 24 h`. Past 24 hours offline the app asks to reconnect and is
 read-only until it does. Because trusted time only advances while the app runs when it is offline,
 staying offline buys at most 24 hours of use, and the first check-in jumps to real server time.
@@ -112,8 +120,10 @@ read and export their data.
 
 ### 8. Enforcement is off until a build turns it on
 
-The packaged `package.json` carries `"licensing": "enforce"` only in beta builds (electron-builder
-`extraMetadata`, inside the asar, covered by the asar-integrity fuse). Without it the state is `off`
+The packaged `package.json` carries `"licensing": "enforce"` only in beta builds (written by
+`scripts/desktop/build.mjs` when the release setting `PM_LICENSING` is `enforce`, inside the asar,
+covered by the asar-integrity fuse). The same build bakes in `PM_LICENCE_PUBLIC_KEYS` and
+`PM_LICENCE_SERVICE_URL`, and stops when either is missing from an enforcing build. Without it the state is `off`
 and nothing is checked, so the paying client's channel never enforces. Before any of their builds
 enforce, each of their PCs receives a full licence through `/v1/licence/redeem`.
 

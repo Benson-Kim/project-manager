@@ -48,4 +48,15 @@ describe("package-lock.json", () => {
     }
     expect(missing).toEqual([]);
   });
+
+  it("leaves out packages the Next build cannot trace", () => {
+    const lock = JSON.parse(readFileSync("package-lock.json", "utf8")) as {
+      packages: Record<string, LockEntry>;
+    };
+    // Turbopack panics tracing powershell-utils' powershell.exe path; open 11 pulls it in.
+    const untraceable = Object.keys(lock.packages).filter((p) =>
+      p.endsWith("node_modules/powershell-utils"),
+    );
+    expect(untraceable).toEqual([]);
+  });
 });

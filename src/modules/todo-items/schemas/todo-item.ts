@@ -62,6 +62,9 @@ export const todoItemListRowSchema = todoItemRowSchema.extend({
   ProjectName: z.string().nullable(),
   /** The to-do has a repeat rule (ADR-0059): the list shows a "Repeats" badge. */
   Repeats: z.boolean().default(false),
+  /** The to-do's planner slot (wall clock); the list marks a placed to-do "Calendar". */
+  ScheduledStart: z.date().nullable().default(null),
+  ScheduledEnd: z.date().nullable().default(null),
   TotalCount: z.number().int(),
   ...actorAccessFields,
 });
@@ -239,9 +242,10 @@ export type DueAlertRow = z.infer<typeof dueAlertRowSchema>;
 /**
  * The orders usp_TodoItem_List applies (ADR-0016); by due date by default.
  * SortKey is the manual order the reorder buttons write, which is why the
- * Reorder column carries the control for it.
+ * Reorder column carries the control for it. TodoItemId is newest first, the
+ * planner's list of to-dos not yet on the calendar.
  */
 export const TODO_ITEM_SORT: ListSort = {
-  columns: ["DueDate", "Priority", "Status", "StartDate", "SortKey"],
+  columns: ["DueDate", "Priority", "Status", "StartDate", "SortKey", "TodoItemId"],
   default: "DueDate",
 };

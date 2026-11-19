@@ -8,7 +8,7 @@ import { LICENCE_PUBLIC_KEYS, LICENCE_SERVICE_URL } from "./keys";
 import { readMachineHash } from "./machine-id";
 import { LicenceManager } from "./manager";
 import { licensingEnforced, type LicenceStatus } from "./policy";
-import { LicenceServiceClient, serviceBase } from "./service-client";
+import { LicenceServiceClient, resolveServiceUrl, serviceBase } from "./service-client";
 import { SqlLicenceMirror } from "./sql-mirror";
 import { SealedStateFile } from "./state-file";
 
@@ -66,7 +66,7 @@ export async function startLicence(opts: {
       opts.log.warn("licence: this computer's id could not be read");
       return closed;
     }
-    const base = serviceBase(process.env.PM_LICENCE_URL || LICENCE_SERVICE_URL);
+    const base = serviceBase(resolveServiceUrl(LICENCE_SERVICE_URL, enforce));
     const manager = new LicenceManager({
       enforce,
       keys: LICENCE_PUBLIC_KEYS,
@@ -74,6 +74,7 @@ export async function startLicence(opts: {
       store: new SealedStateFile(path.join(opts.userData, "licence.bin"), safeStorage),
       mirror: new SqlLicenceMirror(opts.target, machineHash),
       service: base ? new LicenceServiceClient(base) : null,
+      log: opts.log,
     });
     const status = await manager.start().catch((err: unknown) => {
       opts.log.warn(`licence: start failed: ${describeError(err)}`);

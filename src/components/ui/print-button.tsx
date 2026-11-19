@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import type { ButtonVariant } from "@/components/ui/button-styles";
 import { PrinterIcon } from "@/components/ui/printer-icon";
@@ -35,4 +36,21 @@ export function PrintButton({
       {label}
     </Button>
   );
+}
+
+/**
+ * For a PrintButton whose onPrint first loads what is printed: prints once each time `ready`
+ * turns true, then calls `done`.
+ */
+export function usePrintWhenReady(ready: boolean, done: () => void) {
+  const printed = useRef(false);
+  useEffect(() => {
+    if (!ready) {
+      printed.current = false;
+      return;
+    }
+    if (printed.current) return;
+    printed.current = true;
+    void printWithPreview().finally(done);
+  }, [ready, done]);
 }

@@ -13,15 +13,33 @@ export function LinkMenu({
   at,
   onClose,
   onRemove,
+  onStyle,
+  onBranch,
 }: {
   from: string;
   to: string;
   at: { x: number; y: number };
   onClose: () => void;
   onRemove: () => void;
+  onStyle: () => void;
+  /** Absent for a line that is itself a branch: a branch cannot start on another branch. */
+  onBranch?: (fromLabel: boolean) => void;
 }) {
   return (
     <ContextMenu at={at} label={M.linkMenu(from, to)} onClose={onClose}>
+      <MenuButton testId="canvas-menu-style-link" onClick={onStyle}>
+        {M.styleLink}
+      </MenuButton>
+      {onBranch ? (
+        <>
+          <MenuButton testId="canvas-menu-branch-here" onClick={() => onBranch(false)}>
+            {M.branchHere}
+          </MenuButton>
+          <MenuButton testId="canvas-menu-branch-label" onClick={() => onBranch(true)}>
+            {M.branchLabel}
+          </MenuButton>
+        </>
+      ) : null}
       <MenuButton testId="canvas-menu-remove-link" onClick={onRemove}>
         {M.removeLink}
       </MenuButton>

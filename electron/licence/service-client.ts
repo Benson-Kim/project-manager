@@ -6,6 +6,12 @@ export class LicenceServiceError extends Error {
   }
 }
 
+const ERROR_CODE = /^[a-z_]{1,32}$/;
+
+function errorCode(value: unknown): string {
+  return typeof value === "string" && ERROR_CODE.test(value) ? value : "failed";
+}
+
 export function serviceBase(url: string | undefined): URL | null {
   if (!url) return null;
   try {
@@ -16,6 +22,14 @@ export function serviceBase(url: string | undefined): URL | null {
   } catch {
     return null;
   }
+}
+
+export function resolveServiceUrl(
+  built: string,
+  enforce: boolean,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  return enforce ? built : env.PM_LICENCE_URL || built;
 }
 
 export class LicenceServiceClient {
@@ -38,8 +52,7 @@ export class LicenceServiceClient {
       throw new LicenceServiceError("offline");
     }
     const reply = (await response.json().catch(() => ({}))) as { error?: unknown };
-    if (!response.ok)
-      throw new LicenceServiceError(typeof reply.error === "string" ? reply.error : "failed");
+    if (!response.ok) throw new LicenceServiceError(errorCode(reply.error));
     return reply;
   }
 }

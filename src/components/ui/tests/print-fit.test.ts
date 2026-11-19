@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PRINT_WIDTH_PX, printZoom } from "../components/use-print-fit";
+import { PRINT_WIDTH_PX, printZoom } from "../use-print-fit";
 
 describe("printZoom", () => {
   it("is the A4 landscape width inside the margins", () => {

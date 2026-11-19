@@ -1,6 +1,8 @@
 -- usp_TodoItem_List — paged/filtered list per ADR-0016. Search columns: TodoItem, Assignee. Sort whitelist: DueDate, Priority, Status, StartDate.
 -- Filter params: @Status (exact match), @Priority (exact match), @ProjectOrActivity (exact match),
---   @WithoutProject (1 = only project-less to-dos; the cross-project page's "No project" filter).
+--   @WithoutProject (1 = only project-less to-dos; the cross-project page's "No project" filter),
+--   @Unscheduled (1 = only to-dos with no planner slot; the planner's to-do panel). SortBy
+--   TodoItemId desc = newest first.
 -- Row-level access: a supplied @ProjectId must be readable (dbo.usp_Project_AssertAccess ->
 --   FORBIDDEN_ROW 50003); rows follow the to-do rule (dbo.ufn_TodoItem_AccessLevel, ADR-0021).
 --   LIKE wildcards in @Search are escaped.
@@ -13,6 +15,7 @@
 -- Entity app.TodoItem (source: tblTodoList (core; alert columns → TodoAlert)). Module: todo-items (#20).
 -- ActorGrants / ActorRevokes (ADR-0024): the actor's per-person overrides of 'todo-items' in the
 --   row's project (dbo.ufn_Permission_Overrides), so the datasheet gates cells as the procs do.
+-- ScheduledStart / ScheduledEnd: the to-do's planner slot (migration 082), which the list marks.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_TodoItem_List
@@ -26,7 +29,8 @@ CREATE OR ALTER PROCEDURE dbo.usp_TodoItem_List
     @Status            NVARCHAR(255) = NULL,
     @Priority          NVARCHAR(255) = NULL,
     @ProjectOrActivity NVARCHAR(50)  = NULL,
-    @WithoutProject    BIT           = 0
+    @WithoutProject    BIT           = 0,
+    @Unscheduled       BIT           = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -76,6 +80,8 @@ BEGIN
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer,
+           ScheduledStart,
+           ScheduledEnd,
            acc.AccessLevel AS ActorAccess,
            ov.Grants AS ActorGrants,
            ov.Revokes AS ActorRevokes,
@@ -89,6 +95,7 @@ BEGIN
     WHERE IsDeleted = 0
       AND (@ProjectId         IS NULL OR ProjectId         = @ProjectId)
       AND (ISNULL(@WithoutProject, 0) = 0 OR ProjectId IS NULL)
+      AND (ISNULL(@Unscheduled, 0) = 0 OR ScheduledStart IS NULL)
       AND (@Search            IS NULL
            OR [TodoItem] LIKE N'%' + @Search + N'%' ESCAPE N'\'
            OR [Assignee] LIKE N'%' + @Search + N'%' ESCAPE N'\')
@@ -109,6 +116,7 @@ BEGIN
         CASE WHEN @SortBy = N'StartDate'  AND @SortDir = 'desc' THEN [StartDate]  END DESC,
         CASE WHEN @SortBy = N'SortKey'    AND @SortDir = 'asc'  THEN [SortKey]    END ASC,
         CASE WHEN @SortBy = N'SortKey'    AND @SortDir = 'desc' THEN [SortKey]    END DESC,
+        CASE WHEN @SortBy = N'TodoItemId' AND @SortDir = 'desc' THEN TodoItemId   END DESC,
         TodoItemId ASC
     OFFSET (@Page - 1) * @PageSize ROWS FETCH NEXT @PageSize ROWS ONLY;
 END;

@@ -10,6 +10,7 @@ interface Env {
   SIGNING_KEY_PKCS8: string;
   SIGNING_KID: string;
   ADMIN_TOKEN: string;
+  ADMIN_READ_TOKEN?: string;
   MAIL_API_KEY: string;
   MAIL_FROM: string;
   MAIL_ENDPOINT?: string;
@@ -17,6 +18,7 @@ interface Env {
 
 type Handler = (request: Request) => Promise<Response>;
 
+const MAIL_TIMEOUT = 8000;
 const PRUNE_AFTER = 2 * 24 * 60 * 60 * 1000;
 
 export function httpMailer(env: Env): Mailer {
@@ -30,6 +32,7 @@ export function httpMailer(env: Env): Mailer {
           authorization: `Bearer ${env.MAIL_API_KEY}`,
           "content-type": "application/json",
         },
+        signal: AbortSignal.timeout(MAIL_TIMEOUT),
         body: JSON.stringify({
           from: env.MAIL_FROM,
           to: [email],
@@ -53,6 +56,8 @@ async function build(env: Env): Promise<Handler> {
   return createHandler({
     service,
     adminToken: env.ADMIN_TOKEN,
+    readToken: env.ADMIN_READ_TOKEN,
+    log: (event) => console.log(JSON.stringify(event)),
     adminPage: { html: adminHtml, script: `{const __name=(f)=>f;(${adminScript.toString()})();}` },
   });
 }

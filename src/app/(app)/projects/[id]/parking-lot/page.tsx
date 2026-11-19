@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
 import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
+import { listForView } from "@/lib/list-print";
 import { messages } from "@/lib/messages";
 import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNotFound, orNull } from "@/lib/row-access";
@@ -57,7 +58,11 @@ export default async function ParkingLotPage({
   const status = flat.status?.trim() || null;
 
   const [rows, preference, selectedRaw, allows, lookup] = await Promise.all([
-    orNotFound(listParkingLotItems(effectiveParams, session.userId, projectId, { status })),
+    orNotFound(
+      listForView(effectiveParams, (p, size) =>
+        listParkingLotItems(p, session.userId, projectId, { status }, size),
+      ),
+    ),
     getListPreference(session.userId, "parking-lot").catch(() => null),
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? orNull(getParkingLotItemById(selectedId, session.userId))

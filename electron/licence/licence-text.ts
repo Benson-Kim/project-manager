@@ -30,6 +30,10 @@ export function reasonText(reason: string): string {
 
 const day = (at: number) => new Date(at).toISOString().slice(0, 10);
 
+export function updateNotIncludedText(version: string, updatesUntil: number): string {
+  return `Modulus ${version} is not included with your licence, which covers updates released until ${day(updatesUntil)}.`;
+}
+
 function activeText(view: LicenceView): string {
   if (view.kind === "trial" && view.expiresAt !== null) {
     const days = Math.max(1, Math.ceil((view.expiresAt - view.now) / DAY));

@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 const DIAGRAM = "src/modules/key-deliverables/components/wbs-diagram.tsx";
 const BOARD = "src/modules/key-deliverables/components/gantt-board.tsx";
 const CONTAINER = "src/modules/key-deliverables/components/wbs-gantt.tsx";
+const FULLSCREEN = "src/components/shell/use-fullscreen.ts";
 
 const source = (path: string) => readFileSync(path, "utf8");
 
@@ -44,7 +45,8 @@ const CHARTS = [
 describe("full screen puts both scrollbars on the chart", () => {
   it("tells each chart it is full screen", () => {
     const container = source(CONTAINER);
-    expect(container).toContain('fullscreen.active ? "fixed inset-0');
+    expect(source(FULLSCREEN)).toContain('FULLSCREEN_FRAME = "fixed inset-0');
+    expect(container).toContain("fullscreen.active ? `${FULLSCREEN_FRAME}");
     expect(container.match(/fullscreen=\{fullscreen\.active\}/g)).toHaveLength(CHARTS.length);
   });
 

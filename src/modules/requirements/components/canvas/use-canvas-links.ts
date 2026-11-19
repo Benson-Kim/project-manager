@@ -39,10 +39,11 @@ export function useCanvasLinks(remember: Remember) {
       const result = await request();
       if (result.ok) {
         notifySaved();
-        return;
+        return true;
       }
       forget();
       toast({ variant: "error", title: firstError(result.error) });
+      return false;
     });
 
   const connect = ({ up, down }: ItemConnection, undoable = true) =>

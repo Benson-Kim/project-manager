@@ -4,6 +4,7 @@ import { messages } from "../src/lib/messages";
 import { closeAlarmToast } from "./support/alarms";
 import { escapeRegExp, openListed } from "./support/datasheet";
 import { waitForRichTextEditors } from "./support/editor";
+import { listedPeople } from "./support/picker";
 
 /**
  * Decision log — project-scoped route /projects/2/decisions. Create with impacted areas and
@@ -60,7 +61,7 @@ test("a decision keeps its impacted areas and consulted people across an edit", 
 
   const consulted = form.getByRole("combobox", { name: M.consulted, exact: true });
   await consulted.click();
-  const person = form.getByRole("listbox").getByRole("option").first();
+  const person = listedPeople(form).first();
   const who = ((await person.textContent()) ?? "").trim();
   expect(who).not.toBe("");
   await person.click();

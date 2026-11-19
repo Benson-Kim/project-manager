@@ -33,6 +33,16 @@ import {
   setTodoOccurrenceInput,
   setTodoRecurrenceInput,
 } from "../schemas/todo-recurrence";
+import {
+  createPlannerEntry,
+  scheduleTodoItem,
+  unscheduleTodoItem,
+} from "../repository/todo-schedule";
+import {
+  createPlannerEntryInput,
+  scheduleTodoItemInput,
+  unscheduleTodoItemInput,
+} from "../schemas/todo-schedule";
 import { todoItemFormSchema, updateTodoItemFormSchema } from "../schemas/todo-item-form";
 import { todoAlertFormSchema, updateTodoAlertFormSchema } from "../schemas/todo-alert-form";
 import { pushSubscriptionInput } from "../schemas/alert-subscription";
@@ -245,4 +255,28 @@ export const setDueSoonDaysAction = action({
     await setDueSoonDays(ctx.session.userId, input.dueSoonDays);
     return { dueSoonDays: input.dueSoonDays };
   },
+});
+
+/** Place, move or stretch a to-do on the planner (Contributor on the to-do, checked in-proc; CONFLICT on stale RowVer). */
+export const scheduleTodoItemAction = action({
+  name: "todo-items.schedule",
+  schema: scheduleTodoItemInput,
+  permission: "todo-items:update",
+  handler: (input, ctx) => scheduleTodoItem(input, ctx.session.userId),
+});
+
+/** Take a to-do off the planner; the to-do stays. */
+export const unscheduleTodoItemAction = action({
+  name: "todo-items.unschedule",
+  schema: unscheduleTodoItemInput,
+  permission: "todo-items:update",
+  handler: (input, ctx) => unscheduleTodoItem(input, ctx.session.userId),
+});
+
+/** A new to-do typed into a planner slot (project level checked in-proc). */
+export const createPlannerEntryAction = action({
+  name: "todo-items.createPlannerEntry",
+  schema: createPlannerEntryInput,
+  permission: "todo-items:create",
+  handler: (input, ctx) => createPlannerEntry(input, ctx.session.userId),
 });

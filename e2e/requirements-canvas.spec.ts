@@ -225,6 +225,9 @@ test("picking from the menu dims a wrong end, draws a link, and the link's menu 
   await page.reload();
   await expect(nodes).toHaveCount(2);
   await expect(edges).toHaveCount(1);
+  const line = await edges.first().locator(".react-flow__edge-path").getAttribute("d");
+  expect(line).not.toContain("C");
+  expect(line).toMatch(/^M[ML\d\s.,-]+$/);
 
   await edges.first().click({ button: "right", force: true });
   await page.getByTestId("canvas-menu-remove-link").click();
@@ -293,6 +296,195 @@ test("focus shows a card's links only, and the board goes full page, to a previe
   await expect(page.getByTestId("canvas-board")).toBeVisible();
   await expect(nodes.filter({ hasText: business })).toBeVisible();
   await page.emulateMedia({ media: "screen" });
+});
+
+type Spot = { x: number; y: number };
+
+/** The two ends of an edge's drawn line, in board units. */
+async function lineEnds(edge: Locator): Promise<{ start: Spot; end: Spot }> {
+  return edge.locator(".react-flow__edge-path").evaluate((el) => {
+    const path = el as SVGPathElement;
+    const total = path.getTotalLength();
+    const at = (length: number) => {
+      const point = path.getPointAtLength(length);
+      return { x: point.x, y: point.y };
+    };
+    return { start: at(0), end: at(total) };
+  });
+}
+
+/** A card's box in board units, read from the position the board draws it at. */
+async function cardBox(node: Locator) {
+  return node.evaluate((el) => {
+    const card = el as HTMLElement;
+    const [x, y] = (card.style.transform.match(/-?[\d.]+/g) ?? ["0", "0"]).map(Number);
+    return { x, y, width: card.offsetWidth, height: card.offsetHeight };
+  });
+}
+
+async function dragBy(page: Page, node: Locator, dx: number, dy: number) {
+  const box = (await node.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + 12);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + dx, box.y + 12 + dy, { steps: 12 });
+  await page.mouse.up();
+}
+
+async function openLinkStyle(page: Page, edge: Locator) {
+  await edge.click({ button: "right", force: true });
+  await page.getByTestId("canvas-menu-style-link").click();
+  await expect(page.getByTestId("canvas-link-style")).toBeVisible();
+}
+
+test("a link's style is saved, undoes in one step, and is kept after a reload", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const projectId = await createProject(page);
+  const stamp = Date.now();
+  const business = `E2E styled business ${stamp}`;
+  const stakeholder = `E2E styled stakeholder ${stamp}`;
+  await addRequirement(page, projectId, "BR", business);
+  await addRequirement(page, projectId, "SR", stakeholder);
+  await canvasWithAll(page, projectId, 2);
+  await linkDown(page, business, stakeholder, 1);
+
+  const edge = page.locator(".react-flow__edge").first();
+  const line = edge.locator(".react-flow__edge-path");
+  const field = (name: string) => page.getByTestId(`canvas-link-style-${name}`);
+  await openLinkStyle(page, edge);
+  await field("shape").selectOption("curved");
+  await expect(line).toHaveAttribute("d", /C/);
+  await field("pattern").selectOption("dashed");
+  await field("start").selectOption("arrow");
+  await field("end").selectOption("dot");
+  await field("colour-2563EB").click();
+  await expect(line).toHaveCSS("stroke", "rgb(37, 99, 235)");
+  await field("weight").selectOption("4");
+  await expect(line).toHaveCSS("stroke-width", "4px");
+
+  await page.getByTestId("canvas-undo").click();
+  await expect(line).not.toHaveCSS("stroke-width", "4px");
+  await expect(line).toHaveCSS("stroke", "rgb(37, 99, 235)");
+  await expect(field("weight")).toHaveValue("");
+  await field("weight").selectOption("3");
+  await expect(line).toHaveCSS("stroke-width", "3px");
+  await page.waitForTimeout(800);
+
+  await page.reload();
+  await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+  await expect(line).toHaveAttribute("d", /C/);
+  await expect(line).toHaveCSS("stroke", "rgb(37, 99, 235)");
+  await expect(line).toHaveCSS("stroke-width", "3px");
+  expect(await line.evaluate((el) => getComputedStyle(el).strokeDasharray)).not.toBe("none");
+  await expect(line).toHaveAttribute("marker-start", /url\(/);
+  await expect(line).toHaveAttribute("marker-end", /url\(/);
+  await openLinkStyle(page, edge);
+  await expect(field("shape")).toHaveValue("curved");
+  await expect(field("pattern")).toHaveValue("dashed");
+  await expect(field("start")).toHaveValue("arrow");
+  await expect(field("end")).toHaveValue("dot");
+  await expect(field("weight")).toHaveValue("3");
+  expect(errors).toEqual([]);
+});
+
+test("a styled link's end follows its card when the card moves, and after a reload", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const projectId = await createProject(page);
+  const stamp = Date.now();
+  const business = `E2E moving business ${stamp}`;
+  const stakeholder = `E2E moving stakeholder ${stamp}`;
+  await addRequirement(page, projectId, "BR", business);
+  await addRequirement(page, projectId, "SR", stakeholder);
+  await canvasWithAll(page, projectId, 2);
+  await linkDown(page, business, stakeholder, 1);
+
+  const edge = page.locator(".react-flow__edge").first();
+  await openLinkStyle(page, edge);
+  await page.getByTestId("canvas-link-style-shape").selectOption("straight");
+  await page.getByTestId("canvas-link-style-close").click();
+  await expect(page.getByTestId("canvas-link-style")).toBeHidden();
+
+  const card = page.locator(".react-flow__node").filter({ hasText: stakeholder });
+  const endsOnCard = async () => {
+    const box = await cardBox(card);
+    const { end } = await lineEnds(edge);
+    return Math.abs(end.x - box.x) <= 16 && end.y >= box.y - 1 && end.y <= box.y + box.height + 1;
+  };
+  await expect.poll(endsOnCard).toBe(true);
+  const before = (await lineEnds(edge)).end;
+
+  await dragBy(page, card, 120, 140);
+  await expect.poll(async () => (await lineEnds(edge)).end.y).toBeGreaterThan(before.y + 40);
+  await expect.poll(endsOnCard).toBe(true);
+  await page.waitForTimeout(800);
+
+  await page.reload();
+  await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+  await expect.poll(endsOnCard).toBe(true);
+  expect((await lineEnds(edge)).end.y).toBeGreaterThan(before.y + 40);
+  expect(errors).toEqual([]);
+});
+
+test("a branch picked from a line's label starts on that line and stays there after a reload", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const projectId = await createProject(page);
+  const stamp = Date.now();
+  const business = `E2E branch business ${stamp}`;
+  const first = `E2E branch first ${stamp}`;
+  const second = `E2E branch second ${stamp}`;
+  await addRequirement(page, projectId, "BR", business);
+  await addRequirement(page, projectId, "SR", first);
+  await addRequirement(page, projectId, "SR", second);
+  await canvasWithAll(page, projectId, 3);
+  await linkDown(page, business, first, 1);
+
+  const nodes = page.locator(".react-flow__node");
+  const edges = page.locator(".react-flow__edge");
+  const secondId = await nodes.filter({ hasText: second }).getAttribute("data-id");
+  const branchEdge = page.locator(`.react-flow__edge[data-id$=">${secondId}"]`);
+  const parentLine = page.locator(
+    `.react-flow__edge:not([data-id$=">${secondId}"]) .react-flow__edge-path`,
+  );
+
+  await edges.first().click({ button: "right", force: true });
+  await page.getByTestId("canvas-menu-branch-label").click();
+  await expect(page.getByTestId("canvas-picking")).toContainText(M.branching);
+  await nodes.filter({ hasText: second }).click();
+  await expect(page.getByTestId("canvas-picking")).toBeHidden();
+  await expect(edges).toHaveCount(2, { timeout: 15_000 });
+  await expect(branchEdge).toHaveCount(1);
+
+  const startsOnParent = async () => {
+    const { start } = await lineEnds(branchEdge);
+    return parentLine.evaluate((el, spot) => {
+      const path = el as SVGPathElement;
+      const total = path.getTotalLength();
+      const from = path.getPointAtLength(0);
+      let nearest = Infinity;
+      for (let step = 0; step <= 200; step += 1) {
+        const point = path.getPointAtLength((total * step) / 200);
+        nearest = Math.min(nearest, Math.hypot(point.x - spot.x, point.y - spot.y));
+      }
+      return { nearest, fromStart: Math.hypot(from.x - spot.x, from.y - spot.y) };
+    }, start);
+  };
+  await expect.poll(async () => (await startsOnParent()).nearest).toBeLessThan(3);
+  expect((await startsOnParent()).fromStart).toBeGreaterThan(20);
+  await page.waitForTimeout(800);
+
+  await page.reload();
+  await expect(edges).toHaveCount(2);
+  await expect.poll(async () => (await startsOnParent()).nearest).toBeLessThan(3);
+  expect((await startsOnParent()).fromStart).toBeGreaterThan(20);
+  expect(errors).toEqual([]);
 });
 
 /** Draws a link from the menu of `from` to `to`, then waits for the board to show `count` edges. */

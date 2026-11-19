@@ -1,27 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useTransition } from "react";
-import { Button } from "@/components/ui/button";
-import { failureMessage } from "@/components/ui/data-view/datasheet";
+import { useCallback, useMemo, useState } from "react";
 import { IconButton } from "@/components/ui/data-view/datasheet-cells";
 import { Combobox, type ComboboxOption } from "@/components/ui/form/combobox";
-import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
-import { createStakeholderAction } from "../actions";
-import { stakeholderOption, typedNameValues } from "../names";
 import type { StakeholderOption } from "../repository/stakeholder-options";
 import { namesAPick, unpickedOptions, type PickedStakeholder } from "../stakeholder-picks";
-import { notifySaved } from "@/lib/cross-window";
+import { StakeholderQuickCreate, useStakeholderQuickCreate } from "./stakeholder-quick-create";
 
 /**
  * The shared stakeholder picker (ADR-0001: key deliverables use it), laid out like the project
  * team on the Overview: the people picked so far as a short list, each with its ×, and one
  * searchable box under it that adds whoever is chosen and empties for the next. Each row submits
  * a hidden `inputName` entry. A typed name that is not a stakeholder says so and links to the
- * project's stakeholders; with `canAdd` it can also be added as a new stakeholder there and then,
- * and is picked at once.
+ * project's stakeholders; with `canAdd` the list starts with "Add new", which opens a short form
+ * under the box, and the new stakeholder is picked once saved.
  */
 export function StakeholderMultiSelect({
   projectId,
@@ -69,46 +63,15 @@ export function StakeholderMultiSelect({
     },
     [byValue, onAdd],
   );
-  const router = useRouter();
-  const { toast } = useToast();
-  const [adding, startAdding] = useTransition();
-  const addTyped = useCallback(
-    (text: string, clear: () => void) =>
-      startAdding(async () => {
-        const result = await createStakeholderAction(typedNameValues(projectId, text));
-        if (!result.ok) {
-          toast({ variant: "error", title: failureMessage(result.error) });
-          return;
-        }
-        const option = stakeholderOption(result.data);
-        onAdd(option);
-        clear();
-        toast({ variant: "success", title: messages.stakeholders.stakeholderAdded(option.name) });
-        router.refresh();
-        notifySaved();
-      }),
-    [projectId, onAdd, toast, router],
-  );
+  const quick = useStakeholderQuickCreate(canAdd);
   const noMatch = useCallback(
-    (text: string, clear: () => void) =>
-      namesAPick(selected, text) ? null : (
+    (text: string) =>
+      canAdd || namesAPick(selected, text) ? null : (
         <div data-testid="stakeholder-no-match" className="flex flex-wrap items-center gap-x-3">
           <span>
-            {messages.stakeholders.notAStakeholder(text)}
-            {canAdd ? null : ` ${messages.stakeholders.addStakeholderFirst}`}
+            {messages.stakeholders.notAStakeholder(text)}{" "}
+            {messages.stakeholders.addStakeholderFirst}
           </span>
-          {canAdd ? (
-            <Button
-              type="button"
-              variant="secondary"
-              size="compact"
-              className="min-h-11"
-              pending={adding}
-              onClick={() => addTyped(text, clear)}
-            >
-              {messages.stakeholders.addAsStakeholder(text)}
-            </Button>
-          ) : null}
           <Link
             href={`/projects/${projectId}/stakeholders`}
             className="inline-flex min-h-11 items-center font-medium text-accent"
@@ -117,7 +80,7 @@ export function StakeholderMultiSelect({
           </Link>
         </div>
       ),
-    [projectId, canAdd, adding, addTyped, selected],
+    [projectId, canAdd, selected],
   );
   return (
     <div data-testid="stakeholder-picks" className="flex flex-col gap-1.5">
@@ -142,13 +105,23 @@ export function StakeholderMultiSelect({
         <Combobox
           options={choices}
           placeholder={
-            options.length === 0
-              ? emptyPlaceholder
-              : messages.stakeholders.addStakeholderPlaceholder
+            options.length === 0 ? emptyPlaceholder : messages.stakeholders.picker.placeholder
           }
           autoFocus={autoFocus}
           noMatch={noMatch}
+          addNew={quick.addNew}
           onPick={add}
+        />
+      )}
+      {quick.draft === null ? null : (
+        <StakeholderQuickCreate
+          projectId={projectId}
+          typed={quick.draft}
+          onCancel={quick.close}
+          onCreated={(option) => {
+            onAdd(option);
+            quick.close();
+          }}
         />
       )}
     </div>
@@ -167,6 +140,8 @@ export function StakeholderSelect({
   onSelect,
   freeTextName,
   defaultFreeText,
+  projectId,
+  canAdd = false,
 }: {
   name: string;
   options: StakeholderOption[];
@@ -175,19 +150,46 @@ export function StakeholderSelect({
   /** Submit a name that matches no stakeholder under this field (see Combobox). */
   freeTextName?: string;
   defaultFreeText?: string;
+  projectId?: number;
+  /** The viewer may create stakeholders (stakeholders:create); needs `projectId`. */
+  canAdd?: boolean;
 }) {
-  const choices = useMemo(
-    () => options.map((o) => ({ value: String(o.stakeholderId), label: o.name })),
-    [options],
-  );
+  const quick = useStakeholderQuickCreate(canAdd && projectId != null);
+  const [created, setCreated] = useState<StakeholderOption[]>([]);
+  const [picked, setPicked] = useState<string | null>(null);
+  const choices = useMemo(() => {
+    const ids = new Set(options.map((o) => o.stakeholderId));
+    return [...options, ...created.filter((o) => !ids.has(o.stakeholderId))].map((o) => ({
+      value: String(o.stakeholderId),
+      label: o.name,
+    }));
+  }, [options, created]);
   return (
-    <Combobox
-      name={name}
-      options={choices}
-      defaultValue={defaultValue == null ? "" : String(defaultValue)}
-      onSelect={onSelect}
-      freeTextName={freeTextName}
-      defaultFreeText={defaultFreeText}
-    />
+    <div className="flex flex-col gap-1.5">
+      <Combobox
+        key={picked ?? "start"}
+        name={name}
+        options={choices}
+        defaultValue={picked ?? (defaultValue == null ? "" : String(defaultValue))}
+        onSelect={onSelect}
+        freeTextName={freeTextName}
+        defaultFreeText={picked ? undefined : defaultFreeText}
+        addNew={quick.addNew}
+      />
+      {quick.draft === null || projectId == null ? null : (
+        <StakeholderQuickCreate
+          projectId={projectId}
+          typed={quick.draft}
+          onCancel={quick.close}
+          onCreated={(option) => {
+            const value = String(option.stakeholderId);
+            setCreated((c) => [...c, option]);
+            setPicked(value);
+            onSelect?.({ value, label: option.name });
+            quick.close();
+          }}
+        />
+      )}
+    </div>
   );
 }

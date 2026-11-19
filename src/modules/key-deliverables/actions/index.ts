@@ -1,6 +1,8 @@
 "use server";
 
+import { z } from "zod";
 import { action } from "@/lib/action";
+import { listTaskMeetingActions } from "../repository/task-meeting-actions";
 import {
   addCascadeRequirement,
   createKeyDeliverable,
@@ -277,4 +279,13 @@ export const setPlanNoteAction = action({
   schema: setPlanNoteInput,
   permission: "key-deliverables:update",
   handler: (input, ctx) => setPlanNote(input, ctx.session.userId),
+});
+
+/** The meeting action items that point at one WBS task; the proc also asks for meetings:read. */
+export const readTaskMeetingActionsAction = action({
+  name: "key-deliverables.task-meeting-actions",
+  schema: z.object({ keyDeliverableId: z.number().int().positive() }),
+  permission: "key-deliverables:read",
+  licence: "read",
+  handler: (input, ctx) => listTaskMeetingActions(input.keyDeliverableId, ctx.session.userId),
 });

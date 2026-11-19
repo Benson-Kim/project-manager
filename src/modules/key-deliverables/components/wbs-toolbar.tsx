@@ -6,7 +6,7 @@ import { GANTT_SCALES, type GanttScale } from "./gantt-scale";
 import { SaveDot } from "@/components/ui/save-dot";
 import { WBS_VIEWS, type WbsView } from "./wbs-diagram-layout";
 import { Segmented } from "./wbs-segmented";
-import { fullscreenLabel } from "./use-fullscreen";
+import { fullscreenLabel } from "@/components/shell/use-fullscreen";
 
 const W = messages.keyDeliverables.wbs;
 
@@ -45,7 +45,7 @@ export interface WbsToolbarProps {
   /** The milestone strip above the diagram, or over the Gantt with its guides. */
   milestones: Shown;
   /** The editor fills the screen; null where the browser cannot. */
-  fullscreen: { value: boolean; onChange: (fullscreen: boolean) => void } | null;
+  fullscreen: { value: boolean; onChange: (fullscreen: boolean) => void };
   view: WbsView;
   onView: (view: WbsView) => void;
   scale: GanttScale;
@@ -195,14 +195,12 @@ export function WbsToolbar(props: WbsToolbarProps) {
               testId="wbs-milestones"
             />
           ) : null}
-          {props.fullscreen ? (
-            <Toggle
-              label={fullscreenLabel(props.fullscreen.value)}
-              pressed={props.fullscreen.value}
-              onChange={props.fullscreen.onChange}
-              testId="wbs-fullscreen"
-            />
-          ) : null}
+          <Toggle
+            label={fullscreenLabel(props.fullscreen.value)}
+            pressed={props.fullscreen.value}
+            onChange={props.fullscreen.onChange}
+            testId="wbs-fullscreen"
+          />
         </div>
         <Command label={W.expandAll} command={props.expandAll} testId="wbs-expand-all" />
         <Command label={W.collapseAll} command={props.collapseAll} testId="wbs-collapse-all" />

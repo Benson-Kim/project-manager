@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
@@ -10,13 +10,21 @@ import { Field } from "@/components/ui/form/field";
 import { Input, Select } from "@/components/ui/form/inputs";
 import { LabelMultiSelect } from "@/components/ui/form/label-multi-select";
 import { ListSelect } from "@/components/ui/form/list-select";
-import { MultiSelect, type MultiSelectOption } from "@/components/ui/form/multi-select";
 import { useSheetFormActions } from "@/components/ui/form/use-sheet-form-actions";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
 import { toDateInput } from "@/lib/format";
 import { messages } from "@/lib/messages";
+import {
+  StakeholderMultiSelect,
+  StakeholderSelect,
+} from "@/modules/stakeholders/components/stakeholder-picker";
 import type { StakeholderOption } from "@/modules/stakeholders/repository/stakeholder-options";
+import {
+  withoutPick,
+  withPick,
+  type PickedStakeholder,
+} from "@/modules/stakeholders/stakeholder-picks";
 import { createDecisionAction, deleteDecisionAction, updateDecisionAction } from "../actions";
 import type { DecisionRow } from "../schemas/decision";
 import type { DecisionOption } from "../repository/decisions";
@@ -28,11 +36,6 @@ import {
 import { sheetUndo } from "@/lib/undo/steps";
 
 const M = messages.decisions;
-
-const asOption = (person: StakeholderOption): MultiSelectOption => ({
-  id: person.stakeholderId,
-  label: person.name,
-});
 
 /**
  * Decision detail/edit sheet (ADR-0010 default pattern): URL-synced via ?id=
@@ -51,6 +54,7 @@ export function DecisionSheet({
   decisionOptions,
   canEdit,
   canDelete,
+  canAddStakeholder,
 }: {
   item: DecisionRow | null;
   isNew: boolean;
@@ -60,16 +64,20 @@ export function DecisionSheet({
   decisionOptions: DecisionOption[];
   canEdit: boolean;
   canDelete: boolean;
+  /** A person picker may create a stakeholder in place (stakeholders:create). */
+  canAddStakeholder: boolean;
 }) {
   const { update, searchParams } = useListUrlState();
   const close = () => update({ id: null, page: searchParams.get("page") ?? null });
   const schema = item ? updateDecisionFormSchema : createDecisionFormSchema;
   const form = useZodForm(schema);
 
-  const peopleOptions = useMemo(() => people.map(asOption), [people]);
-  const [consulted, setConsulted] = useState<MultiSelectOption[]>(() =>
-    peopleOptions.filter((option) => (item?.ConsultedStakeholderIds ?? []).includes(option.id)),
+  const [consulted, setConsulted] = useState<PickedStakeholder[]>(() =>
+    people
+      .filter((person) => (item?.ConsultedStakeholderIds ?? []).includes(person.stakeholderId))
+      .map((person) => ({ id: person.stakeholderId, name: person.name })),
   );
+  const canAdd = canEdit && canAddStakeholder;
 
   const { pending, summary, conflict, confirmDelete, setConfirmDelete, onSubmit, onDelete } =
     useSheetFormActions({
@@ -154,19 +162,13 @@ export function DecisionSheet({
           </Field>
 
           <Field label={M.owner} name="ownerStakeholderId" errors={form.errors.ownerStakeholderId}>
-            <Select
+            <StakeholderSelect
               name="ownerStakeholderId"
-              defaultValue={
-                item?.OwnerStakeholderId === null ? "" : String(item?.OwnerStakeholderId ?? "")
-              }
-            >
-              <option value="">{M.ownerNone}</option>
-              {peopleOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
+              options={people}
+              defaultValue={item?.OwnerStakeholderId ?? null}
+              projectId={projectId}
+              canAdd={canAdd}
+            />
           </Field>
 
           <Field label={M.impactedAreas} name="impactedAreas[]">
@@ -181,19 +183,17 @@ export function DecisionSheet({
           </Field>
 
           <Field label={M.consulted} name="consultedStakeholderIds[]">
-            <MultiSelect
-              options={peopleOptions}
+            <StakeholderMultiSelect
+              projectId={projectId}
+              canAdd={canAdd}
+              options={people}
               selected={consulted}
               disabled={!canEdit}
               inputName="consultedStakeholderIds[]"
               removeLabel={M.removeChip}
               emptyPlaceholder={M.noStakeholders}
-              onAdd={(option) =>
-                setConsulted((prev) =>
-                  prev.some((picked) => picked.id === option.id) ? prev : [...prev, option],
-                )
-              }
-              onRemove={(id) => setConsulted((prev) => prev.filter((picked) => picked.id !== id))}
+              onAdd={(option) => setConsulted((prev) => withPick(prev, option))}
+              onRemove={(id) => setConsulted((prev) => withoutPick(prev, id))}
             />
           </Field>
 

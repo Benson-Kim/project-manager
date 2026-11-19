@@ -9,6 +9,7 @@ import { formatDate } from "@/lib/format";
 import { messages } from "@/lib/messages";
 import type { CalendarEntry, MonthGrid } from "../calendar";
 import { isClosedStatus } from "../schemas/todo-item";
+import { CalendarModeSwitch } from "./calendar-mode-switch";
 import { TodoOccurrenceDialog } from "./todo-occurrence-dialog";
 
 const C = messages.todoItems.calendar;
@@ -29,7 +30,7 @@ export function CalendarSwitch({ on }: { on: boolean }) {
       onClick={() =>
         update(
           on
-            ? { view: null, month: null }
+            ? { view: null, month: null, days: null }
             : { view: "calendar", q: null, status: null, priority: null, projectOrActivity: null },
         )
       }
@@ -238,6 +239,7 @@ export function TodoCalendar({
         >
           {C.today}
         </button>
+        <CalendarModeSwitch mode="month" />
         <div className="ml-auto flex items-center gap-2">
           {canAdd ? (
             <button

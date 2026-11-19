@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
 import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
+import { listForView } from "@/lib/list-print";
 import { messages } from "@/lib/messages";
 import { getListPreference } from "@/lib/repositories/view-preference";
 import { guardProjectScope } from "@/lib/project-page-helpers";
@@ -54,7 +55,11 @@ export default async function DeliverablesPage({
   const openId = dParam && /^\d+$/.test(dParam) ? Number(dParam) : null;
 
   const [rows, preference, assigneeOptions, openRaw, allows, lookup] = await Promise.all([
-    orNotFound(listKeyDeliverables(projectId, listParams, session.userId, filters)),
+    orNotFound(
+      listForView(listParams, (p, size) =>
+        listKeyDeliverables(projectId, p, session.userId, filters, size),
+      ),
+    ),
     getListPreference(session.userId, "key-deliverables").catch(() => null),
     listStakeholderOptions(projectId, session.userId),
     openId ? orNull(getKeyDeliverableById(openId, session.userId)) : null,

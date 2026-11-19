@@ -1,4 +1,5 @@
 import type {
+  AdminEvent,
   ConsentRecord,
   FeedbackRecord,
   LicenceRecord,
@@ -22,6 +23,9 @@ export class MemoryStore implements LicenceStore {
   private readonly testers = new Map<string, { email: string; at: number }>();
   private readonly codes = new Map<string, PendingCode>();
   private readonly hits = new Map<string, number>();
+  private readonly claimedEmails = new Set<string>();
+  private readonly claimedMachines = new Set<string>();
+  readonly adminEvents: AdminEvent[] = [];
   private readonly feedback: FeedbackRecord[] = [];
   private readonly consents: ConsentRecord[] = [];
 
@@ -36,27 +40,52 @@ export class MemoryStore implements LicenceStore {
     return record ? { ...record } : null;
   }
 
-  async findByRedeemCode(codeHash: string): Promise<LicenceRecord | null> {
-    const record = [...this.licences.values()].find((l) => l.redeemCodeHash === codeHash);
-    return record ? { ...record } : null;
+  async bindRedeemCode(codeHash: string, machineHash: string): Promise<LicenceRecord | null> {
+    const record = [...this.licences.values()].find(
+      (l) => l.redeemCodeHash === codeHash && (l.machineHash ?? machineHash) === machineHash,
+    );
+    if (!record) return null;
+    record.machineHash = machineHash;
+    return { ...record };
   }
 
   async saveLicence(record: LicenceRecord): Promise<void> {
     this.licences.set(record.licenceId, { ...record });
   }
 
-  async saveTester(emailHash: string, email: string, at: number): Promise<void> {
-    if (!this.testers.has(emailHash)) this.testers.set(emailHash, { email, at });
+  async createTrial(record: LicenceRecord, email: string): Promise<"created" | "conflict"> {
+    const { emailHash, machineHash } = record;
+    if (!emailHash || !machineHash) throw new Error("a trial needs an email and a machine");
+    if (this.claimedEmails.has(emailHash) || this.claimedMachines.has(machineHash)) {
+      return "conflict";
+    }
+    this.claimedEmails.add(emailHash);
+    this.claimedMachines.add(machineHash);
+    this.licences.set(record.licenceId, { ...record });
+    if (!this.testers.has(emailHash)) {
+      this.testers.set(emailHash, { email, at: record.issuedAt });
+    }
+    return "created";
   }
 
-  async getCode(key: string): Promise<PendingCode | null> {
-    const code = this.codes.get(key);
-    return code ? { ...code } : null;
+  async issueCode(
+    key: string,
+    code: Omit<PendingCode, "attempts">,
+    now: number,
+    maxAttempts: number,
+  ): Promise<boolean> {
+    const current = this.codes.get(key);
+    const live = current !== undefined && current.expiresAt > now;
+    if (live && current.attempts >= maxAttempts) return false;
+    this.codes.set(key, { ...code, attempts: live ? current.attempts : 0 });
+    return true;
   }
 
-  async saveCode(key: string, code: PendingCode | null): Promise<void> {
-    if (code) this.codes.set(key, { ...code });
-    else this.codes.delete(key);
+  async consumeCodeAttempt(key: string): Promise<PendingCode | null> {
+    const current = this.codes.get(key);
+    if (!current) return null;
+    current.attempts += 1;
+    return { ...current };
   }
 
   async countHit(bucket: string, windowStart: number): Promise<number> {
@@ -64,6 +93,14 @@ export class MemoryStore implements LicenceStore {
     const count = (this.hits.get(key) ?? 0) + 1;
     this.hits.set(key, count);
     return count;
+  }
+
+  async peekHits(bucket: string, windowStart: number): Promise<number> {
+    return this.hits.get(`${bucket}@${windowStart}`) ?? 0;
+  }
+
+  async addAdminEvent(event: AdminEvent): Promise<void> {
+    this.adminEvents.push({ ...event });
   }
 
   async addFeedback(record: FeedbackRecord): Promise<void> {

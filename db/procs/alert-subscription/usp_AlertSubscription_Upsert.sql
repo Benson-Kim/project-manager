@@ -34,6 +34,7 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM auth.[User] WHERE UserId = @ActorUserId AND IsDeleted = 0 AND IsActive = 1)
         THROW 50003, N'FORBIDDEN_ROW:User is not active', 1;
 
+    DECLARE @MaxPerUser INT = 10;
     DECLARE @EndpointHash VARBINARY(32) = HASHBYTES(N'SHA2_256', @Endpoint);
     DECLARE @Id             INT;
     DECLARE @ExistingUserId INT;
@@ -122,6 +123,30 @@ BEGIN
             WHERE AlertSubscriptionId = @Id;
         END;
     END;
+
+    -- A user keeps at most @MaxPerUser active endpoints; the oldest are retired so the
+    -- newest registration always works.
+    DECLARE @Excess TABLE (AlertSubscriptionId INT NOT NULL);
+    WITH ranked AS (
+        SELECT AlertSubscriptionId,
+               ROW_NUMBER() OVER (ORDER BY COALESCE(UpdatedAtUtc, CreatedAtUtc) DESC, AlertSubscriptionId DESC) AS rn
+        FROM app.AlertSubscription
+        WHERE UserId = @ActorUserId AND IsDeleted = 0
+    )
+    UPDATE s
+    SET IsDeleted    = 1,
+        DeletedAtUtc = SYSUTCDATETIME(),
+        DeletedBy    = @ActorUserId,
+        UpdatedAtUtc = SYSUTCDATETIME(),
+        UpdatedBy    = @ActorUserId
+    OUTPUT INSERTED.AlertSubscriptionId INTO @Excess
+    FROM app.AlertSubscription AS s
+    INNER JOIN ranked AS k ON k.AlertSubscriptionId = s.AlertSubscriptionId
+    WHERE k.rn > @MaxPerUser AND s.AlertSubscriptionId <> @Id;
+
+    INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId)
+    SELECT @ActorUserId, N'RetireOverLimit', N'app.AlertSubscription', CAST(AlertSubscriptionId AS NVARCHAR(64))
+    FROM @Excess;
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (

@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { signatureProblems } from "../verify-signature.mjs";
 
@@ -44,5 +46,21 @@ describe("signatureProblems (release gate)", () => {
     expect(signatureProblems({ ...bridge, Status: "HashMismatch" }, OLD)).toEqual([
       "signature status HashMismatch",
     ]);
+  });
+});
+
+describe("release gate without a publisher", () => {
+  const script = fileURLToPath(new URL("../verify-signature.mjs", import.meta.url));
+  const env = { ...process.env, PM_PUBLISHER: "" };
+  const run = (...args) => spawnSync(process.execPath, [script, ...args], { env, encoding: "utf8" });
+
+  it("exits non-zero so an unsigned installer is not published by accident", () => {
+    expect(run("Modulus-Setup-1.2.3.exe").status).toBe(1);
+  });
+
+  it("passes only when the unsigned release is allowed explicitly", () => {
+    const result = run("--allow-unsigned", "Modulus-Setup-1.2.3.exe");
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("::warning::");
   });
 });

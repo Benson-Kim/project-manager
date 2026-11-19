@@ -21,7 +21,12 @@ const pair = generateKeyPairSync("ed25519");
 const keys = { k1: pair.publicKey.export({ type: "spki", format: "der" }).toString("base64url") };
 const markKey = randomBytes(32);
 const signDoc = (body: object) => {
-  const payload = Buffer.from(JSON.stringify({ v: 1, ...body })).toString("base64url");
+  const claims = {
+    typ: "nonce" in body ? "checkin" : "licence",
+    aud: "modulus-desktop",
+    iss: "modulus-licence-service",
+  };
+  const payload = Buffer.from(JSON.stringify({ v: 1, ...claims, ...body })).toString("base64url");
   return {
     kid: "k1",
     payload,
@@ -140,6 +145,75 @@ describe("licence gate", () => {
     const status = createLicenceGate({ env: () => env, read, wall: () => START });
     await expect(status()).rejects.toThrow("down");
     expect(await status()).toBe("unlicensed");
+  });
+
+  it("stops allowing changes when the trial ends, not a cache period later", async () => {
+    let wall = START + 14 * DAY - 5000;
+    const stored = { licence, checkIn: checkInAt(wall - 1000), mark: sealMark(wall, markKey) };
+    const { read, status } = gate(stored, () => wall);
+    expect(await status()).toBe("active");
+    wall += 5000;
+    expect(await status()).toBe("expired");
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads again after a refusal, so a code redeemed in the meantime counts at once", async () => {
+    const wall = START + 2 * DAY;
+    let stored: StoredLicence | null = null;
+    const status = createLicenceGate({
+      env: () => env,
+      read: async () => stored,
+      wall: () => wall,
+    });
+    expect(await status()).toBe("unlicensed");
+    stored = { licence, checkIn: checkInAt(wall), mark: sealMark(wall, markKey) };
+    expect(await status()).toBe("active");
+  });
+
+  it("shares one database read between requests that arrive together", async () => {
+    const wall = START + 2 * DAY;
+    const stored = { licence, checkIn: checkInAt(wall), mark: sealMark(wall, markKey) };
+    const { read, status } = gate(stored, () => wall);
+    const all = await Promise.all(Array.from({ length: 10 }, () => status()));
+    expect(new Set(all)).toEqual(new Set(["active"]));
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads again after invalidate, so a revoked licence stops counting at once", async () => {
+    const wall = START + 2 * DAY;
+    let stored: StoredLicence | null = {
+      licence,
+      checkIn: checkInAt(wall),
+      mark: sealMark(wall, markKey),
+    };
+    const status = createLicenceGate({
+      env: () => env,
+      read: async () => stored,
+      wall: () => wall,
+    });
+    expect(await status()).toBe("active");
+    stored = null;
+    expect(await status()).toBe("active");
+    status.invalidate();
+    expect(await status()).toBe("unlicensed");
+  });
+
+  it("keeps the highest time mark it has seen when an older state is restored", async () => {
+    const wall = START + 2 * DAY;
+    let stored: StoredLicence = {
+      licence,
+      checkIn: checkInAt(START + 13 * DAY),
+      mark: sealMark(START + 15 * DAY, markKey),
+    };
+    const status = createLicenceGate({
+      env: () => env,
+      read: async () => stored,
+      wall: () => wall,
+    });
+    expect(await status()).toBe("expired");
+    stored = { licence, checkIn: checkInAt(wall), mark: sealMark(wall - DAY, markKey) };
+    status.invalidate();
+    expect(await status()).toBe("expired");
   });
 });
 

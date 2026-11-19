@@ -29,7 +29,7 @@ export function ListFilter({
   const { searchParams, update } = useListUrlState();
   const value = searchParams.get(param) ?? "";
   return (
-    <label>
+    <label className="print:hidden">
       <span className="sr-only">{label}</span>
       <Select
         name={param}
