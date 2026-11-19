@@ -21,7 +21,7 @@ describe("desktop database recovery", () => {
     expect(await createDatabaseRecovery(d).ensureReady()).toBe(true);
     expect(d.startService).toHaveBeenCalledOnce();
     expect(d.waitForSql).toHaveBeenCalledOnce();
-    expect(d.startService.mock.invocationCallOrder[0]).toBeLessThan(d.waitForSql.mock.invocationCallOrder[0]);
+    expect(vi.mocked(d.startService).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(d.waitForSql).mock.invocationCallOrder[0]);
     expect(d.repairService).not.toHaveBeenCalled();
   });
 
@@ -111,7 +111,7 @@ describe("desktop database recovery", () => {
     expect(recovery.repair()).toBe(first);
     expect(recovery.ensureReady()).toBe(first);
     await vi.waitFor(() => expect(d.repairService).toHaveBeenCalledOnce());
-    d.reachable.mockResolvedValue(true);
+    vi.mocked(d.reachable).mockResolvedValue(true);
     finish(true);
     expect(await first).toBe(true);
     expect(d.waitForSql).toHaveBeenCalledOnce();
