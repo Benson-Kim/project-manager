@@ -59,7 +59,13 @@ import {
   writtenEnglish,
   type Paragraph,
 } from "./proofing";
-import { getServiceState, isListening, runElevatedRepair, runElevatedServiceRepair, startService } from "./sql-service";
+import {
+  getServiceState,
+  isListening,
+  runElevatedRepair,
+  runElevatedServiceRepair,
+  startService,
+} from "./sql-service";
 import { messages } from "../src/lib/messages";
 import {
   destroyTray,
@@ -466,7 +472,8 @@ function configureDatabaseRecovery(cfg: MachineConfig): DatabaseRecovery {
   const local = ["127.0.0.1", "localhost", "::1"].includes(cfg.sql.host.toLowerCase());
   const recovery = createDatabaseRecovery({
     reachable: () => isListening(cfg.sql.host, cfg.sql.port),
-    serviceState: () => local ? getServiceState(cfg.sql.instanceName) : Promise.resolve("unknown"),
+    serviceState: () =>
+      local ? getServiceState(cfg.sql.instanceName) : Promise.resolve("unknown"),
     startService: () => startService(cfg.sql.instanceName, log),
     waitForSql: () => waitForSql(cfg.sql, 90_000),
     repairService: async () => {
@@ -484,11 +491,16 @@ function configureDatabaseRecovery(cfg: MachineConfig): DatabaseRecovery {
       });
       if (response !== 0 || quitting) return false;
       try {
-        const code = await runElevatedServiceRepair(paths.provisionScript, paths.sqlInstaller, {
-          instanceName: cfg.sql.instanceName,
-          port: cfg.sql.port,
-          dataRoot: path.dirname(machineConfigPath()),
-        }, log);
+        const code = await runElevatedServiceRepair(
+          paths.provisionScript,
+          paths.sqlInstaller,
+          {
+            instanceName: cfg.sql.instanceName,
+            port: cfg.sql.port,
+            dataRoot: path.dirname(machineConfigPath()),
+          },
+          log,
+        );
         if (code !== 0) throw new Error(`Service repair failed (code ${code}).`);
         await waitForSql(cfg.sql, 90_000);
         return true;
@@ -505,13 +517,19 @@ function configureDatabaseRecovery(cfg: MachineConfig): DatabaseRecovery {
           noLink: true,
         });
         if (action === 0) {
-          clipboard.writeText([
-            `Modulus ${app.getVersion()}`,
-            new Date().toISOString(),
-            `Database service: MSSQL$${cfg.sql.instanceName}`,
-            `Application log: ${log.file}`,
-            `Repair log: ${path.join(path.dirname(machineConfigPath()), "logs", "provision.log")}`,
-          ].join("\n"));
+          clipboard.writeText(
+            [
+              `Modulus ${app.getVersion()}`,
+              new Date().toISOString(),
+              `Database service: MSSQL$${cfg.sql.instanceName}`,
+              `Application log: ${log.file}`,
+              `Repair log: ${path.join(
+                path.dirname(machineConfigPath()),
+                "logs",
+                "provision.log",
+              )}`,
+            ].join("\n"),
+          );
         }
         return false;
       }
@@ -525,14 +543,16 @@ function configureDatabaseRecovery(cfg: MachineConfig): DatabaseRecovery {
 /** An explicit sign-in or the once-per-outage offer; shared with any pending request. */
 function ensureRuntimeDatabase(): Promise<boolean> {
   if (databaseRequest) return databaseRequest;
-  databaseRequest = backups.run(async () => {
-    const recovery = databaseRecovery;
-    if (quitting || !recovery) return false;
-    if (await recovery.ensureReady()) return true;
-    return recovery.repair();
-  }).finally(() => {
-    databaseRequest = undefined;
-  });
+  databaseRequest = backups
+    .run(async () => {
+      const recovery = databaseRecovery;
+      if (quitting || !recovery) return false;
+      if (await recovery.ensureReady()) return true;
+      return recovery.repair();
+    })
+    .finally(() => {
+      databaseRequest = undefined;
+    });
   return databaseRequest;
 }
 
@@ -690,7 +710,9 @@ async function backupIfDue(): Promise<void> {
         "warning",
         "Backup copy failed",
         "Today's backup was saved on this PC, but copying it to your backup folder failed.",
-        `${settings.get().backupCopyDir}\n\n${result.copyError}\n\nUse the tray menu → "Choose backup copy folder…" to pick another location.`,
+        `${settings.get().backupCopyDir}\n\n${
+          result.copyError
+        }\n\nUse the tray menu → "Choose backup copy folder…" to pick another location.`,
       );
     }
   } catch (err) {
@@ -711,7 +733,9 @@ async function backupNowAction(): Promise<void> {
       r.copyError ? "warning" : "info",
       "Backup complete",
       r.copyError ? "Backup saved on this PC, but the copy failed." : "Backup complete.",
-      `${r.file}${r.copy ? `\n\nCopied to:\n${r.copy}` : ""}${r.copyError ? `\n\nCopy error: ${r.copyError}` : ""}`,
+      `${r.file}${r.copy ? `\n\nCopied to:\n${r.copy}` : ""}${
+        r.copyError ? `\n\nCopy error: ${r.copyError}` : ""
+      }`,
     );
   } catch (err) {
     log.error("[backup] manual backup failed", err);
@@ -822,7 +846,9 @@ async function restoreAction(): Promise<void> {
 async function restoreAttachmentFiles(cfg: MachineConfig, bakFile: string): Promise<string> {
   const sources = restoreSources(bakFile, settings.get().backupCopyDir);
   if (!cfg.uploadsDir) {
-    return `Attachments are off on this PC, so their files were not copied back. They stay in ${sources.join(" and ")}.`;
+    return `Attachments are off on this PC, so their files were not copied back. They stay in ${sources.join(
+      " and ",
+    )}.`;
   }
   try {
     const { copied, damaged } = await restoreUploads(sources, cfg.uploadsDir);
@@ -975,12 +1001,11 @@ async function bootstrap(): Promise<void> {
       reachable: () => isListening(cfg.sql.host, cfg.sql.port),
       ensureReady: () => databaseRecovery?.ensureReady() ?? Promise.resolve(false),
       onRecovered: () =>
-        showTrayNotice(
-          messages.desktopDatabase.restored,
-          messages.desktopDatabase.continue,
-        ),
+        showTrayNotice(messages.desktopDatabase.restored, messages.desktopDatabase.continue),
       onDown: () =>
-        void ensureRuntimeDatabase().catch((err) => log.error("[database] repair offer failed", err)),
+        void ensureRuntimeDatabase().catch((err) =>
+          log.error("[database] repair offer failed", err),
+        ),
       log,
     });
     // Not during a backup or restore: a restore takes the database offline on purpose.
@@ -1045,4 +1070,3 @@ if (!app.requestSingleInstanceLock()) {
   });
   app.whenReady().then(bootstrap);
 }
-
