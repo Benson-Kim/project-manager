@@ -7,6 +7,7 @@ import { Field } from "@/components/ui/form/field";
 import { Input } from "@/components/ui/form/inputs";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { messages } from "@/lib/messages";
+import type { ActionResult } from "@/lib/action";
 import { signInWithDatabase, type DesktopDatabaseBridge } from "@/lib/desktop-database";
 import { loginAction } from "@/modules/auth/actions";
 import { loginInput } from "@/modules/auth/schemas/user";
@@ -20,7 +21,7 @@ import { loginInput } from "@/modules/auth/schemas/user";
 export function LoginForm() {
   const [connecting, setConnecting] = useState(false);
   const submitting = useRef(false);
-  const [result, formAction, pending] = useActionState(async (prev, formData: FormData) => {
+  const [result, formAction, pending] = useActionState(async (prev: ActionResult<never> | null, formData: FormData) => {
     try {
       return await signInWithDatabase(
         (window as Window & { desktop?: DesktopDatabaseBridge }).desktop,
@@ -64,7 +65,11 @@ export function LoginForm() {
         <Input name="password" type="password" autoComplete="current-password" required />
       </Field>
       <Button type="submit" pending={pending}>
-        {connecting ? messages.auth.connecting : pending ? messages.auth.signingIn : messages.auth.signIn}
+        {connecting
+          ? messages.auth.connecting
+          : pending
+            ? messages.auth.signingIn
+            : messages.auth.signIn}
       </Button>
     </form>
   );
