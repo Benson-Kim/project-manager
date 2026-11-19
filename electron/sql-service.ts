@@ -40,16 +40,13 @@ function serviceName(instanceName: string): string {
  */
 export async function getServiceState(instanceName: string): Promise<ServiceState> {
   const name = serviceName(instanceName);
+  const command =
+    `try { (Get-Service -Name '${name}' -ErrorAction Stop).Status } ` +
+    "catch { if ($_.FullyQualifiedErrorId -like 'NoServiceFoundForGivenName*') { 'Missing' } else { exit 1 } }";
   try {
     const { stdout } = await execFileAsync(
       powershellPath(),
-      [
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        `try { (Get-Service -Name '${name}' -ErrorAction Stop).Status } ` +
-          "catch { if ($_.FullyQualifiedErrorId -like 'NoServiceFoundForGivenName*') { 'Missing' } else { exit 1 } }",
-      ],
+      ["-NoProfile", "-NonInteractive", "-Command", command],
       { windowsHide: true, timeout: 30_000 },
     );
     const status = stdout.trim().toLowerCase();
@@ -151,24 +148,17 @@ export function isListening(host: string, port: number, timeoutMs = 5_000): Prom
  */
 export async function startService(instanceName: string, log: Logger): Promise<boolean> {
   const name = serviceName(instanceName);
+  const executable = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "sc.exe");
   try {
-    await execFileAsync(
-      path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "sc.exe"),
-      ["start", name],
-      {
-        windowsHide: true,
-        timeout: 30_000,
-      },
-    );
+    await execFileAsync(executable, ["start", name], { windowsHide: true, timeout: 30_000 });
     return true;
   } catch (err) {
     const e = err as { code?: number | string; stdout?: string; stderr?: string };
     // ERROR_SERVICE_ALREADY_RUNNING: Windows won the race; still wait for SQL readiness.
     if (e.code === 1056) return true;
-    log.warn(
-      `[database] could not start ${name} (code ${e.code ?? "unknown"}): ` +
-        `${e.stdout?.trim() ?? ""} ${e.stderr?.trim() ?? ""}\n${describeError(err)}`,
-    );
+    const code = e.code ?? "unknown";
+    const output = `${e.stdout?.trim() ?? ""} ${e.stderr?.trim() ?? ""}`.trim();
+    log.warn(`[database] could not start ${name} (code ${code}): ${output}\n${describeError(err)}`);
     return false;
   }
 }
