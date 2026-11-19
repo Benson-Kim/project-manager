@@ -123,7 +123,8 @@ export const messages = {
     repairNeeded: "Modulus needs to repair its connection to your data.",
     permission: "Windows may ask for administrator approval. Your saved work will be kept.",
     failed: "The connection could not be restored.",
-    support: "Try signing in again. If this continues, copy the support details and contact support.",
+    support:
+      "Try signing in again. If this continues, copy the support details and contact support.",
     copyDetails: "Copy support details",
     close: "Close",
     restored: "Your data is available again",
@@ -2935,4 +2936,3 @@ export const messages = {
     bulkTitle: (count: number, entity: string) => `Delete ${count} ${entity}?`,
   },
 } as const;
-
