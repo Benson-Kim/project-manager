@@ -27,13 +27,24 @@ export function createDatabaseRecovery(deps: RecoveryDeps): DatabaseRecovery {
     checking = (async () => {
       try {
         if (!(await deps.reachable())) {
-          const state = await deps.serviceState();
+          let state = await deps.serviceState();
           deps.log.warn(`[database] connection unavailable (service ${state})`);
+          const stopDeadline = Date.now() + 30_000;
+          while (state === "stopping" && Date.now() < stopDeadline) {
+            await new Promise((resolve) => setTimeout(resolve, 1_000));
+            state = await deps.serviceState();
+          }
           if (state === "missing" || state === "paused") return false;
+          if (state === "stopping") return false;
           if (state === "stopped") {
             // Windows may start the service between the query and this command.
             // A failed command still gets a readiness check before offering repair.
-            await deps.startService();
+            if (!(await deps.startService())) {
+              const afterStart = await deps.serviceState();
+              if (afterStart === "stopped" || afterStart === "missing" || afterStart === "paused") {
+                return false;
+              }
+            }
           }
         }
         // A running or starting service can take time to accept a SQL login.
