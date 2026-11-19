@@ -95,6 +95,8 @@ export const messages = {
     password: "Password",
     signIn: "Sign in",
     signingIn: "Signing in",
+    connecting: "Connecting to your data",
+    connectionFailed: "We could not connect to your data. Select Sign in to try again.",
     signOut: "Sign out",
     signedOut: "You are signed out.",
     // Generic on purpose: never reveals whether the username exists,
@@ -113,6 +115,19 @@ export const messages = {
     changePassword: "Change password",
     changingPassword: "Changing password",
     currentPasswordWrong: "The current password is not right.",
+  },
+  desktopDatabase: {
+    title: "Connection to your data",
+    repair: "Repair connection",
+    later: "Later",
+    repairNeeded: "Modulus needs to repair its connection to your data.",
+    permission: "Windows may ask for administrator approval. Your saved work will be kept.",
+    failed: "The connection could not be restored.",
+    support: "Try signing in again. If this continues, copy the support details and contact support.",
+    copyDetails: "Copy support details",
+    close: "Close",
+    restored: "Your data is available again",
+    continue: "You can continue working or sign in again.",
   },
   pageHistory: {
     undo: "Undo",
@@ -2920,3 +2935,4 @@ export const messages = {
     bulkTitle: (count: number, entity: string) => `Delete ${count} ${entity}?`,
   },
 } as const;
+
