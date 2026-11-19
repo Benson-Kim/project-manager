@@ -1,4 +1,5 @@
 export const PRINT_PREVIEW_CHANNEL = "print-preview";
+export const DATABASE_READY_CHANNEL = "database:ensure-ready";
 
 export const LICENCE_CHANNELS = {
   state: "licence:state",
@@ -9,3 +10,4 @@ export const LICENCE_CHANNELS = {
   feedbackSend: "feedback:send",
   feedbackConsent: "feedback:consent",
 } as const;
+
