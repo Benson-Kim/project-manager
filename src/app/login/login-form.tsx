@@ -21,17 +21,20 @@ import { loginInput } from "@/modules/auth/schemas/user";
 export function LoginForm() {
   const [connecting, setConnecting] = useState(false);
   const submitting = useRef(false);
-  const [result, formAction, pending] = useActionState(async (prev: ActionResult<never> | null, formData: FormData) => {
-    try {
-      return await signInWithDatabase(
-        (window as Window & { desktop?: DesktopDatabaseBridge }).desktop,
-        () => loginAction(prev, formData),
-        setConnecting,
-      );
-    } finally {
-      submitting.current = false;
-    }
-  }, null);
+  const [result, formAction, pending] = useActionState(
+    async (prev: ActionResult<never> | null, formData: FormData) => {
+      try {
+        return await signInWithDatabase(
+          (window as Window & { desktop?: DesktopDatabaseBridge }).desktop,
+          () => loginAction(prev, formData),
+          setConnecting,
+        );
+      } finally {
+        submitting.current = false;
+      }
+    },
+    null,
+  );
   const form = useZodForm(loginInput);
 
   const serverError = result && !result.ok ? result.error.message : null;
@@ -68,10 +71,9 @@ export function LoginForm() {
         {connecting
           ? messages.auth.connecting
           : pending
-            ? messages.auth.signingIn
-            : messages.auth.signIn}
+          ? messages.auth.signingIn
+          : messages.auth.signIn}
       </Button>
     </form>
   );
 }
-
