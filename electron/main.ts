@@ -5,6 +5,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  powerMonitor,
   screen,
   session,
   shell,
@@ -34,6 +35,8 @@ import {
 import { waitForSql } from "./db";
 import { applyDatabaseSchema } from "./db-apply";
 import { createDbWatchdog } from "./db-watchdog";
+import { createDatabaseRecovery, type DatabaseRecovery } from "./db-recovery";
+import { registerDatabaseIpc } from "./database-ipc";
 import { contextMenuTemplate } from "./context-menu";
 import { createExclusive } from "./exclusive";
 import { GrammarChecker } from "./grammar";
@@ -43,7 +46,7 @@ import type { LicenceStatus } from "./licence/policy";
 import { startLicence, type LicenceSetup } from "./licence/start";
 import { createLogger, describeError } from "./log";
 import { APP_ID, APP_NAME, carryOverProfile, programDataDir } from "./app-folders";
-import { readMachineConfig, SetupRequiredError, type MachineConfig } from "./machine-config";
+import { machineConfigPath, readMachineConfig, type MachineConfig } from "./machine-config";
 import { NextServer } from "./next-server";
 import { paths } from "./paths";
 import { allowPermission } from "./permissions";
@@ -56,7 +59,8 @@ import {
   writtenEnglish,
   type Paragraph,
 } from "./proofing";
-import { getServiceState, isListening, runElevatedRepair, startService } from "./sql-service";
+import { getServiceState, isListening, runElevatedRepair, runElevatedServiceRepair, startService } from "./sql-service";
+import { messages } from "../src/lib/messages";
 import {
   destroyTray,
   initTray,
@@ -107,6 +111,8 @@ const grammar = new GrammarChecker({
 
 let config: MachineConfig | null = null;
 let server: NextServer | null = null;
+let databaseRecovery: DatabaseRecovery | null = null;
+let databaseRequest: Promise<boolean> | undefined;
 const showPrintPreview = createPrintPreview({
   ...tempPdfFiles(app.getPath("temp")),
   openWindow: (options) => new BrowserWindow({ ...options, icon: paths.icon }),
@@ -456,26 +462,96 @@ function watchDownloads(): void {
 // ---------------------------------------------------------------------------
 // Database engine readiness (with an elevated repair path).
 
+function configureDatabaseRecovery(cfg: MachineConfig): DatabaseRecovery {
+  const local = ["127.0.0.1", "localhost", "::1"].includes(cfg.sql.host.toLowerCase());
+  const recovery = createDatabaseRecovery({
+    reachable: () => isListening(cfg.sql.host, cfg.sql.port),
+    serviceState: () => local ? getServiceState(cfg.sql.instanceName) : Promise.resolve("unknown"),
+    startService: () => startService(cfg.sql.instanceName, log),
+    waitForSql: () => waitForSql(cfg.sql, 90_000),
+    repairService: async () => {
+      const copy = messages.desktopDatabase;
+      if (!local) return false;
+      const { response } = await dialog.showMessageBox({
+        type: "warning",
+        title: copy.title,
+        message: copy.repairNeeded,
+        detail: copy.permission,
+        buttons: [copy.repair, copy.later],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true,
+      });
+      if (response !== 0 || quitting) return false;
+      try {
+        const code = await runElevatedServiceRepair(paths.provisionScript, paths.sqlInstaller, {
+          instanceName: cfg.sql.instanceName,
+          port: cfg.sql.port,
+          dataRoot: path.dirname(machineConfigPath()),
+        }, log);
+        if (code !== 0) throw new Error(`Service repair failed (code ${code}).`);
+        await waitForSql(cfg.sql, 90_000);
+        return true;
+      } catch (err) {
+        log.error("[database] service repair failed", err);
+        const { response: action } = await dialog.showMessageBox({
+          type: "warning",
+          title: copy.title,
+          message: copy.failed,
+          detail: copy.support,
+          buttons: [copy.copyDetails, copy.close],
+          defaultId: 0,
+          cancelId: 1,
+          noLink: true,
+        });
+        if (action === 0) {
+          clipboard.writeText([
+            `Modulus ${app.getVersion()}`,
+            new Date().toISOString(),
+            `Database service: MSSQL$${cfg.sql.instanceName}`,
+            `Application log: ${log.file}`,
+            `Repair log: ${path.join(path.dirname(machineConfigPath()), "logs", "provision.log")}`,
+          ].join("\n"));
+        }
+        return false;
+      }
+    },
+    log,
+  });
+  databaseRecovery = recovery;
+  return recovery;
+}
+
+/** An explicit sign-in or the once-per-outage offer; shared with any pending request. */
+function ensureRuntimeDatabase(): Promise<boolean> {
+  if (databaseRequest) return databaseRequest;
+  databaseRequest = backups.run(async () => {
+    const recovery = databaseRecovery;
+    if (quitting || !recovery) return false;
+    if (await recovery.ensureReady()) return true;
+    return recovery.repair();
+  }).finally(() => {
+    databaseRequest = undefined;
+  });
+  return databaseRequest;
+}
+
 async function ensureDatabaseEngine(): Promise<MachineConfig> {
   try {
     const cfg = readMachineConfig();
-    const state = await getServiceState(cfg.sql.instanceName);
-    if (state === "missing") throw new SetupRequiredError("The database engine is not installed.");
-    setSplashStatus(
-      state === "running" ? "Connecting to the database…" : "Starting the database engine…",
-    );
-    await waitForSql(cfg.sql, state === "running" ? 30_000 : 90_000);
+    setSplashStatus(messages.auth.connecting);
+    if (!(await configureDatabaseRecovery(cfg).ensureReady())) {
+      throw new Error("The database connection could not be restored automatically.");
+    }
     return cfg;
   } catch (err) {
     log.error("[startup] database engine not ready", err);
     const { response } = await dialog.showMessageBox({
       type: "warning",
-      title: "Database setup needed",
-      message: "Modulus needs to finish setting up its database engine.",
-      detail:
-        `${err instanceof Error ? err.message : String(err)}\n\n` +
-        "Click Repair and approve the Windows administrator prompt. A first-time setup takes 5–15 minutes.",
-      buttons: ["Repair", "Quit"],
+      title: messages.desktopDatabase.title,
+      message: messages.desktopDatabase.repairNeeded,
+      detail: messages.desktopDatabase.permission,
+      buttons: [messages.desktopDatabase.repair, "Quit"],
       defaultId: 0,
       cancelId: 1,
     });
@@ -486,7 +562,9 @@ async function ensureDatabaseEngine(): Promise<MachineConfig> {
       throw new Error(`Database repair failed (code ${code}). Details: ${provisionLog()}`);
     }
     const cfg = readMachineConfig();
-    await waitForSql(cfg.sql, 90_000);
+    if (!(await configureDatabaseRecovery(cfg).ensureReady())) {
+      throw new Error("The database connection could not be restored after setup.");
+    }
     return cfg;
   }
 }
@@ -895,29 +973,23 @@ async function bootstrap(): Promise<void> {
 
     const watchdog = createDbWatchdog({
       reachable: () => isListening(cfg.sql.host, cfg.sql.port),
-      serviceState: () => getServiceState(cfg.sql.instanceName),
-      startService: () => startService(cfg.sql.instanceName, log),
-      waitForSql: () => waitForSql(cfg.sql, 90_000),
+      ensureReady: () => databaseRecovery?.ensureReady() ?? Promise.resolve(false),
       onRecovered: () =>
         showTrayNotice(
-          "The database was restarted",
-          "It had stopped. If a page shows an error, open it again.",
+          messages.desktopDatabase.restored,
+          messages.desktopDatabase.continue,
         ),
       onDown: () =>
-        void message(
-          "warning",
-          "The database has stopped",
-          "The Modulus database has stopped, so nothing can be opened or saved right now.",
-          "Restart the computer to start it again.\n\n" +
-            "If this happens again, ask IT to run the Modulus setup again: " +
-            "after that the app restarts the database by itself.",
-        ),
+        void ensureRuntimeDatabase().catch((err) => log.error("[database] repair offer failed", err)),
       log,
     });
     // Not during a backup or restore: a restore takes the database offline on purpose.
-    setInterval(() => {
+    const checkDatabase = () => {
       if (!backups.current()) void watchdog.check();
-    }, DB_CHECK_MS);
+    };
+    setInterval(checkDatabase, DB_CHECK_MS);
+    powerMonitor.on("resume", checkDatabase);
+    mainWindow.on("focus", checkDatabase);
   } catch (err) {
     log.error("[startup] failed", err);
     splash?.close();
@@ -966,5 +1038,11 @@ if (!app.requestSingleInstanceLock()) {
       throw new Error("Print preview is only for the app's own pages.");
     return showPrintPreview(event.sender, BrowserWindow.fromWebContents(event.sender) ?? undefined);
   });
+  registerDatabaseIpc({
+    handle: (channel, handler) => ipcMain.handle(channel, handler),
+    serverUrl: () => server?.url,
+    ensureReady: ensureRuntimeDatabase,
+  });
   app.whenReady().then(bootstrap);
 }
+
