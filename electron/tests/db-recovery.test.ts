@@ -21,7 +21,9 @@ describe("desktop database recovery", () => {
     expect(await createDatabaseRecovery(d).ensureReady()).toBe(true);
     expect(d.startService).toHaveBeenCalledOnce();
     expect(d.waitForSql).toHaveBeenCalledOnce();
-    expect(vi.mocked(d.startService).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(d.waitForSql).mock.invocationCallOrder[0]);
+    expect(vi.mocked(d.startService).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(d.waitForSql).mock.invocationCallOrder[0],
+    );
     expect(d.repairService).not.toHaveBeenCalled();
   });
 
@@ -33,16 +35,21 @@ describe("desktop database recovery", () => {
     expect(d.waitForSql).toHaveBeenCalledOnce();
   });
 
-  it.each(["running", "starting", "unknown"] as const)("waits for a %s service without starting it twice", async (state) => {
-    const d = deps({ serviceState: vi.fn().mockResolvedValue(state) });
-    expect(await createDatabaseRecovery(d).ensureReady()).toBe(true);
-    expect(d.startService).not.toHaveBeenCalled();
-    expect(d.waitForSql).toHaveBeenCalledOnce();
-  });
+  it.each(["running", "starting", "unknown"] as const)(
+    "waits for a %s service without starting it twice",
+    async (state) => {
+      const d = deps({ serviceState: vi.fn().mockResolvedValue(state) });
+      expect(await createDatabaseRecovery(d).ensureReady()).toBe(true);
+      expect(d.startService).not.toHaveBeenCalled();
+      expect(d.waitForSql).toHaveBeenCalledOnce();
+    },
+  );
 
   it("waits for a stopping service, then starts it", async () => {
     vi.useFakeTimers();
-    const d = deps({ serviceState: vi.fn().mockResolvedValueOnce("stopping").mockResolvedValue("stopped") });
+    const d = deps({
+      serviceState: vi.fn().mockResolvedValueOnce("stopping").mockResolvedValue("stopped"),
+    });
     const ready = createDatabaseRecovery(d).ensureReady();
     await vi.advanceTimersByTimeAsync(1_000);
     expect(await ready).toBe(true);
@@ -74,16 +81,26 @@ describe("desktop database recovery", () => {
     expect(d.waitForSql).toHaveBeenCalledOnce();
   });
 
-  it.each(["missing", "paused"] as const)("does not start or reinstall a %s service", async (state) => {
-    const d = deps({ serviceState: vi.fn().mockResolvedValue(state) });
-    expect(await createDatabaseRecovery(d).ensureReady()).toBe(false);
-    expect(d.startService).not.toHaveBeenCalled();
-    expect(d.repairService).not.toHaveBeenCalled();
-  });
+  it.each(["missing", "paused"] as const)(
+    "does not start or reinstall a %s service",
+    async (state) => {
+      const d = deps({ serviceState: vi.fn().mockResolvedValue(state) });
+      expect(await createDatabaseRecovery(d).ensureReady()).toBe(false);
+      expect(d.startService).not.toHaveBeenCalled();
+      expect(d.repairService).not.toHaveBeenCalled();
+    },
+  );
 
   it("joins concurrent startup, sign-in and watchdog requests", async () => {
     let finish!: () => void;
-    const d = deps({ waitForSql: vi.fn(() => new Promise<void>((resolve) => { finish = resolve; })) });
+    const d = deps({
+      waitForSql: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            finish = resolve;
+          }),
+      ),
+    });
     const recovery = createDatabaseRecovery(d);
     const first = recovery.ensureReady();
     expect(recovery.ensureReady()).toBe(first);
@@ -94,7 +111,9 @@ describe("desktop database recovery", () => {
   });
 
   it("allows retry after failure without keeping a rejected or failed result", async () => {
-    const d = deps({ waitForSql: vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValue(undefined) });
+    const d = deps({
+      waitForSql: vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValue(undefined),
+    });
     const recovery = createDatabaseRecovery(d);
     expect(await recovery.ensureReady()).toBe(false);
     expect(await recovery.ensureReady()).toBe(true);
@@ -104,7 +123,12 @@ describe("desktop database recovery", () => {
     let finish!: (ok: boolean) => void;
     const d = deps({
       startService: vi.fn().mockResolvedValue(false),
-      repairService: vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve; })),
+      repairService: vi.fn(
+        () =>
+          new Promise<boolean>((resolve) => {
+            finish = resolve;
+          }),
+      ),
     });
     const recovery = createDatabaseRecovery(d);
     const first = recovery.repair();
@@ -120,7 +144,10 @@ describe("desktop database recovery", () => {
   it("handles declined and failed repair, then allows another explicit attempt", async () => {
     const d = deps({
       startService: vi.fn().mockResolvedValue(false),
-      repairService: vi.fn().mockResolvedValueOnce(false).mockRejectedValue(new Error("UAC declined")),
+      repairService: vi
+        .fn()
+        .mockResolvedValueOnce(false)
+        .mockRejectedValue(new Error("UAC declined")),
     });
     const recovery = createDatabaseRecovery(d);
     expect(await recovery.repair()).toBe(false);
