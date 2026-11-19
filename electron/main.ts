@@ -1064,4 +1064,3 @@ if (!app.requestSingleInstanceLock()) {
   });
   app.whenReady().then(bootstrap);
 }
-
