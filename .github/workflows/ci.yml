@@ -337,7 +337,9 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run E2E Tests
+        id: e2e
         env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/modulus-e2e.json
           DB_SERVER: localhost
           # The app runs as its EXECUTE-only login (ADR-0033), as in production.
           DB_USER: pm_web
@@ -348,7 +350,38 @@ jobs:
           # The seeded e2e users' password (same throwaway value as the seed step); auth.setup.ts,
           # viewer.setup.ts and auth.spec.ts sign in with it.
           E2E_USER_PASSWORD: "E2e-Throwaway-User-2026"
-        run: npm run e2e
+        run: |
+          set +e
+          npm run e2e -- --reporter=line,json
+          result=$?
+          set -e
+          python3 - <<'PYREPORT'
+          import json, os
+          from pathlib import Path
+          report = Path(os.environ['PLAYWRIGHT_JSON_OUTPUT_FILE'])
+          data = json.loads(report.read_text()) if report.exists() else {}
+          failures = []
+          def collect(suite, parents):
+              for spec in suite.get('specs', []):
+                  if any(test.get('status') == 'unexpected' for test in spec.get('tests', [])):
+                      failures.append(' > '.join(parents + [spec['title']]))
+              for child in suite.get('suites', []):
+                  collect(child, parents + [child.get('title', '')])
+          for suite in data.get('suites', []):
+              collect(suite, [suite.get('title', '')])
+          stats = data.get('stats', {})
+          counts = 'passed {expected}, failed {unexpected}, skipped {skipped}'.format(
+              expected=stats.get('expected', '?'), unexpected=stats.get('unexpected', '?'),
+              skipped=stats.get('skipped', '?'))
+          summary = ' | '.join(failures[:5])[:1400] or 'See test report'
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('counts=' + counts + '\nsummary=' + summary + '\n')
+          PYREPORT
+          exit "$result"
+
+      - name: "Browser test results: ${{ steps.e2e.outputs.counts }} — ${{ steps.e2e.outputs.summary }}"
+        if: always() && steps.e2e.outcome != 'skipped'
+        run: "true"
 
       - name: Upload Test Results Artifacts
         if: failure()
