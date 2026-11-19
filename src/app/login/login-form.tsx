@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { Input } from "@/components/ui/form/inputs";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { messages } from "@/lib/messages";
+import { signInWithDatabase, type DesktopDatabaseBridge } from "@/lib/desktop-database";
 import { loginAction } from "@/modules/auth/actions";
 import { loginInput } from "@/modules/auth/schemas/user";
 
@@ -17,7 +18,19 @@ import { loginInput } from "@/modules/auth/schemas/user";
  * the username exists (STANDARDS §4).
  */
 export function LoginForm() {
-  const [result, formAction, pending] = useActionState(loginAction, null);
+  const [connecting, setConnecting] = useState(false);
+  const submitting = useRef(false);
+  const [result, formAction, pending] = useActionState(async (prev, formData: FormData) => {
+    try {
+      return await signInWithDatabase(
+        (window as Window & { desktop?: DesktopDatabaseBridge }).desktop,
+        () => loginAction(prev, formData),
+        setConnecting,
+      );
+    } finally {
+      submitting.current = false;
+    }
+  }, null);
   const form = useZodForm(loginInput);
 
   const serverError = result && !result.ok ? result.error.message : null;
@@ -28,7 +41,11 @@ export function LoginForm() {
       noValidate
       onBlur={form.onBlur}
       onSubmit={(e) => {
-        if (!form.validate(e.currentTarget)) e.preventDefault();
+        if (submitting.current || pending || !form.validate(e.currentTarget)) {
+          e.preventDefault();
+          return;
+        }
+        submitting.current = true;
       }}
       className="flex flex-col gap-4"
     >
@@ -47,8 +64,9 @@ export function LoginForm() {
         <Input name="password" type="password" autoComplete="current-password" required />
       </Field>
       <Button type="submit" pending={pending}>
-        {pending ? messages.auth.signingIn : messages.auth.signIn}
+        {connecting ? messages.auth.connecting : pending ? messages.auth.signingIn : messages.auth.signIn}
       </Button>
     </form>
   );
 }
+
