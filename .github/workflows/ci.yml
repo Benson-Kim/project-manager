@@ -384,6 +384,29 @@ jobs:
         if: always() && steps.signin_e2e.outcome != 'skipped'
         run: "true"
 
+      - name: Reproduce planner creation without retries
+        id: planner_probe
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/modulus-planner-probe.json
+          DB_SERVER: localhost
+          DB_USER: pm_web
+          DB_PASSWORD: "E2e-App-Login!Passw0rd1"
+          DB_NAME: ProjectManager
+          AUTH_SECRET: "e2e-throwaway-auth-secret-0123456789abcdefghijklmnopqrstuvwxyz"
+          TRUST_SERVER_CERT: "true"
+          E2E_USER_PASSWORD: "E2e-Throwaway-User-2026"
+        run: |
+          set +e
+          npm run e2e -- e2e/todo-planner.spec.ts --project=app --grep 'drag a to-do' --repeat-each=10 --workers=2 --retries=0 --reporter=line,json
+          result=$?
+          set -e
+          python3 scripts/ci/e2e-summary.py "$PLAYWRIGHT_JSON_OUTPUT_FILE"
+          exit "$result"
+
+      - name: "Planner reproduction: ${{ steps.planner_probe.outputs.counts }} — ${{ steps.planner_probe.outputs.summary }}"
+        if: always() && steps.planner_probe.outcome != 'skipped'
+        run: "true"
+
       - name: Run remaining E2E tests
         id: e2e
         env:
