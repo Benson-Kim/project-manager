@@ -15,13 +15,19 @@ test("happy path: sign in, land on the app, sign out", async ({ page }) => {
   await page.addInitScript(() => {
     let finish: ((ready: boolean) => void) | undefined;
     Object.defineProperty(window, "desktop", {
-      value: { ensureDatabase: () => new Promise<boolean>((resolve) => { finish = resolve; }) },
+      value: {
+        ensureDatabase: () =>
+          new Promise<boolean>((resolve) => {
+            finish = resolve;
+          }),
+      },
     });
     Object.defineProperty(window, "finishDatabaseRecovery", { value: () => finish?.(true) });
   });
   let loginRequests = 0;
   page.on("request", (request) => {
-    if (request.method() === "POST" && new URL(request.url()).pathname === "/login") loginRequests++;
+    if (request.method() === "POST" && new URL(request.url()).pathname === "/login")
+      loginRequests++;
   });
   await page.goto("/login");
   await page.getByLabel(messages.auth.username).fill("e2e-pm");
@@ -32,7 +38,7 @@ test("happy path: sign in, land on the app, sign out", async ({ page }) => {
   await page.evaluate(() => document.querySelector("form")!.requestSubmit());
   expect(loginRequests).toBe(0);
   await page.evaluate(() => {
-    (window as Window & { finishDatabaseRecovery(): void }).finishDatabaseRecovery();
+    (window as unknown as Window & { finishDatabaseRecovery(): void }).finishDatabaseRecovery();
   });
   await page.waitForURL("/");
   expect(loginRequests).toBe(1);
@@ -43,19 +49,24 @@ test("happy path: sign in, land on the app, sign out", async ({ page }) => {
   await expect(page.getByRole("heading", { name: messages.auth.loginTitle })).toBeVisible();
 });
 
-test("failed desktop recovery keeps credentials and never submits an authentication request", async ({ page }) => {
+test("failed desktop recovery keeps credentials and never submits an authentication request", async ({
+  page,
+}) => {
   await page.addInitScript(() => {
     Object.defineProperty(window, "desktop", { value: { ensureDatabase: async () => false } });
   });
   let loginRequests = 0;
   page.on("request", (request) => {
-    if (request.method() === "POST" && new URL(request.url()).pathname === "/login") loginRequests++;
+    if (request.method() === "POST" && new URL(request.url()).pathname === "/login")
+      loginRequests++;
   });
   await page.goto("/login");
   await page.getByLabel(messages.auth.username).fill("waiting-for-connection");
   await page.getByLabel(messages.auth.password).fill("keep-this-password");
   await page.getByRole("button", { name: messages.auth.signIn }).click();
-  await expect(page.getByRole("alert").filter({ hasText: messages.auth.connectionFailed })).toBeVisible();
+  await expect(
+    page.getByRole("alert").filter({ hasText: messages.auth.connectionFailed }),
+  ).toBeVisible();
   await expect(page.getByLabel(messages.auth.username)).toHaveValue("waiting-for-connection");
   await expect(page.getByLabel(messages.auth.password)).toHaveValue("keep-this-password");
   await expect(page.getByRole("button", { name: messages.auth.signIn })).toBeEnabled();
