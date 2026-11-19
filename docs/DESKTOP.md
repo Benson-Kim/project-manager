@@ -22,7 +22,7 @@ Installer (per user, no admin rights needed)
       └─ %ProgramData%\Project Manager\machine.json  (DB credentials, auth secret, uploadsDir; all users)
 
 App launch (normal user, no admin needed)
- ├─ reads machine.json, waits for SQL Server        → offers elevated Repair if anything is wrong
+ ├─ reads machine.json, starts a stopped SQL service and waits for a working login
  │    (a PC provisioned before F1 has no uploadsDir: the app runs with file uploads off
  │     and offers the one-time setup once per user; it never blocks start-up, ADR-0026 §9)
  ├─ applies the schema                               (electron/db-apply.ts)
@@ -32,10 +32,39 @@ App launch (normal user, no admin needed)
  ├─ starts the Next.js standalone server on 127.0.0.1:<random port>   (UPLOADS_DIR = uploadsDir)
  │    waits up to 3 minutes: right after Windows starts, the first start is slow
  ├─ every 30 s checks the database engine still answers; if it stopped, starts it
- │    (allowed once provisioning granted it) or tells the user once to restart the PC
+ │    (allowed once provisioning granted it) or offers Repair connection inside the app
  └─ daily verified backup → copied to the user's backup folder (OneDrive by default),
       new attachment files mirrored into <backup folder>\Uploads
 ```
+
+## Connection recovery ([ADR-0071](adr/ADR-0071-desktop-database-recovery.md))
+
+Startup, resume, window focus and the database watchdog share automatic recovery.
+Before sign-in sends credentials, the desktop host checks the connection, starts a
+stopped service and waits until SQL accepts its configured login. The sign-in
+button shows “Connecting to your data”; entered values stay in the form. Concurrent
+checks share one recovery attempt. Recovery never repeats authentication or a write.
+
+If Windows refuses the start, the app offers **Repair connection**. Approving the
+Windows administrator prompt runs service-only provisioning: it makes the existing
+service start automatically, configures restart after failure, grants signed-in
+users query/status and start rights on this service, then starts it. Older PCs may
+need this approval once because ordinary app updates skipped provisioning. Repair
+keeps database credentials, machine.json and database files. The background offer
+appears once per outage; pressing Sign in can retry after a declined prompt.
+
+A failed repair offers **Copy support details**. The clipboard contains the app
+version, time, service name and diagnostic file paths, without credentials. Detailed
+Windows service exit codes and command output go to the rotating application log.
+The app leaves open pages and form values in place after recovery. A browser has no
+desktop bridge and follows its existing sign-in flow.
+
+Windows acceptance before release: use a standard account with a stopped service;
+repeat without its service-start permission and approve the in-app repair; decline
+the prompt and retry; resume after sleep; confirm concurrent sign-in/watchdog checks
+show one repair dialog and successful recovery submits authentication once. Confirm
+service-only repair leaves machine.json unchanged and grants no stop/configure rights.
+Unit tests and a Linux CI run do not establish these Windows behaviours.
 
 ## Building the installer (Windows x64 developer PC)
 

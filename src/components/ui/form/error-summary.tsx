@@ -7,7 +7,13 @@ import { messages } from "@/lib/messages";
  * Server-failure summary ): appears above the form and takes focus so
  * keyboard and screen-reader users land on the explanation.
  */
-export function ErrorSummary({ message }: { message: string | null }) {
+export function ErrorSummary({
+  message,
+  title = messages.errors.summaryTitle,
+}: {
+  message: string | null;
+  title?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -24,8 +30,8 @@ export function ErrorSummary({ message }: { message: string | null }) {
       aria-live="assertive"
       className="rounded-md border border-danger bg-danger-soft p-3 text-sm text-ink"
     >
-      <p className="font-medium">{messages.errors.summaryTitle}</p>
-      {message !== messages.errors.summaryTitle && <p className="mt-1">{message}</p>}
+      <p className="font-medium">{title}</p>
+      {message !== title && <p className="mt-1">{message}</p>}
     </div>
   );
 }

@@ -29,9 +29,10 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)] [string] $SqlInstaller,
-  [string] $InstanceName = 'PROJECTMGR',
-  [int]    $Port = 14330,
-  [string] $DataRoot = (Join-Path $env:ProgramData 'Modulus')
+  [ValidatePattern('^[A-Za-z][A-Za-z0-9_]{0,15}$')] [string] $InstanceName = 'PROJECTMGR',
+  [ValidateRange(1, 65535)] [int] $Port = 14330,
+  [string] $DataRoot = (Join-Path $env:ProgramData 'Modulus'),
+  [switch] $ServiceOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -236,10 +237,16 @@ function Start-SqlService([bool] $Restart) {
   $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
   if (-not $svc) { throw [ProvisionError]::new(40, "Service $ServiceName not found after install.") }
   if ($svc.StartType -ne 'Automatic') { Set-Service -Name $ServiceName -StartupType Automatic }
+  if ($svc.Status -eq 'StopPending') {
+    $svc.WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Stopped, [TimeSpan]::FromSeconds(30))
+    $svc.Refresh()
+  }
   if ($Restart -and $svc.Status -eq 'Running') {
     Write-Log "Restarting $ServiceName to apply configuration..."
     Restart-Service -Name $ServiceName -Force
-  } elseif ($svc.Status -ne 'Running') {
+  } elseif ($svc.Status -eq 'Paused') {
+    Resume-Service -Name $ServiceName
+  } elseif ($svc.Status -ne 'Running' -and $svc.Status -ne 'StartPending') {
     Write-Log "Starting $ServiceName..."
     Start-Service -Name $ServiceName
   }
@@ -252,20 +259,30 @@ function Start-SqlService([bool] $Restart) {
 # A stopped engine takes the whole app down: on a client PC the service stopped at 04:59 and
 # stayed stopped while the PC ran on (main.log 2026-10-12). Windows now restarts it after a
 # failure, and the app's watchdog may start it: interactive users get SERVICE_START (RP) on
-# this one service and nothing more (not stop, not configure). Warnings only: the app works
-# without either, it just can't recover on its own.
+# this one service and query status, never stop or configure. Failure is reported so
+# Repair cannot claim success while this PC still cannot recover automatically.
 function Set-ServiceRecovery {
   & sc.exe failure $ServiceName reset= 86400 actions= restart/60000/restart/60000/restart/300000 | Out-Null
-  if ($LASTEXITCODE -ne 0) { Write-Log "WARNING: could not set restart-on-failure for $ServiceName (exit $LASTEXITCODE)." }
+  if ($LASTEXITCODE -ne 0) { throw [ProvisionError]::new(40, "Could not set restart-on-failure for $ServiceName (exit $LASTEXITCODE).") }
   & sc.exe failureflag $ServiceName 1 | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw [ProvisionError]::new(40, "Could not enable failure recovery for $ServiceName (exit $LASTEXITCODE).") }
   $sddl = & sc.exe sdshow $ServiceName | Where-Object { $_ -match 'D:' } | Select-Object -First 1
-  if (-not $sddl) { Write-Log "WARNING: could not read the permissions of $ServiceName."; return }
+  if ($LASTEXITCODE -ne 0 -or -not $sddl) { throw [ProvisionError]::new(40, "Could not read the permissions of $ServiceName.") }
   $sddl = "$sddl".Trim()
-  if ($sddl -match '\(A;;RP;;;IU\)') { return }
-  $updated = $sddl -replace '^(.*?D:[A-Z]*)', '$1(A;;RP;;;IU)'
-  & sc.exe sdset $ServiceName $updated | Out-Null
-  if ($LASTEXITCODE -eq 0) { Write-Log "Signed-in users may now start $ServiceName." }
-  else { Write-Log "WARNING: could not let signed-in users start $ServiceName (exit $LASTEXITCODE)." }
+  # Add/merge an allow ACE while preserving the descriptor and canonical deny ordering.
+  # 0x14 = SERVICE_QUERY_STATUS (LC) | SERVICE_START (RP). No stop/configure rights.
+  $descriptor = New-Object System.Security.AccessControl.CommonSecurityDescriptor -ArgumentList $false, $false, $sddl
+  $interactive = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-4'
+  $descriptor.DiscretionaryAcl.AddAccess(
+    [System.Security.AccessControl.AccessControlType]::Allow, $interactive, 0x14,
+    [System.Security.AccessControl.InheritanceFlags]::None,
+    [System.Security.AccessControl.PropagationFlags]::None)
+  $updated = $descriptor.GetSddlForm([System.Security.AccessControl.AccessControlSections]::All)
+  if ($updated -ne $sddl) {
+    & sc.exe sdset $ServiceName $updated | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw [ProvisionError]::new(40, "Could not grant service-start permission for $ServiceName (exit $LASTEXITCODE).") }
+  }
+  Write-Log "Signed-in users may query and start $ServiceName."
 }
 
 function Set-AccessControl {
@@ -353,6 +370,7 @@ $principal = New-Object Security.Principal.WindowsPrincipal ([Security.Principal
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
   $argList = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$PSCommandPath`" " +
     "-SqlInstaller `"$SqlInstaller`" -InstanceName $InstanceName -Port $Port -DataRoot `"$DataRoot`""
+  if ($ServiceOnly) { $argList += ' -ServiceOnly' }
   try {
     $p = Start-Process -FilePath (Join-Path $PSHOME 'powershell.exe') -ArgumentList $argList `
       -Verb RunAs -Wait -PassThru -WindowStyle Hidden
@@ -364,7 +382,7 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 
 $exitCode = 0
 try {
-  $moved = Move-LegacyDataRoot
+  $moved = if ($ServiceOnly) { '' } else { Move-LegacyDataRoot }
   if (-not (Test-Path -LiteralPath $LogDir)) { New-Item -ItemType Directory -Path $LogDir -Force | Out-Null }
   Write-Log "=== Provisioning start (instance $InstanceName, port $Port) ==="
   if ($moved) { Write-Log $moved }
@@ -372,6 +390,18 @@ try {
   $principal = New-Object Security.Principal.WindowsPrincipal ([Security.Principal.WindowsIdentity]::GetCurrent())
   if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     throw [ProvisionError]::new(10, 'Provisioning must run as administrator.')
+  }
+
+  # Runtime repair must never change SQL credentials, machine.json, data folders or
+  # publisher trust while the app server is running with its existing configuration.
+  if ($ServiceOnly) {
+    if (-not (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) {
+      throw [ProvisionError]::new(40, "The existing database service $ServiceName is missing.")
+    }
+    Set-ServiceRecovery
+    Start-SqlService $false
+    Write-Log '=== Service connection repair complete ==='
+    exit 0
   }
 
   Set-AccessControl
