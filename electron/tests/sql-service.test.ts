@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getServiceState, runElevatedRepair, runElevatedServiceRepair, startService } from "../sql-service";
+import {
+  getServiceState,
+  runElevatedRepair,
+  runElevatedServiceRepair,
+  startService,
+} from "../sql-service";
 
 const ps = vi.hoisted(() => ({
   answer: "Running",
@@ -15,21 +20,27 @@ beforeEach(() => {
   vi.clearAllMocks();
   ps.answer = "Running";
   ps.error = null;
-  ps.exec.mockImplementation((
-    _file: string,
-    _args: string[],
-    _options: unknown,
-    callback: (err: Error | null, out?: { stdout: string; stderr: string }) => void,
-  ) => {
-    if (ps.error) callback(ps.error);
-    else callback(null, { stdout: `${ps.answer}\r\n`, stderr: "" });
-  });
+  ps.exec.mockImplementation(
+    (
+      _file: string,
+      _args: string[],
+      _options: unknown,
+      callback: (err: Error | null, out?: { stdout: string; stderr: string }) => void,
+    ) => {
+      if (ps.error) callback(ps.error);
+      else callback(null, { stdout: `${ps.answer}\r\n`, stderr: "" });
+    },
+  );
 });
 
 describe("getServiceState", () => {
   it.each([
-    ["Running", "running"], ["Stopped", "stopped"], ["StartPending", "starting"],
-    ["StopPending", "stopping"], ["Paused", "paused"], ["Missing", "missing"],
+    ["Running", "running"],
+    ["Stopped", "stopped"],
+    ["StartPending", "starting"],
+    ["StopPending", "stopping"],
+    ["Paused", "paused"],
+    ["Missing", "missing"],
     ["unrecognised", "unknown"],
   ])("maps %s without treating pending as stopped", async (answer, expected) => {
     ps.answer = answer;
@@ -60,7 +71,10 @@ describe("startService", () => {
   });
 
   it("logs the Windows exit code and service error output on access denial", async () => {
-    ps.error = Object.assign(new Error("Command failed"), { code: 5, stdout: "OpenService FAILED 5: Access is denied." });
+    ps.error = Object.assign(new Error("Command failed"), {
+      code: 5,
+      stdout: "OpenService FAILED 5: Access is denied.",
+    });
     expect(await startService("PROJECTMGR", log)).toBe(false);
     expect(log.warn).toHaveBeenCalledWith(expect.stringContaining("Access is denied"));
     expect(log.warn).toHaveBeenCalledWith(expect.stringContaining("code 5"));
@@ -71,7 +85,9 @@ describe("service-only repair", () => {
   const target = { instanceName: "PROJECTMGR", port: 14330, dataRoot: "C:\\ProgramData\\Modulus" };
 
   it("passes the service-only switch, current instance, port and data root to elevated provisioning", async () => {
-    expect(await runElevatedServiceRepair("C:\\Modulus\\provision.ps1", "C:\\sql.exe", target, log)).toBe(0);
+    expect(
+      await runElevatedServiceRepair("C:\\Modulus\\provision.ps1", "C:\\sql.exe", target, log),
+    ).toBe(0);
     const command = ps.exec.mock.calls[0][1].at(-1);
     expect(command).toContain("-ServiceOnly -InstanceName PROJECTMGR -Port 14330");
     expect(command).toContain('-DataRoot "C:\\ProgramData\\Modulus"');
@@ -90,13 +106,24 @@ describe("service-only repair", () => {
   });
 
   it("handles a declined administrator prompt", async () => {
-    ps.error = Object.assign(new Error("failed"), { code: 1, stderr: "The operation was canceled by the user." });
-    await expect(runElevatedServiceRepair("script.ps1", "sql.exe", target, log)).rejects.toThrow("declined");
+    ps.error = Object.assign(new Error("failed"), {
+      code: 1,
+      stderr: "The operation was canceled by the user.",
+    });
+    await expect(runElevatedServiceRepair("script.ps1", "sql.exe", target, log)).rejects.toThrow(
+      "declined",
+    );
   });
 
   it("rejects invalid arguments before requesting elevation", async () => {
-    for (const invalid of [{ ...target, port: 0 }, { ...target, instanceName: "x;exit" }, { ...target, dataRoot: 'x" -Command evil' }]) {
-      await expect(runElevatedServiceRepair("script.ps1", "sql.exe", invalid, log)).rejects.toThrow("Invalid");
+    for (const invalid of [
+      { ...target, port: 0 },
+      { ...target, instanceName: "x;exit" },
+      { ...target, dataRoot: 'x" -Command evil' },
+    ]) {
+      await expect(runElevatedServiceRepair("script.ps1", "sql.exe", invalid, log)).rejects.toThrow(
+        "Invalid",
+      );
     }
     expect(ps.exec).not.toHaveBeenCalled();
   });
