@@ -18,13 +18,7 @@ function powershellPath(): string {
 }
 
 export type ServiceState =
-  | "running"
-  | "stopped"
-  | "starting"
-  | "stopping"
-  | "paused"
-  | "missing"
-  | "unknown";
+  "running" | "stopped" | "starting" | "stopping" | "paused" | "missing" | "unknown";
 
 function serviceName(instanceName: string): string {
   if (!/^[A-Za-z][A-Za-z0-9_]{0,15}$/.test(instanceName)) {
