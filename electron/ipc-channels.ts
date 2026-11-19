@@ -10,4 +10,3 @@ export const LICENCE_CHANNELS = {
   feedbackSend: "feedback:send",
   feedbackConsent: "feedback:consent",
 } as const;
-
