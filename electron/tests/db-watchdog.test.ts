@@ -47,7 +47,9 @@ describe("database watchdog", () => {
   });
 
   it("handles a failed probe and releases the lock for the next check", async () => {
-    const d = deps({ reachable: vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValue(true) });
+    const d = deps({
+      reachable: vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValue(true),
+    });
     const watchdog = createDbWatchdog(d);
     expect(await watchdog.check()).toBe("down");
     expect(d.onDown).toHaveBeenCalledOnce();
@@ -67,7 +69,12 @@ describe("database watchdog", () => {
     let finish!: (ok: boolean) => void;
     const d = deps({
       reachable: vi.fn().mockResolvedValue(false),
-      ensureReady: vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve; })),
+      ensureReady: vi.fn(
+        () =>
+          new Promise<boolean>((resolve) => {
+            finish = resolve;
+          }),
+      ),
     });
     const watchdog = createDbWatchdog(d);
     const first = watchdog.check();
