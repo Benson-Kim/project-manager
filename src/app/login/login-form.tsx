@@ -19,6 +19,8 @@ import { loginInput } from "@/modules/auth/schemas/user";
  * the username exists (STANDARDS §4).
  */
 export function LoginForm() {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [connecting, setConnecting] = useState(false);
   const submitting = useRef(false);
   const [result, formAction, pending] = useActionState(
@@ -57,6 +59,9 @@ export function LoginForm() {
       <Field label={messages.auth.username} name="username" errors={form.errors.username}>
         <Input
           name="username"
+          value={username}
+          onChange={(e) => setUsername(e.currentTarget.value)}
+          readOnly={pending}
           autoComplete="username"
           autoCapitalize="none"
           autoCorrect="off"
@@ -65,14 +70,22 @@ export function LoginForm() {
         />
       </Field>
       <Field label={messages.auth.password} name="password" errors={form.errors.password}>
-        <Input name="password" type="password" autoComplete="current-password" required />
+        <Input
+          name="password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.currentTarget.value)}
+          readOnly={pending}
+          autoComplete="current-password"
+          required
+        />
       </Field>
       <Button type="submit" pending={pending}>
         {connecting
           ? messages.auth.connecting
           : pending
-          ? messages.auth.signingIn
-          : messages.auth.signIn}
+            ? messages.auth.signingIn
+            : messages.auth.signIn}
       </Button>
     </form>
   );
