@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { startTransition, useActionState, useOptimistic, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
@@ -21,7 +21,8 @@ import { loginInput } from "@/modules/auth/schemas/user";
 export function LoginForm() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [connecting, setConnecting] = useState(false);
+  // Ordinary state inside the async action waits for completion; progress must render now.
+  const [connecting, setConnecting] = useOptimistic(false);
   const submitting = useRef(false);
   const [result, formAction, pending] = useActionState(
     async (prev: ActionResult<never> | null, formData: FormData) => {
@@ -29,7 +30,7 @@ export function LoginForm() {
         return await signInWithDatabase(
           (window as Window & { desktop?: DesktopDatabaseBridge }).desktop,
           () => loginAction(prev, formData),
-          setConnecting,
+          (active) => startTransition(() => setConnecting(active)),
         );
       } finally {
         submitting.current = false;
