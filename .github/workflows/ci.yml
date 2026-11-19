@@ -56,7 +56,27 @@ jobs:
         run: npm ci --prefer-offline
 
       - name: Run Typecheck
-        run: npm run typecheck
+        id: typecheck
+        run: |
+          set +e
+          npm run typecheck > "${RUNNER_TEMP}/modulus-typecheck.log" 2>&1
+          result=$?
+          set -e
+          cat "${RUNNER_TEMP}/modulus-typecheck.log"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          lines = Path(os.environ['RUNNER_TEMP'], 'modulus-typecheck.log').read_text().splitlines()
+          errors = [line for line in lines if 'error TS' in line]
+          summary = ' | '.join(errors[:4])[:1500] or 'See compiler log'
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('summary=' + summary + '\n')
+          PY
+          exit "$result"
+
+      - name: "Compiler diagnostics: ${{ steps.typecheck.outputs.summary }}"
+        if: failure() && steps.typecheck.outcome == 'failure'
+        run: 'true'
 
   unit-tests:
     name: Vitest Unit Tests
