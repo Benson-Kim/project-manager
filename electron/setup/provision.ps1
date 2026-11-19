@@ -509,4 +509,3 @@ SELECT 1;
   Write-Log $_.ScriptStackTrace
 }
 exit $exitCode
-
