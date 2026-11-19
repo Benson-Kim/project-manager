@@ -17,15 +17,29 @@ function powershellPath(): string {
   );
 }
 
-export type ServiceState = "running" | "stopped" | "missing";
+export type ServiceState =
+  | "running"
+  | "stopped"
+  | "starting"
+  | "stopping"
+  | "paused"
+  | "missing"
+  | "unknown";
+
+function serviceName(instanceName: string): string {
+  if (!/^[A-Za-z][A-Za-z0-9_]{0,15}$/.test(instanceName)) {
+    throw new Error("Invalid SQL Server instance name.");
+  }
+  return `MSSQL$${instanceName}`;
+}
 
 /**
  * "missing" only when Windows says there is no such service. A query that fails
- * or times out (PowerShell starting slowly right after boot) is "stopped": the
- * caller then waits for the engine, and only a real failure leads to Repair,
- * which a standard user cannot run.
+ * or times out is unknown; it must not trigger installation or a second start
+ * of a service that is already starting.
  */
 export async function getServiceState(instanceName: string): Promise<ServiceState> {
+  const name = serviceName(instanceName);
   try {
     const { stdout } = await execFileAsync(
       powershellPath(),
@@ -33,15 +47,23 @@ export async function getServiceState(instanceName: string): Promise<ServiceStat
         "-NoProfile",
         "-NonInteractive",
         "-Command",
-        `$s = Get-Service -Name 'MSSQL$${instanceName}' -ErrorAction SilentlyContinue; if ($s) { $s.Status } else { 'Missing' }`,
+        `try { (Get-Service -Name '${name}' -ErrorAction Stop).Status } ` +
+          "catch { if ($_.FullyQualifiedErrorId -like 'NoServiceFoundForGivenName*') { 'Missing' } else { exit 1 } }",
       ],
       { windowsHide: true, timeout: 30_000 },
     );
     const status = stdout.trim().toLowerCase();
-    if (status === "missing") return "missing";
-    return status === "running" ? "running" : "stopped";
+    const states: Record<string, ServiceState> = {
+      running: "running",
+      stopped: "stopped",
+      startpending: "starting",
+      stoppending: "stopping",
+      paused: "paused",
+      missing: "missing",
+    };
+    return states[status] ?? "unknown";
   } catch {
-    return "stopped";
+    return "unknown";
   }
 }
 
@@ -55,9 +77,38 @@ export async function runElevatedRepair(
   sqlInstaller: string,
   log: Logger,
 ): Promise<number> {
+  return runProvisioning(scriptPath, sqlInstaller, log);
+}
+
+/** Repairs the existing service only; never resets SQL logins or machine.json. */
+export async function runElevatedServiceRepair(
+  scriptPath: string,
+  sqlInstaller: string,
+  target: { instanceName: string; port: number },
+  log: Logger,
+): Promise<number> {
+  serviceName(target.instanceName);
+  if (!Number.isInteger(target.port) || target.port < 1 || target.port > 65535) {
+    throw new Error("Invalid SQL Server port.");
+  }
+  return runProvisioning(
+    scriptPath,
+    sqlInstaller,
+    log,
+    ` -ServiceOnly -InstanceName ${target.instanceName} -Port ${target.port}`,
+  );
+}
+
+async function runProvisioning(
+  scriptPath: string,
+  sqlInstaller: string,
+  log: Logger,
+  extraArguments = "",
+): Promise<number> {
   const esc = (s: string) => s.replace(/'/g, "''");
-  const inner = `-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${scriptPath}" -SqlInstaller "${sqlInstaller}"`;
+  const inner = `-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${scriptPath}" -SqlInstaller "${sqlInstaller}"${extraArguments}`;
   const command =
+    "$ErrorActionPreference = 'Stop'; " +
     `$p = Start-Process -FilePath '${esc(powershellPath())}' -ArgumentList '${esc(inner)}' ` +
     `-Verb RunAs -Wait -PassThru -WindowStyle Hidden; exit $p.ExitCode`;
   log.info("[repair] requesting elevation for provisioning");
@@ -96,14 +147,22 @@ export function isListening(host: string, port: number, timeoutMs = 5_000): Prom
  * once provisioning granted it (provision.ps1 Set-ServiceRecovery); false otherwise.
  */
 export async function startService(instanceName: string, log: Logger): Promise<boolean> {
+  const name = serviceName(instanceName);
   try {
-    await execFileAsync("sc.exe", ["start", `MSSQL$${instanceName}`], {
+    await execFileAsync(path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "sc.exe"), ["start", name], {
       windowsHide: true,
       timeout: 30_000,
     });
     return true;
   } catch (err) {
-    log.warn(`[db-watchdog] could not start MSSQL$${instanceName}: ${describeError(err)}`);
+    const e = err as { code?: number | string; stdout?: string; stderr?: string };
+    // ERROR_SERVICE_ALREADY_RUNNING: Windows won the race; still wait for SQL readiness.
+    if (e.code === 1056) return true;
+    log.warn(
+      `[database] could not start ${name} (code ${e.code ?? "unknown"}): ` +
+        `${e.stdout?.trim() ?? ""} ${e.stderr?.trim() ?? ""}\n${describeError(err)}`,
+    );
     return false;
   }
 }
+
