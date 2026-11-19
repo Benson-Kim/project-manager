@@ -67,6 +67,7 @@ test("failed desktop recovery keeps credentials and never submits an authenticat
   await expect(
     page.getByRole("alert").filter({ hasText: messages.auth.connectionFailed }),
   ).toBeVisible();
+  await expect(page.getByText(messages.auth.loginErrorTitle, { exact: true })).toBeVisible();
   await expect(page.getByLabel(messages.auth.username)).toHaveValue("waiting-for-connection");
   await expect(page.getByLabel(messages.auth.password)).toHaveValue("keep-this-password");
   await expect(page.getByRole("button", { name: messages.auth.signIn })).toBeEnabled();
