@@ -36,7 +36,7 @@ async function addColumn(page: Page, name: string, kind: string, action?: string
   await dialog.getByTestId("add-column-save").click();
   await expect(dialog).toBeHidden();
   await expect(
-    page.getByRole("columnheader", { name: new RegExp(escapeRegExp(name)) }),
+    page.getByRole("columnheader").filter({ has: page.getByText(name, { exact: true }) }),
   ).toBeVisible();
 }
 
