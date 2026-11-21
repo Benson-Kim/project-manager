@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 import { expectListed, expectNotListed } from "./support/datasheet";
+import { expectFocusOnInvalid } from "./support/form";
 
 /**
  * Risks & issues register (#14, ADR-0050) — project-scoped route
@@ -50,7 +51,7 @@ test("validation failure — an empty description shows the error summary", asyn
   await page.getByTestId("risk-issue-save").click();
   const summary = page.getByRole("alert").filter({ hasText: messages.errors.summaryTitle });
   await expect(summary).toBeVisible();
-  await expect(summary).toBeFocused();
+  await expectFocusOnInvalid(form.locator(":focus"));
 });
 
 test("the due date may not precede the date identified", async ({ page }) => {

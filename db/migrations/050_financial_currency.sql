@@ -1,5 +1,4 @@
 -- 050_financial_currency.sql — a financial sheet carries the currency its figures are shown in
--- (client feedback, `Project Manager Updates.pdf` p.33 carry-forward list and p.12; ADR-0051).
 --   "Choose a financial currency or show no currency symbol."
 --
 --   app.Financial.CurrencyCode NVARCHAR(3) NOT NULL DEFAULT N'': the empty string is "show no

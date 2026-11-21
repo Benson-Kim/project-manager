@@ -1,5 +1,5 @@
 -- 045_project_executive_summary.sql — the project overview's Objective becomes the Executive
--- Summary, with no length cap (client feedback 2026-10-26; ADR-0047 decision 1).
+-- Summary, with no length cap
 --   app.Project.Mandate NVARCHAR(255) -> NVARCHAR(MAX): the client writes an executive summary
 --     here, and 255 characters is under two sentences. The column keeps its name, so no data
 --     moves and nothing downstream is renamed — only the label the user reads changes, in

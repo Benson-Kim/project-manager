@@ -208,10 +208,60 @@ test("/notes lists a project's notebook with its project and opens it under the 
     messages.projectPicker.none,
   );
   await link.click();
-  await page.waitForURL(projectUrl);
+  await page.waitForURL(`${projectUrl}?find=${encodeURIComponent(unique)}`);
 
   await page.goto(projectUrl.replace(/\/projects\/\d+\/notes\//, "/notes/"));
   await page.waitForURL(projectUrl);
+});
+
+test("a list search opens the notebook on the page holding the text, where find, replace and Ctrl+S work", async ({
+  page,
+}) => {
+  const R = messages.richText;
+  const stamp = Date.now();
+  const needle = `quartz${stamp}`;
+  const title = `Find book ${stamp}`;
+  await newNotebook(page);
+  await rename(page, title);
+  const notebookUrl = page.url();
+  await savePage(page, "Alpha");
+  await addPage(page, 2);
+  await tabs(page).nth(1).click();
+  await editor(page).click();
+  await page.keyboard.type(`One ${needle}, two ${needle}.`);
+  await savePage(page, "Beta");
+
+  await page.goto(`/projects/2/notes?q=${needle}`);
+  await page.getByRole("link", { name: title }).click();
+  await page.waitForURL(`${notebookUrl}?find=${needle}`);
+  await expect(page.getByTestId("note-page-title")).toHaveValue("Beta");
+  const find = page.getByTestId("find-input");
+  await expect(find).toHaveValue(needle);
+  await expect(find).toBeFocused();
+  const count = page.getByTestId("find-count");
+  await expect(count).toHaveText(R.matchCount(1, 2));
+  await find.press("Enter");
+  await expect(count).toHaveText(R.matchCount(2, 2));
+
+  await find.press("Control+H");
+  await page.getByTestId("replace-input").fill("garnet");
+  await page.getByRole("button", { name: R.replaceAll }).click();
+  await expect(count).toHaveText(R.noMatches);
+  await expect(editor(page)).toContainText("One garnet, two garnet.");
+
+  await page.getByTestId("replace-input").press("Escape");
+  await expect(page.getByRole("search", { name: R.find })).toHaveCount(0);
+
+  // Ctrl+S presses the Save button of the form being edited.
+  await editor(page).press("Control+S");
+  await expect(
+    page.getByTestId("toast-success").filter({ hasText: messages.feedback.saved }).first(),
+  ).toBeVisible({ timeout: 15_000 });
+
+  await page.goto(notebookUrl);
+  await page.getByRole("tab", { name: "Beta" }).click();
+  await expect(editor(page)).toContainText("One garnet, two garnet.", { timeout: 15_000 });
+  await expect(editor(page)).not.toContainText(needle);
 });
 
 test("groups pages into tabs, moves a page between them, renames, reorders and removes the tabs", async ({

@@ -4,6 +4,7 @@ export interface StoredLicence {
   licence: unknown;
   checkIn: unknown;
   mark: unknown;
+  usage?: unknown;
 }
 
 export async function readStoredLicence(machineHash: string): Promise<StoredLicence | null> {
@@ -18,6 +19,7 @@ export async function readStoredLicence(machineHash: string): Promise<StoredLice
       licence: value.licence ?? null,
       checkIn: value.checkIn ?? null,
       mark: value.mark ?? null,
+      usage: value.usage ?? null,
     };
   } catch {
     return null;

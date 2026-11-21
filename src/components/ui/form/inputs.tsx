@@ -7,7 +7,7 @@ import { useFieldAria } from "./field";
  * Native-first inputs : the platform's controls are the best mobile
  * UX. All pick up id/aria wiring from the surrounding <Field>.
  */
-const inputBase =
+export const inputBase =
   "min-h-10 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink " +
   "aria-invalid:border-danger";
 

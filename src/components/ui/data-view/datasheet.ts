@@ -8,13 +8,14 @@ import {
   type LookupLists,
 } from "@/lib/lookup-lists";
 import { notifySaved } from "@/lib/cross-window";
+import { messages } from "@/lib/messages";
 
 /**
- * Datasheet mode of the DataView (ADR-0023, client feedback §2–4): in list
+ * Datasheet mode of the DataView: in list
  * view, editable cells are inputs (Access-style), a persistent "new entry" row
  * sits under the data, and list-bound columns get a header caret that opens
- * the dropdown-list editor (ADR-0022). Pure, DOM-free helpers live here so
- * Vitest covers them (ADR-0013); the components only render.
+ * the dropdown-list editor . Pure, DOM-free helpers live here so
+ * Vitest covers them ; the components only render.
  */
 
 export type CellKind = "text" | "number" | "date" | "select" | "rich";
@@ -40,7 +41,7 @@ export interface CellEditor<Row> {
   field: string;
   /** The row's value as the input's string: dates "YYYY-MM-DD", ids as digits, "" when empty. */
   value: (row: Row) => string;
-  /** Ghost text of the new-entry row (client feedback: "[New project name…]"). */
+  /** Ghost text of the new-entry row: "[New project name…]"). */
   placeholder: string;
   /** Managed list behind a select: its options, and the header caret that edits it. */
   list?: LookupListKey;
@@ -247,14 +248,17 @@ export function invalidFields(fieldErrors: Record<string, string[]> | undefined)
 /**
  * What a failed save says in the toast: the first field's own message (e.g. "Due
  * date can't be before start date."), since a cell edit has no field to show it
- * under; the generic message when the action gave none.
+ * under; a rejected value names its column, since no field is highlighted to
+ * point at; otherwise the action's own message.
  */
-export function failureMessage(error: {
-  message: string;
-  fieldErrors?: Record<string, string[]>;
-}): string {
+export function failureMessage(
+  error: { code?: string; message: string; fieldErrors?: Record<string, string[]> },
+  column?: string,
+): string {
   const first = Object.values(error.fieldErrors ?? {}).find((list) => list.length > 0);
-  return first?.[0] ?? error.message;
+  if (first) return first[0];
+  if (column && error.code === "VALIDATION") return messages.datasheet.notSaved(column);
+  return error.message;
 }
 
 /**
@@ -303,12 +307,15 @@ export function panelPosition(
   const left = Math.min(Math.max(cell.left, PANEL_MARGIN), viewport.width - PANEL_MARGIN - width);
   const below = viewport.height - cell.bottom - PANEL_MARGIN;
   const above = cell.top - PANEL_MARGIN;
-  return below >= minBelow || below >= above
-    ? { left, width, top: cell.bottom + 4, maxHeight: below - 4 }
-    : { left, width, bottom: viewport.height - cell.top + 4, maxHeight: above - 4 };
+  if (below >= minBelow || below >= above) {
+    const top = Math.max(cell.bottom + 4, PANEL_MARGIN);
+    return { left, width, top, maxHeight: viewport.height - PANEL_MARGIN - top };
+  }
+  const bottom = Math.max(viewport.height - cell.top + 4, PANEL_MARGIN);
+  return { left, width, bottom, maxHeight: viewport.height - PANEL_MARGIN - bottom };
 }
 
-/** Row height until the user drags a row edge (client feedback §2: spacious rows). */
+/** Row height until the user drags a row edge (spacious rows). */
 export const DEFAULT_ROW_HEIGHT = 48;
 
 /**
@@ -319,7 +326,7 @@ export const DEFAULT_ROW_HEIGHT = 48;
 export const RICH_TEXT_CLIP =
   "block max-h-[round(down,var(--row-h)_-_1rem,1.5rem)] overflow-hidden print:max-h-none";
 
-/** Minimum width per kind so cells stay readable (client feedback §2: spacious cells). */
+/** Minimum width per kind so cells stay readable (spacious cells). */
 export const CELL_WIDTH: Record<CellKind, string> = {
   text: "min-w-56",
   number: "min-w-28",

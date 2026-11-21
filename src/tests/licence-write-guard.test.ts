@@ -19,6 +19,11 @@ const NOT_ACTION_BUILT: Record<string, string> = {
 
 const WRAPPERS = ["action", "boardMutation"];
 
+/** Factories that return a set of actions, each member built with a wrapper, and the file that holds each. */
+const FACTORIES: Record<string, string> = {
+  customColumnActions: "lib/custom-columns/actions.ts",
+};
+
 const CHECK_OWNERS = new Set([
   "lib/licence/gate.ts",
   "lib/licence/write-check.ts",
@@ -44,6 +49,32 @@ const files = walk(SRC)
 
 const serverActionFiles = files.filter((f) => /^\s*["']use server["']/m.test(f.source));
 
+const wrapped = new RegExp(`^\\s+(\\w+):\\s*(${WRAPPERS.join("|")})\\(`, "gm");
+
+/** The members of each factory that are built with a wrapper. */
+const builtMembers = new Map(
+  Object.entries(FACTORIES).map(([factory, path]) => {
+    const source = files.find((f) => f.path === path)?.source ?? "";
+    return [factory, new Set([...source.matchAll(wrapped)].map((m) => m[1]))];
+  }),
+);
+
+/** In one file, each const that holds a factory's actions, mapped to that factory's built members. */
+function factoryResults(source: string): Map<string, Set<string>> {
+  return new Map(
+    [...source.matchAll(/^const\s+(\w+)\s*=\s*(\w+)\(/gm)].flatMap((m) => {
+      const built = builtMembers.get(m[2]);
+      return built ? [[m[1], built] as const] : [];
+    }),
+  );
+}
+
+function isWrapperBuilt(exported: string, results: Map<string, Set<string>>): boolean {
+  if (new RegExp(`^const\\s+\\w+\\s*=\\s*(${WRAPPERS.join("|")})\\b`).test(exported)) return true;
+  const member = /^const\s+\w+\s*=\s*(\w+)\.(\w+);$/.exec(exported);
+  return !!member && !!results.get(member[1])?.has(member[2]);
+}
+
 describe("licence write guard", () => {
   it("finds the server action files and the two wrappers", () => {
     expect(serverActionFiles.length).toBeGreaterThan(5);
@@ -59,13 +90,32 @@ describe("licence write guard", () => {
   });
 
   it("builds every exported server action with action()", () => {
-    const bad = serverActionFiles.flatMap((file) =>
-      [...file.source.matchAll(/^export\s+(?!type\b|interface\b)(.*)$/gm)]
-        .filter((m) => !new RegExp(`^const\\s+\\w+\\s*=\\s*(${WRAPPERS.join("|")})\\b`).test(m[1]))
+    const bad = serverActionFiles.flatMap((file) => {
+      const results = factoryResults(file.source);
+      return [...file.source.matchAll(/^export\s+(?!type\b|interface\b)(.*)$/gm)]
+        .filter((m) => !isWrapperBuilt(m[1], results))
         .map((m) => `${file.path}: export ${m[1].slice(0, 60)}`)
-        .filter((entry) => !(entry.split(":")[0] in NOT_ACTION_BUILT)),
-    );
+        .filter((entry) => !(entry.split(":")[0] in NOT_ACTION_BUILT));
+    });
     expect(bad).toEqual([]);
+  });
+
+  it("builds every member a factory returns with a wrapper", () => {
+    for (const [factory, path] of Object.entries(FACTORIES)) {
+      const source = files.find((f) => f.path === path)?.source ?? "";
+      const body = source.slice(source.indexOf(`export function ${factory}`));
+      const returned = body.slice(body.lastIndexOf("return {"));
+      const indent = /\n(\s+)\w+:/.exec(returned)?.[1] ?? "";
+      const members = [...returned.matchAll(new RegExp(`^${indent}(\\w+):`, "gm"))].map(
+        (m) => m[1],
+      );
+      const built = builtMembers.get(factory) ?? new Set();
+      expect(members.length, factory).toBeGreaterThan(0);
+      expect(
+        members.filter((m) => !built.has(m)),
+        factory,
+      ).toEqual([]);
+    }
   });
 
   it("keeps every wrapper a thin call to action()", () => {

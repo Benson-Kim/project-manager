@@ -1,11 +1,12 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { messages } from "../src/lib/messages";
-import { escapeRegExp } from "./support/datasheet";
+import { escapeRegExp, waitForHydrated } from "./support/datasheet";
+import { expectFocusOnInvalid } from "./support/form";
 
 /**
  * Datasheet mode of the DataView (ADR-0023) and the dropdown-list editor
- * (ADR-0022), client feedback §2–4. Runs as e2e-pm, Manager on project 2.
+ * Runs as e2e-pm, Manager on project 2.
  * The list editor is exercised on the kitchen sink (local lists), so no Admin
  * login is spent (login budget, LESSONS §13).
  */
@@ -121,6 +122,26 @@ test("a cell saves in place and keeps its value after reload", async ({ page }) 
   await expect(page.getByRole("combobox", { name: cell(KD.priority, requirement) })).toHaveValue(
     "Low",
   );
+});
+
+test("a refused save lands on the cell or new-entry field to fix", async ({ page }) => {
+  const requirement = `E2E refused ${Date.now()}`;
+  await addDeliverable(page, requirement);
+  await page.goto(`/projects/2/deliverables?view=list&q=${encodeURIComponent(requirement)}`);
+  const refused = page.getByTestId("toast-error").filter({ hasText: KD.deliverableRequired });
+
+  const text = page.getByRole("textbox", { name: cell(KD.deliverable, requirement) });
+  await waitForHydrated(text);
+  await text.fill("");
+  await text.press("Enter");
+  await expect(refused.first()).toBeVisible();
+  await expect(text).toHaveValue(requirement);
+  await expectFocusOnInvalid(text);
+
+  const addRow = page.getByTestId("datasheet-add-row");
+  await addRow.getByRole("combobox", { name: newEntry(KD.status) }).selectOption("Pending");
+  await addRow.getByRole("button", { name: messages.datasheet.addEntry }).click();
+  await expectFocusOnInvalid(addRow.getByRole("textbox", { name: newEntry(KD.deliverable) }));
 });
 
 test("dropdown lists are edited by Admins only: no header carets for a project manager", async ({
@@ -259,7 +280,7 @@ test.describe.serial("daily activities in list view", () => {
   }) => {
     // The other half of the reorder the client reported (the to-do half is
     // below): the assertion is the order that survives a reload, never the
-    // toast, which says only that a save was refused (client feedback, tab 2 L4).
+    // toast, which says only that a save was refused.
     await page.goto("/projects/2/daily-activities?view=list");
     const { before, after } = await moveThirdColumnUp(page);
     await expect(headerCells(page)).toHaveText(after);
@@ -327,7 +348,7 @@ test("table layout: a column moved in the dialog is still moved after a reload (
   // once, with nothing red to show it: no spec moved a column on any module.
   // What the client sees is the column springing back on the next load, so the
   // assertion is the stored order — never the toast, which says only that a
-  // save was refused (client feedback, tab 2 L4).
+  // save was refused.
   await page.goto("/todo?view=list");
   const { before, after } = await moveThirdColumnUp(page);
   await expect(headerCells(page)).toHaveText(after);

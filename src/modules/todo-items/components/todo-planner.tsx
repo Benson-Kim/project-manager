@@ -7,17 +7,20 @@ import {
   useState,
   useTransition,
   type DragEvent,
-  type MouseEvent,
+  type PointerEvent as ReactPointerEvent,
   type PointerEvent,
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
+import { useListValueClass } from "@/components/ui/lookup-lists";
 import { Toolbar } from "@/components/ui/toolbar";
 import { canInProject } from "@/lib/auth/rbac";
 import { notifySaved } from "@/lib/cross-window";
+import { localWallClock } from "@/lib/local-time";
 import { messages } from "@/lib/messages";
+import { userNow } from "@/lib/not-past";
 import {
   createPlannerEntryAction,
   deleteTodoItemAction,
@@ -42,7 +45,8 @@ import {
   type Slot,
 } from "../planner";
 import type { TodoPlannerData } from "../queries/load-todo-planner";
-import type { PlannerEntry } from "../schemas/todo-schedule";
+import { slotProblem } from "../schemas/todo-schedule";
+import type { PlannerBlock as PlannerEntry } from "../planner";
 import { CalendarModeSwitch } from "./calendar-mode-switch";
 import { CalendarSwitch } from "./todo-calendar";
 
@@ -83,6 +87,9 @@ function draftAt(day: string, minutes: number): Draft {
   return { day, start: hhmm(day, minutes), end: hhmm(day, Math.min(minutes + 60, DAY_MINUTES)) };
 }
 
+type Pointer = { clientX: number; clientY: number };
+type Live = { move: (e: Pointer) => void; up: (e: Pointer) => void; cancel: () => void };
+
 function draftOf(slot: Slot): Draft {
   return {
     day: slot.start.slice(0, 10),
@@ -91,9 +98,9 @@ function draftOf(slot: Slot): Draft {
   };
 }
 
-function readDraft(draft: Draft): { slot: Slot } | { problem: string } {
+function readDraft(draft: Draft, startWas?: string): { slot: Slot } | { problem: string } {
   if (!TIME.test(draft.start) || !TIME.test(draft.end)) return { problem: P.timeFormat };
-  const slot = typedSlot(draft.day, draft.start, draft.end);
+  const slot = typedSlot(draft.day, draft.start, draft.end, { now: userNow(null), startWas });
   return slot.problem ? { problem: P[slot.problem] } : { slot };
 }
 
@@ -170,22 +177,26 @@ export function TodoPlanner({
 }) {
   const router = useRouter();
   const { update } = useListUrlState();
+  const statusClass = useListValueClass("todo-item.status");
   const { days } = data.window;
   const firstDay = days.includes(data.today) ? data.today : days[0];
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [newEntry, setNewEntry] = useState<(Draft & { title: string }) | null>(null);
+  const [sweep, setSweep] = useState<{ day: string; from: number; to: number } | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [selectedDraft, setSelectedDraft] = useState<Draft | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
   const [placeId, setPlaceId] = useState("");
+  const placeSelectId = useId();
   const [placeDraft, setPlaceDraft] = useState<Draft>(() => draftAt(firstDay, 9 * 60));
   const [saved, setSaved] = useState<Record<number, Slot & { until?: number }>>({});
   const [preview, setPreview] = useState<{ id: number; slot: Slot } | null>(null);
   const versions = useRef(new Map<number, number>());
   const saving = useRef(new Map<number, Promise<unknown>>());
   const gesture = useRef<Gesture | null>(null);
+  const live = useRef<Live | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const columns = useRef<(HTMLDivElement | null)[]>([]);
 
@@ -194,6 +205,7 @@ export function TodoPlanner({
   }, []);
 
   const shown = data.entries.map((entry) => {
+    if (entry.occursAt) return entry;
     if (preview?.id === entry.todoItemId) return { ...entry, ...preview.slot };
     const slot = saved[entry.todoItemId];
     return slot && (slot.until === undefined || entry.rowVer < slot.until)
@@ -202,9 +214,9 @@ export function TodoPlanner({
   });
   const selected = shown.find((entry) => entry.todoItemId === selectedId) ?? null;
   const editable = (entry: PlannerEntry) =>
-    canEdit && canInProject(entry.actorAccess, "todo-items:update");
+    !entry.occursAt && canEdit && canInProject(entry.actorAccess, "todo-items:update");
   const deletable = (entry: PlannerEntry) =>
-    canDelete && canInProject(entry.actorAccess, "todo-items:delete");
+    !entry.occursAt && canDelete && canInProject(entry.actorAccess, "todo-items:delete");
 
   function run(work: () => Promise<Outcome>, undo?: () => void, done?: () => void) {
     startTransition(async () => {
@@ -226,7 +238,17 @@ export function TodoPlanner({
     return Math.max(rowVer, versions.current.get(todoItemId) ?? 0);
   }
 
-  function schedule(todoItemId: number, rowVer: number, slot: Slot, done?: () => void) {
+  function schedule(
+    todo: { todoItemId: number; rowVer: number; start?: string },
+    slot: Slot,
+    done?: () => void,
+  ) {
+    const { todoItemId, rowVer, start: startWas } = todo;
+    const problem = slotProblem(slot.start, slot.end, { now: userNow(null), startWas });
+    if (problem) {
+      setError(P[problem]);
+      return;
+    }
     const mark: Slot & { until?: number } = { ...slot };
     setSaved((all) => ({ ...all, [todoItemId]: mark }));
     const save = (saving.current.get(todoItemId) ?? Promise.resolve()).then(async () => {
@@ -235,6 +257,8 @@ export function TodoPlanner({
         rowVer: latest(todoItemId, rowVer),
         start: slot.start,
         end: slot.end,
+        startWas,
+        localNow: localWallClock(),
       });
       if (result.ok) {
         versions.current.set(todoItemId, result.data.rowVer);
@@ -277,7 +301,7 @@ export function TodoPlanner({
     return index === -1 ? fallback : days[index];
   }
 
-  function gestureSlot(g: Gesture, e: PointerEvent): Slot {
+  function gestureSlot(g: Gesture, e: Pointer): Slot {
     const day = g.entry.start.slice(0, 10);
     const delta = pxToMinutes(e.clientY - g.y);
     return g.mode === "resize"
@@ -294,9 +318,26 @@ export function TodoPlanner({
     }
     e.currentTarget.setPointerCapture(e.pointerId);
     gesture.current = { entry, mode, x: e.clientX, y: e.clientY, moved: false };
+    const move = (ev: Pointer) => live.current?.move(ev);
+    const up = (ev: Pointer) => {
+      stop();
+      live.current?.up(ev);
+    };
+    const cancel = () => {
+      stop();
+      live.current?.cancel();
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
   }
 
-  function onPointerMove(e: PointerEvent<HTMLElement>) {
+  function onPointerMove(e: Pointer) {
     const g = gesture.current;
     if (!g) return;
     if (!g.moved && Math.abs(e.clientX - g.x) < 4 && Math.abs(e.clientY - g.y) < 4) return;
@@ -304,7 +345,7 @@ export function TodoPlanner({
     setPreview({ id: g.entry.todoItemId, slot: gestureSlot(g, e) });
   }
 
-  function onPointerUp(e: PointerEvent<HTMLElement>) {
+  function onPointerUp(e: Pointer) {
     const g = gesture.current;
     gesture.current = null;
     setPreview(null);
@@ -315,7 +356,7 @@ export function TodoPlanner({
     }
     const slot = gestureSlot(g, e);
     if (slot.start !== g.entry.start || slot.end !== g.entry.end) {
-      schedule(g.entry.todoItemId, g.entry.rowVer, slot);
+      schedule(g.entry, slot);
     }
   }
 
@@ -324,10 +365,37 @@ export function TodoPlanner({
     setPreview(null);
   }
 
-  function onColumnClick(e: MouseEvent<HTMLDivElement>, day: string) {
-    if (!canAdd || e.target !== e.currentTarget) return;
+  useEffect(() => {
+    live.current = { move: onPointerMove, up: onPointerUp, cancel: cancelGesture };
+  });
+
+  function onSweepStart(e: ReactPointerEvent<HTMLDivElement>, day: string) {
+    if (!canAdd || e.button !== 0 || e.target !== e.currentTarget) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const at = minuteAt(e.clientY, e.currentTarget);
+    setSweep({ day, from: at, to: at });
+  }
+
+  function onSweepMove(e: ReactPointerEvent<HTMLDivElement>, day: string) {
+    if (sweep?.day !== day) return;
+    const to = minuteAt(e.clientY, e.currentTarget);
+    if (to !== sweep.to) setSweep({ ...sweep, to });
+  }
+
+  function onSweepEnd(day: string) {
+    if (sweep?.day !== day) return;
+    setSweep(null);
     setSelectedId(null);
-    setNewEntry({ ...draftAt(day, minuteAt(e.clientY, e.currentTarget)), title: "" });
+    const { from, to } = sweep;
+    const draft =
+      from === to
+        ? draftAt(day, from)
+        : {
+            day,
+            start: hhmm(day, Math.min(from, to)),
+            end: hhmm(day, Math.max(from, to) + SLOT_MINUTES),
+          };
+    setNewEntry({ ...draft, title: "" });
   }
 
   function onDragOver(e: DragEvent<HTMLDivElement>) {
@@ -342,7 +410,7 @@ export function TodoPlanner({
     if (!todo) return;
     e.preventDefault();
     const start = minuteAt(e.clientY, e.currentTarget);
-    schedule(todo.todoItemId, todo.rowVer, {
+    schedule(todo, {
       start: fromMinutes(day, start),
       end: fromMinutes(day, Math.min(start + 60, DAY_MINUTES)),
     });
@@ -359,7 +427,13 @@ export function TodoPlanner({
       setError(P.titleRequired);
       return;
     }
-    const input = { title: newEntry.title, projectId, start: read.slot.start, end: read.slot.end };
+    const input = {
+      title: newEntry.title,
+      projectId,
+      start: read.slot.start,
+      end: read.slot.end,
+      localNow: localWallClock(),
+    };
     run(
       () => createPlannerEntryAction(input),
       undefined,
@@ -369,12 +443,12 @@ export function TodoPlanner({
 
   function saveSelected() {
     if (!selected || !selectedDraft) return;
-    const read = readDraft(selectedDraft);
+    const read = readDraft(selectedDraft, selected.start);
     if ("problem" in read) {
       setError(read.problem);
       return;
     }
-    schedule(selected.todoItemId, selected.rowVer, read.slot);
+    schedule(selected, read.slot);
   }
 
   function place() {
@@ -385,7 +459,7 @@ export function TodoPlanner({
       setError(read.problem);
       return;
     }
-    schedule(todo.todoItemId, todo.rowVer, read.slot, () => setPlaceId(""));
+    schedule(todo, read.slot, () => setPlaceId(""));
   }
 
   function unschedule() {
@@ -456,7 +530,7 @@ export function TodoPlanner({
         >
           {P.today}
         </button>
-        <CalendarModeSwitch mode="planner" />
+        <CalendarModeSwitch mode="planner" day={data.window.from} />
         {switchable ? <CalendarSwitch on /> : null}
         {canAdd ? (
           <button
@@ -611,10 +685,24 @@ export function TodoPlanner({
                     }}
                     data-testid={`planner-day-${day}`}
                     className={`relative border-l border-line ${canAdd ? "cursor-cell" : ""}`}
-                    onClick={(e) => onColumnClick(e, day)}
+                    onPointerDown={(e) => onSweepStart(e, day)}
+                    onPointerMove={(e) => onSweepMove(e, day)}
+                    onPointerUp={() => onSweepEnd(day)}
+                    onPointerCancel={() => setSweep(null)}
                     onDragOver={onDragOver}
                     onDrop={(e) => onDrop(e, day)}
                   >
+                    {sweep?.day === day ? (
+                      <div
+                        aria-hidden
+                        data-testid="planner-sweep"
+                        className="pointer-events-none absolute inset-x-1 z-10 rounded-md border border-accent bg-accent-soft/70"
+                        style={{
+                          top: minutesToPx(Math.min(sweep.from, sweep.to)),
+                          height: minutesToPx(Math.abs(sweep.to - sweep.from) + SLOT_MINUTES),
+                        }}
+                      />
+                    ) : null}
                     {QUARTERS.map((quarter) => (
                       <div
                         key={quarter}
@@ -627,17 +715,20 @@ export function TodoPlanner({
                     ))}
                     {layoutDay(shown, day).map(({ entry, top, bottom, column, columns: count }) => (
                       <div
-                        key={entry.todoItemId}
+                        key={
+                          entry.occursAt
+                            ? `${entry.todoItemId}@${entry.occursAt}`
+                            : entry.todoItemId
+                        }
                         role="button"
                         tabIndex={0}
                         aria-pressed={selectedId === entry.todoItemId}
                         aria-label={`${entry.title} ${slotTimes(entry)}`}
                         data-testid="planner-entry"
                         data-todo-id={entry.todoItemId}
-                        className={`absolute ${editable(entry) ? "cursor-grab" : "cursor-pointer"} touch-none select-none overflow-hidden rounded-md border bg-accent-soft px-1.5 py-0.5 text-xs text-accent ${
-                          selectedId === entry.todoItemId
-                            ? "border-accent ring-2 ring-accent"
-                            : "border-accent/40"
+                        data-status={entry.status ?? ""}
+                        className={`absolute ${editable(entry) ? "cursor-grab" : "cursor-pointer"} touch-none select-none overflow-hidden rounded-md border px-1.5 py-0.5 text-xs ${statusClass(entry.status)} ${
+                          selectedId === entry.todoItemId ? "ring-2 ring-accent" : ""
                         }`}
                         style={{
                           top: minutesToPx(top),
@@ -646,8 +737,6 @@ export function TodoPlanner({
                           width: `calc(${100 / count}% - 4px)`,
                         }}
                         onPointerDown={(e) => onPointerDown(e, entry, "move")}
-                        onPointerMove={onPointerMove}
-                        onPointerUp={onPointerUp}
                         onPointerCancel={cancelGesture}
                         onKeyDown={(e) => {
                           if (e.key !== "Enter" && e.key !== " ") return;
@@ -738,9 +827,10 @@ export function TodoPlanner({
                     place();
                   }}
                 >
-                  <label className={`${labelClass} w-full`}>
-                    {P.todos}
+                  <div className={`${labelClass} w-full`}>
+                    <label htmlFor={placeSelectId}>{P.todos}</label>
                     <select
+                      id={placeSelectId}
                       className={field}
                       value={placeId}
                       onChange={(e) => setPlaceId(e.target.value)}
@@ -752,7 +842,7 @@ export function TodoPlanner({
                         </option>
                       ))}
                     </select>
-                  </label>
+                  </div>
                   <SlotFields days={days} draft={placeDraft} onChange={setPlaceDraft} />
                   <button
                     type="submit"

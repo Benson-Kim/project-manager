@@ -10,6 +10,7 @@ function parse(state: string | undefined): MirroredState | null {
       licence: value.licence ?? null,
       checkIn: value.checkIn ?? null,
       mark: value.mark ?? null,
+      usage: value.usage ?? null,
     };
   } catch {
     return null;

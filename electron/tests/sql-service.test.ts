@@ -100,6 +100,20 @@ describe("service-only repair", () => {
     expect(ps.exec.mock.calls[0][1].at(-1)).not.toContain("-ServiceOnly");
   });
 
+  it("hands the SQL Server setup file over only when this copy of Modulus has it", async () => {
+    await runElevatedRepair("C:\provision.ps1", process.execPath, log);
+    expect(ps.exec.mock.calls[0][1].at(-1)).toContain("-SqlInstaller");
+    await runElevatedRepair("C:\provision.ps1", "C:\missing\sql.exe", log);
+    expect(ps.exec.mock.calls[1][1].at(-1)).not.toContain("-SqlInstaller");
+  });
+
+  it("explains in plain words when the engine needs the full installer", async () => {
+    ps.error = Object.assign(new Error("failed"), { code: 20 });
+    await expect(runElevatedRepair("C:\provision.ps1", "C:\missing\sql.exe", log)).rejects.toThrow(
+      "This PC needs the full Modulus installer",
+    );
+  });
+
   it("propagates the repair exit code instead of reporting success", async () => {
     ps.error = Object.assign(new Error("failed"), { code: 40 });
     expect(await runElevatedServiceRepair("script.ps1", "sql.exe", target, log)).toBe(40);

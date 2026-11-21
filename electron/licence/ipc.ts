@@ -18,6 +18,7 @@ export interface LicenceIpcDeps {
     | "checkIn"
     | "sendFeedback"
     | "setConsent"
+    | "allowance"
   >;
   isLicenceWindow(sender: unknown): boolean;
   appVersion: string;
@@ -92,6 +93,7 @@ export function registerLicenceIpc(deps: LicenceIpcDeps): void {
       expiresAt: licence?.expiresAt ?? null,
       updatesUntil: licence?.updatesUntil ?? null,
       now: manager.now(),
+      allowance: manager.allowance(),
     };
   });
   on(LICENCE_CHANNELS.trialRequest, (input) => {

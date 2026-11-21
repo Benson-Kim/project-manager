@@ -16,7 +16,15 @@ import {
   type GanttLane,
   type GanttLayout,
 } from "./gantt-layout";
-import { dayCentre, periodCells, todayLeft, type Timeline } from "./gantt-scale";
+import {
+  dayCells,
+  dayCentre,
+  groupRows,
+  periodCells,
+  todayLeft,
+  type HeaderCell,
+  type Timeline,
+} from "./gantt-scale";
 import { shifted, type Span } from "./gantt-span";
 import { isMenuKey, menuBelow, type MenuRequest } from "./wbs-context-menu";
 import { useGanttDrag, type GanttDragHandlers } from "./use-gantt-drag";
@@ -83,8 +91,11 @@ function geometryOf(layout: GanttLayout, open: ReadonlySet<number>, display: Gan
   ].join("|");
 }
 
+/** Height of each header row: years, quarters, months and, when dates are shown, days. */
+const HEADER_ROW_PX = 20;
+
 /**
- * The Gantt: the period header over the project's timeline, dashed period
+ * The Gantt: the year, quarter, month and day header over the project's timeline, dashed period
  * lines, the Today line and the milestones' guides; then a pill per top-level
  * item with sub-items, a labelled lane per second-level one, and the cards
  * packed into lines by their dates. Arrows join dependent cards.
@@ -124,6 +135,16 @@ export function GanttBoard({
   const [open, setOpen] = useState<ReadonlySet<number>>(() => new Set());
   const layout = useMemo(() => ganttLayout(wbs, timeline), [wbs, timeline]);
   const periods = useMemo(() => periodCells(timeline), [timeline]);
+  const headerRows = useMemo(() => {
+    const groups = groupRows(timeline);
+    const rows: { id: string; cells: HeaderCell[] }[] = [
+      { id: "years", cells: groups.years },
+      { id: "quarters", cells: groups.quarters },
+      { id: "months", cells: groups.months },
+    ];
+    return display.dates ? [...rows, { id: "days", cells: dayCells(timeline) }] : rows;
+  }, [timeline, display.dates]);
+  const headerPx = HEADER_ROW_PX * headerRows.length;
   const todayX = display.today ? todayLeft(timeline, today) : null;
   const reached = new Map(milestones.map((m) => [m.id, m.reached]));
   const guides = display.milestones
@@ -291,7 +312,7 @@ export function GanttBoard({
         }`}
       >
         {/* The scroll padding keeps a card scrolled into view (by focus or a link) clear of the
-            sticky header and of the floating tools over the foot. In full screen the box takes the room
+            sticky header. In full screen the box takes the room
             left over and scrolls here rather than the page, so the date row stays in view and both
             scrollbars are the chart's; the extra --hbar of height hides its own horizontal one. */}
         <div
@@ -300,7 +321,8 @@ export function GanttBoard({
           aria-label={B.label}
           data-testid="gantt-board"
           data-print-fit=""
-          className={`relative mb-[calc(var(--hbar,0px)*-1)] scroll-pt-10 scroll-pb-20 overflow-auto print:mb-0 print:max-h-none print:overflow-visible ${
+          style={{ scrollPaddingTop: headerPx }}
+          className={`relative mb-[calc(var(--hbar,0px)*-1)] overflow-auto print:mb-0 print:max-h-none print:overflow-visible ${
             fullscreen
               ? "h-[calc(100%+var(--hbar,0px))]"
               : "max-h-[var(--fit-h,calc(100dvh-16rem))] min-h-64"
@@ -312,20 +334,40 @@ export function GanttBoard({
           {...dragger.handlers}
         >
           <div className="relative min-w-full" style={{ width: GANTT_GUTTER_PX + layout.width }}>
-            <div aria-hidden="true" className="sticky top-0 z-20 flex h-10 bg-surface">
+            <div
+              aria-hidden="true"
+              data-testid="gantt-header"
+              className="sticky top-0 z-20 flex bg-surface"
+              style={{ height: headerPx }}
+            >
               <span className={`${gutterLabel} items-center`} style={{ width: GANTT_GUTTER_PX }}>
                 <span className="text-[10px]">◎</span>
                 {B.items}
               </span>
-              <div className="relative flex-1">
-                {periods.map((cell) => (
-                  <span
-                    key={cell.key}
-                    className="absolute inset-y-0 flex items-center justify-center truncate px-1 text-[13px] font-medium text-ink-muted"
-                    style={{ left: cell.left, width: cell.width }}
+              <div className="relative flex flex-1 flex-col">
+                {headerRows.map((row) => (
+                  <div
+                    key={row.id}
+                    data-testid={`gantt-${row.id}`}
+                    className="relative shrink-0 border-b border-line"
+                    style={{ height: HEADER_ROW_PX }}
                   >
-                    {cell.label}
-                  </span>
+                    {row.cells.map((cell) => (
+                      <span
+                        key={cell.key}
+                        className={`absolute inset-y-0 flex items-center border-l border-line px-0.5 text-[11px] whitespace-nowrap text-ink-muted tabular-nums ${
+                          row.id === "days"
+                            ? timeline.scale === "day"
+                              ? "justify-center"
+                              : "justify-start"
+                            : "justify-center truncate font-medium"
+                        }`}
+                        style={{ left: cell.left, width: cell.width }}
+                      >
+                        {cell.label}
+                      </span>
+                    ))}
+                  </div>
                 ))}
                 {todayX !== null ? (
                   <span
@@ -377,8 +419,8 @@ export function GanttBoard({
 
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute top-10 bottom-0"
-              style={{ left: GANTT_GUTTER_PX, width: layout.width }}
+              className="pointer-events-none absolute bottom-0"
+              style={{ top: headerPx, left: GANTT_GUTTER_PX, width: layout.width }}
             >
               {periods.map((cell) => (
                 <span
@@ -403,7 +445,7 @@ export function GanttBoard({
               ) : null}
             </div>
 
-            <div className="relative flex flex-col gap-4 pt-2 pb-20 print:pb-3">
+            <div className="relative flex flex-col gap-4 pt-2 pb-3">
               {layout.groups.map((group, g) => {
                 const pill = group.id !== null ? wbs.nodes.get(group.id) : undefined;
                 return (
@@ -456,7 +498,8 @@ export function GanttBoard({
           />
         </div>
       </div>
-      {tools}
+      {/* The tools sit under the chart, never over it, so no card can scroll beneath them. */}
+      {tools ? <div className="flex shrink-0 justify-center pt-3 print:hidden">{tools}</div> : null}
     </div>
   );
 }

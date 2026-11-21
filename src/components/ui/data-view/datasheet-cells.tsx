@@ -6,6 +6,7 @@ import { clampWidth, COLUMN_WIDTH_MIN, RESIZE_STEP } from "@/lib/list-layout";
 import { optionColor, type LookupListKey } from "@/lib/lookup-lists";
 import { formatDate } from "@/lib/format";
 import { messages } from "@/lib/messages";
+import { useFocusFirstInvalid } from "../form/use-focus-first-invalid";
 import { EDIT_LIST, useLookupLists } from "../lookup-lists";
 import { TONES } from "../tones";
 import {
@@ -34,7 +35,7 @@ import { priorityClass, type DataViewColumn } from "./types";
  */
 
 /**
- * Grid borders and spacious cells for every list table (client feedback §2).
+ * Grid borders and spacious cells for every list table.
  * Rows follow the user's row height: DataView sets --row-h on the table.
  */
 export const cellClass = "h-(--row-h) border border-line px-3 py-2 align-middle print:h-auto";
@@ -62,7 +63,7 @@ const controlLook =
 const controlClass = `h-(--row-h) ${controlLook}`;
 
 /**
- * Text wraps and the cell grows to show all of it (client feedback, 2026-10-12):
+ * Text wraps and the cell grows to show all of it:
  * at least the row height, one line centred in it. Browsers without
  * field-sizing scroll inside the cell instead.
  */
@@ -276,6 +277,9 @@ export function DatasheetCell<Row>({
   const original = editor.value(row);
   const [value, setValue] = useState(original);
   const [pending, setPending] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const focusInvalid = useFocusFirstInvalid(boxRef);
   // A refreshed row replaces what the cell shows (setState-during-render, not an effect).
   const [prevOriginal, setPrevOriginal] = useState(original);
   if (prevOriginal !== original) {
@@ -283,11 +287,17 @@ export function DatasheetCell<Row>({
     setValue(original);
   }
 
+  const settle = (saved: boolean) => {
+    setPending(false);
+    setFailed(!saved);
+    if (!saved) focusInvalid();
+  };
+
   const commit = async (next: string) => {
     if (pending || !isCellChanged(editor.kind, original, next)) return;
     setPending(true);
     const saved = await onSave(next);
-    setPending(false);
+    settle(saved);
     if (!saved) setValue(original);
   };
 
@@ -298,41 +308,44 @@ export function DatasheetCell<Row>({
     setPending(true);
     setValue(next);
     const saved = await onSave(next);
-    setPending(false);
+    settle(saved);
     if (!saved) setValue(original);
     return saved;
   };
 
   return (
-    <CellControl
-      editor={editor}
-      value={value}
-      label={label}
-      header={header}
-      display={value === original ? editor.display?.(row) : previewText(value)}
-      onCommitRich={commitRich}
-      pending={pending}
-      choices={
-        editor.kind === "select"
-          ? cellChoices(editor, lists, {
-              value: original,
-              label: editor.currentLabel?.(row) ?? null,
-            })
-          : []
-      }
-      placeholder={editor.kind === "select" ? undefined : editor.ghost?.(row)}
-      onChange={setValue}
-      onEnter={(next) => void commit(next)}
-      onBlur={(next) => void commit(next)}
-      onEscape={() => setValue(original)}
-      commitSelect
-      onEditList={onEditList ?? editor.editList}
-    />
+    <div ref={boxRef} className="contents">
+      <CellControl
+        editor={editor}
+        value={value}
+        label={label}
+        header={header}
+        invalid={failed}
+        display={value === original ? editor.display?.(row) : previewText(value)}
+        onCommitRich={commitRich}
+        pending={pending}
+        choices={
+          editor.kind === "select"
+            ? cellChoices(editor, lists, {
+                value: original,
+                label: editor.currentLabel?.(row) ?? null,
+              })
+            : []
+        }
+        placeholder={editor.kind === "select" ? undefined : editor.ghost?.(row)}
+        onChange={setValue}
+        onEnter={(next) => void commit(next)}
+        onBlur={(next) => void commit(next)}
+        onEscape={() => setValue(original)}
+        commitSelect
+        onEditList={onEditList ?? editor.editList}
+      />
+    </div>
   );
 }
 
 /**
- * The persistent new-entry row under the data (client feedback §3): ghost
+ * The persistent new-entry row under the data: ghost
  * placeholders in every editable column, ✓ / × in the last column, Enter in any
  * field adds the entry and clears the row for the next one.
  */
@@ -358,6 +371,7 @@ export function DatasheetAddRow<Row>({
   const [invalid, setInvalid] = useState<Set<string>>(() => new Set());
   const [pending, setPending] = useState(false);
   const rowRef = useRef<HTMLTableRowElement>(null);
+  const focusInvalid = useFocusFirstInvalid(rowRef);
   // New starting values (e.g. another project filter) restart the draft
   // (setState-during-render, not an effect).
   const freshKey = JSON.stringify(fresh);
@@ -384,6 +398,7 @@ export function DatasheetAddRow<Row>({
       rowRef.current?.querySelector<HTMLElement>("input, select, textarea")?.focus();
     } else {
       setInvalid(invalidFields(result.error.fieldErrors));
+      focusInvalid();
     }
   };
 
@@ -474,7 +489,7 @@ export interface HeaderResize {
  * caret that opens the list editor (Admins).
  */
 /**
- * The order control of a sortable column (client feedback, 2026-10-23): one
+ * The order control of a sortable column: one
  * triangle per direction, the applied one filled. Both are drawn at once so the
  * column says which orders it offers before it is clicked, and the pair is a
  * single button because a column is sorted one way at a time — clicking it

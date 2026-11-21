@@ -238,6 +238,15 @@ describe("failureMessage", () => {
     ).toBe("Due date can't be before start date.");
   });
 
+  it("names the column when a cell's value is rejected with no field to highlight", () => {
+    const rejected = { code: "VALIDATION", message: "Check the highlighted fields." };
+    expect(failureMessage(rejected, "Description")).toBe(
+      "Description couldn't be saved. Check the value and try again.",
+    );
+    expect(failureMessage(rejected)).toBe("Check the highlighted fields.");
+    expect(failureMessage({ code: "CONFLICT", message: "Reload" }, "Description")).toBe("Reload");
+  });
+
   it("falls back to the action's message", () => {
     expect(failureMessage({ message: "Someone else changed this record." })).toBe(
       "Someone else changed this record.",
@@ -248,7 +257,7 @@ describe("failureMessage", () => {
   });
 });
 
-describe("text cells (client feedback 2026-10-12: wrap)", () => {
+describe("text cells wrap", () => {
   it("singleLine turns pasted line breaks into spaces", () => {
     expect(singleLine("Call vendor\nabout invoice\r\nnow")).toBe("Call vendor about invoice now");
     expect(singleLine("one line")).toBe("one line");

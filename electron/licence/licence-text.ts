@@ -7,9 +7,11 @@ export interface LicenceView {
   expiresAt: number | null;
   updatesUntil: number | null;
   now: number;
+  allowance?: { usedMs: number; limitMs: number } | null;
 }
 
-const DAY = 24 * 60 * 60 * 1000;
+const HOUR = 60 * 60 * 1000;
+const DAY = 24 * HOUR;
 const OFFLINE = "Couldn't reach the licence service. Check the connection and try again.";
 const BAD_CODE = "That code didn't work.";
 
@@ -37,7 +39,11 @@ export function updateNotIncludedText(version: string, updatesUntil: number): st
 function activeText(view: LicenceView): string {
   if (view.kind === "trial" && view.expiresAt !== null) {
     const days = Math.max(1, Math.ceil((view.expiresAt - view.now) / DAY));
-    return `Trial: ${days} ${days === 1 ? "day" : "days"} left.`;
+    const dayText = `${days} ${days === 1 ? "day" : "days"}`;
+    if (!view.allowance) return `Trial: ${dayText} left.`;
+    const left = view.allowance.limitMs - view.allowance.usedMs;
+    const hours = Math.max(1, Math.ceil(left / HOUR));
+    return `Trial: ${hours} ${hours === 1 ? "hour" : "hours"} of use left over the next ${dayText}.`;
   }
   const updates = view.updatesUntil === null ? "" : ` Updates until ${day(view.updatesUntil)}.`;
   return `${view.kind === "full" ? "Licensed." : "Free licence."}${updates}`;

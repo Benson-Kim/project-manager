@@ -134,7 +134,7 @@ export function useWhiteboardSave(
 
   return {
     status,
-    saveNow: () => save(board),
+    saveNow: (scene: BoardScene = board) => save(scene),
     rowVer: () => rowVer.current,
     withRowVer,
   };

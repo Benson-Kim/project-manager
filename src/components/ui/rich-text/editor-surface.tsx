@@ -1,10 +1,16 @@
 "use client";
 
+import type { EditorState } from "@tiptap/pm/state";
+import type { EditorView } from "@tiptap/pm/view";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EditorToolbar } from "./editor-toolbar";
 import { richTextExtensions } from "./extensions";
+import { FindBar, type FindRequest } from "./find-bar";
+import { FindReplace } from "./find-replace";
 import { LinkDialog } from "./link-dialog";
+
+const findExtensions = [...richTextExtensions, FindReplace];
 
 /**
  * The Tiptap half of RichTextEditor (ADR-0025), loaded lazily. It keeps the
@@ -45,6 +51,10 @@ export interface EditorSurfaceProps {
   label?: string;
   autoFocus?: boolean;
   height?: EditorHeight;
+  /** Ctrl+F finds and Ctrl+H replaces in the text (a notebook page). */
+  findReplace?: boolean;
+  /** Opens the find bar on this text. */
+  findSeed?: string;
 }
 
 /** Sets the value past React's value tracker, so React reports the input event. */
@@ -52,6 +62,19 @@ function writeBridge(bridge: HTMLInputElement, html: string) {
   if (bridge.value === html) return;
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(bridge, html);
   bridge.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function findShortcut(event: KeyboardEvent): "find" | "replace" | null {
+  if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return null;
+  const key = event.key.toLowerCase();
+  return key === "f" ? "find" : key === "h" ? "replace" : null;
+}
+
+/** A short one-line selection seeds the search. */
+function selectedText(state: EditorState) {
+  const { from, to, empty } = state.selection;
+  const text = empty ? "" : state.doc.textBetween(from, to, "\n");
+  return text.length <= 100 && !text.includes("\n") ? text : "";
 }
 
 function isLinkShortcut(event: KeyboardEvent) {
@@ -75,6 +98,8 @@ export function EditorSurface({
   label,
   autoFocus = false,
   height = "field",
+  findReplace = false,
+  findSeed,
 }: EditorSurfaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [bridgeDisabled, setBridgeDisabled] = useState(() => bridge.matches(":disabled"));
@@ -86,6 +111,10 @@ export function EditorSurface({
     setLinkOpenState(open);
   }, []);
   const editable = !bridgeDisabled && !readOnly;
+  const canFind = findReplace && editable;
+  const [findRequest, setFindRequest] = useState<FindRequest | null>(() =>
+    canFind && findSeed ? { replace: false, seed: findSeed, id: 1 } : null,
+  );
 
   const editorProps = useMemo(
     () => ({
@@ -101,17 +130,26 @@ export function EditorSurface({
         spellcheck: "true",
         class: `rich-text ${HEIGHTS[height]} px-3 py-2`,
       },
-      handleKeyDown: (_view: unknown, event: KeyboardEvent) => {
+      handleKeyDown: (view: EditorView, event: KeyboardEvent) => {
+        const find = canFind ? findShortcut(event) : null;
+        if (find) {
+          setFindRequest((prev) => ({
+            replace: find === "replace",
+            seed: selectedText(view.state),
+            id: (prev?.id ?? 0) + 1,
+          }));
+          return true;
+        }
         if (!isLinkShortcut(event)) return false;
         setLinkOpen(true);
         return true;
       },
     }),
-    [inputId, labelId, label, errorId, invalid, editable, height, setLinkOpen],
+    [inputId, labelId, label, errorId, invalid, editable, height, setLinkOpen, canFind],
   );
 
   const editor = useEditor({
-    extensions: richTextExtensions,
+    extensions: findReplace ? findExtensions : richTextExtensions,
     content: initialHtml,
     editable,
     autofocus: autoFocus ? "end" : false,
@@ -180,7 +218,15 @@ export function EditorSurface({
       ref={containerRef}
       className={`rounded-md border ${invalid ? "border-danger" : "border-line"} ${editable ? "bg-surface" : "bg-surface-sunken"}`}
     >
-      {editable ? <EditorToolbar editor={editor} onOpenLink={() => setLinkOpen(true)} /> : null}
+      {canFind && findRequest ? (
+        // One sticky block, so the find bar stays under the toolbar as a long page scrolls.
+        <div className="sticky top-[var(--editor-toolbar-top,0px)] z-10">
+          <EditorToolbar editor={editor} onOpenLink={() => setLinkOpen(true)} />
+          <FindBar editor={editor} request={findRequest} onClose={() => setFindRequest(null)} />
+        </div>
+      ) : editable ? (
+        <EditorToolbar editor={editor} onOpenLink={() => setLinkOpen(true)} />
+      ) : null}
       <EditorContent editor={editor} />
       <LinkDialog
         open={linkOpen}

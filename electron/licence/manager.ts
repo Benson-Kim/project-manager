@@ -4,8 +4,11 @@ import {
   openCheckIn,
   openLicence,
   readMark,
+  readUsage,
   sealMark,
+  sealUsage,
   trustedNow,
+  usageLimit,
   type Anchor,
   type Licence,
   type LicenceKind,
@@ -28,7 +31,12 @@ function supersedes(offered: Licence, held: Licence | null): boolean {
   return offered.startsAt > held.startsAt;
 }
 
-export type MirroredState = Pick<LicenceState, "licence" | "checkIn" | "mark">;
+export type MirroredState = Pick<LicenceState, "licence" | "checkIn" | "mark" | "usage">;
+
+export interface TrialAllowance {
+  usedMs: number;
+  limitMs: number;
+}
 
 export interface LicenceMirror {
   read(): Promise<MirroredState | null>;
@@ -88,7 +96,35 @@ export class LicenceManager {
       now: this.now(),
       lastServerTime: this.lastServerTime(),
       markTrusted: this.trustedMark() !== null,
+      usedMs: this.usedMs(),
     });
+  }
+
+  usedMs(usage: unknown = this.state.usage): number {
+    const licence = this.licence();
+    return licence ? readUsage(usage, licence.licenceId, this.key()) : 0;
+  }
+
+  allowance(): TrialAllowance | null {
+    const licence = this.licence();
+    if (licence?.kind !== "trial") return null;
+    const limitMs = usageLimit(licence);
+    return { usedMs: Math.min(this.usedMs(), limitMs), limitMs };
+  }
+
+  recordUse(ms: number): void {
+    const licence = this.licence();
+    const used = this.usedMs();
+    if (licence?.kind !== "trial" || !(ms > 0) || !Number.isFinite(used)) return;
+    const limit = usageLimit(licence);
+    if (used >= limit) return;
+    this.state = { ...this.state, usage: this.sealUsed(licence, used + Math.round(ms)) };
+    this.save();
+    this.mirrorStale = true;
+  }
+
+  private sealUsed(licence: Licence, ms: number) {
+    return sealUsage(licence.licenceId, Math.min(usageLimit(licence), ms), this.key());
   }
 
   licence(): Licence | null {
@@ -129,15 +165,19 @@ export class LicenceManager {
     const nonce = randomBytes(18).toString("base64url");
     const expected = { licenceId: licence.licenceId, machineHash: this.deps.machineHash, nonce };
     try {
-      const reply = await this.deps.service.post("/v1/checkin", expected);
+      const used = this.usedMs();
+      const usedMs = Math.min(used, usageLimit(licence));
+      const reply = await this.deps.service.post("/v1/checkin", { ...expected, usedMs });
       const opened = openCheckIn(reply, this.deps.keys, expected);
       if (opened) {
         this.anchor = { serverTime: opened.serverTime, monotonicAt: this.monotonic() };
+        const raised = Number.isFinite(used) && opened.usedMs > used;
         this.state = {
           ...this.state,
           licence: opened.licenceDocument,
           checkIn: reply as SignedDocument,
           mark: sealMark(opened.serverTime, this.key()),
+          ...(raised ? { usage: this.sealUsed(opened.licence, opened.usedMs) } : {}),
         };
         await this.persist();
       }
@@ -151,7 +191,7 @@ export class LicenceManager {
     const mark = this.trustedMark();
     if (mark === null) return;
     const now = this.now();
-    if (now <= mark) return;
+    if (now <= mark) return this.flushMirror();
     this.state = { ...this.state, mark: sealMark(now, this.key()) };
     await this.persist();
   }
@@ -250,24 +290,31 @@ export class LicenceManager {
     if (mirroredMark !== null && mirroredMark > (this.trustedMark() ?? -1))
       next.mark = mirrored.mark;
     this.state = next;
+    const theirUsage = this.usedMs(mirrored.usage);
+    if (Number.isFinite(theirUsage) && theirUsage > this.usedMs())
+      this.state = { ...next, usage: mirrored.usage };
     this.deps.store.write(this.state);
   }
 
-  private async persist(): Promise<void> {
+  private save(): void {
     try {
       this.deps.store.write(this.state);
     } catch (error) {
       this.deps.log?.warn(`licence: saving the state failed: ${describe(error)}`);
     }
+  }
+
+  private async persist(): Promise<void> {
+    this.save();
     this.mirrorStale = true;
     await this.flushMirror();
   }
 
   private async flushMirror(): Promise<void> {
     if (!this.mirrorStale || !this.deps.mirror) return;
-    const { licence, checkIn, mark } = this.state;
+    const { licence, checkIn, mark, usage } = this.state;
     try {
-      await this.deps.mirror.write({ licence, checkIn, mark });
+      await this.deps.mirror.write({ licence, checkIn, mark, usage });
       this.mirrorStale = false;
     } catch (error) {
       this.deps.log?.warn(`licence: saving the database copy failed: ${describe(error)}`);

@@ -41,6 +41,7 @@ describe("SqlLicenceMirror", () => {
       licence: { a: 1 },
       checkIn: null,
       mark: { at: 5 },
+      usage: null,
     });
     expect(calls.proc).toBe("dbo.usp_Licence_Get");
     expect(calls.inputs[0]).toEqual(["MachineHash", "m".repeat(64)]);

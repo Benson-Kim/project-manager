@@ -1,10 +1,9 @@
 -- 021_project_permissions.sql — per-person permission overrides and editable team titles
--- (ADR-0024, client feedback 2026-10-09).
 --   1. app.ProjectPermissionOverride: within one project, one person's create / update / delete in one
 --      section can be granted or revoked on top of their access level (Viewer · Contributor ·
 --      Manager, ADR-0021). Reading follows the level. Keyed by (ProjectId, UserId): it belongs to the
 --      person's membership, and usp_ProjectAssignee_Set deletes it when they leave the team.
---   2. Team titles become the managed list 'project-assignee.title' (ADR-0022): stored as text, the
+--   2. Team titles become the managed list 'project-assignee.title': stored as text, the
 --      codes are rewritten to their labels and the fixed CHECK is dropped. "Project manager" is locked:
 --      usp_Project_Create gives a new project's creator that title.
 -- Idempotent: safe to re-run.

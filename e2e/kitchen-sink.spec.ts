@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { expectFocusOnInvalid } from "./support/form";
 
 test.describe("kitchen sink — shared primitives", () => {
   test.beforeEach(async ({ page }) => {
@@ -26,7 +27,7 @@ test.describe("kitchen sink — shared primitives", () => {
     await expect(page.getByTestId("toast-success")).toBeHidden({ timeout: 6000 });
   });
 
-  test("form validates on blur and on submit with error summary focus", async ({ page }) => {
+  test("form validates on blur and on submit, then focuses the field to fix", async ({ page }) => {
     const name = page.getByLabel("Name");
     await name.click();
     await name.blur();
@@ -36,7 +37,7 @@ test.describe("kitchen sink — shared primitives", () => {
     // Scoped to the form — the gallery page also shows an ErrorState (role=alert).
     const alert = page.getByTestId("ks-form").getByRole("alert");
     await expect(alert).toBeVisible();
-    await expect(alert).toBeFocused();
+    await expectFocusOnInvalid(name);
   });
 
   test("dialog traps focus and returns it to the trigger", async ({ page }) => {

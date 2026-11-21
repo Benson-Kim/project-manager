@@ -78,6 +78,16 @@ describe("panelPosition sizes", () => {
     );
   });
 
+  it("keeps the panel inside the window when its button is scrolled out of view", () => {
+    const sizes = { minWidth: 336, minBelow: 600 };
+    expect(
+      panelPosition({ left: 900, top: -400, bottom: -364, width: 120 }, viewport, sizes),
+    ).toEqual({ left: 900, width: 336, top: 16, maxHeight: 768 });
+    expect(
+      panelPosition({ left: 900, top: 1200, bottom: 1236, width: 120 }, viewport, sizes),
+    ).toEqual({ left: 900, width: 336, bottom: 16, maxHeight: 768 });
+  });
+
   it("takes a smaller minimum width and room below for a note", () => {
     const sizes = { minWidth: 320, minBelow: 220 };
     expect(panelPosition({ left: 100, top: 200, bottom: 232, width: 32 }, viewport, sizes)).toEqual(

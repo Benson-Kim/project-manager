@@ -1,7 +1,12 @@
 "use client";
 
-import { useTransition } from "react";
+import { useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import {
+  CustomColumnsButton,
+  type CustomColumnActionSet,
+} from "@/components/custom-columns/custom-columns-dialog";
+import { useCustomColumns } from "@/components/custom-columns/use-custom-columns";
 import { Badge } from "@/components/ui/badge";
 import {
   dateColumn,
@@ -15,7 +20,9 @@ import type { DataViewColumn } from "@/components/ui/data-view/types";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { ProjectLink } from "@/components/ui/project-link";
 import { EmptyState } from "@/components/ui/states";
+import { localWallClock } from "@/lib/local-time";
 import { rowAllows } from "@/lib/auth/actor-access";
+import type { ColumnLabel, RegisterColumn } from "@/lib/custom-columns/register";
 import type { ListLayout } from "@/lib/list-layout";
 import type { OptionColor } from "@/lib/lookup-lists";
 import type { ViewMode } from "@/lib/list-params";
@@ -38,12 +45,39 @@ import {
   updateTodoItemAction,
   deleteTodoItemAction,
 } from "../actions";
+import {
+  clearTodoColumnLabelAction,
+  createTodoChoiceAction,
+  createTodoColumnAction,
+  deleteTodoChoiceAction,
+  deleteTodoColumnAction,
+  moveTodoColumnAction,
+  renameTodoChoiceAction,
+  renameTodoColumnAction,
+  setTodoCellAction,
+  setTodoColumnKindAction,
+  setTodoColumnLabelAction,
+} from "../actions/columns";
+import { TODO_ITEM_BUILT_IN_COLUMNS } from "../schemas/columns";
 import { slotOf, slotText } from "../planner";
 import { TodoToolbar } from "./todo-toolbar";
 import { notifySaved } from "@/lib/cross-window";
 
 type Row = TodoItemListRow;
 const P = messages.todoItems.placeholders;
+
+const columnActions: CustomColumnActionSet = {
+  setLabel: setTodoColumnLabelAction,
+  clearLabel: clearTodoColumnLabelAction,
+  createColumn: createTodoColumnAction,
+  renameColumn: renameTodoColumnAction,
+  moveColumn: moveTodoColumnAction,
+  setColumnKind: setTodoColumnKindAction,
+  deleteColumn: deleteTodoColumnAction,
+  createChoice: createTodoChoiceAction,
+  renameChoice: renameTodoChoiceAction,
+  deleteChoice: deleteTodoChoiceAction,
+};
 
 /** Due-date emphasis: overdue (danger) or approaching (warning) — design tokens only. */
 function dueTone(row: Row, dueSoonDays: number): string | undefined {
@@ -261,10 +295,15 @@ function buildColumns(
 }
 
 /** Datasheet edits go through the same update action as the Sheet (ADR-0023). */
-const saveCell = formCellSaver<Row, TodoItemRow>(todoItemFormValues, updateTodoItemAction);
+const saveFormCell = formCellSaver<Row, TodoItemRow>(
+  (row) => ({ ...todoItemFormValues(row), localNow: localWallClock() }),
+  updateTodoItemAction,
+);
 /** The to-do rule per row (ADR-0021): own to-dos, or every to-do of projects you manage. */
 const canEditRow = rowAllows("todo-items:update");
-/** Overdue to-dos colour their whole row red — before any list colour (client feedback). */
+const todoId = (row: Row) => row.TodoItemId;
+const NO_COLUMNS = { create: false, update: false, delete: false };
+/** Overdue to-dos colour their whole row red — before any list colour. */
 const overdueTone = (row: Row): OptionColor | null => (isOverdue(listedDates(row)) ? "red" : null);
 
 /**
@@ -288,6 +327,9 @@ export function TodoView({
   dueSoonDays = DEFAULT_DUE_SOON_DAYS,
   newTodoAction,
   emptyBody,
+  labels = [],
+  addedColumns = [],
+  canManageColumns = NO_COLUMNS,
 }: {
   rows: Row[];
   totalCount: number;
@@ -308,9 +350,28 @@ export function TodoView({
   dueSoonDays?: number;
   newTodoAction?: React.ReactNode;
   emptyBody?: string;
+  /** The project page's renamed headings and added columns; /todo has none. */
+  labels?: readonly ColumnLabel[];
+  addedColumns?: readonly RegisterColumn[];
+  canManageColumns?: { create: boolean; update: boolean; delete: boolean };
 }) {
   const { update } = useListUrlState();
-  const columns = buildColumns(rows, canReorder, projects, dueSoonDays);
+  const columns = useMemo(
+    () => buildColumns(rows, canReorder, projects, dueSoonDays),
+    [rows, canReorder, projects, dueSoonDays],
+  );
+  // A project's own column names replace only the headings; keys, data, sorting and saved
+  // layouts stay on the stable keys (ADR-0067). Added columns go before the reorder buttons.
+  const { shownColumns, saveCell } = useCustomColumns<Row>({
+    columns,
+    labels,
+    added: addedColumns,
+    canEdit: canEditRow,
+    rowId: todoId,
+    setCell: setTodoCellAction,
+    fallback: saveFormCell,
+    before: "Reorder",
+  });
 
   return (
     <DataView
@@ -325,7 +386,20 @@ export function TodoView({
       getRowLabel={(row) => row.TodoItem ?? messages.app.untitled}
       onOpen={(row) => update({ id: String(row.TodoItemId) })}
       renderToolbar={(viewToggle) => (
-        <TodoToolbar projectFilterOptions={projectFilterOptions}>{viewToggle}</TodoToolbar>
+        <TodoToolbar projectFilterOptions={projectFilterOptions}>
+          {projectId !== null ? (
+            <CustomColumnsButton
+              projectId={projectId}
+              labels={labels}
+              columns={addedColumns}
+              can={canManageColumns}
+              builtIns={TODO_ITEM_BUILT_IN_COLUMNS}
+              actions={columnActions}
+              title={messages.customColumns.todoTitle}
+            />
+          ) : null}
+          {viewToggle}
+        </TodoToolbar>
       )}
       renderCard={(row) => (
         <div className="flex flex-col gap-2">
@@ -356,7 +430,7 @@ export function TodoView({
           {canReorder ? <ReorderControls row={row} rows={rows} canReorder={canReorder} /> : null}
         </div>
       )}
-      columns={columns}
+      columns={shownColumns}
       sort={TODO_ITEM_SORT}
       datasheet={{
         canEditRow,
@@ -372,6 +446,7 @@ export function TodoView({
                 createTodoItemAction({
                   projectId: projectId === null ? "" : String(projectId),
                   ...values,
+                  localNow: localWallClock(),
                 }),
             }
           : undefined,

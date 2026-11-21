@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 import { expectListed } from "./support/datasheet";
+import { expectFocusOnInvalid } from "./support/form";
 
 /**
  * Questions & Answers module (#11) — project-scoped route /projects/2/questions-answers.
@@ -32,7 +33,7 @@ test("create Q&A happy path — appears in the list", async ({ page }) => {
   await expectListed(page, question);
 });
 
-test("validation failure — empty question shows inline error and focuses the summary", async ({
+test("validation failure — empty question shows inline error and focuses the field to fix", async ({
   page,
 }) => {
   await page.goto("/projects/2/questions-answers?id=new");
@@ -45,7 +46,7 @@ test("validation failure — empty question shows inline error and focuses the s
   await page.getByTestId("qa-save").click();
   const summary = page.getByRole("alert").filter({ hasText: messages.errors.summaryTitle });
   await expect(summary).toBeVisible();
-  await expect(summary).toBeFocused();
+  await expectFocusOnInvalid(questionField);
 });
 
 test("sheet is URL-synced — deep link ?id=1 opens the seeded Q&A", async ({ page }) => {

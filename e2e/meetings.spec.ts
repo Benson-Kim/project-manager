@@ -30,10 +30,10 @@ async function newMeeting(page: Page) {
   await page.waitForURL(/\/projects\/2\/meetings\/\d+$/);
   const form = page.getByTestId("meeting-header-form");
   await expect(form).toBeVisible();
-  // The editor surface exists only on the client: once it shows, the form is hydrated.
-  await expect(form.getByRole("textbox", { name: M.objective, exact: true })).toBeVisible({
-    timeout: 15_000,
-  });
+  // The editor surface exists only on the client: once it shows, the page is hydrated.
+  await expect(
+    page.getByTestId("meeting-notes-form").getByRole("textbox", { name: M.objective, exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
   return form;
 }
 
@@ -204,7 +204,8 @@ test("axe: the meeting workspace has no serious or critical violations", async (
 test("the workspace links back to the list", async ({ page }) => {
   await page.goto("/projects/2/meetings/1");
   const trail = page.getByRole("navigation", { name: messages.nav.breadcrumb });
-  await expect(trail.getByText("Progress Achieved")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("heading", { name: "Progress Achieved", level: 1 })).toBeVisible();
+  await expect(trail.getByText("Progress Achieved")).toHaveCount(0);
   await trail.getByRole("link", { name: M.title }).click();
   await expect(page).toHaveURL(new RegExp(`${escapeRegExp("/projects/2/meetings")}$`));
 });
@@ -255,9 +256,9 @@ test("participants: mark attended and apology, save, reload keeps them, the list
 
   // A title to find the meeting by in the list.
   const form = page.getByTestId("meeting-header-form");
-  await expect(form.getByRole("textbox", { name: M.objective, exact: true })).toBeVisible({
-    timeout: 15_000,
-  });
+  await expect(
+    page.getByTestId("meeting-notes-form").getByRole("textbox", { name: M.objective, exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
   await form.getByLabel(M.subject).fill(title);
   await page.getByTestId("meeting-save").click();
   await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();

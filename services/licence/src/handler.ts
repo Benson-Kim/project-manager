@@ -43,6 +43,8 @@ const SECURITY_HEADERS = {
   "referrer-policy": "no-referrer",
 };
 
+const MAX_USED_MS = 366 * 24 * 60 * 60 * 1000;
+
 class InvalidRequest extends Error {}
 
 function json(status: number, body: unknown): Response {
@@ -62,6 +64,14 @@ function match(body: Body, name: string, pattern: RegExp): string {
   const value = body[name];
   if (typeof value !== "string" || !pattern.test(value)) throw new InvalidRequest(name);
   return value;
+}
+
+function duration(body: Body, name: string, max: number): number {
+  const value = body[name] ?? 0;
+  if (!Number.isSafeInteger(value) || (value as number) < 0 || (value as number) > max) {
+    throw new InvalidRequest(name);
+  }
+  return value as number;
 }
 
 function text(body: Body, name: string, min: number, max: number): string {
@@ -136,12 +146,13 @@ export function createHandler(deps: HandlerDeps): (request: Request) => Promise<
         ),
       ),
     ),
-    "/v1/checkin": strict(["licenceId", "machineHash", "nonce"], async (b) =>
+    "/v1/checkin": strict(["licenceId", "machineHash", "nonce", "usedMs"], async (b) =>
       reply(
         await service.checkIn(
           match(b, "licenceId", PATTERNS.id),
           match(b, "machineHash", PATTERNS.machineHash),
           match(b, "nonce", PATTERNS.nonce),
+          duration(b, "usedMs", MAX_USED_MS),
         ),
       ),
     ),

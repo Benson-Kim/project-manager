@@ -36,6 +36,7 @@ function memoryStore(initial?: Partial<LicenceState>) {
     licence: null,
     checkIn: null,
     mark: null,
+    usage: null,
     markKey: randomBytes(32).toString("base64url"),
     ...initial,
   };
@@ -90,7 +91,7 @@ describe("licence manager", () => {
     });
     expect(await first.adopt(licenceDoc)).toBe("active");
     const mirror = memoryMirror();
-    await mirror.write({ licence: licenceDoc, checkIn: null, mark: null });
+    await mirror.write({ licence: licenceDoc, checkIn: null, mark: null, usage: null });
     const offline = new LicenceManager({
       enforce: true,
       keys,
@@ -117,7 +118,7 @@ describe("licence manager", () => {
   });
 
   it("starts from the stored state without waiting for the licence service", async () => {
-    const mirror = memoryMirror({ licence: licenceDoc, checkIn: null, mark: null });
+    const mirror = memoryMirror({ licence: licenceDoc, checkIn: null, mark: null, usage: null });
     const calls: unknown[] = [];
     const stalled = {
       post: (_path: string, body: Record<string, unknown>) => (
@@ -163,7 +164,12 @@ describe("licence manager", () => {
   it("asks a trial to reconnect when its state file is deleted, and ignores a tampered mirror mark", async () => {
     const wall = START + DAY;
     const foreignMark = { at: START + 30 * DAY, mac: "x".repeat(43) };
-    const mirror = memoryMirror({ licence: licenceDoc, checkIn: null, mark: foreignMark });
+    const mirror = memoryMirror({
+      licence: licenceDoc,
+      checkIn: null,
+      mark: foreignMark,
+      usage: null,
+    });
     const manager = new LicenceManager({
       enforce: true,
       keys,
@@ -426,7 +432,7 @@ describe("licence manager service calls", () => {
       keys,
       machineHash: machine,
       store,
-      mirror: memoryMirror({ licence: fullDoc, checkIn: null, mark: null }),
+      mirror: memoryMirror({ licence: fullDoc, checkIn: null, mark: null, usage: null }),
       service: null,
       wall: () => START + 2 * DAY,
     });
@@ -450,7 +456,7 @@ describe("licence manager service calls", () => {
       keys,
       machineHash: machine,
       store,
-      mirror: memoryMirror({ licence: older, checkIn: null, mark: null }),
+      mirror: memoryMirror({ licence: older, checkIn: null, mark: null, usage: null }),
       service: null,
       wall: () => START + DAY,
     });

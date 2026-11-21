@@ -1,6 +1,7 @@
 import { createHmac, createPublicKey, timingSafeEqual, verify } from "crypto";
 
 export const OFFLINE_GRACE = 24 * 60 * 60 * 1000;
+export const TRIAL_USAGE_LIMIT = 112 * 60 * 60 * 1000;
 
 export type LicenceKind = "trial" | "free" | "full";
 export type LicenceStatus = "active" | "expired" | "reconnect" | "unlicensed" | "off";
@@ -19,16 +20,24 @@ export interface Licence {
   startsAt: number;
   expiresAt: number | null;
   updatesUntil: number | null;
+  usageLimitMs?: number;
 }
 
 export interface CheckIn {
   serverTime: number;
+  usedMs: number;
   licence: Licence;
   licenceDocument: SignedDocument;
 }
 
 export interface Mark {
   at: number;
+  mac: string;
+}
+
+export interface Usage {
+  licenceId: string;
+  ms: number;
   mac: string;
 }
 
@@ -41,6 +50,9 @@ const KINDS: readonly string[] = ["trial", "free", "full"];
 const isTime = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
 const isOptionalTime = (value: unknown): value is number | null => value === null || isTime(value);
+const isDuration = (value: unknown): value is number => isTime(value) && value >= 0;
+
+export const usageLimit = (licence: Licence): number => licence.usageLimitMs ?? TRIAL_USAGE_LIMIT;
 
 export function licensingEnforced(packageJson: unknown): boolean {
   return (packageJson as { licensing?: unknown } | null)?.licensing === "enforce";
@@ -115,6 +127,7 @@ export function openLicence(document: unknown, keys: PublicKeys): Licence | null
     startsAt: p.startsAt,
     expiresAt: p.expiresAt,
     updatesUntil: p.updatesUntil,
+    ...(isDuration(p.usageLimitMs) && p.usageLimitMs > 0 ? { usageLimitMs: p.usageLimitMs } : {}),
   };
 }
 
@@ -140,7 +153,12 @@ export function openCheckIn(
     licence.machineHash !== expected.machineHash
   )
     return null;
-  return { serverTime: p.serverTime, licence, licenceDocument: p.licence as SignedDocument };
+  return {
+    serverTime: p.serverTime,
+    usedMs: isDuration(p.usedMs) ? p.usedMs : 0,
+    licence,
+    licenceDocument: p.licence as SignedDocument,
+  };
 }
 
 export const MARK_KEY_BYTES = 32;
@@ -163,6 +181,25 @@ export function readMark(mark: unknown, key: Buffer): number | "none" | "tampere
   return given.length === wanted.length && timingSafeEqual(given, wanted) ? at : "tampered";
 }
 
+function usageMac(licenceId: string, ms: number, key: Buffer): Buffer {
+  return createHmac("sha256", key).update(`modulus-usage:${licenceId}:${ms}`).digest();
+}
+
+export function sealUsage(licenceId: string, ms: number, key: Buffer): Usage {
+  return { licenceId, ms, mac: usageMac(licenceId, ms, key).toString("base64url") };
+}
+
+export function readUsage(usage: unknown, licenceId: string, key: Buffer): number {
+  if (usage === null || usage === undefined) return 0;
+  const { licenceId: owner, ms, mac } = usage as Partial<Usage>;
+  if (owner !== licenceId) return 0;
+  if (key.length < MARK_KEY_BYTES || !isTime(ms) || ms < 0 || typeof mac !== "string")
+    return Infinity;
+  const given = Buffer.from(mac, "base64url");
+  const wanted = usageMac(licenceId, ms, key);
+  return given.length === wanted.length && timingSafeEqual(given, wanted) ? ms : Infinity;
+}
+
 export function trustedNow(input: {
   wall: number;
   monotonic: number;
@@ -182,13 +219,14 @@ export function evaluate(input: {
   now: number;
   lastServerTime: number | null;
   markTrusted: boolean;
+  usedMs: number;
 }): LicenceStatus {
   if (!input.enforce) return "off";
   const { licence } = input;
   if (!licence || licence.machineHash !== input.machineHash) return "unlicensed";
   if (licence.kind !== "trial") return "active";
   if (licence.expiresAt === null) return "unlicensed";
-  if (input.now >= licence.expiresAt) return "expired";
+  if (input.now >= licence.expiresAt || input.usedMs >= usageLimit(licence)) return "expired";
   if (
     !input.markTrusted ||
     input.lastServerTime === null ||

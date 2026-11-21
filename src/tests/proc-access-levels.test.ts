@@ -147,6 +147,10 @@ const EXEMPT: Record<string, string> = {
     "internal: runs inside the to-do create and schedule procs, after their access check",
   usp_RequirementColumn_AssertName:
     "internal: runs inside the register label and column write procs, after their access check",
+  usp_DailyActivityColumn_AssertName:
+    "internal: runs inside the daily activity label and column write procs, after their access check",
+  usp_TodoItemColumn_AssertName:
+    "internal: runs inside the to-do label and column write procs, after their access check",
   usp_Checklist_AssertName:
     "internal: runs inside the checklist create and rename procs, after their access check",
   usp_BpmnDiagram_AssertName:
@@ -346,6 +350,8 @@ const VERB_BY_PROC: Record<string, string> = {
   usp_ResponsibilityMember_Remove: "update",
   // Changing what an added register column holds edits the register's columns (ADR-0067).
   usp_RequirementColumn_SetKind: "update",
+  usp_DailyActivityColumn_SetKind: "update",
+  usp_TodoItemColumn_SetKind: "update",
 };
 
 const verbOf = (name: string) => {

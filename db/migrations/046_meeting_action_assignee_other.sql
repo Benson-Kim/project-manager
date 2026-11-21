@@ -1,5 +1,4 @@
 -- 046_meeting_action_assignee_other.sql — a person responsible who is not a stakeholder
--- (client feedback 2026-10-26; ADR-0047 decision 2).
 --   app.MeetingActionItem.AssigneeOther NVARCHAR(255) NULL: the client asked for the drop-down to
 --     "allow for a person to write the name in case it is someone not present and potentially out
 --     of the organization". A guest or an outside supplier has no Stakeholder row and should not

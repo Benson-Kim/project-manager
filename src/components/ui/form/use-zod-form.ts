@@ -3,6 +3,8 @@
 import { useCallback, useState } from "react";
 import { z } from "zod";
 import type { ActionResult } from "@/lib/action";
+import { blursTowardSubmit } from "./blur-toward-submit";
+import { focusFirstInvalid } from "./focus-first-invalid";
 
 /**
  * Client-side half of the form pattern ): validate the SAME zod
@@ -18,8 +20,9 @@ export function useZodForm<TSchema extends z.ZodType>(schema: TSchema) {
   const [errors, setErrors] = useState<Record<string, string[]>>({});
 
   const validate = useCallback(
-    (formElement: HTMLFormElement, onlyField?: string): boolean => {
-      const values = Object.fromEntries(new FormData(formElement).entries());
+    (source: HTMLFormElement | FormData, onlyField?: string): boolean => {
+      const data = source instanceof FormData ? source : new FormData(source);
+      const values = Object.fromEntries(data.entries());
       const parsed = schema.safeParse(values);
       if (parsed.success) {
         setErrors(onlyField ? (prev) => ({ ...prev, [onlyField]: [] }) : {});
@@ -31,6 +34,9 @@ export function useZodForm<TSchema extends z.ZodType>(schema: TSchema) {
         (next[key] ??= []).push(issue.message);
       }
       setErrors((prev) => (onlyField ? { ...prev, [onlyField]: next[onlyField] ?? [] } : next));
+      if (!onlyField && source instanceof HTMLFormElement) {
+        requestAnimationFrame(() => focusFirstInvalid(source));
+      }
       return false;
     },
     [schema],
@@ -40,8 +46,13 @@ export function useZodForm<TSchema extends z.ZodType>(schema: TSchema) {
   const onBlur = useCallback(
     (event: React.FocusEvent<HTMLFormElement>) => {
       const target = event.target as HTMLElement & { name?: string };
-      if (target.name && event.currentTarget instanceof HTMLFormElement) {
-        validate(event.currentTarget, target.name);
+      const formElement = event.currentTarget;
+      if (
+        target.name &&
+        formElement instanceof HTMLFormElement &&
+        !blursTowardSubmit(formElement, event.relatedTarget)
+      ) {
+        validate(formElement, target.name);
       }
     },
     [validate],

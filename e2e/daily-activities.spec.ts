@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 import { closeAlarmToast } from "./support/alarms";
 import { expectListed } from "./support/datasheet";
+import { expectFocusOnInvalid } from "./support/form";
 
 /**
  * Daily Activities module (#19) — project-scoped route /projects/2/daily-activities.
@@ -41,7 +42,7 @@ test("validation failure — invalid timeSpent shows inline error", async ({ pag
   await page.getByTestId("daily-activity-save").click();
   const summary = page.getByRole("alert").filter({ hasText: messages.errors.summaryTitle });
   await expect(summary).toBeVisible();
-  await expect(summary).toBeFocused();
+  await expectFocusOnInvalid(timeSpent);
 });
 
 test("sheet is URL-synced — deep link ?id= opens the seeded activity", async ({ page }) => {

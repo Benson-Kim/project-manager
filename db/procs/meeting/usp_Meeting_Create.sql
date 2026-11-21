@@ -19,6 +19,9 @@ CREATE OR ALTER PROCEDURE dbo.usp_Meeting_Create
     @EndTime        TIME(0)       = NULL,
     @Conclusion     NVARCHAR(MAX) = NULL,
     @NextMeeting    DATETIME2     = NULL,
+    @MeetingFormat  NVARCHAR(20)  = NULL,
+    @MeetingLink    NVARCHAR(500) = NULL,
+    @NextMeetingLink NVARCHAR(500) = NULL,
     @ActorUserId    INT
 AS
 BEGIN
@@ -41,9 +44,11 @@ BEGIN
 
     INSERT INTO app.Meeting ([ProjectId], [Subject], [Objective], [DateReceived], [Description], [Location],
                              [StartDate], [StartTime], [EndTime], [Conclusion], [NextMeeting],
+                             [MeetingFormat], [MeetingLink], [NextMeetingLink],
                              CreatedBy)
     VALUES (@ProjectId, @Subject, @Objective, @DateReceived, @Description, @Location,
             @StartDate, @StartTime, @EndTime, @Conclusion, @NextMeeting,
+            @MeetingFormat, @MeetingLink, @NextMeetingLink,
             @ActorUserId);
 
     DECLARE @Id INT = SCOPE_IDENTITY();
@@ -51,7 +56,8 @@ BEGIN
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, AfterJson)
     VALUES (@ActorUserId, N'Create', N'app.Meeting', CAST(@Id AS NVARCHAR(64)),
             (SELECT MeetingId, [ProjectId], [Subject], [Objective], [DateReceived], [Description], [Location],
-                    [StartDate], [StartTime], [EndTime], [Conclusion], [NextMeeting], [FollowupAction]
+                    [StartDate], [StartTime], [EndTime], [Conclusion], [NextMeeting], [FollowupAction],
+                    [MeetingFormat], [MeetingLink], [NextMeetingLink]
              FROM app.Meeting WHERE MeetingId = @Id
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
@@ -70,6 +76,9 @@ BEGIN
            [Conclusion],
            [NextMeeting],
            [FollowupAction],
+           [MeetingFormat],
+           [MeetingLink],
+           [NextMeetingLink],
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer

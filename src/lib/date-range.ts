@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { toDateInput } from "@/lib/format";
+import { isPastDay, userNow } from "@/lib/not-past";
 
 export interface DatePair {
   /** Form field of the earlier date. */
@@ -40,6 +41,25 @@ export function datesInOrder(...pairs: DatePair[]) {
         !(unchanged(start) && unchanged(end))
       ) {
         ctx.addIssue({ code: "custom", path: [end], message });
+      }
+    }
+  };
+}
+
+/**
+ * A form schema's superRefine: each date may not fall before the user's today
+ * (the form's localNow, else this machine's clock). A date still exactly what
+ * is stored (datesWere) passes, so a record whose dates have gone by stays editable.
+ */
+export function datesNotPast(message: string, ...fields: string[]) {
+  return (value: Record<string, unknown>, ctx: z.RefinementCtx) => {
+    const now = userNow(typeof value.localNow === "string" ? value.localNow : null);
+    for (const field of fields) {
+      const date = value[field];
+      if (!(date instanceof Date)) continue;
+      const day = toDateInput(date);
+      if (isPastDay(day, now) && value[was(field)] !== day) {
+        ctx.addIssue({ code: "custom", path: [field], message });
       }
     }
   };

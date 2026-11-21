@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   barBox,
+  dayCells,
   dayCentre,
   dayAt,
   defaultScale,
+  groupRows,
   isGanttScale,
   makeTimeline,
   periodCells,
@@ -105,5 +107,65 @@ describe("todayLeft", () => {
     expect(dayCentre(timeline, today)).toBe(xOf(timeline, today) + 16);
     expect(todayLeft(timeline, d("2025-01-01"))).toBeNull();
     expect(todayLeft(timeline, d("2030-01-01"))).toBeNull();
+  });
+});
+
+describe("dayCells", () => {
+  const labels = (scale: "day" | "week" | "month", min: string, max: string) =>
+    dayCells(makeTimeline(scale, { min: d(min), max: d(max) }, today)).map((c) => c.label);
+
+  it("labels every day at the day scale and names the month on its 1st", () => {
+    const timeline = makeTimeline("day", { min: d("2026-12-30"), max: d("2027-01-02") }, today);
+    const cells = dayCells(timeline);
+    expect(cells).toHaveLength(62);
+    expect(cells.slice(0, 3).map((c) => c.label)).toEqual(["1 Dec", "2", "3"]);
+    expect(cells.slice(30, 33).map((c) => c.label)).toEqual(["31", "1 Jan", "2"]);
+    expect(cells[31].left).toBe(xOf(timeline, d("2027-01-01")));
+    expect(cells.every((c) => c.width === 32)).toBe(true);
+  });
+
+  it("labels each Monday at the week scale, naming the month on its first Monday", () => {
+    expect(labels("week", "2026-02-10", "2026-08-01").slice(0, 3)).toEqual([
+      "26 Jan",
+      "2 Feb",
+      "9",
+    ]);
+  });
+
+  it("labels the 1st and 15th at the month scale", () => {
+    expect(labels("month", "2026-01-10", "2026-03-01")).toEqual([
+      "1 Jan",
+      "15",
+      "1 Feb",
+      "15",
+      "1 Mar",
+      "15",
+    ]);
+  });
+
+  it("covers the whole timeline", () => {
+    const timeline = makeTimeline("week", { min: d("2026-02-10"), max: d("2026-08-01") }, today);
+    const cells = dayCells(timeline);
+    expect(cells[0].left).toBe(0);
+    const last = cells[cells.length - 1];
+    expect(last.left + last.width).toBe(timeline.width);
+  });
+});
+
+describe("groupRows", () => {
+  it("groups the days by month, quarter and year, cut at the timeline's ends", () => {
+    const timeline = makeTimeline("day", { min: d("2026-12-30"), max: d("2027-01-02") }, today);
+    const rows = groupRows(timeline);
+    expect(rows.years.map((c) => c.label)).toEqual(["2026", "2027"]);
+    expect(rows.quarters.map((c) => c.label)).toEqual(["Q4", "Q1"]);
+    expect(rows.months.map((c) => c.label)).toEqual(["December", "January"]);
+    expect(rows.years[0].left).toBe(0);
+    expect(rows.years[1].left).toBe(xOf(timeline, d("2027-01-01")));
+    expect(rows.years[1].left + rows.years[1].width).toBe(timeline.width);
+  });
+
+  it("shortens month names at the month scale", () => {
+    const timeline = makeTimeline("month", { min: d("2026-01-10"), max: d("2026-03-01") }, today);
+    expect(groupRows(timeline).months.map((c) => c.label)).toEqual(["Jan", "Feb", "Mar"]);
   });
 });

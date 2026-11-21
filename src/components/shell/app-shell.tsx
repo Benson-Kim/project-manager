@@ -18,6 +18,7 @@ import {
 import { CrossWindowSync } from "./cross-window-sync";
 import { pageTitleFor } from "./nav-items";
 import { OfflineBanner } from "./offline-banner";
+import { SaveWorkShortcut } from "./save-work-shortcut";
 import { RouteProgress } from "./route-progress";
 import { MenuIcon } from "./shell-icons";
 import { SidebarContent } from "./sidebar-content";
@@ -151,6 +152,7 @@ export function AppShell({
               {children}
             </main>
             <CrossWindowSync />
+            <SaveWorkShortcut />
           </div>
         </div>
       </div>

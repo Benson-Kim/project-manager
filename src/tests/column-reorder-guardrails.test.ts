@@ -4,8 +4,7 @@ import { moveKey, normalizeLayout, orderColumns, parseListLayout } from "@/lib/l
 
 /**
  * Guardrail: arranging the columns of a to-do or daily-activity list, and still
- * finding that arrangement on the next load (client feedback, reported more
- * than once).
+ * finding that arrangement on the next load.
  *
  * The reorder path reads as correct, which is exactly the problem — nothing
  * went red when it was reported again, because no test covered a column

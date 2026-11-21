@@ -3,6 +3,8 @@ import { expect, test, type Locator, type Page, type Request } from "@playwright
 import { messages } from "../src/lib/messages";
 import { addDays, HOUR_PX } from "../src/modules/todo-items/planner";
 import { closeAlarmToast } from "./support/alarms";
+import { calendarEntry, localDay } from "./support/calendar";
+import { openListed } from "./support/datasheet";
 import { waitForRichTextEditors } from "./support/editor";
 
 /**
@@ -10,12 +12,16 @@ import { waitForRichTextEditors } from "./support/editor";
  * stretched and moved. Runs as e2e-pm on project 2.
  */
 const P = messages.todoItems.planner;
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => localDay();
 
 async function openPlanner(page: Page, path: string, day: string) {
   await page.goto(`${path}?view=planner&days=${day}`);
   await closeAlarmToast(page);
   await expect(page.getByTestId("todo-planner")).toBeVisible();
+  // The planner scrolls to 08:00 once it runs on the client; before that, typed values are lost.
+  await expect
+    .poll(() => page.getByTestId("planner-scroll").evaluate((el) => el.scrollTop))
+    .toBeGreaterThan(0);
   await page.getByTestId("planner-scroll").scrollIntoViewIfNeeded();
 }
 
@@ -24,6 +30,41 @@ function plannerEntry(page: Page, day: string, title: string): Locator {
     .getByTestId(`planner-day-${day}`)
     .getByTestId("planner-entry")
     .filter({ hasText: title });
+}
+
+async function newTodo(page: Page, title: string, startDate?: string) {
+  await page.goto("/projects/2/todos");
+  await closeAlarmToast(page);
+  await page.getByTestId("new-todo-item").click();
+  const form = page.getByTestId("todo-item-form");
+  await waitForRichTextEditors(form);
+  await form.getByLabel(messages.todoItems.todoItem).fill(title);
+  if (startDate) await form.getByLabel(messages.todoItems.startDate).fill(startDate);
+  await saveTodo(page, form, title);
+}
+
+async function deleteTodo(page: Page, title: string) {
+  await page.goto(`/projects/2/todos?q=${encodeURIComponent(title)}`);
+  await openListed(page, title);
+  await page.getByTestId("todo-item-delete").click();
+  await page.getByRole("button", { name: messages.actions.delete, exact: true }).last().click();
+  await expect(page.getByTestId("todo-item-form")).toHaveCount(0, { timeout: 15_000 });
+}
+
+async function book(page: Page, title: string, day: string, start: string, end: string) {
+  const form = page.getByTestId("planner-place");
+  await form.getByLabel(P.todos, { exact: true }).selectOption({ label: title });
+  await form.getByLabel(P.day, { exact: true }).selectOption(day);
+  await form.getByLabel(P.start, { exact: true }).fill(start);
+  await form.getByLabel(P.end, { exact: true }).fill(end);
+  await form.getByRole("button", { name: P.schedule }).click();
+  await expect(plannerEntry(page, day, title)).toContainText(`${start}-${end}`, {
+    timeout: 15_000,
+  });
+  // The block shows before the server answers; the to-do leaves the unplaced list once it has.
+  await expect(
+    form.getByLabel(P.todos, { exact: true }).locator("option", { hasText: title }),
+  ).toHaveCount(0, { timeout: 15_000 });
 }
 
 async function seriousViolations(page: Page) {
@@ -94,6 +135,25 @@ test("planner — three days at a time, opens at 08:00, switches with Month", as
   await page.getByTestId("planner-previous").click();
   await expect(page.getByTestId(`planner-day-${day}`)).toBeVisible();
 
+  const column = page.getByTestId(`planner-day-${day}`);
+  const box = (await column.boundingBox())!;
+  const x = box.x + box.width / 2;
+  await page.getByTestId("planner-scroll").evaluate((el, px) => (el.scrollTop = px), 9 * HOUR_PX);
+  const columnTop = (await column.boundingBox())!.y;
+  await page.mouse.move(x, columnTop + 10 * HOUR_PX + 2);
+  await page.mouse.down();
+  await page.mouse.move(x, columnTop + 11.25 * HOUR_PX + 2, { steps: 5 });
+  await expect(page.getByTestId("planner-sweep")).toBeVisible();
+  await page.mouse.up();
+  await expect(page.getByTestId("planner-sweep")).toHaveCount(0);
+  const form = page.getByTestId("planner-entry-form");
+  await expect(form).toBeVisible();
+  const values = await form
+    .locator("input, select")
+    .evaluateAll((controls) => controls.map((c) => (c as HTMLInputElement).value));
+  expect(values).toEqual(expect.arrayContaining(["10:00", "11:30"]));
+  await page.keyboard.press("Escape");
+
   await page.getByTestId("calendar-mode-month").click();
   await expect(page.getByTestId("todo-calendar")).toBeVisible();
   await page.getByTestId("calendar-mode-planner").click();
@@ -105,7 +165,7 @@ test("planner — type 14:00-15:00, set 08:30-08:42, see the list marker, take i
 }) => {
   test.slow();
   const title = `E2E planner ${Date.now()}`;
-  const day = today();
+  const day = addDays(today(), 1);
   await openPlanner(page, "/projects/2/calendar", day);
 
   await page.getByTestId("planner-new-entry").click();
@@ -130,6 +190,9 @@ test("planner — type 14:00-15:00, set 08:30-08:42, see the list marker, take i
   await selected.getByLabel(P.end, { exact: true }).fill("08:42");
   await selected.getByRole("button", { name: P.save }).click();
   await expect(entry).toContainText("08:30-08:42", { timeout: 15_000 });
+  // The block moves before the server answers: leave only once the save has settled.
+  await expect(selected.getByRole("button", { name: P.save })).toBeEnabled({ timeout: 15_000 });
+  await expect(page.getByTestId("planner-error")).toHaveCount(0);
 
   await page.goto(`/projects/2/todos?q=${encodeURIComponent(title)}`);
   const marker = page.getByTestId("todo-calendar-marker").first();
@@ -148,13 +211,8 @@ test("planner — drag a to-do onto 14:00, stretch to 15:30, move an hour, delet
 }) => {
   test.slow();
   const title = `E2E planner drag ${Date.now()}`;
-  const day = today();
-  await page.goto("/projects/2/todos");
-  await closeAlarmToast(page);
-  await page.getByTestId("new-todo-item").click();
-  const form = page.getByTestId("todo-item-form");
-  await form.getByLabel(messages.todoItems.todoItem).fill(title);
-  await saveTodo(page, form, title);
+  const day = addDays(today(), 1);
+  await newTodo(page, title);
 
   await openPlanner(page, "/projects/2/calendar", day);
   const todo = page.getByTestId("planner-todo").filter({ hasText: title });
@@ -190,4 +248,101 @@ test("planner — drag a to-do onto 14:00, stretch to 15:30, move an hour, delet
     .getByRole("button", { name: messages.actions.delete })
     .click();
   await expect(entry).toHaveCount(0, { timeout: 15_000 });
+});
+
+test("planner — a to-do booked for tomorrow shows in Month on that day with its time", async ({
+  page,
+}) => {
+  test.slow();
+  const title = `E2E planner month ${Date.now()}`;
+  const day = addDays(today(), 1);
+  await newTodo(page, title);
+  try {
+    await openPlanner(page, "/projects/2/calendar", day);
+    await book(page, title, day, "14:00", "15:00");
+    await page.getByTestId("calendar-mode-month").click();
+    await expect(page.getByTestId("todo-calendar")).toBeVisible();
+    await expect(await calendarEntry(page, day, title)).toContainText("14:00");
+  } finally {
+    await deleteTodo(page, title);
+  }
+});
+
+test("planner — a daily to-do booked 09:00-10:00 shows on all three days", async ({ page }) => {
+  test.slow();
+  const R = messages.todoItems.repeat;
+  const title = `E2E planner daily ${Date.now()}`;
+  const day = addDays(today(), 1);
+  await newTodo(page, title, day);
+  try {
+    await page.goto(`/projects/2/todos?q=${encodeURIComponent(title)}`);
+    await openListed(page, title);
+    await page.getByTestId("todo-repeat").getByRole("button", { name: R.configure }).click();
+    const rule = page.getByTestId("todo-repeat-form");
+    await rule.getByLabel(R.unit, { exact: true }).selectOption("Day");
+    await rule.getByLabel(R.ends, { exact: true }).selectOption("after");
+    await rule.getByLabel(R.endsAfterCount, { exact: true }).fill("5");
+    await page.getByTestId("todo-repeat-save").click();
+    await expect(
+      page.getByTestId("toast-success").filter({ hasText: messages.feedback.saved }).first(),
+    ).toBeVisible({ timeout: 15_000 });
+
+    await openPlanner(page, "/projects/2/calendar", day);
+    await book(page, title, day, "09:00", "10:00");
+    for (const offset of [1, 2]) {
+      const copy = plannerEntry(page, addDays(day, offset), title);
+      await expect(copy).toContainText("09:00-10:00");
+      await expect(copy.getByTestId("planner-entry-resize")).toHaveCount(0);
+    }
+  } finally {
+    await deleteTodo(page, title);
+  }
+});
+
+test("planner — Month carries its month, a day's planner icon opens that day", async ({ page }) => {
+  const day = addDays(today(), 3);
+  const month = day.slice(0, 7);
+  const [y, m] = month.split("-").map(Number);
+  const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+  await page.goto(`/projects/2/calendar?month=${month}`);
+  await closeAlarmToast(page);
+  await expect(page.getByTestId("todo-calendar")).toBeVisible();
+
+  await page.locator(`[data-testid="calendar-plan"][data-day="${day}"]:visible`).click();
+  await expect(page.getByTestId("todo-planner")).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`days=${day}`));
+  for (const offset of [0, 1, 2]) {
+    await expect(page.getByTestId(`planner-day-${addDays(day, offset)}`)).toBeVisible();
+  }
+
+  await page.getByTestId("calendar-mode-month").click();
+  await expect(page.getByTestId("todo-calendar")).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`month=${month}`));
+  await page.getByTestId("calendar-next").click();
+  await expect(page).toHaveURL(new RegExp(`month=${next}`));
+  await page.getByTestId("calendar-mode-planner").click();
+  await expect(page.getByTestId("todo-planner")).toBeVisible();
+  await expect(page.getByTestId(`planner-day-${next}-01`)).toBeVisible();
+});
+
+test("planner — a booking that starts earlier today is refused", async ({ page }) => {
+  test.slow();
+  const now = new Date();
+  test.skip(now.getHours() === 0 && now.getMinutes() < 2, "no earlier minute today yet");
+  const title = `E2E planner past ${Date.now()}`;
+  const day = today();
+  await newTodo(page, title);
+  try {
+    await openPlanner(page, "/projects/2/calendar", day);
+    const form = page.getByTestId("planner-place");
+    await form.getByLabel(P.todos, { exact: true }).selectOption({ label: title });
+    await form.getByLabel(P.day, { exact: true }).selectOption(day);
+    await form.getByLabel(P.start, { exact: true }).fill("00:00");
+    await form.getByLabel(P.end, { exact: true }).fill("00:01");
+    await form.getByRole("button", { name: P.schedule }).click();
+    await expect(page.getByTestId("planner-error")).toHaveText(P.past);
+    await expect(plannerEntry(page, day, title)).toHaveCount(0);
+  } finally {
+    await deleteTodo(page, title);
+  }
 });

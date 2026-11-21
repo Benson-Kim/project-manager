@@ -46,7 +46,7 @@ const trialBody = {
 };
 const trial = openLicence(signDoc(trialBody), keys) as Licence;
 const full: Licence = { ...trial, kind: "full", expiresAt: null };
-const base = { enforce: true, licence: trial, machineHash: machine, markTrusted: true };
+const base = { enforce: true, licence: trial, machineHash: machine, markTrusted: true, usedMs: 0 };
 
 describe("licence policy", () => {
   it("keeps an install with no licence state off unless the build enforces licensing", () => {
@@ -60,6 +60,7 @@ describe("licence policy", () => {
       now: START,
       lastServerTime: null,
       markTrusted: false,
+      usedMs: 0,
     };
     expect(evaluate({ ...noState, enforce: false })).toBe("off");
     expect(evaluate({ ...base, enforce: false, now: START + 99 * DAY, lastServerTime: null })).toBe(

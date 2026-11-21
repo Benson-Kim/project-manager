@@ -16,6 +16,8 @@
 -- ActorGrants / ActorRevokes (ADR-0024): the actor's per-person overrides of 'todo-items' in the
 --   row's project (dbo.ufn_Permission_Overrides), so the datasheet gates cells as the procs do.
 -- ScheduledStart / ScheduledEnd: the to-do's planner slot (migration 082), which the list marks.
+-- CustomCellsJson: on one project's list, each row's values in the columns that project added
+--   (ufn_TodoItem_CustomCells); NULL on the cross-project list, which shows no added columns.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_TodoItem_List
@@ -80,6 +82,7 @@ BEGIN
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer,
+           CASE WHEN @ProjectId IS NOT NULL THEN dbo.ufn_TodoItem_CustomCells(TodoItem.TodoItemId) END AS CustomCellsJson,
            ScheduledStart,
            ScheduledEnd,
            acc.AccessLevel AS ActorAccess,

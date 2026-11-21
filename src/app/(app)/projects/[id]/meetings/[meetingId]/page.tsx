@@ -4,12 +4,17 @@ import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { UnsavedChangesScope } from "@/components/ui/form/unsaved-scope";
 import { PageHeader } from "@/components/ui/page-header";
 import { PrintLink } from "@/components/ui/print-link";
+import { PANEL_BODY, PANEL_SHELL } from "@/components/ui/panel-styles";
 import { RichTextView } from "@/components/ui/rich-text/rich-text-view";
 import { auth } from "@/lib/auth/provider";
 import { messages } from "@/lib/messages";
 import { guardProjectScope } from "@/lib/project-page-helpers";
 import { orNotFound } from "@/lib/row-access";
-import { MeetingHeaderForm } from "@/modules/meetings/components/meeting-header-form";
+import {
+  MeetingFormScope,
+  MeetingHeaderForm,
+  MeetingNotesForm,
+} from "@/modules/meetings/components/meeting-header-form";
 import { MinutesEditor } from "@/modules/meetings/components/minutes-editor";
 import { GOVERNANCE_LOG_KINDS, governanceLogPermission } from "@/modules/meetings/governance-logs";
 import { listDeliverableOptions } from "@/modules/key-deliverables/repository/key-deliverables";
@@ -66,75 +71,77 @@ export default async function MeetingPage({
 
   return (
     <div className="mx-auto w-full max-w-7xl">
-      <Breadcrumbs items={[{ label: M.title, href: listHref }, { label: title }]} />
+      <Breadcrumbs items={[{ label: M.title, href: listHref }]} />
       <PageHeader title={title} />
       <UnsavedChangesScope>
-        <div className="flex flex-col gap-8">
-          <div className="flex min-w-0 flex-col gap-8">
-            <MeetingHeaderForm
-              key={meeting.RowVer}
-              meeting={meeting}
-              listHref={listHref}
-              canEdit={allows("meetings:update")}
-              canDelete={allows("meetings:delete")}
-            />
-            {/*
+        <MeetingFormScope meeting={meeting} canEdit={allows("meetings:update")}>
+          <div className="flex flex-col gap-8">
+            <div className="flex min-w-0 flex-col gap-8">
+              <MeetingHeaderForm listHref={listHref} canDelete={allows("meetings:delete")} />
+              {/*
               Present and apologies, directly under the header form's last
-              field, Location (client feedback 2026-10-23). It was a right-hand
+              field, Location. It was a right-hand
               column before; it stays a form of its own, with its own stamped
               save, so it cannot move inside the header form.
             */}
-            <section aria-labelledby="meeting-participants-heading" className="min-w-0">
-              <ParticipantsPanel
-                meetingId={meeting.MeetingId}
-                projectId={projectId}
-                roster={roster}
-                canEdit={allows("meetings:update")}
-                headingId="meeting-participants-heading"
-              />
-            </section>
-            <section aria-labelledby="meeting-minutes-heading" className="flex flex-col gap-4">
-              <h2 id="meeting-minutes-heading" className="text-base font-medium text-ink">
-                {M.minutes}
-              </h2>
-              <MinutesEditor
-                workspace={workspace}
-                pointViews={pointViews}
-                roster={roster.entries}
-                today={todayIso()}
-                meetingsHref={listHref}
-                canCreate={allows("meetings:create")}
-                canEdit={allows("meetings:update")}
-                canDelete={allows("meetings:delete")}
-                canLogDecision={allows("meetings:update") && allows("decisions:create")}
-                decisionsHref={`/projects/${projectId}/decisions`}
-                canLogAssumption={
-                  allows("meetings:update") && allows("assumptions-constraints:create")
-                }
-                assumptionsHref={`/projects/${projectId}/assumptions-constraints`}
-                projectId={projectId}
-                canAddStakeholder={allows("stakeholders:create")}
-                logKinds={
-                  allows("meetings:update")
-                    ? GOVERNANCE_LOG_KINDS.filter(
-                        (kind) =>
-                          allows(governanceLogPermission(kind, "create")) &&
-                          allows(governanceLogPermission(kind, "update")),
-                      )
-                    : []
-                }
-                taskOptions={taskOptions}
-              />
-              <div className="flex justify-end">
-                <PrintLink
-                  href={`${listHref}/${meeting.MeetingId}/print`}
-                  testId="minutes-print-link"
-                  label={M.printView}
+              <section aria-labelledby="meeting-participants-heading" className="min-w-0">
+                <ParticipantsPanel
+                  meetingId={meeting.MeetingId}
+                  projectId={projectId}
+                  roster={roster}
+                  canEdit={allows("meetings:update")}
+                  headingId="meeting-participants-heading"
                 />
-              </div>
-            </section>
+              </section>
+              <section aria-labelledby="meeting-minutes-heading" className={PANEL_SHELL}>
+                <div className="flex items-center justify-between border-b border-line px-4 py-3">
+                  <h2
+                    id="meeting-minutes-heading"
+                    className="text-xs font-semibold uppercase tracking-wide text-ink-muted"
+                  >
+                    {M.minutes}
+                  </h2>
+                  <PrintLink
+                    href={`${listHref}/${meeting.MeetingId}/print`}
+                    testId="minutes-print-link"
+                    label={M.printView}
+                  />
+                </div>
+                <div className={PANEL_BODY}>
+                  <MinutesEditor
+                    workspace={workspace}
+                    pointViews={pointViews}
+                    roster={roster.entries}
+                    today={todayIso()}
+                    meetingsHref={listHref}
+                    canCreate={allows("meetings:create")}
+                    canEdit={allows("meetings:update")}
+                    canDelete={allows("meetings:delete")}
+                    canLogDecision={allows("meetings:update") && allows("decisions:create")}
+                    decisionsHref={`/projects/${projectId}/decisions`}
+                    canLogAssumption={
+                      allows("meetings:update") && allows("assumptions-constraints:create")
+                    }
+                    assumptionsHref={`/projects/${projectId}/assumptions-constraints`}
+                    projectId={projectId}
+                    canAddStakeholder={allows("stakeholders:create")}
+                    logKinds={
+                      allows("meetings:update")
+                        ? GOVERNANCE_LOG_KINDS.filter(
+                            (kind) =>
+                              allows(governanceLogPermission(kind, "create")) &&
+                              allows(governanceLogPermission(kind, "update")),
+                          )
+                        : []
+                    }
+                    notes={<MeetingNotesForm />}
+                    taskOptions={taskOptions}
+                  />
+                </div>
+              </section>
+            </div>
           </div>
-        </div>
+        </MeetingFormScope>
       </UnsavedChangesScope>
     </div>
   );

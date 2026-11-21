@@ -28,7 +28,7 @@
 #>
 [CmdletBinding()]
 param(
-  [Parameter(Mandatory = $true)] [string] $SqlInstaller,
+  [string] $SqlInstaller = '',
   [ValidatePattern('^[A-Za-z][A-Za-z0-9_]{0,15}$')] [string] $InstanceName = 'PROJECTMGR',
   [ValidateRange(1, 65535)] [int] $Port = 14330,
   [string] $DataRoot = (Join-Path $env:ProgramData 'Modulus'),
@@ -131,8 +131,8 @@ function Write-Utf8NoBom([string] $Path, [string] $Text) {
 
 # --------------------------------------------------------------------------
 function Install-SqlExpress {
-  if (-not (Test-Path -LiteralPath $SqlInstaller)) {
-    throw [ProvisionError]::new(20, "SQL Server installer not found: $SqlInstaller")
+  if (-not $SqlInstaller -or -not (Test-Path -LiteralPath $SqlInstaller)) {
+    throw [ProvisionError]::new(20, "This PC has no Modulus database engine yet. Run the full Modulus installer (Modulus-Setup-Full) once to set it up. Missing: '$SqlInstaller'")
   }
   $sig = Get-AuthenticodeSignature -LiteralPath $SqlInstaller
   if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
@@ -369,7 +369,8 @@ function Read-ExistingConfig {
 $principal = New-Object Security.Principal.WindowsPrincipal ([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
   $argList = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$PSCommandPath`" " +
-    "-SqlInstaller `"$SqlInstaller`" -InstanceName $InstanceName -Port $Port -DataRoot `"$DataRoot`""
+    "-InstanceName $InstanceName -Port $Port -DataRoot `"$DataRoot`""
+  if ($SqlInstaller) { $argList += " -SqlInstaller `"$SqlInstaller`"" }
   if ($ServiceOnly) { $argList += ' -ServiceOnly' }
   try {
     $p = Start-Process -FilePath (Join-Path $PSHOME 'powershell.exe') -ArgumentList $argList `

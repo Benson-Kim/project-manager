@@ -24,7 +24,7 @@ export function stretchBelow(levels: readonly FitLevel[]): number {
 
 /**
  * The height that fills the window between what sits above the box and what sits below it, so
- * the page itself does not scroll as well (client feedback, 2026-10-28). `top` is the box's top
+ * the page itself does not scroll as well. `top` is the box's top
  * in the page, `below` everything from its bottom to the page's end, stretch included.
  */
 export function fitHeight({

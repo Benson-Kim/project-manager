@@ -1,5 +1,4 @@
 -- 031_parking_lot_status.sql — a parking lot item's status becomes a managed list
--- (client feedback 2026-10-12; ADR-0022).
 --   app.ParkingLotItem.Status NVARCHAR(50), bound to 'parking-lot-item.status' and stored as text.
 --   "Active" and "Resolved" are locked: a new item starts Active, and Resolved strikes the item
 --   through. Admins add further statuses and colour them like any other list.

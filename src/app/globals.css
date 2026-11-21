@@ -483,6 +483,17 @@ button:focus-visible {
 
 /* A highlight sets its own ink, so a text colour never sits on it below 4.5:1:
    the highlight wins whichever way the two nest (ADR-0041). */
+.rich-text .find-match {
+  background: color-mix(in srgb, var(--hl-yellow) 55%, transparent);
+  border-radius: 2px;
+}
+
+.rich-text .find-match-current {
+  background: var(--hl-yellow);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .rich-text mark {
   background: var(--hl-yellow);
   color: var(--ink);

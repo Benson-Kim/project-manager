@@ -31,7 +31,7 @@ const icon =
   "size-4 fill-none stroke-current [stroke-linecap:round] [stroke-linejoin:round] [stroke-width:2]";
 
 /**
- * The bar floating at the foot of the Gantt: Add (an item or a milestone), copy a text summary
+ * The bar under the Gantt: Add (an item or a milestone), copy a text summary
  * of the plan, and the Display menu of what the cards and chart show.
  */
 export function GanttTools({
@@ -46,7 +46,7 @@ export function GanttTools({
       role="group"
       aria-label={B.tools}
       data-testid="gantt-tools"
-      className="absolute bottom-4 left-1/2 z-30 flex h-12 -translate-x-1/2 items-center gap-1 rounded-xl border border-line bg-surface px-2 shadow-lg print:hidden"
+      className="flex h-12 items-center gap-1 rounded-xl border border-line bg-surface px-2 shadow-lg print:hidden"
     >
       {addItem.hidden ? null : (
         <Menu

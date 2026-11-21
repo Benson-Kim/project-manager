@@ -1,4 +1,5 @@
 import { execFile } from "child_process";
+import { existsSync } from "fs";
 import net from "net";
 import path from "path";
 import { promisify } from "util";
@@ -100,12 +101,27 @@ async function runProvisioning(
   extraArguments = "",
 ): Promise<number> {
   const esc = (s: string) => s.replace(/'/g, "''");
-  const inner = `-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${scriptPath}" -SqlInstaller "${sqlInstaller}"${extraArguments}`;
+  const installer = existsSync(sqlInstaller) ? ` -SqlInstaller "${sqlInstaller}"` : "";
+  const inner = `-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${scriptPath}"${installer}${extraArguments}`;
   const command =
     "$ErrorActionPreference = 'Stop'; " +
     `$p = Start-Process -FilePath '${esc(powershellPath())}' -ArgumentList '${esc(inner)}' ` +
     `-Verb RunAs -Wait -PassThru -WindowStyle Hidden; exit $p.ExitCode`;
   log.info("[repair] requesting elevation for provisioning");
+  const code = await elevated(command);
+  if (code === ENGINE_SETUP_FILES_MISSING) {
+    throw new Error(
+      "This PC needs the full Modulus installer to set up its database engine. Run it once, then open Modulus again.",
+    );
+  }
+  return code;
+}
+
+// provision.ps1 exits with this when the engine must be installed but this copy of Modulus came
+// from an update, which leaves the SQL Server setup files out.
+const ENGINE_SETUP_FILES_MISSING = 20;
+
+async function elevated(command: string): Promise<number> {
   try {
     await execFileAsync(powershellPath(), ["-NoProfile", "-NonInteractive", "-Command", command], {
       windowsHide: true,

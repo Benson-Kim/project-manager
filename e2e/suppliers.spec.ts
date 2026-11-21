@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 import { expectListed } from "./support/datasheet";
+import { expectFocusOnInvalid } from "./support/form";
 
 /**
  * Suppliers module (#7) — project-scoped route /projects/2/suppliers
@@ -30,7 +31,7 @@ test("create supplier happy path — appears in the list", async ({ page }) => {
   await expectListed(page, supplierName);
 });
 
-test("validation failure — bad email shows inline error and focuses the summary", async ({
+test("validation failure — bad email shows inline error and focuses the field to fix", async ({
   page,
 }) => {
   await page.goto("/projects/2/suppliers?id=new");
@@ -47,7 +48,7 @@ test("validation failure — bad email shows inline error and focuses the summar
   const summary = page.getByRole("alert").filter({ hasText: messages.errors.summaryTitle });
   await expect(summary).toBeVisible();
   await expect(summary).toHaveText(messages.errors.summaryTitle);
-  await expect(summary).toBeFocused();
+  await expectFocusOnInvalid(email);
 });
 
 test("sheet is URL-synced — deep link ?id= opens the seeded supplier", async ({ page }) => {

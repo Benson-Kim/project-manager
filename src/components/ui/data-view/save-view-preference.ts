@@ -60,8 +60,7 @@ export async function saveViewPreference(rawInput: unknown): Promise<void> {
  * It answers whether the layout was stored. The arrangement already applies on
  * screen either way, so a refusal is not an error the caller must handle — but
  * it is not nothing either: a column that springs back on the next load with
- * nothing said reads as "reordering does not work" (client feedback
- * 2026-10-26). The caller says so instead of staying quiet.
+ * nothing said reads as "reordering does not work". The caller says so instead of staying quiet.
  */
 export async function saveListLayout(rawInput: unknown): Promise<boolean> {
   const parsed = layoutInput.safeParse(rawInput);

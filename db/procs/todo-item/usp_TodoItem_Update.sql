@@ -63,6 +63,9 @@ BEGIN
 
     BEGIN TRAN;
 
+    DELETE FROM app.TodoItemCell
+    WHERE TodoItemId = @TodoItemId AND (@ProjectId IS NULL OR ProjectId <> @ProjectId);
+
     DECLARE @Before NVARCHAR(MAX) =
         (SELECT TodoItemId, [ProjectId], [DailyActivityId], [ProjectOrActivity], [TodoItem],
                 [StartDate], [DueDate], [Priority], [Status], [Assignee], [Notes]

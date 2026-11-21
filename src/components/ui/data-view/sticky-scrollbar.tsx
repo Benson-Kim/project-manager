@@ -5,7 +5,7 @@ import { fitHeight, stretchBelow, type FitLevel } from "./fit-height";
 
 /**
  * A second horizontal scrollbar for a wide table, pinned to the bottom of the
- * viewport (client feedback, 2026-10-23). The table's own scrollbar sits at the
+ * viewport. The table's own scrollbar sits at the
  * bottom edge of its box, which is a screen tall, so reaching it means scrolling
  * past every row first. This one mirrors it and stays in reach while any part of
  * the list is on screen.
@@ -53,8 +53,8 @@ function levelsAbove(target: HTMLElement, frame: HTMLElement | null): FitLevel[]
 /**
  * The window the box fills: a full-page layer marked `data-fit-frame` when the box sits in one,
  * else the page. Measured against the page, a box in the layer counted the page behind it as room
- * below, grew to its whole content, and the layer scrolled the header row away instead of the box
- * (client feedback, 2026-11-12). `origin` is where the frame's content starts on screen.
+ * below, grew to its whole content, and the layer scrolled the header row away instead of the box.
+ * `origin` is where the frame's content starts on screen.
  */
 function frameOf(target: HTMLElement) {
   const frame = target.closest<HTMLElement>("[data-fit-frame]");

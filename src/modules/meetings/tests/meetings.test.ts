@@ -19,6 +19,7 @@ import {
   deleteDiscussionPoint,
   deleteFollowUp,
   deleteMeeting,
+  getLastMeetingAttendees,
   getMeetingById,
   getMeetingRoster,
   getMeetingWorkspace,
@@ -135,7 +136,7 @@ describe("meetings repository: meetings", () => {
       Location: null,
       ActorUserId: ACTOR,
     });
-    expect(Object.keys(params)).toHaveLength(12);
+    expect(Object.keys(params)).toHaveLength(15);
     expect(row).toMatchObject({ MeetingId: 2, StartTime: "09:00", EndTime: "10:30", RowVer: 1001 });
   });
 
@@ -603,5 +604,52 @@ describe("meetings repository: minutes and participants", () => {
     expect(call(0)).toEqual([proc, { ...params, ActorUserId: ACTOR }]);
     expect(call(1)[0]).toBe("usp_Meeting_GetWorkspace");
     expect(ws?.meeting.MeetingId).toBe(2);
+  });
+});
+
+describe("meetings repository: import attendees from the last meeting", () => {
+  const held = (id: number, day: string | null, time: string | null) =>
+    meetingListDbRow({
+      MeetingId: id,
+      StartDate: day ? new Date(`${day}T00:00:00Z`) : null,
+      StartTime: time ? new Date(`1970-01-01T${time}:00Z`) : null,
+    });
+
+  it("takes the meeting held just before this one, not the newest", async () => {
+    const current = held(5, "2024-12-17", "09:00");
+    execProc
+      .mockResolvedValueOnce([current])
+      .mockResolvedValueOnce([
+        held(8, "2024-12-17", "14:00"),
+        held(6, "2024-12-17", "09:00"),
+        current,
+        held(4, "2024-12-17", "09:00"),
+        held(7, "2024-12-17", "08:00"),
+        held(3, "2024-12-10", "09:00"),
+      ])
+      .mockResolvedValueOnce([]);
+
+    const last = await getLastMeetingAttendees(5, 24, ACTOR);
+
+    expect(last?.meetingId).toBe(4);
+    expect(call(1)[1]).toMatchObject({ DateTo: current.StartDate, SortBy: "StartDate" });
+    expect(call(2)).toEqual(["usp_Meeting_GetAttendees", { MeetingId: 4, ActorUserId: ACTOR }]);
+  });
+
+  it("an undated meeting takes the latest dated one and skips other drafts", async () => {
+    execProc
+      .mockResolvedValueOnce([held(9, null, null)])
+      .mockResolvedValueOnce([held(10, null, null), held(3, "2024-12-10", null)])
+      .mockResolvedValueOnce([]);
+
+    expect((await getLastMeetingAttendees(9, 24, ACTOR))?.meetingId).toBe(3);
+  });
+
+  it("answers null when no meeting was held before this one", async () => {
+    execProc
+      .mockResolvedValueOnce([held(5, "2024-12-17", "09:00")])
+      .mockResolvedValueOnce([held(6, "2024-12-17", "10:00")]);
+
+    expect(await getLastMeetingAttendees(5, 24, ACTOR)).toBeNull();
   });
 });

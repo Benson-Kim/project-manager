@@ -13,6 +13,8 @@
 -- Entity app.DailyActivity (source: tblDailyActivityList). Module: daily-activities (#19).
 -- ActorGrants / ActorRevokes (ADR-0024): the actor's per-person overrides of 'daily-activities' in the
 --   row's project (dbo.ufn_Permission_Overrides), so the datasheet gates cells as the procs do.
+-- CustomCellsJson: on one project's list, each row's values in the columns that project added
+--   (ufn_DailyActivity_CustomCells); NULL on the cross-project list, which shows no added columns.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_DailyActivity_List
@@ -66,6 +68,7 @@ BEGIN
            da.CreatedAtUtc,
            da.UpdatedAtUtc,
            CAST(da.RowVer AS BIGINT) AS RowVer,
+           CASE WHEN @ProjectId IS NOT NULL THEN dbo.ufn_DailyActivity_CustomCells(da.DailyActivityId) END AS CustomCellsJson,
            acc.AccessLevel AS ActorAccess,
            ov.Grants AS ActorGrants,
            ov.Revokes AS ActorRevokes,

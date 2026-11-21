@@ -18,9 +18,10 @@ async function newMeeting(page: Page) {
   await page.goto("/projects/2/meetings");
   await page.getByTestId("new-meeting").click();
   await page.waitForURL(/\/projects\/2\/meetings\/\d+$/);
-  const header = page.getByTestId("meeting-header-form");
   // The editor surface exists only on the client: once it shows, the page is hydrated.
-  await expect(header.getByRole("textbox", { name: M.objective, exact: true })).toBeVisible({
+  await expect(
+    page.getByTestId("meeting-notes-form").getByRole("textbox", { name: M.objective, exact: true }),
+  ).toBeVisible({
     timeout: 15_000,
   });
   await closeAlarmToast(page);
@@ -545,6 +546,70 @@ test("layout: present and apologies sit under the Location field, not in a side 
   });
   expect(order).toEqual({ panelFollowsLocation: true, panelInsideForm: false });
   expect(await axeClean(page)).toEqual([]);
+});
+
+test("layout: the date and times share a row, and the summary sits under the agenda", async ({
+  page,
+}) => {
+  await page.goto("/projects/2/meetings/1");
+  const header = page.getByTestId("meeting-header-form");
+  const notes = page.getByTestId("meeting-notes-form");
+  await expect(notes.getByRole("textbox", { name: M.objective, exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(header.getByRole("textbox", { name: M.objective, exact: true })).toHaveCount(0);
+  await expect(notes.getByLabel(M.subject)).toHaveCount(0);
+
+  const layout = await page.evaluate(() => {
+    const top = (name: string) =>
+      document.querySelector<HTMLElement>(`[name="${name}"]`)?.getBoundingClientRect().top;
+    const notesForm = document.querySelector('[data-testid="meeting-notes-form"]');
+    const agenda = document.querySelector('section[aria-labelledby="agenda-heading"]');
+    const actions = document.querySelector('[data-testid="action-items-table"]');
+    if (!notesForm || !agenda || !actions) return null;
+    return {
+      oneRow: top("startDate") === top("startTime") && top("startTime") === top("endTime"),
+      afterAgenda: Boolean(
+        agenda.compareDocumentPosition(notesForm) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+      beforeActions: Boolean(
+        notesForm.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+    };
+  });
+  expect(layout).toEqual({ oneRow: true, afterAgenda: true, beforeActions: true });
+});
+
+test("minutes: either Save saves the whole meeting, and a missing title is named at the summary", async ({
+  page,
+}) => {
+  await newMeeting(page);
+  const header = page.getByTestId("meeting-header-form");
+  const notes = page.getByTestId("meeting-notes-form");
+  const objective = notes.getByRole("textbox", { name: M.objective, exact: true });
+
+  // A new meeting has no title yet: the summary's Save names the field at the top.
+  await objective.fill("Agree the budget");
+  await notes.getByTestId("meeting-notes-save").click();
+  await expect(notes.getByRole("alert")).toContainText(`${M.subject}: ${M.titleRequired}`);
+  await expect(header.getByText(M.titleRequired)).toBeVisible();
+
+  const title = `E2E summary ${Date.now()}`;
+  await header.getByLabel(M.subject).fill(title);
+  await notes.getByTestId("meeting-notes-save").click();
+  await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
+  await expect(objective).toHaveText("Agree the budget");
+
+  await header.getByLabel(M.subject).fill(`${title} v2`);
+  await header.getByLabel(M.location).fill("Board room");
+  await objective.fill("Agree the revised budget");
+  await header.getByTestId("meeting-save").click();
+  await expect(page.getByRole("heading", { name: `${title} v2`, level: 1 })).toBeVisible();
+
+  await page.reload();
+  await expect(header.getByLabel(M.subject)).toHaveValue(`${title} v2`);
+  await expect(header.getByLabel(M.location)).toHaveValue("Board room");
+  await expect(objective).toHaveText("Agree the revised budget", { timeout: 15_000 });
 });
 
 test("minutes: a discussion point logged as a decision links to its decision-log entry", async ({

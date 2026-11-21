@@ -88,7 +88,7 @@ describe("datasheet layout (ADR-0023, migration 019)", () => {
     expect(parseListLayout('{"order":["bad key!"]}')).toBeNull();
   });
 
-  it("keeps a custom column's layout (client feedback 2026-11-18)", () => {
+  it("keeps a custom column's layout", () => {
     const def = ["Task", "Done", customCellField(12)];
     const layout = {
       order: [customCellField(12), "Task", "Done"],

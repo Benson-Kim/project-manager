@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 import { closeAlarmToast } from "./support/alarms";
 import { expectListed } from "./support/datasheet";
+import { expectFocusOnInvalid } from "./support/form";
 
 /**
  * Projects module (#5) — create happy path, validation failure, the schedule,
@@ -26,7 +27,7 @@ test("create project happy path — appears in the list", async ({ page }) => {
   await expectListed(page, name);
 });
 
-test("validation failure — empty name shows inline error and focuses the summary", async ({
+test("validation failure — empty name shows inline error and focuses the field to fix", async ({
   page,
 }) => {
   await page.goto("/projects/new");
@@ -34,7 +35,7 @@ test("validation failure — empty name shows inline error and focuses the summa
   await expect(page.getByText(messages.projects.nameRequired).first()).toBeVisible();
   const summary = page.getByRole("alert").filter({ hasText: messages.errors.summaryTitle });
   await expect(summary).toBeVisible();
-  await expect(summary).toBeFocused();
+  await expectFocusOnInvalid(page.getByLabel(messages.projects.name));
 });
 
 test("schedule, phase & progress: a chosen phase and status save, reload and show in the list", async ({

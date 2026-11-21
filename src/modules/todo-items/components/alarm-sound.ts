@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * The to-do alarm's chime (client feedback: "the alert showed but without a
- * sound"). A short two-tone chime synthesised with Web Audio — no asset to
+ * The to-do alarm's chime. A short two-tone chime synthesised with Web Audio — no asset to
  * load. Browsers only let a page play sound after the user has interacted with
  * it, so the audio context is created (or resumed) on the first click or key
  * press anywhere in the app. An alarm that comes due before that chimes on the

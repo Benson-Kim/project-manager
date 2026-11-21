@@ -104,8 +104,7 @@ export function TabStrip({
 }
 
 /**
- * The two arrows that move the selected tab or page one place (client feedback
- * 2026-10-26: arrows beside the strip, not worded buttons by the editor). The
+ * The two arrows that move the selected tab or page one place (arrows beside the strip, not worded buttons by the editor). The
  * names stay on aria-label, so each is still announced.
  */
 export function MoveButtons({
