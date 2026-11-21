@@ -17,10 +17,10 @@ const M = messages.meetings;
 /**
  * The logs an action is recorded in: a chip per linked record, opening it in
  * its log, and a "Log in" list that ticks or unticks each log. A log the user
- * may not write to stays as it is.
+ * may not write to stays as it is, with no unlink button.
  */
 export function ActionLogLinks({ action, name }: { action: WorkspaceActionItem; name: string }) {
-  const { projectId, busy, logKinds, setLogLinks } = useMinutes();
+  const { projectId, canEdit, busy, logKinds, setLogLinks } = useMinutes();
   const [open, setOpen] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -63,20 +63,22 @@ export function ActionLogLinks({ action, name }: { action: WorkspaceActionItem; 
           >
             {governanceLogOf(link.LogKind).label}
           </Link>
-          <button
-            type="button"
-            aria-label={`Unlink ${governanceLogOf(link.LogKind).label}`}
-            disabled={busy}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              toggle(link.LogKind);
-            }}
-            className="rounded p-0.5 text-indigo-400 hover:text-danger hover:bg-surface-soft text-xs leading-none transition-colors"
-            title="Unlink"
-          >
-            ×
-          </button>
+          {canEdit && logKinds.includes(link.LogKind) ? (
+            <button
+              type="button"
+              aria-label={`Unlink ${governanceLogOf(link.LogKind).label}`}
+              disabled={busy}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                toggle(link.LogKind);
+              }}
+              className="rounded p-0.5 text-indigo-400 hover:text-danger hover:bg-surface-soft text-xs leading-none transition-colors"
+              title="Unlink"
+            >
+              ×
+            </button>
+          ) : null}
         </span>
       ))}
 

@@ -9,10 +9,11 @@ const M = messages.meetings;
 
 /**
  * The WBS tasks an action is about: a chip per linked task and a "Tasks" list
- * to tick or untick them. A task the list no longer offers keeps its link.
+ * to tick or untick them. A task the list no longer offers keeps its link, and
+ * a reader who may not link tasks sees the chips without unlink buttons.
  */
 export function ActionTaskLinks({ action, name }: { action: WorkspaceActionItem; name: string }) {
-  const { busy, taskOptions, setTaskLinks } = useMinutes();
+  const { canEdit, busy, taskOptions, setTaskLinks } = useMinutes();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -59,20 +60,22 @@ export function ActionTaskLinks({ action, name }: { action: WorkspaceActionItem;
           <span data-testid="action-task-chip" className="font-medium">
             {labelOf(id)}
           </span>
-          <button
-            type="button"
-            aria-label={`Unlink ${labelOf(id)}`}
-            disabled={busy}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              toggle(id);
-            }}
-            className="rounded p-0.5 text-sky-400 hover:text-danger hover:bg-surface-soft text-xs leading-none transition-colors"
-            title="Unlink"
-          >
-            ×
-          </button>
+          {canEdit && taskOptions.length > 0 ? (
+            <button
+              type="button"
+              aria-label={`Unlink ${labelOf(id)}`}
+              disabled={busy}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                toggle(id);
+              }}
+              className="rounded p-0.5 text-sky-400 hover:text-danger hover:bg-surface-soft text-xs leading-none transition-colors"
+              title="Unlink"
+            >
+              ×
+            </button>
+          ) : null}
         </span>
       ))}
 
