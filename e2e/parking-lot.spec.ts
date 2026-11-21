@@ -3,6 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 import { expectListed, expectNotListed, openListed } from "./support/datasheet";
 import { waitForRichTextEditors } from "./support/editor";
+import { expectFocusOnInvalid } from "./support/form";
 
 /**
  * Parking lot module (#18) — project-scoped route /projects/2/parking-lot.
@@ -43,7 +44,7 @@ test("create parking lot item happy path — appears in the list", async ({ page
   await expectListed(page, itemText);
 });
 
-test("validation failure — empty item shows inline error and focuses the summary", async ({
+test("validation failure — empty item shows inline error and focuses the field to fix", async ({
   page,
 }) => {
   await page.goto("/projects/2/parking-lot?id=new");
@@ -55,7 +56,7 @@ test("validation failure — empty item shows inline error and focuses the summa
   await expect(page.getByText(messages.parkingLot.itemRequired).first()).toBeVisible();
   const summary = page.getByRole("alert").filter({ hasText: messages.errors.summaryTitle });
   await expect(summary).toBeVisible();
-  await expect(summary).toBeFocused();
+  await expectFocusOnInvalid(form.getByLabel(messages.parkingLot.item));
 });
 
 test("sheet is URL-synced — deep link ?id= opens the seeded item", async ({ page }) => {

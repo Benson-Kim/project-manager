@@ -1,13 +1,21 @@
 import { expect, test, type Page } from "@playwright/test";
 import { messages } from "../src/lib/messages";
+import { localDay } from "./support/calendar";
+import { waitForHydrated } from "./support/datasheet";
 
 const M = messages.checklists;
 const C = messages.customColumns;
 const D = messages.datasheet;
 
+const startDay = localDay(12);
+const dueDay = localDay(21);
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const cell = (column: string, row: string) =>
   new RegExp(`^${escapeRegExp(D.cellLabel(column, row))}$`);
+// Matched on the header's own text: a part match such as "Due" would also find
+// the built-in "Due date" column whenever the sheet is wide enough to show it.
+const header = (page: Page, name: string) =>
+  page.getByRole("columnheader").filter({ has: page.getByText(name, { exact: true }) });
 
 async function createProject(page: Page): Promise<string> {
   await page.goto("/projects/new");
@@ -20,7 +28,9 @@ async function createProject(page: Page): Promise<string> {
 async function createChecklist(page: Page, projectId: string, name: string) {
   await page.goto(`/projects/${projectId}/checklists`);
   await expect(page.getByText(M.none)).toBeVisible();
-  await page.getByTestId("checklist-name").fill(name);
+  const field = page.getByTestId("checklist-name");
+  await waitForHydrated(field);
+  await field.fill(name);
   await page.getByTestId("checklist-save").click();
   await expect(page).toHaveURL(/\/checklists\?checklist=\d+$/, { timeout: 30_000 });
   await page.goto(`${page.url()}&view=list`);
@@ -35,9 +45,7 @@ async function addColumn(page: Page, name: string, kind: string, action?: string
   if (action) await dialog.getByTestId("add-column-action").selectOption(action);
   await dialog.getByTestId("add-column-save").click();
   await expect(dialog).toBeHidden();
-  await expect(
-    page.getByRole("columnheader").filter({ has: page.getByText(name, { exact: true }) }),
-  ).toBeVisible();
+  await expect(header(page, name)).toBeVisible();
 }
 
 async function addItem(page: Page, title: string) {
@@ -80,7 +88,7 @@ test.describe("checklists (ADR-0066)", () => {
     await addItem(page, title);
 
     const due = page.getByLabel(cell("Due", title));
-    await due.fill("2026-12-01");
+    await due.fill(startDay);
     await due.press("Enter");
     const note = page.getByRole("textbox", { name: cell("Note", title) });
     await note.fill("Ask legal first");
@@ -133,7 +141,7 @@ test.describe("checklists (ADR-0066)", () => {
     // The open dialog hides the sheet behind it, so its headers show once it closes.
     await page.keyboard.press("Escape");
     await expect(columns).toBeHidden();
-    await expect(page.getByRole("columnheader", { name: /Comment/ })).toBeVisible({
+    await expect(header(page, "Comment")).toBeVisible({
       timeout: 30_000,
     });
 
@@ -141,7 +149,7 @@ test.describe("checklists (ADR-0066)", () => {
     const reloaded = page.getByRole("row").filter({
       has: page.getByRole("textbox", { name: cell(M.item, title) }),
     });
-    await expect(page.getByLabel(cell("Due", title))).toHaveValue("2026-12-01");
+    await expect(page.getByLabel(cell("Due", title))).toHaveValue(startDay);
     await expect(page.getByRole("textbox", { name: cell("Comment", title) })).toHaveValue(
       "Ask legal first",
     );
@@ -172,11 +180,11 @@ test.describe("checklists (ADR-0066)", () => {
     const T = messages.todoItems;
 
     const start = page.getByLabel(cell(T.startDate, title));
-    await start.fill("2026-12-01");
+    await start.fill(startDay);
     await start.press("Enter");
     await expect(announcer).toHaveText(D.saved(T.startDate), { timeout: 30_000 });
     const due = page.getByLabel(cell(T.dueDate, title));
-    await due.fill("2026-12-10");
+    await due.fill(dueDay);
     await due.press("Enter");
     await expect(announcer).toHaveText(D.saved(T.dueDate), { timeout: 30_000 });
     await page.getByRole("combobox", { name: cell(T.priority, title) }).selectOption("High");
@@ -187,8 +195,8 @@ test.describe("checklists (ADR-0066)", () => {
     await expect(announcer).toHaveText(D.saved(M.assignee), { timeout: 30_000 });
 
     await page.reload();
-    await expect(page.getByLabel(cell(T.startDate, title))).toHaveValue("2026-12-01");
-    await expect(page.getByLabel(cell(T.dueDate, title))).toHaveValue("2026-12-10");
+    await expect(page.getByLabel(cell(T.startDate, title))).toHaveValue(startDay);
+    await expect(page.getByLabel(cell(T.dueDate, title))).toHaveValue(dueDay);
     await expect(
       page.getByRole("combobox", { name: cell(T.priority, title) }).locator("option:checked"),
     ).toHaveText("High");
@@ -204,7 +212,7 @@ test.describe("checklists (ADR-0066)", () => {
     await addItem(page, title);
     const T = messages.todoItems;
     const due = page.getByLabel(cell(T.dueDate, title));
-    await due.fill("2026-12-10");
+    await due.fill(dueDay);
     await due.press("Enter");
     await expect(page.getByTestId("live-announcer")).toHaveText(D.saved(T.dueDate), {
       timeout: 30_000,
@@ -238,7 +246,7 @@ test.describe("checklists (ADR-0066)", () => {
     const confirm = page.getByRole("dialog", { name: C.deleteColumn });
     await expect(confirm.getByText(C.deleteColumnPrompt("Owner"))).toBeVisible();
     await confirm.getByRole("button", { name: messages.actions.delete }).click();
-    await expect(page.getByRole("columnheader", { name: /Owner/ })).toHaveCount(0, {
+    await expect(header(page, "Owner")).toHaveCount(0, {
       timeout: 30_000,
     });
   });

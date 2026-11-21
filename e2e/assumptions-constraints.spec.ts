@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 import { expectListed, expectNotListed, openListed } from "./support/datasheet";
+import { expectFocusOnInvalid } from "./support/form";
 
 /**
  * Assumptions & constraints module (#13) — project-scoped route
@@ -34,7 +35,7 @@ test("create assumption happy path — appears in the list", async ({ page }) =>
   await expectListed(page, description);
 });
 
-test("validation failure — empty description shows inline error and focuses the summary", async ({
+test("validation failure — empty description shows inline error and focuses the field to fix", async ({
   page,
 }) => {
   await page.goto("/projects/2/assumptions-constraints?id=new");
@@ -49,7 +50,7 @@ test("validation failure — empty description shows inline error and focuses th
   await page.getByTestId("assumption-constraint-save").click();
   const summary = page.getByRole("alert").filter({ hasText: messages.errors.summaryTitle });
   await expect(summary).toBeVisible();
-  await expect(summary).toBeFocused();
+  await expectFocusOnInvalid(descField);
 });
 
 test("sheet is URL-synced — deep link ?id=1 opens the seeded item", async ({ page }) => {

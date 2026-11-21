@@ -325,7 +325,7 @@ test("Gantt: Escape cancels a drag; a card dropped on another lane moves under i
 
   // Escape while dragging puts the card back where it was.
   await loose.scrollIntoViewIfNeeded();
-  // Scrolled into view, the card is clear of the tools floating over the chart's foot.
+  // Scrolled into view, the card is clear of the tools under the chart.
   expect(await overlaps(loose, page.getByTestId("gantt-tools"))).toBe(false);
   let box = (await loose.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);

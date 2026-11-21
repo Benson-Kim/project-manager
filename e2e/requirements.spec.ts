@@ -291,7 +291,7 @@ test("the register opens full page over the app header, and Escape brings it bac
 });
 
 /**
- * Full page lost the column headers (client feedback, 2026-11-12): the register's box kept a height
+ * Full page lost the column headers: the register's box kept a height
  * the layer had no room for (a smaller window, say), so the layer scrolled instead and took the
  * header row under the toolbar. The box now fits the layer and scrolls under a header row that
  * stays put and uncovered.
