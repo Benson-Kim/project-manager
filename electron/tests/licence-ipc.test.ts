@@ -14,6 +14,7 @@ function setup(overrides: Record<string, unknown> = {}, onChanged = vi.fn()) {
     status: vi.fn(() => "unlicensed" as const),
     licence: vi.fn(() => null),
     now: vi.fn(() => 1_800_000_000_000),
+    allowance: vi.fn(() => null),
     requestTrial: vi.fn(async () => done),
     verifyTrial: vi.fn(async () => done),
     redeem: vi.fn(async () => done),
@@ -172,6 +173,7 @@ describe("licence IPC", () => {
       expiresAt: null,
       updatesUntil: null,
       now: 1_800_000_000_000,
+      allowance: null,
     });
     expect(await call(LICENCE_CHANNELS.reconnect)).toEqual({ ok: true, status: "active" });
   });

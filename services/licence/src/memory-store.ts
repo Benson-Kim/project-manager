@@ -23,6 +23,7 @@ export class MemoryStore implements LicenceStore {
   private readonly testers = new Map<string, { email: string; at: number }>();
   private readonly codes = new Map<string, PendingCode>();
   private readonly hits = new Map<string, number>();
+  private readonly usage = new Map<string, number>();
   private readonly claimedEmails = new Set<string>();
   private readonly claimedMachines = new Set<string>();
   readonly adminEvents: AdminEvent[] = [];
@@ -51,6 +52,12 @@ export class MemoryStore implements LicenceStore {
 
   async saveLicence(record: LicenceRecord): Promise<void> {
     this.licences.set(record.licenceId, { ...record });
+  }
+
+  async raiseUsage(licenceId: string, usedMs: number): Promise<number> {
+    const highest = Math.max(this.usage.get(licenceId) ?? 0, usedMs);
+    this.usage.set(licenceId, highest);
+    return highest;
   }
 
   async createTrial(record: LicenceRecord, email: string): Promise<"created" | "conflict"> {

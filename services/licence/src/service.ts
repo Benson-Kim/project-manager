@@ -22,6 +22,7 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
 export const TRIAL_LENGTH = 14 * DAY;
+export const TRIAL_USAGE_LIMIT = 112 * HOUR;
 export const FREE_UPDATES = 365 * DAY;
 export const CODE_LIFETIME = 10 * MINUTE;
 export const CODE_ATTEMPTS = 5;
@@ -147,6 +148,7 @@ export class LicenceService {
     licenceId: string,
     machineHash: string,
     nonce: string,
+    usedMs = 0,
   ): Promise<Outcome<SignedDocument>> {
     const record = await this.boundLicence(licenceId, machineHash);
     if (!record) return fail("unknown_licence");
@@ -154,6 +156,7 @@ export class LicenceService {
       return fail("rate_limited");
     }
     const licence = await this.signLicence(record);
+    const highest = await this.deps.store.raiseUsage(licenceId, usedMs);
     return ok(
       await signDocument(this.deps.signer, "checkin", {
         v: 1,
@@ -161,6 +164,7 @@ export class LicenceService {
         machineHash,
         nonce,
         serverTime: this.now(),
+        usedMs: highest,
         licence,
       }),
     );
@@ -256,6 +260,7 @@ export class LicenceService {
       startsAt: record.startsAt,
       expiresAt: record.expiresAt,
       updatesUntil: record.updatesUntil,
+      usageLimitMs: record.kind === "trial" ? TRIAL_USAGE_LIMIT : null,
     });
   }
 

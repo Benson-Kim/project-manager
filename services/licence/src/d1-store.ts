@@ -120,6 +120,16 @@ export class D1Store implements LicenceStore {
       .run();
   }
 
+  async raiseUsage(licenceId: string, usedMs: number): Promise<number> {
+    const row = await this.db
+      .prepare(
+        "UPDATE licence SET used_ms = MAX(used_ms, ?2) WHERE licence_id = ?1 RETURNING used_ms",
+      )
+      .bind(licenceId, usedMs)
+      .first<{ used_ms: number }>();
+    return row?.used_ms ?? usedMs;
+  }
+
   async createTrial(r: LicenceRecord, email: string): Promise<"created" | "conflict"> {
     try {
       await this.db.batch([
