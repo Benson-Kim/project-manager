@@ -87,6 +87,9 @@ function draftAt(day: string, minutes: number): Draft {
   return { day, start: hhmm(day, minutes), end: hhmm(day, Math.min(minutes + 60, DAY_MINUTES)) };
 }
 
+type Pointer = { clientX: number; clientY: number };
+type Live = { move: (e: Pointer) => void; up: (e: Pointer) => void; cancel: () => void };
+
 function draftOf(slot: Slot): Draft {
   return {
     day: slot.start.slice(0, 10),
@@ -192,6 +195,7 @@ export function TodoPlanner({
   const versions = useRef(new Map<number, number>());
   const saving = useRef(new Map<number, Promise<unknown>>());
   const gesture = useRef<Gesture | null>(null);
+  const live = useRef<Live | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const columns = useRef<(HTMLDivElement | null)[]>([]);
 
@@ -296,7 +300,7 @@ export function TodoPlanner({
     return index === -1 ? fallback : days[index];
   }
 
-  function gestureSlot(g: Gesture, e: PointerEvent): Slot {
+  function gestureSlot(g: Gesture, e: Pointer): Slot {
     const day = g.entry.start.slice(0, 10);
     const delta = pxToMinutes(e.clientY - g.y);
     return g.mode === "resize"
@@ -313,9 +317,26 @@ export function TodoPlanner({
     }
     e.currentTarget.setPointerCapture(e.pointerId);
     gesture.current = { entry, mode, x: e.clientX, y: e.clientY, moved: false };
+    const move = (ev: Pointer) => live.current?.move(ev);
+    const up = (ev: Pointer) => {
+      stop();
+      live.current?.up(ev);
+    };
+    const cancel = () => {
+      stop();
+      live.current?.cancel();
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
   }
 
-  function onPointerMove(e: PointerEvent<HTMLElement>) {
+  function onPointerMove(e: Pointer) {
     const g = gesture.current;
     if (!g) return;
     if (!g.moved && Math.abs(e.clientX - g.x) < 4 && Math.abs(e.clientY - g.y) < 4) return;
@@ -323,7 +344,7 @@ export function TodoPlanner({
     setPreview({ id: g.entry.todoItemId, slot: gestureSlot(g, e) });
   }
 
-  function onPointerUp(e: PointerEvent<HTMLElement>) {
+  function onPointerUp(e: Pointer) {
     const g = gesture.current;
     gesture.current = null;
     setPreview(null);
@@ -342,6 +363,10 @@ export function TodoPlanner({
     gesture.current = null;
     setPreview(null);
   }
+
+  useEffect(() => {
+    live.current = { move: onPointerMove, up: onPointerUp, cancel: cancelGesture };
+  });
 
   function onSweepStart(e: ReactPointerEvent<HTMLDivElement>, day: string) {
     if (!canAdd || e.button !== 0 || e.target !== e.currentTarget) return;
@@ -711,8 +736,6 @@ export function TodoPlanner({
                           width: `calc(${100 / count}% - 4px)`,
                         }}
                         onPointerDown={(e) => onPointerDown(e, entry, "move")}
-                        onPointerMove={onPointerMove}
-                        onPointerUp={onPointerUp}
                         onPointerCancel={cancelGesture}
                         onKeyDown={(e) => {
                           if (e.key !== "Enter" && e.key !== " ") return;
