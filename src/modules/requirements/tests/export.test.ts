@@ -9,7 +9,7 @@ import type { RequirementType } from "../schemas/requirement-types";
 const M = messages.requirements;
 
 /**
- * The register's exports (client feedback 2026-10-26). Both read rows the
+ * The register's exports. Both read rows the
  * repository has already parsed, so these pin the shape of the file rather
  * than any database behaviour.
  */

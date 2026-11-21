@@ -3,6 +3,7 @@ import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import type { LookupListKey } from "@/lib/lookup-lists";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
+import { registerCellsSchema } from "@/lib/custom-columns/register";
 
 /**
  * Daily Activity (app.DailyActivity ← tblDailyActivityList) — zod contracts.
@@ -52,9 +53,10 @@ export const dailyActivityListRowSchema = dailyActivityRowSchema.extend({
   ProjectName: z.string().nullable(),
   TotalCount: z.number().int(),
   ...actorAccessFields,
-});
+  CustomCellsJson: registerCellsSchema,
+}).transform(({ CustomCellsJson, ...row }) => ({ ...row, CustomCells: CustomCellsJson }));
 
-export type DailyActivityListRow = z.infer<typeof dailyActivityListRowSchema>;
+export type DailyActivityListRow = z.output<typeof dailyActivityListRowSchema>;
 
 export const createDailyActivityInput = z.object({
   projectId: z.number().int().positive().nullable(),

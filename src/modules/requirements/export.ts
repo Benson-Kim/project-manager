@@ -9,7 +9,7 @@ import { refCell, typeCell } from "./components/register-model";
 
 /**
  * The requirements register as a file the client can print or open in a
- * spreadsheet (client feedback 2026-10-26). Both exports are pure functions of
+ * spreadsheet. Both exports are pure functions of
  * rows the repository has already read and zod-parsed, so the CSV and the PDF
  * cannot disagree about what a requirement says, and neither reaches the
  * database itself.

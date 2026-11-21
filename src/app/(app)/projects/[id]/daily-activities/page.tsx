@@ -15,6 +15,7 @@ import { getProjectPermissions } from "@/modules/projects/repository/project-acc
 import { listProjectOptions } from "@/modules/projects/repository/projects";
 import { DailyActivitySheet } from "@/modules/daily-activities/components/daily-activity-sheet";
 import { DailyActivitiesView } from "@/modules/daily-activities/components/daily-activities-view";
+import { activityColumns } from "@/modules/daily-activities/repository/columns";
 import {
   getDailyActivityById,
   listDailyActivities,
@@ -65,8 +66,17 @@ export default async function DailyActivitiesPage({
     taskType: flat.taskType ?? null,
   };
 
-  const [rows, preference, lookup, selectedRaw, allows, projectOptions, projectless] =
-    await Promise.all([
+  const [
+    rows,
+    preference,
+    lookup,
+    selectedRaw,
+    allows,
+    projectOptions,
+    projectless,
+    labels,
+    addedColumns,
+  ] = await Promise.all([
       orNotFound(
         listForView(effectiveParams, (p, size) =>
           listDailyActivities(p, session.userId, projectId, size, filters),
@@ -81,6 +91,8 @@ export default async function DailyActivitiesPage({
       // The Project column: where an activity can move or be added (shared with the layout).
       listProjectOptions(session.userId),
       getProjectPermissions(null, session.userId),
+      orNotFound(activityColumns.listLabels(projectId, session.userId)),
+      orNotFound(activityColumns.listColumns(projectId, session.userId)),
     ]);
 
   // A deep link to an activity from another project is treated as not found.
@@ -128,6 +140,10 @@ export default async function DailyActivitiesPage({
               projectId,
             )}
             canCreate={canCreate}
+            projectId={projectId}
+            labels={labels}
+            addedColumns={addedColumns}
+            canManageColumns={{ create: canCreate, update: canEdit, delete: canDelete }}
             newActivityAction={canCreate ? newActivityLink : undefined}
           />
         </div>

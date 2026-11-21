@@ -19,28 +19,33 @@ import {
 } from "@/lib/custom-columns/kinds";
 import { messages } from "@/lib/messages";
 import {
-  clearColumnLabelAction,
-  createChoiceAction,
-  createRegisterColumnAction,
-  deleteChoiceAction,
-  deleteRegisterColumnAction,
-  moveRegisterColumnAction,
-  renameChoiceAction,
-  renameRegisterColumnAction,
-  setColumnLabelAction,
-  setRegisterColumnKindAction,
-} from "../actions/register-columns";
-import {
   MAX_REGISTER_COLUMNS,
-  REGISTER_BUILT_IN_COLUMNS,
+  type BuiltInColumn,
   type ColumnLabel,
   type RegisterColumn,
-} from "../schemas/register-columns";
+} from "@/lib/custom-columns/register";
 import { notifySaved } from "@/lib/cross-window";
 
 const M = messages.requirements.columns;
 const C = messages.customColumns;
 type RegisterKind = (typeof REGISTER_KINDS)[number];
+
+type ColumnAction = (input: unknown) => Promise<ActionResult<unknown>>;
+
+/** The server actions one screen's column dialog calls: each screen binds its own entity. */
+export type CustomColumnActionSet = Record<
+  | "setLabel"
+  | "clearLabel"
+  | "createColumn"
+  | "renameColumn"
+  | "moveColumn"
+  | "setColumnKind"
+  | "deleteColumn"
+  | "createChoice"
+  | "renameChoice"
+  | "deleteChoice",
+  ColumnAction
+>;
 
 const lines = (text: string) =>
   text
@@ -102,21 +107,27 @@ function NameRow({
 }
 
 /**
- * The register's columns (ADR-0067): rename any built-in column for this project (only its heading
- * changes) or give it its default name back; add up to five columns of your own, rename, move,
- * change what one holds while it is empty, edit a choice list's choices, or delete one with its
- * values, which an administrator can restore.
+ * A screen's columns for one project: rename any built-in column (only its heading changes) or give
+ * it its default name back; add up to five columns of your own, rename, move, change what one holds
+ * while it is empty, edit a choice list's choices, or delete one with its values, which an
+ * administrator can restore. Used by the requirements register, daily activities and to-do lists.
  */
-export function RegisterColumnsButton({
+export function CustomColumnsButton({
   projectId,
   labels,
   columns,
   can,
+  builtIns,
+  actions,
+  title = M.title,
 }: {
   projectId: number;
   labels: readonly ColumnLabel[];
   columns: readonly RegisterColumn[];
   can: { create: boolean; update: boolean; delete: boolean };
+  builtIns: readonly BuiltInColumn[];
+  actions: CustomColumnActionSet;
+  title?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -156,14 +167,14 @@ export function RegisterColumnsButton({
       >
         {M.open}
       </button>
-      <Dialog open={open} onOpenChange={setOpen} title={M.title} description={M.hint} wide>
+      <Dialog open={open} onOpenChange={setOpen} title={title} description={M.hint} wide>
         <div
           className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto"
           data-testid="register-columns-dialog"
         >
           <section className="flex flex-col gap-2">
             <h3 className="text-sm font-semibold text-ink">{M.builtIn}</h3>
-            {REGISTER_BUILT_IN_COLUMNS.map((column) => {
+            {builtIns.map((column) => {
               const label = labelOf(column.key);
               const name = label?.Label ?? column.name;
               return (
@@ -175,7 +186,7 @@ export function RegisterColumnsButton({
                     pending={pending || !can.update}
                     onSave={(value) =>
                       run(() =>
-                        setColumnLabelAction({
+                        actions.setLabel({
                           projectId,
                           columnKey: column.key,
                           label: value,
@@ -193,7 +204,7 @@ export function RegisterColumnsButton({
                         data-testid={`register-label-${column.key}-reset`}
                         onClick={() =>
                           run(() =>
-                            clearColumnLabelAction({
+                            actions.clearLabel({
                               projectId,
                               columnKey: column.key,
                               rowVer: label.RowVer,
@@ -217,25 +228,25 @@ export function RegisterColumnsButton({
             <h3 className="text-sm font-semibold text-ink">{M.added}</h3>
             {columns.length === 0 ? <p className="text-sm text-ink-muted">{C.noColumns}</p> : null}
             {columns.map((column, index) => {
-              const draft = kindDraft[column.RequirementColumnId] ?? {
+              const draft = kindDraft[column.ColumnId] ?? {
                 kind: column.Kind,
                 choices: "",
               };
               return (
                 <div
-                  key={column.RequirementColumnId}
+                  key={column.ColumnId}
                   className="flex flex-col gap-1 rounded-md border border-line p-2"
                   data-testid="register-column"
                 >
                   <NameRow
                     label={M.rename(column.Name)}
                     name={column.Name}
-                    testId={`register-column-${column.RequirementColumnId}`}
+                    testId={`register-column-${column.ColumnId}`}
                     pending={pending || !can.update}
                     onSave={(value) =>
                       run(() =>
-                        renameRegisterColumnAction({
-                          columnId: column.RequirementColumnId,
+                        actions.renameColumn({
+                          columnId: column.ColumnId,
                           name: value,
                           rowVer: column.RowVer,
                         }),
@@ -249,8 +260,8 @@ export function RegisterColumnsButton({
                       disabled={pending || !can.update || index === 0}
                       onClick={() =>
                         run(() =>
-                          moveRegisterColumnAction({
-                            columnId: column.RequirementColumnId,
+                          actions.moveColumn({
+                            columnId: column.ColumnId,
                             direction: -1,
                             rowVer: column.RowVer,
                           }),
@@ -266,8 +277,8 @@ export function RegisterColumnsButton({
                       disabled={pending || !can.update || index === columns.length - 1}
                       onClick={() =>
                         run(() =>
-                          moveRegisterColumnAction({
-                            columnId: column.RequirementColumnId,
+                          actions.moveColumn({
+                            columnId: column.ColumnId,
                             direction: 1,
                             rowVer: column.RowVer,
                           }),
@@ -303,7 +314,7 @@ export function RegisterColumnsButton({
                         onChange={(event) =>
                           setKindDraft({
                             ...kindDraft,
-                            [column.RequirementColumnId]: {
+                            [column.ColumnId]: {
                               ...draft,
                               kind: event.target.value as RegisterKind,
                             },
@@ -325,7 +336,7 @@ export function RegisterColumnsButton({
                           onChange={(event) =>
                             setKindDraft({
                               ...kindDraft,
-                              [column.RequirementColumnId]: {
+                              [column.ColumnId]: {
                                 ...draft,
                                 choices: event.target.value,
                               },
@@ -339,8 +350,8 @@ export function RegisterColumnsButton({
                         disabled={pending || draft.kind === column.Kind}
                         onClick={() =>
                           run(() =>
-                            setRegisterColumnKindAction({
-                              columnId: column.RequirementColumnId,
+                            actions.setColumnKind({
+                              columnId: column.ColumnId,
                               kind: draft.kind,
                               choices: draft.kind === "choice" ? lines(draft.choices) : undefined,
                               rowVer: column.RowVer,
@@ -366,7 +377,7 @@ export function RegisterColumnsButton({
                           pending={pending || !can.update}
                           onSave={(value) =>
                             run(() =>
-                              renameChoiceAction({
+                              actions.renameChoice({
                                 optionId: option.id,
                                 label: value,
                                 rowVer: option.rowVer,
@@ -382,7 +393,7 @@ export function RegisterColumnsButton({
                               disabled={pending}
                               onClick={() =>
                                 run(() =>
-                                  deleteChoiceAction({
+                                  actions.deleteChoice({
                                     optionId: option.id,
                                     rowVer: option.rowVer,
                                   }),
@@ -399,15 +410,15 @@ export function RegisterColumnsButton({
                           className="flex items-center gap-1"
                           onSubmit={(event) => {
                             event.preventDefault();
-                            const label = (choiceDraft[column.RequirementColumnId] ?? "").trim();
+                            const label = (choiceDraft[column.ColumnId] ?? "").trim();
                             if (!label) return;
                             run(
                               () =>
-                                createChoiceAction({ columnId: column.RequirementColumnId, label }),
+                                actions.createChoice({ columnId: column.ColumnId, label }),
                               () =>
                                 setChoiceDraft({
                                   ...choiceDraft,
-                                  [column.RequirementColumnId]: "",
+                                  [column.ColumnId]: "",
                                 }),
                             );
                           }}
@@ -416,12 +427,12 @@ export function RegisterColumnsButton({
                             aria-label={M.newChoice(column.Name)}
                             className="min-w-0 flex-1"
                             maxLength={CHOICE_LABEL_MAX}
-                            value={choiceDraft[column.RequirementColumnId] ?? ""}
+                            value={choiceDraft[column.ColumnId] ?? ""}
                             data-testid="register-choice-new"
                             onChange={(event) =>
                               setChoiceDraft({
                                 ...choiceDraft,
-                                [column.RequirementColumnId]: event.target.value,
+                                [column.ColumnId]: event.target.value,
                               })
                             }
                           />
@@ -452,7 +463,7 @@ export function RegisterColumnsButton({
                   event.preventDefault();
                   run(
                     () =>
-                      createRegisterColumnAction({
+                      actions.createColumn({
                         projectId,
                         name: newName,
                         kind: newKind,
@@ -525,8 +536,8 @@ export function RegisterColumnsButton({
           if (column)
             run(
               () =>
-                deleteRegisterColumnAction({
-                  columnId: column.RequirementColumnId,
+                actions.deleteColumn({
+                  columnId: column.ColumnId,
                   rowVer: column.RowVer,
                 }),
               () => setDeleting(null),

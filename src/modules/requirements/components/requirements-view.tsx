@@ -1,8 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { customColumn } from "@/components/custom-columns/custom-column";
 import { PackageRequirementsButton } from "@/modules/boards/components/package-requirements";
 import { useFullPage } from "@/components/shell/use-full-page";
 import { Button } from "@/components/ui/button";
@@ -14,7 +12,6 @@ import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import type { MultiSelectOption } from "@/components/ui/form/multi-select";
 import { listEmptyState } from "@/components/ui/states";
 import { rowAllows } from "@/lib/auth/actor-access";
-import { customCellColumnId } from "@/lib/custom-columns/kinds";
 import { formatDate } from "@/lib/format";
 import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
@@ -24,10 +21,23 @@ import {
   deleteRequirementAction,
   updateRequirementAction,
 } from "../actions";
-import { setRegisterCellAction } from "../actions/register-columns";
+import {
+  clearColumnLabelAction,
+  createChoiceAction,
+  createRegisterColumnAction,
+  deleteChoiceAction,
+  deleteRegisterColumnAction,
+  moveRegisterColumnAction,
+  renameChoiceAction,
+  renameRegisterColumnAction,
+  setColumnLabelAction,
+  setRegisterCellAction,
+  setRegisterColumnKindAction,
+} from "../actions/register-columns";
 import type { LinkRule } from "../schemas/link-rules";
 import {
   choiceFilterParam,
+  REGISTER_BUILT_IN_COLUMNS,
   type ColumnLabel,
   type RegisterColumn,
 } from "../schemas/register-columns";
@@ -52,13 +62,29 @@ import {
   typeCell,
   typeIsFree,
 } from "./register-model";
-import { RegisterColumnsButton } from "./register-columns-dialog";
+import {
+  CustomColumnsButton,
+  type CustomColumnActionSet,
+} from "@/components/custom-columns/custom-columns-dialog";
+import { useCustomColumns } from "@/components/custom-columns/use-custom-columns";
 import { RequirementsToolbar } from "./requirements-toolbar";
-import { notifySaved } from "@/lib/cross-window";
 
 type Row = RequirementListRow;
 const M = messages.requirements;
 const P = M.placeholders;
+
+const columnActions: CustomColumnActionSet = {
+  setLabel: setColumnLabelAction,
+  clearLabel: clearColumnLabelAction,
+  createColumn: createRegisterColumnAction,
+  renameColumn: renameRegisterColumnAction,
+  moveColumn: moveRegisterColumnAction,
+  setColumnKind: setRegisterColumnKindAction,
+  deleteColumn: deleteRegisterColumnAction,
+  createChoice: createChoiceAction,
+  renameChoice: renameChoiceAction,
+  deleteChoice: deleteChoiceAction,
+};
 
 const typeChoices = REQUIREMENT_TYPES.map((type) => ({
   value: type,
@@ -71,6 +97,7 @@ const saveFormCell = formCellSaver<Row, RequirementRow>(
   updateRequirementAction,
 );
 const canEditRow = rowAllows("requirements:update");
+const requirementId = (row: Row) => row.RequirementId;
 
 /**
  * The project's requirement register (ADR-0037): DataView datasheet over usp_Requirement_List.
@@ -122,7 +149,6 @@ export function RequirementsView({
   choiceFilter?: { columnId: number; optionId: number } | null;
   canManageColumns?: { create: boolean; update: boolean; delete: boolean };
 }) {
-  const router = useRouter();
   const { update, searchParams } = useListUrlState();
   const [fullPage, setFullPage] = useState(false);
   useFullPage(fullPage, () => setFullPage(false));
@@ -217,60 +243,16 @@ export function RequirementsView({
 
   // A project's own column names replace only the headings; keys, data, sorting and saved
   // layouts stay on the stable keys (ADR-0067). Added columns go before the per-row button.
-  const shownColumns = useMemo<DataViewColumn<Row>[]>(() => {
-    const names = new Map(labels.map((label) => [label.ColumnKey, label.Label]));
-    const added = registerColumns.map((column) =>
-      customColumn<Row>({
-        column: {
-          id: column.RequirementColumnId,
-          name: column.Name,
-          kind: column.Kind,
-          actionKind: null,
-          options: column.Options,
-        },
-        cell: (row) => row.CustomCells.find((cell) => cell.columnId === column.RequirementColumnId),
-        canEdit: canEditRow,
-        save: async (row, value) => {
-          const result = await setRegisterCellAction({
-            requirementId: row.RequirementId,
-            columnId: column.RequirementColumnId,
-            kind: column.Kind,
-            value,
-            rowVer: row.RowVer,
-          });
-          if (result.ok) {
-            router.refresh();
-            notifySaved();
-          }
-          return result;
-        },
-      }),
-    );
-    const named = columns.map((column) => ({
-      ...column,
-      header: names.get(column.key) ?? column.header,
-    }));
-    const at = named.findIndex((column) => column.key === "AddSub");
-    return at < 0 ? [...named, ...added] : [...named.slice(0, at), ...added, ...named.slice(at)];
-  }, [columns, labels, registerColumns, router]);
-
-  const kindOf = new Map(
-    registerColumns.map((column) => [column.RequirementColumnId, column.Kind]),
-  );
-  const saveCell = async (row: Row, field: string, value: string) => {
-    const columnId = customCellColumnId(field);
-    const kind = columnId === null ? undefined : kindOf.get(columnId);
-    if (columnId === null || !kind) return saveFormCell(row, field, value);
-    const result = await setRegisterCellAction({
-      requirementId: row.RequirementId,
-      columnId,
-      kind,
-      value,
-      rowVer: row.RowVer,
-    });
-    if (result.ok) notifySaved();
-    return result.ok ? { ok: true as const, data: result.data as Partial<Row> } : result;
-  };
+  const { shownColumns, saveCell } = useCustomColumns<Row>({
+    columns,
+    labels,
+    added: registerColumns,
+    canEdit: canEditRow,
+    rowId: requirementId,
+    setCell: setRegisterCellAction,
+    fallback: saveFormCell,
+    before: "AddSub",
+  });
 
   const choiceColumns = registerColumns.filter((column) => column.Kind === "choice");
 
@@ -355,19 +337,19 @@ export function RequirementsView({
           <RequirementsToolbar projectId={projectId} canPackage={canPackage}>
             {choiceColumns.map((column) => (
               <select
-                key={column.RequirementColumnId}
+                key={column.ColumnId}
                 aria-label={M.columns.filterLabel(column.Name)}
-                data-testid={`requirements-choice-filter-${column.RequirementColumnId}`}
+                data-testid={`requirements-choice-filter-${column.ColumnId}`}
                 className="min-h-10 rounded-md border border-line bg-surface px-2 text-sm text-ink"
                 value={
-                  choiceFilter?.columnId === column.RequirementColumnId
+                  choiceFilter?.columnId === column.ColumnId
                     ? String(choiceFilter.optionId)
                     : ""
                 }
                 onChange={(event) =>
                   update({
                     cf: event.target.value
-                      ? choiceFilterParam(column.RequirementColumnId, Number(event.target.value))
+                      ? choiceFilterParam(column.ColumnId, Number(event.target.value))
                       : null,
                     page: null,
                   })
@@ -382,11 +364,13 @@ export function RequirementsView({
               </select>
             ))}
             {canManageColumns.update || canManageColumns.create ? (
-              <RegisterColumnsButton
+              <CustomColumnsButton
                 projectId={projectId}
                 labels={labels}
                 columns={registerColumns}
                 can={canManageColumns}
+                builtIns={REGISTER_BUILT_IN_COLUMNS}
+                actions={columnActions}
               />
             ) : null}
             {viewToggle}

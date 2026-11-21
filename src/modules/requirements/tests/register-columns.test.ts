@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { REGISTER_KINDS } from "@/lib/custom-columns/kinds";
+import { customColumnRepository } from "@/lib/custom-columns/repository";
+import { execProc } from "@/lib/db";
+import { setColumnLabel, setRegisterCell } from "../repository/register-columns";
 import {
-  BUILT_IN_COLUMNS_JSON,
   REGISTER_BUILT_IN_COLUMNS,
   choiceFilterParam,
   createRegisterColumnInput,
@@ -12,6 +14,8 @@ import {
   setLabelInput,
   setRegisterCellInput,
 } from "../schemas/register-columns";
+
+vi.mock("@/lib/db", () => ({ execProc: vi.fn() }));
 
 describe("register columns (ADR-0067)", () => {
   it("a rename names a built-in column by its stable key, with a 1-80 character label", () => {
@@ -38,7 +42,6 @@ describe("register columns (ADR-0067)", () => {
   it("the built-in list the procs check against names every column once, by key", () => {
     const keys = REGISTER_BUILT_IN_COLUMNS.map((column) => column.key);
     expect(new Set(keys).size).toBe(keys.length);
-    expect(JSON.parse(BUILT_IN_COLUMNS_JSON)).toEqual(REGISTER_BUILT_IN_COLUMNS);
     const view = readFileSync("src/modules/requirements/components/requirements-view.tsx", "utf8");
     for (const key of keys) expect(view, key).toContain(`key: "${key}"`);
   });
@@ -62,8 +65,37 @@ describe("register columns (ADR-0067)", () => {
     expect(createRegisterColumnInput.safeParse({ ...base, kind: "action" }).success).toBe(false);
   });
 
+  it("the repository sends the register's own built-in list and maps the proc's ids", async () => {
+    vi.mocked(execProc).mockResolvedValueOnce([{ ColumnKey: "Ref", Label: "No.", RowVer: "3" }]);
+    await setColumnLabel({ projectId: 3, columnKey: "Ref", label: "No.", rowVer: null }, 8);
+    expect(execProc).toHaveBeenLastCalledWith("usp_RequirementLabel_Set", {
+      ProjectId: 3,
+      ColumnKey: "Ref",
+      Label: "No.",
+      RowVer: null,
+      BuiltInJson: JSON.stringify(REGISTER_BUILT_IN_COLUMNS),
+      ActorUserId: 8,
+    });
+    vi.mocked(execProc).mockResolvedValueOnce([
+      { RequirementId: 4, RowVer: "10", CustomCellsJson: '[{"columnId":7,"text":"x"}]' },
+    ]);
+    const saved = await setRegisterCell({ rowId: 4, columnId: 7, value: "x", rowVer: 9 }, 8);
+    expect(execProc).toHaveBeenLastCalledWith("usp_RequirementCell_Set", {
+      RequirementId: 4,
+      RequirementColumnId: 7,
+      Value: "x",
+      RowVer: 9,
+      ActorUserId: 8,
+    });
+    expect(saved).toEqual({ RowVer: 10, CustomCells: [{ columnId: 7, text: "x" }] });
+  });
+
+  it("only the listed registers have column procs", () => {
+    expect(() => customColumnRepository("Secret" as never, [])).toThrow();
+  });
+
   it("a cell value is checked by its column's kind before it reaches the proc", () => {
-    const cell = { requirementId: 4, columnId: 7, rowVer: 9 };
+    const cell = { rowId: 4, columnId: 7, rowVer: 9 };
     expect(setRegisterCellInput.safeParse({ ...cell, kind: "choice", value: "12" }).data).toEqual({
       ...cell,
       value: "12",
@@ -100,6 +132,7 @@ describe("register columns (ADR-0067)", () => {
       HasValues: true,
       OptionsJson: '[{"id":12,"label":"Open","rowVer":41}]',
     });
+    expect(column.ColumnId).toBe(5);
     expect(column.Options).toEqual([{ id: 12, label: "Open", rowVer: 41 }]);
   });
 
