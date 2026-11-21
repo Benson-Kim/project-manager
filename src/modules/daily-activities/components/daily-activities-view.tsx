@@ -222,7 +222,6 @@ export function DailyActivitiesView({
     setCell: setActivityCellAction,
     fallback: saveFormCell,
   });
-  const manage = canManageColumns.update || canManageColumns.create;
 
   return (
     <DataView
@@ -266,7 +265,7 @@ export function DailyActivitiesView({
       }}
       renderToolbar={(viewToggle) => (
         <DailyActivitiesToolbar projectFilterOptions={projectFilterOptions}>
-          {manage && projectId !== undefined ? (
+          {projectId !== undefined ? (
             <CustomColumnsButton
               projectId={projectId}
               labels={labels}

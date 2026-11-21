@@ -368,7 +368,6 @@ export function TodoView({
     fallback: saveFormCell,
     before: "Reorder",
   });
-  const manage = canManageColumns.update || canManageColumns.create;
 
   return (
     <DataView
@@ -384,7 +383,7 @@ export function TodoView({
       onOpen={(row) => update({ id: String(row.TodoItemId) })}
       renderToolbar={(viewToggle) => (
         <TodoToolbar projectFilterOptions={projectFilterOptions}>
-          {manage && projectId !== null ? (
+          {projectId !== null ? (
             <CustomColumnsButton
               projectId={projectId}
               labels={labels}

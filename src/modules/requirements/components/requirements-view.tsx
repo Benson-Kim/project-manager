@@ -361,16 +361,14 @@ export function RequirementsView({
                 ))}
               </select>
             ))}
-            {canManageColumns.update || canManageColumns.create ? (
-              <CustomColumnsButton
-                projectId={projectId}
-                labels={labels}
-                columns={registerColumns}
-                can={canManageColumns}
-                builtIns={REGISTER_BUILT_IN_COLUMNS}
-                actions={columnActions}
-              />
-            ) : null}
+            <CustomColumnsButton
+              projectId={projectId}
+              labels={labels}
+              columns={registerColumns}
+              can={canManageColumns}
+              builtIns={REGISTER_BUILT_IN_COLUMNS}
+              actions={columnActions}
+            />
             {viewToggle}
             <Button
               type="button"

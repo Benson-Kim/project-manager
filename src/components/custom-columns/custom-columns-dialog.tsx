@@ -111,6 +111,7 @@ function NameRow({
  * it its default name back; add up to five columns of your own, rename, move, change what one holds
  * while it is empty, edit a choice list's choices, or delete one with its values, which an
  * administrator can restore. Used by the requirements register, daily activities and to-do lists.
+ * It shows to anyone who may add, change or delete a column, and to no one else.
  */
 export function CustomColumnsButton({
   projectId,
@@ -153,6 +154,8 @@ export function CustomColumnsButton({
     });
 
   const labelOf = (key: string) => labels.find((label) => label.ColumnKey === key);
+
+  if (!can.create && !can.update && !can.delete) return null;
 
   return (
     <>
