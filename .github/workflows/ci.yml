@@ -180,6 +180,9 @@ jobs:
       - name: Build Application
         run: npm run build
 
+      - name: Check the standalone output
+        run: node scripts/desktop/standalone-check.mjs
+
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import { sha256, verifySqlMedia } from "./fetch-sql-express.mjs";
 import { licensingConfig } from "./licensing.cjs";
+import { assertStandaloneEntries } from "./standalone-check.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const args = new Set(process.argv.slice(2));
@@ -84,14 +85,9 @@ if (!packageOnly) {
   if (!existsSync(join(standalone, "node_modules", "argon2"))) {
     throw new Error("argon2 missing from the standalone output (needed for the admin account)");
   }
-  // Output tracing follows runtime paths: a regression could ship the build
-  // machine's own files (uploads, temp folders). And when copying a traced file
-  // fails, `next build` still exits 0 with a route missing its chunks. Check both.
-  const SHIPPED = new Set([".next", "node_modules", "public", "package.json", "server.js"]);
-  const extra = readdirSync(standalone).filter((f) => !SHIPPED.has(f));
-  if (extra.length) {
-    throw new Error(`Unexpected entries in the standalone output (build-machine files?): ${extra.join(", ")}`);
-  }
+  // When copying a traced file fails, `next build` still exits 0 with a route
+  // missing its chunks. Check that, and that nothing else was traced in.
+  assertStandaloneEntries(standalone);
   const serverDir = join(root, ".next", "server");
   const missing = new Set();
   for (const f of readdirSync(serverDir, { recursive: true })) {
