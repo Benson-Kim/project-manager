@@ -10,9 +10,13 @@ export function notesListHref(projectId: number | null): string {
   return projectId === null ? NOTES_HREF : `/projects/${projectId}/notes`;
 }
 
-/** A notebook's workspace. */
-export function noteHref(note: { NoteId: number; ProjectId: number | null }): string {
-  return `${notesListHref(note.ProjectId)}/${note.NoteId}`;
+/** A notebook's workspace; with `find`, it opens on the first page holding that text. */
+export function noteHref(
+  note: { NoteId: number; ProjectId: number | null },
+  find?: string,
+): string {
+  const href = `${notesListHref(note.ProjectId)}/${note.NoteId}`;
+  return find ? `${href}?find=${encodeURIComponent(find)}` : href;
 }
 
 /** The printable copy of a notebook. */

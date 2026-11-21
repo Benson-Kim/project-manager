@@ -41,6 +41,9 @@ export interface RichTextEditorProps {
   autoFocus?: boolean;
   /** How tall the writing area may grow; a field has a ceiling, a page does not. */
   height?: EditorHeight;
+  /** Ctrl+F finds and Ctrl+H replaces in the text (a notebook page). */
+  findReplace?: boolean;
+  findSeed?: string;
   /** Test hook on the wrapper. */
   testId?: string;
 }
@@ -54,6 +57,8 @@ export function RichTextEditor({
   label,
   autoFocus = false,
   height = "field",
+  findReplace = false,
+  findSeed,
   testId,
 }: RichTextEditorProps) {
   const field = useFieldContext();
@@ -85,6 +90,8 @@ export function RichTextEditor({
           label={field?.labelId ? undefined : label}
           autoFocus={autoFocus}
           height={height}
+          findReplace={findReplace}
+          findSeed={findSeed}
         />
       ) : (
         <EditorPlaceholder />

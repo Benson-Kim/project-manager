@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupPages, stripKeyTarget, swapInOrder } from "../notebook-model";
+import { firstPageWith, groupPages, stripKeyTarget, swapInOrder } from "../notebook-model";
 import type { NoteSectionRow, NoteTabRow } from "../schemas/note";
 
 function section(id: number, sortOrder: number): NoteSectionRow {
@@ -56,5 +56,31 @@ describe("notebook model", () => {
     expect(stripKeyTarget("End", 0, 3)).toBe(2);
     expect(stripKeyTarget("Enter", 1, 3)).toBeNull();
     expect(stripKeyTarget("ArrowRight", 0, 0)).toBeNull();
+  });
+});
+
+describe("firstPageWith", () => {
+  const groups = groupPages(
+    [section(20, 1), section(10, 2)],
+    [
+      { ...page(1, 10), Content: "<p>Budget risk</p>" },
+      { ...page(2, 20), Content: "<p>Fish &amp; chips</p>" },
+      { ...page(3, 20), Title: "Risk log", Content: "<p>Nothing</p>" },
+    ],
+  );
+
+  it("takes the first page in reading order, by title or text, in any case", () => {
+    expect(firstPageWith(groups, " RISK ")?.NoteTabId).toBe(3);
+    expect(firstPageWith(groups, "budget")?.NoteTabId).toBe(1);
+  });
+
+  it("reads the text, not the markup", () => {
+    expect(firstPageWith(groups, "fish & chips")?.NoteTabId).toBe(2);
+    expect(firstPageWith(groups, "<p>")).toBeNull();
+  });
+
+  it("finds nothing for blank or missing text", () => {
+    expect(firstPageWith(groups, "  ")).toBeNull();
+    expect(firstPageWith(groups, "absent")).toBeNull();
   });
 });
