@@ -249,13 +249,14 @@ test("a list search opens the notebook on the page holding the text, where find,
   await expect(count).toHaveText(R.noMatches);
   await expect(editor(page)).toContainText("One garnet, two garnet.");
 
+  await page.getByTestId("replace-input").press("Escape");
+  await expect(page.getByRole("search", { name: R.find })).toHaveCount(0);
+
   // Ctrl+S presses the Save button of the form being edited.
-  await page.getByTestId("replace-input").press("Control+S");
+  await editor(page).press("Control+S");
   await expect(
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.saved }).first(),
   ).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId("replace-input").press("Escape");
-  await expect(page.getByRole("search", { name: R.find })).toHaveCount(0);
 
   await page.goto(notebookUrl);
   await page.getByRole("tab", { name: "Beta" }).click();
