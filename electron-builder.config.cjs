@@ -37,6 +37,10 @@ const r = (...p) => path.join(root, ...p);
 const PUBLISHER_CER = r("build-resources", "publisher.cer");
 const signing = signingConfig(process.env, fs.existsSync(PUBLISHER_CER));
 const feed = updateFeed(process.env);
+// The full installer (a PC's first install) also carries the SQL Server media. Updates use the
+// slim one, so latest.yml and the .blockmap always describe it; the full one is built into its
+// own folder and keeps the update feed, so a PC set up from it still updates itself.
+const fullInstaller = process.env.MODULUS_FULL_INSTALLER === "1";
 
 // The Next server's native modules sit outside the folders electron-builder signs by itself.
 async function signServerBinaries(packager, dir) {
@@ -61,7 +65,7 @@ module.exports = {
   electronVersion: require("./node_modules/electron/package.json").version,
 
   directories: {
-    output: r("dist-installer"),
+    output: fullInstaller ? r("dist-installer", "full") : r("dist-installer"),
     buildResources: r("build-resources"),
   },
   npmRebuild: false,
@@ -98,7 +102,9 @@ module.exports = {
       to: "setup",
       filter: ["provision.ps1", "remove-all-users-install.ps1"],
     },
-    { from: r("installers", "sql-express"), to: "sql-express", filter: ["SQLEXPR_x64_ENU.exe"] },
+    ...(fullInstaller
+      ? [{ from: r("installers", "sql-express"), to: "sql-express", filter: ["SQLEXPR_x64_ENU.exe"] }]
+      : []),
     { from: r("build-resources", "icon.ico"), to: "icon.ico" },
     ...(signing.shipCertificate ? [{ from: PUBLISHER_CER, to: "setup/publisher.cer" }] : []),
   ],
@@ -106,7 +112,7 @@ module.exports = {
   win: {
     target: [{ target: "nsis", arch: ["x64"] }],
     icon: r("build-resources", "icon.ico"),
-    artifactName: "Modulus-Setup-${version}.${ext}",
+    artifactName: fullInstaller ? "Modulus-Setup-Full-${version}.${ext}" : "Modulus-Setup-${version}.${ext}",
     // Signing method, timestamping and the files signed (scripts/desktop/signing.cjs).
     ...signing.win,
   },

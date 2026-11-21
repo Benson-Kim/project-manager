@@ -31,7 +31,52 @@
   StrCpy $isForceCurrentInstall "1"
 !macroend
 
+; An update keeps the old version whole in "<install dir>.previous" until the new files are in,
+; so a power cut or a killed installer between the two steps loses nothing. The uninstaller run
+; by an update is the one shipped with the OLD version, so this protects updates from the
+; release after the one that first ships it. A busy folder falls back to the default file-by-file
+; move, so an update never fails where it worked before.
+!macro customRemoveFiles
+  SetOutPath $TEMP
+  RMDir /r "$INSTDIR.previous"
+  ${if} ${isUpdated}
+    ClearErrors
+    Rename "$INSTDIR" "$INSTDIR.previous"
+    ${if} ${Errors}
+      CreateDirectory "$PLUGINSDIR\old-install"
+      Push ""
+      Call un.atomicRMDir
+      Pop $R0
+      ${if} $R0 != 0
+        DetailPrint "File is busy, aborting: $R0"
+        Push ""
+        Call un.restoreFiles
+        Pop $R0
+        Abort `Can't rename "$INSTDIR" to "$PLUGINSDIR\old-install".`
+      ${endif}
+    ${endif}
+  ${endif}
+  RMDir /r $INSTDIR
+!macroend
+
+; A "<install dir>.previous" left behind means the last update stopped before its files were in:
+; put the old version back first, then this run updates it as usual.
+!macro customInit
+  IfFileExists "$INSTDIR.previous\${APP_EXECUTABLE_FILENAME}" 0 pm_restore_done
+    SetOutPath $TEMP
+    RMDir /r "$INSTDIR.partial"
+    ClearErrors
+    IfFileExists "$INSTDIR\*.*" 0 pm_restore_move
+      Rename "$INSTDIR" "$INSTDIR.partial"
+      IfErrors pm_restore_done
+    pm_restore_move:
+    Rename "$INSTDIR.previous" "$INSTDIR"
+    RMDir /r "$INSTDIR.partial"
+  pm_restore_done:
+!macroend
+
 !macro customInstall
+  RMDir /r "$INSTDIR.previous"
   StrCpy $R1 "$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
   IfFileExists "$R1" pm_ps_found 0
     StrCpy $R1 "$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe"
@@ -73,7 +118,10 @@
   pm_provision:
   DetailPrint "Setting up the Modulus database engine..."
   DetailPrint "Windows asks for administrator approval. A first-time setup takes 5-15 minutes."
-  nsExec::ExecToLog '"$R1" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\resources\setup\provision.ps1" -SqlInstaller "$INSTDIR\resources\sql-express\SQLEXPR_x64_ENU.exe"'
+  StrCpy $R3 ""
+  IfFileExists "$INSTDIR\resources\sql-express\SQLEXPR_x64_ENU.exe" 0 +2
+    StrCpy $R3 ' -SqlInstaller "$INSTDIR\resources\sql-express\SQLEXPR_x64_ENU.exe"'
+  nsExec::ExecToLog '"$R1" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\resources\setup\provision.ps1"$R3'
   Pop $R0
   StrCmp $R0 "0" pm_db_ok
   StrCmp $R0 "11" 0 pm_db_failed

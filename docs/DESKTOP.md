@@ -96,7 +96,8 @@ whether the tree was dirty) in the app.
 | Command | Purpose |
 |---|---|
 | `npm run electron:fetch-sql` | Download the pinned SQL Server media (`scripts/desktop/sql-express.pin.json`) and verify its SHA-256 |
-| `npm run electron:build` | Full clean build → installer |
+| `npm run electron:build` | Full clean build → update installer (`dist-installer`, no SQL Server media; latest.yml and the .blockmap describe it) |
+| `node scripts/desktop/build.mjs --full` | First-install installer for a new PC (`dist-installer/full/Modulus-Setup-Full-<version>.exe`, carries the SQL Server media) |
 | `npm run electron:build:dir` | Same, unpacked (`dist-installer/win-unpacked`) for quick inspection |
 | `npm run electron:dev` | Run the desktop host against an existing `next build` (needs a provisioned machine or `PM_MACHINE_CONFIG`) |
 | `npm run electron:test-db` | Integration test of schema apply / backup / restore / admin bootstrap against a real SQL Server (see below) |
@@ -353,6 +354,10 @@ that Windows account only; the database and backups stay (client data). To remov
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$($app.FullName)\setup\provision.ps1" `
       -SqlInstaller "$($app.FullName)\sql-express\SQLEXPR_x64_ENU.exe"
     ```
+
+    Only a PC set up from the full installer has the `sql-express` folder; an update
+    removes it. Where it is missing and the engine must be installed, run
+    `Modulus-Setup-Full-<version>.exe` instead.
 
     Exit code 0 means done. Each user gets uploads the next time they start the
     app. machine.json keeps `schemaVersion: 1`, so an older app that another
