@@ -1,5 +1,8 @@
 import fs from "fs";
 import path from "path";
+import { describeError } from "./describe-error";
+
+export { describeError };
 
 /**
  * Minimal rotating file logger. A packaged GUI app has no console, so without
@@ -43,11 +46,6 @@ function guardConsole(): void {
   consoleGuarded = true;
   process.stdout.on("error", () => undefined);
   process.stderr.on("error", () => undefined);
-}
-
-export function describeError(err: unknown): string {
-  if (err instanceof Error) return err.stack ?? err.message;
-  return String(err);
 }
 
 export function createLogger(dir: string, name = "main.log", maxBytes = MAX_BYTES): Logger {

@@ -3,7 +3,8 @@ import { existsSync } from "fs";
 import net from "net";
 import path from "path";
 import { promisify } from "util";
-import { describeError, type Logger } from "./log";
+import { describeError } from "./describe-error";
+import type { Logger } from "./log";
 
 const execFileAsync = promisify(execFile);
 
