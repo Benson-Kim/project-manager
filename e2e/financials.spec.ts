@@ -119,6 +119,8 @@ test("quick calculator: works out a sum over the page and leaves the page usable
   await axe(page);
   await sum.fill("");
   await panel.getByRole("button", { name: Q.keys.sine, exact: true }).click();
+  // A key hands focus back to the sum a frame later; typing into an unfocused input puts the caret first.
+  await expect(sum).toBeFocused();
   await sum.pressSequentially("90)");
   await expect(result).toHaveText(Q.result("1"));
   await panel.getByRole("button", { name: Q.angle.deg.name }).click();

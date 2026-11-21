@@ -189,6 +189,7 @@ export function TodoPlanner({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
   const [placeId, setPlaceId] = useState("");
+  const placeSelectId = useId();
   const [placeDraft, setPlaceDraft] = useState<Draft>(() => draftAt(firstDay, 9 * 60));
   const [saved, setSaved] = useState<Record<number, Slot & { until?: number }>>({});
   const [preview, setPreview] = useState<{ id: number; slot: Slot } | null>(null);
@@ -826,9 +827,10 @@ export function TodoPlanner({
                     place();
                   }}
                 >
-                  <label className={`${labelClass} w-full`}>
-                    {P.todos}
+                  <div className={`${labelClass} w-full`}>
+                    <label htmlFor={placeSelectId}>{P.todos}</label>
                     <select
+                      id={placeSelectId}
                       className={field}
                       value={placeId}
                       onChange={(e) => setPlaceId(e.target.value)}
@@ -840,7 +842,7 @@ export function TodoPlanner({
                         </option>
                       ))}
                     </select>
-                  </label>
+                  </div>
                   <SlotFields days={days} draft={placeDraft} onChange={setPlaceDraft} />
                   <button
                     type="submit"

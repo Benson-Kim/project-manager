@@ -250,7 +250,7 @@ export function ParticipantsPanel({
             {M.participants}
           </h2>
           <span className="text-xs text-ink-muted" data-testid="participant-counts">
-            ({M.attendedCount(counts.attended)} · {M.apologyCount(counts.apologies)})
+            {M.attendedCount(counts.attended)} · {M.apologyCount(counts.apologies)}
           </span>
         </div>
         {canEdit ? (
@@ -540,16 +540,16 @@ function ParticipantRow({
             const isChecked = attendance === value;
             let activeStyle = "";
             if (isChecked) {
-              if (value === "attended") activeStyle = "bg-emerald-500 text-white font-semibold";
-              else if (value === "apology") activeStyle = "bg-amber-500 text-white font-semibold";
-              else activeStyle = "bg-slate-400 text-white font-semibold";
+              if (value === "attended") activeStyle = "bg-emerald-700 text-white font-semibold";
+              else if (value === "apology") activeStyle = "bg-amber-700 text-white font-semibold";
+              else activeStyle = "bg-slate-600 text-white font-semibold";
             } else {
               activeStyle = "text-ink-muted hover:bg-surface-soft hover:text-ink";
             }
             return (
               <label
                 key={value}
-                className={`flex min-h-7 cursor-pointer items-center justify-center px-2.5 py-1 text-xs border-r border-line last:border-r-0 transition-colors ${activeStyle}`}
+                className={`relative flex min-h-7 cursor-pointer items-center justify-center px-2.5 py-1 text-xs border-r border-line last:border-r-0 transition-colors has-focus-visible:z-10 has-focus-visible:outline-2 has-focus-visible:-outline-offset-2 has-focus-visible:outline-focus ${activeStyle}`}
               >
                 <input
                   type="radio"
@@ -557,7 +557,7 @@ function ParticipantRow({
                   value={value}
                   checked={isChecked}
                   onChange={() => onPick(entry, value)}
-                  className="sr-only"
+                  className="absolute inset-0 m-0 cursor-pointer appearance-none opacity-0"
                 />
                 <span>{M.attendance[value]}</span>
               </label>

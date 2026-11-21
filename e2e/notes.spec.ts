@@ -208,7 +208,7 @@ test("/notes lists a project's notebook with its project and opens it under the 
     messages.projectPicker.none,
   );
   await link.click();
-  await page.waitForURL(projectUrl);
+  await page.waitForURL(`${projectUrl}?find=${encodeURIComponent(unique)}`);
 
   await page.goto(projectUrl.replace(/\/projects\/\d+\/notes\//, "/notes/"));
   await page.waitForURL(projectUrl);
