@@ -20,6 +20,7 @@ import type { DataViewColumn } from "@/components/ui/data-view/types";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { ProjectLink } from "@/components/ui/project-link";
 import { EmptyState } from "@/components/ui/states";
+import { localWallClock } from "@/lib/local-time";
 import { rowAllows } from "@/lib/auth/actor-access";
 import type { ColumnLabel, RegisterColumn } from "@/lib/custom-columns/register";
 import type { ListLayout } from "@/lib/list-layout";
@@ -294,7 +295,10 @@ function buildColumns(
 }
 
 /** Datasheet edits go through the same update action as the Sheet (ADR-0023). */
-const saveFormCell = formCellSaver<Row, TodoItemRow>(todoItemFormValues, updateTodoItemAction);
+const saveFormCell = formCellSaver<Row, TodoItemRow>(
+  (row) => ({ ...todoItemFormValues(row), localNow: localWallClock() }),
+  updateTodoItemAction,
+);
 /** The to-do rule per row (ADR-0021): own to-dos, or every to-do of projects you manage. */
 const canEditRow = rowAllows("todo-items:update");
 const todoId = (row: Row) => row.TodoItemId;
@@ -442,6 +446,7 @@ export function TodoView({
                 createTodoItemAction({
                   projectId: projectId === null ? "" : String(projectId),
                   ...values,
+                  localNow: localWallClock(),
                 }),
             }
           : undefined,

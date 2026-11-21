@@ -61,7 +61,7 @@ const todoItemFields = z.object({
   priority: listChoice,
   status: listChoice,
   notes: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
-  /** Appended at submit, not a field; a datasheet cell save leaves it out (the proc uses UTC). */
+  /** The user's wall clock, appended at submit and on every datasheet save; not a field. */
   localNow: z.string().regex(LOCAL_WALL_CLOCK).optional(),
 });
 
