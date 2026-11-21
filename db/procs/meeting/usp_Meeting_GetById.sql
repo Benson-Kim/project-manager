@@ -32,6 +32,9 @@ BEGIN
            [Conclusion],
            [NextMeeting],
            [FollowupAction],
+           [MeetingFormat],
+           [MeetingLink],
+           [NextMeetingLink],
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer

@@ -19,6 +19,9 @@ CREATE OR ALTER PROCEDURE dbo.usp_Meeting_Update
     @EndTime        TIME(0)       = NULL,
     @Conclusion     NVARCHAR(MAX) = NULL,
     @NextMeeting    DATETIME2     = NULL,
+    @MeetingFormat  NVARCHAR(20)  = NULL,
+    @MeetingLink    NVARCHAR(500) = NULL,
+    @NextMeetingLink NVARCHAR(500) = NULL,
     @RowVer         BIGINT,
     @ActorUserId    INT
 AS
@@ -44,7 +47,8 @@ BEGIN
 
     DECLARE @Before NVARCHAR(MAX) =
         (SELECT MeetingId, [ProjectId], [Subject], [Objective], [DateReceived], [Description], [Location],
-                [StartDate], [StartTime], [EndTime], [Conclusion], [NextMeeting], [FollowupAction]
+                [StartDate], [StartTime], [EndTime], [Conclusion], [NextMeeting], [FollowupAction],
+                [MeetingFormat], [MeetingLink], [NextMeetingLink]
          FROM app.Meeting WHERE MeetingId = @MeetingId
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 
@@ -59,6 +63,9 @@ BEGIN
         [EndTime]        = @EndTime,
         [Conclusion]     = @Conclusion,
         [NextMeeting]    = @NextMeeting,
+        [MeetingFormat]  = @MeetingFormat,
+        [MeetingLink]    = @MeetingLink,
+        [NextMeetingLink] = @NextMeetingLink,
         UpdatedAtUtc     = SYSUTCDATETIME(),
         UpdatedBy        = @ActorUserId
     WHERE MeetingId = @MeetingId AND IsDeleted = 0
@@ -73,7 +80,8 @@ BEGIN
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.Meeting', CAST(@MeetingId AS NVARCHAR(64)), @Before,
             (SELECT MeetingId, [ProjectId], [Subject], [Objective], [DateReceived], [Description], [Location],
-                    [StartDate], [StartTime], [EndTime], [Conclusion], [NextMeeting], [FollowupAction]
+                    [StartDate], [StartTime], [EndTime], [Conclusion], [NextMeeting], [FollowupAction],
+                    [MeetingFormat], [MeetingLink], [NextMeetingLink]
              FROM app.Meeting WHERE MeetingId = @MeetingId
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
 
@@ -92,6 +100,9 @@ BEGIN
            [Conclusion],
            [NextMeeting],
            [FollowupAction],
+           [MeetingFormat],
+           [MeetingLink],
+           [NextMeetingLink],
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer

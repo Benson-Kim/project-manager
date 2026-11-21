@@ -136,6 +136,7 @@ export function MinutesEditor({
   canAddStakeholder,
   logKinds,
   taskOptions,
+  notes,
 }: {
   workspace: MeetingWorkspace;
   /** Each discussion point's formatted view, rendered on the server (RichTextView). */
@@ -155,6 +156,8 @@ export function MinutesEditor({
   canAddStakeholder: boolean;
   logKinds: readonly GovernanceLogKind[];
   taskOptions: readonly { id: number; label: string }[];
+  /** The meeting's notes form, shown under the agenda. */
+  notes?: React.ReactNode;
 }) {
   const router = useRouter();
   const { announce } = useAnnouncer();
@@ -612,6 +615,8 @@ export function MinutesEditor({
             )
           ) : null}
         </section>
+
+        {notes}
 
         <CustomSections sections={shown.sections} />
 

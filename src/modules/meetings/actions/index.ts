@@ -1,5 +1,6 @@
 "use server";
 
+import { z } from "zod";
 import { action } from "@/lib/action";
 import {
   createActionItem,
@@ -13,6 +14,7 @@ import {
   deleteDiscussionPoint,
   deleteFollowUp,
   deleteMeeting,
+  getLastMeetingAttendees,
   reorderActionItems,
   reorderAgendaItems,
   reorderDiscussionPoints,
@@ -298,4 +300,16 @@ export const setParticipantsAction = action({
   permission: "meetings:update",
   revalidate: ["/projects/[id]/meetings"],
   handler: (input, ctx) => setParticipants(input, ctx.session.userId),
+});
+
+/** Attendees of the most recent previous meeting of the same project. */
+export const getLastMeetingAttendeesAction = action({
+  name: "meetings.getLastMeetingAttendees",
+  schema: z.object({
+    meetingId: z.coerce.number().int().positive(),
+    projectId: z.coerce.number().int().positive(),
+  }),
+  permission: "meetings:update",
+  handler: (input, ctx) =>
+    getLastMeetingAttendees(input.meetingId, input.projectId, ctx.session.userId),
 });

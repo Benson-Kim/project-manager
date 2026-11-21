@@ -17,6 +17,7 @@ import {
   actionStatusSchema,
   type ActionStatus,
   type MeetingRow,
+  meetingFormatSchema,
 } from "./meeting";
 
 /**
@@ -73,6 +74,12 @@ const headerFields = {
   endTime: timeInput,
   conclusion: richTextSchema({ max: MEETING_RICH_TEXT_MAX }),
   nextMeeting: dateInput,
+  meetingFormat: z.preprocess(
+    (v) => (v === "" || v == null ? null : v),
+    meetingFormatSchema.nullable(),
+  ),
+  meetingLink: optionalText(500),
+  nextMeetingLink: optionalText(500),
 };
 
 /** The end time must come after the start time (the issue sits on endTime). */
@@ -127,7 +134,20 @@ export function meetingFormValues(row: MeetingRow): FormValues {
     endTime: noTimes ? "" : formText(row.EndTime),
     conclusion: formText(row.Conclusion),
     nextMeeting: toDateInput(row.NextMeeting),
+    meetingFormat: row.MeetingFormat ?? "",
+    meetingLink: formText(row.MeetingLink),
+    nextMeetingLink: formText(row.NextMeetingLink),
   };
+}
+
+/**
+ * Changes only when the meeting's saved values change, not its row version, so
+ * an agenda or attendee save elsewhere on the page keeps the form's edits.
+ */
+export function meetingFormKey(row: MeetingRow): string {
+  const values = meetingFormValues(row);
+  delete values.rowVer;
+  return JSON.stringify(values);
 }
 
 // ── Minutes: agenda → discussion points → action items ───────────────────────
@@ -177,9 +197,8 @@ const actionFields = {
   assignedToStakeholderId: optionalId,
   /**
    * ...or a name typed in, for someone with no stakeholder row — a guest, or
-   * somebody outside the organisation (client feedback 2026-10-26). The two
-   * are exclusive: the picker submits one or the other, and
-   * CK_MeetingActionItem_OneAssignee is what actually holds the rule.
+   * somebody outside the organisation. The two are exclusive: 
+   * the picker submits one or the other, and CK_MeetingActionItem_OneAssignee is what actually holds the rule. 
    */
   assigneeOther: optionalText(255),
   dueDate: dateInput,

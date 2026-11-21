@@ -78,6 +78,9 @@ function headerParams(input: HeaderValues) {
     EndTime: input.endTime ?? null,
     Conclusion: input.conclusion ?? null,
     NextMeeting: input.nextMeeting ?? null,
+    MeetingFormat: input.meetingFormat ?? null,
+    MeetingLink: input.meetingLink ?? null,
+    NextMeetingLink: input.nextMeetingLink ?? null,
   };
 }
 
@@ -241,6 +244,28 @@ export async function listApologies(
     ActorUserId: actorUserId,
   });
   return rows.map((r) => attendeeRowSchema.parse(r));
+}
+
+/**
+ * Attendees of the most recent previous meeting of the same project.
+ * Used by the workspace's "Import from last" action.
+ */
+export async function getLastMeetingAttendees(
+  meetingId: number,
+  projectId: number,
+  actorUserId: number,
+): Promise<{ meetingId: number; subject: string | null; attendees: AttendeeRow[] } | null> {
+  const meetings = await listMeetings(
+    projectId,
+    { q: undefined, page: 1, sort: "StartDate", dir: "desc" },
+    actorUserId,
+    {},
+    10,
+  );
+  const prev = meetings.find((m) => m.MeetingId !== meetingId);
+  if (!prev) return null;
+  const attendees = await listAttendees(prev.MeetingId, actorUserId);
+  return { meetingId: prev.MeetingId, subject: prev.Subject, attendees };
 }
 
 /**

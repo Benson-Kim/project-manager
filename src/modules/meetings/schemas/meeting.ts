@@ -63,6 +63,18 @@ function jsonArray<T extends z.ZodType>(item: T) {
   );
 }
 
+/**
+ * Meeting format: how the meeting is held (ADR-0028, migration 090). The header
+ * form shows Location and/or MeetingLink accordingly:
+ *   Hybrid   → Location + MeetingLink
+ *   Online   → MeetingLink only
+ *   Physical → Location only
+ *   null     → Location only (backward compatible)
+ */
+export const MEETING_FORMATS = ["Hybrid", "Online", "Physical"] as const;
+export type MeetingFormat = (typeof MEETING_FORMATS)[number];
+export const meetingFormatSchema = z.enum(MEETING_FORMATS);
+
 const meetingFields = {
   MeetingId: z.number().int(),
   ProjectId: z.number().int().nullable(),
@@ -77,6 +89,9 @@ const meetingFields = {
   Conclusion: z.string().nullable(),
   NextMeeting: z.date().nullable(),
   FollowupAction: z.string().nullable(),
+  MeetingFormat: meetingFormatSchema.nullable().optional().transform((v) => v ?? null),
+  MeetingLink: z.string().nullable().optional().transform((v) => v ?? null),
+  NextMeetingLink: z.string().nullable().optional().transform((v) => v ?? null),
   CreatedAtUtc: z.date(),
   UpdatedAtUtc: z.date().nullable(),
   RowVer: rowVerSchema,

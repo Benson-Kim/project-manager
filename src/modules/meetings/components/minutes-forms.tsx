@@ -486,8 +486,7 @@ export function ActionItemForm({
         >
           {/*
             Pick a stakeholder, or type the name of someone who is not one — a
-            guest, or somebody outside the organisation (client feedback
-            2026-10-26). A stored name with no stakeholder behind it is free
+            guest, or somebody outside the organisation. A stored name with no stakeholder behind it is free
             text, so it comes back into the box as text.
           */}
           <StakeholderSelect

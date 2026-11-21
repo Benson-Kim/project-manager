@@ -419,13 +419,11 @@ function ActionRow({
           <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
             {/*
               A completed action stays in the minutes that raised it, struck
-              through rather than hidden (client feedback 2026-10-26, M6); the
-              carry-over list is what drops it, so later meetings stop showing it.
+              through rather than hidden; the carry-over list is what drops it, so later meetings stop showing it.
             */}
             <p
-              className={`min-w-0 flex-1 py-2.5 text-sm wrap-anywhere ${
-                action.Status === "completed" ? "text-ink-muted line-through" : "text-ink"
-              }`}
+              className={`min-w-0 flex-1 py-2.5 text-sm wrap-anywhere ${action.Status === "completed" ? "text-ink-muted line-through" : "text-ink"
+                }`}
             >
               {action.Action}
             </p>
