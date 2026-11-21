@@ -384,8 +384,9 @@ function MeetingPartForm({
  */
 function MeetingHeaderFields({ values, errors }: { values: FormValues; errors: Errors }) {
   const { canEdit, markDirty } = useMeetingForm();
-  const initialFormat = (values.meetingFormat as MeetingFormat) || "Hybrid";
-  const [format, setFormat] = useState<MeetingFormat>(initialFormat);
+  const [format, setFormat] = useState<MeetingFormat | null>(
+    (values.meetingFormat as MeetingFormat) || null,
+  );
   const [startTime, setStartTime] = useState<string>((values.startTime as string) ?? "");
   const [endTime, setEndTime] = useState<string>((values.endTime as string) ?? "");
 
@@ -393,7 +394,7 @@ function MeetingHeaderFields({ values, errors }: { values: FormValues; errors: E
 
   return (
     <>
-      <input type="hidden" name="meetingFormat" value={format} />
+      <input type="hidden" name="meetingFormat" value={format ?? ""} />
       <Field label={M.subject} name="subject" errors={errors.subject}>
         <Input
           name="subject"
@@ -461,6 +462,8 @@ function MeetingHeaderFields({ values, errors }: { values: FormValues; errors: E
                 <button
                   key={fmt}
                   type="button"
+                  role="radio"
+                  aria-checked={isSelected}
                   disabled={!canEdit}
                   onClick={() => {
                     setFormat(fmt);
