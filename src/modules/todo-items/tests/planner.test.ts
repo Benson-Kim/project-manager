@@ -314,6 +314,19 @@ describe("plannerRepeats", () => {
       ["2026-11-05T23:00", "2026-11-06T00:00"],
     ]);
   });
+
+  it("keeps an hourly series' other repeats on the booked day", () => {
+    const hourly = {
+      ...series,
+      slot: { start: "2026-11-04T07:00", end: "2026-11-04T08:30" },
+      rule: { ...daily, unit: "Hour" as const, every: 8, startTime: "07:00" },
+    };
+    expect(
+      repeats(hourly)
+        .filter((b) => b.start.startsWith("2026-11-04"))
+        .map((b) => b.start),
+    ).toEqual(["2026-11-04T15:00", "2026-11-04T23:00"]);
+  });
 });
 
 describe("plannerStartFor", () => {

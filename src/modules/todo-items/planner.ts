@@ -181,16 +181,15 @@ const minutesBetween = (slot: Slot) =>
 
 /**
  * A booked series' repeats in the window, each at the booked time of day (an hourly
- * series at its own time) and as long as the booking. The booked day keeps the real block.
+ * series at its own time) and as long as the booking. The booked occurrence keeps the real block.
  */
 export function plannerRepeats(entries: readonly CalendarEntry[]): PlannerBlock[] {
   return entries.flatMap((entry) => {
     const { todo, occurrence } = entry;
     const slot = todo.slot;
-    if (!occurrence || occurrence.isSkipped || !slot || entry.day === slot.start.slice(0, 10)) {
-      return [];
-    }
+    if (!occurrence || occurrence.isSkipped || !slot) return [];
     const start = `${entry.day}T${entry.time ?? slot.start.slice(11, 16)}`;
+    if (start === slot.start) return [];
     const end = fromMinutes(entry.day, toMinutes(start, entry.day) + minutesBetween(slot));
     return [
       {
