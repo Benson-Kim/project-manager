@@ -141,7 +141,7 @@ describe("the licence service keeps the hours", () => {
     const licence = trialDoc();
     const svc = highWater(licence);
     const markKey = randomBytes(32).toString("base64url");
-    const old: LicenceState = { licence, checkIn: null, mark: null, markKey };
+    const old: LicenceState = { licence, checkIn: null, mark: null, markKey, usage: null };
     const first = install(old, null, svc);
     await first.manager.start();
     first.manager.recordUse(40 * HOUR);
