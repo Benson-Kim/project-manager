@@ -1,5 +1,11 @@
 "use client";
 
+import { useMemo } from "react";
+import {
+  CustomColumnsButton,
+  type CustomColumnActionSet,
+} from "@/components/custom-columns/custom-columns-dialog";
+import { useCustomColumns } from "@/components/custom-columns/use-custom-columns";
 import { Badge } from "@/components/ui/badge";
 import { DataView } from "@/components/ui/data-view/data-view";
 import {
@@ -16,12 +22,27 @@ import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { ProjectLink } from "@/components/ui/project-link";
 import { EmptyState } from "@/components/ui/states";
 import { rowAllows } from "@/lib/auth/actor-access";
+import type { ColumnLabel, RegisterColumn } from "@/lib/custom-columns/register";
 import { formatDate } from "@/lib/format";
 import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import type { ProjectPicker } from "@/modules/projects/project-options";
 import { createDailyActivityAction, updateDailyActivityAction } from "../actions";
+import {
+  clearActivityColumnLabelAction,
+  createActivityChoiceAction,
+  createActivityColumnAction,
+  deleteActivityChoiceAction,
+  deleteActivityColumnAction,
+  moveActivityColumnAction,
+  renameActivityChoiceAction,
+  renameActivityColumnAction,
+  setActivityCellAction,
+  setActivityColumnKindAction,
+  setActivityColumnLabelAction,
+} from "../actions/columns";
+import { DAILY_ACTIVITY_BUILT_IN_COLUMNS } from "../schemas/columns";
 import type { DailyActivityListRow, DailyActivityRow } from "../schemas/daily-activity";
 import { dailyActivityFormValues } from "../schemas/daily-activity-form";
 import { DailyActivitiesToolbar } from "./daily-activities-toolbar";
@@ -32,6 +53,19 @@ type Row = DailyActivityListItem;
 
 const M = messages.dailyActivities;
 const P = M.placeholders;
+
+const columnActions: CustomColumnActionSet = {
+  setLabel: setActivityColumnLabelAction,
+  clearLabel: clearActivityColumnLabelAction,
+  createColumn: createActivityColumnAction,
+  renameColumn: renameActivityColumnAction,
+  moveColumn: moveActivityColumnAction,
+  setColumnKind: setActivityColumnKindAction,
+  deleteColumn: deleteActivityColumnAction,
+  createChoice: createActivityChoiceAction,
+  renameChoice: renameActivityChoiceAction,
+  deleteChoice: deleteActivityChoiceAction,
+};
 
 /**
  * The datasheet columns in the client's order (daily-activity column spec):
@@ -126,11 +160,13 @@ function buildColumns(projects: ProjectPicker): DataViewColumn<Row>[] {
 }
 
 /** Datasheet edits go through the same update action as the Sheet (ADR-0023). */
-const saveCell = formCellSaver<Row, DailyActivityRow>(
+const saveFormCell = formCellSaver<Row, DailyActivityRow>(
   dailyActivityFormValues,
   updateDailyActivityAction,
 );
 const canEditRow = rowAllows("daily-activities:update");
+const activityId = (row: Row) => row.DailyActivityId;
+const NO_COLUMNS = { create: false, update: false, delete: false };
 
 /**
  * Daily Activities list: DataView; opening a row syncs ?id= (sheet). List view
@@ -149,6 +185,10 @@ export function DailyActivitiesView({
   projectFilterOptions,
   canCreate,
   newActivityAction,
+  projectId,
+  labels = [],
+  addedColumns = [],
+  canManageColumns = NO_COLUMNS,
 }: {
   rows: Row[];
   totalCount: number;
@@ -163,8 +203,25 @@ export function DailyActivitiesView({
   projectFilterOptions?: readonly { id: number; name: string }[];
   canCreate: boolean;
   newActivityAction?: React.ReactNode;
+  /** The project whose columns these are; the cross-project page has none to change. */
+  projectId?: number;
+  labels?: readonly ColumnLabel[];
+  addedColumns?: readonly RegisterColumn[];
+  canManageColumns?: { create: boolean; update: boolean; delete: boolean };
 }) {
   const { update } = useListUrlState();
+  const columns = useMemo(() => buildColumns(projects), [projects]);
+  // A project's own column names replace only the headings; keys, data, sorting and saved
+  // layouts stay on the stable keys (ADR-0067).
+  const { shownColumns, saveCell } = useCustomColumns<Row>({
+    columns,
+    labels,
+    added: addedColumns,
+    canEdit: canEditRow,
+    rowId: activityId,
+    setCell: setActivityCellAction,
+    fallback: saveFormCell,
+  });
 
   return (
     <DataView
@@ -199,7 +256,7 @@ export function DailyActivitiesView({
           ) : null}
         </div>
       )}
-      columns={buildColumns(projects)}
+      columns={shownColumns}
       sort={DAILY_ACTIVITY_SORT}
       datasheet={{
         canEditRow,
@@ -208,6 +265,17 @@ export function DailyActivitiesView({
       }}
       renderToolbar={(viewToggle) => (
         <DailyActivitiesToolbar projectFilterOptions={projectFilterOptions}>
+          {projectId !== undefined ? (
+            <CustomColumnsButton
+              projectId={projectId}
+              labels={labels}
+              columns={addedColumns}
+              can={canManageColumns}
+              builtIns={DAILY_ACTIVITY_BUILT_IN_COLUMNS}
+              actions={columnActions}
+              title={messages.customColumns.activityTitle}
+            />
+          ) : null}
           {viewToggle}
         </DailyActivitiesToolbar>
       )}

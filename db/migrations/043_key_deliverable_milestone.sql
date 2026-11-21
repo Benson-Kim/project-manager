@@ -1,5 +1,4 @@
--- 043_key_deliverable_milestone.sql — a milestone in the work breakdown (client feedback
--- 2026-10-23; ADR-0046 decision 4).
+-- 043_key_deliverable_milestone.sql — a milestone in the work breakdown 
 --   app.KeyDeliverable.IsMilestone BIT NOT NULL DEFAULT 0: the item is a date rather than a span,
 --     drawn as a diamond. No new entity and no new tree — a milestone keeps its place, its number
 --     ("2.3"), its status colour, its requirements and its assignees, so nothing downstream of the

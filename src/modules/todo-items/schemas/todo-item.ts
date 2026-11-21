@@ -3,6 +3,7 @@ import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { LOCAL_WALL_CLOCK } from "@/lib/local-time";
 import { listValue, type LookupListKey } from "@/lib/lookup-lists";
+import { registerCellsSchema } from "@/lib/custom-columns/register";
 import { alertTimeSchema, rowVerSchema } from "./todo-alert";
 
 /**
@@ -57,17 +58,20 @@ export const todoItemRowSchema = z.object({
 
 export type TodoItemRow = z.infer<typeof todoItemRowSchema>;
 
-export const todoItemListRowSchema = todoItemRowSchema.extend({
-  /** The project's name — the cross-project datasheet's Project column (null: personal). */
-  ProjectName: z.string().nullable(),
-  /** The to-do has a repeat rule (ADR-0059): the list shows a "Repeats" badge. */
-  Repeats: z.boolean().default(false),
-  /** The to-do's planner slot (wall clock); the list marks a placed to-do "Calendar". */
-  ScheduledStart: z.date().nullable().default(null),
-  ScheduledEnd: z.date().nullable().default(null),
-  TotalCount: z.number().int(),
-  ...actorAccessFields,
-});
+export const todoItemListRowSchema = todoItemRowSchema
+  .extend({
+    /** The project's name — the cross-project datasheet's Project column (null: personal). */
+    ProjectName: z.string().nullable(),
+    /** The to-do has a repeat rule (ADR-0059): the list shows a "Repeats" badge. */
+    Repeats: z.boolean().default(false),
+    /** The to-do's planner slot (wall clock); the list marks a placed to-do "Calendar". */
+    ScheduledStart: z.date().nullable().default(null),
+    ScheduledEnd: z.date().nullable().default(null),
+    TotalCount: z.number().int(),
+    ...actorAccessFields,
+    CustomCellsJson: registerCellsSchema,
+  })
+  .transform(({ CustomCellsJson, ...row }) => ({ ...row, CustomCells: CustomCellsJson }));
 
 /** Where a repeating to-do's next open occurrence falls (ADR-0059 decision 5). */
 export interface NextOccurrence {
@@ -75,7 +79,7 @@ export interface NextOccurrence {
   DueDate: Date | null;
 }
 
-export type TodoItemListRow = z.infer<typeof todoItemListRowSchema> & {
+export type TodoItemListRow = z.output<typeof todoItemListRowSchema> & {
   /** A series' next open occurrence; null when none is left, or for a to-do that does not repeat. */
   Next: NextOccurrence | null;
 };

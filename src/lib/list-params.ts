@@ -13,8 +13,8 @@ export type SortDir = (typeof SORT_DIRS)[number];
 
 /**
  * The view a list page opens in: the URL's `?view=`, else the user's saved
- * preference, else list view — the Access-style datasheet is the default
- * (client feedback §2, ADR-0023); cards stay one click away.
+ * preference, else list view — the Access-style datasheet is the default;
+ * cards stay one click away.
  */
 export function initialViewOf(
   urlView: ViewMode | undefined,

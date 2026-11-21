@@ -67,6 +67,7 @@ export function TodoItemSheet({
   canUpdateAlert,
   canDeleteAlert,
   newDay = null,
+  alertDay = null,
 }: {
   todoItem: TodoItemRow | null;
   todoAlert: TodoAlertRow | null;
@@ -79,6 +80,8 @@ export function TodoItemSheet({
   canDelete: boolean;
   /** A new to-do opened from a calendar day starts and is due on that day ("YYYY-MM-DD"). */
   newDay?: string | null;
+  /** Opened from a calendar entry's alert button: the alert form opens, on that day if unset. */
+  alertDay?: string | null;
   canCreateAlert: boolean;
   canUpdateAlert: boolean;
   canDeleteAlert: boolean;
@@ -101,7 +104,21 @@ export function TodoItemSheet({
   const [alertConflict, setAlertConflict] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmRemoveAlert, setConfirmRemoveAlert] = useState(false);
-  const [alertOpen, setAlertOpen] = useState(todoAlert !== null);
+  const [alertOpen, setAlertOpen] = useState(todoAlert !== null || alertDay !== null);
+  const [alertAsked, setAlertAsked] = useState(alertDay);
+  if (alertDay !== alertAsked) {
+    setAlertAsked(alertDay);
+    if (alertDay !== null) setAlertOpen(true);
+  }
+  const [hadAlert, setHadAlert] = useState(todoAlert !== null);
+  if ((todoAlert !== null) !== hadAlert) {
+    setHadAlert(todoAlert !== null);
+    if (todoAlert !== null) setAlertOpen(true);
+  }
+  const alertSectionRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (alertDay && todoItem) alertSectionRef.current?.scrollIntoView({ block: "nearest" });
+  }, [alertDay, todoItem]);
   const [itemDirty, setItemDirty] = useState(false);
   const [alertDirty, setAlertDirty] = useState(false);
   const [repeatDirty, setRepeatDirty] = useState(false);
@@ -134,7 +151,7 @@ export function TodoItemSheet({
     pendingNavRef.current = null;
     resetDirty();
     setShowUnsaved(false);
-    update({ id: null, day: null });
+    update({ id: null, day: null, alert: null });
   };
 
   const markItemFormDirty = () => {
@@ -191,7 +208,7 @@ export function TodoItemSheet({
     if (resume) {
       resume();
     } else {
-      update({ id: null, day: null });
+      update({ id: null, day: null, alert: null });
     }
   };
 
@@ -230,7 +247,7 @@ export function TodoItemSheet({
     setItemSummary(null);
     setItemConflict(false);
     const formData = new FormData(formElement);
-    if (todoItem) formData.set("localNow", localWallClock());
+    formData.set("localNow", localWallClock());
     startItemTransition(async () => {
       const result = todoItem
         ? await updateTodoItemAction(formData)
@@ -521,7 +538,7 @@ export function TodoItemSheet({
 
         {/* ΓöÇΓöÇ Alert section (separate form, only shown when editing an existing item) ΓöÇΓöÇ */}
         {todoItem && showAlertSection ? (
-          <div className="flex flex-col gap-4 border-t border-line pt-4">
+          <div ref={alertSectionRef} className="flex flex-col gap-4 border-t border-line pt-4">
             <div className="flex items-center justify-between px-4">
               <button
                 type="button"
@@ -576,6 +593,7 @@ export function TodoItemSheet({
             ) : null}
             {alertOpen && canSaveAlert ? (
               <form
+                key={`${todoItem.TodoItemId}:${alertDay ?? ""}`}
                 noValidate
                 onBlur={alertForm.onBlur}
                 onChange={markAlertFormDirty}
@@ -609,7 +627,10 @@ export function TodoItemSheet({
                     name="alertDay"
                     errors={alertForm.errors.alertDay}
                   >
-                    <DatePicker name="alertDay" defaultValue={toDateInput(todoAlert?.AlertDay)} />
+                    <DatePicker
+                      name="alertDay"
+                      defaultValue={alertDay ?? toDateInput(todoAlert?.AlertDay)}
+                    />
                   </Field>
                   <Field
                     label={messages.todoItems.alertTime}

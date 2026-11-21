@@ -8,6 +8,14 @@ const envSchema = z.object({
   DB_USER: z.string().min(1).default("pm_web"),
   DB_PASSWORD: z.string().min(8),
   /**
+   * The local SQL Server instance (e.g. SQLEXPRESS) whose Windows service this
+   * server may start when the database stops answering. Unset = never start it.
+   */
+  DB_SERVICE_INSTANCE: z
+    .string()
+    .regex(/^[A-Za-z][A-Za-z0-9_]{0,15}$/)
+    .optional(),
+  /**
    * How many trusted reverse-proxy hops sit between the internet and this
    * server. `0` (default) = no proxy; use the connection address (or
    * `x-forwarded-for` last entry is absent so fall back to unknown). `1` = one
@@ -102,6 +110,7 @@ export function getEnv(): Env {
     DB_NAME: process.env.DB_NAME,
     DB_USER: process.env.DB_USER,
     DB_PASSWORD: process.env.DB_PASSWORD,
+    DB_SERVICE_INSTANCE: process.env.DB_SERVICE_INSTANCE || undefined,
     TRUSTED_PROXY_COUNT: process.env.TRUSTED_PROXY_COUNT,
     TRUST_SERVER_CERT: process.env.TRUST_SERVER_CERT,
   });

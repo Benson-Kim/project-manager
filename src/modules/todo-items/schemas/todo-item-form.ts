@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { formText, type FormValues } from "@/components/ui/data-view/datasheet";
-import { datesInOrder, datesWere, storedDates } from "@/lib/date-range";
+import { datesInOrder, datesNotPast, datesWere, storedDates } from "@/lib/date-range";
 import { toDateInput } from "@/lib/format";
 import { LOCAL_WALL_CLOCK } from "@/lib/local-time";
 import { listChoice } from "@/lib/lookup-lists";
@@ -61,13 +61,21 @@ const todoItemFields = z.object({
   priority: listChoice,
   status: listChoice,
   notes: richTextSchema({ max: RICH_TEXT_FIELD_MAX }),
+  /** Appended at submit, not a field; a datasheet cell save leaves it out (the proc uses UTC). */
+  localNow: z.string().regex(LOCAL_WALL_CLOCK).optional(),
 });
 
-const todoDates = datesInOrder({
+const todoDatesInOrder = datesInOrder({
   start: "startDate",
   end: "dueDate",
   message: messages.errors.dateOrder(messages.todoItems.dueDate, messages.todoItems.startDate),
 });
+const todoDatesNotPast = datesNotPast(messages.todoItems.pastDate, "startDate", "dueDate");
+
+function todoDates(value: Record<string, unknown>, ctx: z.RefinementCtx) {
+  todoDatesInOrder(value, ctx);
+  todoDatesNotPast(value, ctx);
+}
 
 export const todoItemFormSchema = todoItemFields.superRefine(todoDates);
 
@@ -78,8 +86,6 @@ export const updateTodoItemFormSchema = todoItemFields
     todoItemId: z.coerce.number().int().positive(),
     rowVer: rowVerSchema,
     ...datesWere("startDate", "dueDate"),
-    /** Appended at submit, not a field; a datasheet cell save leaves it out (the proc uses UTC). */
-    localNow: z.string().regex(LOCAL_WALL_CLOCK).optional(),
   })
   .superRefine(todoDates);
 

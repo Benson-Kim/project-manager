@@ -1,4 +1,11 @@
-import { nextMidnight, slotProblem, type SlotProblem } from "./schemas/todo-schedule";
+import type { CalendarEntry } from "./calendar";
+import type { PlannerEntry } from "./schemas/todo-schedule";
+import {
+  nextMidnight,
+  slotProblem,
+  type SlotClock,
+  type SlotProblem,
+} from "./schemas/todo-schedule";
 
 export const PLANNER_DAYS = 3;
 export const SLOT_MINUTES = 15;
@@ -36,6 +43,11 @@ export function plannerWindow(param: string | null | undefined, today: string): 
   const from = isDay(param) ? param : today;
   const days = Array.from({ length: PLANNER_DAYS }, (_, i) => addDays(from, i));
   return { days, from, to: days[PLANNER_DAYS - 1] };
+}
+
+/** Where the planner opens from a month view: today in the current month, else the 1st. */
+export function plannerStartFor(month: string, today: string): string {
+  return today.startsWith(month) ? today : `${month}-01`;
 }
 
 export function shiftWindow(from: string, direction: -1 | 1): string {
@@ -96,10 +108,11 @@ export function typedSlot(
   day: string,
   start: string,
   end: string,
+  clock?: SlotClock,
 ): Slot & { problem: SlotProblem | null } {
   const from = `${day}T${start}`;
   const to = end === "00:00" ? nextMidnight(from) : `${day}T${end}`;
-  return { start: from, end: to, problem: slotProblem(from, to) };
+  return { start: from, end: to, problem: slotProblem(from, to, clock) };
 }
 
 export function slotTimes(slot: Slot): string {
@@ -156,4 +169,45 @@ export function layoutDay<T extends Slot>(entries: readonly T[], day: string): P
 export function slotOf(start: Date | null, end: Date | null): Slot | null {
   if (!start || !end) return null;
   return { start: start.toISOString().slice(0, 16), end: end.toISOString().slice(0, 16) };
+}
+
+export type PlannerBlock = PlannerEntry & {
+  /** Set on a repeat of a booked series: the occurrence it stands for. */
+  occursAt?: string;
+};
+
+const minutesBetween = (slot: Slot) =>
+  (Date.parse(`${slot.end}:00Z`) - Date.parse(`${slot.start}:00Z`)) / 60_000;
+
+/**
+ * A booked series' repeats in the window, each at the booked time of day (an hourly
+ * series at its own time) and as long as the booking. The booked occurrence keeps the real block.
+ */
+export function plannerRepeats(entries: readonly CalendarEntry[]): PlannerBlock[] {
+  return entries.flatMap((entry) => {
+    const { todo, occurrence } = entry;
+    const slot = todo.slot;
+    if (!occurrence || occurrence.isSkipped || !slot) return [];
+    const start = `${entry.day}T${entry.time ?? slot.start.slice(11, 16)}`;
+    if (start === slot.start) return [];
+    const end = fromMinutes(entry.day, toMinutes(start, entry.day) + minutesBetween(slot));
+    return [
+      {
+        todoItemId: todo.todoItemId,
+        projectId: todo.projectId,
+        projectName: todo.projectName,
+        title: todo.title ?? "",
+        startDate: todo.startDate,
+        dueDate: occurrence.dueDate ?? todo.dueDate,
+        priority: todo.priority,
+        status: entry.status,
+        assignee: todo.assignee,
+        rowVer: todo.rowVer,
+        actorAccess: todo.actorAccess,
+        start,
+        end,
+        occursAt: occurrence.occursAt,
+      },
+    ];
+  });
 }

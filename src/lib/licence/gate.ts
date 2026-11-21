@@ -4,6 +4,7 @@ import {
   openCheckIn,
   openLicence,
   readMark,
+  readUsage,
   trustedNow,
   type LicenceStatus,
   type PublicKeys,
@@ -58,6 +59,7 @@ function assess(
   const lastServerTime = checkIn?.serverTime ?? null;
   const highest = Math.max(seenMark, typeof mark === "number" ? mark : 0);
   const floors = [highest, lastServerTime ?? 0];
+  const usedMs = licence ? readUsage(stored?.usage, licence.licenceId, env.markKey) : 0;
   const status = evaluate({
     enforce: true,
     licence,
@@ -65,6 +67,7 @@ function assess(
     now: trustedNow({ wall, monotonic: 0, anchor: null, floors }),
     lastServerTime,
     markTrusted: typeof mark === "number",
+    usedMs,
   });
   const changesAt =
     licence?.kind === "trial"

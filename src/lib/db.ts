@@ -1,4 +1,5 @@
 import sql from "mssql";
+import { recoverDatabase } from "./db-recovery";
 import { getEnv } from "./env";
 import { AppError, appErrorFromProc, DatabaseUnavailableError } from "./errors";
 
@@ -66,14 +67,31 @@ export function isUnreachable(err: unknown): boolean {
   return code === "ETIMEOUT" || code === "ESOCKET" || code === "ECONNCLOSED" || code === "ENOTOPEN";
 }
 
-/** The pool, or DatabaseUnavailableError when the server can't be reached. */
+/** A fresh login with the app's credentials, so a dead pooled connection can't pass for ready. */
+async function probeLogin(): Promise<void> {
+  const probe = await new sql.ConnectionPool(config()).connect();
+  await probe.close();
+}
+
+/**
+ * The pool, or DatabaseUnavailableError when the server can't be reached. Nothing was
+ * sent yet, so connecting again once a stopped service is running repeats no work.
+ */
 async function connectedPool(): Promise<sql.ConnectionPool> {
   try {
     return await getPool();
   } catch (err) {
     console.error("[db] connect failed:", err);
-    throw isUnreachable(err) ? new DatabaseUnavailableError() : err;
+    if (!isUnreachable(err)) throw err;
   }
+  if (await recoverDatabase(probeLogin)) {
+    try {
+      return await getPool();
+    } catch (err) {
+      if (!isUnreachable(err)) throw err;
+    }
+  }
+  throw new DatabaseUnavailableError();
 }
 
 export type ProcParams = Record<string, string | number | boolean | Date | null>;
@@ -104,7 +122,11 @@ async function bindAndExecute<T>(
       }
     }
     console.error(`[db] ${procName} failed:`, err);
-    if (isUnreachable(err)) throw new DatabaseUnavailableError();
+    if (isUnreachable(err)) {
+      // The request may have run, so it is never repeated; the next one finds SQL Server up.
+      void recoverDatabase(probeLogin);
+      throw new DatabaseUnavailableError();
+    }
     throw new AppError("INTERNAL", "Database operation failed");
   }
 }

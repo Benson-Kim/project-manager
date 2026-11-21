@@ -23,7 +23,7 @@ export function matchesNone<T>(
 }
 
 /**
- * Every option, best matches first (client feedback, 2026-10-28): typing reorders the list
+ * Every option, best matches first: typing reorders the list
  * instead of emptying it, so an option spelled differently is still there to pick. Options that
  * match equally keep their order.
  */

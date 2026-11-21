@@ -2,7 +2,7 @@ import { nextSortDir, type ListSort, type SortDir } from "@/lib/list-params";
 import type { DataViewColumn } from "./types";
 
 /**
- * What a column header shows about the order (client feedback, 2026-10-23): the
+ * What a column header shows about the order: the
  * list procs have taken `@SortBy`/`@SortDir` since ADR-0016, so this derives the
  * header's state from the URL and nothing more. Pure, so the arrow's state and
  * the next click are tested without a DOM.

@@ -1,7 +1,7 @@
 import { randomBytes } from "crypto";
 import fs from "fs";
 import path from "path";
-import { safeStorage } from "electron";
+import { app, BrowserWindow, powerMonitor, safeStorage } from "electron";
 import type { DbTarget } from "../db";
 import { describeError, type Logger } from "../log";
 import { LICENCE_PUBLIC_KEYS, LICENCE_SERVICE_URL } from "./keys";
@@ -10,6 +10,7 @@ import { LicenceManager } from "./manager";
 import { licensingEnforced, type LicenceStatus } from "./policy";
 import { LicenceServiceClient, resolveServiceUrl, serviceBase } from "./service-client";
 import { SqlLicenceMirror } from "./sql-mirror";
+import { startUsageMeter } from "./usage-meter";
 import { SealedStateFile } from "./state-file";
 
 export interface ServerLicence {
@@ -32,6 +33,11 @@ function readPackageJson(appPath: string): unknown {
     return null;
   }
 }
+
+const combine =
+  (...stops: (() => void)[]) =>
+  (): void =>
+    stops.forEach((stop) => stop());
 
 export async function startLicence(opts: {
   target: DbTarget;
@@ -91,7 +97,28 @@ export async function startLicence(opts: {
     return {
       manager,
       server: { enforce, machineHash, publicKeys, markKey: manager.markKey },
-      stop: manager.schedule(notify),
+      stop: combine(
+        manager.schedule(notify),
+        startUsageMeter({
+          monotonic: () => performance.now(),
+          focused: () => BrowserWindow.getFocusedWindow() !== null,
+          idleSeconds: () => powerMonitor.getSystemIdleTime(),
+          onFocusChange: (listener) => {
+            const focus = () => listener(true);
+            const blur = () => listener(false);
+            app.on("browser-window-focus", focus);
+            app.on("browser-window-blur", blur);
+            return () => {
+              app.off("browser-window-focus", focus);
+              app.off("browser-window-blur", blur);
+            };
+          },
+          record: (ms) => {
+            manager.recordUse(ms);
+            notify(manager.status());
+          },
+        }),
+      ),
     };
   } catch (err) {
     opts.log.warn(`licence: ${describeError(err)}`);

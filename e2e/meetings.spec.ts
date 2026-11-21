@@ -30,10 +30,10 @@ async function newMeeting(page: Page) {
   await page.waitForURL(/\/projects\/2\/meetings\/\d+$/);
   const form = page.getByTestId("meeting-header-form");
   await expect(form).toBeVisible();
-  // The editor surface exists only on the client: once it shows, the form is hydrated.
-  await expect(form.getByRole("textbox", { name: M.objective, exact: true })).toBeVisible({
-    timeout: 15_000,
-  });
+  // The editor surface exists only on the client: once it shows, the page is hydrated.
+  await expect(
+    page.getByTestId("meeting-notes-form").getByRole("textbox", { name: M.objective, exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
   return form;
 }
 
@@ -255,9 +255,9 @@ test("participants: mark attended and apology, save, reload keeps them, the list
 
   // A title to find the meeting by in the list.
   const form = page.getByTestId("meeting-header-form");
-  await expect(form.getByRole("textbox", { name: M.objective, exact: true })).toBeVisible({
-    timeout: 15_000,
-  });
+  await expect(
+    page.getByTestId("meeting-notes-form").getByRole("textbox", { name: M.objective, exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
   await form.getByLabel(M.subject).fill(title);
   await page.getByTestId("meeting-save").click();
   await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();

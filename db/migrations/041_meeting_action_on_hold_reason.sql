@@ -1,5 +1,4 @@
--- 041_meeting_action_on_hold_reason.sql — why an action item is on hold (client feedback
--- 2026-10-23; ADR-0044).
+-- 041_meeting_action_on_hold_reason.sql — why an action item is on hold
 --   app.MeetingActionItem.OnHoldReason NVARCHAR(500) NULL: free text the writer may supply when
 --     they put an action on hold. Optional, because the client asked to be able to give a reason,
 --     not to be made to.

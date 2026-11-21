@@ -78,6 +78,9 @@ function headerParams(input: HeaderValues) {
     EndTime: input.endTime ?? null,
     Conclusion: input.conclusion ?? null,
     NextMeeting: input.nextMeeting ?? null,
+    MeetingFormat: input.meetingFormat ?? null,
+    MeetingLink: input.meetingLink ?? null,
+    NextMeetingLink: input.nextMeetingLink ?? null,
   };
 }
 
@@ -241,6 +244,52 @@ export async function listApologies(
     ActorUserId: actorUserId,
   });
   return rows.map((r) => attendeeRowSchema.parse(r));
+}
+
+type MeetingWhen = Pick<MeetingRow, "MeetingId" | "StartDate" | "StartTime">;
+
+/** Date, then start time, then id: the order the meeting list sorts by. */
+function compareWhen(a: MeetingWhen, b: MeetingWhen): number {
+  const day = (a.StartDate?.getTime() ?? -Infinity) - (b.StartDate?.getTime() ?? -Infinity);
+  if (day !== 0) return day;
+  const time = (a.StartTime ?? "").localeCompare(b.StartTime ?? "");
+  return time !== 0 ? time : a.MeetingId - b.MeetingId;
+}
+
+const SAME_DAY_LOOKBACK = 25;
+
+/**
+ * Attendees of the meeting held just before this one in the same project, by
+ * date, start time and then id. An undated meeting takes the latest one held
+ * up to today. Used by the workspace's "Import from last" action.
+ */
+export async function getLastMeetingAttendees(
+  meetingId: number,
+  projectId: number,
+  actorUserId: number,
+): Promise<{ meetingId: number; subject: string | null; attendees: AttendeeRow[] } | null> {
+  const current = await getMeetingById(meetingId, actorUserId);
+  const meetings = await listMeetings(
+    projectId,
+    { q: undefined, page: 1, sort: "StartDate", dir: "desc" },
+    actorUserId,
+    { dateTo: current.StartDate ?? new Date() },
+    SAME_DAY_LOOKBACK,
+  );
+  const prev = meetings
+    .filter(
+      (m) =>
+        m.MeetingId !== meetingId &&
+        m.StartDate != null &&
+        (current.StartDate == null || compareWhen(m, current) < 0),
+    )
+    .reduce<MeetingListRow | null>(
+      (best, m) => (best == null || compareWhen(m, best) > 0 ? m : best),
+      null,
+    );
+  if (!prev) return null;
+  const attendees = await listAttendees(prev.MeetingId, actorUserId);
+  return { meetingId: prev.MeetingId, subject: prev.Subject, attendees };
 }
 
 /**

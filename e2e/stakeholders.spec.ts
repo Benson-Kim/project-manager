@@ -4,6 +4,7 @@ import { toCsv } from "../src/lib/csv";
 import { messages } from "../src/lib/messages";
 import { stakeholderCsvRows } from "../src/modules/stakeholders/export";
 import { expectListed, openListed } from "./support/datasheet";
+import { expectFocusOnInvalid } from "./support/form";
 
 /**
  * Stakeholders module (#6) — project-scoped route /projects/2/stakeholders.
@@ -30,7 +31,7 @@ test("create stakeholder happy path — appears in the list", async ({ page }) =
   await expectListed(page, firstName);
 });
 
-test("validation failure — empty first name shows inline error and focuses the summary", async ({
+test("validation failure — empty first name shows inline error and focuses the field to fix", async ({
   page,
 }) => {
   await page.goto("/projects/2/stakeholders?id=new");
@@ -41,7 +42,7 @@ test("validation failure — empty first name shows inline error and focuses the
   const summary = page.getByRole("alert").filter({ hasText: messages.errors.summaryTitle });
   await expect(summary).toBeVisible();
   await expect(summary).toHaveText(messages.errors.summaryTitle);
-  await expect(summary).toBeFocused();
+  await expectFocusOnInvalid(form.getByLabel(messages.stakeholders.firstName));
 });
 
 test("sheet is URL-synced — deep link ?id= opens the seeded stakeholder", async ({ page }) => {

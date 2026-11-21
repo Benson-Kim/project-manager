@@ -180,7 +180,9 @@ export function useDatasheetFeedback() {
       router.refresh();
       notifySaved();
     },
-    failed: (error: { message: string; fieldErrors?: Record<string, string[]> }) =>
-      toast({ variant: "error", title: failureMessage(error) }),
+    failed: (
+      error: { code?: string; message: string; fieldErrors?: Record<string, string[]> },
+      column?: string,
+    ) => toast({ variant: "error", title: failureMessage(error, column) }),
   };
 }

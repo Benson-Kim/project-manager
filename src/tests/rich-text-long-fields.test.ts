@@ -17,7 +17,7 @@ describe("asRichText", () => {
   });
 });
 
-/** The long fields that take colour and highlight (client feedback 2026-10-23, item 7). */
+/** The long fields that take colour and highlight. */
 const LONG_FIELDS: [form: string, field: string][] = [
   ["src/modules/projects/components/project-form.tsx", "mandate"],
   ["src/modules/projects/components/project-form.tsx", "problemStatement"],

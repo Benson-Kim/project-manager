@@ -1,5 +1,5 @@
 /**
- * Where a detached window opens (client feedback 2026-10-12: staff work on
+ * Where a detached window opens (staff work on
  * several screens and move a page onto its own display). Pure, so it is tested
  * without Electron's `screen`.
  */

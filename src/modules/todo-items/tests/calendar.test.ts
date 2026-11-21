@@ -31,6 +31,7 @@ function todo(over: Partial<CalendarTodo> = {}): CalendarTodo {
     status: "Not Started",
     assignee: null,
     noteLine: null,
+    slot: null,
     rowVer: 9,
     actorAccess: "Manager",
     rule: null,
@@ -53,6 +54,14 @@ function row(over: Partial<TodoOccurrenceRow> & { occursAt: string }): TodoOccur
 const days = (r: ReturnType<typeof calendarEntries>) => r.entries.map((e) => e.day);
 
 describe("calendarEntries", () => {
+  it("puts a one-off to-do booked on the planner on its booked day and time", () => {
+    const slot = { start: "2026-11-06T09:15", end: "2026-11-06T10:00" };
+    const r = calendarEntries([todo({ startDate: null, slot })], [], WEEK, TODAY);
+    expect(r.entries.map((e) => [e.day, e.time])).toEqual([["2026-11-06", "09:15"]]);
+    const later = calendarEntries([todo({ startDate: "2026-11-02", slot })], [], WEEK, TODAY);
+    expect(later.entries.map((e) => e.day)).toEqual(["2026-11-06"]);
+  });
+
   it("shows a one-off on its start date, and only inside the window", () => {
     const shown = todo({ startDate: "2026-11-03" });
     const r = calendarEntries(

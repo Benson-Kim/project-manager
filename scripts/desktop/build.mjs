@@ -23,6 +23,9 @@ const stageOnly = args.has("--stage-only");
 const dirOnly = args.has("--dir");
 const skipNext = args.has("--skip-next");
 const packageOnly = args.has("--package-only");
+const full = args.has("--full");
+if (full) process.env.MODULUS_FULL_INSTALLER = "1";
+else delete process.env.MODULUS_FULL_INSTALLER;
 if (stageOnly && packageOnly) throw new Error("Use --stage-only or --package-only, not both");
 const appDir = join(root, "build", "desktop-app");
 const standalone = join(root, ".next", "standalone");
@@ -46,7 +49,7 @@ const git = (a) => {
 };
 
 // 1. SQL Server media -------------------------------------------------------
-if (!stageOnly) {
+if (full && !stageOnly) {
   step("Verifying pinned SQL Server Express media");
   if (!(await verifySqlMedia())) run("node scripts/desktop/fetch-sql-express.mjs");
   if (!(await verifySqlMedia())) throw new Error("SQL Server media missing or checksum mismatch");
@@ -167,7 +170,8 @@ run(
 
 // 5. Report -----------------------------------------------------------------
 step("Checks");
-const unpacked = join(root, "dist-installer", "win-unpacked", "resources");
+const out = join(root, "dist-installer", ...(full ? ["full"] : []));
+const unpacked = join(out, "win-unpacked", "resources");
 const countSql = (dir) =>
   existsSync(dir)
     ? readdirSync(dir, { recursive: true }).filter((f) => String(f).toLowerCase().endsWith(".sql")).length
@@ -182,11 +186,12 @@ for (const rel of [
   "standalone/public",
   "setup/provision.ps1",
   "setup/remove-all-users-install.ps1",
-  "sql-express/SQLEXPR_x64_ENU.exe",
   "icon.ico",
 ]) {
   if (!existsSync(join(unpacked, rel))) problems.push(`missing ${rel}`);
 }
+const media = join(unpacked, "sql-express", "SQLEXPR_x64_ENU.exe");
+if (full !== existsSync(media)) problems.push(full ? "missing sql-express/SQLEXPR_x64_ENU.exe" : "the update installer carries the SQL Server media");
 for (const sub of ["migrations", "procs", "seed"]) {
   const want = countSql(join(root, "db", sub));
   const got = countSql(join(unpacked, "db", sub));
@@ -199,24 +204,24 @@ if (links.length) problems.push(`symlinks/junctions in package (not portable): $
 const leakedEnv = readdirSync(join(unpacked, "standalone")).filter((f) => f.startsWith(".env"));
 if (leakedEnv.length) problems.push(`.env files in package: ${leakedEnv.join(", ")}`);
 if (existsSync(join(unpacked, "app.asar.unpacked"))) problems.push("app.asar.unpacked exists — node_modules leaked into the app");
-if ((await sha256(join(unpacked, "sql-express", "SQLEXPR_x64_ENU.exe"))) !== JSON.parse(readFileSync(join(root, "scripts", "desktop", "sql-express.pin.json"), "utf-8")).sha256) {
+if (full && existsSync(media) && (await sha256(media)) !== JSON.parse(readFileSync(join(root, "scripts", "desktop", "sql-express.pin.json"), "utf-8")).sha256) {
   problems.push("packaged SQL Server media differs from the pinned file (was it re-signed?)");
 }
 const hasFeed = process.env.PM_UPDATE_FEED !== "off";
 // electron-builder writes app-update.yml (the feed address) only for installer builds, not --dir.
 if (hasFeed && !dirOnly && !existsSync(join(unpacked, "app-update.yml"))) problems.push("resources/app-update.yml missing (update feed)");
 if (problems.length) throw new Error(`Package check failed:\n  - ${problems.join("\n  - ")}`);
-console.log(`  app.asar ${(statSync(join(unpacked, "app.asar")).size / 1024).toFixed(0)} KB; server, db scripts, SQL media, provisioning present; no .env files`);
+console.log(`  app.asar ${(statSync(join(unpacked, "app.asar")).size / 1024).toFixed(0)} KB; server, db scripts, ${full ? "SQL media, " : ""}provisioning present; no .env files`);
 if (!dirOnly) {
-  const exe = join(root, "dist-installer", `Modulus-Setup-${version}.exe`);
+  const exe = join(out, `Modulus-Setup-${full ? "Full-" : ""}${version}.exe`);
   console.log(`\n✔ ${exe}`);
   const hash = await sha256(exe);
   // Ship this next to the installer so a copy (USB, download) can be checked on
   // the target PC: Get-FileHash <exe> must print the same value.
-  writeFileSync(`${exe}.sha256`, `${hash} *Modulus-Setup-${version}.exe\n`);
+  writeFileSync(`${exe}.sha256`, `${hash} *${basename(exe)}\n`);
   console.log(`  size   ${(statSync(exe).size / 1048576).toFixed(1)} MB`);
   console.log(`  sha256 ${hash}  (also in ${basename(exe)}.sha256)`);
-  if (hasFeed) {
+  if (hasFeed && !full) {
     // What the release workflow publishes: latest.yml tells installed apps about
     // this version, the .blockmap lets them download only the changed blocks.
     const feed = join(root, "dist-installer", "latest.yml");

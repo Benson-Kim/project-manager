@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DataView } from "@/components/ui/data-view/data-view";
 import { ProjectFilter } from "@/components/ui/data-view/project-filter";
 import { SearchInput } from "@/components/ui/data-view/search-input";
@@ -48,13 +48,15 @@ export function NotesView({
   const router = useRouter();
   const label = (row: NoteListRow) => row.Title ?? M.untitled;
 
+  const find = useSearchParams().get("q")?.trim() || undefined;
+
   const columns: DataViewColumn<NoteListRow>[] = [
     {
       key: "Title",
       header: M.notebookTitle,
       priority: 1,
       render: (r) => (
-        <Link href={noteHref(r)} className="font-medium text-accent">
+        <Link href={noteHref(r, find)} className="font-medium text-accent">
           {label(r)}
         </Link>
       ),
@@ -93,7 +95,7 @@ export function NotesView({
       getRowId={(row) => row.NoteId}
       getRowLabel={label}
       filtersActive={filtersActive}
-      onOpen={(row) => router.push(noteHref(row))}
+      onOpen={(row) => router.push(noteHref(row, find))}
       renderCard={(row) => (
         <div className="flex flex-col gap-1.5">
           <p className="line-clamp-2 text-sm font-semibold text-ink">{label(row)}</p>

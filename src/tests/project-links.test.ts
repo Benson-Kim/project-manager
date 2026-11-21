@@ -5,7 +5,7 @@ import { projectOverviewHref } from "@/modules/projects/project-links";
 
 /**
  * Guardrail: wherever a cross-project list shows which project a record belongs
- * to, that name reaches the project's Overview (client feedback, 2026-10-31).
+ * to, that name reaches the project's Overview.
  *
  * The navigation itself cannot be proven here — nothing browser-shaped runs in
  * this workspace — so what is held is the construction it depends on. Two ways

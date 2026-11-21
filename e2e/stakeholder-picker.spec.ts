@@ -63,9 +63,7 @@ async function meetingWithAgendaItem(page: Page, agendaItem: string): Promise<vo
   await page.getByTestId("new-meeting").click();
   await page.waitForURL(/\/projects\/2\/meetings\/\d+$/);
   await expect(
-    page
-      .getByTestId("meeting-header-form")
-      .getByRole("textbox", { name: M.objective, exact: true }),
+    page.getByTestId("meeting-notes-form").getByRole("textbox", { name: M.objective, exact: true }),
   ).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: M.addAgendaItem, exact: true }).click();
   const form = page.getByRole("form", { name: M.addAgendaItem });

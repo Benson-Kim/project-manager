@@ -1,12 +1,12 @@
 -- usp_DailyActivity_Update — full-row update with rowversion concurrency (50002 CONFLICT) + in-transaction audit.
 -- Row-level access: the row's project must be accessible (dbo.usp_Project_AssertAccess,
 --   FORBIDDEN_ROW 50003; Admin bypass; project-less rows allowed). Unlike the other project-scoped
---   entities, an activity can move: the datasheet's Project column is editable (client feedback,
+--   entities, an activity can move: the datasheet's Project column is editable
 --   daily-activity column spec), so a different @ProjectId needs Contributor on that project too
 --   (or none: the project-less shared space) — the same rule as creating it there.
--- Dropdown values must be live options of their lists, or unchanged (ADR-0022, VALIDATION 50004):
+-- Dropdown values must be live options of their lists, or unchanged (VALIDATION 50004):
 --   ActivityStatusId ('daily-activity.status', by id), ContactMethod and TaskType (by label).
--- A move also moves the activity's attachments to the new project's quota bucket (ADR-0026 §2).
+-- A move also moves the activity's attachments to the new project's quota bucket.
 --   With @QuotaBytes set, their bytes must fit there (QUOTA_EXCEEDED 50006), checked under the
 --   destination's quota lock after the row's, the order usp_DailyActivity_AddFile takes them in.
 --   NULL (an app from before this check) moves them unchecked.
@@ -83,6 +83,9 @@ BEGIN
         THROW 50004, N'VALIDATION:CompleteDate cannot be before RequestDate', 1;
 
     BEGIN TRAN;
+
+    DELETE FROM app.DailyActivityCell
+    WHERE DailyActivityId = @DailyActivityId AND (@ProjectId IS NULL OR ProjectId <> @ProjectId);
 
     DECLARE @Before NVARCHAR(MAX) =
         (SELECT DailyActivityId, [ProjectId], [ActivityStatusId], [Requester], [Task], [MyActivity], [ActivityDate], [Comments], [RequestDate], [Status], [CompleteDate], [ContactMethod], [TimeSpent], [AssignedTo], [TaskType], [Progress]

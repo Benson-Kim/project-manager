@@ -105,6 +105,7 @@ jobs:
             echo "::warning::Unsigned installer shipped on purpose (PM_ALLOW_UNSIGNED_RELEASE): installed apps will not verify this release's signature."
           fi
           node scripts/desktop/build.mjs --package-only
+          node scripts/desktop/build.mjs --package-only --full
 
       - name: Verify installer signature
         if: steps.plan.outputs.skip != 'true'
@@ -116,6 +117,7 @@ jobs:
           allow=""
           if [ "$PM_ALLOW_UNSIGNED_RELEASE" = "true" ]; then allow="--allow-unsigned"; fi
           node scripts/desktop/verify-signature.mjs $allow "dist-installer/Modulus-Setup-${VERSION}.exe"
+          node scripts/desktop/verify-signature.mjs $allow "dist-installer/full/Modulus-Setup-Full-${VERSION}.exe"
 
       - name: Update policy and release notes
         if: steps.plan.outputs.skip != 'true'
@@ -132,8 +134,9 @@ jobs:
           VERSION: ${{ steps.plan.outputs.version }}
         run: |
           exe="dist-installer/Modulus-Setup-${VERSION}.exe"
+          full="dist-installer/full/Modulus-Setup-Full-${VERSION}.exe"
           gh release create "v${VERSION}" \
-            "$exe" "$exe.blockmap" "$exe.sha256" dist-installer/latest.yml \
+            "$exe" "$exe.blockmap" "$exe.sha256" "$full" "$full.sha256" dist-installer/latest.yml \
             --target "${GITHUB_SHA}" \
             --title "Modulus ${VERSION}" \
             --notes-file dist-installer/release-notes.md \

@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 import { existsSync, readFileSync, renameSync, writeFileSync } from "fs";
-import { MARK_KEY_BYTES, type Mark, type SignedDocument } from "./policy";
+import { MARK_KEY_BYTES, type Mark, type SignedDocument, type Usage } from "./policy";
 
 export interface Sealer {
   isEncryptionAvailable(): boolean;
@@ -12,6 +12,7 @@ export interface LicenceState {
   licence: SignedDocument | null;
   checkIn: SignedDocument | null;
   mark: Mark | null;
+  usage: Usage | null;
   markKey: string;
 }
 
@@ -24,6 +25,7 @@ const empty = (): LicenceState => ({
   licence: null,
   checkIn: null,
   mark: null,
+  usage: null,
   markKey: randomBytes(MARK_KEY_BYTES).toString("base64url"),
 });
 
@@ -47,6 +49,7 @@ export class SealedStateFile implements StateStore {
         licence: state.licence ?? null,
         checkIn: state.checkIn ?? null,
         mark: state.mark ?? null,
+        usage: state.usage ?? null,
         markKey: state.markKey,
       };
     } catch {

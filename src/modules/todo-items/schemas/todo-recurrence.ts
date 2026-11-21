@@ -29,6 +29,7 @@ export const RECURRENCE_ERRORS = {
 
 const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const wallClock = z.string().regex(LOCAL_WALL_CLOCK);
+const minuteOf = (d: Date) => d.toISOString().slice(0, 16);
 const count = z.number().int().min(1).max(RECURRENCE_MAX_COUNT);
 const ordinal = z
   .number()
@@ -234,6 +235,8 @@ export const calendarTodoRowSchema = z
     Status: z.string().nullable(),
     Assignee: z.string().nullable(),
     Notes: z.string().nullable(),
+    ScheduledStart: z.date().nullable().optional(),
+    ScheduledEnd: z.date().nullable().optional(),
     RowVer: rowVerSchema,
     ActorAccess: actorAccessSchema,
     RepeatUnit: z.enum(REPEAT_UNITS).nullable(),
@@ -250,6 +253,10 @@ export const calendarTodoRowSchema = z
     status: r.Status,
     assignee: r.Assignee,
     noteLine: notesFirstLine(r.Notes),
+    slot:
+      r.ScheduledStart && r.ScheduledEnd
+        ? { start: minuteOf(r.ScheduledStart), end: minuteOf(r.ScheduledEnd) }
+        : null,
     rowVer: r.RowVer,
     actorAccess: r.ActorAccess,
     rule: r.RepeatUnit === null ? null : ruleOf(ruleColumnsSchema.parse(r)),

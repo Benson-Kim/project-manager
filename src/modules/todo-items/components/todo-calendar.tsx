@@ -4,10 +4,13 @@ import { useState } from "react";
 import { ProjectFilter } from "@/components/ui/data-view/project-filter";
 import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { Dialog } from "@/components/ui/dialog";
+import { useListValueClass } from "@/components/ui/lookup-lists";
 import { Toolbar } from "@/components/ui/toolbar";
+import { canInProject } from "@/lib/auth/rbac";
 import { formatDate } from "@/lib/format";
 import { messages } from "@/lib/messages";
 import type { CalendarEntry, MonthGrid } from "../calendar";
+import { plannerStartFor } from "../planner";
 import { isClosedStatus } from "../schemas/todo-item";
 import { CalendarModeSwitch } from "./calendar-mode-switch";
 import { TodoOccurrenceDialog } from "./todo-occurrence-dialog";
@@ -25,7 +28,6 @@ export function CalendarSwitch({ on }: { on: boolean }) {
   return (
     <button
       type="button"
-      aria-pressed={on}
       data-testid="view-calendar"
       onClick={() =>
         update(
@@ -44,10 +46,16 @@ export function CalendarSwitch({ on }: { on: boolean }) {
         strokeWidth="1.5"
         aria-hidden="true"
       >
-        <rect x="1.5" y="2.5" width="13" height="12" rx="1.5" />
-        <path d="M1.5 6.5h13M5 1v3M11 1v3" strokeLinecap="round" />
+        {on ? (
+          <path d="M5 4h9M5 8h9M5 12h9M2 4h.01M2 8h.01M2 12h.01" strokeLinecap="round" />
+        ) : (
+          <>
+            <rect x="1.5" y="2.5" width="13" height="12" rx="1.5" />
+            <path d="M1.5 6.5h13M5 1v3M11 1v3" strokeLinecap="round" />
+          </>
+        )}
       </svg>
-      {C.view}
+      {on ? C.backToList : C.view}
     </button>
   );
 }
@@ -77,6 +85,71 @@ function AddOnDay({ day, onAdd }: { day: string; onAdd: (day: string) => void })
   );
 }
 
+const iconButton =
+  "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded text-ink-muted hover:bg-surface-raised hover:text-ink md:min-h-6 md:min-w-6";
+
+function PlanOnDay({ day, onPlan }: { day: string; onPlan: (day: string) => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={C.planOn(formatDate(day))}
+      title={C.planOn(formatDate(day))}
+      data-testid="calendar-plan"
+      data-day={day}
+      onClick={() => onPlan(day)}
+      className={iconButton}
+    >
+      <svg
+        viewBox="0 0 16 16"
+        className="size-3.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        aria-hidden="true"
+      >
+        <circle cx="8" cy="8" r="6.5" />
+        <path d="M8 4.5V8l2.5 1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+}
+
+function AlertOnEntry({
+  entry,
+  onAlert,
+}: {
+  entry: CalendarEntry;
+  onAlert: (entry: CalendarEntry) => void;
+}) {
+  const label = C.alertOn(entry.todo.title ?? messages.app.untitled, formatDate(entry.day));
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      data-testid="calendar-alert"
+      data-key={entry.key}
+      onClick={() => onAlert(entry)}
+      className={iconButton}
+    >
+      <svg
+        viewBox="0 0 16 16"
+        className="size-3.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        aria-hidden="true"
+      >
+        <path
+          d="M4 11.5V7a4 4 0 0 1 8 0v4.5l1 1H3l1-1ZM6.5 14a1.5 1.5 0 0 0 3 0"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
+  );
+}
+
 function EntryButton({
   entry,
   onOpen,
@@ -89,14 +162,16 @@ function EntryButton({
   const title = entry.todo.title ?? messages.app.untitled;
   const skipped = entry.occurrence?.isSkipped ?? false;
   const done = skipped || isClosedStatus(entry.status);
+  const statusClass = useListValueClass("todo-item.status");
   return (
     <button
       type="button"
       title={entry.todo.noteLine ? `${title} — ${entry.todo.noteLine}` : title}
       data-testid="calendar-entry"
       data-key={entry.key}
+      data-status={entry.status ?? ""}
       onClick={() => onOpen(entry)}
-      className={`flex min-h-11 w-full items-center gap-1 rounded px-1 text-left text-xs hover:bg-surface-raised md:min-h-6 ${done ? "text-ink-muted line-through" : "text-ink"}`}
+      className={`flex min-h-11 w-full items-center gap-1 rounded border px-1 text-left text-xs hover:opacity-80 md:min-h-6 ${skipped ? statusClass(null) : statusClass(entry.status)} ${done ? "line-through" : ""}`}
     >
       {entry.time ? <span className="shrink-0 tabular-nums">{entry.time}</span> : null}
       <span className="truncate">{title}</span>
@@ -114,6 +189,7 @@ function DayEntries({
   day,
   byDay,
   onOpen,
+  onAlert,
   onMore,
   limit = SHOWN_PER_DAY,
   showNote = false,
@@ -121,6 +197,7 @@ function DayEntries({
   day: string;
   byDay: Map<string, CalendarEntry[]>;
   onOpen: (entry: CalendarEntry) => void;
+  onAlert: (entry: CalendarEntry) => void;
   onMore?: (day: string) => void;
   limit?: number;
   showNote?: boolean;
@@ -131,8 +208,13 @@ function DayEntries({
   return (
     <ul className="mt-1 flex flex-col gap-0.5">
       {shown.map((entry) => (
-        <li key={entry.key}>
-          <EntryButton entry={entry} onOpen={onOpen} showNote={showNote} />
+        <li key={entry.key} className="flex items-center gap-0.5">
+          <div className="min-w-0 flex-1">
+            <EntryButton entry={entry} onOpen={onOpen} showNote={showNote} />
+          </div>
+          {canInProject(entry.todo.actorAccess, "todo-alerts:create") ? (
+            <AlertOnEntry entry={entry} onAlert={onAlert} />
+          ) : null}
         </li>
       ))}
       {onMore && all.length > shown.length ? (
@@ -195,6 +277,12 @@ export function TodoCalendar({
     if (entry.occurrence) setOccurrence(entry);
     else openSeries(entry);
   };
+  const setAlert = (entry: CalendarEntry) => {
+    setOpenDay(null);
+    update({ id: String(entry.todo.todoItemId), alert: entry.day });
+  };
+  const plan = (day: string) => update({ view: "planner", month: null, days: day });
+  const canAddOn = (day: string) => canAdd && day >= today;
   const weeks = Array.from({ length: 6 }, (_, w) => grid.days.slice(w * 7, w * 7 + 7));
   const agenda = grid.days.flatMap((day, i) =>
     inMonth(day) && byDay.has(day) ? [{ day, weekday: WEEKDAYS[i % 7] }] : [],
@@ -239,7 +327,7 @@ export function TodoCalendar({
         >
           {C.today}
         </button>
-        <CalendarModeSwitch mode="month" />
+        <CalendarModeSwitch mode="month" day={plannerStartFor(month, today)} />
         <div className="ml-auto flex items-center gap-2">
           {canAdd ? (
             <button
@@ -294,9 +382,18 @@ export function TodoCalendar({
                       <span aria-hidden="true">{Number(day.slice(8))}</span>
                       <span className="sr-only">{formatDate(day)}</span>
                     </span>
-                    {canAdd ? <AddOnDay day={day} onAdd={addOn} /> : null}
+                    <div className="flex items-center">
+                      <PlanOnDay day={day} onPlan={plan} />
+                      {canAddOn(day) ? <AddOnDay day={day} onAdd={addOn} /> : null}
+                    </div>
                   </div>
-                  <DayEntries day={day} byDay={byDay} onOpen={open} onMore={setOpenDay} />
+                  <DayEntries
+                    day={day}
+                    byDay={byDay}
+                    onOpen={open}
+                    onAlert={setAlert}
+                    onMore={setOpenDay}
+                  />
                 </td>
               ))}
             </tr>
@@ -314,9 +411,18 @@ export function TodoCalendar({
               >
                 {weekday} {formatDate(day)}
               </p>
-              {canAdd ? <AddOnDay day={day} onAdd={addOn} /> : null}
+              <div className="flex items-center">
+                <PlanOnDay day={day} onPlan={plan} />
+                {canAddOn(day) ? <AddOnDay day={day} onAdd={addOn} /> : null}
+              </div>
             </div>
-            <DayEntries day={day} byDay={byDay} onOpen={open} onMore={setOpenDay} />
+            <DayEntries
+              day={day}
+              byDay={byDay}
+              onOpen={open}
+              onAlert={setAlert}
+              onMore={setOpenDay}
+            />
           </li>
         ))}
       </ol>
@@ -329,7 +435,14 @@ export function TodoCalendar({
         title={openDay ? C.dayTitle(formatDate(openDay)) : ""}
       >
         {openDay ? (
-          <DayEntries day={openDay} byDay={byDay} onOpen={open} limit={Infinity} showNote />
+          <DayEntries
+            day={openDay}
+            byDay={byDay}
+            onOpen={open}
+            onAlert={setAlert}
+            limit={Infinity}
+            showNote
+          />
         ) : null}
       </Dialog>
       <TodoOccurrenceDialog

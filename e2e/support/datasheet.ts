@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { messages } from "../../src/lib/messages";
 
 /** Escapes a literal for use inside a RegExp. */
@@ -47,4 +47,16 @@ export async function expectNotListed(page: Page, text: string): Promise<void> {
   const view = dataViews(page);
   await expect(view.getByText(text)).toHaveCount(0);
   await expect(view.getByRole("textbox", { name: new RegExp(escapeRegExp(text)) })).toHaveCount(0);
+}
+
+/**
+ * React has taken over this server-rendered field, so its handlers run. Keys sent
+ * before that go to the bare DOM and a clear can be half-applied.
+ */
+export async function waitForHydrated(field: Locator): Promise<void> {
+  await expect
+    .poll(() =>
+      field.evaluate((el) => Object.keys(el).some((key) => key.startsWith("__reactProps$"))),
+    )
+    .toBe(true);
 }

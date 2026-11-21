@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 /**
  * Guardrail: the two things a long, wide list has to keep in reach — the column
  * headers while you scroll down, and a horizontal scrollbar without scrolling
- * down first (client feedback, 2026-10-23).
+ * down first.
  *
  * Neither can be proven here (nothing browser-shaped runs in this workspace), so
  * what is held is the construction each one depends on. Both failed in ways that
@@ -178,7 +178,7 @@ describe("a wide table's horizontal scrollbar stays in reach", () => {
 /**
  * Every sideways scroller in the app reaches for the same bar. The datasheet got it first (client
  * feedback 2026-10-23), then the WBS and the Gantt, and the Kanban board was asked for separately
- * because it had been missed (client feedback 2026-10-31) — so what is held here is the list, not
+ * because it had been missed — so what is held here is the list, not
  * one consumer: a new wide view that mounts the bar without the clip, or hangs the clip without
  * the bar, shows two scrollbars or none.
  */

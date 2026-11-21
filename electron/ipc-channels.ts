@@ -1,4 +1,5 @@
 export const PRINT_PREVIEW_CHANNEL = "print-preview";
+export const SAVE_WORK_CHANNEL = "page:save-work";
 export const DATABASE_READY_CHANNEL = "database:ensure-ready";
 
 export const LICENCE_CHANNELS = {

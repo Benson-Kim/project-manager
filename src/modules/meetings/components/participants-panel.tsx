@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { useUnsavedPart } from "@/components/ui/form/unsaved-scope";
 import { useToast } from "@/components/ui/toast";
+import { PANEL_BODY, PANEL_SHELL } from "@/components/ui/panel-styles";
 import { messages } from "@/lib/messages";
-import { setParticipantsAction } from "../actions";
+import { getLastMeetingAttendeesAction, setParticipantsAction } from "../actions";
 import type { MeetingRoster, RosterEntry } from "../schemas/meeting";
 import {
   ATTENDANCE,
@@ -73,6 +74,7 @@ export function ParticipantsPanel({
   const [summary, setSummary] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [importPending, setImportPending] = useState(false);
   const entries = drafts.length === 0 ? base.entries : [...base.entries, ...drafts];
   const dirty = canEdit && hasChanges(entries, choices);
   const { markClean } = useUnsavedPart("meeting-participants", dirty);
@@ -108,6 +110,20 @@ export function ParticipantsPanel({
     setChoices((current) => choose(current, entry, attendance));
   };
 
+  const removeEntry = (entry: RosterEntry) => {
+    if (isGuest(entry) && entry.MeetingParticipantId === null) {
+      const key = personKey(entry);
+      setDrafts((current) => current.filter((draft) => personKey(draft) !== key));
+      setChoices((current) => {
+        const next = new Map(current);
+        next.delete(key);
+        return next;
+      });
+      return;
+    }
+    setChoices((current) => choose(current, entry, "none"));
+  };
+
   const addGuest = (name: string, organization: string): string | null => {
     const problem = guestProblem(entries, name, organization);
     if (problem) return M.guestProblem[problem];
@@ -116,6 +132,62 @@ export function ParticipantsPanel({
     setChoices((current) => choose(current, draft, "attended"));
     announce(M.guestAdded(draft.Label));
     return null;
+  };
+
+  const handleImportFromLast = async () => {
+    setImportPending(true);
+    try {
+      const result = await getLastMeetingAttendeesAction({ meetingId, projectId });
+      if (!result.ok) {
+        toast({ variant: "error", title: result.error.message });
+        return;
+      }
+      if (!result.data || result.data.attendees.length === 0) {
+        toast({ variant: "warning", title: M.noPreviousMeeting });
+        return;
+      }
+
+      let addedCount = 0;
+      let nextChoices = new Map(choices);
+      const nextDrafts = [...drafts];
+      const existingLabels = new Set(entries.map((e) => e.Label.toLowerCase()));
+
+      for (const att of result.data.attendees) {
+        if (att.StakeholderId !== null) {
+          const match = entries.find((e) => e.StakeholderId === att.StakeholderId);
+          if (match) {
+            const currentAtt = attendanceOf(match, nextChoices);
+            if (currentAtt !== "attended") {
+              nextChoices = choose(nextChoices, match, "attended");
+              addedCount++;
+            }
+          }
+        } else {
+          // Guest
+          if (!existingLabels.has(att.Label.toLowerCase())) {
+            const [name, ...orgParts] = att.Label.split(" - ");
+            const org = orgParts.join(" - ");
+            const draft = guestEntry(name.trim(), org.trim());
+            nextDrafts.push(draft);
+            nextChoices = choose(nextChoices, draft, "attended");
+            existingLabels.add(att.Label.toLowerCase());
+            addedCount++;
+          }
+        }
+      }
+
+      if (addedCount === 0) {
+        toast({ variant: "info", title: M.allAttendeesImported });
+        return;
+      }
+
+      setDrafts(nextDrafts);
+      setChoices(nextChoices);
+      toast({ variant: "success", title: M.importedAttendees(addedCount) });
+      announce(M.importedAttendees(addedCount));
+    } finally {
+      setImportPending(false);
+    }
   };
 
   const reload = () => {
@@ -168,102 +240,149 @@ export function ParticipantsPanel({
   };
 
   return (
-    <div className="flex flex-col gap-4" data-testid="participants-panel">
-      <div className="flex flex-col gap-1">
-        <h2 id={headingId} className="text-base font-medium text-ink">
-          {M.participants}
-        </h2>
-        <p className="text-sm text-ink-muted" data-testid="participant-counts">
-          {M.attendedCount(counts.attended)} · {M.apologyCount(counts.apologies)}
-        </p>
-      </div>
-      <ErrorSummary message={summary} />
-      {conflict ? (
-        <div>
-          <Button type="button" variant="secondary" onClick={reload}>
-            {M.reload}
-          </Button>
-        </div>
-      ) : null}
-      {base.entries.length === 0 ? (
-        <div className="flex flex-col gap-1 text-sm text-ink-muted">
-          <p>{M.noStakeholders}</p>
-          <Link
-            href={`/projects/${projectId}/stakeholders`}
-            className="inline-flex min-h-11 items-center font-medium text-accent"
+    <section className={PANEL_SHELL} data-testid="participants-panel" aria-labelledby={headingId}>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-2.5">
+        <div className="flex items-center gap-2">
+          <h2
+            id={headingId}
+            className="text-xs font-semibold uppercase tracking-wide text-ink-muted"
           >
-            {messages.stakeholders.viewStakeholders}
-          </Link>
+            {M.participants}
+          </h2>
+          <span className="text-xs text-ink-muted" data-testid="participant-counts">
+            ({M.attendedCount(counts.attended)} · {M.apologyCount(counts.apologies)})
+          </span>
         </div>
-      ) : null}
-      {entries.length > 0 ? (
-        <div className="flex flex-col gap-1">
-          <label htmlFor={searchId} className="text-sm font-medium text-ink">
-            {M.searchParticipants}
-          </label>
-          <input
-            id={searchId}
-            type="search"
-            autoComplete="off"
-            spellCheck={false}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            data-testid="participant-search"
-            className={INPUT}
-          />
-        </div>
-      ) : null}
-      {canEdit ? <GuestForm onAdd={addGuest} /> : null}
-      {entries.length > 0 ? (
-        <form
-          noValidate
-          onSubmit={onSubmit}
-          aria-labelledby={headingId}
-          className="flex flex-col gap-4"
-        >
-          {!canEdit ? (
-            <p id={`${searchId}-read-only`} className="sr-only">
-              {messages.app.readOnly}
-            </p>
-          ) : null}
-          {visible.length === 0 ? (
-            <p className="text-sm text-ink-muted">{M.noParticipantMatch}</p>
-          ) : (
-            <ul className="flex flex-col divide-y divide-line">
-              {visible.map((entry) => (
-                <li key={personKey(entry)} className="py-3 first:pt-0">
-                  <ParticipantRow
-                    entry={entry}
-                    attendance={attendanceOf(entry, choices)}
-                    disabled={!canEdit || entry.IsHistorical}
-                    describedBy={canEdit ? undefined : `${searchId}-read-only`}
-                    onPick={pick}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-          {canEdit ? (
-            <div>
-              <Button
-                type="submit"
-                pending={pending}
-                disabled={!dirty}
-                data-testid="participants-save"
-              >
-                {messages.actions.save}
-              </Button>
-            </div>
-          ) : null}
-        </form>
-      ) : null}
-    </div>
+        {canEdit ? (
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              pending={importPending}
+              onClick={handleImportFromLast}
+              className="min-h-7 px-2.5 py-0.5 text-xs font-semibold"
+            >
+              ⬆ {M.importFromLast}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                const el = document.getElementById(`${searchId}-guest-name`);
+                el?.focus();
+                el?.scrollIntoView({ behavior: "smooth", block: "center" });
+              }}
+              className="min-h-7 px-2.5 py-0.5 text-xs font-semibold"
+            >
+              + {M.guest.split(",")[0]}
+            </Button>
+            <Link
+              href={`/projects/${projectId}/stakeholders`}
+              className="inline-flex min-h-7 items-center rounded-md border border-line bg-surface px-2.5 py-0.5 text-xs font-semibold text-ink transition-colors hover:bg-surface-soft"
+            >
+              + {M.member}
+            </Link>
+          </div>
+        ) : null}
+      </div>
+
+      <div className={PANEL_BODY}>
+        <ErrorSummary message={summary} />
+        {conflict ? (
+          <div>
+            <Button type="button" variant="secondary" onClick={reload}>
+              {M.reload}
+            </Button>
+          </div>
+        ) : null}
+        {base.entries.length === 0 ? (
+          <div className="flex flex-col gap-1 text-sm text-ink-muted">
+            <p>{M.noStakeholders}</p>
+            <Link
+              href={`/projects/${projectId}/stakeholders`}
+              className="inline-flex min-h-11 items-center font-medium text-accent"
+            >
+              {messages.stakeholders.viewStakeholders}
+            </Link>
+          </div>
+        ) : null}
+        {entries.length > 0 ? (
+          <div className="flex flex-col gap-1">
+            <label htmlFor={searchId} className="text-sm font-medium text-ink">
+              {M.searchParticipants}
+            </label>
+            <input
+              id={searchId}
+              type="search"
+              autoComplete="off"
+              spellCheck={false}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              data-testid="participant-search"
+              className={INPUT}
+            />
+          </div>
+        ) : null}
+        {canEdit ? <GuestForm idPrefix={searchId} onAdd={addGuest} /> : null}
+        {entries.length > 0 ? (
+          <form
+            noValidate
+            onSubmit={onSubmit}
+            aria-labelledby={headingId}
+            className="flex flex-col gap-4"
+          >
+            {!canEdit ? (
+              <p id={`${searchId}-read-only`} className="sr-only">
+                {messages.app.readOnly}
+              </p>
+            ) : null}
+            {visible.length === 0 ? (
+              <p className="text-sm text-ink-muted">{M.noParticipantMatch}</p>
+            ) : (
+              <ul className="flex flex-col divide-y divide-line">
+                {visible.map((entry) => (
+                  <li key={personKey(entry)} className="py-2 first:pt-0">
+                    <ParticipantRow
+                      entry={entry}
+                      attendance={attendanceOf(entry, choices)}
+                      disabled={!canEdit || entry.IsHistorical}
+                      describedBy={canEdit ? undefined : `${searchId}-read-only`}
+                      onPick={pick}
+                      onRemove={canEdit ? removeEntry : undefined}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+            {canEdit ? (
+              <div>
+                <Button
+                  type="submit"
+                  pending={pending}
+                  disabled={!dirty}
+                  data-testid="participants-save"
+                >
+                  {messages.actions.save}
+                </Button>
+              </div>
+            ) : null}
+          </form>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
 /** Name and organization of someone who is not a stakeholder; Enter adds them. */
-function GuestForm({ onAdd }: { onAdd: (name: string, organization: string) => string | null }) {
-  const id = useId();
+function GuestForm({
+  idPrefix,
+  onAdd,
+}: {
+  idPrefix?: string;
+  onAdd: (name: string, organization: string) => string | null;
+}) {
+  const generatedId = useId();
+  const id = idPrefix ? `${idPrefix}-guest` : generatedId;
   const [name, setName] = useState("");
   const [organization, setOrganization] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -336,52 +455,128 @@ function GuestForm({ onAdd }: { onAdd: (name: string, organization: string) => s
   );
 }
 
-/** One person: a radio group named by their label. */
+/** One person: a radio group named by their label with prototype styling. */
 function ParticipantRow({
   entry,
   attendance,
   disabled,
   describedBy,
   onPick,
+  onRemove,
 }: {
   entry: RosterEntry;
   attendance: Attendance;
   disabled: boolean;
   describedBy?: string;
   onPick: (entry: RosterEntry, attendance: Attendance) => void;
+  onRemove?: (entry: RosterEntry) => void;
 }) {
   const name = useId();
+  const guest = isGuest(entry);
+
+  let displayName = entry.Label;
+  let roleOrg = "";
+  if (guest) {
+    displayName = entry.GuestName || entry.Label;
+    roleOrg = entry.GuestOrganization || "";
+  } else {
+    const parts = entry.Label.split(" - ");
+    displayName = parts[0];
+    roleOrg = parts.slice(1).join(" - ");
+  }
+
+  let statusBorder = "border-l-4 border-transparent hover:bg-surface-soft";
+  if (attendance === "attended") {
+    statusBorder = "border-l-4 border-emerald-500 bg-emerald-50/40";
+  } else if (attendance === "apology") {
+    statusBorder = "border-l-4 border-amber-500 bg-amber-50/40";
+  }
+
   return (
     <fieldset
       disabled={disabled}
       aria-describedby={describedBy}
       data-testid="participant-row"
-      className="min-w-0"
+      className={`group flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 rounded-md px-3 py-2 transition-colors min-w-0 ${statusBorder}`}
     >
-      <legend className="mb-2 text-sm text-ink wrap-anywhere">
+      <legend className="sr-only">
         {entry.Label}
-        {isGuest(entry) ? <span className="block text-xs text-ink-muted">{M.guest}</span> : null}
+        {guest ? ` - ${M.guest}` : ""}
+        {entry.IsHistorical ? ` - ${M.historical}` : ""}
+      </legend>
+
+      <div className="flex flex-col min-w-0 flex-1">
+        <span className="block truncate text-sm text-ink" title={displayName}>
+          {displayName}
+        </span>
+        {guest ? (
+          <span className="block truncate text-xs text-ink-muted">
+            {roleOrg ? `${roleOrg} · ` : ""}
+            {M.guest}
+          </span>
+        ) : roleOrg ? (
+          <span className="block truncate text-xs text-ink-muted" title={roleOrg}>
+            {roleOrg}
+          </span>
+        ) : null}
         {entry.IsHistorical ? (
           <span className="block text-xs text-ink-muted">{M.historical}</span>
         ) : null}
-      </legend>
-      <div className="grid grid-cols-3 gap-1">
-        {ATTENDANCE.map((value) => (
-          <label
-            key={value}
-            className="flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-line px-1.5 text-center text-sm text-ink has-checked:border-accent has-checked:bg-accent-soft has-checked:font-medium has-disabled:cursor-default"
+      </div>
+
+      <div className="flex items-center gap-2 shrink-0">
+        {guest ? (
+          <span className="rounded px-1.5 py-0.5 text-[10px] font-bold capitalize tracking-wider border border-purple-200 text-purple-700 bg-purple-50 shrink-0">
+            {M.guest.split(",")[0]}
+          </span>
+        ) : (
+          <span className="rounded px-1.5 py-0.5 text-[10px] font-bold capitalize tracking-wider border border-indigo-200 text-indigo-700 bg-indigo-50 shrink-0">
+            {M.member}
+          </span>
+        )}
+
+        <div className="inline-flex rounded border border-line bg-surface overflow-hidden">
+          {ATTENDANCE.map((value) => {
+            const isChecked = attendance === value;
+            let activeStyle = "";
+            if (isChecked) {
+              if (value === "attended") activeStyle = "bg-emerald-500 text-white font-semibold";
+              else if (value === "apology") activeStyle = "bg-amber-500 text-white font-semibold";
+              else activeStyle = "bg-slate-400 text-white font-semibold";
+            } else {
+              activeStyle = "text-ink-muted hover:bg-surface-soft hover:text-ink";
+            }
+            return (
+              <label
+                key={value}
+                className={`flex min-h-7 cursor-pointer items-center justify-center px-2.5 py-1 text-xs border-r border-line last:border-r-0 transition-colors ${activeStyle}`}
+              >
+                <input
+                  type="radio"
+                  name={name}
+                  value={value}
+                  checked={isChecked}
+                  onChange={() => onPick(entry, value)}
+                  className="sr-only"
+                />
+                <span>{M.attendance[value]}</span>
+              </label>
+            );
+          })}
+        </div>
+
+        {onRemove && !disabled ? (
+          <button
+            type="button"
+            onClick={() => onRemove(entry)}
+            title={messages.actions.delete}
+            className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1 text-ink-muted hover:text-danger hover:bg-danger-soft rounded text-base leading-none"
           >
-            <input
-              type="radio"
-              name={name}
-              value={value}
-              checked={attendance === value}
-              onChange={() => onPick(entry, value)}
-              className="size-4 shrink-0 accent-accent"
-            />
-            <span>{M.attendance[value]}</span>
-          </label>
-        ))}
+            ×
+          </button>
+        ) : (
+          <span className="w-5" />
+        )}
       </div>
     </fieldset>
   );

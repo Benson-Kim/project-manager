@@ -1,7 +1,8 @@
-import { plannerWindow, type PlannerWindow } from "../planner";
+import { calendarEntries } from "../calendar";
+import { plannerRepeats, plannerWindow, type PlannerBlock, type PlannerWindow } from "../planner";
+import { listTodoCalendar } from "../repository/todo-recurrence";
 import { listTodoItems } from "../repository/todo-items";
 import { listTodoSchedule } from "../repository/todo-schedule";
-import type { PlannerEntry } from "../schemas/todo-schedule";
 
 export const UNPLACED_PAGE = 100;
 
@@ -15,7 +16,7 @@ export interface UnplacedTodo {
 export interface TodoPlannerData {
   window: PlannerWindow;
   today: string;
-  entries: PlannerEntry[];
+  entries: PlannerBlock[];
   unplaced: UnplacedTodo[];
   search: string;
 }
@@ -32,7 +33,7 @@ export async function loadTodoPlanner(
   today: string = new Date().toISOString().slice(0, 10),
 ): Promise<TodoPlannerData> {
   const window = plannerWindow(scope.days, today);
-  const [scheduled, page] = await Promise.all([
+  const [scheduled, page, calendar] = await Promise.all([
     listTodoSchedule({ from: window.from, to: window.to, projectId: scope.projectId }, actorUserId),
     listTodoItems(
       { q: scope.search?.trim() || undefined, sort: "TodoItemId", dir: "desc", page: 1 },
@@ -44,10 +45,13 @@ export async function loadTodoPlanner(
         unscheduled: true,
       },
     ),
+    listTodoCalendar({ projectId: scope.projectId, from: window.from, to: window.to }, actorUserId),
   ]);
-  const entries = scope.withoutProject
-    ? scheduled.filter((entry) => entry.projectId === null)
-    : scheduled;
+  const repeats = plannerRepeats(
+    calendarEntries(calendar.todos, calendar.occurrences, window, today).entries,
+  );
+  const all: PlannerBlock[] = [...scheduled, ...repeats];
+  const entries = scope.withoutProject ? all.filter((entry) => entry.projectId === null) : all;
   const unplaced = page.map((row) => ({
     todoItemId: row.TodoItemId,
     title: row.TodoItem ?? "",

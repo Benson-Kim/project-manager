@@ -137,6 +137,33 @@ describe("licence service", () => {
     expect(await t.open(checkIn.licence)).toMatchObject({ typ: "licence" });
   });
 
+  it("keeps the highest hours used and signs the trial hours limit", async () => {
+    const t = await setup();
+    const licence = await t.open((await t.trial()).body);
+    expect(licence.usageLimitMs).toBe(112 * 60 * 60 * 1000);
+    const report = async (usedMs?: number) =>
+      t.open(
+        (
+          await t.call("/v1/checkin", {
+            licenceId: licence.licenceId,
+            machineHash: machineA,
+            nonce: "n".repeat(24),
+            ...(usedMs === undefined ? {} : { usedMs }),
+          })
+        ).body,
+      );
+    expect((await report(5_000)).usedMs).toBe(5_000);
+    expect((await report(1_000)).usedMs).toBe(5_000);
+    expect((await report()).usedMs).toBe(5_000);
+    const bad = await t.call("/v1/checkin", {
+      licenceId: licence.licenceId,
+      machineHash: machineA,
+      nonce: "n".repeat(24),
+      usedMs: -1,
+    });
+    expect(bad.status).toBe(400);
+  });
+
   it("carries no machine or email hash in the trial_used refusal or in what it logs", async () => {
     const t = await setup();
     await t.trial();

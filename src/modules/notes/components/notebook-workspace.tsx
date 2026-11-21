@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -26,7 +26,7 @@ import {
   updateNoteSectionAction,
   updateNoteTabAction,
 } from "../actions";
-import { groupPages, swapInOrder } from "../notebook-model";
+import { firstPageWith, groupPages, swapInOrder } from "../notebook-model";
 import {
   NOTE_PAGES_MAX,
   NOTE_TITLE_MAX,
@@ -70,8 +70,12 @@ export function NotebookWorkspace({
   const router = useRouter();
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
-  const [activeSectionId, setActiveSectionId] = useState<number | null>(null);
-  const [activeId, setActiveId] = useState<number | null>(null);
+  const find = useSearchParams().get("find")?.trim() ?? "";
+  const [found] = useState(() => firstPageWith(groupPages(sections, tabs), find));
+  const [activeSectionId, setActiveSectionId] = useState<number | null>(
+    found?.NoteSectionId ?? null,
+  );
+  const [activeId, setActiveId] = useState<number | null>(found?.NoteTabId ?? null);
   const [titleDirty, setTitleDirty] = useState(false);
   const [pageDirty, setPageDirty] = useState(false);
   const [afterDiscard, setAfterDiscard] = useState<(() => void) | null>(null);
@@ -416,6 +420,8 @@ export function NotebookWorkspace({
                   defaultValue={active.Content}
                   onChange={() => setPageDirty(true)}
                   height="page"
+                  findReplace
+                  findSeed={found && active.NoteTabId === found.NoteTabId ? find : undefined}
                 />
               </Field>
               <div className="flex flex-wrap items-center gap-2">

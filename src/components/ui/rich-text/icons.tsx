@@ -31,6 +31,24 @@ export const RedoIcon = () => (
   </Icon>
 );
 
+export const ChevronUpIcon = () => (
+  <Icon>
+    <path d="m4 10 4-4 4 4" />
+  </Icon>
+);
+
+export const ChevronDownIcon = () => (
+  <Icon>
+    <path d="m4 6 4 4 4-4" />
+  </Icon>
+);
+
+export const CloseIcon = () => (
+  <Icon>
+    <path d="m4 4 8 8M12 4l-8 8" />
+  </Icon>
+);
+
 export const BulletListIcon = () => (
   <Icon>
     <path d="M6.5 4H14M6.5 8H14M6.5 12H14" />

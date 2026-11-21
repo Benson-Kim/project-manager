@@ -28,9 +28,14 @@ const VARIANT_MAP: Record<string, string> = {
 const DEFAULT_CLASS = "bg-surface-raised border-line text-ink-muted";
 
 /**
- * `tone`: the value's colour from its managed list (migration 020) — set by an
- * Admin, it wins over the built-in vocabulary above.
+ * The colour classes for a value: `tone` is its colour from its managed list
+ * (migration 020) — set by an Admin, it wins over the built-in vocabulary above.
  */
+export function badgeClass(value: string | null | undefined, tone?: OptionColor | null): string {
+  if (tone) return TONES[tone].badge;
+  return (value && VARIANT_MAP[value]) || DEFAULT_CLASS;
+}
+
 export function Badge({
   value,
   tone,
@@ -39,7 +44,7 @@ export function Badge({
   tone?: OptionColor | null;
 }) {
   if (!value) return null;
-  const cls = tone ? TONES[tone].badge : (VARIANT_MAP[value] ?? DEFAULT_CLASS);
+  const cls = badgeClass(value, tone);
   return (
     <span
       className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}

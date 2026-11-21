@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 /**
- * Guardrail: how the plan views read (client feedback, 2026-11-02) — a WBS box in its status's
+ * Guardrail: how the plan views read — a WBS box in its status's
  * colour, and a chart that scrolls inside itself in full screen so the Gantt's date row stays in
  * view. Nothing browser-shaped runs here, so what is held is the construction each one depends on.
  */
@@ -74,6 +74,8 @@ describe("full screen puts both scrollbars on the chart", () => {
 
 describe("the Gantt keeps its dates at the top", () => {
   it("sticks the date row to the top of the box that scrolls", () => {
-    expect(source(BOARD)).toContain('className="sticky top-0 z-20 flex h-10 bg-surface"');
+    expect(source(BOARD)).toMatch(
+      /data-testid="gantt-header"\s+className="sticky top-0 z-20 flex bg-surface"/,
+    );
   });
 });

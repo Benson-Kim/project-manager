@@ -18,6 +18,29 @@ export function groupPages(sections: NoteSectionRow[], pages: NoteTabRow[]): Pag
   }));
 }
 
+function pageText(html: string | null) {
+  return (html ?? "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&");
+}
+
+/** The first page, in reading order, whose title or text holds `find` in any case. */
+export function firstPageWith(groups: PageGroup[], find: string): NoteTabRow | null {
+  const needle = find.trim().toLowerCase();
+  if (!needle) return null;
+  for (const group of groups) {
+    for (const page of group.pages) {
+      const haystack = `${page.Title ?? ""}\n${pageText(page.Content)}`.toLowerCase();
+      if (haystack.includes(needle)) return page;
+    }
+  }
+  return null;
+}
+
 /** The order with the entries for ids a and b swapped; every other entry keeps its place. */
 export function swapInOrder<T extends { id: number }>(order: T[], a: number, b: number): T[] {
   const next = [...order];

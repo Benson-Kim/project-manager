@@ -1,5 +1,4 @@
--- 044_key_deliverable_dependency.sql — dependencies between work breakdown items (client feedback
--- 2026-10-23; ADR-0046 decisions 5-10).
+-- 044_key_deliverable_dependency.sql — dependencies between work breakdown items
 --   app.KeyDeliverableDependency records one link per ordered pair of items, typed FS/SS/FF/SF with
 --     a lag in days. The type is a property of the link, so two items are never joined twice to
 --     carry two types.

@@ -56,6 +56,7 @@ export interface LicenceStore {
   getLicence(licenceId: string): Promise<LicenceRecord | null>;
   bindRedeemCode(codeHash: string, machineHash: string): Promise<LicenceRecord | null>;
   saveLicence(record: LicenceRecord): Promise<void>;
+  raiseUsage(licenceId: string, usedMs: number): Promise<number>;
   createTrial(record: LicenceRecord, email: string): Promise<"created" | "conflict">;
   issueCode(
     key: string,

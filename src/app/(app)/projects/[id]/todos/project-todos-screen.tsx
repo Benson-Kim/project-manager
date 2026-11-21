@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { todoColumns } from "@/modules/todo-items/repository/columns";
 import { PageHeader } from "@/components/ui/page-header";
 import { auth } from "@/lib/auth/provider";
 import { flattenSearchParams, parseListParams, initialViewOf } from "@/lib/list-params";
@@ -68,6 +69,8 @@ export async function ProjectTodosScreen({
     userPreference,
     calendar,
     planner,
+    labels,
+    addedColumns,
   ] = await Promise.all([
     isCalendar
       ? []
@@ -92,6 +95,8 @@ export async function ProjectTodosScreen({
           loadTodoPlanner({ days: flat.days, projectId, search: flat.find }, session.userId),
         )
       : null,
+    isCalendar ? [] : orNotFound(todoColumns.listLabels(projectId, session.userId)),
+    isCalendar ? [] : orNotFound(todoColumns.listColumns(projectId, session.userId)),
   ]);
 
   // A deep link to a todo from another project is treated as not found.
@@ -149,6 +154,9 @@ export async function ProjectTodosScreen({
           ) : (
             <TodoView
               projectId={projectId}
+              labels={labels}
+              addedColumns={addedColumns}
+              canManageColumns={{ create: canCreate, update: canEdit, delete: canDelete }}
               canCreate={canCreate}
               rows={rows}
               totalCount={totalCount}
@@ -168,6 +176,7 @@ export async function ProjectTodosScreen({
           todoRecurrence={selectedRecurrence}
           isNew={isNew && canCreate}
           newDay={isNew ? calendarDay(flat.day) : null}
+          alertDay={selected ? calendarDay(flat.alert) : null}
           projectId={projectId}
           dailyActivityOptions={activityOptions}
           canEdit={isNew ? canCreate : canEdit}

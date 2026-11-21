@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { actorAccessSchema } from "@/lib/auth/actor-access";
+import { LOCAL_WALL_CLOCK } from "@/lib/local-time";
 import { messages } from "@/lib/messages";
+import { isPastMinute, userNow } from "@/lib/not-past";
 import { rowVerSchema } from "./todo-alert";
 
 const t = messages.todoItems.planner;
@@ -24,26 +26,56 @@ export function nextMidnight(start: string): string {
   return `${day.toISOString().slice(0, 10)}T00:00`;
 }
 
-export type SlotProblem = "order" | "midnight";
+export type SlotProblem = "order" | "midnight" | "past";
 
-/** The slot rule the database holds (usp_TodoItem_AssertSlot, CK_TodoItem_Schedule). */
-export function slotProblem(start: string, end: string): SlotProblem | null {
+/** The user's current minute, and the start already stored, which may stay where it is. */
+export interface SlotClock {
+  now: string;
+  startWas?: string;
+}
+
+/**
+ * The slot rule the database holds (usp_TodoItem_AssertSlot, CK_TodoItem_Schedule),
+ * and with a clock, no new start before the user's current minute.
+ */
+export function slotProblem(start: string, end: string, clock?: SlotClock): SlotProblem | null {
   if (end <= start) return "order";
   if (end > nextMidnight(start)) return "midnight";
+  if (clock && start !== clock.startWas && isPastMinute(start, clock.now)) return "past";
   return null;
 }
 
 const plannerTime = z.string().refine(isPlannerTime, t.timeFormat);
 const id = z.number().int().positive();
+const localNow = z.string().regex(LOCAL_WALL_CLOCK).optional();
 
-function checkSlot(value: { start: string; end: string }, ctx: z.RefinementCtx) {
+function checkSlot(
+  value: { start: string; end: string; startWas?: string; localNow?: string },
+  ctx: z.RefinementCtx,
+) {
   if (!isPlannerTime(value.start) || !isPlannerTime(value.end)) return;
-  const problem = slotProblem(value.start, value.end);
-  if (problem) ctx.addIssue({ code: "custom", path: ["end"], message: t[problem] });
+  const problem = slotProblem(value.start, value.end, {
+    now: userNow(value.localNow),
+    startWas: value.startWas,
+  });
+  if (problem) {
+    ctx.addIssue({
+      code: "custom",
+      path: [problem === "past" ? "start" : "end"],
+      message: t[problem],
+    });
+  }
 }
 
 export const scheduleTodoItemInput = z
-  .strictObject({ todoItemId: id, start: plannerTime, end: plannerTime, rowVer: rowVerSchema })
+  .strictObject({
+    todoItemId: id,
+    start: plannerTime,
+    end: plannerTime,
+    rowVer: rowVerSchema,
+    startWas: plannerTime.optional(),
+    localNow,
+  })
   .superRefine(checkSlot);
 export type ScheduleTodoItemInput = z.input<typeof scheduleTodoItemInput>;
 
@@ -56,6 +88,7 @@ export const createPlannerEntryInput = z
     projectId: id.nullable().optional(),
     start: plannerTime,
     end: plannerTime,
+    localNow,
   })
   .superRefine(checkSlot);
 export type CreatePlannerEntryInput = z.input<typeof createPlannerEntryInput>;

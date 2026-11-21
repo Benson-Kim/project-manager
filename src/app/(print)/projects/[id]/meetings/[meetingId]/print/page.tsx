@@ -190,10 +190,10 @@ function CarriedOverTable({ rows, title }: { rows: CarriedOver[]; title: string 
 /**
  * The printed minutes (Access rptMeetingMinutes, with subrptMeetingAttendees
  * and subrptMeetingApologies) — /projects/[id]/meetings/[meetingId]/print,
- * outside the app shell: the header fields, who was present and who sent
- * apologies directly under Location, the objective and description, the agenda
- * with its discussion points and actions, then the conclusion and next
- * meeting. One workspace read, so the page is one consistent snapshot. It
+ * outside the app shell, in the workspace's order: the header fields, who was
+ * present and who sent apologies, the agenda with its discussion points and
+ * actions, then the objective, description, conclusion and date received, and
+ * the custom boxes. One workspace read, so the page is one consistent snapshot. It
  * renders on paper on screen too, so what you see is what prints — "Print
  * minutes" is window.print over the same stylesheet (portrait A4), in the
  * browser and the desktop app alike.
@@ -247,21 +247,13 @@ export default async function MeetingMinutesPrintPage({
             [M.startDate, formatDate(meeting.StartDate)],
             [M.time, meetingTimes(meeting.StartTime, meeting.EndTime)],
             [M.location, meeting.Location],
-            [M.dateReceived, formatDate(meeting.DateReceived)],
+            [M.nextMeeting, formatDate(meeting.NextMeeting)],
           ]}
         />
-        {/*
-          Present and apologies directly under Location, the header block's last
-          field, as on the workspace page (client feedback 2026-10-26, M2); the
-          objective and description follow them.
-        */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 print:grid-cols-2">
           <People title={M.present} people={present} testId="print-present" />
           <People title={M.apologies} people={apologies} testId="print-apologies" />
         </div>
-
-        <RichBlock title={M.objective} html={meeting.Objective} />
-        <RichBlock title={M.description} html={meeting.Description} />
 
         <CarriedOverTable
           rows={carried}
@@ -327,6 +319,11 @@ export default async function MeetingMinutesPrintPage({
           )}
         </section>
 
+        <RichBlock title={M.objective} html={meeting.Objective} />
+        <RichBlock title={M.description} html={meeting.Description} />
+        <RichBlock title={M.conclusion} html={meeting.Conclusion} />
+        <Details items={[[M.dateReceived, formatDate(meeting.DateReceived)]]} />
+
         {workspace.sections
           .filter((section) => section.SectionKey === null)
           .map((section) => (
@@ -341,9 +338,6 @@ export default async function MeetingMinutesPrintPage({
               ) : null}
             </section>
           ))}
-
-        <RichBlock title={M.conclusion} html={meeting.Conclusion} />
-        <Details items={[[M.nextMeeting, formatDate(meeting.NextMeeting)]]} />
       </div>
     </main>
   );
