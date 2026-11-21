@@ -1,5 +1,4 @@
--- 048_requirement_sub_requirements.sql — a requirement can sit under another one (client feedback
--- 2026-10-26, the Requirements page of the 1.0.12 sheet; ADR-0048).
+-- 048_requirement_sub_requirements.sql — a requirement can sit under another one 
 --   "The requirements BR, SR, FR, NF, TR all should be able to create subrequirement
 --    E.g. subBR1.1, subBR1.2 then subBR1.1.1 (as many subs as necessary)."
 --

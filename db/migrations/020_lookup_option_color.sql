@@ -1,5 +1,5 @@
 -- 020_lookup_option_color.sql
--- Colour-coded dropdown values (ADR-0022 amendment, client feedback): each managed option may
+-- Colour-coded dropdown values: each managed option may
 -- carry a colour from a fixed palette (light/dark design tokens in globals.css, never raw
 -- values), shown on its cells and badges; a list can also colour whole datasheet rows by
 -- the row's value (e.g. every High-priority to-do). Both are edited in "Edit dropdown list".

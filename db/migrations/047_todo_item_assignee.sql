@@ -1,5 +1,4 @@
--- 047_todo_item_assignee.sql — who is doing a to-do (client feedback 2026-10-26, raised twice;
--- ADR-0047 decision 3).
+-- 047_todo_item_assignee.sql — who is doing a to-do 
 --   app.TodoItem.Assignee NVARCHAR(255) NULL: "The to-do list should have a column name assignee
 --     in case you need to track who is doing a certain task."
 --   Free text rather than a foreign key to app.Stakeholder, which is the opposite of the choice

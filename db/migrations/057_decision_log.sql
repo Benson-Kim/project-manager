@@ -1,4 +1,4 @@
--- 057_decision_log.sql — the project decision log (client feedback 2026-11-03, ADR-0055).
+-- 057_decision_log.sql — the project decision log
 --   app.Decision records one decision per row, cited by a per-project code the client writes as
 --     DEC-001: [DecisionNumber] is the number behind it, assigned by usp_Decision_Create under the
 --     app.Project (UPDLOCK, HOLDLOCK) every project-scoped write already takes.
