@@ -40,7 +40,7 @@ import { registerDatabaseIpc } from "./database-ipc";
 import { contextMenuTemplate } from "./context-menu";
 import { createExclusive } from "./exclusive";
 import { GrammarChecker } from "./grammar";
-import { PRINT_PREVIEW_CHANNEL } from "./ipc-channels";
+import { PRINT_PREVIEW_CHANNEL, SAVE_WORK_CHANNEL } from "./ipc-channels";
 import { registerLicenceIpc } from "./licence/ipc";
 import type { LicenceStatus } from "./licence/policy";
 import { startLicence, type LicenceSetup } from "./licence/start";
@@ -51,6 +51,7 @@ import { NextServer } from "./next-server";
 import { paths } from "./paths";
 import { allowPermission } from "./permissions";
 import { createPrintPreview, tempPdfFiles } from "./print-preview";
+import { createSavePage } from "./save-page";
 import {
   dialectFor,
   grammarFixes,
@@ -122,6 +123,20 @@ let databaseRequest: Promise<boolean> | undefined;
 const showPrintPreview = createPrintPreview({
   ...tempPdfFiles(app.getPath("temp")),
   openWindow: (options) => new BrowserWindow({ ...options, icon: paths.icon }),
+});
+const savePage = createSavePage({
+  async chooseFile(defaultName, parent) {
+    const options = {
+      title: "Save page as PDF",
+      defaultPath: path.join(app.getPath("documents"), defaultName),
+      filters: [{ name: "PDF", extensions: ["pdf"] }],
+    };
+    const { canceled, filePath } = parent
+      ? await dialog.showSaveDialog(parent, options)
+      : await dialog.showSaveDialog(options);
+    return canceled ? undefined : filePath;
+  },
+  writeFile: (file, pdf) => fs.promises.writeFile(file, pdf),
 });
 let mainWindow: BrowserWindow | null = null;
 let licenceWindow: BrowserWindow | null = null;
@@ -280,6 +295,7 @@ async function showContextMenu(contents: WebContents, params: ContextMenuParams)
       editFlags: params.editFlags,
       checking,
       grammar: fixes,
+      appPage: isAppPage(contents),
     },
     {
       replaceMisspelling: (word) => contents.replaceMisspelling(word),
@@ -291,9 +307,36 @@ async function showContextMenu(contents: WebContents, params: ContextMenuParams)
         if (on) grammar.warm();
         else grammar.stop();
       },
+      printPage: () =>
+        void showPrintPreview(contents, BrowserWindow.fromWebContents(contents) ?? undefined).catch(
+          (err) => pageFailed("print", err),
+        ),
+      saveWork: () => contents.send(SAVE_WORK_CHANNEL),
+      savePageAsPdf: () =>
+        void savePage(contents, BrowserWindow.fromWebContents(contents) ?? undefined).catch((err) =>
+          pageFailed("save", err),
+        ),
     },
   );
   if (template.length && !contents.isDestroyed()) Menu.buildFromTemplate(template).popup();
+}
+
+function isAppPage(contents: WebContents): boolean {
+  try {
+    return !!server?.url && new URL(contents.getURL()).origin === new URL(server.url).origin;
+  } catch {
+    return false;
+  }
+}
+
+function pageFailed(what: "print" | "save", err: unknown): void {
+  log.warn(`[page-${what}] ${describeError(err)}`);
+  void message(
+    "error",
+    APP_NAME,
+    what === "print" ? "The page could not be printed." : "The page could not be saved.",
+    describeError(err),
+  ).catch(() => undefined);
 }
 
 function detachedWindowPlacement(): Placement {

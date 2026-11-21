@@ -12,6 +12,8 @@ export interface ContextMenuState {
   checking: boolean;
   /** Fixes for the paragraph, or "loading" while the grammar checker starts. */
   grammar: { label: string; apply(): void }[] | "loading";
+  /** The page is one of the app's own, so it can be printed or saved. */
+  appPage: boolean;
 }
 
 export interface ContextMenuActions {
@@ -19,11 +21,14 @@ export interface ContextMenuActions {
   addToDictionary(word: string): void;
   copyLink(): void;
   setChecking(on: boolean): void;
+  saveWork(): void;
+  printPage(): void;
+  savePageAsPdf(): void;
 }
 
 const MAX_SPELLINGS = 5;
 
-/** The right-click menu: spelling, grammar, editing, then the switch for checking. */
+/** The right-click menu: spelling, grammar, editing, Save on the app's pages, then the switch for checking; off a field, printing and saving the page. */
 export function contextMenuTemplate(
   s: ContextMenuState,
   a: ContextMenuActions,
@@ -56,6 +61,22 @@ export function contextMenuTemplate(
     groups.push([{ role: "copy" }]);
   }
   if (s.linkURL) groups.push([{ label: "Copy link", click: a.copyLink }]);
+  if (s.appPage) {
+    groups.push([
+      {
+        label: "Save",
+        accelerator: "CommandOrControl+S",
+        registerAccelerator: false,
+        click: a.saveWork,
+      },
+    ]);
+  }
+  if (!s.isEditable && s.appPage) {
+    groups.push([
+      { label: "Print…", click: a.printPage },
+      { label: "Save page as PDF…", click: a.savePageAsPdf },
+    ]);
+  }
   if (s.isEditable && s.checkable) {
     groups.push([
       {

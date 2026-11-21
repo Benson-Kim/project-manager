@@ -185,7 +185,7 @@ export function ThemeToggle() {
 
 /**
  * Opens this page in a window of its own, to move it onto another display
- * (client feedback 2026-10-12). The desktop app places it on the other screen and
+ * The desktop app places it on the other screen and
  * remembers where it was left; a browser opens a separate window. Not on phones.
  */
 export function NewWindowButton() {

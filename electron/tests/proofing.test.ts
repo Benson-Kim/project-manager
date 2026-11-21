@@ -110,6 +110,9 @@ describe("contextMenuTemplate", () => {
     addToDictionary: noop,
     copyLink: noop,
     setChecking: vi.fn(),
+    saveWork: noop,
+    printPage: noop,
+    savePageAsPdf: noop,
   };
   const base: ContextMenuState = {
     isEditable: true,
@@ -121,6 +124,7 @@ describe("contextMenuTemplate", () => {
     editFlags: { canCut: false, canCopy: false, canPaste: true, canSelectAll: true },
     checking: true,
     grammar: [],
+    appPage: false,
   };
   const labels = (s: Partial<ContextMenuState>) =>
     contextMenuTemplate({ ...base, ...s }, actions).map((i) => i.label ?? i.role ?? i.type);
@@ -163,6 +167,19 @@ describe("contextMenuTemplate", () => {
     ]);
     expect(labels({ isEditable: false })).toEqual([]);
     expect(labels({ checkable: false })).not.toContain("Check spelling and grammar");
+  });
+
+  it("offers printing and saving on the app's own pages, never in a field", () => {
+    expect(labels({ isEditable: false, appPage: true, linkURL: "https://x" })).toEqual([
+      "Copy link",
+      "separator",
+      "Save",
+      "separator",
+      "Print…",
+      "Save page as PDF…",
+    ]);
+    expect(labels({ appPage: true })).not.toContain("Save page as PDF…");
+    expect(labels({ appPage: true })).toContain("Save");
   });
 
   it("turns checking off from the switch", () => {
