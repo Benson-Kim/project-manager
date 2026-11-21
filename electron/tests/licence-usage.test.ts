@@ -12,7 +12,12 @@ import {
   type Licence,
 } from "../licence/policy";
 import type { LicenceState } from "../licence/state-file";
-import { IDLE_CUTOFF_SECONDS, USAGE_TICK, usageStep } from "../licence/usage-meter";
+import {
+  IDLE_CUTOFF_SECONDS,
+  startUsageMeter,
+  USAGE_TICK,
+  usageStep,
+} from "../licence/usage-meter";
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -206,5 +211,63 @@ describe("the hours limit is signed into the licence", () => {
       "base64url",
     );
     expect(openLicence({ ...doc, payload }, keys)).toBeNull();
+  });
+});
+
+describe("the usage meter", () => {
+  const meter = (focusedAtStart: boolean) => {
+    let now = 0;
+    let focused = focusedAtStart;
+    let listener: ((focusedNow: boolean) => void) | undefined;
+    const recorded: number[] = [];
+    const stop = startUsageMeter(
+      {
+        monotonic: () => now,
+        focused: () => focused,
+        idleSeconds: () => 0,
+        record: (ms) => recorded.push(ms),
+        onFocusChange: (next) => {
+          listener = next;
+          return () => (listener = undefined);
+        },
+      },
+      DAY,
+    );
+    return {
+      recorded,
+      stop,
+      advance: (ms: number) => void (now += ms),
+      focus: (next: boolean) => {
+        focused = next;
+        listener?.(next);
+      },
+      watching: () => listener !== undefined,
+    };
+  };
+
+  it("counts the time since the last tick when the app closes", () => {
+    const m = meter(true);
+    m.advance(40_000);
+    m.stop();
+    expect(m.recorded).toEqual([40_000]);
+    expect(m.watching()).toBe(false);
+  });
+
+  it("counts focused time when the window loses focus and skips the time away", () => {
+    const m = meter(true);
+    m.advance(30_000);
+    m.focus(false);
+    m.advance(10 * USAGE_TICK);
+    m.focus(true);
+    m.advance(20_000);
+    m.stop();
+    expect(m.recorded).toEqual([30_000, 20_000]);
+  });
+
+  it("counts nothing when the app closes while it is not focused", () => {
+    const m = meter(false);
+    m.advance(40_000);
+    m.stop();
+    expect(m.recorded).toEqual([]);
   });
 });

@@ -17,20 +17,23 @@ export interface UsageMeterDeps {
   focused: () => boolean;
   idleSeconds: () => number;
   record: (ms: number) => void;
+  onFocusChange?: (listener: (focusedNow: boolean) => void) => () => void;
 }
 
 export function startUsageMeter(deps: UsageMeterDeps, every = USAGE_TICK): () => void {
   let last = deps.monotonic();
-  const timer = setInterval(() => {
+  const settle = (focused: boolean) => {
     const at = deps.monotonic();
-    const ms = usageStep({
-      elapsed: at - last,
-      idleSeconds: deps.idleSeconds(),
-      focused: deps.focused(),
-    });
+    const ms = usageStep({ elapsed: at - last, idleSeconds: deps.idleSeconds(), focused });
     last = at;
     if (ms > 0) deps.record(ms);
-  }, every);
+  };
+  const timer = setInterval(() => settle(deps.focused()), every);
   timer.unref();
-  return () => clearInterval(timer);
+  const unwatch = deps.onFocusChange?.((focusedNow) => settle(!focusedNow));
+  return () => {
+    clearInterval(timer);
+    unwatch?.();
+    settle(deps.focused());
+  };
 }
