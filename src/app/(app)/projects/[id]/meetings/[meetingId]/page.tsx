@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { UnsavedChangesScope } from "@/components/ui/form/unsaved-scope";
+import { PageHeader } from "@/components/ui/page-header";
 import { PrintLink } from "@/components/ui/print-link";
 import { PANEL_BODY, PANEL_SHELL } from "@/components/ui/panel-styles";
 import { RichTextView } from "@/components/ui/rich-text/rich-text-view";
@@ -70,7 +71,8 @@ export default async function MeetingPage({
 
   return (
     <div className="mx-auto w-full max-w-7xl">
-      <Breadcrumbs items={[{ label: M.title, href: listHref }, { label: title }]} />
+      <Breadcrumbs items={[{ label: M.title, href: listHref }]} />
+      <PageHeader title={title} />
       <UnsavedChangesScope>
         <MeetingFormScope meeting={meeting} canEdit={allows("meetings:update")}>
           <div className="flex flex-col gap-8">

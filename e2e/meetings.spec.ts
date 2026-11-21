@@ -204,7 +204,8 @@ test("axe: the meeting workspace has no serious or critical violations", async (
 test("the workspace links back to the list", async ({ page }) => {
   await page.goto("/projects/2/meetings/1");
   const trail = page.getByRole("navigation", { name: messages.nav.breadcrumb });
-  await expect(trail.getByText("Progress Achieved")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("heading", { name: "Progress Achieved", level: 1 })).toBeVisible();
+  await expect(trail.getByText("Progress Achieved")).toHaveCount(0);
   await trail.getByRole("link", { name: M.title }).click();
   await expect(page).toHaveURL(new RegExp(`${escapeRegExp("/projects/2/meetings")}$`));
 });
