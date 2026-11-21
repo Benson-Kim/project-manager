@@ -55,19 +55,20 @@ export function calendarEntries(
 
   for (const todo of todos) {
     const rule = todo.rule;
-    if (todo.startDate === null) continue;
     if (rule === null) {
-      if (inWindow(todo.startDate, window))
+      const day = todo.slot?.start.slice(0, 10) ?? todo.startDate;
+      if (day !== null && inWindow(day, window))
         entries.push({
           key: String(todo.todoItemId),
           todo,
-          day: todo.startDate,
-          time: null,
+          day,
+          time: todo.slot?.start.slice(11, 16) ?? null,
           status: todo.status,
           occurrence: null,
         });
       continue;
     }
+    if (todo.startDate === null) continue;
 
     const series = { startDate: todo.startDate, dueDate: todo.dueDate };
     const own = new Map((rowsOf.get(todo.todoItemId) ?? []).map((row) => [row.occursAt, row]));

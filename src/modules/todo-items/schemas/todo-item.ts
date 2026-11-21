@@ -3,6 +3,7 @@ import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
 import { LOCAL_WALL_CLOCK } from "@/lib/local-time";
 import { listValue, type LookupListKey } from "@/lib/lookup-lists";
+import { registerCellsSchema } from "@/lib/custom-columns/register";
 import { alertTimeSchema, rowVerSchema } from "./todo-alert";
 
 /**
@@ -67,7 +68,8 @@ export const todoItemListRowSchema = todoItemRowSchema.extend({
   ScheduledEnd: z.date().nullable().default(null),
   TotalCount: z.number().int(),
   ...actorAccessFields,
-});
+  CustomCellsJson: registerCellsSchema,
+}).transform(({ CustomCellsJson, ...row }) => ({ ...row, CustomCells: CustomCellsJson }));
 
 /** Where a repeating to-do's next open occurrence falls (ADR-0059 decision 5). */
 export interface NextOccurrence {
@@ -75,7 +77,7 @@ export interface NextOccurrence {
   DueDate: Date | null;
 }
 
-export type TodoItemListRow = z.infer<typeof todoItemListRowSchema> & {
+export type TodoItemListRow = z.output<typeof todoItemListRowSchema> & {
   /** A series' next open occurrence; null when none is left, or for a to-do that does not repeat. */
   Next: NextOccurrence | null;
 };

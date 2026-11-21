@@ -237,6 +237,7 @@ export async function TodoScreen({
           todoRecurrence={selectedRecurrence}
           isNew={isNew && canCreate}
           newDay={isNew ? calendarDay(flat.day) : null}
+          alertDay={selected ? calendarDay(flat.alert) : null}
           projectId={selected?.ProjectId ?? null}
           dailyActivityOptions={[]}
           canEdit={isNew ? canCreate : canEdit}

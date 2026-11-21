@@ -44,7 +44,9 @@ BEGIN
     WHERE t.IsDeleted = 0
       AND acc.AccessLevel IS NOT NULL
       AND (@ProjectId IS NULL OR t.ProjectId = @ProjectId)
-      AND ((r.TodoItemId IS NULL AND t.StartDate >= @Start AND t.StartDate < @End)
+      AND ((r.TodoItemId IS NULL
+            AND ((t.StartDate >= @Start AND t.StartDate < @End)
+                 OR (t.ScheduledStart >= @Start AND t.ScheduledStart < @End)))
            OR (r.TodoItemId IS NOT NULL
                AND ((t.StartDate < @End AND (r.EndsOn IS NULL OR r.EndsOn >= @From))
                     OR EXISTS (SELECT 1 FROM app.TodoOccurrence o
@@ -61,6 +63,8 @@ BEGIN
            t.[Status],
            t.Assignee,
            t.Notes,
+           t.ScheduledStart,
+           t.ScheduledEnd,
            CAST(t.RowVer AS BIGINT) AS RowVer,
            s.AccessLevel AS ActorAccess,
            r.RepeatUnit, r.RepeatEvery, r.StartTime, r.Weekdays, r.MonthMode, r.Ordinal, r.[Weekday],

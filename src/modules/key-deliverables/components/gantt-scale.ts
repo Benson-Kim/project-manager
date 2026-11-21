@@ -123,20 +123,32 @@ const MONTH_LONG = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
   timeZone: "UTC",
 });
+const MONTH_NAME = new Intl.DateTimeFormat("en-US", { month: "long", timeZone: "UTC" });
+const MONTH_SHORT = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" });
 
-function months(timeline: Timeline, format: (d: Date) => string): HeaderCell[] {
+const monthsOn = (months: number) => (date: Date) =>
+  new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1));
+
+const quarterOf = (date: Date) =>
+  new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() - (date.getUTCMonth() % 3), 1));
+
+const yearOf = (date: Date) => new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+
+/** One cell per calendar period (month, quarter, year) that the timeline touches, cut at its ends. */
+function spans(
+  timeline: Timeline,
+  first: Date,
+  next: (period: Date) => Date,
+  label: (period: Date) => string,
+): HeaderCell[] {
   const cells: HeaderCell[] = [];
   const last = addDays(timeline.start, timeline.days - 1);
-  for (
-    let m = firstOfMonth(timeline.start);
-    m.getTime() <= last.getTime();
-    m = addDays(lastOfMonth(m), 1)
-  ) {
-    const from = later(m, timeline.start);
-    const to = earlier(lastOfMonth(m), last);
+  for (let p = first; p.getTime() <= last.getTime(); p = next(p)) {
+    const from = later(p, timeline.start);
+    const to = earlier(addDays(next(p), -1), last);
     cells.push({
-      key: `m${m.toISOString()}`,
-      label: format(m),
+      key: p.toISOString(),
+      label: label(p),
       left: xOf(timeline, from),
       width: (dayDiff(from, to) + 1) * timeline.pxPerDay,
     });
@@ -144,32 +156,61 @@ function months(timeline: Timeline, format: (d: Date) => string): HeaderCell[] {
   return cells;
 }
 
-function quarters(timeline: Timeline): HeaderCell[] {
-  const cells: HeaderCell[] = [];
-  const last = addDays(timeline.start, timeline.days - 1);
-  const first = timeline.start;
-  for (
-    let q = new Date(
-      Date.UTC(first.getUTCFullYear(), first.getUTCMonth() - (first.getUTCMonth() % 3), 1),
-    );
-    q.getTime() <= last.getTime();
-    q = new Date(Date.UTC(q.getUTCFullYear(), q.getUTCMonth() + 3, 1))
-  ) {
-    const from = later(q, timeline.start);
-    const to = earlier(new Date(Date.UTC(q.getUTCFullYear(), q.getUTCMonth() + 3, 0)), last);
-    cells.push({
-      key: `q${q.toISOString()}`,
-      label: `${q.getUTCFullYear()} Q${q.getUTCMonth() / 3 + 1}`,
-      left: xOf(timeline, from),
-      width: (dayDiff(from, to) + 1) * timeline.pxPerDay,
-    });
-  }
-  return cells;
-}
+const months = (timeline: Timeline, format: (d: Date) => string) =>
+  spans(timeline, firstOfMonth(timeline.start), monthsOn(1), format);
 
-/** The Gantt's period header: quarters, or months at the day scale. */
+const quarters = (timeline: Timeline, format: (d: Date) => string) =>
+  spans(timeline, quarterOf(timeline.start), monthsOn(3), format);
+
+const quarterName = (d: Date) => `Q${d.getUTCMonth() / 3 + 1}`;
+
+/** The Gantt's period guides: quarters, or months at the day scale. */
 export function periodCells(timeline: Timeline): HeaderCell[] {
   return timeline.scale === "day"
     ? months(timeline, (d) => MONTH_LONG.format(d))
-    : quarters(timeline);
+    : quarters(timeline, (d) => `${d.getUTCFullYear()} ${quarterName(d)}`);
+}
+
+/** Which days get a label: every day, each Monday, or the 1st and 15th, as room allows. */
+const DAY_SHOWN: Record<GanttScale, (date: Date) => boolean> = {
+  day: () => true,
+  week: (date) => date.getUTCDay() === 1,
+  month: (date) => date.getUTCDate() === 1 || date.getUTCDate() === 15,
+};
+
+/** The day row: "1 Jan", "2", "3", ... where the first label in each month names the month. */
+export function dayCells(timeline: Timeline): HeaderCell[] {
+  const shown: Date[] = [];
+  for (let i = 0; i < timeline.days; i++) {
+    const date = addDays(timeline.start, i);
+    if (DAY_SHOWN[timeline.scale](date)) shown.push(date);
+  }
+  return shown.map((date, i) => {
+    const left = xOf(timeline, date);
+    const right = i + 1 < shown.length ? xOf(timeline, shown[i + 1]) : timeline.width;
+    const opensMonth = i === 0 || shown[i - 1].getUTCMonth() !== date.getUTCMonth();
+    const day = String(date.getUTCDate());
+    return {
+      key: date.toISOString(),
+      label: opensMonth ? `${day} ${MONTH_SHORT.format(date)}` : day,
+      left,
+      width: right - left,
+    };
+  });
+}
+
+export interface HeaderRows {
+  years: HeaderCell[];
+  quarters: HeaderCell[];
+  months: HeaderCell[];
+}
+
+/** The groups over the day row: years, quarters and months. */
+export function groupRows(timeline: Timeline): HeaderRows {
+  const monthName = timeline.scale === "month" ? MONTH_SHORT : MONTH_NAME;
+  return {
+    years: spans(timeline, yearOf(timeline.start), monthsOn(12), (d) => String(d.getUTCFullYear())),
+    quarters: quarters(timeline, quarterName),
+    months: months(timeline, (d) => monthName.format(d)),
+  };
 }

@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { messages } from "@/lib/messages";
 import { todoItemFormSchema, updateTodoItemFormSchema } from "../schemas/todo-item-form";
 import { isApproachingDeadline, isOverdue } from "../schemas/todo-item";
 
@@ -10,7 +11,18 @@ import { isApproachingDeadline, isOverdue } from "../schemas/todo-item";
 const minimal = { projectId: "3", todoItem: "Review deliverables" };
 const DAY_MS = 86_400_000;
 
+/** Dates in these forms must not be in the past, so the tests run on 2024-12-01. */
+function pinClock() {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2024-12-01T09:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+}
+
 describe("todoItemFormSchema", () => {
+  pinClock();
+
   it("parses a minimal form", () => {
     const parsed = todoItemFormSchema.parse(minimal);
     expect(parsed.projectId).toBe(3);
@@ -216,6 +228,8 @@ describe("isApproachingDeadline", () => {
 });
 
 describe("to-do dates in order", () => {
+  pinClock();
+
   const update = { ...minimal, todoItemId: "1", rowVer: "1" };
 
   it("lets a to-do saved with inverted dates (to-dos 3 and 10) change status while they stay", () => {
@@ -252,5 +266,29 @@ describe("to-do dates in order", () => {
       dueDate: "2026-04-01",
     });
     expect(result.error?.issues.map((i) => i.path)).toEqual([["startDate"]]);
+  });
+});
+
+describe("to-do dates not in the past", () => {
+  pinClock();
+
+  const localNow = "2024-12-01T10:00:00";
+  const update = { ...minimal, todoItemId: "1", rowVer: "1", localNow };
+
+  it("refuses yesterday and accepts today", () => {
+    const result = todoItemFormSchema.safeParse({ ...minimal, localNow, dueDate: "2024-11-30" });
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({ path: ["dueDate"], message: messages.todoItems.pastDate }),
+    ]);
+    const today = { ...minimal, localNow, startDate: "2024-12-01", dueDate: "2024-12-01" };
+    expect(todoItemFormSchema.safeParse(today).success).toBe(true);
+  });
+
+  it("keeps a stored past date but refuses a move to another past day", () => {
+    const stored = { ...update, startDate: "2024-11-01", startDateWas: "2024-11-01" };
+    expect(updateTodoItemFormSchema.safeParse({ ...stored, status: "Done" }).success).toBe(true);
+    expect(updateTodoItemFormSchema.safeParse({ ...stored, startDate: "2024-11-02" }).success).toBe(
+      false,
+    );
   });
 });
