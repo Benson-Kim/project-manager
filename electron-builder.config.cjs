@@ -103,7 +103,13 @@ module.exports = {
       filter: ["provision.ps1", "remove-all-users-install.ps1"],
     },
     ...(fullInstaller
-      ? [{ from: r("installers", "sql-express"), to: "sql-express", filter: ["SQLEXPR_x64_ENU.exe"] }]
+      ? [
+          {
+            from: r("installers", "sql-express"),
+            to: "sql-express",
+            filter: ["SQLEXPR_x64_ENU.exe"],
+          },
+        ]
       : []),
     { from: r("build-resources", "icon.ico"), to: "icon.ico" },
     ...(signing.shipCertificate ? [{ from: PUBLISHER_CER, to: "setup/publisher.cer" }] : []),
@@ -112,7 +118,9 @@ module.exports = {
   win: {
     target: [{ target: "nsis", arch: ["x64"] }],
     icon: r("build-resources", "icon.ico"),
-    artifactName: fullInstaller ? "Modulus-Setup-Full-${version}.${ext}" : "Modulus-Setup-${version}.${ext}",
+    artifactName: fullInstaller
+      ? "Modulus-Setup-Full-${version}.${ext}"
+      : "Modulus-Setup-${version}.${ext}",
     // Signing method, timestamping and the files signed (scripts/desktop/signing.cjs).
     ...signing.win,
   },

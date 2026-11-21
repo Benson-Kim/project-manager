@@ -18,6 +18,7 @@ export interface LicenceIpcDeps {
     | "checkIn"
     | "sendFeedback"
     | "setConsent"
+    | "allowance"
   >;
   isLicenceWindow(sender: unknown): boolean;
   appVersion: string;

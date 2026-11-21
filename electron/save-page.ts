@@ -11,7 +11,10 @@ export type SavePageDeps = {
 /** Saves the page, through its print stylesheet, as a PDF where the user picks; answers the file, or nothing when they cancel. */
 export function createSavePage(deps: SavePageDeps) {
   const busy = new Set<number>();
-  return async function savePageAsPdf(source: PreviewSource, parent: Parent): Promise<string | undefined> {
+  return async function savePageAsPdf(
+    source: PreviewSource,
+    parent: Parent,
+  ): Promise<string | undefined> {
     if (busy.has(source.id)) return undefined;
     busy.add(source.id);
     try {

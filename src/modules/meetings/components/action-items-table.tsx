@@ -17,13 +17,7 @@ const M = messages.meetings;
 const thStyle = "px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-ink-muted";
 const tdStyle = "px-3.5 py-3 align-middle text-sm";
 
-function ActionItemRow({
-  action,
-  index,
-}: {
-  action: WorkspaceActionItem;
-  index: number;
-}) {
+function ActionItemRow({ action, index }: { action: WorkspaceActionItem; index: number }) {
   const { canEdit, focusSoon, today } = useMinutes();
   const [editing, setEditing] = useState(false);
   const id = action.MeetingActionItemId;
@@ -58,10 +52,7 @@ function ActionItemRow({
         : "border-l-4 border-l-transparent hover:border-l-accent hover:bg-surface-raised/40";
 
   return (
-    <tr
-      data-testid="action-table-row"
-      className={`group transition-colors ${borderTone}`}
-    >
+    <tr data-testid="action-table-row" className={`group transition-colors ${borderTone}`}>
       {/* Index */}
       <td className={`${tdStyle} w-10 text-center font-mono text-xs text-ink-muted`}>
         {isCompleted ? (
@@ -75,13 +66,7 @@ function ActionItemRow({
       <td className={`${tdStyle} min-w-56 text-ink wrap-anywhere`}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex flex-col gap-0.5">
-            <span
-              className={
-                isCompleted
-                  ? "text-ink-muted line-through"
-                  : "font-medium text-ink"
-              }
-            >
+            <span className={isCompleted ? "text-ink-muted line-through" : "font-medium text-ink"}>
               {action.Action}
             </span>
             {action.Status === "on-hold" && action.OnHoldReason ? (
@@ -204,8 +189,18 @@ export function ActionItemsTable({ actions }: { actions: WorkspaceActionItem[] }
       {actions.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
           <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-surface-sunken text-ink-muted border border-line">
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg
+              className="h-5 w-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
           </div>
           <p className="text-sm font-medium text-ink">{M.noActionItems}</p>
@@ -240,11 +235,7 @@ export function ActionItemsTable({ actions }: { actions: WorkspaceActionItem[] }
             </thead>
             <tbody className="divide-y divide-line">
               {actions.map((action, index) => (
-                <ActionItemRow
-                  key={action.MeetingActionItemId}
-                  action={action}
-                  index={index}
-                />
+                <ActionItemRow key={action.MeetingActionItemId} action={action} index={index} />
               ))}
             </tbody>
           </table>

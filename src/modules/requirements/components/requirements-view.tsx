@@ -342,9 +342,7 @@ export function RequirementsView({
                 data-testid={`requirements-choice-filter-${column.ColumnId}`}
                 className="min-h-10 rounded-md border border-line bg-surface px-2 text-sm text-ink"
                 value={
-                  choiceFilter?.columnId === column.ColumnId
-                    ? String(choiceFilter.optionId)
-                    : ""
+                  choiceFilter?.columnId === column.ColumnId ? String(choiceFilter.optionId) : ""
                 }
                 onChange={(event) =>
                   update({

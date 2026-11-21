@@ -77,23 +77,23 @@ export default async function DailyActivitiesPage({
     labels,
     addedColumns,
   ] = await Promise.all([
-      orNotFound(
-        listForView(effectiveParams, (p, size) =>
-          listDailyActivities(p, session.userId, projectId, size, filters),
-        ),
+    orNotFound(
+      listForView(effectiveParams, (p, size) =>
+        listDailyActivities(p, session.userId, projectId, size, filters),
       ),
-      getListPreference(session.userId, "daily-activities").catch(() => null),
-      loadLookupLists(DAILY_ACTIVITY_LISTS, session),
-      selectedId && Number.isInteger(selectedId) && selectedId > 0
-        ? orNull(getDailyActivityById(selectedId, session.userId))
-        : null,
-      getProjectPermissions(projectId, session.userId),
-      // The Project column: where an activity can move or be added (shared with the layout).
-      listProjectOptions(session.userId),
-      getProjectPermissions(null, session.userId),
-      orNotFound(activityColumns.listLabels(projectId, session.userId)),
-      orNotFound(activityColumns.listColumns(projectId, session.userId)),
-    ]);
+    ),
+    getListPreference(session.userId, "daily-activities").catch(() => null),
+    loadLookupLists(DAILY_ACTIVITY_LISTS, session),
+    selectedId && Number.isInteger(selectedId) && selectedId > 0
+      ? orNull(getDailyActivityById(selectedId, session.userId))
+      : null,
+    getProjectPermissions(projectId, session.userId),
+    // The Project column: where an activity can move or be added (shared with the layout).
+    listProjectOptions(session.userId),
+    getProjectPermissions(null, session.userId),
+    orNotFound(activityColumns.listLabels(projectId, session.userId)),
+    orNotFound(activityColumns.listColumns(projectId, session.userId)),
+  ]);
 
   // A deep link to an activity from another project is treated as not found.
   const selected = guardProjectScope(selectedRaw, projectId);

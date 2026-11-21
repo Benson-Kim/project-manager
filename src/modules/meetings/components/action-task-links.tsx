@@ -120,7 +120,12 @@ export function ActionTaskLinks({ action, name }: { action: WorkspaceActionItem;
                     aria-label="Close"
                   >
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
                     </svg>
                   </button>
                 </div>
@@ -148,7 +153,9 @@ export function ActionTaskLinks({ action, name }: { action: WorkspaceActionItem;
                         <label
                           key={option.id}
                           className={`flex cursor-pointer items-center justify-between gap-3 px-3 py-2 text-sm text-ink transition-colors ${
-                            isTicked ? "bg-sky-50/70 text-sky-900 font-medium" : "hover:bg-surface-soft"
+                            isTicked
+                              ? "bg-sky-50/70 text-sky-900 font-medium"
+                              : "hover:bg-surface-soft"
                           }`}
                         >
                           <div className="flex items-center gap-3 min-w-0">

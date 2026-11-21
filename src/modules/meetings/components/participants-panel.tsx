@@ -243,7 +243,10 @@ export function ParticipantsPanel({
     <section className={PANEL_SHELL} data-testid="participants-panel" aria-labelledby={headingId}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-2.5">
         <div className="flex items-center gap-2">
-          <h2 id={headingId} className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          <h2
+            id={headingId}
+            className="text-xs font-semibold uppercase tracking-wide text-ink-muted"
+          >
             {M.participants}
           </h2>
           <span className="text-xs text-ink-muted" data-testid="participant-counts">

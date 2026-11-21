@@ -186,8 +186,12 @@ export const setRegisterCellInput = z
       ctx.addIssue({ code: "custom", message: parsed.message, path: ["value"] });
       return z.NEVER;
     }
-    return { rowId: input.rowId, columnId: input.columnId, value: parsed.value, rowVer: input.rowVer };
+    return {
+      rowId: input.rowId,
+      columnId: input.columnId,
+      value: parsed.value,
+      rowVer: input.rowVer,
+    };
   });
 export type SetRegisterCellInput = z.input<typeof setRegisterCellInput>;
 export type SetRegisterCellParsed = z.output<typeof setRegisterCellInput>;
-

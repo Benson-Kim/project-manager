@@ -1,7 +1,13 @@
 import type { DatasheetConfig } from "@/components/ui/data-view/datasheet";
 import type { ActionResult } from "@/lib/action";
 import { customCellColumnId } from "@/lib/custom-columns/kinds";
-import type { ColumnLabel, RegisterCell, RegisterCellResult, RegisterColumn, SetRegisterCellInput } from "@/lib/custom-columns/register";
+import type {
+  ColumnLabel,
+  RegisterCell,
+  RegisterCellResult,
+  RegisterColumn,
+  SetRegisterCellInput,
+} from "@/lib/custom-columns/register";
 
 export type CellRow = { RowVer: number; CustomCells: readonly RegisterCell[] };
 export type SaveCell<Row> = DatasheetConfig<Row>["saveCell"];
@@ -16,13 +22,22 @@ export function arrangeColumns<Column extends { key: string; header: string }>(
   before?: string,
 ): Column[] {
   const names = new Map(labels.map((label) => [label.ColumnKey, label.Label]));
-  const named = columns.map((column) => ({ ...column, header: names.get(column.key) ?? column.header }));
+  const named = columns.map((column) => ({
+    ...column,
+    header: names.get(column.key) ?? column.header,
+  }));
   const at = before === undefined ? -1 : named.findIndex((column) => column.key === before);
   return at < 0 ? [...named, ...extra] : [...named.slice(0, at), ...extra, ...named.slice(at)];
 }
 
 /** A datasheet saver that sends an added column's cell to `setCell` and every other field to `fallback`. */
-export function customCellSaver<Row extends CellRow>({ added, setCell, rowId, fallback, onSaved }: {
+export function customCellSaver<Row extends CellRow>({
+  added,
+  setCell,
+  rowId,
+  fallback,
+  onSaved,
+}: {
   added: readonly RegisterColumn[];
   setCell: SetCell;
   rowId: (row: Row) => number;

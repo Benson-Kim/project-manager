@@ -21,7 +21,10 @@ describe("createSavePage", () => {
     const source = page();
     await expect(save(source, undefined)).resolves.toBe("C:\\Docs\\Overview.pdf");
     expect(deps.chooseFile).toHaveBeenCalledWith("Overview Alpha.pdf", undefined);
-    expect(source.printToPDF).toHaveBeenCalledWith({ printBackground: true, preferCSSPageSize: true });
+    expect(source.printToPDF).toHaveBeenCalledWith({
+      printBackground: true,
+      preferCSSPageSize: true,
+    });
     expect(deps.writeFile).toHaveBeenCalledWith("C:\\Docs\\Overview.pdf", Buffer.from("%PDF"));
   });
 

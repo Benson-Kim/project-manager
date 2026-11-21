@@ -58,18 +58,20 @@ export const todoItemRowSchema = z.object({
 
 export type TodoItemRow = z.infer<typeof todoItemRowSchema>;
 
-export const todoItemListRowSchema = todoItemRowSchema.extend({
-  /** The project's name — the cross-project datasheet's Project column (null: personal). */
-  ProjectName: z.string().nullable(),
-  /** The to-do has a repeat rule (ADR-0059): the list shows a "Repeats" badge. */
-  Repeats: z.boolean().default(false),
-  /** The to-do's planner slot (wall clock); the list marks a placed to-do "Calendar". */
-  ScheduledStart: z.date().nullable().default(null),
-  ScheduledEnd: z.date().nullable().default(null),
-  TotalCount: z.number().int(),
-  ...actorAccessFields,
-  CustomCellsJson: registerCellsSchema,
-}).transform(({ CustomCellsJson, ...row }) => ({ ...row, CustomCells: CustomCellsJson }));
+export const todoItemListRowSchema = todoItemRowSchema
+  .extend({
+    /** The project's name — the cross-project datasheet's Project column (null: personal). */
+    ProjectName: z.string().nullable(),
+    /** The to-do has a repeat rule (ADR-0059): the list shows a "Repeats" badge. */
+    Repeats: z.boolean().default(false),
+    /** The to-do's planner slot (wall clock); the list marks a placed to-do "Calendar". */
+    ScheduledStart: z.date().nullable().default(null),
+    ScheduledEnd: z.date().nullable().default(null),
+    TotalCount: z.number().int(),
+    ...actorAccessFields,
+    CustomCellsJson: registerCellsSchema,
+  })
+  .transform(({ CustomCellsJson, ...row }) => ({ ...row, CustomCells: CustomCellsJson }));
 
 /** Where a repeating to-do's next open occurrence falls (ADR-0059 decision 5). */
 export interface NextOccurrence {

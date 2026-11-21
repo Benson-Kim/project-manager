@@ -434,17 +434,17 @@ export function TodoView({
         saveCell,
         addRow: canCreate
           ? {
-            // The Project cell (on /todo) names the project; else this page's project.
-            undo: addUndo(
-              (row: { TodoItemId: number; RowVer: number }) => row.TodoItemId,
-              (row) => deleteTodoItemAction({ todoItemId: row.TodoItemId, rowVer: row.RowVer }),
-            ),
-            add: (values) =>
-              createTodoItemAction({
-                projectId: projectId === null ? "" : String(projectId),
-                ...values,
-              }),
-          }
+              // The Project cell (on /todo) names the project; else this page's project.
+              undo: addUndo(
+                (row: { TodoItemId: number; RowVer: number }) => row.TodoItemId,
+                (row) => deleteTodoItemAction({ todoItemId: row.TodoItemId, rowVer: row.RowVer }),
+              ),
+              add: (values) =>
+                createTodoItemAction({
+                  projectId: projectId === null ? "" : String(projectId),
+                  ...values,
+                }),
+            }
           : undefined,
       }}
       empty={

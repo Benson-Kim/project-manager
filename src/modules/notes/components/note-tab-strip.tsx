@@ -28,12 +28,14 @@ function MoveArrow({ direction }: { direction: "left" | "right" }) {
 
 const TAB_STYLES = {
   section: (selected: boolean) =>
-    `-mb-px min-h-11 max-w-56 truncate border-b-2 px-3 text-sm font-semibold ${selected ? "border-accent text-ink" : "border-transparent text-ink-muted hover:text-ink"
+    `-mb-px min-h-11 max-w-56 truncate border-b-2 px-3 text-sm font-semibold ${
+      selected ? "border-accent text-ink" : "border-transparent text-ink-muted hover:text-ink"
     }`,
   page: (selected: boolean) =>
-    `min-h-11 max-w-48 truncate rounded-md border px-3 text-sm font-medium ${selected
-      ? "border-accent bg-surface-raised text-ink"
-      : "border-line bg-surface text-ink-muted hover:bg-surface-raised"
+    `min-h-11 max-w-48 truncate rounded-md border px-3 text-sm font-medium ${
+      selected
+        ? "border-accent bg-surface-raised text-ink"
+        : "border-line bg-surface text-ink-muted hover:bg-surface-raised"
     }`,
 };
 

@@ -364,7 +364,11 @@ export function TodoPlanner({
     const draft =
       from === to
         ? draftAt(day, from)
-        : { day, start: hhmm(day, Math.min(from, to)), end: hhmm(day, Math.max(from, to) + SLOT_MINUTES) };
+        : {
+            day,
+            start: hhmm(day, Math.min(from, to)),
+            end: hhmm(day, Math.max(from, to) + SLOT_MINUTES),
+          };
     setNewEntry({ ...draft, title: "" });
   }
 

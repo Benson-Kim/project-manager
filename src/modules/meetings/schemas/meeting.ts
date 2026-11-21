@@ -89,9 +89,20 @@ const meetingFields = {
   Conclusion: z.string().nullable(),
   NextMeeting: z.date().nullable(),
   FollowupAction: z.string().nullable(),
-  MeetingFormat: meetingFormatSchema.nullable().optional().transform((v) => v ?? null),
-  MeetingLink: z.string().nullable().optional().transform((v) => v ?? null),
-  NextMeetingLink: z.string().nullable().optional().transform((v) => v ?? null),
+  MeetingFormat: meetingFormatSchema
+    .nullable()
+    .optional()
+    .transform((v) => v ?? null),
+  MeetingLink: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? null),
+  NextMeetingLink: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? null),
   CreatedAtUtc: z.date(),
   UpdatedAtUtc: z.date().nullable(),
   RowVer: rowVerSchema,

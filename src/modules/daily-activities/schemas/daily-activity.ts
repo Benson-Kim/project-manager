@@ -48,13 +48,15 @@ export const dailyActivityRowSchema = z.object({
 
 export type DailyActivityRow = z.infer<typeof dailyActivityRowSchema>;
 
-export const dailyActivityListRowSchema = dailyActivityRowSchema.extend({
-  /** The project's name — the datasheet's Project column (null: project-less). */
-  ProjectName: z.string().nullable(),
-  TotalCount: z.number().int(),
-  ...actorAccessFields,
-  CustomCellsJson: registerCellsSchema,
-}).transform(({ CustomCellsJson, ...row }) => ({ ...row, CustomCells: CustomCellsJson }));
+export const dailyActivityListRowSchema = dailyActivityRowSchema
+  .extend({
+    /** The project's name — the datasheet's Project column (null: project-less). */
+    ProjectName: z.string().nullable(),
+    TotalCount: z.number().int(),
+    ...actorAccessFields,
+    CustomCellsJson: registerCellsSchema,
+  })
+  .transform(({ CustomCellsJson, ...row }) => ({ ...row, CustomCells: CustomCellsJson }));
 
 export type DailyActivityListRow = z.output<typeof dailyActivityListRowSchema>;
 

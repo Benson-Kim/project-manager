@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { UnsavedChangesScope } from "@/components/ui/form/unsaved-scope";
-import { PageHeader } from "@/components/ui/page-header";
 import { PrintLink } from "@/components/ui/print-link";
 import { PANEL_BODY, PANEL_SHELL } from "@/components/ui/panel-styles";
 import { RichTextView } from "@/components/ui/rich-text/rich-text-view";
@@ -127,10 +126,10 @@ export default async function MeetingPage({
                     logKinds={
                       allows("meetings:update")
                         ? GOVERNANCE_LOG_KINDS.filter(
-                          (kind) =>
-                            allows(governanceLogPermission(kind, "create")) &&
-                            allows(governanceLogPermission(kind, "update")),
-                        )
+                            (kind) =>
+                              allows(governanceLogPermission(kind, "create")) &&
+                              allows(governanceLogPermission(kind, "update")),
+                          )
                         : []
                     }
                     notes={<MeetingNotesForm />}

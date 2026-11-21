@@ -422,8 +422,9 @@ function ActionRow({
               through rather than hidden; the carry-over list is what drops it, so later meetings stop showing it.
             */}
             <p
-              className={`min-w-0 flex-1 py-2.5 text-sm wrap-anywhere ${action.Status === "completed" ? "text-ink-muted line-through" : "text-ink"
-                }`}
+              className={`min-w-0 flex-1 py-2.5 text-sm wrap-anywhere ${
+                action.Status === "completed" ? "text-ink-muted line-through" : "text-ink"
+              }`}
             >
               {action.Action}
             </p>

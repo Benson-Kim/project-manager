@@ -16,12 +16,30 @@ describe("arrangeColumns", () => {
   });
 
   it("puts the added columns in front of the column named by before", () => {
-    expect(keys(arrangeColumns(columns, [], extra, "Reorder"))).toEqual(["Title", "Status", "cell:1", "cell:2", "Reorder"]);
+    expect(keys(arrangeColumns(columns, [], extra, "Reorder"))).toEqual([
+      "Title",
+      "Status",
+      "cell:1",
+      "cell:2",
+      "Reorder",
+    ]);
   });
 
   it("puts the added columns last without before or when that column is not shown", () => {
-    expect(keys(arrangeColumns(columns, [], extra))).toEqual(["Title", "Status", "Reorder", "cell:1", "cell:2"]);
-    expect(keys(arrangeColumns(columns, [], extra, "Missing"))).toEqual(["Title", "Status", "Reorder", "cell:1", "cell:2"]);
+    expect(keys(arrangeColumns(columns, [], extra))).toEqual([
+      "Title",
+      "Status",
+      "Reorder",
+      "cell:1",
+      "cell:2",
+    ]);
+    expect(keys(arrangeColumns(columns, [], extra, "Missing"))).toEqual([
+      "Title",
+      "Status",
+      "Reorder",
+      "cell:1",
+      "cell:2",
+    ]);
   });
 
   it("leaves the columns it was given unchanged", () => {
@@ -33,7 +51,17 @@ describe("arrangeColumns", () => {
 describe("customCellSaver", () => {
   type Row = CellRow & { Id: number; Title: string };
   const row: Row = { Id: 42, Title: "Plan", RowVer: 3, CustomCells: [] };
-  const added = [{ ColumnId: 7, Name: "Owner", Kind: "text", SortOrder: 1, RowVer: 1, HasValues: false, Options: [] }] as RegisterColumn[];
+  const added = [
+    {
+      ColumnId: 7,
+      Name: "Owner",
+      Kind: "text",
+      SortOrder: 1,
+      RowVer: 1,
+      HasValues: false,
+      Options: [],
+    },
+  ] as RegisterColumn[];
   const saved = { RowVer: 4, CustomCells: [{ columnId: 7, text: "Ann" }] };
 
   const saver = (setCell: SetCell) => {
@@ -47,7 +75,13 @@ describe("customCellSaver", () => {
     const setCell = vi.fn<SetCell>(async () => ({ ok: true, data: saved }));
     const { save, fallback, onSaved } = saver(setCell);
     await expect(save(row, "cell:7", "Ann")).resolves.toEqual({ ok: true, data: saved });
-    expect(setCell).toHaveBeenCalledWith({ rowId: 42, columnId: 7, kind: "text", value: "Ann", rowVer: 3 });
+    expect(setCell).toHaveBeenCalledWith({
+      rowId: 42,
+      columnId: 7,
+      kind: "text",
+      value: "Ann",
+      rowVer: 3,
+    });
     expect(onSaved).toHaveBeenCalledOnce();
     expect(fallback).not.toHaveBeenCalled();
   });
@@ -55,7 +89,10 @@ describe("customCellSaver", () => {
   it("sends a built-in field to the fallback saver", async () => {
     const setCell = vi.fn<SetCell>();
     const { save, fallback, onSaved } = saver(setCell);
-    await expect(save(row, "Title", "New")).resolves.toEqual({ ok: true, data: { Title: "fallback" } });
+    await expect(save(row, "Title", "New")).resolves.toEqual({
+      ok: true,
+      data: { Title: "fallback" },
+    });
     expect(fallback).toHaveBeenCalledWith(row, "Title", "New");
     expect(setCell).not.toHaveBeenCalled();
     expect(onSaved).not.toHaveBeenCalled();
@@ -70,7 +107,10 @@ describe("customCellSaver", () => {
   });
 
   it("answers a failed write as it came and does not report a save", async () => {
-    const failure = { ok: false as const, error: { code: "CONFLICT" as const, message: "Changed by someone else" } };
+    const failure = {
+      ok: false as const,
+      error: { code: "CONFLICT" as const, message: "Changed by someone else" },
+    };
     const setCell = vi.fn<SetCell>(async () => failure);
     const { save, onSaved } = saver(setCell);
     await expect(save(row, "cell:7", "Ann")).resolves.toBe(failure);

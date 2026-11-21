@@ -197,8 +197,8 @@ const actionFields = {
   assignedToStakeholderId: optionalId,
   /**
    * ...or a name typed in, for someone with no stakeholder row — a guest, or
-   * somebody outside the organisation. The two are exclusive: 
-   * the picker submits one or the other, and CK_MeetingActionItem_OneAssignee is what actually holds the rule. 
+   * somebody outside the organisation. The two are exclusive:
+   * the picker submits one or the other, and CK_MeetingActionItem_OneAssignee is what actually holds the rule.
    */
   assigneeOther: optionalText(255),
   dueDate: dateInput,

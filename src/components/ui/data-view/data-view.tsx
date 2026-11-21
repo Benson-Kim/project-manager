@@ -664,9 +664,9 @@ export function DataView<Row>({
                             onClick={
                               onOpen
                                 ? (e) => {
-                                  // Clicks on a cell's control edit it; the rest of the row opens the record.
-                                  if (!isEditableTarget(e.target as HTMLElement)) onOpen(row);
-                                }
+                                    // Clicks on a cell's control edit it; the rest of the row opens the record.
+                                    if (!isEditableTarget(e.target as HTMLElement)) onOpen(row);
+                                  }
                                 : undefined
                             }
                             data-tone={tone ?? undefined}

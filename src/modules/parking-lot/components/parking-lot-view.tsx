@@ -151,17 +151,17 @@ export function ParkingLotView({
         saveCell,
         addRow: canCreate
           ? {
-            undo: addUndo(
-              (row: { ParkingLotItemId: number; RowVer: number }) => row.ParkingLotItemId,
-              (row) =>
-                deleteParkingLotItemAction({
-                  parkingLotItemId: row.ParkingLotItemId,
-                  rowVer: row.RowVer,
-                }),
-            ),
-            add: (values) =>
-              createParkingLotItemAction({ ...values, projectId: String(projectId) }),
-          }
+              undo: addUndo(
+                (row: { ParkingLotItemId: number; RowVer: number }) => row.ParkingLotItemId,
+                (row) =>
+                  deleteParkingLotItemAction({
+                    parkingLotItemId: row.ParkingLotItemId,
+                    rowVer: row.RowVer,
+                  }),
+              ),
+              add: (values) =>
+                createParkingLotItemAction({ ...values, projectId: String(projectId) }),
+            }
           : undefined,
       }}
       renderToolbar={(viewToggle) => <ParkingLotToolbar>{viewToggle}</ParkingLotToolbar>}

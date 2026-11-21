@@ -172,11 +172,11 @@ export function MeetingFormScope({
     const elsewhere = parsed.success
       ? []
       : parsed.error.issues.flatMap((issue) => {
-        const name = String(issue.path[0] ?? "");
-        return name in FIELD_LABELS && !element.elements.namedItem(name)
-          ? [`${FIELD_LABELS[name]}: ${issue.message}`]
-          : [];
-      });
+          const name = String(issue.path[0] ?? "");
+          return name in FIELD_LABELS && !element.elements.namedItem(name)
+            ? [`${FIELD_LABELS[name]}: ${issue.message}`]
+            : [];
+        });
     return elsewhere.length > 0 ? elsewhere.join(" ") : messages.errors.summaryTitle;
   };
 
@@ -294,9 +294,9 @@ function MeetingPartForm({
         onBlur={
           canEdit
             ? (event) => {
-              const name = (event.target as HTMLElement & { name?: string }).name;
-              if (name) meetingForm.validateField(name);
-            }
+                const name = (event.target as HTMLElement & { name?: string }).name;
+                if (name) meetingForm.validateField(name);
+              }
             : undefined
         }
         onSubmit={(event) => {
@@ -382,13 +382,7 @@ function MeetingPartForm({
  * then Location, which the participant panel follows directly (client
  * feedback 2026-10-23 and 2026-11-19).
  */
-function MeetingHeaderFields({
-  values,
-  errors,
-}: {
-  values: FormValues;
-  errors: Errors;
-}) {
+function MeetingHeaderFields({ values, errors }: { values: FormValues; errors: Errors }) {
   const { canEdit, markDirty } = useMeetingForm();
   const initialFormat = (values.meetingFormat as MeetingFormat) || "Hybrid";
   const [format, setFormat] = useState<MeetingFormat>(initialFormat);
@@ -401,7 +395,12 @@ function MeetingHeaderFields({
     <>
       <input type="hidden" name="meetingFormat" value={format} />
       <Field label={M.subject} name="subject" errors={errors.subject}>
-        <Input name="subject" maxLength={255} defaultValue={values.subject} placeholder="e.g. Q4 Product Strategy Sync" />
+        <Input
+          name="subject"
+          maxLength={255}
+          defaultValue={values.subject}
+          placeholder="e.g. Q4 Product Strategy Sync"
+        />
       </Field>
 
       {/* Meeting Date, Start Time, End Time, Duration in ONE single row on desktop */}
@@ -429,9 +428,7 @@ function MeetingHeaderFields({
           <span className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
             {M.duration}
           </span>
-          <div className="min-h-9 flex items-center text-sm font-medium text-ink">
-            {duration}
-          </div>
+          <div className="min-h-9 flex items-center text-sm font-medium text-ink">{duration}</div>
         </div>
       </div>
 
@@ -450,11 +447,15 @@ function MeetingHeaderFields({
               const isSelected = format === fmt;
               let activeStyle = "";
               if (isSelected) {
-                if (fmt === "Hybrid") activeStyle = "bg-indigo-600 text-white border-indigo-600 shadow-sm";
-                else if (fmt === "Online") activeStyle = "bg-blue-600 text-white border-blue-600 shadow-sm";
-                else if (fmt === "Physical") activeStyle = "bg-emerald-600 text-white border-emerald-600 shadow-sm";
+                if (fmt === "Hybrid")
+                  activeStyle = "bg-indigo-600 text-white border-indigo-600 shadow-sm";
+                else if (fmt === "Online")
+                  activeStyle = "bg-blue-600 text-white border-blue-600 shadow-sm";
+                else if (fmt === "Physical")
+                  activeStyle = "bg-emerald-600 text-white border-emerald-600 shadow-sm";
               } else {
-                activeStyle = "text-ink-muted hover:text-ink hover:bg-surface-soft border-transparent";
+                activeStyle =
+                  "text-ink-muted hover:text-ink hover:bg-surface-soft border-transparent";
               }
               return (
                 <button
@@ -467,7 +468,11 @@ function MeetingHeaderFields({
                   }}
                   className={`h-8 px-3.5 text-xs font-semibold rounded transition-colors border ${activeStyle}`}
                 >
-                  {fmt === "Hybrid" ? M.meetingFormatHybrid : fmt === "Online" ? M.meetingFormatOnline : M.meetingFormatPhysical}
+                  {fmt === "Hybrid"
+                    ? M.meetingFormatHybrid
+                    : fmt === "Online"
+                      ? M.meetingFormatOnline
+                      : M.meetingFormatPhysical}
                 </button>
               );
             })}
@@ -510,7 +515,13 @@ function MeetingHeaderFields({
           <DatePicker name="nextMeeting" defaultValue={values.nextMeeting as string} />
         </Field>
         <Field label={M.nextMeetingLink} name="nextMeetingLink" errors={errors.nextMeetingLink}>
-          <Input name="nextMeetingLink" type="url" maxLength={255} defaultValue={values.nextMeetingLink} placeholder="https://meet.google.com/..." />
+          <Input
+            name="nextMeetingLink"
+            type="url"
+            maxLength={255}
+            defaultValue={values.nextMeetingLink}
+            placeholder="https://meet.google.com/..."
+          />
         </Field>
       </div>
     </>

@@ -413,8 +413,7 @@ export function CustomColumnsButton({
                             const label = (choiceDraft[column.ColumnId] ?? "").trim();
                             if (!label) return;
                             run(
-                              () =>
-                                actions.createChoice({ columnId: column.ColumnId, label }),
+                              () => actions.createChoice({ columnId: column.ColumnId, label }),
                               () =>
                                 setChoiceDraft({
                                   ...choiceDraft,

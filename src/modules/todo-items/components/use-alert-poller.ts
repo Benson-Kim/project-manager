@@ -90,7 +90,7 @@ async function registerPush(): Promise<void> {
 }
 
 /**
- * The to-do alarm 
+ * The to-do alarm
  * While the app is open it asks every 30 s which alerts are due — always, not
  * only when desktop notifications are allowed — and announces each newly due
  * alert once: a toast that stays until closed (Open goes to the to-do), a
