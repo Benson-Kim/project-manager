@@ -326,7 +326,8 @@ describe("failure references and logging", () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error.message).toBe(messages.errors.VALIDATION);
+    expect(result.error.message).toBe(messages.errors.rejected);
+    expect(result.error.message).not.toBe(messages.errors.VALIDATION);
     expect(onlyLine().reason).toBe("This line has transactions");
   });
 

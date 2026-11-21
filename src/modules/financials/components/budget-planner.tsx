@@ -239,7 +239,7 @@ export function BudgetPlanner({
       ...lineValues(next, years),
     });
     if (!result.ok) {
-      feedback.failed(result.error);
+      feedback.failed(result.error, column.header);
       return false;
     }
     keepLine({ ...next, rowVer: result.data.rowVer });

@@ -30,7 +30,7 @@ import {
 } from "./list-editor-state";
 
 /**
- * "Edit dropdown list: <column>" (client feedback §4, ADR-0022), opened from a
+ * "Edit dropdown list: <column>", opened from a
  * datasheet header caret or "Edit list…" in a cell's dropdown. Rename options
  * in place, colour them, move them, remove them, add new ones, and choose
  * whether rows take their value's colour (migration 020); Save sends the whole

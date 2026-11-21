@@ -237,7 +237,7 @@ export function DataView<Row>({
     const edit = column.edit;
     const result = await sheet.saveCell(row, edit.field, value);
     if (!result.ok) {
-      toast({ variant: "error", title: failureMessage(result.error) });
+      toast({ variant: "error", title: failureMessage(result.error, column.header) });
       return null;
     }
     const id = getRowId(row);
@@ -303,8 +303,7 @@ export function DataView<Row>({
     layoutRef.current = stored;
     // One save at a time, in order: two quick arrow-key steps must not land out of order.
     // A refused save used to be swallowed, so a column that sprang back read as
-    // "reordering does not work" with nothing to report (client feedback
-    // 2026-10-26). The layout on screen is already the new one, so the toast
+    // "reordering does not work" with nothing to report. The layout on screen is already the new one, so the toast
     // says what will not outlast the page rather than undoing the gesture.
     savingRef.current = savingRef.current
       .then(() => saveListLayout({ moduleKey, layout: stored }))
@@ -469,7 +468,7 @@ export function DataView<Row>({
     </div>
   );
 
-  // The new-entry row is persistent (client feedback §3): it stays under the data
+  // The new-entry row is persistent: it stays under the data
   // with a search or filter active too — like Access's new-record row.
   const showTable = view === "list" && (shownRows.length > 0 || Boolean(sheet?.addRow));
   const actionsColumn = Boolean(sheet && (onOpen || sheet.addRow));
@@ -555,9 +554,9 @@ export function DataView<Row>({
             // scroller, not to <main> — else a wide table stretches the whole page.
             // A horizontal scroller also captures vertical stickiness, so the table scrolls in
             // its own box (at most one screen under the app header) and the header row sticks
-            // to it (client feedback, 2026-10-12); scroll-pt keeps arrowed rows clear of it.
+            // to it; scroll-pt keeps arrowed rows clear of it.
             // That box puts its own horizontal scrollbar a screen down, so StickyScrollbar
-            // mirrors it within reach (client feedback, 2026-10-23) and is the only one shown:
+            // mirrors it within reach and is the only one shown:
             // the box's own bar (--hbar tall, measured by StickyScrollbar) hangs below the
             // clip, while wheel, touch and keyboard still scroll the box. `clip`, unlike
             // `hidden`, makes no scroll container, so the bar below still sticks to the page;
@@ -665,9 +664,9 @@ export function DataView<Row>({
                             onClick={
                               onOpen
                                 ? (e) => {
-                                    // Clicks on a cell's control edit it; the rest of the row opens the record.
-                                    if (!isEditableTarget(e.target as HTMLElement)) onOpen(row);
-                                  }
+                                  // Clicks on a cell's control edit it; the rest of the row opens the record.
+                                  if (!isEditableTarget(e.target as HTMLElement)) onOpen(row);
+                                }
                                 : undefined
                             }
                             data-tone={tone ?? undefined}

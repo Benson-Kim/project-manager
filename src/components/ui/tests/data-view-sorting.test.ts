@@ -4,8 +4,7 @@ import type { DataViewColumn } from "../data-view/types";
 import { nextSortDir, parseListParams, resolveSort, type ListSort } from "@/lib/list-params";
 
 /**
- * The order a list header shows and the one a click asks for (client feedback,
- * 2026-10-23). Both are pure: the arrow's state is derived from the URL and the
+ * The order a list header shows and the one a click asks for. Both are pure: the arrow's state is derived from the URL and the
  * module's `ListSort`, never from anything the browser holds, so a column that
  * the proc would ignore can be proven to carry no control at all.
  */

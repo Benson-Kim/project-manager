@@ -38,7 +38,7 @@ const columns: DataViewColumn<Row>[] = [
     placeholder: P.item,
     maxLength: 255,
     // A parking lot item is prose: it wraps in the sheet's textarea, so it
-    // wraps in the cell too (client feedback 2026-10-26).
+    // wraps in the cell too.
     multiline: true,
     render: (r) => (
       <span
@@ -151,17 +151,17 @@ export function ParkingLotView({
         saveCell,
         addRow: canCreate
           ? {
-              undo: addUndo(
-                (row: { ParkingLotItemId: number; RowVer: number }) => row.ParkingLotItemId,
-                (row) =>
-                  deleteParkingLotItemAction({
-                    parkingLotItemId: row.ParkingLotItemId,
-                    rowVer: row.RowVer,
-                  }),
-              ),
-              add: (values) =>
-                createParkingLotItemAction({ ...values, projectId: String(projectId) }),
-            }
+            undo: addUndo(
+              (row: { ParkingLotItemId: number; RowVer: number }) => row.ParkingLotItemId,
+              (row) =>
+                deleteParkingLotItemAction({
+                  parkingLotItemId: row.ParkingLotItemId,
+                  rowVer: row.RowVer,
+                }),
+            ),
+            add: (values) =>
+              createParkingLotItemAction({ ...values, projectId: String(projectId) }),
+          }
           : undefined,
       }}
       renderToolbar={(viewToggle) => <ParkingLotToolbar>{viewToggle}</ParkingLotToolbar>}

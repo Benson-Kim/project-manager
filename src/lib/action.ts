@@ -91,10 +91,12 @@ function detailOf(err: unknown): FailureDetail {
 /**
  * A mapped code keeps its own copy, so a proc's VALIDATION text never reaches
  * the client (LESSONS §30). An application failure carries the reference
- * instead: it is the only failure the user has to report.
+ * instead: it is the only failure the user has to report. A rejection names
+ * no field, so it does not point at highlighted fields.
  */
 function failureMessage(code: ActionErrorCode, reference: string): string {
   if (code === "LICENCE_INACTIVE") return licenceMessages.inactive;
+  if (code === "VALIDATION") return messages.errors.rejected;
   const copy: string | undefined = code === "INTERNAL" ? undefined : messages.errors[code];
   return copy ?? messages.errors.internalWithReference(reference);
 }

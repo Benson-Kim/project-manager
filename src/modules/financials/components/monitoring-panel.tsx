@@ -202,7 +202,7 @@ export function MonitoringPanel({
       ...transactionValues(next, f.startMonth),
     });
     if (!result.ok) {
-      feedback.failed(result.error);
+      feedback.failed(result.error, column.header);
       return false;
     }
     keepTransaction({ ...next, rowVer: result.data.rowVer });

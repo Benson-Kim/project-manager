@@ -12,7 +12,7 @@ import {
   type LookupLists,
   type SaveLookupListInput,
 } from "@/lib/lookup-lists";
-import { Badge } from "./badge";
+import { Badge, badgeClass } from "./badge";
 import { notifySaved } from "@/lib/cross-window";
 
 /**
@@ -134,4 +134,14 @@ export function ListBadge({
 }) {
   const { lists } = useLookupLists();
   return <Badge value={label ?? value} tone={optionColor(lists[list], value)} />;
+}
+
+/**
+ * The badge colour classes for a list's values, for surfaces that are not a
+ * badge (calendar entries, planner blocks) but must match it.
+ */
+export function useListValueClass(list: LookupListKey): (value: string | null) => string {
+  const { lists } = useLookupLists();
+  const options = lists[list];
+  return useCallback((value) => badgeClass(value, optionColor(options, value)), [options]);
 }

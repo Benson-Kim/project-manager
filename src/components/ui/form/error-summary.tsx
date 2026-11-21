@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { messages } from "@/lib/messages";
+import { focusFirstInvalid } from "./focus-first-invalid";
 
 /**
  * Server-failure summary ): appears above the form and takes focus so
@@ -17,7 +18,9 @@ export function ErrorSummary({
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (message) ref.current?.focus();
+    if (!message) return;
+    const scope = ref.current?.closest("form, [role=dialog]") ?? ref.current?.parentElement;
+    if (!focusFirstInvalid(scope)) ref.current?.focus();
   }, [message]);
 
   if (!message) return null;
