@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useId, useRef, useState } from "react";
 import { Menu, MenuButton, MenuLink } from "@/components/ui/menu";
 import { messages } from "@/lib/messages";
 import { logoutAction } from "@/modules/auth/actions";
+import { SEARCH_MAX_LENGTH } from "@/modules/search/schemas/search";
 import { useTheme } from "../theme/theme-provider";
 import { initialsFrom } from "./initials";
+import { bellLook } from "./bell-look";
 import { BellIcon, MoonIcon, NewWindowIcon, SunIcon } from "./shell-icons";
 
 export interface ShellAlert {
@@ -15,8 +18,217 @@ export interface ShellAlert {
   dueDate: string;
 }
 
-const iconButtonClass =
-  "relative flex min-h-10 min-w-10 items-center justify-center rounded-md text-ink-muted hover:bg-hover";
+const iconButtonBase =
+  "relative flex min-h-10 min-w-9 sm:min-w-10 items-center justify-center rounded-md hover:bg-hover";
+const iconButtonClass = `${iconButtonBase} text-ink-muted`;
+
+function SearchIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </svg>
+  );
+}
+
+function CloseIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M18 6 6 18M6 6l12 12" />
+    </svg>
+  );
+}
+
+function HeaderSearchInner({ pathname }: { pathname: string }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlQuery = pathname === "/search" ? (searchParams.get("q") ?? "") : "";
+  const [query, setQuery] = useState(urlQuery);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const syncKey = `${pathname}\0${urlQuery}`;
+  const [prevSyncKey, setPrevSyncKey] = useState(syncKey);
+  if (prevSyncKey !== syncKey) {
+    setPrevSyncKey(syncKey);
+    setQuery(urlQuery);
+    setMobileOpen(false);
+  }
+
+  const desktopInputId = useId();
+  const mobileInputId = useId();
+  const overlayId = useId();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const overlayRef = useRef<HTMLFormElement>(null);
+  const overlayInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (mobileOpen) overlayInputRef.current?.focus();
+  }, [mobileOpen]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!overlayRef.current?.contains(target) && !triggerRef.current?.contains(target)) {
+        setMobileOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [mobileOpen]);
+
+  function submit(rawValue: string, closeOverlay: boolean) {
+    const trimmed = rawValue.trim();
+    if (closeOverlay) setMobileOpen(false);
+    router.push(trimmed ? `/search?q=${encodeURIComponent(trimmed)}` : "/search");
+  }
+
+  return (
+    <>
+      <form
+        role="search"
+        action="/search"
+        method="get"
+        aria-label={messages.search.queryLabel}
+        data-testid="header-search-form"
+        className="hidden lg:flex items-center"
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit(query, false);
+        }}
+      >
+        <label htmlFor={desktopInputId} className="sr-only">
+          {messages.search.queryLabel}
+        </label>
+        <div className="relative flex items-center">
+          <SearchIcon className="pointer-events-none absolute left-2.5 size-4 text-ink-muted" />
+          <input
+            id={desktopInputId}
+            type="search"
+            name="q"
+            autoComplete="off"
+            maxLength={SEARCH_MAX_LENGTH}
+            placeholder={messages.search.placeholder}
+            data-testid="header-search-input"
+            className="min-h-10 w-48 xl:w-64 rounded-md border border-line bg-surface pr-3 pl-8 text-sm text-ink placeholder:text-ink-faint"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+      </form>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={messages.search.title}
+        aria-expanded={mobileOpen}
+        aria-controls={mobileOpen ? overlayId : undefined}
+        data-testid="header-search-trigger"
+        className={`${iconButtonClass} lg:hidden`}
+        onClick={() => setMobileOpen((open) => !open)}
+      >
+        <SearchIcon className="size-5" />
+      </button>
+      {mobileOpen ? (
+        <form
+          ref={overlayRef}
+          id={overlayId}
+          role="search"
+          action="/search"
+          method="get"
+          aria-label={messages.search.queryLabel}
+          data-testid="header-search-overlay"
+          className="absolute inset-0 z-(--z-dropdown) flex items-center gap-2 rounded-t-md bg-surface px-2.5 sm:px-4 lg:hidden"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submit(query, true);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              setMobileOpen(false);
+              triggerRef.current?.focus();
+            }
+          }}
+        >
+          <label htmlFor={mobileInputId} className="sr-only">
+            {messages.search.queryLabel}
+          </label>
+          <input
+            ref={overlayInputRef}
+            id={mobileInputId}
+            type="search"
+            name="q"
+            autoComplete="off"
+            maxLength={SEARCH_MAX_LENGTH}
+            placeholder={messages.search.placeholder}
+            data-testid="header-search-overlay-input"
+            className="min-h-10 min-w-0 flex-1 rounded-md border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-faint"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <button
+            type="submit"
+            data-testid="header-search-overlay-submit"
+            className="inline-flex min-h-10 shrink-0 items-center rounded-md bg-primary px-3 text-sm font-medium text-on-primary hover:bg-primary-hover"
+          >
+            {messages.search.submit}
+          </button>
+          <button
+            type="button"
+            aria-label={messages.search.closeSearch}
+            data-testid="header-search-overlay-close"
+            className="flex min-h-10 min-w-9 shrink-0 items-center justify-center rounded-md text-ink-muted hover:bg-hover"
+            onClick={() => {
+              setMobileOpen(false);
+              triggerRef.current?.focus();
+            }}
+          >
+            <CloseIcon className="size-5" />
+          </button>
+        </form>
+      ) : null}
+    </>
+  );
+}
+
+function HeaderSearchFallback() {
+  return (
+    <>
+      <div aria-hidden="true" className="hidden h-10 w-48 xl:w-64 lg:block" />
+      <div aria-hidden="true" className="h-10 w-9 sm:w-10 lg:hidden" />
+    </>
+  );
+}
+
+/**
+ * Responsive global search control: compact inline form at lg+ and a single
+ * icon trigger expanding an inline full-header overlay below lg (375px-safe).
+ */
+export function HeaderSearch({ pathname }: { pathname: string }) {
+  return (
+    <Suspense fallback={<HeaderSearchFallback />}>
+      <HeaderSearchInner pathname={pathname} />
+    </Suspense>
+  );
+}
 
 /** A to-do alarm that is due now (the open app's 30 s poll, useAlertPoller). */
 export interface ShellAlarm {
@@ -45,8 +257,8 @@ export function NotificationsBell({
   const panelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const count = alerts.length + alarms.length;
-  const hasAlerts = count > 0;
+  const { state, ringing, count } = bellLook(alerts.length, alarms.length);
+  const hasAlerts = state === "filled";
 
   // Notification.permission exists only in the browser: read it after mount (no hydration mismatch).
   useEffect(() => {
@@ -90,8 +302,9 @@ export function NotificationsBell({
           hasAlerts ? messages.app.notificationsWithCount(count) : messages.app.notifications
         }
         data-testid="notifications-bell"
-        data-state={hasAlerts ? "filled" : "outline"}
-        className={iconButtonClass}
+        data-state={state}
+        data-ringing={ringing}
+        className={`${iconButtonBase} ${ringing ? "text-danger" : "text-ink-muted"}`}
         onClick={() => setOpen((current) => !current)}
       >
         <BellIcon filled={hasAlerts} />

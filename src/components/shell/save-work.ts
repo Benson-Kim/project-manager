@@ -13,6 +13,13 @@ export function isSaveShortcut(event: KeyLike): boolean {
   return (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s";
 }
 
+export const DIALOG = '[role="dialog"], [role="alertdialog"], dialog[open]';
+
+/** Work lives in the page's main area or an open dialog, never in the app's own menus (Sign out), and a search is not work. */
+export function isWorkForm(form: Pick<Element, "closest" | "matches">): boolean {
+  return form.closest(`main, ${DIALOG}`) !== null && !form.matches('[role="search"]');
+}
+
 /** Where the user is working: the form around them, the open dialogs (top last), and the page's own forms. */
 export interface SaveCandidates<F> {
   around: F | null;

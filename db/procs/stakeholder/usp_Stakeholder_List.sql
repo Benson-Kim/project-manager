@@ -1,4 +1,4 @@
--- usp_Stakeholder_List — paged/filtered list per ADR-0016. Search columns: FirstName, LastName, DepartmentOrganization, EmailAddress. Sort whitelist: LastName, FirstName, ProjectRole, EngagementLevel.
+-- usp_Stakeholder_List — paged/filtered list per ADR-0016. Search columns: FirstName, LastName, FullName, ProjectRole, DepartmentOrganization, EmailAddress. Sort whitelist: LastName, FirstName, ProjectRole, EngagementLevel.
 -- Row-level access: a supplied @ProjectId must be accessible (dbo.usp_Project_AssertAccess ->
 --   FORBIDDEN_ROW 50003); cross-project reads (@ProjectId NULL) return only rows of projects the
 --   actor is assigned to (Admin sees all). LIKE wildcards in @Search are escaped.
@@ -35,8 +35,9 @@ BEGIN
         EXEC dbo.usp_Project_AssertAccess
              @ProjectId = @ProjectId, @ActorUserId = @ActorUserId, @MinLevel = N'Viewer';
 
-    IF @Search IS NOT NULL
-        SET @Search = REPLACE(REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'), N'_', N'\_'), N'[', N'\[');
+    DECLARE @Escaped NVARCHAR(200) = CASE
+        WHEN @Search IS NOT NULL THEN REPLACE(REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'), N'_', N'\_'), N'[', N'\[')
+    END;
 
     SELECT StakeholderId,
            [ProjectId],
@@ -74,10 +75,13 @@ BEGIN
       AND (@ProjectId IS NULL OR ProjectId = @ProjectId)
       AND (@ProjectId IS NOT NULL OR acc.AccessLevel IS NOT NULL)
       AND (@EngagementLevel IS NULL OR [EngagementLevel] = @EngagementLevel)
-      AND (@Search IS NULL OR [FirstName] LIKE N'%' + @Search + N'%' ESCAPE N'\'
-           OR [LastName] LIKE N'%' + @Search + N'%' ESCAPE N'\'
-           OR [DepartmentOrganization] LIKE N'%' + @Search + N'%' ESCAPE N'\'
-           OR [EmailAddress] LIKE N'%' + @Search + N'%' ESCAPE N'\')
+      AND (@Search IS NULL
+           OR [FirstName] LIKE N'%' + @Escaped + N'%' ESCAPE N'\'
+           OR [LastName] LIKE N'%' + @Escaped + N'%' ESCAPE N'\'
+           OR CONCAT([FirstName], CASE WHEN [LastName] IS NOT NULL AND [LastName] <> N'' THEN N' ' + [LastName] ELSE N'' END) LIKE N'%' + @Escaped + N'%' ESCAPE N'\'
+           OR [ProjectRole] LIKE N'%' + @Escaped + N'%' ESCAPE N'\'
+           OR [DepartmentOrganization] LIKE N'%' + @Escaped + N'%' ESCAPE N'\'
+           OR [EmailAddress] LIKE N'%' + @Escaped + N'%' ESCAPE N'\')
     ORDER BY
         CASE WHEN @SortBy = N'LastName' AND @SortDir = 'asc'  THEN [LastName] END ASC,
         CASE WHEN @SortBy = N'LastName' AND @SortDir = 'desc' THEN [LastName] END DESC,

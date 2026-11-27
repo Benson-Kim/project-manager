@@ -606,6 +606,30 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
+.rich-text img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+}
+
+.rich-text img.ProseMirror-selectednode {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.rich-text-uploading {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--line);
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+}
+
 /* Toolbar colour samples, painted with the tokens the text uses. */
 .rt-swatch[data-color="auto"] {
   background: transparent;
@@ -705,6 +729,12 @@ button:focus-visible {
   }
 
   .rich-text tr {
+    break-inside: avoid;
+  }
+
+  .rich-text img {
+    max-width: 100%;
+    max-height: 220mm;
     break-inside: avoid;
   }
 
@@ -992,4 +1022,11 @@ button:focus-visible {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border-width: 0;
+}
+
+/* Cross-link arrival focus highlight (ADR-0074). */
+[data-cl-highlighted="true"] {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  background-color: var(--accent-soft);
 }
