@@ -166,13 +166,19 @@ export const GANTT_DISPLAY: GanttDisplay = {
   milestones: true,
 };
 
-/** Saved settings, each one that is missing or not a flag taken from the defaults. */
-export function readGanttDisplay(saved: unknown): GanttDisplay {
-  const read = { ...GANTT_DISPLAY };
-  if (typeof saved !== "object" || saved === null) return read;
-  for (const key of Object.keys(read) as (keyof GanttDisplay)[]) {
-    const value = (saved as Record<string, unknown>)[key];
-    if (typeof value === "boolean") read[key] = value;
+/**
+ * Saved settings, each one that is missing or not a flag taken from the defaults. Only the
+ * defaults' own keys are read, and only from the saved object's own properties, so arrays,
+ * inherited values and `__proto__` payloads change nothing.
+ */
+export function readGanttDisplay<T extends GanttDisplay>(saved: unknown, defaults: T): T {
+  const read: T = { ...defaults };
+  if (typeof saved !== "object" || saved === null || Array.isArray(saved)) return read;
+  const record = saved as Record<string, unknown>;
+  for (const key of Object.keys(defaults)) {
+    if (!Object.prototype.hasOwnProperty.call(record, key)) continue;
+    const value = record[key];
+    if (typeof value === "boolean") (read as Record<string, boolean>)[key] = value;
   }
   return read;
 }

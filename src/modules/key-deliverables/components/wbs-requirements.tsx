@@ -233,6 +233,7 @@ export function AddRequirementField({
   const requirements = node.item.requirements;
   const outline = requirementOutline(requirements).filter((e) => e.requirement.id > 0);
   const parent = requirements.find((r) => r.id === parentId);
+  const meets = needs.find((need) => need.id === meetsId);
   // A sub-requirement takes its parent's type, so the type chips only choose a top-level one.
   const shownType = parent?.type ?? type;
 
@@ -328,7 +329,7 @@ export function AddRequirementField({
         </select>
       </label>
       {needs.length > 0 ? (
-        <label className={pickerLabelClass}>
+        <label className={pickerLabelClass} title={W.quickAdd.meetsTitle}>
           {W.quickAdd.meets}
           <select
             data-testid={`wbs-req-meets-${id}`}
@@ -344,6 +345,15 @@ export function AddRequirementField({
             ))}
           </select>
         </label>
+      ) : null}
+      {meets ? (
+        <span
+          role="status"
+          data-testid={`wbs-req-meets-hint-${id}`}
+          className="px-1 text-[10px] text-ink-muted"
+        >
+          {W.quickAdd.meetsHint(meets.ref, text.trim() !== "")}
+        </span>
       ) : null}
     </span>
   );

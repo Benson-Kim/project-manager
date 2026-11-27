@@ -185,9 +185,9 @@ describe("packLines", () => {
 
 describe("display settings", () => {
   it("reads saved flags, taking the defaults for missing or broken ones", () => {
-    expect(readGanttDisplay(null)).toEqual(GANTT_DISPLAY);
-    expect(readGanttDisplay("x")).toEqual(GANTT_DISPLAY);
-    expect(readGanttDisplay({ dates: false, today: "no", extra: true })).toEqual({
+    expect(readGanttDisplay(null, GANTT_DISPLAY)).toEqual(GANTT_DISPLAY);
+    expect(readGanttDisplay("x", GANTT_DISPLAY)).toEqual(GANTT_DISPLAY);
+    expect(readGanttDisplay({ dates: false, today: "no", extra: true }, GANTT_DISPLAY)).toEqual({
       ...GANTT_DISPLAY,
       dates: false,
     });

@@ -5,19 +5,41 @@ import { GANTT_DISPLAY, readGanttDisplay, type GanttDisplay } from "./gantt-layo
 
 const KEY = "gantt-display";
 
+export interface GanttDisplaySettings extends GanttDisplay {
+  criticalPath: boolean;
+}
+
+export const DEFAULT_GANTT_DISPLAY: GanttDisplaySettings = {
+  ...GANTT_DISPLAY,
+  criticalPath: false,
+};
+
+/** Parses raw localStorage JSON for Gantt display settings, falling back to defaults. */
+export function readStoredGanttDisplay(raw: string | null): GanttDisplaySettings {
+  if (!raw) return { ...DEFAULT_GANTT_DISPLAY };
+  try {
+    return readGanttDisplay(JSON.parse(raw), DEFAULT_GANTT_DISPLAY);
+  } catch {
+    return { ...DEFAULT_GANTT_DISPLAY };
+  }
+}
+
 /**
- * What the Gantt shows (progress, dates, today, people, milestones), kept per
- * browser. Read after the first paint so the server and the browser draw the
+ * What the Gantt shows (progress, dates, today, people, milestones, critical path),
+ * kept per browser. Read after the first paint so the server and the browser draw the
  * same chart first; a browser that keeps nothing still changes it for the visit.
  */
-export function useGanttDisplay(): [GanttDisplay, (change: Partial<GanttDisplay>) => void] {
-  const [display, setDisplay] = useState<GanttDisplay>(GANTT_DISPLAY);
+export function useGanttDisplay(): [
+  GanttDisplaySettings,
+  (change: Partial<GanttDisplaySettings>) => void,
+] {
+  const [display, setDisplay] = useState<GanttDisplaySettings>(DEFAULT_GANTT_DISPLAY);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       try {
         const saved = window.localStorage.getItem(KEY);
-        if (saved) setDisplay(readGanttDisplay(JSON.parse(saved)));
+        if (saved) setDisplay(readStoredGanttDisplay(saved));
       } catch {
         // Nothing kept, or unreadable: the defaults stand.
       }
@@ -25,7 +47,7 @@ export function useGanttDisplay(): [GanttDisplay, (change: Partial<GanttDisplay>
     return () => cancelAnimationFrame(frame);
   }, []);
 
-  const change = useCallback((patch: Partial<GanttDisplay>) => {
+  const change = useCallback((patch: Partial<GanttDisplaySettings>) => {
     setDisplay((current) => {
       const next = { ...current, ...patch };
       try {

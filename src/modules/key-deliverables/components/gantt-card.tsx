@@ -3,6 +3,7 @@
 import { AvatarStack } from "@/components/ui/avatar-stack";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { planLine, TONES } from "@/components/ui/tones";
+import { AnchorSlot } from "@/modules/cross-links/components/anchor-slot";
 import { toDateInput } from "@/lib/format";
 import { messages } from "@/lib/messages";
 import { canBeMet } from "@/modules/requirements/schemas/requirement-types";
@@ -21,6 +22,8 @@ export interface GanttCardProps {
   display: GanttDisplay;
   open: boolean;
   selected: boolean;
+  critical?: boolean;
+  criticalIds?: ReadonlySet<number>;
   /** The requirements panel below the chart shows this card's. */
   listing: boolean;
   /** Its right edge drags its end: a dated leaf that is not a milestone, for editors. */
@@ -70,6 +73,8 @@ export function GanttCard({
   display,
   open,
   selected,
+  critical = false,
+  criticalIds,
   listing,
   resizable,
   dragging,
@@ -85,13 +90,23 @@ export function GanttCard({
   const line = planLine(node.depth, node.item.color);
   return (
     <li
+      id={`cl-row:${id}`}
       data-gantt-card={id}
       data-gantt-item={id}
       data-gantt-bar={id}
+      data-cl-anchor="record"
+      data-cl-anchor-key={`row:${id}`}
+      data-cl-entity-id={id}
+      data-cl-anchor-label={name}
       data-testid={`gantt-card-${id}`}
+      data-critical={critical ? "true" : undefined}
       style={style}
       className={`relative flex shrink-0 flex-col text-left print:break-inside-avoid print:[print-color-adjust:exact] ${
-        open ? `rounded-[10px] border-2 bg-surface p-1.5 ${line.border}` : ""
+        open
+          ? `rounded-[10px] bg-surface p-1.5 ${critical ? "border-[3px] border-danger outline-2 outline-offset-1 outline-danger" : `border-2 ${line.border}`}`
+          : critical
+            ? "rounded-[10px] outline-2 outline-offset-1 outline-danger"
+            : ""
       } ${selected ? "rounded-[10px] ring-[3px] ring-coral ring-offset-1 ring-offset-surface" : ""} ${dragging ? "z-10 opacity-90 shadow-lg" : ""}`}
       onPointerDown={onSelect}
     >
@@ -104,14 +119,21 @@ export function GanttCard({
         />
       ) : null}
       <div
-        className={`flex min-w-0 items-center gap-2 overflow-hidden rounded-[8px] bg-surface pr-1.5 pl-2 ${line.border} ${
-          open ? "h-[26px] border-l-[7px]" : "h-[30px] border-2 border-l-[7px]"
+        className={`flex min-w-0 items-center gap-2 overflow-hidden rounded-[8px] bg-surface pr-1.5 pl-2 ${
+          critical ? "border-danger" : line.border
+        } ${
+          open
+            ? "h-[26px] border-l-[7px]"
+            : critical
+              ? "h-[30px] border-[3px] border-l-[7px]"
+              : "h-[30px] border-2 border-l-[7px]"
         } ${TONES[node.color].bar}`}
       >
         <button
           type="button"
           data-gantt-handle={id}
           data-testid={`gantt-card-${id}-name`}
+          aria-label={critical ? `${node.code} ${name}, ${C.criticalPath}` : undefined}
           title={name}
           onClick={onSelect}
           className={`min-w-0 flex-1 truncate text-left text-[13px] font-semibold text-ink focus-visible:outline-2 focus-visible:outline-focus ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
@@ -121,6 +143,7 @@ export function GanttCard({
           </span>
           {name}
         </button>
+        <AnchorSlot anchorKind="record" anchorKey={`row:${id}`} entityId={id} />
         <button
           type="button"
           aria-label={C.requirementsOf(name, met, total)}
@@ -196,22 +219,35 @@ export function GanttCard({
           className={`m-0 mt-2 list-none p-0 ${tiles.length > 0 ? "grid grid-cols-2 gap-x-3 gap-y-2.5" : "flex flex-col gap-1"}`}
         >
           {tiles.length > 0 ? (
-            tiles.map(({ node: tile }) => (
-              <li
-                key={tile.item.id}
-                data-gantt-bar={tile.item.id}
-                data-testid={`gantt-tile-${tile.item.id}`}
-                title={tile.item.name || undefined}
-                className={`flex h-7 min-w-0 items-center rounded-[8px] border-2 border-l-[7px] bg-surface px-2 text-xs font-semibold text-ink ${planLine(tile.depth, tile.item.color).border} ${TONES[tile.color].bar}`}
-              >
-                <span className="truncate">
-                  <span className="mr-1 text-[10px] font-normal text-ink-muted tabular-nums">
-                    {tile.code}
+            tiles.map(({ node: tile }) => {
+              const tileCritical = criticalIds?.has(tile.item.id) ?? false;
+              const tileName =
+                tile.item.name || messages.keyDeliverables.deliverableFallback(tile.item.id);
+              return (
+                <li
+                  key={tile.item.id}
+                  data-gantt-bar={tile.item.id}
+                  data-testid={`gantt-tile-${tile.item.id}`}
+                  data-critical={tileCritical ? "true" : undefined}
+                  aria-label={
+                    tileCritical ? `${tile.code} ${tileName}, ${C.criticalPath}` : undefined
+                  }
+                  title={tile.item.name || undefined}
+                  className={`flex h-7 min-w-0 items-center rounded-[8px] border-l-[7px] bg-surface px-2 text-xs font-semibold text-ink ${
+                    tileCritical
+                      ? "border-[3px] border-danger outline-2 outline-offset-1 outline-danger"
+                      : `border-2 ${planLine(tile.depth, tile.item.color).border}`
+                  } ${TONES[tile.color].bar}`}
+                >
+                  <span className="truncate">
+                    <span className="mr-1 text-[10px] font-normal text-ink-muted tabular-nums">
+                      {tile.code}
+                    </span>
+                    {tileName}
                   </span>
-                  {tile.item.name || messages.keyDeliverables.deliverableFallback(tile.item.id)}
-                </span>
-              </li>
-            ))
+                </li>
+              );
+            })
           ) : node.item.requirements.length > 0 ? (
             node.item.requirements.map((requirement) => (
               <li key={requirement.id} className="flex items-start gap-1.5 text-xs text-ink">
@@ -243,12 +279,14 @@ export function GanttMilestone({
   node,
   reached,
   selected,
+  critical = false,
   style,
   onSelect,
 }: {
   node: WbsNode;
   reached: boolean;
   selected: boolean;
+  critical?: boolean;
   style?: React.CSSProperties;
   onSelect(): void;
 }) {
@@ -262,20 +300,27 @@ export function GanttMilestone({
       data-gantt-bar={id}
       data-testid={`gantt-milestone-${id}`}
       data-reached={reached}
+      data-critical={critical ? "true" : undefined}
       style={style}
       className="flex size-6 shrink-0 items-center justify-center"
     >
       <button
         type="button"
         data-gantt-handle={id}
-        aria-label={C.milestone(name, date)}
+        aria-label={
+          critical ? `${C.milestone(name, date)}, ${C.criticalPath}` : C.milestone(name, date)
+        }
         title={`${name} · ${date}`}
         onClick={onSelect}
         className={`relative flex size-6 cursor-grab items-center justify-center rounded-sm before:absolute before:-inset-2 before:content-[''] focus-visible:outline-2 focus-visible:outline-focus ${selected ? "ring-[3px] ring-coral ring-offset-1 ring-offset-surface" : ""}`}
       >
         <span
           aria-hidden="true"
-          className={`size-3 rotate-45 border-2 border-ink ${reached ? "bg-ink" : "bg-surface"}`}
+          className={`size-3 rotate-45 ${
+            critical
+              ? `border-[3px] border-danger outline-2 outline-offset-1 outline-danger ${reached ? "bg-danger" : "bg-surface"}`
+              : `border-2 border-ink ${reached ? "bg-ink" : "bg-surface"}`
+          }`}
         />
       </button>
     </li>
