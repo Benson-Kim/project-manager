@@ -42,6 +42,7 @@ export const settingsNavItem: NavItem = {
 export function pageTitleFor(pathname: string): string {
   if (pathname === "/projects/new") return messages.projects.newProject;
   if (pathname === "/change-password") return messages.auth.changePasswordTitle;
+  if (pathname === "/search") return messages.search.title;
   const all = [...navItems, settingsNavItem];
   const match = all.find(
     (item) => pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`)),
