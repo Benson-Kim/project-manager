@@ -13,6 +13,7 @@ import { Menu, MenuButton } from "@/components/ui/menu";
 import { useFlip } from "@/components/ui/motion/use-flip";
 import { ProjectLink } from "@/components/ui/project-link";
 import { useToast } from "@/components/ui/toast";
+import { AnchorSlot } from "@/modules/cross-links/components/anchor-slot";
 import type { ActionResult } from "@/lib/action";
 import { rowAllows } from "@/lib/auth/actor-access";
 import { messages } from "@/lib/messages";
@@ -365,7 +366,12 @@ export function BoardWorkspace({
                     return (
                       <article
                         key={card.BoardCardId}
+                        id={`cl-card:${card.BoardCardId}`}
                         data-drag-item={card.BoardCardId}
+                        data-cl-anchor="subrecord"
+                        data-cl-anchor-key={`card:${card.BoardCardId}`}
+                        data-cl-sub-id={card.BoardCardId}
+                        data-cl-anchor-label={cardLabel(card)}
                         className={`${kanbanCardClass(drag.dragging === card.BoardCardId)} ${canEdit ? "select-none" : ""}`}
                         {...drag.bind(card.BoardCardId)}
                       >
@@ -396,6 +402,12 @@ export function BoardWorkspace({
                               ? (assigneeNames.get(card.AssigneeUserId) ?? U.assignee)
                               : null
                           }
+                        />
+                        <AnchorSlot
+                          anchorKind="subrecord"
+                          anchorKey={`card:${card.BoardCardId}`}
+                          subEntityId={card.BoardCardId}
+                          className="mt-1.5"
                         />
                       </article>
                     );

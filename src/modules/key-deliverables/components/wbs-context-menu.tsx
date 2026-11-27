@@ -6,6 +6,8 @@ import { TONES } from "@/components/ui/tones";
 import { formatDate } from "@/lib/format";
 import type { OptionColor } from "@/lib/lookup-lists";
 import { messages } from "@/lib/messages";
+import { useCrossLinkMenu } from "@/modules/cross-links/components/context-menu-bridge";
+import { isSameEndpoint } from "@/modules/cross-links/schemas/location";
 import type { WbsNode } from "../schemas/wbs";
 
 const W = messages.keyDeliverables.wbs;
@@ -228,7 +230,41 @@ export function WbsContextMenu({
     run();
   }
 
-  const visibleGroups = groups
+  const cl = useCrossLinkMenu();
+  const clCommands: MenuCommand[] = (() => {
+    if (!cl || !cl.location) return [];
+    const endpoint = {
+      ...cl.location,
+      entityId: item.id,
+      subEntityId: null,
+      anchorKind: "record" as const,
+      anchorKey: `row:${item.id}`,
+      label: name.slice(0, 120),
+    };
+    const cmds: MenuCommand[] = [
+      {
+        label: messages.crossLinks.addCrossLinkMenu,
+        testId: "wbs-menu-cl-add-link",
+        run: () => cl.startCrossLink(endpoint),
+      },
+    ];
+    if (cl.pendingSource && !isSameEndpoint(cl.pendingSource, endpoint)) {
+      cmds.push({
+        label: messages.crossLinks.completeCrossLinkWithMenu(cl.pendingSource.label.slice(0, 40)),
+        testId: "wbs-menu-cl-complete-link",
+        run: () => cl.completeCrossLink(endpoint),
+      });
+    }
+    cmds.push({
+      label: messages.crossLinks.addPageNoteMenu,
+      testId: "wbs-menu-cl-add-note",
+      run: () => cl.openAddPageNote(endpoint),
+    });
+    return cmds;
+  })();
+
+  const allGroups = clCommands.length > 0 ? [...groups, clCommands] : groups;
+  const visibleGroups = allGroups
     .map((group) => group.filter((command) => !command.hidden))
     .filter((group) => group.length > 0);
   const statusTone = current ? statuses.find((s) => s.label === current)?.color : null;

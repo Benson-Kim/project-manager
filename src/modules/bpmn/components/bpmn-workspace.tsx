@@ -178,6 +178,8 @@ function Workspace({ projectId, row, diagrams, can }: WorkspaceProps) {
   return (
     <div
       data-canvas-view={view}
+      data-cl-page-entity={row.BpmnDiagramId}
+      data-cl-page-label={row.Name}
       className={
         view === "board"
           ? "flex min-h-0 flex-1 flex-col"

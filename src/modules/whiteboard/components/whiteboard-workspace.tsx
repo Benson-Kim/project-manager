@@ -85,6 +85,8 @@ export function WhiteboardWorkspace({
   return (
     <div
       data-fullscreen={fullscreen.active}
+      data-cl-page-entity={row.WhiteboardId}
+      data-cl-page-label={row.Name}
       className={
         fullscreen.active ? `${FULLSCREEN_FRAME} flex flex-col` : "flex min-h-0 flex-1 flex-col"
       }

@@ -1,5 +1,12 @@
 import type { MenuItemConstructorOptions } from "electron";
 
+export interface ContextMenuPageExtras {
+  canAddNote: boolean;
+  canAddLink: boolean;
+  canCompleteLink: boolean;
+  pendingLabel?: string | null;
+}
+
 export interface ContextMenuState {
   isEditable: boolean;
   /** The field asks to be checked (password, link and sign-in fields do not). */
@@ -14,6 +21,8 @@ export interface ContextMenuState {
   grammar: { label: string; apply(): void }[] | "loading";
   /** The page is one of the app's own, so it can be printed or saved. */
   appPage: boolean;
+  /** Semantic page-level sticky notes and 1-to-1 cross-link menu items on non-editable app regions. */
+  pageExtras?: ContextMenuPageExtras | null;
 }
 
 export interface ContextMenuActions {
@@ -24,6 +33,9 @@ export interface ContextMenuActions {
   saveWork(): void;
   printPage(): void;
   savePageAsPdf(): void;
+  addPageNote?(): void;
+  addCrossLink?(): void;
+  completeCrossLink?(): void;
 }
 
 const MAX_SPELLINGS = 5;
@@ -72,6 +84,23 @@ export function contextMenuTemplate(
     ]);
   }
   if (!s.isEditable && s.appPage) {
+    const extras = s.pageExtras;
+    const extraItems: MenuItemConstructorOptions[] = [];
+    if (extras?.canAddLink && a.addCrossLink) {
+      extraItems.push({ label: "Add cross-link here…", click: () => a.addCrossLink?.() });
+    }
+    if (extras?.canCompleteLink && a.completeCrossLink) {
+      const cleanLabel = extras.pendingLabel?.trim().slice(0, 40).replace(/&/g, "&&");
+      extraItems.push({
+        label: cleanLabel ? `Complete cross-link with “${cleanLabel}”` : "Complete cross-link…",
+        click: () => a.completeCrossLink?.(),
+      });
+    }
+    if (extras?.canAddNote && a.addPageNote) {
+      extraItems.push({ label: "Add page note…", click: () => a.addPageNote?.() });
+    }
+    if (extraItems.length > 0) groups.push(extraItems);
+
     groups.push([
       { label: "Print…", click: a.printPage },
       { label: "Save page as PDF…", click: a.savePageAsPdf },

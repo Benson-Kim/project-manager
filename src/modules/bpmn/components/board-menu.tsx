@@ -4,6 +4,8 @@ import { BinIcon } from "@/components/ui/action-icons";
 import { ContextMenu } from "@/components/ui/context-menu";
 import { MenuButton, MenuSeparator } from "@/components/ui/menu";
 import { messages } from "@/lib/messages";
+import { useCrossLinkMenu } from "@/modules/cross-links/components/context-menu-bridge";
+import { isSameEndpoint, normalizeAnchorKey } from "@/modules/cross-links/schemas/location";
 import { FLOW_KINDS, type BpmnDiagram, type FlowKind } from "../model/diagram";
 import type { Point } from "../model/edit";
 import type { PaletteItem } from "./palette";
@@ -62,6 +64,7 @@ export function BoardMenu({
   actions: BoardMenuActions;
   onClose: () => void;
 }) {
+  const cl = useCrossLinkMenu();
   const name = nameOf(diagram, target);
   if (name === null) return null;
   const item = (
@@ -113,9 +116,69 @@ export function BoardMenu({
       ...remove,
     ];
   })();
+  const clEndpoint =
+    cl && cl.location
+      ? target.of === "canvas"
+        ? {
+            ...cl.location,
+            anchorKind: "page" as const,
+            anchorKey: null,
+            label: name.slice(0, 120),
+          }
+        : {
+            ...cl.location,
+            anchorKind: "subrecord" as const,
+            anchorKey:
+              normalizeAnchorKey(
+                `${target.of}:${target.id.toLowerCase().replace(/[^a-z0-9:_-]/g, "_")}`,
+              ) ?? target.of,
+            label: name.slice(0, 120),
+          }
+      : null;
+  const canCompleteLink =
+    Boolean(clEndpoint && cl?.pendingSource) &&
+    Boolean(clEndpoint && cl?.pendingSource && !isSameEndpoint(cl.pendingSource, clEndpoint));
+
   return (
     <ContextMenu at={target.screen} label={C.label(name)} onClose={onClose}>
       {body}
+      {cl && clEndpoint ? (
+        <>
+          <MenuSeparator key="before-cross-links" />
+          <MenuButton
+            key="cl-add-link"
+            testId="bpmn-menu-cl-add-link"
+            onClick={() => {
+              onClose();
+              cl.startCrossLink(clEndpoint);
+            }}
+          >
+            {messages.crossLinks.addCrossLinkMenu}
+          </MenuButton>
+          {canCompleteLink && cl.pendingSource ? (
+            <MenuButton
+              key="cl-complete-link"
+              testId="bpmn-menu-cl-complete-link"
+              onClick={() => {
+                onClose();
+                cl.completeCrossLink(clEndpoint);
+              }}
+            >
+              {messages.crossLinks.completeCrossLinkWithMenu(cl.pendingSource.label.slice(0, 40))}
+            </MenuButton>
+          ) : null}
+          <MenuButton
+            key="cl-add-note"
+            testId="bpmn-menu-cl-add-note"
+            onClick={() => {
+              onClose();
+              cl.openAddPageNote(clEndpoint);
+            }}
+          >
+            {messages.crossLinks.addPageNoteMenu}
+          </MenuButton>
+        </>
+      ) : null}
     </ContextMenu>
   );
 }
