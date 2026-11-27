@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { SupplierSheet } from "@/modules/suppliers/components/supplier-sheet";
 import { SuppliersView } from "@/modules/suppliers/components/suppliers-view";
 import { getSupplierById, listSuppliers } from "@/modules/suppliers/repository/suppliers";
+import { supplierColumns } from "@/modules/suppliers/repository/columns";
 import { SUPPLIER_SORT, supplierFiltersSchema } from "@/modules/suppliers/schemas/supplier";
 import { parseProjectId } from "../project-id";
 import { LookupListsScope } from "@/modules/lookup-lists/components/lookup-lists-scope";
@@ -54,7 +55,7 @@ export default async function SuppliersPage({
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
-  const [rows, preference, selectedRaw, allows, lookup] = await Promise.all([
+  const [rows, preference, selectedRaw, allows, lookup, labels, addedColumns] = await Promise.all([
     orNotFound(
       listForView(effectiveParams, (p, size) =>
         listSuppliers(p, session.userId, projectId, filters, size),
@@ -66,6 +67,8 @@ export default async function SuppliersPage({
       : null,
     getProjectPermissions(projectId, session.userId),
     loadLookupLists(SUPPLIER_LISTS, session),
+    orNotFound(supplierColumns.listLabels(projectId, session.userId)),
+    orNotFound(supplierColumns.listColumns(projectId, session.userId)),
   ]);
 
   // A deep link to a supplier from another project is treated as not found.
@@ -116,6 +119,9 @@ export default async function SuppliersPage({
             initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}
             layout={preference?.layout}
             filtersActive={filtersActive}
+            labels={labels}
+            addedColumns={addedColumns}
+            canManageColumns={{ create: canCreate, update: canEdit, delete: canDelete }}
             newSupplierAction={canCreate ? newSupplierEmptyLink : undefined}
           />
         </div>

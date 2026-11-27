@@ -4,9 +4,9 @@ import { escapeRegExp } from "./support/datasheet";
 import { waitForRichTextEditors } from "./support/editor";
 
 /**
- * Columns a project adds to its daily activities and its to-do list: added through the shared
- * columns dialog, filled in the datasheet, and still filled after a reload. Runs as e2e-pm on a
- * project of its own, so earlier runs never fill up the column limit.
+ * Columns a project adds to its daily activities, to-do list, suppliers and keywords: added
+ * through the shared columns dialog, filled in the datasheet, and still filled after a reload.
+ * Runs as e2e-pm on a project of its own, so earlier runs never fill up the column limit.
  */
 
 const D = messages.datasheet;
@@ -58,6 +58,25 @@ async function fillAndReload(page: Page, row: string, value: string) {
   });
 }
 
+// Columns belong to a project, so the main-menu page shows them (and the Columns button) only
+// when its project filter picks that one project.
+async function expectOnMainMenu(
+  page: Page,
+  path: string,
+  { projectId, row, value }: { projectId: string; row: string; value: string },
+) {
+  await page.goto(`${path}?project=${projectId}&view=list`);
+  await expect(page.getByRole("textbox", { name: cell(COLUMN, row) })).toHaveValue(value, {
+    timeout: 30_000,
+  });
+  await expect(page.getByTestId("register-columns")).toBeVisible();
+
+  await page.goto(`${path}?view=list`);
+  await expect(page.getByTestId("view-list")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("register-columns")).toHaveCount(0);
+  await expect(header(page, COLUMN)).toHaveCount(0);
+}
+
 test.describe("project custom columns", () => {
   test("a column added to daily activities keeps its value across a reload", async ({ page }) => {
     const projectId = await createProject(page);
@@ -74,6 +93,7 @@ test.describe("project custom columns", () => {
     await page.goto(`/projects/${projectId}/daily-activities?view=list`);
     await addTextColumn(page, messages.customColumns.activityTitle);
     await fillAndReload(page, task, "PO-1042");
+    await expectOnMainMenu(page, "/daily-activities", { projectId, row: task, value: "PO-1042" });
   });
 
   test("a column added to the to-do list keeps its value across a reload", async ({ page }) => {
@@ -92,5 +112,39 @@ test.describe("project custom columns", () => {
     await page.goto(`/projects/${projectId}/todos?view=list`);
     await addTextColumn(page, messages.customColumns.todoTitle);
     await fillAndReload(page, title, "PO-2077");
+    await expectOnMainMenu(page, "/todo", { projectId, row: title, value: "PO-2077" });
+  });
+
+  test("a column added to suppliers keeps its value across a reload", async ({ page }) => {
+    const projectId = await createProject(page);
+    const name = `E2E supplier ${Date.now()}`;
+    await page.goto(`/projects/${projectId}/suppliers?id=new`);
+    const form = page.getByTestId("supplier-form");
+    await expect(form).toBeVisible();
+    await form.getByLabel(messages.suppliers.supplierName).fill(name);
+    await form.getByLabel(messages.suppliers.contractEndDate).fill("2027-03-31");
+    await form.getByLabel(messages.suppliers.rating).selectOption("Good");
+    await page.getByTestId("supplier-save").click();
+    await expectCreated(page, "supplier-form");
+
+    await page.goto(`/projects/${projectId}/suppliers?view=list`);
+    await addTextColumn(page, messages.customColumns.supplierTitle);
+    await fillAndReload(page, name, "PO-3105");
+  });
+
+  test("a column added to keywords keeps its value across a reload", async ({ page }) => {
+    const projectId = await createProject(page);
+    const keyword = `E2E keyword ${Date.now()}`;
+    await page.goto(`/projects/${projectId}/keywords?id=new`);
+    const form = page.getByTestId("keyword-form");
+    await expect(form).toBeVisible();
+    await form.getByLabel(messages.keywords.keyword, { exact: true }).fill(keyword);
+    await form.getByLabel(messages.keywords.definition).fill("Term used in the e2e run");
+    await page.getByTestId("keyword-save").click();
+    await expectCreated(page, "keyword-form");
+
+    await page.goto(`/projects/${projectId}/keywords?view=list`);
+    await addTextColumn(page, messages.customColumns.keywordTitle);
+    await fillAndReload(page, keyword, "PO-4210");
   });
 });

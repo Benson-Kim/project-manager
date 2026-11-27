@@ -9,7 +9,13 @@ import { CHOICE_LABEL_MAX, REGISTER_KINDS, columnNameSchema, parseCellValue } fr
  * the entity comes only from this allowlist, never from a request. Each proc checks access and
  * audits; the built-in columns' keys and default names go to them from the list's one definition.
  */
-export const CUSTOM_COLUMN_ENTITIES = ["Requirement", "DailyActivity", "TodoItem"] as const;
+export const CUSTOM_COLUMN_ENTITIES = [
+  "Requirement",
+  "DailyActivity",
+  "TodoItem",
+  "Supplier",
+  "Keyword",
+] as const;
 export type CustomColumnEntity = (typeof CUSTOM_COLUMN_ENTITIES)[number];
 export type BuiltInColumn = { readonly key: string; readonly name: string };
 

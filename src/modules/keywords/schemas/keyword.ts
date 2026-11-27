@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
+import { registerCellsSchema } from "@/lib/custom-columns/register";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 
 /**
@@ -20,12 +21,15 @@ export const keywordRowSchema = z.object({
 
 export type KeywordRow = z.infer<typeof keywordRowSchema>;
 
-export const keywordListRowSchema = keywordRowSchema.extend({
-  TotalCount: z.number().int(),
-  ...actorAccessFields,
-});
+export const keywordListRowSchema = keywordRowSchema
+  .extend({
+    TotalCount: z.number().int(),
+    ...actorAccessFields,
+    CustomCellsJson: registerCellsSchema,
+  })
+  .transform(({ CustomCellsJson, ...row }) => ({ ...row, CustomCells: CustomCellsJson }));
 
-export type KeywordListRow = z.infer<typeof keywordListRowSchema>;
+export type KeywordListRow = z.output<typeof keywordListRowSchema>;
 
 export const createKeywordInput = z.object({
   projectId: z.number().int().positive().nullable(),
