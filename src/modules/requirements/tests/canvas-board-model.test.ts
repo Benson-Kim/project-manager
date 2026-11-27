@@ -7,10 +7,13 @@ import {
   clusterLabels,
   collapsibleKeys,
   focusView,
+  focusVisibleKeys,
   itemConnection,
   layoutMoves,
   linkEnds,
   mergeFlowNodes,
+  newlyPlacedKeys,
+  onCanvasKeySet,
   rollbackPlacements,
   savedMoves,
   settlePlacements,
@@ -502,5 +505,56 @@ describe("styled edges", () => {
     expect(edge?.style?.stroke).toBe("#3366CC");
     expect(edge?.style?.strokeDasharray).toBeTruthy();
     expect(edge?.data?.branch).toEqual({ fromEdge: "Requirement:1>Requirement:2", at: 40 });
+  });
+});
+
+describe("focus visibility for newly placed cards", () => {
+  const items = [
+    item({ ItemId: 1 }),
+    item({ ItemId: 2 }),
+    item({ ItemId: 3, OnCanvas: false }),
+    item({ ItemId: 4 }),
+    item({ ItemId: 5, Kind: "Wbs", Type: "WBS" }),
+  ];
+
+  it("detects only keys newly added to the canvas", () => {
+    const before = onCanvasKeySet(items);
+    expect([...before].sort()).toEqual([
+      "Requirement:1",
+      "Requirement:2",
+      "Requirement:4",
+      "Wbs:5",
+    ]);
+    const after = onCanvasKeySet(
+      items.map((row) => (row.ItemId === 3 ? { ...row, OnCanvas: true } : row)),
+    );
+    expect(newlyPlacedKeys(before, after)).toEqual(["Requirement:3"]);
+    expect(newlyPlacedKeys(after, before)).toEqual([]);
+  });
+
+  it("keeps newly placed unlinked cards visible while focus is active and clears when focus clears", () => {
+    const withNewItem = items.map((row) => (row.ItemId === 3 ? { ...row, OnCanvas: true } : row));
+    const focused = focusView({ key: "Requirement:1", depth: 1 }, [link()], new Map());
+    const pinned = new Set(newlyPlacedKeys(onCanvasKeySet(items), onCanvasKeySet(withNewItem)));
+    const visible = focusVisibleKeys(focused?.keys ?? null, pinned, new Map());
+    const nodes = withHidden(boardNodes(withNewItem, [link()], null), new Map(), visible);
+
+    const hiddenMap = new Map(nodes.map((n) => [n.id, Boolean(n.hidden)]));
+    expect(hiddenMap.get("Requirement:1")).toBe(false);
+    expect(hiddenMap.get("Requirement:2")).toBe(false);
+    expect(hiddenMap.get("Requirement:3")).toBe(false);
+    expect(hiddenMap.get("Requirement:4")).toBe(true);
+    expect(hiddenMap.get("Wbs:5")).toBe(true);
+
+    expect(focusVisibleKeys(null, pinned, new Map())).toBeNull();
+  });
+
+  it("maps folded pinned keys to their collapsed ancestor", () => {
+    const visible = focusVisibleKeys(
+      new Set(["Requirement:1"]),
+      new Set(["Requirement:3"]),
+      new Map([["Requirement:3", "Requirement:2"]]),
+    );
+    expect([...(visible ?? [])].sort()).toEqual(["Requirement:1", "Requirement:2"]);
   });
 });

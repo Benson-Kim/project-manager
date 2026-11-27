@@ -21,6 +21,7 @@ import { useCanvasLinks } from "./use-canvas-links";
 import { useCanvasLinkStyles } from "./use-canvas-link-styles";
 import { useCanvasNodes } from "./use-canvas-nodes";
 import { useCanvasUndo } from "./use-canvas-undo";
+import { WalkthroughView } from "./walkthrough-view";
 
 /**
  * The three panes. The inspector, built on the server from ?inspect=, takes the third column.
@@ -118,6 +119,8 @@ export function CanvasWorkspace({
 
   const [view, setView] = useState<CanvasView>("board");
   const [printRequest, setPrintRequest] = useState(0);
+  const [walkthrough, setWalkthrough] = useState(false);
+  const showWalkthrough = walkthrough && view !== "preview";
   const print = () => {
     setView("preview");
     setPrintRequest((count) => count + 1);
@@ -142,6 +145,7 @@ export function CanvasWorkspace({
   return (
     <div
       data-canvas-view={view}
+      data-cl-page-entity={canvasId}
       className={
         view === "board"
           ? "flex min-h-0 flex-1 flex-col"
@@ -166,6 +170,11 @@ export function CanvasWorkspace({
               ? viewButton("canvas-exit-full-page", M.exitFullPage, () => setView("board"))
               : viewButton("canvas-full-page", M.fullPage, () => setView("full"))}
             {viewButton("canvas-preview", M.preview, () => setView("preview"))}
+            {viewButton(
+              "canvas-walkthrough",
+              walkthrough ? M.walkthrough.close : M.walkthrough.open,
+              () => setWalkthrough((open) => !open),
+            )}
             {printButton}
           </>
         )}
@@ -176,7 +185,9 @@ export function CanvasWorkspace({
           view === "board"
             ? "border-t border-line lg:h-[calc(100dvh-12.5rem)] lg:flex-none lg:grid-rows-[minmax(0,1fr)]"
             : ""
-        } ${inspector ? "lg:grid-cols-[20rem_1fr_22rem]" : "lg:grid-cols-[20rem_1fr]"}`}
+        } ${inspector ? "lg:grid-cols-[20rem_1fr_22rem]" : "lg:grid-cols-[20rem_1fr]"} ${
+          showWalkthrough ? "print:hidden" : ""
+        }`}
       >
         <RepositoryList
           items={shown}
@@ -187,7 +198,11 @@ export function CanvasWorkspace({
           onSelect={setSelectedKey}
           onReveal={(item) => void reveal(item)}
         />
-        <div data-testid="canvas-board" data-canvas-page className="h-[60dvh] min-w-0 lg:h-full">
+        <div
+          data-testid="canvas-board"
+          data-canvas-page={showWalkthrough ? undefined : true}
+          className="h-[60dvh] min-w-0 lg:h-full"
+        >
           <CanvasBoard
             view={view}
             printRequest={printRequest}
@@ -216,6 +231,9 @@ export function CanvasWorkspace({
         </div>
         {inspector}
       </div>
+      {showWalkthrough && (
+        <WalkthroughView items={shown} links={links} onClose={() => setWalkthrough(false)} />
+      )}
     </div>
   );
 }

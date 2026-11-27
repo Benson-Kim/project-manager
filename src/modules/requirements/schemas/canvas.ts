@@ -38,6 +38,7 @@ export const canvasItemSchema = z.object({
   X: positionSchema,
   Y: positionSchema,
   IsCollapsed: z.boolean(),
+  OwnerName: z.string().nullish(),
 });
 export type CanvasItem = z.infer<typeof canvasItemSchema>;
 

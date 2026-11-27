@@ -544,7 +544,9 @@ test("deleting a need with a solution below it offers the choice and names what 
   await expect(rowOf(page, fr)).toHaveCount(0);
 });
 
-test("WBS quick add: Meets traces the new requirement to a business need", async ({ page }) => {
+test("WBS quick add: Meets picked with the mouse traces the new requirement to a business need", async ({
+  page,
+}) => {
   test.slow();
   const stamp = Date.now();
   const br = `E2E need met from the WBS ${stamp}`;
@@ -571,8 +573,15 @@ test("WBS quick add: Meets traces the new requirement to a business need", async
   await page.getByTestId(`wbs-req-add-${id}`).click();
   const add = page.getByLabel(W.newRequirementFor(""), { exact: false });
   await expect(add).toBeFocused({ timeout: 15_000 });
+  // The real pointer path, picked before any text: a mouse click opens the list, keys choose.
+  await page.getByTestId(`wbs-req-meets-${id}`).click();
+  await page.keyboard.type(`${brRef} `);
+  await page.keyboard.press("Enter");
+  const hint = page.getByTestId(`wbs-req-meets-hint-${id}`);
+  await expect(hint).toHaveText(W.quickAdd.meetsHint(brRef, false));
+  await add.click();
   await add.fill(fr);
-  await page.getByTestId(`wbs-req-meets-${id}`).selectOption({ label: `${brRef} ${br}` });
+  await expect(hint).toHaveText(W.quickAdd.meetsHint(brRef, true));
   await add.press("Enter");
   await add.press("Escape");
   await expect(
