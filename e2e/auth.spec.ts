@@ -31,7 +31,7 @@ test("happy path: sign in, land on the app, sign out", async ({ page }) => {
   });
   await page.goto("/login");
   await page.getByLabel(messages.auth.username).fill("e2e-pm");
-  await page.getByLabel(messages.auth.password).fill(password);
+  await page.getByLabel(messages.auth.password, { exact: true }).fill(password);
   await page.getByRole("button", { name: messages.auth.signIn }).click();
   await expect(page.getByRole("button", { name: messages.auth.connecting })).toBeDisabled();
   expect(loginRequests).toBe(0);
@@ -62,14 +62,16 @@ test("failed desktop recovery keeps credentials and never submits an authenticat
   });
   await page.goto("/login");
   await page.getByLabel(messages.auth.username).fill("waiting-for-connection");
-  await page.getByLabel(messages.auth.password).fill("keep-this-password");
+  await page.getByLabel(messages.auth.password, { exact: true }).fill("keep-this-password");
   await page.getByRole("button", { name: messages.auth.signIn }).click();
   await expect(
     page.getByRole("alert").filter({ hasText: messages.auth.connectionFailed }),
   ).toBeVisible();
   await expect(page.getByText(messages.auth.loginErrorTitle, { exact: true })).toBeVisible();
   await expect(page.getByLabel(messages.auth.username)).toHaveValue("waiting-for-connection");
-  await expect(page.getByLabel(messages.auth.password)).toHaveValue("keep-this-password");
+  await expect(page.getByLabel(messages.auth.password, { exact: true })).toHaveValue(
+    "keep-this-password",
+  );
   await expect(page.getByRole("button", { name: messages.auth.signIn })).toBeEnabled();
   expect(loginRequests).toBe(0);
 });
@@ -79,7 +81,9 @@ test("failed sign-in shows ONE generic message for wrong password and unknown us
 }) => {
   await page.goto("/login");
   await page.getByLabel(messages.auth.username).fill("e2e-pm");
-  await page.getByLabel(messages.auth.password).fill("definitely-not-the-password");
+  await page
+    .getByLabel(messages.auth.password, { exact: true })
+    .fill("definitely-not-the-password");
   await page.getByRole("button", { name: messages.auth.signIn }).click();
   // Filtered: Next's empty route announcer also carries role=alert.
   await expect(
@@ -87,7 +91,9 @@ test("failed sign-in shows ONE generic message for wrong password and unknown us
   ).toBeVisible();
 
   await page.getByLabel(messages.auth.username).fill("no-such-user");
-  await page.getByLabel(messages.auth.password).fill("definitely-not-the-password");
+  await page
+    .getByLabel(messages.auth.password, { exact: true })
+    .fill("definitely-not-the-password");
   await page.getByRole("button", { name: messages.auth.signIn }).click();
   // Byte-for-byte the same copy — no username enumeration surface.
   await expect(

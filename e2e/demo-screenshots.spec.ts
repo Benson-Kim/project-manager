@@ -66,7 +66,7 @@ async function signIn(browser: Browser): Promise<Page> {
   const page = await ctx.newPage();
   await page.goto("/login");
   await page.getByLabel(messages.auth.username).fill(username);
-  await page.getByLabel(messages.auth.password).fill(password);
+  await page.getByLabel(messages.auth.password, { exact: true }).fill(password);
   await page.getByRole("button", { name: messages.auth.signIn }).click();
   await page.waitForURL("/");
   return page;

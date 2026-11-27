@@ -12,7 +12,7 @@ setup("sign in as e2e-viewer and persist storage state", async ({ page }) => {
 
   await page.goto("/login");
   await page.getByLabel(messages.auth.username).fill("e2e-viewer");
-  await page.getByLabel(messages.auth.password).fill(password);
+  await page.getByLabel(messages.auth.password, { exact: true }).fill(password);
   await page.getByRole("button", { name: messages.auth.signIn }).click();
   await page.waitForURL("/");
   await page.context().storageState({ path: "e2e/.auth/viewer.json" });
