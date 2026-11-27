@@ -6,12 +6,10 @@ import { listTodoSchedule } from "../repository/todo-schedule";
 
 export const UNPLACED_PAGE = 100;
 
-export interface UnplacedTodo {
-  todoItemId: number;
-  title: string;
-  projectName: string | null;
-  rowVer: number;
-}
+/** A to-do not on the calendar yet, carrying what its block shows once it is dragged on. */
+export type UnplacedTodo = Omit<PlannerBlock, "start" | "end" | "occursAt">;
+
+const dayOf = (value: Date | null) => (value ? value.toISOString().slice(0, 10) : null);
 
 export interface TodoPlannerData {
   window: PlannerWindow;
@@ -54,9 +52,16 @@ export async function loadTodoPlanner(
   const entries = scope.withoutProject ? all.filter((entry) => entry.projectId === null) : all;
   const unplaced = page.map((row) => ({
     todoItemId: row.TodoItemId,
-    title: row.TodoItem ?? "",
+    projectId: row.ProjectId,
     projectName: row.ProjectName,
+    title: row.TodoItem ?? "",
+    startDate: dayOf(row.StartDate),
+    dueDate: dayOf(row.DueDate),
+    priority: row.Priority,
+    status: row.Status,
+    assignee: row.Assignee,
     rowVer: row.RowVer,
+    actorAccess: row.ActorAccess,
   }));
   return { window, today, entries, unplaced, search: scope.search?.trim() ?? "" };
 }

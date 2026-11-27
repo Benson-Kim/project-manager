@@ -60,6 +60,7 @@ import {
 } from "../actions/columns";
 import { TODO_ITEM_BUILT_IN_COLUMNS } from "../schemas/columns";
 import { slotOf, slotText } from "../planner";
+import { TodoCalendarButton } from "./todo-calendar-dialog";
 import { TodoToolbar } from "./todo-toolbar";
 import { notifySaved } from "@/lib/cross-window";
 
@@ -215,7 +216,14 @@ function buildColumns(
       key: "Calendar",
       header: messages.todoItems.planner.marker,
       priority: 2,
-      render: (r) => <CalendarMarker row={r} />,
+      render: (r) =>
+        canEditRow(r) ? (
+          <TodoCalendarButton row={r}>
+            <CalendarMarker row={r} />
+          </TodoCalendarButton>
+        ) : (
+          <CalendarMarker row={r} />
+        ),
     },
     listColumn({
       key: "Status",

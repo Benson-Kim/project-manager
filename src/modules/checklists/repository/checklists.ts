@@ -1,11 +1,13 @@
 import { execProc } from "@/lib/db";
 import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list-params";
 import {
+  calendarAddedItemSchema,
   checklistColumnSchema,
   checklistItemListRowSchema,
   checklistItemSchema,
   checklistSchema,
   type AddItemsToCalendarInput,
+  type CalendarAddedItem,
   type Checklist,
   type ChecklistColumn,
   type ChecklistItem,
@@ -248,10 +250,10 @@ export async function runTodo(input: RunTodoInput, actorUserId: number): Promise
 export async function addItemsToCalendar(
   input: AddItemsToCalendarInput,
   actorUserId: number,
-): Promise<ChecklistItem[]> {
+): Promise<CalendarAddedItem[]> {
   const rows = await execProc("usp_ChecklistItem_AddToCalendar", {
     ChecklistItemIdsJson: JSON.stringify(input.itemIds),
     ActorUserId: actorUserId,
   });
-  return rows.map((row) => checklistItemSchema.parse(row));
+  return rows.map((row) => calendarAddedItemSchema.parse(row));
 }

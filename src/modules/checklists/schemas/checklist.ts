@@ -228,3 +228,7 @@ export const addItemsToCalendarInput = z.strictObject({
   itemIds: z.array(idSchema).min(1).max(200),
 });
 export type AddItemsToCalendarInput = z.infer<typeof addItemsToCalendarInput>;
+
+export const calendarAddOutcome = z.enum(["added", "already", "undated"]);
+export const calendarAddedItemSchema = checklistItemSchema.extend({ Outcome: calendarAddOutcome });
+export type CalendarAddedItem = z.infer<typeof calendarAddedItemSchema>;

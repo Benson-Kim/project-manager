@@ -168,13 +168,16 @@ describe("checklist actions (ADR-0066)", () => {
     });
   });
 
-  it("add to calendar sends the ids as JSON and answers each row with its to-do", async () => {
+  it("add to calendar sends the ids as JSON and answers each row with its to-do and outcome", async () => {
     execProc.mockResolvedValue([
-      itemRow({ TodoItemId: 88 }),
-      itemRow({ ChecklistItemId: 22, TodoItemId: 89 }),
+      itemRow({ TodoItemId: 88, Outcome: "added" }),
+      itemRow({ ChecklistItemId: 22, TodoItemId: 89, Outcome: "already" }),
     ]);
     const result = await addItemsToCalendarAction({ itemIds: [21, 22] });
-    expect(result.ok && result.data.map((i) => i.TodoItemId)).toEqual([88, 89]);
+    expect(result.ok && result.data.map((i) => [i.TodoItemId, i.Outcome])).toEqual([
+      [88, "added"],
+      [89, "already"],
+    ]);
     expect(execProc).toHaveBeenLastCalledWith("usp_ChecklistItem_AddToCalendar", {
       ChecklistItemIdsJson: "[21,22]",
       ActorUserId: 7,

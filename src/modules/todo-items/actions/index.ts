@@ -35,9 +35,11 @@ import {
 } from "../schemas/todo-recurrence";
 import {
   createPlannerEntry,
+  listTodoSchedule,
   scheduleTodoItem,
   unscheduleTodoItem,
 } from "../repository/todo-schedule";
+import { findConflict, scheduleConflictInput } from "../schemas/calendar-slot";
 import {
   createPlannerEntryInput,
   scheduleTodoItemInput,
@@ -263,6 +265,19 @@ export const scheduleTodoItemAction = action({
   schema: scheduleTodoItemInput,
   permission: "todo-items:update",
   handler: (input, ctx) => scheduleTodoItem(input, ctx.session.userId),
+});
+
+/** The first other to-do on the user's planner booked across this slot, if any (slots never pass midnight). */
+export const findScheduleConflictAction = action({
+  name: "todo-items.findScheduleConflict",
+  schema: scheduleConflictInput,
+  permission: "todo-items:read",
+  handler: async (input, ctx) => {
+    const day = input.start.slice(0, 10);
+    const entries = await listTodoSchedule({ from: day, to: day }, ctx.session.userId);
+    const clash = findConflict(input, entries, input.todoItemId);
+    return { conflict: clash ? { title: clash.title, start: clash.start, end: clash.end } : null };
+  },
 });
 
 /** Take a to-do off the planner; the to-do stays. */

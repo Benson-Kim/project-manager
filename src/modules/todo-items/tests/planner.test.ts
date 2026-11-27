@@ -15,6 +15,7 @@ import {
   snapMinutes,
   toMinutes,
   typedSlot,
+  withHeld,
 } from "../planner";
 import {
   createPlannerEntryInput,
@@ -355,5 +356,29 @@ describe("slotProblem", () => {
     ).toBeNull();
     expect(slotProblem("2026-11-18T09:00", "2026-11-18T11:00")).toBeNull();
     expect(slotProblem("2026-11-18T09:00", "2026-11-18T08:00", clock)).toBe("order");
+  });
+});
+
+describe("withHeld", () => {
+  const block = (todoItemId: number) => ({ todoItemId, start: "2026-11-18T09:00" });
+  const entries = [block(1)];
+
+  it("adds a dropped to-do while its booking is unconfirmed", () => {
+    expect(withHeld(entries, [{ todoItemId: 2, rowVer: 4 }], [{ entry: block(2) }])).toEqual([
+      block(1),
+      block(2),
+    ]);
+  });
+
+  it("drops it once the planner's own entries carry it", () => {
+    const moved = { todoItemId: 1, start: "2026-11-18T10:00" };
+    expect(withHeld(entries, [], [{ entry: moved }])).toEqual([block(1)]);
+  });
+
+  it("keeps a confirmed booking only until the to-do list catches up", () => {
+    const held = [{ entry: block(2), until: 5 }];
+    expect(withHeld(entries, [{ todoItemId: 2, rowVer: 4 }], held)).toEqual([block(1), block(2)]);
+    expect(withHeld(entries, [{ todoItemId: 2, rowVer: 5 }], held)).toEqual([block(1)]);
+    expect(withHeld(entries, [], held)).toEqual([block(1)]);
   });
 });
