@@ -14,6 +14,8 @@ import { dependencyArrowStyle } from "../components/wbs-dependency-arrows";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
 
+const criticalPathOn = { ...DEFAULT_GANTT_DISPLAY, criticalPath: true };
+
 function item(
   id: number,
   parentId: number | null,
@@ -277,7 +279,7 @@ describe("GanttCard, GanttMilestone, and GanttBoard critical path rendering", ()
         links,
         timeline,
         today: d("2026-01-01"),
-        display: { ...DEFAULT_GANTT_DISPLAY, criticalPath: true },
+        display: criticalPathOn,
         progress: itemProgress(wbs),
         milestones: [],
         criticalIds: crit.itemIds,

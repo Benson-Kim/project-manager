@@ -14,7 +14,8 @@ import type { EndpointWithLabel } from "../schemas/cross-link";
 import type { PendingCrossLinkSource } from "./pending-link-storage";
 
 function hitToEndpoint(hit: SearchHit): EndpointWithLabel | null {
-  const parsed = parseLocationFromHref(hit.href);
+  // A projectless hit has no href, so there is nothing to link to.
+  const parsed = hit.href === null ? null : parseLocationFromHref(hit.href);
   if (!parsed) return null;
   const anchorKind: CrossLinkAnchorKind = parsed.entityId ? "record" : "page";
   const anchorKey = parsed.entityId ? `row:${parsed.entityId}` : null;

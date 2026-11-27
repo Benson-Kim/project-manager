@@ -122,7 +122,22 @@ done
 # it is created, so one that reads another must meet it already there; a procedure's references are
 # resolved when it runs, so this order is enough for both. Folder-then-file order alone put
 # ufn_Requirement_AncestorPath after key-deliverable/, whose Gantt proc reads it.
-find db/procs -name 'ufn_*.sql' | sort | while read -r f; do run "$f"; done
+# Path order still cannot satisfy a function that reads one from a later folder (cross-link/ reads
+# todo-item/), so the pass repeats while it keeps making progress. CREATE OR ALTER is idempotent
+# and a function that stuck is not retried; a pass that creates nothing new is a real failure.
+pending="$(find db/procs -name 'ufn_*.sql' | sort)"
+while [ -n "$pending" ]; do
+  failed=""
+  for f in $pending; do
+    run "$f" || failed="$failed $f"
+  done
+  [ -n "$failed" ] || break
+  if [ "$(echo "$failed" | wc -w)" -eq "$(echo "$pending" | wc -w)" ]; then
+    echo "Could not create:$failed" >&2
+    exit 1
+  fi
+  pending="$failed"
+done
 find db/procs -name 'usp_*.sql' | sort | while read -r f; do run "$f"; done
 for f in db/seed/*.sql; do run "$f"; done
 

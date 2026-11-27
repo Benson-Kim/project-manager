@@ -9,6 +9,7 @@ import {
   nearestColor,
   numberingCss,
 } from "./formats";
+import { isAllowedImageSrc } from "./images";
 import { isAllowedLinkHref, isAllowedLocalPath, LOCAL_PATH_LINK_ATTRIBUTES } from "./links";
 import { installRichTextSanitizer } from "./schema";
 
@@ -43,7 +44,6 @@ const TEXT_DECORATION = /^(?:none|underline|line-through)(?:\s+(?:underline|line
 const CELL_SPAN = /^(?:[1-9]|[1-4]\d|50)$/;
 const HEADINGS = ["h2", "h3", "h4", "h5", "h6"] as const;
 const LIST_STYLE = /^(?:decimal|lower-alpha|upper-alpha|lower-roman|upper-roman)$/;
-const ALLOWED_IMAGE_SRC = /^\/api\/files\/[1-9]\d*\?owner=(?:note|daily-activity)$/;
 
 function cell(tagName: string, attribs: sanitizeHtml.Attributes): sanitizeHtml.Tag {
   const kept: sanitizeHtml.Attributes = {};
@@ -189,8 +189,7 @@ const OPTIONS: sanitizeHtml.IOptions = {
   allowedSchemesAppliedToAttributes: ["href"],
   allowProtocolRelative: false,
   disallowedTagsMode: "discard",
-  exclusiveFilter: (frame) =>
-    frame.tag === "img" && !ALLOWED_IMAGE_SRC.test(frame.attribs.src ?? ""),
+  exclusiveFilter: (frame) => frame.tag === "img" && !isAllowedImageSrc(frame.attribs.src),
   // Their text is dropped with the tag (the rest keep their text).
   nonTextTags: [
     "script",

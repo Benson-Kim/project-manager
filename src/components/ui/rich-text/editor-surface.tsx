@@ -10,7 +10,6 @@ import { uploadUrl } from "@/components/ui/attachments/upload-file";
 import { useToast } from "@/components/ui/toast";
 import { extensionOf } from "@/lib/file-names";
 import { messages } from "@/lib/messages";
-import { sanitizeRichText } from "@/lib/rich-text/sanitize";
 import {
   IMAGE_EXTENSIONS,
   IMAGE_MIME_TYPES,
@@ -268,7 +267,7 @@ export function EditorSurface({
   const editorRef = useRef<ReturnType<typeof useEditor>>(null);
 
   const noticeDroppedImages = useCallback((html: string) => {
-    if (dropsImages(html, sanitizeRichText)) {
+    if (dropsImages(html)) {
       toastRef.current({ variant: "info", title: messages.richText.externalImageDropped });
     }
   }, []);

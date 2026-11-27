@@ -1,4 +1,7 @@
+import { isAllowedImageSrc } from "@/lib/rich-text/images";
+
 const IMAGE_TAG = /<img\b[^>]*>/gi;
+const SRC_ATTRIBUTE = /\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i;
 const TABLE_TAG = /<table\b/i;
 
 function visibleText(html: string): string {
@@ -18,7 +21,10 @@ export function prefersClipboardHtml(html: string): boolean {
   return TABLE_TAG.test(html) || visibleText(html) !== "";
 }
 
-export function dropsImages(html: string, sanitize: (html: string) => string): boolean {
-  const pasted = countImages(html);
-  return pasted > 0 && countImages(sanitize(html)) < pasted;
+/** The sanitiser keeps only pictures the app already stores, so any other src is dropped. */
+export function dropsImages(html: string): boolean {
+  return (html.match(IMAGE_TAG) ?? []).some((tag) => {
+    const match = SRC_ATTRIBUTE.exec(tag);
+    return !isAllowedImageSrc(match?.[1] ?? match?.[2] ?? match?.[3]);
+  });
 }

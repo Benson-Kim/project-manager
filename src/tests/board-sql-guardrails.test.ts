@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { OPTION_COLORS } from "@/lib/lookup-lists";
@@ -173,20 +173,16 @@ describe("board SQL guardrails", () => {
     }
   });
 
-  it("uses the board's own functions only inside its own folder, whichever applier runs", () => {
-    const folders = readdirSync(join("db", "procs")).filter(
-      (f) => f !== "board" && statSync(join("db", "procs", f)).isDirectory(),
+  it("lets either applier create a function that reads the board's own, by retrying", () => {
+    // A function is bound when it is created, so one that reads the board's helpers from another
+    // folder (cross-link/) cannot be created in path order. Both appliers therefore repeat the
+    // pass while it makes progress, instead of folder order having to be right (LESSONS §33).
+    expect(readFileSync(join("scripts", "db-apply.sh"), "utf8")).toContain(
+      'while [ -n "$pending" ]',
     );
-    for (const folder of folders) {
-      for (const file of readdirSync(join("db", "procs", folder))) {
-        if (!file.endsWith(".sql")) continue;
-        const text = sql(join("db", "procs", folder, file));
-        // The two appliers create these folders in opposite orders (LESSONS §33), so a function
-        // from board/ may not be named outside it; a proc call resolves at run time and may.
-        expect(text, file).not.toContain("ufn_Board_AccessLevel");
-        expect(text, file).not.toContain("ufn_Board_CardsInScope");
-      }
-    }
+    expect(readFileSync(join("electron", "db-apply.ts"), "utf8")).toContain(
+      "failures.length === pending.length",
+    );
   });
 
   it("checks every value from the columns payload before a CHECK constraint can fire", () => {

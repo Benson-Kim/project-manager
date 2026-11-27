@@ -342,7 +342,7 @@ describe("cross-links client storage, DOM capture, and sticky/portal UI", () => 
         CrossLinkMenuContext.Provider,
         { value: makeCtx({ links: [SAMPLE_LINK], notes: [SAMPLE_NOTE] }) },
         React.createElement(PageStickiesStrip, {
-          mountedAnchorKeys: new Set(),
+          mountedAnchorKeys: new Set<string>(),
           arrivalReturn: null,
           onDismissArrivalReturn: vi.fn(),
         }),
@@ -370,7 +370,7 @@ describe("cross-links client storage, DOM capture, and sticky/portal UI", () => 
         CrossLinkMenuContext.Provider,
         { value: makeCtx({ notes: [personalNote] }) },
         React.createElement(PageStickiesStrip, {
-          mountedAnchorKeys: new Set(),
+          mountedAnchorKeys: new Set<string>(),
           arrivalReturn: { returnHref: "/projects/2/decisions", returnLabel: "Decisions" },
           onDismissArrivalReturn: vi.fn(),
         }),

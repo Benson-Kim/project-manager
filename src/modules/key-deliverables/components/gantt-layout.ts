@@ -178,7 +178,7 @@ export function readGanttDisplay<T extends GanttDisplay>(saved: unknown, default
   for (const key of Object.keys(defaults)) {
     if (!Object.prototype.hasOwnProperty.call(record, key)) continue;
     const value = record[key];
-    if (typeof value === "boolean") (read as Record<string, boolean>)[key] = value;
+    if (typeof value === "boolean") (read as unknown as Record<string, boolean>)[key] = value;
   }
   return read;
 }

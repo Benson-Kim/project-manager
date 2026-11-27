@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { sanitizeRichText } from "@/lib/rich-text/sanitize";
 import { countImages, dropsImages, prefersClipboardHtml } from "../clipboard-images";
 
 const excelHtml = `<html xmlns:o="urn:schemas-microsoft-com:office:office"><head><meta charset="utf-8"><style>td{mso-number-format:General}</style></head><body><!--StartFragment--><table><tr><td>Budget</td><td>1200</td></tr></table><!--EndFragment--></body></html>`;
@@ -32,17 +31,17 @@ describe("prefersClipboardHtml", () => {
 
 describe("dropsImages", () => {
   it("flags pictures that point at other places", () => {
-    expect(dropsImages(wordHtml, sanitizeRichText)).toBe(true);
-    expect(dropsImages(chromeCopyImage, sanitizeRichText)).toBe(true);
+    expect(dropsImages(wordHtml)).toBe(true);
+    expect(dropsImages(chromeCopyImage)).toBe(true);
   });
 
   it("keeps pictures already stored in the app", () => {
     const stored = `<p>Plan</p><img src="/api/files/42?owner=daily-activity">`;
     expect(countImages(stored)).toBe(1);
-    expect(dropsImages(stored, sanitizeRichText)).toBe(false);
+    expect(dropsImages(stored)).toBe(false);
   });
 
   it("says nothing when the paste has no pictures", () => {
-    expect(dropsImages(excelHtml, sanitizeRichText)).toBe(false);
+    expect(dropsImages(excelHtml)).toBe(false);
   });
 });
