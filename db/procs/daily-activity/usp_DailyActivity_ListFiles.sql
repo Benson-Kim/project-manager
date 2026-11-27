@@ -1,6 +1,7 @@
 -- usp_DailyActivity_ListFiles — a daily activity's live attachments, newest first (ADR-0026). A
 -- child collection shown inside the record's sheet, so no paging (not an ADR-0016 list).
 -- Access: Viewer on the activity's project (project-less activities allowed; ADR-0021).
+-- Pictures pasted into the comments (IsInline = 1) are left out; usp_DailyActivity_GetFile serves them.
 -- Returns FileAttachmentId, FileName, ContentType, SizeBytes (NULL for a location), StorageLocation,
 -- CreatedAtUtc, CreatedByName (who attached it) and RowVer.
 -- THROW 50001 NOT_FOUND (activity absent or deleted) | 50003 FORBIDDEN_ROW.
@@ -29,7 +30,7 @@ BEGIN
     FROM app.DailyActivityFile l
     JOIN app.FileAttachment f ON f.FileAttachmentId = l.FileAttachmentId
     LEFT JOIN auth.[User] u ON u.UserId = f.CreatedBy
-    WHERE l.DailyActivityId = @DailyActivityId AND f.IsDeleted = 0
+    WHERE l.DailyActivityId = @DailyActivityId AND l.IsInline = 0 AND f.IsDeleted = 0
     ORDER BY f.CreatedAtUtc DESC, f.FileAttachmentId DESC;
 END;
 GO

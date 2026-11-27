@@ -3,6 +3,7 @@ import { scanFile } from "@/lib/files/scan";
 import { sniffFile } from "@/lib/files/sniff";
 import { freeBytes, storedFilesRoot, uploadsRoot } from "@/lib/files/store";
 import { addFileAttachment, checkCanAddAttachment, getStoredFile } from "../repository/attachments";
+import { ownerAcceptPolicy } from "../repository/owners";
 import type { DownloadDeps } from "./download";
 import type { UploadDeps } from "./upload";
 
@@ -13,6 +14,7 @@ export const uploadDeps: UploadDeps = {
   quotaBytes: uploadsQuotaBytes,
   minFreeBytes: () => getUploadsEnv().UPLOADS_MIN_FREE_MB * 1024 * 1024,
   freeBytes,
+  acceptPolicy: ownerAcceptPolicy,
   checkCanAdd: checkCanAddAttachment,
   addFile: addFileAttachment,
   sniff: sniffFile,

@@ -39,6 +39,8 @@ describe("isEmptyRichText", () => {
     "<p>&amp;</p>",
     "<table><tbody><tr><td></td></tr></tbody></table>",
     "<ul><li></li></ul>",
+    '<img src="/api/files/5?owner=note" alt="">',
+    '<p><img src="/api/files/5?owner=daily-activity" alt=""></p>',
   ])("%j has content", (html) => {
     expect(isEmptyRichText(html)).toBe(false);
   });
@@ -63,6 +65,13 @@ describe("richTextSchema on the server", () => {
 
   it("treats a document that sanitises to nothing as empty", () => {
     expect(optional.parse("<script>alert(1)</script>")).toBeNull();
+  });
+
+  it("keeps an image-only document as non-empty", () => {
+    const schema = richTextSchema({ max: 200, required: "Enter a description" });
+    expect(schema.parse('<p><img src="/api/files/5?owner=note" alt=""></p>')).toBe(
+      '<p><img src="/api/files/5?owner=note" alt="" /></p>',
+    );
   });
 
   it("requires content when asked", () => {

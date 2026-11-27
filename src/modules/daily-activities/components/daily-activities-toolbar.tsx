@@ -14,10 +14,13 @@ import { messages } from "@/lib/messages";
  */
 export function DailyActivitiesToolbar({
   projectFilterOptions,
+  sortNote,
   children,
 }: {
   /** The projects of the cross-project page's filter; omitted on a project page. */
   projectFilterOptions?: readonly { id: number; name: string }[];
+  /** How the list is ordered now, so a new entry is easy to find. */
+  sortNote?: string | null;
   children?: React.ReactNode;
 }) {
   return (
@@ -38,6 +41,11 @@ export function DailyActivitiesToolbar({
         allLabel={messages.dailyActivities.allTaskTypes}
         testId="filter-task-type"
       />
+      {sortNote ? (
+        <p className="text-xs text-ink-muted" data-testid="daily-activities-sort-note">
+          {sortNote}
+        </p>
+      ) : null}
       {/* View toggle — injected by DataView via renderToolbar */}
       {children}
     </Toolbar>

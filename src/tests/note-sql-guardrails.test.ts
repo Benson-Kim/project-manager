@@ -29,15 +29,31 @@ function afterBeginTran(name: string, needle: string | RegExp): boolean {
 
 const NOTE_LOCK = /FROM app\.Note\b[^;]*WITH \(UPDLOCK, HOLDLOCK\)/;
 
+const NOTE_FILE_PROCS = new Set([
+  "usp_Note_AddFile",
+  "usp_Note_CanAddFile",
+  "usp_Note_GetFile",
+  "usp_Note_ListFiles",
+  "usp_Note_RemoveFile",
+  "usp_Note_RenameFile",
+]);
+
 describe("note SQL guardrails", () => {
   it("finds every note proc", () => {
     expect([...PROCS.keys()].sort()).toEqual(
       [
+        "usp_Note_AddFile",
+        "usp_Note_AssertAccess",
+        "usp_Note_CanAddFile",
         "usp_Note_Create",
         "usp_Note_Delete",
         "usp_Note_GetById",
+        "usp_Note_GetFile",
         "usp_Note_GetWithTabs",
         "usp_Note_List",
+        "usp_Note_ListFiles",
+        "usp_Note_RemoveFile",
+        "usp_Note_RenameFile",
         "usp_Note_Update",
         "usp_NoteTab_Create",
         "usp_NoteTab_Delete",
@@ -57,13 +73,22 @@ describe("note SQL guardrails", () => {
 
   it("asserts project access in every proc", () => {
     for (const [name, text] of PROCS) {
-      expect(text, name).toContain("dbo.usp_Project_AssertAccess");
+      if (NOTE_FILE_PROCS.has(name)) {
+        expect(text, name).toContain("dbo.usp_Note_AssertAccess");
+      } else {
+        expect(text, name).toContain("dbo.usp_Project_AssertAccess");
+      }
     }
   });
 
   it("lets every proc reach the project-less shared space (migration 039)", () => {
     for (const [name, text] of PROCS) {
       if (name === "usp_Note_List") continue;
+      if (NOTE_FILE_PROCS.has(name)) {
+        const assert = text.match(/EXEC dbo\.usp_Note_AssertAccess[^;]*;/)?.[0] ?? "";
+        expect(assert, name).toMatch(/@NoteId\s*=\s*@NoteId\b/);
+        continue;
+      }
       const assert = text.match(/EXEC dbo\.usp_Project_AssertAccess[^;]*;/)?.[0] ?? "";
       expect(assert, name).toMatch(/@AllowProjectless\s*=\s*1/);
     }
@@ -81,10 +106,38 @@ describe("note SQL guardrails", () => {
   // row stops the proc, and nothing clears Note.ProjectId after create.
   it("checks the project of the live note row, so a project notebook never fails open", () => {
     for (const [name, text] of PROCS) {
+      if (NOTE_FILE_PROCS.has(name)) {
+        const asserts = text.match(/EXEC dbo\.usp_Note_AssertAccess[^;]*;/g) ?? [];
+        expect(asserts, name).toHaveLength(1);
+        expect(asserts[0], name).toMatch(/@NoteId\s*=\s*@NoteId\b/);
+        if (
+          name === "usp_Note_GetFile" ||
+          name === "usp_Note_RemoveFile" ||
+          name === "usp_Note_RenameFile"
+        ) {
+          const read =
+            /SELECT @NoteId = l\.NoteId\b[^;]*FROM app\.NoteFile l\s+JOIN app\.FileAttachment f ON f\.FileAttachmentId = l\.FileAttachmentId\s+WHERE l\.FileAttachmentId = @FileAttachmentId AND f\.IsDeleted = 0;\s*IF @NoteId IS NULL\s+THROW 50001/.exec(
+              text,
+            );
+          expect(read, name).not.toBeNull();
+          expect(read!.index, name).toBeLessThan(text.indexOf("EXEC dbo.usp_Note_AssertAccess"));
+        }
+        continue;
+      }
       const asserts = text.match(/EXEC dbo\.usp_Project_AssertAccess[^;]*;/g) ?? [];
       expect(asserts, name).toHaveLength(1);
       if (name === "usp_Note_Create" || name === "usp_Note_List") {
         expect(asserts[0], name).toMatch(/@ProjectId = @ProjectId\b/);
+        continue;
+      }
+      if (name === "usp_Note_AssertAccess") {
+        expect(asserts[0], name).toMatch(/@ProjectId = @ProjectId\b/);
+        const read =
+          /SELECT @ProjectId = ProjectId\s+FROM app\.Note\s+WHERE NoteId = @NoteId AND IsDeleted = 0;\s*IF @@ROWCOUNT = 0\s+THROW 50001/.exec(
+            text,
+          );
+        expect(read, name).not.toBeNull();
+        expect(read!.index, name).toBeLessThan(text.indexOf("EXEC dbo.usp_Project_AssertAccess"));
         continue;
       }
       expect(asserts[0], name).toMatch(/@ProjectId = @RowProjectId\b/);
@@ -117,6 +170,8 @@ describe("note SQL guardrails", () => {
       "usp_Note_GetById",
       "usp_Note_GetWithTabs",
       "usp_Note_List",
+      "usp_Note_ListFiles",
+      "usp_Note_GetFile",
       "usp_NoteTab_GetById",
       "usp_NoteTab_List",
     ]) {
@@ -125,6 +180,10 @@ describe("note SQL guardrails", () => {
     for (const name of [
       "usp_Note_Create",
       "usp_Note_Update",
+      "usp_Note_CanAddFile",
+      "usp_Note_AddFile",
+      "usp_Note_RenameFile",
+      "usp_Note_RemoveFile",
       "usp_NoteTab_Create",
       "usp_NoteTab_Update",
       "usp_NoteTab_Reorder",
@@ -151,6 +210,10 @@ describe("note SQL guardrails", () => {
     }
     for (const name of [
       "usp_Note_Update",
+      "usp_Note_CanAddFile",
+      "usp_Note_AddFile",
+      "usp_Note_RenameFile",
+      "usp_Note_RemoveFile",
       "usp_NoteTab_Update",
       "usp_NoteTab_Reorder",
       "usp_NoteTab_Move",
@@ -192,6 +255,20 @@ describe("note SQL guardrails", () => {
       ).toBe(true);
     }
     expect(text).toMatch(/UPDATE app\.Note\b[\s\S]*?IsDeleted\s*=\s*1/);
+  });
+
+  it("removes a note's attachments with the note, each audited, so their quota frees", () => {
+    const text = sql("usp_Note_Delete");
+    expect(
+      afterBeginTran(
+        "usp_Note_Delete",
+        /UPDATE f SET\s+IsDeleted\s*=\s*1[\s\S]*?OUTPUT inserted\.FileAttachmentId INTO @Removed\s+FROM app\.FileAttachment f\s+JOIN app\.NoteFile l ON l\.FileAttachmentId = f\.FileAttachmentId\s+WHERE l\.NoteId = @NoteId AND f\.IsDeleted = 0;/,
+      ),
+    ).toBe(true);
+    expect(text).toMatch(
+      /INSERT INTO audit\.AuditLog \(ActorUserId, Action, EntityName, EntityId, BeforeJson\)\s+SELECT @ActorUserId, N'Delete', N'app\.FileAttachment'[\s\S]*?FROM @Removed r;/,
+    );
+    expect(text.indexOf("FROM @Removed r")).toBeLessThan(text.lastIndexOf("COMMIT"));
   });
 
   it("checks RowVer inside the transaction on every note and page update and delete", () => {

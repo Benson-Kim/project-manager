@@ -102,8 +102,27 @@ describe("attachments repository (ADR-0026): the owner's procs, no role ever sen
         StorageLocation: null,
         QuotaBytes: 1000,
         ActorUserId: 7,
+        IsInline: false,
       },
     ]);
+  });
+
+  it("sends IsInline only to owners whose add proc takes it", async () => {
+    execProc.mockResolvedValue([attachmentDbRow()]);
+    const file = {
+      fileName: "a.png",
+      contentType: "image/png",
+      sizeBytes: 10,
+      sha256: HASH,
+      storagePath: `aa/aa/${HASH}`,
+      inline: true,
+    };
+    await addFileAttachment("daily-activity", 12, file, 1000, 7);
+    expect(call()[1]).toMatchObject({ IsInline: true });
+    await addFileAttachment("note", 12, file, 1000, 7);
+    expect(call(1)[1]).not.toHaveProperty("IsInline");
+    await addFileAttachment("financial-document", 12, file, 1000, 7);
+    expect(call(2)[1]).not.toHaveProperty("IsInline");
   });
 
   it("records a location without bytes", async () => {

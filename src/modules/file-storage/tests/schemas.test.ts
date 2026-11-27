@@ -11,13 +11,23 @@ describe("attachment schemas (ADR-0026)", () => {
   it("parses the upload query and cleans the name", () => {
     expect(
       uploadQuerySchema.parse({ owner: "daily-activity", ownerId: "12", name: " a/b.pdf " }),
-    ).toEqual({ owner: "daily-activity", ownerId: 12, name: "ab.pdf" });
+    ).toEqual({ owner: "daily-activity", ownerId: 12, name: "ab.pdf", inline: false });
+  });
+
+  it("reads inline=1 as a picture pasted into the text", () => {
+    expect(
+      uploadQuerySchema.parse({ owner: "daily-activity", ownerId: "1", name: "a.png", inline: "1" })
+        .inline,
+    ).toBe(true);
   });
 
   it.each([
     { owner: "project", ownerId: "1", name: "a.pdf" },
     { owner: "daily-activity", ownerId: "1.5", name: "a.pdf" },
     { owner: "daily-activity", ownerId: "1", name: "" },
+    { owner: "daily-activity", ownerId: "1", name: "a.png", inline: "true" },
+    { owner: "daily-activity", ownerId: "1", name: "a.png", inline: "0" },
+    { owner: "daily-activity", ownerId: "1", name: "a.png", inline: "" },
     { owner: "daily-activity", ownerId: "1", name: "/\\:" },
   ])("refuses the upload query %j", (query) => {
     expect(uploadQuerySchema.safeParse(query).success).toBe(false);

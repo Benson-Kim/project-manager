@@ -8,6 +8,8 @@
 --   * Quota (ADR-0026 §6): a file must fit in @QuotaBytes for the activity's project (project-less
 --     rows share one bucket), counted over live rows. The sum runs under an exclusive app lock on
 --     the bucket, so parallel uploads cannot both slip under it: THROW 50006 QUOTA_EXCEEDED.
+--   * @IsInline = 1: a picture pasted into the comments. usp_DailyActivity_ListFiles leaves it out
+--     and usp_DailyActivity_Update removes it once the comments no longer show it. Files only.
 --   * ProjectId is copied from the activity (usp_DailyActivity_Update keeps it in step on a move).
 --     The transaction opens first: the live activity is read under UPDLOCK, HOLDLOCK and access is
 --     checked once, under that lock. A concurrent move or delete waits for COMMIT, so the attachment
@@ -27,7 +29,8 @@ CREATE OR ALTER PROCEDURE dbo.usp_DailyActivity_AddFile
     @StoragePath     VARCHAR(80)   = NULL,
     @StorageLocation NVARCHAR(500) = NULL,
     @QuotaBytes      BIGINT        = NULL,
-    @ActorUserId     INT
+    @ActorUserId     INT,
+    @IsInline        BIT           = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -57,6 +60,8 @@ BEGIN
                          OR @SizeBytes IS NULL OR @ContentType IS NULL))
        OR (@IsFile = 0 AND @StorageLocation IS NULL)
         THROW 50004, N'VALIDATION:An attachment is either a file or a location', 1;
+    IF ISNULL(@IsInline, 0) = 1 AND @IsFile = 0
+        THROW 50004, N'VALIDATION:Only an uploaded picture can sit in the text', 1;
 
     IF @IsFile = 1
     BEGIN
@@ -82,13 +87,13 @@ BEGIN
 
     DECLARE @Id INT = SCOPE_IDENTITY();
 
-    INSERT INTO app.DailyActivityFile (DailyActivityId, FileAttachmentId)
-    VALUES (@DailyActivityId, @Id);
+    INSERT INTO app.DailyActivityFile (DailyActivityId, FileAttachmentId, IsInline)
+    VALUES (@DailyActivityId, @Id, ISNULL(@IsInline, 0));
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, AfterJson)
     VALUES (@ActorUserId, N'Create', N'app.FileAttachment', CAST(@Id AS NVARCHAR(64)),
             (SELECT f.FileAttachmentId, l.DailyActivityId, f.ProjectId, f.FileName, f.ContentType,
-                    f.SizeBytes, f.Sha256, f.StorageLocation
+                    f.SizeBytes, f.Sha256, f.StorageLocation, l.IsInline
              FROM app.FileAttachment f
              JOIN app.DailyActivityFile l ON l.FileAttachmentId = f.FileAttachmentId
              WHERE f.FileAttachmentId = @Id

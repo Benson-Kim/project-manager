@@ -422,6 +422,7 @@ export function NotebookWorkspace({
                   height="page"
                   findReplace
                   findSeed={found && active.NoteTabId === found.NoteTabId ? find : undefined}
+                  imageUpload={{ owner: "note", ownerId: note.NoteId }}
                 />
               </Field>
               <div className="flex flex-wrap items-center gap-2">

@@ -45,6 +45,7 @@ import {
 import { DAILY_ACTIVITY_BUILT_IN_COLUMNS } from "../schemas/columns";
 import type { DailyActivityListRow, DailyActivityRow } from "../schemas/daily-activity";
 import { dailyActivityFormValues } from "../schemas/daily-activity-form";
+import { dailyActivitySortNote } from "./sort-note";
 import { DailyActivitiesToolbar } from "./daily-activities-toolbar";
 import { DAILY_ACTIVITY_SORT } from "../schemas/daily-activity";
 
@@ -209,7 +210,7 @@ export function DailyActivitiesView({
   addedColumns?: readonly RegisterColumn[];
   canManageColumns?: { create: boolean; update: boolean; delete: boolean };
 }) {
-  const { update } = useListUrlState();
+  const { searchParams, update } = useListUrlState();
   const columns = useMemo(() => buildColumns(projects), [projects]);
   // A project's own column names replace only the headings; keys, data, sorting and saved
   // layouts stay on the stable keys (ADR-0067).
@@ -221,6 +222,10 @@ export function DailyActivitiesView({
     rowId: activityId,
     setCell: setActivityCellAction,
     fallback: saveFormCell,
+  });
+  const sortNote = dailyActivitySortNote(shownColumns, {
+    sort: searchParams.get("sort"),
+    dir: searchParams.get("dir"),
   });
 
   return (
@@ -264,7 +269,7 @@ export function DailyActivitiesView({
         addRow: canCreate ? { add: (values) => createDailyActivityAction(values) } : undefined,
       }}
       renderToolbar={(viewToggle) => (
-        <DailyActivitiesToolbar projectFilterOptions={projectFilterOptions}>
+        <DailyActivitiesToolbar projectFilterOptions={projectFilterOptions} sortNote={sortNote}>
           {projectId !== undefined ? (
             <CustomColumnsButton
               projectId={projectId}

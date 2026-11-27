@@ -7,7 +7,9 @@ import { listForView } from "@/lib/list-print";
 import { messages } from "@/lib/messages";
 import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNull } from "@/lib/row-access";
+import { loadProjectColumns } from "@/lib/custom-columns/project-columns";
 import { DailyActivitiesView } from "@/modules/daily-activities/components/daily-activities-view";
+import { activityColumns } from "@/modules/daily-activities/repository/columns";
 import { DailyActivitySheet } from "@/modules/daily-activities/components/daily-activity-sheet";
 import {
   getDailyActivityById,
@@ -66,7 +68,7 @@ export default async function GlobalDailyActivitiesPage({
     withoutProject: projectFilter.kind === "none",
   };
 
-  const [rows, preference, lookup, projectless, selected] = await Promise.all([
+  const [rows, preference, lookup, projectless, selected, columns] = await Promise.all([
     listForView(effectiveParams, (p, size) =>
       listDailyActivities(p, session.userId, filteredProjectId(projectFilter), size, filters),
     ),
@@ -77,6 +79,19 @@ export default async function GlobalDailyActivitiesPage({
     selectedId && Number.isInteger(selectedId) && selectedId > 0
       ? orNull(getDailyActivityById(selectedId, session.userId))
       : null,
+    loadProjectColumns(
+      filteredProjectId(projectFilter),
+      {
+        columns: activityColumns,
+        permissions: getProjectPermissions,
+        rights: {
+          create: "daily-activities:create",
+          update: "daily-activities:update",
+          delete: "daily-activities:delete",
+        },
+      },
+      session.userId,
+    ),
   ]);
   // New activities start project-less; an open activity follows its own project (ADR-0021).
   const [allows, attachments] = await Promise.all([
@@ -114,6 +129,7 @@ export default async function GlobalDailyActivitiesPage({
             projects={projects}
             projectFilterOptions={projectOptions}
             canCreate={canAddWith(projects)}
+            {...(columns ?? {})}
           />
         </div>
         {/* Sheet: create (project-unscoped, projectId=null) or edit/view */}

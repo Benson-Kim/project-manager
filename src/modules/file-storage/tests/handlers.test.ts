@@ -6,16 +6,33 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vite
 import type { Session } from "@/lib/auth/types";
 import { AppError } from "@/lib/errors";
 import { scanFile } from "@/lib/files/scan";
-import { sniffFile } from "@/lib/files/sniff";
+import { sniff, sniffFile, type ByteSource } from "@/lib/files/sniff";
 import { storagePathOf, TEMP_DIR } from "@/lib/files/store";
 import { messages } from "@/lib/messages";
 import { handleDownload, type DownloadDeps } from "../handlers/download";
 import { handleUpload, type UploadDeps } from "../handlers/upload";
-import { MAX_UPLOAD_BYTES, type AttachmentRow } from "../schemas/attachment";
+import { ownerAcceptPolicy } from "../repository/owners";
+import { MAX_UPLOAD_BYTES, NOTE_MAX_UPLOAD_BYTES, type AttachmentRow } from "../schemas/attachment";
 
 const ORIGIN = "http://127.0.0.1:3000";
 const PDF = Buffer.from("%PDF-1.7\nhello\n");
+const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d]);
+const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
+const GIF87 = Buffer.from("GIF87a\x01\x00\x01\x00");
+const GIF89 = Buffer.from("GIF89a\x01\x00\x01\x00");
+const WEBP = Buffer.from("RIFF\x18\x00\x00\x00WEBPVP8 ");
+const WAV = Buffer.from("RIFF\x18\x00\x00\x00WAVEfmt ");
+const SVG = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>');
 const sha = (b: Buffer) => createHash("sha256").update(b).digest("hex");
+
+function bufferSource(buf: Buffer): ByteSource {
+  return {
+    size: buf.length,
+    async read(offset, length) {
+      return buf.subarray(offset, offset + length);
+    },
+  };
+}
 
 const row: AttachmentRow = {
   FileAttachmentId: 5,
@@ -73,6 +90,7 @@ beforeEach(async () => {
     quotaBytes: () => 1024 * 1024,
     minFreeBytes: () => 0,
     freeBytes: () => Promise.resolve(Number.MAX_SAFE_INTEGER),
+    acceptPolicy: ownerAcceptPolicy,
     checkCanAdd: vi
       .fn<UploadDeps["checkCanAdd"]>()
       .mockResolvedValue({ ProjectId: 3, UsedBytes: 0 }),
@@ -101,6 +119,7 @@ describe("POST /api/files (ADR-0026 §3)", () => {
         sizeBytes: PDF.length,
         sha256: hash,
         storagePath: storagePathOf(hash),
+        inline: false,
       },
       1024 * 1024,
       7,
@@ -327,6 +346,244 @@ describe("POST /api/files (ADR-0026 §3)", () => {
     expect(JSON.stringify(await res.json())).not.toContain("socket");
     error.mockRestore();
   });
+
+  describe("note image-only policy and daily-activity GIF/WebP/size contrast", () => {
+    const noteUpload = (
+      body: BodyInit | null,
+      name: string,
+      headers: Record<string, string> = {},
+    ) => upload(body, { query: `owner=note&ownerId=42&name=${encodeURIComponent(name)}`, headers });
+
+    it.each([
+      ["PNG", "photo.png", PNG, "image/png"],
+      ["JPEG", "photo.jpeg", JPEG, "image/jpeg"],
+      ["JPG", "photo.jpg", JPEG, "image/jpeg"],
+      ["GIF87a", "anim.gif", GIF87, "image/gif"],
+      ["GIF89a", "anim.gif", GIF89, "image/gif"],
+      ["WebP", "pic.webp", WEBP, "image/webp"],
+    ])(
+      "accepts %s for note (201) and ignores client Content-Type",
+      async (_l, name, body, mime) => {
+        const res = await post(noteUpload(body, name, { "content-type": "image/svg+xml" }), deps);
+        expect(res.status).toBe(201);
+        expect(deps.addFile).toHaveBeenCalledWith(
+          "note",
+          42,
+          expect.objectContaining({ fileName: name, contentType: mime }),
+          1024 * 1024,
+          7,
+        );
+      },
+    );
+
+    it("accepts GIF and WebP for daily-activity (201)", async () => {
+      for (const [name, body, mime] of [
+        ["anim.gif", GIF89, "image/gif"],
+        ["pic.webp", WEBP, "image/webp"],
+      ] as const) {
+        const res = await post(
+          upload(body, { query: `owner=daily-activity&ownerId=12&name=${name}` }),
+          deps,
+        );
+        expect(res.status).toBe(201);
+        expect(deps.addFile).toHaveBeenLastCalledWith(
+          "daily-activity",
+          12,
+          expect.objectContaining({ fileName: name, contentType: mime }),
+          1024 * 1024,
+          7,
+        );
+      }
+    });
+
+    it("accepts a note image of exactly 10 MB", async () => {
+      const exact = Buffer.alloc(NOTE_MAX_UPLOAD_BYTES);
+      PNG.copy(exact);
+      const res = await post(
+        noteUpload(exact, "exact.png", { "content-length": String(NOTE_MAX_UPLOAD_BYTES) }),
+        { ...deps, quotaBytes: () => 50 * 1024 * 1024 },
+      );
+      expect(res.status).toBe(201);
+      expect(deps.addFile).toHaveBeenCalledWith(
+        "note",
+        42,
+        expect.objectContaining({ sizeBytes: NOTE_MAX_UPLOAD_BYTES, contentType: "image/png" }),
+        50 * 1024 * 1024,
+        7,
+      );
+    });
+
+    it("refuses a note upload over 10 MB by declared Content-Length (413) with 10 MB copy", async () => {
+      const res = await post(
+        noteUpload(PNG, "big.png", { "content-length": String(NOTE_MAX_UPLOAD_BYTES + 1) }),
+        deps,
+      );
+      expect(res.status).toBe(413);
+      expect((await res.json()).error.message).toBe("This file is larger than 10 MB.");
+      expect(deps.checkCanAdd).not.toHaveBeenCalled();
+      expect(await tempFiles()).toEqual([]);
+    });
+
+    it("stops a chunked note body past 10 MB (413) with 10 MB copy and leaves nothing", async () => {
+      const chunk = Buffer.alloc(1024 * 1024);
+      PNG.copy(chunk);
+      let sent = 0;
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (sent++ < 15) controller.enqueue(chunk);
+          else controller.close();
+        },
+      });
+      const res = await post(noteUpload(body, "stream.png"), {
+        ...deps,
+        quotaBytes: () => 50 * 1024 * 1024,
+      });
+      expect(res.status).toBe(413);
+      expect((await res.json()).error.message).toBe("This file is larger than 10 MB.");
+      expect(sent).toBeLessThan(15);
+      expect(deps.addFile).not.toHaveBeenCalled();
+      expect(await tempFiles()).toEqual([]);
+    });
+
+    it("reserves the 10 MB cap (not 25 MB) on disk floor checks for note uploads of unknown length", async () => {
+      const MB = 1024 * 1024;
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(PNG);
+          controller.close();
+        },
+      });
+      const res = await post(noteUpload(stream, "pic.png"), {
+        ...deps,
+        minFreeBytes: () => 100 * MB,
+        freeBytes: () => Promise.resolve(100 * MB + NOTE_MAX_UPLOAD_BYTES),
+      });
+      expect(res.status).toBe(201);
+    });
+
+    it("allows > 10 MB <= 25 MB on daily-activity (both declared and chunked)", async () => {
+      const overTenMb = NOTE_MAX_UPLOAD_BYTES + 1;
+      const payload = Buffer.alloc(overTenMb);
+      PDF.copy(payload);
+      const res = await post(
+        upload(payload, {
+          query: "owner=daily-activity&ownerId=12&name=Large.pdf",
+          headers: { "content-length": String(overTenMb) },
+        }),
+        { ...deps, quotaBytes: () => 50 * 1024 * 1024 },
+      );
+      expect(res.status).toBe(201);
+      expect(deps.addFile).toHaveBeenCalledWith(
+        "daily-activity",
+        12,
+        expect.objectContaining({ sizeBytes: overTenMb, contentType: "application/pdf" }),
+        50 * 1024 * 1024,
+        7,
+      );
+    });
+
+    it.each([
+      ["raw SVG", "vector.svg", SVG],
+      ["SVG renamed .png", "vector.png", SVG],
+      ["BOM SVG renamed .png", "bom.png", Buffer.from("\ufeff<svg></svg>")],
+      ["whitespace SVG renamed .gif", "ws.gif", Buffer.from("  \n\t<svg></svg>")],
+      ["XML SVG renamed .webp", "xml.webp", Buffer.from('<?xml version="1.0"?><svg/>')],
+      ["PDF on note (.pdf)", "Plan.pdf", PDF],
+      ["PDF renamed .png", "fake.png", PDF],
+      ["Word doc on note", "Doc.docx", Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14])],
+      ["text file on note", "plain.txt", Buffer.from("hello")],
+      ["HTML renamed .gif", "xss.gif", Buffer.from("<script>alert(1)</script>")],
+      ["ZIP renamed .webp", "archive.webp", Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00])],
+      ["WAV RIFF renamed .webp", "audio.webp", WAV],
+      ["truncated RIFF renamed .webp", "short.webp", Buffer.from("RIFF1234WE")],
+    ])(
+      "refuses %s on note (415) with image-only message and keeps nothing",
+      async (_l, name, body) => {
+        const res = await post(noteUpload(body, name, { "content-type": "image/png" }), deps);
+        expect(res.status).toBe(415);
+        expect((await res.json()).error.message).toBe(messages.attachments.errors.imagesOnly);
+        expect(deps.addFile).not.toHaveBeenCalled();
+        expect(await readdir(root)).toEqual([TEMP_DIR]);
+        expect(await tempFiles()).toEqual([]);
+      },
+    );
+
+    it("refuses a sniffed non-image MIME type even when extension is .png", async () => {
+      const res = await post(noteUpload(PNG, "tricky.png"), {
+        ...deps,
+        sniff: () => Promise.resolve({ ok: true, contentType: "application/pdf" }),
+      });
+      expect(res.status).toBe(415);
+      expect((await res.json()).error.message).toBe(messages.attachments.errors.imagesOnly);
+      expect(deps.addFile).not.toHaveBeenCalled();
+      expect(await tempFiles()).toEqual([]);
+    });
+
+    it.each([
+      ["a Viewer on note", new AppError("FORBIDDEN_ROW", "viewer")],
+      ["a non-member on another project's note", new AppError("NOT_FOUND", "no access")],
+    ])(
+      "returns 404 (not 403) when %s attempts to upload to note without reading body",
+      async (_l, err) => {
+        deps.checkCanAdd.mockRejectedValue(err);
+        const uploadsRoot = vi.fn<UploadDeps["uploadsRoot"]>();
+        const sniffMock = vi.fn<UploadDeps["sniff"]>();
+        let bodyRead = false;
+        const body = new ReadableStream<Uint8Array>(
+          {
+            pull(controller) {
+              bodyRead = true;
+              controller.enqueue(PNG);
+              controller.close();
+            },
+          },
+          { highWaterMark: 0 },
+        );
+        const res = await post(noteUpload(body, "pic.png"), {
+          ...deps,
+          uploadsRoot,
+          sniff: sniffMock,
+        });
+        expect(res.status).toBe(404);
+        expect(await res.json()).toMatchObject({ ok: false, error: { code: "NOT_FOUND" } });
+        expect(bodyRead).toBe(false);
+        expect(uploadsRoot).not.toHaveBeenCalled();
+        expect(sniffMock).not.toHaveBeenCalled();
+        expect(deps.addFile).not.toHaveBeenCalled();
+        expect(await tempFiles()).toEqual([]);
+      },
+    );
+
+    it("sanitizes path traversal and CRLF in note upload file names", async () => {
+      await post(noteUpload(PNG, "..\\..\\evil\r\n.png"), deps);
+      expect(deps.addFile.mock.calls[0]![2].fileName).toBe("....evil.png");
+    });
+  });
+});
+
+describe("sniff magic bytes (GIF, WebP, SVG & polyglot guards)", () => {
+  it.each([
+    ["GIF87a", GIF87, "a.gif", "image/gif"],
+    ["GIF89a", GIF89, "b.GIF", "image/gif"],
+    ["WebP", WEBP, "c.webp", "image/webp"],
+    ["PNG", PNG, "d.png", "image/png"],
+    ["JPEG", JPEG, "e.jpg", "image/jpeg"],
+  ])("accepts %s when extension matches", async (_l, buf, name, expected) => {
+    expect(await sniff(bufferSource(buf), name)).toEqual({ ok: true, contentType: expected });
+  });
+
+  it.each([
+    ["GIF89a as .png", GIF89, "fake.png"],
+    ["WebP as .gif", WEBP, "fake.gif"],
+    ["PNG as .webp", PNG, "fake.webp"],
+    ["WAV RIFF as .webp", WAV, "wav.webp"],
+    ["truncated RIFF (<12 bytes) as .webp", Buffer.from("RIFF1234WEB"), "trunc.webp"],
+    ["raw SVG as .png", SVG, "x.png"],
+    ["XML SVG as .webp", Buffer.from('<?xml version="1.0"?><svg/>'), "x.webp"],
+    ["SVG as .svg", SVG, "x.svg"],
+  ])("refuses %s", async (_l, buf, name) => {
+    expect(await sniff(bufferSource(buf), name)).toEqual({ ok: false, reason: "type" });
+  });
 });
 
 describe("GET /api/files/<id> (ADR-0026 §3)", () => {
@@ -455,5 +712,15 @@ describe("GET /api/files/<id> (ADR-0026 §3)", () => {
     expect(res.status).toBe(500);
     expect(JSON.stringify(await res.json())).not.toContain("pool");
     error.mockRestore();
+  });
+});
+
+describe("pasted pictures", () => {
+  it("refuses a document sent as a picture in the text, which would be hidden", async () => {
+    const response = await post(
+      upload(PDF, { query: "owner=daily-activity&ownerId=12&name=Plan.pdf&inline=1" }),
+    );
+    expect(response.status).toBe(415);
+    expect(deps.addFile).not.toHaveBeenCalled();
   });
 });

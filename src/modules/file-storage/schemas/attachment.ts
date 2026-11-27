@@ -14,7 +14,7 @@ import { rowVerSchema } from "@/modules/projects/schemas/project";
  * its own folder (db/procs/<owner>/usp_<Owner>_{CanAddFile,AddFile,ListFiles,
  * GetFile,RenameFile,RemoveFile}) and an entry in repository/owners.ts.
  */
-export const ATTACHMENT_OWNERS = ["daily-activity", "financial-document"] as const;
+export const ATTACHMENT_OWNERS = ["daily-activity", "financial-document", "note"] as const;
 
 export const attachmentOwnerSchema = z.enum(ATTACHMENT_OWNERS);
 
@@ -23,20 +23,84 @@ export type AttachmentOwner = z.infer<typeof attachmentOwnerSchema>;
 /** STANDARDS §4: at most 25 MB per file. */
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
+/** A note keeps pictures only, so its files are smaller. */
+export const NOTE_MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+export const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp"] as const;
+
+export const IMAGE_MIME_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"] as const;
+
 /** What the file picker offers; the server sniffs the bytes whatever the name says. */
 export const ACCEPTED_EXTENSIONS = [
   ".pdf",
   ".docx",
   ".xlsx",
   ".pptx",
-  ".png",
-  ".jpg",
-  ".jpeg",
+  ...IMAGE_EXTENSIONS,
   ".msg",
   ".eml",
   ".txt",
   ".csv",
 ] as const;
+
+/** The types the sniffer can report (parameters such as charset left off). */
+export const ACCEPTED_MIME_TYPES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ...IMAGE_MIME_TYPES,
+  "application/vnd.ms-outlook",
+  "message/rfc822",
+  "text/plain",
+  "text/csv",
+] as const;
+
+/** What one owner accepts: names the picker offers, types the bytes may be, and the size cap. */
+export interface AttachmentAcceptPolicy {
+  extensions: readonly string[];
+  mimeTypes: readonly string[];
+  maxBytes: number;
+}
+
+export const DEFAULT_ACCEPT_POLICY: AttachmentAcceptPolicy = {
+  extensions: ACCEPTED_EXTENSIONS,
+  mimeTypes: ACCEPTED_MIME_TYPES,
+  maxBytes: MAX_UPLOAD_BYTES,
+};
+
+export const NOTE_ACCEPT_POLICY: AttachmentAcceptPolicy = {
+  extensions: IMAGE_EXTENSIONS,
+  mimeTypes: IMAGE_MIME_TYPES,
+  maxBytes: NOTE_MAX_UPLOAD_BYTES,
+};
+
+/** An owner's policy with whatever it leaves out taken from the defaults. */
+export function resolveAcceptPolicy(
+  accept?: Partial<AttachmentAcceptPolicy>,
+): AttachmentAcceptPolicy {
+  return { ...DEFAULT_ACCEPT_POLICY, ...accept };
+}
+
+export function acceptsExtension(policy: AttachmentAcceptPolicy, extension: string): boolean {
+  return policy.extensions.includes(extension.toLowerCase());
+}
+
+/** `contentType` may carry parameters: "text/plain; charset=utf-8". */
+export function acceptsMimeType(policy: AttachmentAcceptPolicy, contentType: string): boolean {
+  const type = contentType.split(";")[0]!.trim().toLowerCase();
+  return policy.mimeTypes.includes(type);
+}
+
+/** Pictures only: the refusal then names the pictures, not every kind of file. */
+export function isImageOnly(policy: AttachmentAcceptPolicy): boolean {
+  return policy.mimeTypes.length > 0 && policy.mimeTypes.every((type) => type.startsWith("image/"));
+}
+
+/** The size cap as people read it: "10 MB". */
+export function uploadLimitLabel(maxBytes: number): string {
+  return `${maxBytes / (1024 * 1024)} MB`;
+}
 
 export const STORAGE_LOCATION_MAX = 500;
 
@@ -105,6 +169,10 @@ export const uploadQuerySchema = z.object({
   owner: attachmentOwnerSchema,
   ownerId,
   name: fileNameSchema,
+  inline: z
+    .literal("1")
+    .optional()
+    .transform((value) => value === "1"),
 });
 
 /** The download's: GET /api/files/<id>?owner=… */

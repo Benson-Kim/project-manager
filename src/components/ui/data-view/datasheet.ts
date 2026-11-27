@@ -76,6 +76,8 @@ export interface CellEditor<Row> {
   editable?: (row: Row) => boolean;
   /** What a rich-text cell shows until it is opened: the formatted text. */
   display?: (row: Row) => ReactNode;
+  /** Marks this row's cell as still needing a value, highlighted like a failed save. */
+  invalid?: (row: Row) => boolean;
 }
 
 export interface DatasheetConfig<Row> {
