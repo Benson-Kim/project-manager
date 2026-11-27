@@ -44,11 +44,21 @@ function Details({ items }: { items: Array<[string, string | null]> }) {
   );
 }
 
-function RichBlock({ title, html }: { title: string; html: string | null }) {
+function RichBlock({
+  title,
+  html,
+  level: Heading = "h2",
+}: {
+  title: string;
+  html: string | null;
+  level?: "h2" | "h3";
+}) {
   if (!html) return null;
   return (
     <section className="flex flex-col gap-1">
-      <h2 className="text-base font-semibold">{title}</h2>
+      <Heading className={Heading === "h2" ? "text-base font-semibold" : "text-sm font-semibold"}>
+        {title}
+      </Heading>
       <RichTextView html={html} className="text-sm" />
     </section>
   );
@@ -192,8 +202,9 @@ function CarriedOverTable({ rows, title }: { rows: CarriedOver[]; title: string 
  * and subrptMeetingApologies) — /projects/[id]/meetings/[meetingId]/print,
  * outside the app shell, in the workspace's order: the header fields, who was
  * present and who sent apologies, the agenda with its discussion points and
- * actions, then the objective, description, conclusion and date received, and
- * the custom boxes. One workspace read, so the page is one consistent snapshot. It
+ * actions, then the summary (objective and description), the conclusion and date
+ * received, the added sections, and last the action follow-ups carried over from
+ * earlier meetings. One workspace read, so the page is one consistent snapshot. It
  * renders on paper on screen too, so what you see is what prints — "Print
  * minutes" is window.print over the same stylesheet (portrait A4), in the
  * browser and the desktop app alike.
@@ -255,11 +266,6 @@ export default async function MeetingMinutesPrintPage({
           <People title={M.apologies} people={apologies} testId="print-apologies" />
         </div>
 
-        <CarriedOverTable
-          rows={carried}
-          title={sectionTitle(workspace.sections, "CarryOver", M.carriedOver)}
-        />
-
         <section className="flex flex-col gap-3">
           <h2 className="text-base font-semibold">
             {sectionTitle(workspace.sections, "Agenda", M.agenda)}
@@ -319,9 +325,19 @@ export default async function MeetingMinutesPrintPage({
           )}
         </section>
 
-        <RichBlock title={M.objective} html={meeting.Objective} />
-        <RichBlock title={M.description} html={meeting.Description} />
-        <RichBlock title={M.conclusion} html={meeting.Conclusion} />
+        {meeting.Objective || meeting.Description ? (
+          <section className="flex flex-col gap-3" data-testid="print-summary">
+            <h2 className="text-base font-semibold wrap-anywhere">
+              {sectionTitle(workspace.sections, "Summary", M.notes)}
+            </h2>
+            <RichBlock title={M.objective} html={meeting.Objective} level="h3" />
+            <RichBlock title={M.description} html={meeting.Description} level="h3" />
+          </section>
+        ) : null}
+        <RichBlock
+          title={sectionTitle(workspace.sections, "Conclusion", M.conclusion)}
+          html={meeting.Conclusion}
+        />
         <Details items={[[M.dateReceived, formatDate(meeting.DateReceived)]]} />
 
         {workspace.sections
@@ -333,11 +349,14 @@ export default async function MeetingMinutesPrintPage({
               data-testid="print-custom-section"
             >
               <h2 className="text-base font-semibold wrap-anywhere">{section.Title}</h2>
-              {section.Body ? (
-                <p className="text-sm whitespace-pre-wrap wrap-anywhere">{section.Body}</p>
-              ) : null}
+              {section.Body ? <RichTextView html={section.Body} className="text-sm" /> : null}
             </section>
           ))}
+
+        <CarriedOverTable
+          rows={carried}
+          title={sectionTitle(workspace.sections, "CarryOver", M.carriedOver)}
+        />
       </div>
     </main>
   );

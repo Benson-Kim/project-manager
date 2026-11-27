@@ -3,14 +3,11 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/form/field";
-import { Input, Textarea } from "@/components/ui/form/inputs";
+import { Input } from "@/components/ui/form/inputs";
+import { RichTextEditor } from "@/components/ui/rich-text/rich-text-editor";
 import { messages } from "@/lib/messages";
 import { saveMinutesSectionAction } from "../actions";
-import {
-  MINUTES_SECTION_BODY_MAX,
-  MINUTES_SECTION_TITLE_MAX,
-  type MinutesSectionKey,
-} from "../minutes-sections";
+import { MINUTES_SECTION_TITLE_MAX, type MinutesSectionKey } from "../minutes-sections";
 import type { WorkspaceSection } from "../schemas/meeting";
 import { saveMinutesSectionSchema } from "../schemas/meeting-form";
 import { useMinutes } from "./minutes-context";
@@ -44,7 +41,7 @@ function SectionForm({
       testId="section-form"
       submit={saveMinutesSectionAction}
       onSaved={(workspace) => {
-        answer(workspace);
+        answer(workspace, withBody);
         onDone();
       }}
       onClose={onDone}
@@ -68,12 +65,7 @@ function SectionForm({
           </Field>
           {withBody ? (
             <Field label={M.sectionBody} name="body" errors={errors.body}>
-              <Textarea
-                name="body"
-                rows={5}
-                defaultValue={row?.Body ?? ""}
-                maxLength={MINUTES_SECTION_BODY_MAX}
-              />
+              <RichTextEditor name="body" defaultValue={row?.Body} />
             </Field>
           ) : (
             <input type="hidden" name="body" value={row?.Body ?? ""} />
@@ -88,15 +80,13 @@ function SectionForm({
 export function SectionHeading({
   sectionKey,
   fallback,
-  sections,
   heading,
 }: {
   sectionKey: MinutesSectionKey;
   fallback: string;
-  sections: WorkspaceSection[];
   heading: (title: string) => React.ReactNode;
 }) {
-  const { canEdit, canDelete, askDelete } = useMinutes();
+  const { canEdit, canDelete, askDelete, sections } = useMinutes();
   const [editing, setEditing] = useState(false);
   const row = sections.find((section) => section.SectionKey === sectionKey) ?? null;
   const title = row?.Title ?? fallback;
@@ -146,15 +136,36 @@ export function SectionHeading({
   );
 }
 
-/** The boxes users added to the minutes, each with a title and plain text. */
+/** The boxes users added to the minutes, each with a title and formatted text, under the button that adds one. */
 export function CustomSections({ sections }: { sections: WorkspaceSection[] }) {
-  const { canEdit, canDelete, askDelete } = useMinutes();
+  const { canEdit, canDelete, askDelete, sectionView } = useMinutes();
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const boxes = sections.filter((section) => section.SectionKey === null);
 
   return (
     <div className="flex flex-col gap-4" data-testid="custom-sections">
+      {canEdit ? (
+        adding ? (
+          <SectionForm
+            row={null}
+            sectionKey={null}
+            title=""
+            withBody
+            onDone={() => setAdding(false)}
+          />
+        ) : (
+          <Button
+            type="button"
+            variant="secondary"
+            className="self-start print:hidden"
+            data-testid="add-section"
+            onClick={() => setAdding(true)}
+          >
+            {M.addSection}
+          </Button>
+        )
+      ) : null}
       {boxes.map((box) => {
         const id = box.MeetingMinutesSectionId;
         if (editingId === id) {
@@ -207,32 +218,11 @@ export function CustomSections({ sections }: { sections: WorkspaceSection[] }) {
               ) : null}
             </div>
             {box.Body ? (
-              <p className="text-sm whitespace-pre-wrap text-ink wrap-anywhere">{box.Body}</p>
+              <div className="text-sm text-ink wrap-anywhere">{sectionView(box)}</div>
             ) : null}
           </section>
         );
       })}
-      {canEdit ? (
-        adding ? (
-          <SectionForm
-            row={null}
-            sectionKey={null}
-            title=""
-            withBody
-            onDone={() => setAdding(false)}
-          />
-        ) : (
-          <Button
-            type="button"
-            variant="secondary"
-            className="self-start print:hidden"
-            data-testid="add-section"
-            onClick={() => setAdding(true)}
-          >
-            {M.addSection}
-          </Button>
-        )
-      ) : null}
     </div>
   );
 }

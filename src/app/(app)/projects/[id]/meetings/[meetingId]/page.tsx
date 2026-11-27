@@ -68,6 +68,14 @@ export default async function MeetingPage({
       { html: point.DiscussionPoint, node: <RichTextView html={point.DiscussionPoint} /> },
     ]),
   );
+  const sectionViews = Object.fromEntries(
+    workspace.sections
+      .filter((section) => section.SectionKey === null)
+      .map((section) => [
+        section.MeetingMinutesSectionId,
+        { html: section.Body, node: <RichTextView html={section.Body} /> },
+      ]),
+  );
 
   return (
     <div className="mx-auto w-full max-w-7xl">
@@ -90,6 +98,7 @@ export default async function MeetingPage({
                   projectId={projectId}
                   roster={roster}
                   canEdit={allows("meetings:update")}
+                  canAddStakeholder={allows("stakeholders:create")}
                   headingId="meeting-participants-heading"
                 />
               </section>
@@ -111,6 +120,7 @@ export default async function MeetingPage({
                   <MinutesEditor
                     workspace={workspace}
                     pointViews={pointViews}
+                    sectionViews={sectionViews}
                     roster={roster.entries}
                     today={todayIso()}
                     meetingsHref={listHref}

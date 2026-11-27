@@ -21,8 +21,8 @@ export default defineConfig({
     {
       name: "app",
       testMatch:
-        /(home|kitchen-sink|projects|bpmn|checklists|checklist-board|cross-window|key-deliverables|shell|stakeholders|stakeholder-matrix|stakeholder-picker|responsibility-matrix|suppliers|daily-activities|todo-items|todo-planner|questions-answers|parking-lot|assumptions-constraints|datasheet|rich-text|file-storage|financials|financial-documents|project-math|meetings|meeting-minutes|requirements|requirements-canvas|risks-issues|notes|boards|decisions|settings|admin-users|page-undo|whiteboard|list-print|custom-columns)\.spec\.ts/,
-      dependencies: ["setup"],
+        /(home|search|cross-links|kitchen-sink|projects|bpmn|checklists|checklist-board|cross-window|key-deliverables|shell|stakeholders|stakeholder-matrix|stakeholder-picker|responsibility-matrix|suppliers|daily-activities|todo-items|todo-planner|questions-answers|parking-lot|assumptions-constraints|datasheet|rich-text|file-storage|financials|financial-documents|project-math|meetings|meeting-minutes|requirements|requirements-canvas|risks-issues|notes|boards|decisions|settings|admin-users|page-undo|whiteboard|list-print|custom-columns|local-folder-links)\.spec\.ts/,
+      dependencies: ["setup", "viewer-setup"],
       use: { storageState: "e2e/.auth/pm.json" },
     },
     {

@@ -304,6 +304,31 @@ test("participants: a guest who is not a stakeholder is added, saved, marked and
   await expect(participant(page, "Ada Lovelace")).toHaveCount(0);
 });
 
+test("participants: + Member adds a new stakeholder in a pop-up on this page, as attended", async ({
+  page,
+}) => {
+  const lastName = `Zzmember${Date.now()}`;
+  const name = `E2E ${lastName}`;
+  await newMeeting(page);
+  const url = page.url();
+  const panel = page.getByTestId("participants-panel");
+  await panel.getByTestId("participants-add-member").click();
+  const dialog = page.getByRole("dialog", { name: M.addMember });
+  const quick = dialog.getByTestId("stakeholder-quick-create");
+  await quick.getByLabel(messages.stakeholders.firstName).fill("E2E");
+  await quick.getByLabel(messages.stakeholders.lastName).fill(lastName);
+  await quick.getByRole("button", { name: messages.actions.save }).click();
+  await expect(dialog).toBeHidden({ timeout: 15_000 });
+  expect(page.url()).toBe(url);
+
+  await expect(attendance(page, name, "attended")).toBeChecked({ timeout: 15_000 });
+  await expect(panel.getByTestId("participant-counts")).toHaveText(counts(1, 0));
+  await page.getByTestId("participants-save").click();
+  await expectToast(page, messages.feedback.saved);
+  await page.reload();
+  await expect(attendance(page, name, "attended")).toBeChecked();
+});
+
 test("participants: with both forms unsaved, leaving asks once", async ({ page }) => {
   const form = await newMeeting(page);
   const url = page.url();

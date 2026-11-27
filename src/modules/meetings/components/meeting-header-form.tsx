@@ -26,6 +26,7 @@ import { formEditStep, recordKey, stepName } from "@/lib/undo/steps";
 import { usePageHistory } from "@/components/undo/page-history";
 import { PANEL_BODY, PANEL_SHELL } from "@/components/ui/panel-styles";
 import { deleteMeetingAction, updateMeetingAction } from "../actions";
+import { sectionTitle, type MinutesSectionKey } from "../minutes-sections";
 import type { MeetingFormat, MeetingRow } from "../schemas/meeting";
 import {
   meetingFormKey,
@@ -33,11 +34,13 @@ import {
   updateMeetingFormSchema,
 } from "../schemas/meeting-form";
 import { notifySaved } from "@/lib/cross-window";
+import { useMinutes } from "./minutes-context";
+import { SectionHeading } from "./minutes-sections";
 
 const M = messages.meetings;
 
 type Errors = Partial<Record<string, string[]>>;
-type Part = "details" | "notes";
+type Part = "details" | "notes" | "conclusion";
 
 const FIELD_LABELS: Record<string, string> = {
   subject: M.subject,
@@ -258,12 +261,14 @@ export function MeetingFormScope({
 function MeetingPartForm({
   part,
   title,
+  titleKey,
   level,
   fields,
   exit,
 }: {
   part: Part;
   title: string;
+  titleKey?: MinutesSectionKey;
   level: "h2" | "h3";
   fields: (values: FormValues, errors: Errors) => React.ReactNode;
   exit?: { listHref: string; canDelete: boolean };
@@ -276,16 +281,23 @@ function MeetingPartForm({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const values = meetingFormValues(meeting);
   const Heading = level;
+  const heading = (text: string) => (
+    <Heading
+      id={headingId}
+      className="text-xs font-semibold uppercase tracking-wide text-ink-muted"
+    >
+      {text}
+    </Heading>
+  );
 
   return (
-    <section className={PANEL_SHELL} aria-labelledby={headingId}>
+    <section className={PANEL_SHELL} aria-labelledby={headingId} data-testid={`meeting-${part}`}>
       <div className="flex items-center justify-between border-b border-line px-4 py-3">
-        <Heading
-          id={headingId}
-          className="text-xs font-semibold uppercase tracking-wide text-ink-muted"
-        >
-          {title}
-        </Heading>
+        {titleKey ? (
+          <SectionHeading sectionKey={titleKey} fallback={title} heading={heading} />
+        ) : (
+          heading(title)
+        )}
       </div>
       <form
         key={meetingForm.formKey}
@@ -304,7 +316,7 @@ function MeetingPartForm({
           meetingForm.save(part, event.currentTarget);
         }}
         onChange={canEdit ? meetingForm.markDirty : undefined}
-        data-testid={part === "details" ? "meeting-header-form" : "meeting-notes-form"}
+        data-testid={part === "details" ? "meeting-header-form" : `meeting-${part}-form`}
         aria-labelledby={headingId}
         className={PANEL_BODY}
       >
@@ -549,31 +561,48 @@ export function MeetingHeaderForm({
   );
 }
 
-/** Objective, description, conclusion and date received, under the agenda. */
+/** The summary (objective, description, date received), then the conclusion, under the agenda. */
 export function MeetingNotesForm() {
+  const { sections } = useMinutes();
   return (
-    <MeetingPartForm
-      part="notes"
-      title={M.notes}
-      level="h3"
-      fields={(values, errors) => (
-        <>
-          <Field label={M.objective} name="objective" errors={errors.objective}>
-            <RichTextEditor name="objective" defaultValue={values.objective as string} />
-          </Field>
-          <Field label={M.description} name="description" errors={errors.description}>
-            <RichTextEditor name="description" defaultValue={values.description as string} />
-          </Field>
-          <Field label={M.conclusion} name="conclusion" errors={errors.conclusion}>
+    <>
+      <MeetingPartForm
+        part="notes"
+        title={M.notes}
+        titleKey="Summary"
+        level="h3"
+        fields={(values, errors) => (
+          <>
+            <Field label={M.objective} name="objective" errors={errors.objective}>
+              <RichTextEditor name="objective" defaultValue={values.objective as string} />
+            </Field>
+            <Field label={M.description} name="description" errors={errors.description}>
+              <RichTextEditor name="description" defaultValue={values.description as string} />
+            </Field>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+              <Field label={M.dateReceived} name="dateReceived" errors={errors.dateReceived}>
+                <DatePicker name="dateReceived" defaultValue={values.dateReceived as string} />
+              </Field>
+            </div>
+          </>
+        )}
+      />
+      <MeetingPartForm
+        part="conclusion"
+        title={M.conclusion}
+        titleKey="Conclusion"
+        level="h3"
+        fields={(values, errors) => (
+          <Field
+            label={sectionTitle(sections, "Conclusion", M.conclusion)}
+            name="conclusion"
+            errors={errors.conclusion}
+            labelClassName="sr-only"
+          >
             <RichTextEditor name="conclusion" defaultValue={values.conclusion as string} />
           </Field>
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-            <Field label={M.dateReceived} name="dateReceived" errors={errors.dateReceived}>
-              <DatePicker name="dateReceived" defaultValue={values.dateReceived as string} />
-            </Field>
-          </div>
-        </>
-      )}
-    />
+        )}
+      />
+    </>
   );
 }
