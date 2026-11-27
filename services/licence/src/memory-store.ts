@@ -131,4 +131,6 @@ export class MemoryStore implements LicenceStore {
   async listFeedback(licenceId: string): Promise<FeedbackRecord[]> {
     return this.feedback.filter((f) => f.licenceId === licenceId).map((f) => ({ ...f }));
   }
+
+  async ping(): Promise<void> {}
 }

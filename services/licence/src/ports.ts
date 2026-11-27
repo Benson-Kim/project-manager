@@ -72,6 +72,7 @@ export interface LicenceStore {
   addConsent(record: ConsentRecord): Promise<void>;
   listTesters(): Promise<TesterSummary[]>;
   listFeedback(licenceId: string): Promise<FeedbackRecord[]>;
+  ping(): Promise<void>;
 }
 
 export interface Mailer {

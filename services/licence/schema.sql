@@ -7,8 +7,7 @@ CREATE TABLE IF NOT EXISTS licence (
   starts_at INTEGER NOT NULL,
   expires_at INTEGER,
   updates_until INTEGER,
-  redeem_code_hash TEXT UNIQUE,
-  used_ms INTEGER NOT NULL DEFAULT 0
+  redeem_code_hash TEXT UNIQUE
 );
 CREATE INDEX IF NOT EXISTS licence_email ON licence (email_hash);
 CREATE INDEX IF NOT EXISTS licence_machine ON licence (machine_hash);

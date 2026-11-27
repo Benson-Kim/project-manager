@@ -1,9 +1,31 @@
 import fs from "fs";
 import path from "path";
 
-export const APP_NAME = "Modulus";
+const CLIENT_NAME = "Modulus";
+const CLIENT_ID = "com.eliandigitalsolutions.modulus";
 export const LEGACY_NAME = "Project Manager";
-export const APP_ID = "com.eliandigitalsolutions.modulus";
+
+export function appIdentity(manifest: unknown) {
+  const beta = (manifest as { channel?: unknown } | null)?.channel === "beta";
+  return {
+    beta,
+    name: beta ? `${CLIENT_NAME} Beta` : CLIENT_NAME,
+    id: beta ? `${CLIENT_ID}.beta` : CLIENT_ID,
+  };
+}
+
+function packagedManifest(): unknown {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(__dirname, "package.json"), "utf8")) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+const identity = appIdentity(packagedManifest());
+export const APP_NAME = identity.name;
+export const APP_ID = identity.id;
+export const APP_BETA = identity.beta;
 
 type Exists = (file: string) => boolean;
 
@@ -14,8 +36,10 @@ type Exists = (file: string) => boolean;
 export function programDataDir(
   root = process.env.ProgramData ?? "C:\\ProgramData",
   exists: Exists = fs.existsSync,
+  app = identity,
 ): string {
-  const current = path.join(root, APP_NAME);
+  const current = path.join(root, app.name);
+  if (app.beta) return current;
   const legacy = path.join(root, LEGACY_NAME);
   if (exists(path.join(current, "machine.json"))) return current;
   if (exists(path.join(legacy, "machine.json"))) return legacy;
@@ -23,10 +47,14 @@ export function programDataDir(
 }
 
 /** Where backup copies go under OneDrive or Documents; a user who already has old copies keeps them there. */
-export function backupCopyDir(base: string, exists: Exists = fs.existsSync): string {
-  const current = path.join(base, `${APP_NAME} Backups`);
+export function backupCopyDir(
+  base: string,
+  exists: Exists = fs.existsSync,
+  app = identity,
+): string {
+  const current = path.join(base, `${app.name} Backups`);
   const legacy = path.join(base, `${LEGACY_NAME} Backups`);
-  return !exists(current) && exists(legacy) ? legacy : current;
+  return !app.beta && !exists(current) && exists(legacy) ? legacy : current;
 }
 
 const CHROMIUM_CACHES = new Set([
@@ -45,10 +73,10 @@ const CHROMIUM_CACHES = new Set([
  * folder for a rollback. It copies into a side folder and renames it only when the copy is whole.
  * Returns why it failed, for the log; the app then starts with fresh settings.
  */
-export function carryOverProfile(appData: string): string | null {
-  const current = path.join(appData, APP_NAME);
+export function carryOverProfile(appData: string, app = identity): string | null {
+  const current = path.join(appData, app.name);
   const legacy = path.join(appData, LEGACY_NAME);
-  if (fs.existsSync(current) || !fs.existsSync(legacy)) return null;
+  if (app.beta || fs.existsSync(current) || !fs.existsSync(legacy)) return null;
   const partial = `${current}.copying`;
   try {
     fs.rmSync(partial, { recursive: true, force: true });

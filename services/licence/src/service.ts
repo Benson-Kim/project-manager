@@ -211,6 +211,10 @@ export class LicenceService {
     return this.deps.store.listFeedback(licenceId);
   }
 
+  checkHealth(): Promise<void> {
+    return this.deps.store.ping();
+  }
+
   async convert(licenceId: string, kind: "free" | "full"): Promise<Outcome<null>> {
     const record = await this.deps.store.getLicence(licenceId);
     if (!record) return fail("not_found");

@@ -32,11 +32,20 @@ param(
   [ValidatePattern('^[A-Za-z][A-Za-z0-9_]{0,15}$')] [string] $InstanceName = 'PROJECTMGR',
   [ValidateRange(1, 65535)] [int] $Port = 14330,
   [string] $DataRoot = (Join-Path $env:ProgramData 'Modulus'),
-  [switch] $ServiceOnly
+  [switch] $ServiceOnly,
+  [switch] $Beta
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 3
+
+$Database = 'ProjectManager'
+$AppLogin = 'pm_app'
+if ($Beta) {
+  $Database = 'ModulusBeta'
+  $AppLogin = 'pm_beta'
+  if (-not $PSBoundParameters.ContainsKey('DataRoot')) { $DataRoot = Join-Path $env:ProgramData 'Modulus Beta' }
+}
 
 $ServiceName = "MSSQL`$$InstanceName"
 $ServiceSid = "NT SERVICE\MSSQL`$$InstanceName"
@@ -372,6 +381,7 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
     "-InstanceName $InstanceName -Port $Port -DataRoot `"$DataRoot`""
   if ($SqlInstaller) { $argList += " -SqlInstaller `"$SqlInstaller`"" }
   if ($ServiceOnly) { $argList += ' -ServiceOnly' }
+  if ($Beta) { $argList += ' -Beta' }
   try {
     $p = Start-Process -FilePath (Join-Path $PSHOME 'powershell.exe') -ArgumentList $argList `
       -Verb RunAs -Wait -PassThru -WindowStyle Hidden
@@ -443,19 +453,19 @@ try {
   $saPassword = New-Secret 32
   $loginSql = @"
 SET NOCOUNT ON;
-IF SUSER_ID(N'pm_app') IS NULL
-    CREATE LOGIN [pm_app] WITH PASSWORD = N'$appPassword', CHECK_POLICY = OFF, CHECK_EXPIRATION = OFF, DEFAULT_DATABASE = [master];
+IF SUSER_ID(N'$AppLogin') IS NULL
+    CREATE LOGIN [$AppLogin] WITH PASSWORD = N'$appPassword', CHECK_POLICY = OFF, CHECK_EXPIRATION = OFF, DEFAULT_DATABASE = [master];
 ELSE
-    ALTER LOGIN [pm_app] WITH PASSWORD = N'$appPassword', CHECK_POLICY = OFF, CHECK_EXPIRATION = OFF;
-ALTER LOGIN [pm_app] ENABLE;
+    ALTER LOGIN [$AppLogin] WITH PASSWORD = N'$appPassword', CHECK_POLICY = OFF, CHECK_EXPIRATION = OFF;
+ALTER LOGIN [$AppLogin] ENABLE;
 -- Least privilege (ADR-0031 review): the app creates and owns its database (dbcreator), and is
 -- db_owner there; it is not sysadmin. A PC provisioned before this change is demoted by Repair.
-IF IS_SRVROLEMEMBER(N'sysadmin', N'pm_app') = 1 ALTER SERVER ROLE [sysadmin] DROP MEMBER [pm_app];
-IF IS_SRVROLEMEMBER(N'dbcreator', N'pm_app') = 0 ALTER SERVER ROLE [dbcreator] ADD MEMBER [pm_app];
-IF DB_ID(N'ProjectManager') IS NOT NULL
-    EXEC(N'USE [ProjectManager];
-DECLARE @principal SYSNAME = (SELECT name FROM sys.database_principals WHERE sid = SUSER_SID(N''pm_app''));
-IF @principal IS NULL BEGIN CREATE USER [pm_app] FOR LOGIN [pm_app]; SET @principal = N''pm_app''; END;
+IF IS_SRVROLEMEMBER(N'sysadmin', N'$AppLogin') = 1 ALTER SERVER ROLE [sysadmin] DROP MEMBER [$AppLogin];
+IF IS_SRVROLEMEMBER(N'dbcreator', N'$AppLogin') = 0 ALTER SERVER ROLE [dbcreator] ADD MEMBER [$AppLogin];
+IF DB_ID(N'$Database') IS NOT NULL
+    EXEC(N'USE [$Database];
+DECLARE @principal SYSNAME = (SELECT name FROM sys.database_principals WHERE sid = SUSER_SID(N''$AppLogin''));
+IF @principal IS NULL BEGIN CREATE USER [$AppLogin] FOR LOGIN [$AppLogin]; SET @principal = N''$AppLogin''; END;
 IF @principal <> N''dbo'' AND ISNULL(IS_ROLEMEMBER(N''db_owner'', @principal), 0) = 0
 BEGIN
     DECLARE @grant NVARCHAR(400) = N''ALTER ROLE [db_owner] ADD MEMBER '' + QUOTENAME(@principal) + N'';'';
@@ -472,7 +482,7 @@ SELECT 1;
   } catch {
     throw [ProvisionError]::new(50, "Configuring SQL logins failed: $($_.Exception.Message)")
   }
-  Write-Log "Login 'pm_app' configured (dbcreator + db_owner, not sysadmin); 'sa' disabled."
+  Write-Log "Login '$AppLogin' configured (dbcreator + db_owner, not sysadmin); 'sa' disabled."
 
   $config = [ordered]@{
     schemaVersion    = 1
@@ -480,8 +490,8 @@ SELECT 1;
       instanceName = $InstanceName
       host         = '127.0.0.1'
       port         = $Port
-      database     = 'ProjectManager'
-      user         = 'pm_app'
+      database     = $Database
+      user         = $AppLogin
       password     = $appPassword
     }
     authSecret       = $authSecret
@@ -496,7 +506,7 @@ SELECT 1;
   Write-Log "Wrote $ConfigPath"
 
   # Prove the app's own credentials work before declaring success.
-  $appCs = "Server=tcp:127.0.0.1,$Port;Database=master;User ID=pm_app;Password=$appPassword;Connect Timeout=30"
+  $appCs = "Server=tcp:127.0.0.1,$Port;Database=master;User ID=$AppLogin;Password=$appPassword;Connect Timeout=30"
   try { Invoke-Sql $appCs 'SELECT 1' | Out-Null } catch {
     throw [ProvisionError]::new(50, "The app login could not connect: $($_.Exception.Message)")
   }

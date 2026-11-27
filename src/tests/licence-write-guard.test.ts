@@ -132,6 +132,21 @@ describe("licence write guard", () => {
     }
   });
 
+  it("lets every list, read and search action keep working while the licence is inactive", () => {
+    const actions = serverActionFiles.flatMap((file) =>
+      [
+        ...file.source.matchAll(
+          /^export const ((?:list|read|search)\w*Action) = action\(\{([\s\S]*?)^\}\);/gm,
+        ),
+      ].map((m) => ({ path: file.path, name: m[1], body: m[2] })),
+    );
+    expect(actions.length).toBeGreaterThan(0);
+    const bad = actions
+      .filter((a) => !/^\s+licence: "read",\r?$/m.test(a.body))
+      .map((a) => `${a.path}: ${a.name}`);
+    expect(bad).toEqual([]);
+  });
+
   it("lets nothing but the owner read the licence status to decide on a write", () => {
     const bad = files
       .filter((f) => !CHECK_OWNERS.has(f.path))

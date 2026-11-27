@@ -1,8 +1,24 @@
 import fs from "fs";
+import { createRequire } from "module";
 import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it } from "vitest";
-import { APP_ID, APP_NAME, backupCopyDir, carryOverProfile, programDataDir } from "../app-folders";
+import {
+  APP_ID,
+  APP_NAME,
+  appIdentity,
+  backupCopyDir,
+  carryOverProfile,
+  programDataDir,
+} from "../app-folders";
+
+const { channelConfig } = createRequire(__filename)("../../scripts/desktop/channel.cjs") as {
+  channelConfig: (
+    env: Record<string, string>,
+    build: { enforce: boolean; version: string; full: boolean },
+  ) => { productName: string; builderArgs: string[]; manifest: object };
+};
+const beta = appIdentity({ channel: "beta" });
 
 const root = "C:\\ProgramData";
 const has =
@@ -77,6 +93,39 @@ describe("carryOverProfile", () => {
     appData = fs.mkdtempSync(path.join(os.tmpdir(), "app-folders-"));
     expect(carryOverProfile(appData)).toBeNull();
     expect(fs.existsSync(path.join(appData, "Modulus"))).toBe(false);
+  });
+});
+
+describe("beta channel", () => {
+  it("leaves the client build and the dev run as they were", () => {
+    const client = { beta: false, name: "Modulus", id: "com.eliandigitalsolutions.modulus" };
+    expect({ name: APP_NAME, id: APP_ID }).toEqual({ name: client.name, id: client.id });
+    for (const manifest of [null, {}, { licensing: "enforce" }, { channel: "Beta" }]) {
+      expect(appIdentity(manifest)).toEqual(client);
+    }
+  });
+
+  it("runs under the name and id the beta build installs", () => {
+    const built = channelConfig(
+      { PM_CHANNEL: "beta" },
+      { enforce: true, version: "1.2.3", full: false },
+    );
+    const app = appIdentity(built.manifest);
+    expect(app.name).toBe(built.productName);
+    expect(built.builderArgs).toContain(`-c.appId=${app.id}`);
+  });
+
+  it("never takes over the old settings or backup folder", () => {
+    const appData = fs.mkdtempSync(path.join(os.tmpdir(), "app-folders-beta-"));
+    try {
+      fs.mkdirSync(path.join(appData, "Project Manager"));
+      expect(carryOverProfile(appData, beta)).toBeNull();
+      expect(fs.readdirSync(appData)).toEqual(["Project Manager"]);
+    } finally {
+      fs.rmSync(appData, { recursive: true, force: true });
+    }
+    const old = has(path.join("docs", "Project Manager Backups"));
+    expect(backupCopyDir("docs", old, beta)).toBe(path.join("docs", "Modulus Beta Backups"));
   });
 });
 

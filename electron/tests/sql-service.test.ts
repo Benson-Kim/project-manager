@@ -95,6 +95,14 @@ describe("service-only repair", () => {
     expect(command).toContain("$ErrorActionPreference = 'Stop'");
   });
 
+  it("asks for the beta setup only from a beta app", async () => {
+    await runElevatedRepair("provision.ps1", "sql.exe", log);
+    await runElevatedRepair("provision.ps1", "sql.exe", log, true);
+    const [client, beta] = ps.exec.mock.calls.map((call) => String(call[1].at(-1)));
+    expect(client).not.toContain("-Beta");
+    expect(beta).toContain("-Beta");
+  });
+
   it("keeps normal first-install provisioning separate", async () => {
     expect(await runElevatedRepair("C:\\provision.ps1", "C:\\sql.exe", log)).toBe(0);
     expect(ps.exec.mock.calls[0][1].at(-1)).not.toContain("-ServiceOnly");
