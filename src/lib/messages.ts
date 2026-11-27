@@ -631,8 +631,7 @@ export const messages = {
       startTime: "Start time",
       endTime: "End time",
       conflictTitle: "Schedule Conflict",
-      conflictBody:
-        "This overlaps another to-do. Continue anyway, or cancel to pick a new time?",
+      conflictBody: "This overlaps another to-do. Continue anyway, or cancel to pick a new time?",
       continue: "Continue",
       openCalendar: (title: string) => `Calendar: ${title}`,
       heldHint:

@@ -367,11 +367,12 @@ test("planner — a to-do dropped on a past hour stays put until its time is fix
         () => new Date().getHours() * 60 + new Date().getMinutes(),
       );
       const dropPx = (Math.max(0, nowMin - 90) * HOUR_PX) / 60;
-      await page
-        .getByTestId("planner-scroll")
-        .evaluate((el, top) => {
+      await page.getByTestId("planner-scroll").evaluate(
+        (el, top) => {
           el.scrollTop = top;
-        }, Math.max(0, dropPx - 100));
+        },
+        Math.max(0, dropPx - 100),
+      );
       await expect(todo).toBeVisible();
       const column = (await page.getByTestId(`planner-day-${day}`).boundingBox())!;
       const source = (await todo.boundingBox())!;
