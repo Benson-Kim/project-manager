@@ -8,6 +8,7 @@ import {
   deleteFinancial,
   deleteLine,
   deleteTransaction,
+  importWbs,
   moveLine,
   setTaxProfiles,
   updateFinancial,
@@ -21,6 +22,7 @@ import {
   moveDocument,
   updateDocument,
 } from "../repository/documents";
+import { saveProjectMathState } from "../repository/project-math-state";
 import { deleteTemplate, saveTemplate } from "../repository/templates";
 import {
   copyDocumentsInput,
@@ -32,6 +34,7 @@ import {
 import {
   createFinancialInput,
   createLineInput,
+  importWbsInput,
   createTransactionInput,
   deleteFinancialInput,
   deleteLineInput,
@@ -42,6 +45,7 @@ import {
   updateLineInput,
   updateTransactionInput,
 } from "../schemas/financial";
+import { saveProjectMathStateInput } from "../schemas/project-math-state";
 import { deleteTemplateInput, saveTemplateInput } from "../schemas/template";
 
 /**
@@ -125,6 +129,13 @@ export const createLineAction = action({
     const saved = await createLine(input, ctx.session.userId);
     return { lineId: saved.FinancialLineId, rowVer: saved.RowVer };
   },
+});
+
+export const importWbsAction = action({
+  name: "financials.importWbs",
+  schema: importWbsInput,
+  permission: "financials:create",
+  handler: async (input, ctx) => importWbs(input.financialId, ctx.session.userId),
 });
 
 export const updateLineAction = action({
@@ -240,4 +251,13 @@ export const copyDocumentsAction = action({
     const added = await copyDocumentsFromTemplate(input, ctx.session.userId);
     return { financialId: input.financialId, added };
   },
+});
+
+export const saveProjectMathStateAction = action({
+  name: "financials.projectMath.save",
+  schema: saveProjectMathStateInput,
+  permission: "financials:update",
+  handler: async (input, ctx) => ({
+    rowVer: await saveProjectMathState(input, ctx.session.userId),
+  }),
 });

@@ -4,6 +4,7 @@ import { DEFAULT_PAGE_SIZE, toProcListParams, type ListParams } from "@/lib/list
 import {
   financialListRowSchema,
   financialRowSchema,
+  importWbsResultSchema,
   savedLineRowSchema,
   toFinancialDto,
   toSheetDto,
@@ -158,6 +159,15 @@ export async function createLine(p: z.output<typeof createLineInput>, actorUserI
     ActorUserId: actorUserId,
   });
   return savedLineRowSchema.parse(rows[0]);
+}
+
+export async function importWbs(financialId: number, actorUserId: number) {
+  const rows = await execProc("usp_FinancialLine_ImportWbs", {
+    FinancialId: financialId,
+    ActorUserId: actorUserId,
+  });
+  const r = importWbsResultSchema.parse(rows[0]);
+  return { added: r.Added, alreadyThere: r.AlreadyThere };
 }
 
 export async function updateLine(p: z.output<typeof updateLineInput>, actorUserId: number) {

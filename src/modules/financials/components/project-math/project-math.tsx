@@ -1,12 +1,14 @@
 "use client";
 
-import { useRef, useState, type ComponentType } from "react";
+import { type ComponentType, type FormEvent, useRef, useState, useTransition } from "react";
 import { buttonClass } from "@/components/ui/button-styles";
 import { PageHeader } from "@/components/ui/page-header";
 import { useToast } from "@/components/ui/toast";
 import { currencyOrNone, currencySymbol, NO_CURRENCY } from "@/lib/currency/currencies";
 import { messages } from "@/lib/messages";
+import { saveProjectMathStateAction } from "../../actions";
 import { formatNumber } from "../../calc/project-format";
+import type { ProjectMathState } from "../../schemas/project-math-state";
 import { QuickCalculator, type QuickCalculatorHandle } from "../quick-calculator";
 import { useCurrencies } from "../use-currencies";
 import { BusinessCaseCard } from "./business-case-card";
@@ -43,20 +45,33 @@ const CARDS: { key: string; category: Category; Card: ComponentType<CardProps> }
   { key: "percent", category: "money", Card: PercentCard },
 ];
 
+interface ProjectMathProps {
+  projectId: number;
+  currency: string;
+  saved: { state: ProjectMathState | null; rowVer: number | null };
+  canSave: boolean;
+}
+
 /**
  * The project math cards, filtered by category and priced in a picked currency
  * that starts as the project's. "→ Calculator" types a result into the quick
- * calculator's sum.
+ * calculator's sum. Save keeps the figures for the project; they come back on
+ * the next visit.
  */
-export function ProjectMath({ currency: projectCurrency }: { currency: string }) {
+export function ProjectMath({
+  projectId,
+  currency: projectCurrency,
+  saved,
+  canSave,
+}: ProjectMathProps) {
   const calculator = useRef<QuickCalculatorHandle>(null);
   const { toast } = useToast();
   const [filter, setFilter] = useState<Filter>("all");
   const start = projectCurrency === NO_CURRENCY ? DEFAULT_CURRENCY : projectCurrency;
-  const [currency, setCurrency] = useState(start);
-  const [added, setAdded] = useState<string[]>([]);
+  const [currency, setCurrency] = useState(saved.state?.currency || start);
+  const [added, setAdded] = useState<string[]>(saved.state?.added ?? []);
   const base = CURRENCIES.includes(start) ? CURRENCIES : [start, ...CURRENCIES];
-  const currencies = [...base, ...added.filter((code) => !base.includes(code))];
+  const currencies = [...new Set([...base, ...added, currency])];
   const symbol = currencySymbol(currency);
   const otherCurrencies = useCurrencies().filter((item) => !currencies.includes(item.code));
   const addCurrency = (value: string) => {
@@ -70,6 +85,37 @@ export function ProjectMath({ currency: projectCurrency }: { currency: string })
     if (value === null || !Number.isFinite(value)) return;
     calculator.current?.enter(value);
     toast({ variant: "info", title: M.sent(label, display ?? formatNumber(value)) });
+  };
+
+  const [startCards, setStartCards] = useState(saved.state?.cards ?? {});
+  const [round, setRound] = useState(0);
+  const values = useRef<Record<string, unknown>>({ ...startCards });
+  const rowVer = useRef(saved.rowVer);
+  const [saving, startSaving] = useTransition();
+
+  const save = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    startSaving(async () => {
+      const result = await saveProjectMathStateAction({
+        projectId,
+        state: { currency, added, cards: values.current },
+        rowVer: rowVer.current,
+      });
+      if (result.ok) {
+        rowVer.current = result.data.rowVer;
+        toast({ variant: "success", title: M.saved });
+      } else {
+        const conflict = result.error.code === "CONFLICT";
+        toast({ variant: "error", title: conflict ? M.conflict : result.error.message });
+      }
+    });
+  };
+
+  const resetCards = () => {
+    values.current = {};
+    setStartCards({});
+    setRound((previous) => previous + 1);
+    toast({ variant: "info", title: M.resetDone });
   };
 
   return (
@@ -119,11 +165,33 @@ export function ProjectMath({ currency: projectCurrency }: { currency: string })
             ))}
           </select>
         </div>
+        {canSave && (
+          <form onSubmit={save} className="flex gap-1">
+            <button
+              type="button"
+              onClick={resetCards}
+              className={buttonClass("secondary", "compact")}
+            >
+              {M.reset}
+            </button>
+            <button type="submit" disabled={saving} className={buttonClass("primary", "compact")}>
+              {messages.actions.save}
+            </button>
+          </form>
+        )}
       </div>
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
         {CARDS.map(({ key, category, Card }) => (
           <div key={key} hidden={filter !== "all" && filter !== category}>
-            <Card onUse={use} currency={symbol} />
+            <Card
+              key={round}
+              onUse={use}
+              currency={symbol}
+              initial={startCards[key]}
+              onChange={(cardValues) => {
+                values.current[key] = cardValues;
+              }}
+            />
           </div>
         ))}
       </div>

@@ -16,12 +16,14 @@ import {
   Note,
   PipeButton,
   Rows,
+  useReportValues,
+  useStartValues,
 } from "./card-ui";
 
 const M = messages.financials.projectMath.cost;
 
-export function CostCard({ onUse, currency }: CardProps) {
-  const [form, setForm] = useState({
+export function CostCard({ onUse, currency, initial: saved, onChange }: CardProps) {
+  const startWith = useStartValues(saved, {
     hours: "120",
     rate: "65",
     people: "2",
@@ -29,6 +31,8 @@ export function CostCard({ onUse, currency }: CardProps) {
     contingencyPct: "10",
     units: "4",
   });
+  const [form, setForm] = useState(startWith);
+  useReportValues(onChange, form);
   const set = (key: keyof typeof form) => (value: string) =>
     setForm((previous) => ({ ...previous, [key]: value }));
 

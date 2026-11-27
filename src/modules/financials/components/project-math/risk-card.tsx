@@ -19,6 +19,8 @@ import {
   Rows,
   StaticField,
   useRowList,
+  useReportValues,
+  useStartValues,
 } from "./card-ui";
 
 const M = messages.financials.projectMath.risk;
@@ -29,8 +31,10 @@ const SEED: RiskRow[] = [
   { id: 3, label: M.seed[2], probability: "40", impact: "12000" },
 ];
 
-export function RiskCard({ onUse, currency }: CardProps) {
-  const { rows, update, add, remove } = useRowList(SEED);
+export function RiskCard({ onUse, currency, initial: saved, onChange }: CardProps) {
+  const startWith = useStartValues(saved, SEED);
+  const { rows, update, add, remove } = useRowList(startWith);
+  useReportValues(onChange, rows);
   const summary = useMemo(() => riskExposure(rows), [rows]);
   const money = (value: number | null) => formatCurrency(value, { symbol: currency });
 

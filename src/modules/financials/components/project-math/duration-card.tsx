@@ -19,6 +19,8 @@ import {
   Rows,
   SectionLabel,
   StaticField,
+  useReportValues,
+  useStartValues,
 } from "./card-ui";
 
 const M = messages.financials.projectMath.duration;
@@ -35,9 +37,11 @@ function initialForm() {
   };
 }
 
-export function DurationCard({ onUse }: CardProps) {
-  const [form, setForm] = useState(initialForm);
-  const [days, setDays] = useState("15");
+export function DurationCard({ onUse, initial: saved, onChange }: CardProps) {
+  const startWith = useStartValues(saved, { form: initialForm(), days: "15" });
+  const [form, setForm] = useState(startWith.form);
+  const [days, setDays] = useState(startWith.days);
+  useReportValues(onChange, { form, days });
   const update = (patch: Partial<typeof form>) =>
     setForm((previous) => ({ ...previous, ...patch }));
 

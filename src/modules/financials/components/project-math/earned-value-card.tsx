@@ -16,12 +16,21 @@ import {
   Note,
   PipeButton,
   Rows,
+  useReportValues,
+  useStartValues,
 } from "./card-ui";
 
 const M = messages.financials.projectMath.earnedValue;
 
-export function EarnedValueCard({ onUse, currency }: CardProps) {
-  const [form, setForm] = useState({ bac: "250000", pv: "120000", ev: "110000", ac: "130000" });
+export function EarnedValueCard({ onUse, currency, initial: saved, onChange }: CardProps) {
+  const startWith = useStartValues(saved, {
+    bac: "250000",
+    pv: "120000",
+    ev: "110000",
+    ac: "130000",
+  });
+  const [form, setForm] = useState(startWith);
+  useReportValues(onChange, form);
   const set = (key: keyof typeof form) => (value: string) =>
     setForm((previous) => ({ ...previous, [key]: value }));
 

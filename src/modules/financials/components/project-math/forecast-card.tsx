@@ -18,6 +18,8 @@ import {
   PipeButton,
   Rows,
   StaticField,
+  useReportValues,
+  useStartValues,
 } from "./card-ui";
 
 const M = messages.financials.projectMath.forecast;
@@ -33,8 +35,10 @@ function initialForm() {
   };
 }
 
-export function ForecastCard({ onUse }: CardProps) {
-  const [form, setForm] = useState(initialForm);
+export function ForecastCard({ onUse, initial: saved, onChange }: CardProps) {
+  const startWith = useStartValues(saved, initialForm());
+  const [form, setForm] = useState(startWith);
+  useReportValues(onChange, form);
   const set = (key: keyof typeof form) => (value: string) =>
     setForm((previous) => ({ ...previous, [key]: value }));
 

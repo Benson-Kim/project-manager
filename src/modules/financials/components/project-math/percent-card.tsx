@@ -16,6 +16,8 @@ import {
   Note,
   PipeButton,
   Rows,
+  useReportValues,
+  useStartValues,
 } from "./card-ui";
 
 const M = messages.financials.projectMath.percent;
@@ -26,10 +28,16 @@ function signedNumber(value: number | null) {
   return `${sign}${formatNumber(Math.abs(value))}`;
 }
 
-export function PercentCard({ onUse }: CardProps) {
-  const [change, setChange] = useState({ from: "48000", to: "52500" });
-  const [portion, setPortion] = useState({ rate: "15", amount: "8200" });
-  const [share, setShare] = useState({ part: "34000", total: "250000" });
+export function PercentCard({ onUse, initial: saved, onChange }: CardProps) {
+  const startWith = useStartValues(saved, {
+    change: { from: "48000", to: "52500" },
+    portion: { rate: "15", amount: "8200" },
+    share: { part: "34000", total: "250000" },
+  });
+  const [change, setChange] = useState(startWith.change);
+  const [portion, setPortion] = useState(startWith.portion);
+  const [share, setShare] = useState(startWith.share);
+  useReportValues(onChange, { change, portion, share });
 
   const moved = useMemo(() => percentChange(change), [change]);
   const portionValue = useMemo(() => percentOf(portion), [portion]);

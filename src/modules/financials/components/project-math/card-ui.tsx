@@ -1,10 +1,12 @@
 "use client";
 
-import { type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import type { z } from "zod";
 import { buttonClass } from "@/components/ui/button-styles";
 import { Input } from "@/components/ui/form/inputs";
 import { messages } from "@/lib/messages";
 import { formatNumber } from "../../calc/project-format";
+import { savedOr, schemaLike } from "../../schemas/project-math-state";
 
 export type UseValue = (value: number | null, label: string, display?: string) => void;
 export type Category = keyof typeof messages.financials.projectMath.categories;
@@ -12,6 +14,22 @@ export type Category = keyof typeof messages.financials.projectMath.categories;
 export interface CardProps {
   onUse: UseValue;
   currency: string;
+  /** The card's saved values, used when they still fit its shape. */
+  initial?: unknown;
+  onChange?: (values: unknown) => void;
+}
+
+/** A card's saved values when they still have its examples' shape, else the examples. */
+export function useStartValues<T>(initial: unknown, seed: T): T {
+  const [start] = useState(() => savedOr(schemaLike(seed) as z.ZodType<T>, initial, seed));
+  return start;
+}
+
+/** Tells the page the card's current values, so they can be saved. */
+export function useReportValues(onChange: CardProps["onChange"], values: unknown) {
+  useEffect(() => {
+    onChange?.(values);
+  });
 }
 
 const TONE_CLASS = {
