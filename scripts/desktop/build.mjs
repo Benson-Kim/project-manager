@@ -18,6 +18,7 @@ import { sha256, verifySqlMedia } from "./fetch-sql-express.mjs";
 import { licensingConfig } from "./licensing.cjs";
 import { channelConfig } from "./channel.cjs";
 import { assertStandaloneEntries } from "./standalone-check.mjs";
+import { completeExternalPackages, missingExternalDeps } from "./external-deps.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const args = new Set(process.argv.slice(2));
@@ -87,6 +88,10 @@ if (!packageOnly) {
   if (!existsSync(join(standalone, "node_modules", "argon2"))) {
     throw new Error("argon2 missing from the standalone output (needed for the admin account)");
   }
+  // Next copies an external server package on its own, without the packages it
+  // requires at run time, and the server then dies on its first require.
+  const completed = completeExternalPackages(root, standalone);
+  if (completed.length) console.log(`  added ${completed.length} package(s) the external server packages require: ${completed.join(", ")}`);
   // When copying a traced file fails, `next build` still exits 0 with a route
   // missing its chunks. Check that, and that nothing else was traced in.
   assertStandaloneEntries(standalone);
@@ -189,6 +194,8 @@ for (const rel of [
 ]) {
   if (!existsSync(join(unpacked, rel))) problems.push(`missing ${rel}`);
 }
+const unshipped = missingExternalDeps(root, join(unpacked, "standalone"));
+if (unshipped.length) problems.push(`the external server packages require packages the installer does not carry: ${unshipped.join(", ")}`);
 const media = join(unpacked, "sql-express", "SQLEXPR_x64_ENU.exe");
 if (full !== existsSync(media)) problems.push(full ? "missing sql-express/SQLEXPR_x64_ENU.exe" : "the update installer carries the SQL Server media");
 for (const sub of ["migrations", "procs", "seed"]) {
