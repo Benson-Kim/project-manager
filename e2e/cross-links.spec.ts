@@ -148,6 +148,13 @@ test("creates a 1-to-1 cross-link across windows via Pending Portal Dock, jumps,
 
   await axeClean(second);
 
+  // The jump deep-links the record itself, so the risk's sheet opens over the list on arrival. The
+  // chip below sits in the table row behind that sheet's overlay, so close the sheet first.
+  const arrivalSheet = second.getByRole("dialog", { name: riskDesc });
+  await expect(arrivalSheet).toBeVisible();
+  await arrivalSheet.getByRole("button", { name: messages.actions.close }).click();
+  await expect(arrivalSheet).toBeHidden();
+
   // Edit & clean up link on Risk row.
   const chip = second
     .locator('[data-testid^="cross-link-chip-"]')
