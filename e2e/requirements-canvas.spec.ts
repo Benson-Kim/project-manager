@@ -1065,7 +1065,7 @@ test("placing an unlinked requirement during focus keeps it visible and survives
   await createCanvas(page, canvasPath);
   // By reference, not by position: the panel lists the two BRs before the SR, so taking the
   // first button twice would place `unlinked` and leave `second` off the canvas.
-  const refs = ["BR1", "SR1"];
+  const refs = ["BR-1", "SR-1"];
   for (const [index, ref] of refs.entries()) {
     await page.getByRole("button", { name: M.reveal(ref) }).click();
     await expect(page.getByTestId("canvas-on-count")).toHaveText(M.onCanvasCount(index + 1));
@@ -1078,7 +1078,7 @@ test("placing an unlinked requirement during focus keeps it visible and survives
   await expect(page.getByTestId("canvas-focus")).toBeAttached();
 
   const actions = countActions(page);
-  await page.getByRole("button", { name: M.reveal("BR2") }).click();
+  await page.getByRole("button", { name: M.reveal("BR-2") }).click();
   await expect(page.getByTestId("canvas-on-count")).toHaveText(M.onCanvasCount(3));
   await expect(nodes.filter({ hasText: unlinked })).toBeVisible();
   await expect(page.getByTestId("canvas-focus")).toBeAttached();
