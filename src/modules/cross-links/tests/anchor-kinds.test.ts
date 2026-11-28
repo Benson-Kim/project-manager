@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolveEndpointFromTarget } from "../components/anchor-capture";
+import { isEditableElement, resolveEndpointFromTarget } from "../components/anchor-capture";
 
 function pageRoot(entity?: { id: string; label: string }): ParentNode {
   return {
@@ -130,6 +130,49 @@ describe("anchor kinds", () => {
       anchorKind: "page",
       anchorKey: null,
       subEntityId: null,
+    });
+  });
+});
+
+describe("isEditableElement", () => {
+  class FakeElement {
+    constructor(private readonly tag: string) {}
+    closest(selector: string) {
+      return selector.split(", ").includes(this.tag) ? this : null;
+    }
+  }
+  const asTarget = (tag: string) => new FakeElement(tag) as unknown as EventTarget;
+
+  function withElement(run: () => void) {
+    const had = "Element" in globalThis;
+    const before = (globalThis as { Element?: unknown }).Element;
+    (globalThis as { Element?: unknown }).Element = FakeElement;
+    try {
+      run();
+    } finally {
+      if (had) (globalThis as { Element?: unknown }).Element = before;
+      else delete (globalThis as { Element?: unknown }).Element;
+    }
+  }
+
+  it("keeps out of the way of text entry", () => {
+    withElement(() => {
+      expect(isEditableElement(asTarget("input"))).toBe(true);
+      expect(isEditableElement(asTarget("textarea"))).toBe(true);
+      expect(isEditableElement(asTarget("[contenteditable='true']"))).toBe(true);
+    });
+  });
+
+  it("leaves a dropdown to this page's own menu, since it holds no text to copy", () => {
+    withElement(() => {
+      expect(isEditableElement(asTarget("select"))).toBe(false);
+      expect(isEditableElement(asTarget("td"))).toBe(false);
+    });
+  });
+
+  it("takes a non-element target as not editable", () => {
+    withElement(() => {
+      expect(isEditableElement(null)).toBe(false);
     });
   });
 });

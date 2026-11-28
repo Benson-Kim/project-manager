@@ -125,9 +125,14 @@ export function resolveEndpointFromTarget(
   };
 }
 
+/**
+ * True where the browser's own cut/copy/paste menu belongs to the target, so our menu stays
+ * out of the way. A dropdown holds no text to cut, copy or paste, so a right-click on one
+ * still offers this page's own menu.
+ */
 export function isEditableElement(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
-  if (target.closest("input, textarea, select, [contenteditable=''], [contenteditable='true']")) {
+  if (target.closest("input, textarea, [contenteditable=''], [contenteditable='true']")) {
     return true;
   }
   return false;
