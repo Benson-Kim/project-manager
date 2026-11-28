@@ -91,6 +91,10 @@ test("creates a 1-to-1 cross-link across windows via Pending Portal Dock, jumps,
   page,
   context,
 }) => {
+  // Two windows, a seeded risk, a dock hop across them and an axe scan do not fit a default
+  // test budget: the run before this one had the edit control in the page with no time left
+  // to press it.
+  test.setTimeout(90_000);
   const stamp = Date.now();
   const riskDesc = `E2E link risk ${stamp}`;
   const linkTitle = `E2E link title ${stamp}`;

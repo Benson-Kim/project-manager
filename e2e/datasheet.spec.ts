@@ -299,6 +299,10 @@ test.describe.serial("daily activities in list view", () => {
 
 test("table layout: a column edge resizes by keyboard and persists; Reset restores the default", async ({
   page,
+  // A browser sends server actions one at a time, so the saves below queue behind the posts this
+  // page makes as it loads — on a cold server one of the two has taken longer than a default test
+  // allows for.
+  test.setTimeout(90_000);
 }) => {
   await page.goto("/projects/2/objectives?view=list");
   const table = page.getByTestId("data-view-table");
@@ -318,7 +322,7 @@ test("table layout: a column edge resizes by keyboard and persists; Reset restor
   await page.keyboard.press("ArrowRight");
   await expect(handle).toHaveAttribute("aria-valuenow", /\d+/);
   const width = await handle.getAttribute("aria-valuenow");
-  await expect.poll(() => saves).toBeGreaterThanOrEqual(2);
+  await expect.poll(() => saves, { timeout: 45_000 }).toBeGreaterThanOrEqual(2);
 
   await page.reload();
   await expect(
