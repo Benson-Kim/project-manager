@@ -305,16 +305,15 @@ test("table layout: a column edge resizes by keyboard and persists; Reset restor
   await expect(table).toBeVisible();
   const handle = table.locator("thead th[data-column]").first().getByRole("separator");
   // Each arrow step saves the layout, one save at a time, and the reload must wait for both to be
-  // answered: a reload over a save in flight leaves the column at its unsaved width. Count only
-  // the saves the keys set off, and only once the body is in -- the page itself posts as it
-  // loads, and a bare count of responses takes that for a save that has landed.
+  // answered: a reload over a save in flight leaves the column at its unsaved width. The page
+  // posts as it loads too, for its own bookkeeping, so count by what a POST carries — only the
+  // layout save names the layout — and only once its response is in.
   let saves = 0;
-  let resizing = false;
   page.on("requestfinished", (request) => {
-    if (resizing && request.method() === "POST") saves += 1;
+    if (request.method() !== "POST") return;
+    if ((request.postData() ?? "").includes('"layout"')) saves += 1;
   });
   await handle.focus();
-  resizing = true;
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowRight");
   await expect(handle).toHaveAttribute("aria-valuenow", /\d+/);
