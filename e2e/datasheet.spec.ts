@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page, type Request } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 import { escapeRegExp, waitForHydrated } from "./support/datasheet";
 import { expectFocusOnInvalid } from "./support/form";
@@ -300,33 +300,14 @@ test.describe.serial("daily activities in list view", () => {
 test("table layout: a column edge resizes by keyboard and persists; Reset restores the default", async ({
   page,
 }) => {
-  // A browser sends server actions one at a time, so the saves below queue behind the posts this
-  // page makes as it loads — on a cold server one of the two has taken longer than a default test
-  // allows for.
+  // A browser sends server actions one at a time, so each arrow step's save queues behind the
+  // posts this page makes as it loads — on a cold server that has taken longer than a default
+  // test allows for.
   test.setTimeout(90_000);
-  // Each arrow step saves the layout, one save at a time, and the reload must wait for both to be
-  // answered: a reload over a save in flight leaves the column at its unsaved width. A save is a
-  // server action post, which says so in a header of its own; the body that carries the layout is
-  // not always there to read, and counting by the body left this test waiting out its budget on
-  // two saves that had already been answered. The page posts as it loads too, for its own
-  // bookkeeping, so count from before the page opens, let those settle, and then wait for both
-  // steps to be answered with nothing left in flight.
-  const isAction = (request: Request) =>
-    request.method() === "POST" && Boolean(request.headers()["next-action"]);
-  let started = 0;
-  let finished = 0;
-  page.on("request", (request) => {
-    if (isAction(request)) started += 1;
-  });
-  page.on("requestfinished", (request) => {
-    if (isAction(request)) finished += 1;
-  });
   await page.goto("/projects/2/objectives?view=list");
   const table = page.getByTestId("data-view-table");
   await expect(table).toBeVisible();
   const handle = table.locator("thead th[data-column]").first().getByRole("separator");
-  await expect.poll(() => started === finished, { timeout: 30_000 }).toBe(true);
-  const answered = finished;
   await handle.focus();
   const narrow = Number(await handle.getAttribute("aria-valuenow"));
   await page.keyboard.press("ArrowRight");
@@ -334,18 +315,21 @@ test("table layout: a column edge resizes by keyboard and persists; Reset restor
   await expect(handle).toHaveAttribute("aria-valuenow", /\d+/);
   const width = await handle.getAttribute("aria-valuenow");
   expect(Number(width)).toBeGreaterThan(narrow);
-  await expect
-    .poll(() => finished >= answered + 2 && started === finished, { timeout: 45_000 })
-    .toBe(true);
-
-  await page.reload();
-  await expect(
-    page
-      .getByTestId("data-view-table")
-      .locator("thead th[data-column]")
-      .first()
-      .getByRole("separator"),
-  ).toHaveAttribute("aria-valuenow", width!);
+  // Each step saves the layout, and a reload over a save still in flight would read the width
+  // back before it was stored. Rather than counting the saves — a server action post carries
+  // neither a readable body nor a header this test can depend on once a service worker is in
+  // the way — reload until the stored width is the one on screen. That asserts what the test is
+  // actually for: the width the keyboard set is the width the server kept.
+  await expect(async () => {
+    await page.reload();
+    await expect(
+      page
+        .getByTestId("data-view-table")
+        .locator("thead th[data-column]")
+        .first()
+        .getByRole("separator"),
+    ).toHaveAttribute("aria-valuenow", width!);
+  }).toPass({ timeout: 45_000 });
 
   await page.getByTestId("table-layout").click();
   const dialog = page.getByRole("dialog", { name: messages.datasheet.tableLayout });
