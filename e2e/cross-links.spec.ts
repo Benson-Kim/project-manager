@@ -30,7 +30,8 @@ test("creates, edits, and removes a private page note via web right-click and hi
   await expect(page.getByTestId("page-title")).toBeVisible();
   await closeAlarmToast(page);
 
-  await page.getByTestId("page-title").click({ button: "right" });
+  // Cross-links anchor to page content, never to the app chrome, so right-click inside main.
+  await page.getByTestId("todo-calendar").click({ button: "right" });
   const addNoteItem = page.getByTestId("cl-menu-add-note");
   await expect(addNoteItem).toBeVisible();
   await addNoteItem.click();
