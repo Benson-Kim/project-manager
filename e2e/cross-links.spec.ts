@@ -154,12 +154,12 @@ test("creates a 1-to-1 cross-link across windows via Pending Portal Dock, jumps,
     .filter({ hasText: linkTitle })
     .first();
   await expect(chip).toBeVisible();
-  // Address the edit control by the label it carries, not by searching inside one chip element:
-  // the same link shows in more than one anchor slot on the page it was jumped to.
-  await second
-    .getByRole("button", { name: `${C.editAction} ${linkTitle}` })
-    .first()
-    .click();
+  // Press the chip's own edit control by its test id. The control carries the link title as its
+  // label, and that label is asserted here so the accessible name stays covered, but a role query
+  // for it does not resolve inside the table's clipped scroller.
+  const chipEdit = chip.locator('[data-testid^="cross-link-edit-"]').first();
+  await expect(chipEdit).toHaveAttribute("aria-label", `${C.editAction} ${linkTitle}`);
+  await chipEdit.click();
   const editLinkDialog = second.getByRole("dialog", { name: C.dialogEditLinkTitle });
   await editLinkDialog.getByLabel(C.dialogLinkTitleLabel).fill(updatedTitle);
   await editLinkDialog.getByRole("button", { name: messages.actions.save }).click();
@@ -170,10 +170,9 @@ test("creates a 1-to-1 cross-link across windows via Pending Portal Dock, jumps,
     .filter({ hasText: updatedTitle })
     .first();
   await expect(updatedChip).toBeVisible();
-  await second
-    .getByRole("button", { name: `${C.editAction} ${updatedTitle}` })
-    .first()
-    .click();
+  const updatedChipEdit = updatedChip.locator('[data-testid^="cross-link-edit-"]').first();
+  await expect(updatedChipEdit).toHaveAttribute("aria-label", `${C.editAction} ${updatedTitle}`);
+  await updatedChipEdit.click();
   const delBtn = second
     .getByRole("dialog", { name: C.dialogEditLinkTitle })
     .getByRole("button", { name: C.deleteAction });

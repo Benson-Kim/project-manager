@@ -145,6 +145,7 @@ export function AnchorSlot({
             <button
               type="button"
               onClick={() => ctx.openEditCrossLink(link)}
+              data-testid={`cross-link-edit-${link.crossLinkId}`}
               aria-label={`${messages.crossLinks.editAction} ${link.linkTitle}`}
               className="shrink-0 rounded-full px-1 text-[10px] hover:bg-(--tone-yellow-ink)/10"
             >
