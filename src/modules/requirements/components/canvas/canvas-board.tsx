@@ -324,13 +324,15 @@ function Board(props: BoardProps) {
   );
   const linkLayout = useLinkLayout(edges);
   const unsaved = useRef(new Map<string, { id: string } & Point>());
-  const echoes = useRef(new Map<string, Point>());
+  // The board's own scratch record, not rendered: a Map held in state so that writing it while
+  // deriving `nodes` from `wanted` is not a ref access during render.
+  const [echoes] = useState(() => new Map<string, Point>());
   const [nodes, setNodes] = useState(wanted);
   const [seen, setSeen] = useState(wanted);
   const [moved, setMoved] = useState<ReadonlySet<string>>(new Set());
   /** Keeps the places the board set itself, so the flow reporting them back is not a new move. */
   const place = (merged: ItemNode[], from: readonly ItemNode[]) => {
-    for (const [id, at] of echoedPlaces(from, merged)) echoes.current.set(id, at);
+    for (const [id, at] of echoedPlaces(from, merged)) echoes.set(id, at);
     setNodes(merged);
   };
   if (seen !== wanted) {
@@ -415,7 +417,7 @@ function Board(props: BoardProps) {
 
     for (const change of changes) {
       if (change.type !== "position" || change.dragging !== false || !change.position) continue;
-      if (takeEcho(echoes.current, change.id, change.position)) continue;
+      if (takeEcho(echoes, change.id, change.position)) continue;
       unsaved.current.set(change.id, { id: change.id, ...change.position });
       setMoved((ids) => new Set(ids).add(change.id));
       clearTimeout(timer.current);
