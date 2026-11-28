@@ -325,8 +325,9 @@ function Board(props: BoardProps) {
   const linkLayout = useLinkLayout(edges);
   const unsaved = useRef(new Map<string, { id: string } & Point>());
   // The board's own scratch record, not rendered: a Map held in state so that writing it while
-  // deriving `nodes` from `wanted` is not a ref access during render.
-  const [echoes] = useState(() => new Map<string, Point>());
+  // deriving `nodes` from `wanted` is not a ref access during render. The first cards are placed
+  // by the board too, so the flow reporting those places back is no more a move than a merge is.
+  const [echoes] = useState(() => echoedPlaces([], wanted));
   const [nodes, setNodes] = useState(wanted);
   const [seen, setSeen] = useState(wanted);
   const [moved, setMoved] = useState<ReadonlySet<string>>(new Set());
