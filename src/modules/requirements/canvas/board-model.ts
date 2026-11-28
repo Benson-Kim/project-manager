@@ -4,7 +4,7 @@ import type { CanvasItem, CanvasLink } from "../schemas/canvas";
 import { allowsLink, type LinkRule } from "../schemas/link-rules";
 import { layoutClusters } from "./cluster-layout";
 import { itemKey } from "./gaps";
-import { NODE_HEIGHT, NODE_WIDTH } from "./layout";
+import { NODE_HEIGHT, NODE_WIDTH, type Point } from "./layout";
 import { defaultsFor, isPlainLook, lookOf, type LinkBranch } from "./link-layout";
 import { canvasClusters, focusTrace, foldLinks, type Trace } from "./scale";
 
@@ -380,6 +380,36 @@ export function mergeFlowNodes(
     const position = old.dragging || unsaved.has(node.id) ? old.position : node.position;
     return { ...node, position, measured: old.measured, dragging: old.dragging };
   });
+}
+
+const ECHO_SLACK = 1;
+
+const samePlace = (a: Point, b: Point) =>
+  Math.abs(a.x - b.x) < ECHO_SLACK && Math.abs(a.y - b.y) < ECHO_SLACK;
+
+/**
+ * The places a merge gave cards the board itself moved. The flow reports each of those back as a
+ * position change, which must not be collected as a move the user made.
+ */
+export function echoedPlaces(
+  before: readonly ItemNode[],
+  after: readonly ItemNode[],
+): Map<string, Point> {
+  const was = new Map(before.map((node) => [node.id, node.position]));
+  const echoes = new Map<string, Point>();
+  for (const node of after) {
+    const at = was.get(node.id);
+    if (!at || !samePlace(at, node.position)) echoes.set(node.id, { ...node.position });
+  }
+  return echoes;
+}
+
+/** Whether a position change only reports back a place the board set; takes that echo as read. */
+export function takeEcho(echoes: Map<string, Point>, id: string, at: Point): boolean {
+  const echo = echoes.get(id);
+  if (!echo || !samePlace(echo, at)) return false;
+  echoes.delete(id);
+  return true;
 }
 
 /**

@@ -31,7 +31,9 @@ import {
   focusVisibleKeys,
   layoutMoves,
   linkEnds,
+  echoedPlaces,
   mergeFlowNodes,
+  takeEcho,
   newlyPlacedKeys,
   onCanvasKeySet,
   unlinkableKeys,
@@ -322,12 +324,18 @@ function Board(props: BoardProps) {
   );
   const linkLayout = useLinkLayout(edges);
   const unsaved = useRef(new Map<string, { id: string } & Point>());
+  const echoes = useRef(new Map<string, Point>());
   const [nodes, setNodes] = useState(wanted);
   const [seen, setSeen] = useState(wanted);
   const [moved, setMoved] = useState<ReadonlySet<string>>(new Set());
+  /** Keeps the places the board set itself, so the flow reporting them back is not a new move. */
+  const place = (merged: ItemNode[], from: readonly ItemNode[]) => {
+    for (const [id, at] of echoedPlaces(from, merged)) echoes.current.set(id, at);
+    setNodes(merged);
+  };
   if (seen !== wanted) {
     setSeen(wanted);
-    setNodes(mergeFlowNodes(wanted, nodes, moved));
+    place(mergeFlowNodes(wanted, nodes, moved), nodes);
   }
   const clusters = useMemo(() => canvasClusters(items, links), [items, links]);
   const labels = useMemo(() => clusterLabels(items, nodes, clusters), [items, nodes, clusters]);
@@ -355,7 +363,7 @@ function Board(props: BoardProps) {
   };
   /** A drop not saved yet is the newest change, so Undo puts that card back before anything else. */
   const undo = () => {
-    if (dropUnsaved()) setNodes(mergeFlowNodes(wanted, nodes));
+    if (dropUnsaved()) place(mergeFlowNodes(wanted, nodes), nodes);
     else props.onUndo();
   };
   /** A drop not saved yet is a new change, which leaves Redo nothing to make again. */
@@ -407,6 +415,7 @@ function Board(props: BoardProps) {
 
     for (const change of changes) {
       if (change.type !== "position" || change.dragging !== false || !change.position) continue;
+      if (takeEcho(echoes.current, change.id, change.position)) continue;
       unsaved.current.set(change.id, { id: change.id, ...change.position });
       setMoved((ids) => new Set(ids).add(change.id));
       clearTimeout(timer.current);

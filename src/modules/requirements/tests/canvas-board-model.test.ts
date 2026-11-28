@@ -6,6 +6,7 @@ import {
   CLUSTER_LABEL_RISE,
   clusterLabels,
   collapsibleKeys,
+  echoedPlaces,
   focusView,
   focusVisibleKeys,
   itemConnection,
@@ -16,6 +17,7 @@ import {
   onCanvasKeySet,
   rollbackPlacements,
   savedMoves,
+  takeEcho,
   settlePlacements,
   unlinkableKeys,
   withHidden,
@@ -166,6 +168,35 @@ describe("canvas board model", () => {
       [flow({ position: { x: 40, y: 50 }, measured })],
     );
     expect(settled?.position).toEqual({ x: 1, y: 2 });
+  });
+
+  it("takes back only the places the board set itself, once each", () => {
+    const flow = (id: string, position: { x: number; y: number }): ItemNode => ({
+      id,
+      type: "item",
+      position,
+      data: { item: item({ ItemId: Number(id.split(":")[1]) }) },
+    });
+    const before = [flow("Requirement:1", { x: 10, y: 20 }), flow("Requirement:2", { x: 0, y: 0 })];
+    const after = [flow("Requirement:1", { x: 90, y: 20 }), flow("Requirement:2", { x: 0, y: 0 })];
+    const echoes = echoedPlaces(before, after);
+
+    expect([...echoes.keys()]).toEqual(["Requirement:1"]);
+    expect(takeEcho(echoes, "Requirement:2", { x: 0, y: 0 })).toBe(false);
+    expect(takeEcho(echoes, "Requirement:1", { x: 10, y: 20 })).toBe(false);
+    expect(takeEcho(echoes, "Requirement:1", { x: 90.4, y: 20 })).toBe(true);
+    expect(takeEcho(echoes, "Requirement:1", { x: 90, y: 20 })).toBe(false);
+    expect(echoes.size).toBe(0);
+  });
+
+  it("counts a card the board has just added as placed by the board", () => {
+    const flow = (id: string): ItemNode => ({
+      id,
+      type: "item",
+      position: { x: 5, y: 6 },
+      data: { item: item({ ItemId: 1 }) },
+    });
+    expect([...echoedPlaces([], [flow("Requirement:1")]).keys()]).toEqual(["Requirement:1"]);
   });
 
   it("keeps a dropped card where it was put until its move is saved", () => {
