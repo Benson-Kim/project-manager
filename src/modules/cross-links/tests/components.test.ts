@@ -293,6 +293,45 @@ describe("cross-links client storage, DOM capture, and sticky/portal UI", () => 
     expect(sameHint.pendingLabel.length).toBe(40);
   });
 
+  it("matches a checklist row sticky stored as a subentity of the checklist", () => {
+    // `checklists` has rowsAreSubEntities, so capture stores the checklist in EntityId and the
+    // row in SubEntityId. A slot given the row id must ask for that same identity, or the
+    // sticky never matches and PageStickiesStrip hides it as already mounted.
+    const rowNote: PageNoteItem = {
+      ...SAMPLE_NOTE,
+      moduleKey: "checklists",
+      entityId: 7,
+      subEntityId: 12,
+      anchorKind: "subrecord",
+    };
+    const ctx = makeCtx({
+      location: {
+        moduleKey: "checklists",
+        projectId: 2,
+        entityId: 7,
+        subEntityId: null,
+        anchorKind: "page",
+        anchorKey: null,
+      },
+      notes: [rowNote],
+    });
+
+    const html = renderToStaticMarkup(
+      React.createElement(
+        CrossLinkMenuContext.Provider,
+        { value: ctx },
+        React.createElement(AnchorSlot, {
+          anchorKind: "record",
+          anchorKey: "row:12",
+          entityId: 12,
+        }),
+      ),
+    );
+
+    expect(html).toContain(`page-note-chip-${rowNote.pageNoteId}`);
+    expect(html).not.toContain('class="hidden"');
+  });
+
   it("renders inline AnchorSlot badges with allowlisted hrefs and promotes off-page items to PageStickiesStrip", () => {
     const emptySlot = renderToStaticMarkup(
       React.createElement(

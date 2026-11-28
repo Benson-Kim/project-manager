@@ -493,6 +493,25 @@ export function isSameEndpoint(a: LocationAnchor, b: LocationAnchor): boolean {
   );
 }
 
+/**
+ * Where a module keeps its rows as subentities (checklists), a row anchor captured as a
+ * "record" is stored under the page's entity with the row in SubEntityId. Anything matching
+ * a mounted slot has to ask for the same identity, or it finds nothing and the sticky is
+ * lost. Leaves `rowsAreSubEntities` the single source for that rule.
+ */
+export function rowAnchorIdentity(
+  moduleKey: CrossLinkModuleKey,
+  anchorKind: CrossLinkAnchorKind,
+  rowId: number | null,
+  pageEntityId: number | null,
+  subEntityId: number | null,
+): { entityId: number | null; subEntityId: number | null } {
+  if (CROSS_LINK_MODULE_RULES[moduleKey].rowsAreSubEntities && anchorKind === "record" && rowId) {
+    return { entityId: pageEntityId, subEntityId: rowId };
+  }
+  return { entityId: rowId, subEntityId };
+}
+
 export function isWorkspaceScopedModule(moduleKey: CrossLinkModuleKey): boolean {
   return Boolean(CROSS_LINK_MODULE_RULES[moduleKey].workspaceScoped);
 }

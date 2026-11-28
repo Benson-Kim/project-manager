@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { messages } from "@/lib/messages";
 import type { CrossLinkEndpointDto } from "../schemas/cross-link";
-import type { CrossLinkAnchorKind } from "../schemas/location";
+import { rowAnchorIdentity, type CrossLinkAnchorKind } from "../schemas/location";
 import { STICKY_COLOR_STYLES } from "./color-tokens";
 import { useCrossLinkMenu } from "./context-menu-bridge";
 
@@ -77,6 +77,7 @@ export interface AnchorSlotProps {
  * or collapsed anchors automatically instead of hiding them.
  */
 export function AnchorSlot({
+  anchorKind = "record",
   anchorKey,
   entityId = null,
   subEntityId = null,
@@ -86,17 +87,29 @@ export function AnchorSlot({
 
   if (!ctx) return null;
 
+  // A row anchor is stored the way capture stored it: on a rows-are-subentities module that
+  // is the page's entity plus the row in SubEntityId, not the row as the entity.
+  const wanted = ctx.location
+    ? rowAnchorIdentity(
+        ctx.location.moduleKey,
+        anchorKind,
+        entityId,
+        ctx.location.entityId,
+        subEntityId,
+      )
+    : { entityId, subEntityId };
+
   const matchingLinks = ctx.links.filter((link) => {
     if (link.here.anchorKey !== anchorKey) return false;
-    if (entityId !== null && link.here.entityId !== entityId) return false;
-    if (subEntityId !== null && link.here.subEntityId !== subEntityId) return false;
+    if (wanted.entityId !== null && link.here.entityId !== wanted.entityId) return false;
+    if (wanted.subEntityId !== null && link.here.subEntityId !== wanted.subEntityId) return false;
     return true;
   });
 
   const matchingNotes = ctx.notes.filter((note) => {
     if (note.anchorKey !== anchorKey) return false;
-    if (entityId !== null && note.entityId !== entityId) return false;
-    if (subEntityId !== null && note.subEntityId !== subEntityId) return false;
+    if (wanted.entityId !== null && note.entityId !== wanted.entityId) return false;
+    if (wanted.subEntityId !== null && note.subEntityId !== wanted.subEntityId) return false;
     return true;
   });
 
