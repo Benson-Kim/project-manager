@@ -82,11 +82,16 @@ async function canvasWithAll(page: Page, projectId: string, count: number): Prom
   }
 }
 
-/** Server actions are POSTs carrying a Next-Action header; node moves are the only ones while idle. */
+/**
+ * Counts the canvas writes, which are POSTs carrying a Next-Action header whose arguments name the
+ * canvas. The page has bookkeeping actions of its own, such as the one recording the module just
+ * opened, and counting those made a save look like it had already happened.
+ */
 function countActions(page: Page): () => number {
   let count = 0;
   page.on("request", (request) => {
-    if (request.method() === "POST" && request.headers()["next-action"]) count += 1;
+    if (request.method() !== "POST" || !request.headers()["next-action"]) return;
+    if ((request.postData() ?? "").includes('"canvasId"')) count += 1;
   });
   return () => count;
 }
