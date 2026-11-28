@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Request } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 import { escapeRegExp, waitForHydrated } from "./support/datasheet";
 import { expectFocusOnInvalid } from "./support/form";
@@ -304,25 +304,39 @@ test("table layout: a column edge resizes by keyboard and persists; Reset restor
   // page makes as it loads — on a cold server one of the two has taken longer than a default test
   // allows for.
   test.setTimeout(90_000);
+  // Each arrow step saves the layout, one save at a time, and the reload must wait for both to be
+  // answered: a reload over a save in flight leaves the column at its unsaved width. A save is a
+  // server action post, which says so in a header of its own; the body that carries the layout is
+  // not always there to read, and counting by the body left this test waiting out its budget on
+  // two saves that had already been answered. The page posts as it loads too, for its own
+  // bookkeeping, so count from before the page opens, let those settle, and then wait for both
+  // steps to be answered with nothing left in flight.
+  const isAction = (request: Request) =>
+    request.method() === "POST" && Boolean(request.headers()["next-action"]);
+  let started = 0;
+  let finished = 0;
+  page.on("request", (request) => {
+    if (isAction(request)) started += 1;
+  });
+  page.on("requestfinished", (request) => {
+    if (isAction(request)) finished += 1;
+  });
   await page.goto("/projects/2/objectives?view=list");
   const table = page.getByTestId("data-view-table");
   await expect(table).toBeVisible();
   const handle = table.locator("thead th[data-column]").first().getByRole("separator");
-  // Each arrow step saves the layout, one save at a time, and the reload must wait for both to be
-  // answered: a reload over a save in flight leaves the column at its unsaved width. The page
-  // posts as it loads too, for its own bookkeeping, so count by what a POST carries — only the
-  // layout save names the layout — and only once its response is in.
-  let saves = 0;
-  page.on("requestfinished", (request) => {
-    if (request.method() !== "POST") return;
-    if ((request.postData() ?? "").includes('"layout"')) saves += 1;
-  });
+  await expect.poll(() => started === finished, { timeout: 30_000 }).toBe(true);
+  const answered = finished;
   await handle.focus();
+  const narrow = Number(await handle.getAttribute("aria-valuenow"));
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowRight");
   await expect(handle).toHaveAttribute("aria-valuenow", /\d+/);
   const width = await handle.getAttribute("aria-valuenow");
-  await expect.poll(() => saves, { timeout: 45_000 }).toBeGreaterThanOrEqual(2);
+  expect(Number(width)).toBeGreaterThan(narrow);
+  await expect
+    .poll(() => finished >= answered + 2 && started === finished, { timeout: 45_000 })
+    .toBe(true);
 
   await page.reload();
   await expect(
