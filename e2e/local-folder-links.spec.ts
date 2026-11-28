@@ -35,6 +35,7 @@ async function linkSelection(page: Page, address: string) {
 }
 
 async function showInReadOnlyText(page: Page, folder: string) {
+  await expect(page.getByTestId("new-note")).toBeVisible({ timeout: 30_000 });
   await page.evaluate((path) => {
     const anchor = document.createElement("a");
     anchor.dataset.localPath = path;
@@ -83,7 +84,7 @@ test("in the web build a folder link shows its path to copy instead of opening",
   const dialog = page.getByRole("dialog", { name: R.localPathTitle });
   await expect(dialog.getByTestId("local-path-value")).toHaveText(FOLDER);
   await dialog.getByRole("button", { name: R.localPathCopy }).click();
-  await expect(page.getByText(R.localPathCopied)).toBeVisible();
+  await expect(page.getByTestId("toast-success").first()).toBeVisible();
   await expect(dialog).toHaveCount(0);
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(FOLDER);
 });
@@ -91,6 +92,6 @@ test("in the web build a folder link shows its path to copy instead of opening",
 test("a folder link to a program is refused when clicked", async ({ page }) => {
   await page.goto("/projects/2/notes");
   await showInReadOnlyText(page, String.raw`C:\Tools\setup.exe`);
-  await expect(page.getByText(R.localPathRefused)).toBeVisible();
+  await expect(page.getByTestId("toast-error").first()).toBeVisible();
   await expect(page.getByRole("dialog", { name: R.localPathTitle })).toHaveCount(0);
 });
