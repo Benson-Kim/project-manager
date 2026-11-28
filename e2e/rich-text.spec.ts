@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { messages } from "../src/lib/messages";
 import { caretAt } from "./support/editor";
 
 /**
@@ -344,7 +345,7 @@ test.describe("rich-text editor (ADR-0025)", () => {
     await clear(page);
     await page.keyboard.press("Control+K");
     const dialog = page.getByRole("dialog", { name: "Link" });
-    const address = dialog.getByLabel("Web or e-mail address");
+    const address = dialog.getByLabel(messages.richText.linkAddress);
     await address.fill("javascript:alert(1)");
     await address.press("Enter");
     await expect(dialog.getByText("Enter a web or e-mail address")).toBeVisible();

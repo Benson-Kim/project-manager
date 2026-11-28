@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 import { closeAlarmToast } from "./support/alarms";
-import { expectListed } from "./support/datasheet";
+import { expectListed, openListed } from "./support/datasheet";
 import { expectFocusOnInvalid } from "./support/form";
 
 /**
@@ -131,7 +131,7 @@ test("pasting a PNG into an existing daily activity uploads it and keeps it on r
   ).toBeVisible({ timeout: 15_000 });
 
   await page.goto(`/projects/2/daily-activities?q=${encodeURIComponent(task)}`);
-  await page.getByRole("row").filter({ hasText: task }).first().click();
+  await openListed(page, task);
   await expect(form).toBeVisible();
   const ed = form.locator('[contenteditable="true"]').first();
   await expect(ed).toBeVisible({ timeout: 15_000 });
@@ -163,7 +163,7 @@ test("pasting a PNG into an existing daily activity uploads it and keeps it on r
   ).toBeVisible({ timeout: 15_000 });
 
   await page.goto(`/projects/2/daily-activities?q=${encodeURIComponent(task)}`);
-  await page.getByRole("row").filter({ hasText: task }).first().click();
+  await openListed(page, task);
   await expect(form).toBeVisible();
   const reloadedImg = form
     .locator('[contenteditable="true"]')
@@ -235,7 +235,7 @@ test("a pasted comment picture stays out of Attachments and is removed once the 
 
   const open = async () => {
     await page.goto(`/projects/2/daily-activities?q=${encodeURIComponent(task)}`);
-    await page.getByRole("row").filter({ hasText: task }).first().click();
+    await openListed(page, task);
     await expect(form).toBeVisible();
   };
   const save = async () => {

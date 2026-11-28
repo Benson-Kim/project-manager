@@ -81,7 +81,10 @@ test("creates, edits, and removes a private page note via web right-click and hi
   await expect(confirm).toBeVisible();
   await confirm.getByRole("button", { name: C.deleteAction }).click();
   await expect(confirm).toBeHidden();
-  await expect(page.getByTestId("page-stickies-strip")).not.toContainText(updatedBody);
+  // The strip is not rendered at all once its last note goes, so assert on the card itself.
+  await expect(
+    page.locator('[data-testid^="strip-page-note-"]').filter({ hasText: updatedBody }),
+  ).toHaveCount(0);
 });
 
 test("creates a 1-to-1 cross-link across windows via Pending Portal Dock, jumps, returns, and deletes", async ({

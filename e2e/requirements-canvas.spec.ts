@@ -322,11 +322,23 @@ async function cardBox(node: Locator) {
   });
 }
 
-async function dragBy(page: Page, node: Locator, dx: number, dy: number) {
+/**
+ * Takes hold of a card where a person would: its middle. `hover` checks the point is really
+ * the card's — the board's toolbar sits over the top edge of a card laid out near it, and a
+ * raw mouse press there would land on the toolbar and move nothing, with nothing to show why.
+ */
+async function grab(page: Page, node: Locator): Promise<{ x: number; y: number }> {
+  await node.hover();
   const box = (await node.boundingBox())!;
-  await page.mouse.move(box.x + box.width / 2, box.y + 12);
+  const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await page.mouse.move(at.x, at.y);
   await page.mouse.down();
-  await page.mouse.move(box.x + box.width / 2 + dx, box.y + 12 + dy, { steps: 12 });
+  return at;
+}
+
+async function dragBy(page: Page, node: Locator, dx: number, dy: number) {
+  const at = await grab(page, node);
+  await page.mouse.move(at.x + dx, at.y + dy, { steps: 12 });
   await page.mouse.up();
 }
 
@@ -1051,12 +1063,12 @@ test("placing an unlinked requirement during focus keeps it visible and survives
   const canvasPath = `/projects/${projectId}/deliverables/canvas`;
   await page.goto(canvasPath);
   await createCanvas(page, canvasPath);
-  for (let placed = 1; placed <= 2; placed += 1) {
-    await page
-      .getByRole("button", { name: /^Add .+ to the canvas$/ })
-      .first()
-      .click();
-    await expect(page.getByTestId("canvas-on-count")).toHaveText(M.onCanvasCount(placed));
+  // By reference, not by position: the panel lists the two BRs before the SR, so taking the
+  // first button twice would place `unlinked` and leave `second` off the canvas.
+  const refs = ["BR1", "SR1"];
+  for (const [index, ref] of refs.entries()) {
+    await page.getByRole("button", { name: M.reveal(ref) }).click();
+    await expect(page.getByTestId("canvas-on-count")).toHaveText(M.onCanvasCount(index + 1));
   }
   await linkDown(page, first, second, 1);
 
@@ -1066,10 +1078,7 @@ test("placing an unlinked requirement during focus keeps it visible and survives
   await expect(page.getByTestId("canvas-focus")).toBeAttached();
 
   const actions = countActions(page);
-  await page
-    .getByRole("button", { name: /^Add .+ to the canvas$/ })
-    .first()
-    .click();
+  await page.getByRole("button", { name: M.reveal("BR2") }).click();
   await expect(page.getByTestId("canvas-on-count")).toHaveText(M.onCanvasCount(3));
   await expect(nodes.filter({ hasText: unlinked })).toBeVisible();
   await expect(page.getByTestId("canvas-focus")).toBeAttached();
@@ -1123,11 +1132,11 @@ test("Separate overlaps nudges only overlapping cards apart, preserves untouched
 
   const nodeOne = nodes.filter({ hasText: one });
   const nodeTwo = nodes.filter({ hasText: two });
-  const boxOne = (await nodeOne.boundingBox())!;
+  await grab(page, nodeOne);
   const boxTwo = (await nodeTwo.boundingBox())!;
-  await page.mouse.move(boxOne.x + boxOne.width / 2, boxOne.y + 12);
-  await page.mouse.down();
-  await page.mouse.move(boxTwo.x + boxTwo.width / 2 + 12, boxTwo.y + 12, { steps: 12 });
+  await page.mouse.move(boxTwo.x + boxTwo.width / 2 + 12, boxTwo.y + boxTwo.height / 2, {
+    steps: 12,
+  });
   await page.mouse.up();
   await expect.poll(actions, { timeout: 5_000 }).toBe(2);
   await expect.poll(overlapping).toBeGreaterThan(0);
