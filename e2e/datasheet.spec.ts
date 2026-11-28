@@ -304,13 +304,17 @@ test("table layout: a column edge resizes by keyboard and persists; Reset restor
   const table = page.getByTestId("data-view-table");
   await expect(table).toBeVisible();
   const handle = table.locator("thead th[data-column]").first().getByRole("separator");
-  // Each arrow step saves the layout (a server action: the only POSTs this page sends here);
-  // reload only after both have been answered.
+  // Each arrow step saves the layout, one save at a time, and the reload must wait for both to be
+  // answered: a reload over a save in flight leaves the column at its unsaved width. Count only
+  // the saves the keys set off, and only once the body is in -- the page itself posts as it
+  // loads, and a bare count of responses takes that for a save that has landed.
   let saves = 0;
-  page.on("response", (response) => {
-    if (response.request().method() === "POST") saves += 1;
+  let resizing = false;
+  page.on("requestfinished", (request) => {
+    if (resizing && request.method() === "POST") saves += 1;
   });
   await handle.focus();
+  resizing = true;
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowRight");
   await expect(handle).toHaveAttribute("aria-valuenow", /\d+/);
