@@ -150,7 +150,12 @@ test("creates a 1-to-1 cross-link across windows via Pending Portal Dock, jumps,
     .filter({ hasText: linkTitle })
     .first();
   await expect(chip).toBeVisible();
-  await chip.getByRole("button", { name: new RegExp(C.editAction) }).click();
+  // Address the edit control by the label it carries, not by searching inside one chip element:
+  // the same link shows in more than one anchor slot on the page it was jumped to.
+  await second
+    .getByRole("button", { name: `${C.editAction} ${linkTitle}` })
+    .first()
+    .click();
   const editLinkDialog = second.getByRole("dialog", { name: C.dialogEditLinkTitle });
   await editLinkDialog.getByLabel(C.dialogLinkTitleLabel).fill(updatedTitle);
   await editLinkDialog.getByRole("button", { name: messages.actions.save }).click();
@@ -160,7 +165,11 @@ test("creates a 1-to-1 cross-link across windows via Pending Portal Dock, jumps,
     .locator('[data-testid^="cross-link-chip-"]')
     .filter({ hasText: updatedTitle })
     .first();
-  await updatedChip.getByRole("button", { name: new RegExp(C.editAction) }).click();
+  await expect(updatedChip).toBeVisible();
+  await second
+    .getByRole("button", { name: `${C.editAction} ${updatedTitle}` })
+    .first()
+    .click();
   const delBtn = second
     .getByRole("dialog", { name: C.dialogEditLinkTitle })
     .getByRole("button", { name: C.deleteAction });
