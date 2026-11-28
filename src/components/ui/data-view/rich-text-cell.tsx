@@ -130,6 +130,8 @@ export function RichTextCell({
   );
 
   const preview = previewText(value);
+  const hasImage = /<img\b/i.test(value);
+  const description = preview || (hasImage ? messages.richText.imageIndicator : "");
   const editorLabel = messages.datasheet.editCell(header);
 
   return (
@@ -138,7 +140,7 @@ export function RichTextCell({
         ref={buttonRef}
         type="button"
         aria-label={label}
-        aria-describedby={preview ? descriptionId : undefined}
+        aria-describedby={description ? descriptionId : undefined}
         aria-haspopup="dialog"
         aria-expanded={mode !== "closed"}
         data-invalid={invalid || undefined}
@@ -164,14 +166,18 @@ export function RichTextCell({
           <span inert aria-hidden="true" className={RICH_TEXT_CLIP}>
             {display}
           </span>
+        ) : hasImage ? (
+          <span aria-hidden="true" className="text-ink-muted">
+            {messages.richText.imageIndicator}
+          </span>
         ) : placeholder ? (
           <span aria-hidden="true" className="text-ink-muted print:hidden">
             {placeholder}
           </span>
         ) : null}
-        {preview ? (
+        {description ? (
           <span id={descriptionId} hidden>
-            {preview.slice(0, 300)}
+            {description.slice(0, 300)}
           </span>
         ) : null}
       </button>

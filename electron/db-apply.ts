@@ -88,15 +88,30 @@ export async function applyDatabaseSchema(opts: ApplyOptions): Promise<ApplyResu
     const procsKey = `procs@${await hashFiles(procFiles, opts.dbDir)}`;
     if (procFiles.length > 0 && !applied.has(procsKey)) {
       log.info(`[db-apply] applying ${procFiles.length} stored procedure file(s) (${procsKey})`);
-      for (const file of procFiles) {
+      const applyProcFile = async (file: string): Promise<unknown> => {
         const content = await readScript(file, target.database);
         for (const batch of splitBatches(content)) {
           try {
             await pool.request().batch(batch);
           } catch (err) {
-            throw annotate(err, `procs/${path.relative(path.join(opts.dbDir, "procs"), file)}`);
+            return annotate(err, `procs/${path.relative(path.join(opts.dbDir, "procs"), file)}`);
           }
         }
+        return null;
+      };
+      // A function that reads one from a later folder cannot be created on the first pass
+      // (cross-link/ reads todo-item/), so the pass repeats while it keeps making progress.
+      // CREATE OR ALTER is idempotent; a pass that creates nothing new is a real failure.
+      let pending = procFiles;
+      for (;;) {
+        const failures: Array<{ file: string; error: unknown }> = [];
+        for (const file of pending) {
+          const error = await applyProcFile(file);
+          if (error) failures.push({ file, error });
+        }
+        if (failures.length === 0) break;
+        if (failures.length === pending.length) throw failures[0].error;
+        pending = failures.map((f) => f.file);
       }
       await recordId(pool, procsKey);
       result.procsApplied = true;

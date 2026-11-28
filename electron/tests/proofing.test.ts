@@ -187,6 +187,62 @@ describe("contextMenuTemplate", () => {
     (item.click as () => void)();
     expect(actions.setChecking).toHaveBeenCalledWith(false);
   });
+
+  it("adds cross-link and page-note items only on non-editable app pages and escapes & labels", () => {
+    const pageActions = {
+      ...actions,
+      addPageNote: vi.fn(),
+      addCrossLink: vi.fn(),
+      completeCrossLink: vi.fn(),
+    };
+    const items = contextMenuTemplate(
+      {
+        ...base,
+        isEditable: false,
+        appPage: true,
+        pageExtras: {
+          canAddNote: true,
+          canAddLink: true,
+          canCompleteLink: true,
+          pendingLabel: "Budget & risk",
+        },
+      },
+      pageActions,
+    );
+    const labelList = items.map((i) => i.label ?? i.type);
+    expect(labelList).toContain("Add cross-link here…");
+    expect(labelList).toContain("Complete cross-link with “Budget && risk”");
+    expect(labelList).toContain("Add page note…");
+    expect(labelList).toContain("Print…");
+    expect(labelList).toContain("Save page as PDF…");
+
+    const linkItem = items.find((i) => i.label === "Add cross-link here…");
+    const completeItem = items.find((i) => i.label?.startsWith("Complete cross-link"));
+    const noteItem = items.find((i) => i.label === "Add page note…");
+    (linkItem?.click as () => void)();
+    (completeItem?.click as () => void)();
+    (noteItem?.click as () => void)();
+    expect(pageActions.addCrossLink).toHaveBeenCalledTimes(1);
+    expect(pageActions.completeCrossLink).toHaveBeenCalledTimes(1);
+    expect(pageActions.addPageNote).toHaveBeenCalledTimes(1);
+
+    const editableLabels = contextMenuTemplate(
+      {
+        ...base,
+        isEditable: true,
+        appPage: true,
+        pageExtras: {
+          canAddNote: true,
+          canAddLink: true,
+          canCompleteLink: true,
+          pendingLabel: "Hidden",
+        },
+      },
+      pageActions,
+    ).map((i) => i.label);
+    expect(editableLabels).not.toContain("Add page note…");
+    expect(editableLabels).not.toContain("Add cross-link here…");
+  });
 });
 
 describe("GrammarChecker", () => {

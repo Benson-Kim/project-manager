@@ -32,6 +32,7 @@ export const listResponsibilityMatricesAction = action({
   name: "responsibility.listMatrices",
   schema: projectInput,
   permission: READ,
+  licence: "read",
   revalidate: [],
   handler: (input, ctx) => listResponsibilityMatrices(input.projectId, ctx.session.userId),
 });
@@ -88,6 +89,7 @@ export const listResponsibilityCellsAction = action({
   name: "responsibility.listCells",
   schema: matrixInput,
   permission: READ,
+  licence: "read",
   revalidate: [],
   handler: (input, ctx) => listResponsibilityCells(input, ctx.session.userId),
 });

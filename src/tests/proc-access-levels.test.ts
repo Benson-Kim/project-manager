@@ -19,6 +19,7 @@ const MODULES: Record<string, string> = {
   "checklist-column": "checklists",
   "checklist-item": "checklists",
   "checklist-cell": "checklists",
+  "cross-link": "cross-links",
   "board-column": "boards",
   "board-card": "boards",
   "board-phase": "boards",
@@ -29,6 +30,7 @@ const MODULES: Record<string, string> = {
   "key-deliverable-dependency": "key-deliverables",
   keyword: "keywords",
   objective: "objectives",
+  "page-note": "page-notes",
   requirement: "requirements",
   "question-answer": "questions-answers",
   "risk-issue": "risks-issues",
@@ -47,8 +49,10 @@ const MODULES: Record<string, string> = {
   "financial-document": "financials",
   "financial-transaction": "financial-tax-invoices",
   "financial-tax-profile": "financial-tax-invoices",
+  "project-math": "financials",
   project: "projects",
   "project-assignee": "projects",
+  search: "projects",
   meeting: "meetings",
   "meeting-agenda-item": "meetings",
   "meeting-discussion-point": "meetings",
@@ -63,6 +67,7 @@ const MODULES: Record<string, string> = {
 const VERBS: Record<string, string> = {
   GetById: "read",
   List: "read",
+  ListForLocation: "read",
   ListCalendar: "read",
   // The planner's placed to-dos (migration 082).
   ListSchedule: "read",
@@ -88,6 +93,7 @@ const VERBS: Record<string, string> = {
   PackageDeliverables: "create",
   // Copying a template's documents into a financial adds rows (ADR-0030).
   CreateFromTemplate: "create",
+  ImportWbs: "create",
   BuildFromDailyActivity: "create",
   BuildFromBoardCard: "create",
   BuildFromChecklist: "create",
@@ -151,6 +157,10 @@ const EXEMPT: Record<string, string> = {
     "internal: runs inside the daily activity label and column write procs, after their access check",
   usp_TodoItemColumn_AssertName:
     "internal: runs inside the to-do label and column write procs, after their access check",
+  usp_KeywordColumn_AssertName:
+    "internal: runs inside the keyword label and column write procs, after their access check",
+  usp_SupplierColumn_AssertName:
+    "internal: runs inside the supplier label and column write procs, after their access check",
   usp_Checklist_AssertName:
     "internal: runs inside the checklist create and rename procs, after their access check",
   usp_BpmnDiagram_AssertName:
@@ -166,6 +176,10 @@ const EXEMPT: Record<string, string> = {
   usp_Project_Create: "any user may create a project; the creator becomes its Manager",
   usp_Project_List: "filters to Admin-or-assigned projects instead of asserting one",
   usp_Project_Search: "filters to Admin-or-assigned projects instead of asserting one",
+  usp_Search_Global:
+    "filters every branch to active projects the actor can read via ufn_AccessLevel_Resolve (plus shared projectless keywords) and p.IsDeleted = 0; enforced by search-sql-guardrails.test.ts",
+  usp_CrossLink_ListForLocation:
+    "filters every row across both live endpoints via ufn_CrossLink_ResolveEndpoint (including p.IsDeleted = 0) and silently omits unreadable pairs; enforced by cross-link-sql-guardrails.test.ts",
   usp_Todo_GetDueAlerts:
     "returns the actor's alerts and own to-dos, filtered by the to-do rule (ufn_TodoItem_AccessLevel)",
   usp_Todo_GetUpcomingAlerts: "returns only the actor's own to-dos (CreatedBy)",
@@ -273,6 +287,30 @@ const CROSS_SCOPE: Record<
     // Setting or clearing the assignee role changes the WBS item's assignees.
     { entity: "Project", level: "Manager", permission: "key-deliverables:update" },
   ],
+  usp_CrossLink_GetById: [
+    { entity: "CrossLink", level: "Viewer", permission: "cross-links:read" },
+    { entity: "CrossLink", level: "Viewer", permission: "cross-links:read" },
+  ],
+  usp_CrossLink_Create: [
+    { entity: "CrossLink", level: "Contributor", permission: "cross-links:create" },
+    { entity: "CrossLink", level: "Contributor", permission: "cross-links:create" },
+  ],
+  usp_CrossLink_Update: [
+    { entity: "CrossLink", level: "Contributor", permission: "cross-links:update" },
+    { entity: "CrossLink", level: "Contributor", permission: "cross-links:update" },
+  ],
+  usp_CrossLink_Delete: [
+    { entity: "CrossLink", level: "Viewer", permission: "cross-links:read" },
+    { entity: "CrossLink", level: "Viewer", permission: "cross-links:read" },
+  ],
+};
+
+/**
+ * Deletes that only the row's creator can make, so reading the live ends is enough and a row whose
+ * record is gone can still be removed. Each names the access helper it must call.
+ */
+const CREATOR_DELETE: Record<string, string> = {
+  usp_PageNote_Delete: "PageNote",
 };
 
 /** The procs whose second check is in another module (a card's source, a WBS item's assignees). */
@@ -352,6 +390,11 @@ const VERB_BY_PROC: Record<string, string> = {
   usp_RequirementColumn_SetKind: "update",
   usp_DailyActivityColumn_SetKind: "update",
   usp_TodoItemColumn_SetKind: "update",
+  usp_KeywordColumn_SetKind: "update",
+  usp_SupplierColumn_SetKind: "update",
+  // Project Math inputs (one row per project, under financials).
+  usp_ProjectMathState_Get: "read",
+  usp_ProjectMathState_Save: "update",
 };
 
 const verbOf = (name: string) => {
@@ -393,7 +436,7 @@ describe("stored procedure access levels match rbac.ts (ADR-0021)", () => {
 
   it.each(
     procs
-      .filter((p) => !(p.name in EXEMPT) && !(p.name in CROSS_SCOPE))
+      .filter((p) => !(p.name in EXEMPT) && !(p.name in CROSS_SCOPE) && !(p.name in CREATOR_DELETE))
       .map((p) => [p.name, p] as const),
   )("%s demands the level requiredLevel() gives the UI", (name, proc) => {
     const verb = verbOf(name);
@@ -412,7 +455,11 @@ const writeChecks = (proc: Proc) =>
 
 describe("write checks name their permission for per-person overrides (ADR-0024)", () => {
   const writes = procs.filter(
-    (p) => !(p.name in EXEMPT) && !(p.name in CROSS_SCOPE) && verbOf(p.name) !== "read",
+    (p) =>
+      !(p.name in EXEMPT) &&
+      !(p.name in CROSS_SCOPE) &&
+      !(p.name in CREATOR_DELETE) &&
+      verbOf(p.name) !== "read",
   );
 
   it.each(
@@ -466,6 +513,22 @@ describe("a cross-scope proc asks every scope it crosses (ADR-0038 decision 23)"
       else expect(scope, `${name}: ${want.permission}`).toBe(MODULES[proc!.folder]);
     });
   });
+
+  it.each(Object.entries(CREATOR_DELETE))(
+    "%s lets the creator delete their own at Viewer level, orphans included",
+    (name, entity) => {
+      const source = procs.find((p) => p.name === name)?.source ?? "";
+      const calls = [...source.matchAll(WHOLE_CALL)].map(([call]) => call);
+      expect(calls, name).toHaveLength(1);
+      for (const fragment of [
+        `dbo.usp_${entity}_AssertAccess`,
+        "@MinLevel = N'Viewer'",
+        "@CreatedBy = @CreatedBy",
+        "@AllowOrphan = 1",
+      ])
+        expect(calls[0], name).toContain(fragment);
+    },
+  );
 
   it("registers every proc whose checks disagree with each other", () => {
     // The generic rule reads one level per proc. Any proc that asks two different levels must be

@@ -300,31 +300,36 @@ test.describe.serial("daily activities in list view", () => {
 test("table layout: a column edge resizes by keyboard and persists; Reset restores the default", async ({
   page,
 }) => {
+  // A browser sends server actions one at a time, so each arrow step's save queues behind the
+  // posts this page makes as it loads — on a cold server that has taken longer than a default
+  // test allows for.
+  test.setTimeout(90_000);
   await page.goto("/projects/2/objectives?view=list");
   const table = page.getByTestId("data-view-table");
   await expect(table).toBeVisible();
   const handle = table.locator("thead th[data-column]").first().getByRole("separator");
-  // Each arrow step saves the layout (a server action: the only POSTs this page sends here);
-  // reload only after both have been answered.
-  let saves = 0;
-  page.on("response", (response) => {
-    if (response.request().method() === "POST") saves += 1;
-  });
   await handle.focus();
+  const narrow = Number(await handle.getAttribute("aria-valuenow"));
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowRight");
   await expect(handle).toHaveAttribute("aria-valuenow", /\d+/);
   const width = await handle.getAttribute("aria-valuenow");
-  await expect.poll(() => saves).toBeGreaterThanOrEqual(2);
-
-  await page.reload();
-  await expect(
-    page
-      .getByTestId("data-view-table")
-      .locator("thead th[data-column]")
-      .first()
-      .getByRole("separator"),
-  ).toHaveAttribute("aria-valuenow", width!);
+  expect(Number(width)).toBeGreaterThan(narrow);
+  // Each step saves the layout, and a reload over a save still in flight would read the width
+  // back before it was stored. Rather than counting the saves — a server action post carries
+  // neither a readable body nor a header this test can depend on once a service worker is in
+  // the way — reload until the stored width is the one on screen. That asserts what the test is
+  // actually for: the width the keyboard set is the width the server kept.
+  await expect(async () => {
+    await page.reload();
+    await expect(
+      page
+        .getByTestId("data-view-table")
+        .locator("thead th[data-column]")
+        .first()
+        .getByRole("separator"),
+    ).toHaveAttribute("aria-valuenow", width!);
+  }).toPass({ timeout: 45_000 });
 
   await page.getByTestId("table-layout").click();
   const dialog = page.getByRole("dialog", { name: messages.datasheet.tableLayout });

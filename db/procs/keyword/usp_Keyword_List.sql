@@ -8,6 +8,8 @@
 -- Entity app.Keyword (source: tblKeywords). Module: database-schema-and-procs (#3).
 -- ActorGrants / ActorRevokes (ADR-0024): the actor's per-person overrides of 'keywords' in the
 --   row's project (dbo.ufn_Permission_Overrides), so the datasheet gates cells as the procs do.
+-- CustomCellsJson: on one project's list, each row's values in the columns that project added
+--   (ufn_Keyword_CustomCells); NULL on the cross-project list, which shows no added columns.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Keyword_List
@@ -44,6 +46,7 @@ BEGIN
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer,
+           CASE WHEN @ProjectId IS NOT NULL THEN dbo.ufn_Keyword_CustomCells(Keyword.KeywordId) END AS CustomCellsJson,
            acc.AccessLevel AS ActorAccess,
            ov.Grants AS ActorGrants,
            ov.Revokes AS ActorRevokes,

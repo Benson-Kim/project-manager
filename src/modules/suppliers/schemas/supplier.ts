@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ListSort } from "@/lib/list-params";
 import { actorAccessFields } from "@/lib/auth/actor-access";
+import { registerCellsSchema } from "@/lib/custom-columns/register";
 import type { LookupListKey } from "@/lib/lookup-lists";
 import { rowVerSchema } from "@/modules/projects/schemas/project";
 
@@ -33,12 +34,15 @@ export const supplierRowSchema = z.object({
 
 export type SupplierRow = z.infer<typeof supplierRowSchema>;
 
-export const supplierListRowSchema = supplierRowSchema.extend({
-  TotalCount: z.number().int(),
-  ...actorAccessFields,
-});
+export const supplierListRowSchema = supplierRowSchema
+  .extend({
+    TotalCount: z.number().int(),
+    ...actorAccessFields,
+    CustomCellsJson: registerCellsSchema,
+  })
+  .transform(({ CustomCellsJson, ...row }) => ({ ...row, CustomCells: CustomCellsJson }));
 
-export type SupplierListRow = z.infer<typeof supplierListRowSchema>;
+export type SupplierListRow = z.output<typeof supplierListRowSchema>;
 
 export const createSupplierInput = z.object({
   projectId: z.number().int().positive(),

@@ -11,7 +11,7 @@ import { Panel } from "@/components/ui/panel";
 import type { ActionResult } from "@/lib/action";
 import { NO_CURRENCY } from "@/lib/currency/currencies";
 import { messages } from "@/lib/messages";
-import { createLineAction, moveLineAction, updateLineAction } from "../actions";
+import { createLineAction, importWbsAction, moveLineAction, updateLineAction } from "../actions";
 import { SECTIONS, type PlanCell, type Section, type Totals } from "../calc/engine";
 import { fiscalYearLabel } from "../calc/fiscal";
 import { formatMoney, formatMoneyField, parseMoney } from "../calc/money";
@@ -273,6 +273,22 @@ export function BudgetPlanner({
         <Button variant="secondary" onClick={action.reload}>
           {M.reload}
         </Button>
+      ) : null}
+      {canCreate ? (
+        <div className="flex justify-end">
+          <Button
+            variant="secondary"
+            title={M.importWbsHint}
+            disabled={action.pending}
+            onClick={() =>
+              action.run(() => importWbsAction({ financialId: f.id }), {
+                success: (r) => M.importedWbs(r.added, r.alreadyThere),
+              })
+            }
+          >
+            {M.importWbs}
+          </Button>
+        </div>
       ) : null}
       <p className="text-sm text-ink-muted">
         {M.beforeTax} / <span className="text-xs">{M.withTax}</span>

@@ -10,6 +10,7 @@ import { PageHistoryProvider } from "../undo/page-history";
 import { UndoButtons } from "../undo/undo-buttons";
 import {
   AvatarMenu,
+  HeaderSearch,
   NewWindowButton,
   NotificationsBell,
   ThemeToggle,
@@ -19,6 +20,7 @@ import { CrossWindowSync } from "./cross-window-sync";
 import { pageTitleFor } from "./nav-items";
 import { OfflineBanner } from "./offline-banner";
 import { SaveWorkShortcut } from "./save-work-shortcut";
+import { CrossLinkContextHost } from "@/modules/cross-links/components/cross-link-context-host";
 import { RouteProgress } from "./route-progress";
 import { MenuIcon } from "./shell-icons";
 import { SidebarContent } from "./sidebar-content";
@@ -36,6 +38,7 @@ const SIDEBAR_ID = "app-sidebar";
  */
 export function AppShell({
   username,
+  currentUserId = null,
   canCreateProject,
   canCreateDailyActivity,
   canCreateTodo,
@@ -44,6 +47,7 @@ export function AppShell({
   children,
 }: {
   username: string;
+  currentUserId?: number | null;
   canCreateProject: boolean;
   canCreateDailyActivity: boolean;
   canCreateTodo: boolean;
@@ -117,7 +121,7 @@ export function AppShell({
           >
             {/* A full-screen view covers the page from inside main: the header steps aside — for native
               fullscreen (:root:fullscreen) and for a CSS overlay that marks :root[data-canvas-fullscreen]. */}
-            <header className="sticky top-0 z-(--z-dialog) flex h-14 items-center gap-1 border border-line bg-surface px-4 py-3 rounded-t-md [background-image:linear-gradient(to_bottom,var(--surface-raised),var(--surface))] [:root:fullscreen_&]:hidden [:root[data-canvas-fullscreen]_&]:hidden">
+            <header className="sticky top-0 z-(--z-dialog) flex h-14 items-center gap-1 border border-line bg-surface px-2.5 sm:px-4 py-3 rounded-t-md [background-image:linear-gradient(to_bottom,var(--surface-raised),var(--surface))] [:root:fullscreen_&]:hidden [:root[data-canvas-fullscreen]_&]:hidden">
               <button
                 type="button"
                 aria-label={messages.app.menu}
@@ -137,7 +141,8 @@ export function AppShell({
                   {pageTitleFor(pathname)}
                 </p>
               )}
-              <div className="ml-auto flex items-center gap-2">
+              <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-2">
+                <HeaderSearch pathname={pathname} />
                 <UndoButtons />
                 <NewWindowButton />
                 <NotificationsBell alerts={alerts} alarms={dueAlarms} />
@@ -149,7 +154,7 @@ export function AppShell({
               id="main"
               className="relative z-0 flex flex-col flex-1 px-4 [--editor-toolbar-top:3.5rem]"
             >
-              {children}
+              <CrossLinkContextHost currentUserId={currentUserId}>{children}</CrossLinkContextHost>
             </main>
             <CrossWindowSync />
             <SaveWorkShortcut />

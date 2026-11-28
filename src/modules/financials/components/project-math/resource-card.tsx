@@ -17,15 +17,19 @@ import {
   Note,
   PipeButton,
   Rows,
+  useReportValues,
+  useStartValues,
 } from "./card-ui";
 
 const M = messages.financials.projectMath.resource;
 
 const utilisation = (value: number | null) => formatSignedPercent(value, 0, { signed: false });
 
-export function ResourceCard({ onUse }: CardProps) {
-  const [demand, setDemand] = useState("6, 9, 4, 11, 7");
-  const [capacity, setCapacity] = useState("8");
+export function ResourceCard({ onUse, initial: saved, onChange }: CardProps) {
+  const startWith = useStartValues(saved, { demand: "6, 9, 4, 11, 7", capacity: "8" });
+  const [demand, setDemand] = useState(startWith.demand);
+  const [capacity, setCapacity] = useState(startWith.capacity);
+  useReportValues(onChange, { demand, capacity });
 
   const result = useMemo(() => resourceLevel({ demand, capacity }), [demand, capacity]);
 

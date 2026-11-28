@@ -91,6 +91,19 @@ export function choose(
   return next;
 }
 
+/**
+ * A member added from the minutes page joins as attended, unsaved, once the refreshed roster
+ * lists them; null while it does not yet.
+ */
+export function attendNewMember(
+  entries: readonly RosterEntry[],
+  choices: Choices,
+  stakeholderId: number,
+): Choices | null {
+  const entry = entries.find((candidate) => candidate.StakeholderId === stakeholderId);
+  return entry ? choose(choices, entry, "attended") : null;
+}
+
 export function hasChanges(entries: readonly RosterEntry[], choices: Choices): boolean {
   return entries.some((entry) => {
     if (entry.IsHistorical) return false;

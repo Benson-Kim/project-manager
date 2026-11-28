@@ -57,6 +57,25 @@ BEGIN
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson)
     VALUES (@ActorUserId, N'Delete', N'app.Note', CAST(@NoteId AS NVARCHAR(64)), @Before);
 
+    -- Its attachments go with it (ADR-0026 §2), each audited; the bytes stay for the sweep's grace period.
+    DECLARE @Removed TABLE (FileAttachmentId INT PRIMARY KEY);
+    UPDATE f SET
+        IsDeleted    = 1,
+        DeletedAtUtc = SYSUTCDATETIME(),
+        DeletedBy    = @ActorUserId
+    OUTPUT inserted.FileAttachmentId INTO @Removed
+    FROM app.FileAttachment f
+    JOIN app.NoteFile l ON l.FileAttachmentId = f.FileAttachmentId
+    WHERE l.NoteId = @NoteId AND f.IsDeleted = 0;
+
+    INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson)
+    SELECT @ActorUserId, N'Delete', N'app.FileAttachment', CAST(r.FileAttachmentId AS NVARCHAR(64)),
+           (SELECT f.FileAttachmentId, @NoteId AS NoteId, f.ProjectId, f.FileName,
+                   f.ContentType, f.SizeBytes, f.Sha256, f.StorageLocation
+            FROM app.FileAttachment f WHERE f.FileAttachmentId = r.FileAttachmentId
+            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+    FROM @Removed r;
+
     COMMIT;
 END;
 GO

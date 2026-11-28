@@ -82,11 +82,16 @@ async function canvasWithAll(page: Page, projectId: string, count: number): Prom
   }
 }
 
-/** Server actions are POSTs carrying a Next-Action header; node moves are the only ones while idle. */
+/**
+ * Counts the canvas writes, which are POSTs carrying a Next-Action header whose arguments name the
+ * canvas. The page has bookkeeping actions of its own, such as the one recording the module just
+ * opened, and counting those made a save look like it had already happened.
+ */
 function countActions(page: Page): () => number {
   let count = 0;
   page.on("request", (request) => {
-    if (request.method() === "POST" && request.headers()["next-action"]) count += 1;
+    if (request.method() !== "POST" || !request.headers()["next-action"]) return;
+    if ((request.postData() ?? "").includes('"canvasId"')) count += 1;
   });
   return () => count;
 }
@@ -322,11 +327,23 @@ async function cardBox(node: Locator) {
   });
 }
 
-async function dragBy(page: Page, node: Locator, dx: number, dy: number) {
+/**
+ * Takes hold of a card where a person would: its middle. `hover` checks the point is really
+ * the card's — the board's toolbar sits over the top edge of a card laid out near it, and a
+ * raw mouse press there would land on the toolbar and move nothing, with nothing to show why.
+ */
+async function grab(page: Page, node: Locator): Promise<{ x: number; y: number }> {
+  await node.hover();
   const box = (await node.boundingBox())!;
-  await page.mouse.move(box.x + box.width / 2, box.y + 12);
+  const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await page.mouse.move(at.x, at.y);
   await page.mouse.down();
-  await page.mouse.move(box.x + box.width / 2 + dx, box.y + 12 + dy, { steps: 12 });
+  return at;
+}
+
+async function dragBy(page: Page, node: Locator, dx: number, dy: number) {
+  const at = await grab(page, node);
+  await page.mouse.move(at.x + dx, at.y + dy, { steps: 12 });
   await page.mouse.up();
 }
 
@@ -901,4 +918,299 @@ test("New requirement in the repository pane opens the form over the full-page b
   await expect(page.locator('[data-testid^="canvas-item-"]', { hasText: title })).toBeVisible({
     timeout: 15_000,
   });
+});
+
+test("the walkthrough lays placed requirements in lanes as they are placed and linked, by type or owner, and prints alone", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const projectId = await createProject(page);
+  const stamp = Date.now();
+  const business = `E2E walkthrough business ${stamp}`;
+  const stakeholder = `E2E walkthrough stakeholder ${stamp}`;
+  await addRequirement(page, projectId, "BR", business);
+  await addRequirement(page, projectId, "SR", stakeholder);
+  await canvasWithAll(page, projectId, 1);
+
+  const walk = page.getByTestId("requirement-walkthrough");
+  const lanes = walk.getByTestId("requirement-lane");
+  const cards = walk.getByTestId("walkthrough-card");
+  await page.getByTestId("canvas-walkthrough").click();
+  await expect(walk).toHaveAttribute("data-lanes-by", "type");
+  await expect(lanes).toHaveCount(1);
+  await expect(cards).toHaveCount(1);
+
+  await page
+    .getByRole("button", { name: /^Add .+ to the canvas$/ })
+    .first()
+    .click();
+  await expect(page.getByTestId("canvas-on-count")).toHaveText(M.onCanvasCount(2));
+  await expect(lanes).toHaveCount(2);
+  await expect(lanes.nth(0)).toHaveAttribute("data-lane", "type:BR");
+  await expect(lanes.nth(1)).toHaveAttribute("data-lane", "type:SR");
+  await expect(cards.filter({ hasText: stakeholder })).toHaveAttribute("data-step", "0");
+
+  const nodes = page.locator(".react-flow__node");
+  await nodes.filter({ hasText: business }).click({ button: "right" });
+  await page.getByTestId("canvas-menu-link-downstream").click();
+  await nodes.filter({ hasText: stakeholder }).click();
+  await expect(page.locator(".react-flow__edge")).toHaveCount(1, { timeout: 15_000 });
+  await expect(cards.filter({ hasText: business })).toHaveAttribute("data-step", "0");
+  await expect(cards.filter({ hasText: stakeholder })).toHaveAttribute("data-step", "1");
+
+  await walk.getByTestId("walkthrough-by-owner").click();
+  await expect(walk).toHaveAttribute("data-lanes-by", "owner");
+  await expect(walk.getByTestId("walkthrough-by-owner")).toHaveAttribute("aria-checked", "true");
+  await expect(lanes.first()).toHaveAttribute("data-lane", /^owner:/);
+  await expect(cards).toHaveCount(2);
+
+  const scan = await new AxeBuilder({ page })
+    .include('[data-testid="requirement-walkthrough"]')
+    .withTags(["wcag2a", "wcag2aa"])
+    .analyze();
+  expect(scan.violations).toEqual([]);
+
+  await page.emulateMedia({ media: "print" });
+  await expect(page.locator("[data-canvas-panes]")).toBeHidden();
+  await expect(page.getByTestId("walkthrough-print")).toBeHidden();
+  await expect(cards).toHaveCount(2);
+  await expect(cards.first()).toBeVisible();
+  await page.emulateMedia({ media: "screen" });
+
+  await walk.getByTestId("walkthrough-close").click();
+  await expect(walk).toHaveCount(0);
+  await expect(page.locator("[data-canvas-panes]")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+/** Finds a screen point inside the ReactFlow pane that hits neither a node nor a toolbar chrome element. */
+async function emptyPaneSpot(page: Page): Promise<Spot> {
+  return page.evaluate(() => {
+    const pane = document.querySelector(".react-flow")!.getBoundingClientRect();
+    const blockers = [...document.querySelectorAll(".react-flow__node, [data-canvas-chrome]")].map(
+      (el) => el.getBoundingClientRect(),
+    );
+    const clear = (x: number, y: number) =>
+      blockers.every((b) => x < b.left - 8 || x > b.right + 8 || y < b.top - 8 || y > b.bottom + 8);
+    for (let y = pane.top + 80; y < pane.bottom - 24; y += 36) {
+      for (let x = pane.left + 24; x < pane.right - 24; x += 48) {
+        if (clear(x, y)) return { x, y };
+      }
+    }
+    return { x: pane.left + 24, y: pane.bottom - 24 };
+  });
+}
+
+test("right-clicking in focus mode offers Show all links without touching Undo", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const projectId = await createProject(page);
+  const stamp = Date.now();
+  const first = `E2E ctx focus first ${stamp}`;
+  const second = `E2E ctx focus second ${stamp}`;
+  const loose = `E2E ctx focus loose ${stamp}`;
+  await addRequirement(page, projectId, "BR", first);
+  await addRequirement(page, projectId, "SR", second);
+  await addRequirement(page, projectId, "BR", loose);
+  await canvasWithAll(page, projectId, 3);
+  await linkDown(page, first, second, 1);
+
+  await page.reload();
+  const nodes = page.locator(".react-flow__node");
+  await expect(nodes).toHaveCount(3);
+  const undo = page.getByTestId("canvas-undo");
+  await expect(undo).toBeDisabled();
+
+  const outsideSpot = await emptyPaneSpot(page);
+  await page.mouse.click(outsideSpot.x, outsideSpot.y, { button: "right" });
+  await expect(page.getByTestId("canvas-menu-show-all-links")).toHaveCount(0);
+
+  await nodes.filter({ hasText: first }).click({ button: "right" });
+  await page.getByTestId("canvas-menu-focus").click();
+  await expect(page.getByTestId("canvas-focus")).toBeAttached();
+  await expect(nodes.filter({ hasText: loose })).toBeHidden();
+  await expect(undo).toBeDisabled();
+
+  const paneSpot = await emptyPaneSpot(page);
+  await page.mouse.click(paneSpot.x, paneSpot.y, { button: "right" });
+  await page.getByTestId("canvas-menu-show-all-links").click();
+  await expect(page.getByTestId("canvas-focus")).toHaveCount(0);
+  await expect(nodes.filter({ hasText: loose })).toBeVisible();
+  await expect(undo).toBeDisabled();
+
+  await nodes.filter({ hasText: first }).click({ button: "right" });
+  await page.getByTestId("canvas-menu-focus").click();
+  await expect(nodes.filter({ hasText: loose })).toBeHidden();
+  await nodes.filter({ hasText: first }).click({ button: "right" });
+  await page.getByTestId("canvas-menu-show-all-links").click();
+  await expect(page.getByTestId("canvas-focus")).toHaveCount(0);
+  await expect(nodes.filter({ hasText: loose })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("placing an unlinked requirement during focus keeps it visible and survives reload", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const projectId = await createProject(page);
+  const stamp = Date.now();
+  const first = `E2E pin focus first ${stamp}`;
+  const second = `E2E pin focus second ${stamp}`;
+  const unlinked = `E2E pin focus unlinked ${stamp}`;
+  await addRequirement(page, projectId, "BR", first);
+  await addRequirement(page, projectId, "SR", second);
+  await addRequirement(page, projectId, "BR", unlinked);
+
+  const canvasPath = `/projects/${projectId}/deliverables/canvas`;
+  await page.goto(canvasPath);
+  await createCanvas(page, canvasPath);
+  // By reference, not by position: the panel lists the two BRs before the SR, so taking the
+  // first button twice would place `unlinked` and leave `second` off the canvas.
+  const refs = ["BR-1", "SR-1"];
+  for (const [index, ref] of refs.entries()) {
+    await page.getByRole("button", { name: M.reveal(ref) }).click();
+    await expect(page.getByTestId("canvas-on-count")).toHaveText(M.onCanvasCount(index + 1));
+  }
+  await linkDown(page, first, second, 1);
+
+  const nodes = page.locator(".react-flow__node");
+  await nodes.filter({ hasText: first }).click({ button: "right" });
+  await page.getByTestId("canvas-menu-focus").click();
+  await expect(page.getByTestId("canvas-focus")).toBeAttached();
+
+  const actions = countActions(page);
+  await page.getByRole("button", { name: M.reveal("BR-2") }).click();
+  await expect(page.getByTestId("canvas-on-count")).toHaveText(M.onCanvasCount(3));
+  await expect(nodes.filter({ hasText: unlinked })).toBeVisible();
+  await expect(page.getByTestId("canvas-focus")).toBeAttached();
+  await expect.poll(actions, { timeout: 5_000 }).toBe(1);
+
+  await page.reload();
+  await expect(nodes).toHaveCount(3);
+  await expect(nodes.filter({ hasText: unlinked })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("Separate overlaps nudges only overlapping cards apart, preserves untouched cards, and undoes in one step", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const projectId = await createProject(page);
+  const stamp = Date.now();
+  const one = `E2E sep one ${stamp}`;
+  const two = `E2E sep two ${stamp}`;
+  const three = `E2E sep three ${stamp}`;
+  await addRequirement(page, projectId, "BR", one);
+  await addRequirement(page, projectId, "BR", two);
+  await addRequirement(page, projectId, "BR", three);
+  await canvasWithAll(page, projectId, 3);
+
+  await page.reload();
+  const nodes = page.locator(".react-flow__node");
+  await expect(nodes).toHaveCount(3);
+  const overlapping = () =>
+    nodes.evaluateAll((all) => {
+      const boxes = all.map((node) => node.getBoundingClientRect());
+      return boxes.flatMap((a, index) =>
+        boxes
+          .slice(index + 1)
+          .filter(
+            (b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom,
+          ),
+      ).length;
+    });
+
+  const separate = page.getByTestId("canvas-separate-overlaps");
+  const undo = page.getByTestId("canvas-undo");
+  await expect(separate).toBeDisabled();
+
+  const actions = countActions(page);
+  const nodeThree = nodes.filter({ hasText: three });
+  await dragBy(page, nodeThree, 360, 0);
+  await expect.poll(actions, { timeout: 5_000 }).toBe(1);
+  const threeBefore = await cardBox(nodeThree);
+
+  const nodeOne = nodes.filter({ hasText: one });
+  const nodeTwo = nodes.filter({ hasText: two });
+  await grab(page, nodeOne);
+  const boxTwo = (await nodeTwo.boundingBox())!;
+  await page.mouse.move(boxTwo.x + boxTwo.width / 2 + 12, boxTwo.y + boxTwo.height / 2, {
+    steps: 12,
+  });
+  await page.mouse.up();
+  await expect.poll(actions, { timeout: 5_000 }).toBe(2);
+  await expect.poll(overlapping).toBeGreaterThan(0);
+  await expect(separate).toBeEnabled();
+
+  await separate.click();
+  await expect.poll(actions, { timeout: 5_000 }).toBe(3);
+  await expect.poll(overlapping).toBe(0);
+  expect(await cardBox(nodeThree)).toEqual(threeBefore);
+  await expect(separate).toBeDisabled();
+  await expect(undo).toBeEnabled();
+
+  await undo.click();
+  await expect.poll(actions, { timeout: 5_000 }).toBe(4);
+  await expect.poll(overlapping).toBeGreaterThan(0);
+  await page.getByTestId("canvas-redo").click();
+  await expect.poll(actions, { timeout: 5_000 }).toBe(5);
+  await expect.poll(overlapping).toBe(0);
+  expect(await cardBox(nodeThree)).toEqual(threeBefore);
+
+  await page.reload();
+  await expect(nodes).toHaveCount(3);
+  await expect.poll(overlapping).toBe(0);
+  expect(await cardBox(nodeThree)).toEqual(threeBefore);
+  expect(errors).toEqual([]);
+});
+
+/** Project 2 is the seeded project where e2e-pm is a Manager and e2e-viewer a Viewer. */
+test("a Viewer sees the canvas without Separate overlaps", async ({ page, browser }) => {
+  await addRequirement(page, "2", "BR", `E2E viewer canvas ${Date.now()}`);
+  await canvasWithAll(page, "2", 1);
+  await expect(page.getByTestId("canvas-separate-overlaps")).toBeVisible();
+  const { pathname, search } = new URL(page.url());
+
+  const viewer = await browser.newContext({ storageState: "e2e/.auth/viewer.json" });
+  const viewerPage = await viewer.newPage();
+  await viewerPage.goto(`${pathname}${search}`);
+  await expect(viewerPage.getByTestId("canvas-board")).toBeVisible();
+  await expect(viewerPage.locator(".react-flow__node")).toHaveCount(1);
+  await expect(viewerPage.getByTestId("canvas-separate-overlaps")).toHaveCount(0);
+  await viewer.close();
+});
+
+test("Back to content appears when cards are panned offscreen and fits them back", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const projectId = await createProject(page);
+  const title = `E2E back content ${Date.now()}`;
+  await addRequirement(page, projectId, "BR", title);
+  await canvasWithAll(page, projectId, 1);
+
+  const node = page.locator(".react-flow__node").filter({ hasText: title });
+  await expect(node).toBeVisible();
+  const backButton = page.getByTestId("canvas-back-to-content");
+  await expect(backButton).toHaveCount(0);
+
+  for (let pan = 0; pan < 2; pan += 1) {
+    const spot = await emptyPaneSpot(page);
+    await page.mouse.move(spot.x, spot.y);
+    await page.mouse.down();
+    await page.mouse.move(spot.x + 800, spot.y + 500, { steps: 10 });
+    await page.mouse.up();
+  }
+  await expect(backButton).toBeVisible();
+
+  await backButton.click();
+  await expect(backButton).toHaveCount(0);
+  await expect(node).toBeVisible();
+  expect(errors).toEqual([]);
 });

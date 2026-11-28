@@ -346,3 +346,109 @@ test("planner — a booking that starts earlier today is refused", async ({ page
     await deleteTodo(page, title);
   }
 });
+
+test("planner — a to-do dropped on a past hour stays put until its time is fixed", async ({
+  page,
+}) => {
+  test.slow();
+  const now = new Date();
+  test.skip(now.getHours() === 0 && now.getMinutes() < 2, "no earlier minute today yet");
+  const title = `E2E planner held ${Date.now()}`;
+  const day = today();
+  await newTodo(page, title);
+  try {
+    await openPlanner(page, "/projects/2/calendar", day);
+    const todo = page.getByTestId("planner-todo").filter({ hasText: title });
+
+    // Drop the list item on an hour that has already passed today, so the drop cannot be
+    // booked straight away and the block is held where it landed.
+    async function dropOnPastHour() {
+      const nowMin = await page.evaluate(
+        () => new Date().getHours() * 60 + new Date().getMinutes(),
+      );
+      const dropPx = (Math.max(0, nowMin - 90) * HOUR_PX) / 60;
+      await page.getByTestId("planner-scroll").evaluate(
+        (el, top) => {
+          el.scrollTop = top;
+        },
+        Math.max(0, dropPx - 100),
+      );
+      await expect(todo).toBeVisible();
+      const column = (await page.getByTestId(`planner-day-${day}`).boundingBox())!;
+      const source = (await todo.boundingBox())!;
+      const at = { x: source.x + source.width / 2, y: source.y + source.height / 2 };
+      const target = { x: column.x + column.width / 2, y: column.y + dropPx + 4 };
+      await drag(page, at, target.y - at.y, target.x - at.x);
+    }
+
+    await dropOnPastHour();
+    const held = plannerEntry(page, day, title);
+    await expect(held).toBeVisible();
+    await expect(held).toHaveAttribute("data-held", "true");
+    await expect(page.getByTestId("planner-held-hint")).toBeVisible();
+    await expect(page.getByTestId("planner-error")).toHaveText(P.past);
+
+    // Cancel puts the held to-do back in the list; nothing is booked.
+    await page.getByTestId("planner-selected").getByRole("button", { name: P.cancel }).click();
+    await expect(plannerEntry(page, day, title)).toHaveCount(0);
+    await expect(todo).toBeVisible();
+
+    // Drop it again, fix the time to a valid future slot, and Save confirms the booking.
+    await dropOnPastHour();
+    await expect(plannerEntry(page, day, title)).toHaveAttribute("data-held", "true");
+    const tomorrow = addDays(today(), 1);
+    const panel = page.getByTestId("planner-selected");
+    await panel.getByLabel(P.day, { exact: true }).selectOption(tomorrow);
+    await panel.getByLabel(P.start, { exact: true }).fill("09:00");
+    await panel.getByLabel(P.end, { exact: true }).fill("10:00");
+    await panel.getByRole("button", { name: P.save }).click();
+    await expect(plannerEntry(page, tomorrow, title)).toContainText("09:00-10:00", {
+      timeout: 15_000,
+    });
+    await expect(todo).toHaveCount(0, { timeout: 15_000 });
+  } finally {
+    await deleteTodo(page, title);
+  }
+});
+
+test("to-do list — the Calendar cell books a slot and warns before a clash", async ({ page }) => {
+  test.slow();
+  test.skip(new Date().getHours() >= 23, "no free slot left today");
+  const stamp = Date.now();
+  const first = `E2E cal ${stamp} A`;
+  const second = `E2E cal ${stamp} B`;
+  await newTodo(page, first);
+  await newTodo(page, second);
+  try {
+    await page.goto(`/projects/2/todos?q=${encodeURIComponent(`E2E cal ${stamp}`)}`);
+    await closeAlarmToast(page);
+    const dialog = page.getByRole("dialog");
+    async function book(title: string) {
+      await page.getByRole("button", { name: P.openCalendar(title) }).click();
+      const form = page.getByTestId("todo-calendar-form");
+      await form.getByLabel(messages.todoItems.startDate).fill(today());
+      await form.getByLabel(P.startTime).fill("23:20");
+      await form.getByLabel(P.endTime).fill("23:50");
+      await form.getByRole("button", { name: P.addToCalendar }).click();
+    }
+    await book(first);
+    await expect(dialog).toHaveCount(0, { timeout: 15_000 });
+    await book(second);
+    const clash = page.getByTestId("todo-calendar-conflict");
+    await expect(clash).toContainText(P.conflictBody);
+    await clash.getByRole("button", { name: messages.actions.cancel }).click();
+    await expect(page.getByTestId("todo-calendar-form").getByLabel(P.startTime)).toHaveValue(
+      "23:20",
+    );
+    await page
+      .getByTestId("todo-calendar-form")
+      .getByRole("button", { name: P.addToCalendar })
+      .click();
+    await clash.getByRole("button", { name: P.continue }).click();
+    await expect(dialog).toHaveCount(0, { timeout: 15_000 });
+    await expect(page.getByRole("button", { name: P.openCalendar(second) })).toContainText("23:20");
+  } finally {
+    await deleteTodo(page, first);
+    await deleteTodo(page, second);
+  }
+});

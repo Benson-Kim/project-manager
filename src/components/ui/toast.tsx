@@ -101,7 +101,7 @@ export function Toaster({ children }: { children: React.ReactNode }) {
           <div
             key={t.id}
             data-testid={`toast-${t.variant}`}
-            className={`pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-md border-l-4 bg-surface-raised p-3 shadow-lg ${variantStyles[t.variant]}`}
+            className={`pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-md border-l-4 p-3 shadow-lg ${variantStyles[t.variant]}`}
           >
             <p className="flex-1 text-sm">{t.title}</p>
             {t.action ? (

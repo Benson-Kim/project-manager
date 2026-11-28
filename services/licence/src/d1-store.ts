@@ -290,4 +290,8 @@ export class D1Store implements LicenceStore {
     await this.db.prepare("DELETE FROM rate_hit WHERE window_start < ?").bind(before).run();
     await this.db.prepare("DELETE FROM pending_code WHERE expires_at < ?").bind(before).run();
   }
+
+  async ping(): Promise<void> {
+    await this.db.prepare("SELECT 1 FROM licence LIMIT 1").all();
+  }
 }

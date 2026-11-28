@@ -7,7 +7,6 @@ import { getUserPreference } from "@/lib/repositories/user-preference";
 import { getListPreference } from "@/lib/repositories/view-preference";
 import { orNull } from "@/lib/row-access";
 import { formatDate } from "@/lib/format";
-import { PageHeader } from "@/components/ui/page-header";
 import { calendarDay } from "@/modules/todo-items/calendar";
 import { ProjectFilter } from "@/components/ui/data-view/project-filter";
 import { TodoCalendar } from "@/modules/todo-items/components/todo-calendar";
@@ -23,6 +22,9 @@ import {
 import { getTodoAlertByTodoItemId } from "@/modules/todo-items/repository/todo-alerts";
 import { getTodoRecurrence } from "@/modules/todo-items/repository/todo-recurrence";
 import { getTodoPermissions } from "@/modules/todo-items/repository/todo-access";
+import { todoColumns } from "@/modules/todo-items/repository/columns";
+import { getProjectPermissions } from "@/modules/projects/repository/project-access";
+import { loadProjectColumns } from "@/lib/custom-columns/project-columns";
 import { loadTodoCalendar } from "@/modules/todo-items/queries/load-todo-calendar";
 import { loadTodoPlanner } from "@/modules/todo-items/queries/load-todo-planner";
 import { TODO_ITEM_LISTS, TODO_ITEM_SORT } from "@/modules/todo-items/schemas/todo-item";
@@ -72,44 +74,67 @@ export async function TodoScreen({
     withoutProject: projectFilter.kind === "none",
   };
 
-  const [rows, preference, alerts, selected, lookup, personal, userPreference, calendar, planner] =
-    await Promise.all([
-      isCalendar
-        ? []
-        : listForView(effectiveParams, (p, size) =>
-            listTodoItems(p, session.userId, filteredProjectId(projectFilter), size, filters),
-          ),
-      getListPreference(session.userId, "todo-items").catch(() => null),
-      getUpcomingAlertRows(session.userId).catch(() => []),
-      selectedId && Number.isInteger(selectedId) && selectedId > 0
-        ? orNull(getTodoItemById(selectedId, session.userId))
-        : null,
-      loadLookupLists(TODO_ITEM_LISTS, session),
-      // The new-entry row adds personal, project-less to-dos.
-      getTodoPermissions(null, session.userId),
-      getUserPreference(session.userId).catch(() => null),
-      isCalendar && !isPlanner
-        ? loadTodoCalendar(
-            {
-              month: flat.month,
-              projectId: filteredProjectId(projectFilter),
-              withoutProject: projectFilter.kind === "none",
-            },
-            session.userId,
-          )
-        : null,
-      isPlanner
-        ? loadTodoPlanner(
-            {
-              days: flat.days,
-              search: flat.find,
-              projectId: filteredProjectId(projectFilter),
-              withoutProject: projectFilter.kind === "none",
-            },
-            session.userId,
-          )
-        : null,
-    ]);
+  const [
+    rows,
+    preference,
+    alerts,
+    selected,
+    lookup,
+    personal,
+    userPreference,
+    calendar,
+    planner,
+    columns,
+  ] = await Promise.all([
+    isCalendar
+      ? []
+      : listForView(effectiveParams, (p, size) =>
+          listTodoItems(p, session.userId, filteredProjectId(projectFilter), size, filters),
+        ),
+    getListPreference(session.userId, "todo-items").catch(() => null),
+    getUpcomingAlertRows(session.userId).catch(() => []),
+    selectedId && Number.isInteger(selectedId) && selectedId > 0
+      ? orNull(getTodoItemById(selectedId, session.userId))
+      : null,
+    loadLookupLists(TODO_ITEM_LISTS, session),
+    // The new-entry row adds personal, project-less to-dos.
+    getTodoPermissions(null, session.userId),
+    getUserPreference(session.userId).catch(() => null),
+    isCalendar && !isPlanner
+      ? loadTodoCalendar(
+          {
+            month: flat.month,
+            projectId: filteredProjectId(projectFilter),
+            withoutProject: projectFilter.kind === "none",
+          },
+          session.userId,
+        )
+      : null,
+    isPlanner
+      ? loadTodoPlanner(
+          {
+            days: flat.days,
+            search: flat.find,
+            projectId: filteredProjectId(projectFilter),
+            withoutProject: projectFilter.kind === "none",
+          },
+          session.userId,
+        )
+      : null,
+    loadProjectColumns(
+      isCalendar ? null : filteredProjectId(projectFilter),
+      {
+        columns: todoColumns,
+        permissions: getProjectPermissions,
+        rights: {
+          create: "todo-items:create",
+          update: "todo-items:update",
+          delete: "todo-items:delete",
+        },
+      },
+      session.userId,
+    ),
+  ]);
 
   // Fetch the alert and the repeat rule only when a specific todo is selected.
   const [selectedAlert, selectedRecurrence, allows] = await Promise.all([
@@ -142,13 +167,9 @@ export async function TodoScreen({
   );
 
   return (
-    <>
+    <div className="mt-3 flex flex-col flex-1">
       {/* The top bar shows the title; the page still needs its heading for assistive tech. */}
-      {calendarOnly ? (
-        <PageHeader title={messages.home.title} />
-      ) : (
-        <h1 className="sr-only">{messages.todoItems.title}</h1>
-      )}
+      <h1 className="sr-only">{calendarOnly ? messages.home.title : messages.todoItems.title}</h1>
       {/* Upcoming alerts panel */}
       {alerts.length > 0 ? (
         <section
@@ -226,6 +247,7 @@ export async function TodoScreen({
               projectFilterOptions={projectOptions}
               canCreate={canAddWith(projects)}
               emptyBody={messages.todoItems.emptyGlobalBody}
+              {...(columns ?? {})}
             />
           )}
         </div>
@@ -247,6 +269,6 @@ export async function TodoScreen({
           canDeleteAlert={canDeleteAlert}
         />
       </LookupListsScope>
-    </>
+    </div>
   );
 }

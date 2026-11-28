@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useState } from "react";
 import { useFieldContext } from "@/components/ui/form/field";
 import { asRichText } from "@/lib/rich-text/plain-text";
-import type { EditorHeight } from "./editor-surface";
+import type { EditorHeight, ImageUploadTarget } from "./editor-surface";
 
 /**
  * Word-like rich-text field (ADR-0025). This wrapper is light; the Tiptap
@@ -44,6 +44,8 @@ export interface RichTextEditorProps {
   /** Ctrl+F finds and Ctrl+H replaces in the text (a notebook page). */
   findReplace?: boolean;
   findSeed?: string;
+  /** Enables pasting and dropping images directly into the editor. */
+  imageUpload?: ImageUploadTarget;
   /** Test hook on the wrapper. */
   testId?: string;
 }
@@ -59,6 +61,7 @@ export function RichTextEditor({
   height = "field",
   findReplace = false,
   findSeed,
+  imageUpload,
   testId,
 }: RichTextEditorProps) {
   const field = useFieldContext();
@@ -92,6 +95,7 @@ export function RichTextEditor({
           height={height}
           findReplace={findReplace}
           findSeed={findSeed}
+          imageUpload={imageUpload}
         />
       ) : (
         <EditorPlaceholder />

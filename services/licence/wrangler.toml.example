@@ -1,6 +1,7 @@
 name = "modulus-licence"
 main = "src/worker.ts"
-compatibility_date = "2026-11-01"
+compatibility_date = "2026-10-30"
+workers_dev = true
 
 [[d1_databases]]
 binding = "DB"

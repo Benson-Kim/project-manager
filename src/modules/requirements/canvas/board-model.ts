@@ -4,7 +4,7 @@ import type { CanvasItem, CanvasLink } from "../schemas/canvas";
 import { allowsLink, type LinkRule } from "../schemas/link-rules";
 import { layoutClusters } from "./cluster-layout";
 import { itemKey } from "./gaps";
-import { NODE_HEIGHT, NODE_WIDTH } from "./layout";
+import { NODE_HEIGHT, NODE_WIDTH, type Point } from "./layout";
 import { defaultsFor, isPlainLook, lookOf, type LinkBranch } from "./link-layout";
 import { canvasClusters, focusTrace, foldLinks, type Trace } from "./scale";
 
@@ -251,6 +251,63 @@ export function boardEdges(
 /** A card shown with what lies up to `depth` links from it. */
 export type Focus = { key: string; depth: number };
 
+/** Keys of items currently placed on the canvas. */
+export function onCanvasKeySet(items: readonly CanvasItem[]): Set<string> {
+  return new Set(items.filter((item) => item.OnCanvas).map(keyOf));
+}
+
+/** Keys present in `current` that were absent from `previous`. */
+export function newlyPlacedKeys(
+  previous: ReadonlySet<string>,
+  current: ReadonlySet<string>,
+): string[] {
+  const added: string[] = [];
+  for (const key of current) {
+    if (!previous.has(key)) added.push(key);
+  }
+  return added;
+}
+
+/** Keys kept visible during a focus: the trace keys plus any cards placed while that focus is open
+ * (mapped to a collapsed ancestor if folded). Returns null when focus is off.
+ */
+export function focusVisibleKeys(
+  focusedKeys: ReadonlySet<string> | null,
+  pinnedKeys: ReadonlySet<string>,
+  hiddenBy: ReadonlyMap<string, string> = new Map(),
+): ReadonlySet<string> | null {
+  if (focusedKeys === null) return null;
+  if (pinnedKeys.size === 0) return focusedKeys;
+  const visible = new Set(focusedKeys);
+  for (const key of pinnedKeys) visible.add(hiddenBy.get(key) ?? key);
+  return visible;
+}
+
+export interface NodeBox {
+  position: { x: number; y: number };
+  width?: number;
+  height?: number;
+  measured?: { width?: number; height?: number };
+  hidden?: boolean;
+}
+
+/** Resolves finite positive card dimensions, falling back to default canvas card size. */
+export function resolvedNodeSize(node: Pick<NodeBox, "width" | "height" | "measured">): {
+  width: number;
+  height: number;
+} {
+  const pick = (primary: number | undefined, secondary: number | undefined, fallback: number) =>
+    typeof primary === "number" && Number.isFinite(primary) && primary > 0
+      ? primary
+      : typeof secondary === "number" && Number.isFinite(secondary) && secondary > 0
+        ? secondary
+        : fallback;
+  return {
+    width: pick(node.measured?.width, node.width, NODE_WIDTH),
+    height: pick(node.measured?.height, node.height, NODE_HEIGHT),
+  };
+}
+
 /**
  * What a focus leaves on the board: its traced nodes, a folded one showing as the card that folds
  * it, and the links the trace followed.
@@ -323,6 +380,36 @@ export function mergeFlowNodes(
     const position = old.dragging || unsaved.has(node.id) ? old.position : node.position;
     return { ...node, position, measured: old.measured, dragging: old.dragging };
   });
+}
+
+const ECHO_SLACK = 1;
+
+const samePlace = (a: Point, b: Point) =>
+  Math.abs(a.x - b.x) < ECHO_SLACK && Math.abs(a.y - b.y) < ECHO_SLACK;
+
+/**
+ * The places a merge gave cards the board itself moved. The flow reports each of those back as a
+ * position change, which must not be collected as a move the user made.
+ */
+export function echoedPlaces(
+  before: readonly ItemNode[],
+  after: readonly ItemNode[],
+): Map<string, Point> {
+  const was = new Map(before.map((node) => [node.id, node.position]));
+  const echoes = new Map<string, Point>();
+  for (const node of after) {
+    const at = was.get(node.id);
+    if (!at || !samePlace(at, node.position)) echoes.set(node.id, { ...node.position });
+  }
+  return echoes;
+}
+
+/** Whether a position change only reports back a place the board set; takes that echo as read. */
+export function takeEcho(echoes: Map<string, Point>, id: string, at: Point): boolean {
+  const echo = echoes.get(id);
+  if (!echo || !samePlace(echo, at)) return false;
+  echoes.delete(id);
+  return true;
 }
 
 /**

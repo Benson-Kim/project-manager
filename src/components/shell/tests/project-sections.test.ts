@@ -107,7 +107,7 @@ describe("projectSectionGroups", () => {
     expect(section("financials/project-math").label).toBe("Performance analytics");
   });
 
-  it("Requirements & Deliverables: key deliverables, the tracker, then the canvas board", () => {
+  it("Requirements & Deliverables: key deliverables, the tracker, then the canvas", () => {
     expect(segmentsOf("requirements")).toEqual([
       "deliverables",
       "requirements",
@@ -116,7 +116,7 @@ describe("projectSectionGroups", () => {
     expect(group("requirements").sections.map((s) => s.label)).toEqual([
       "Key deliverables (WBS/Gantt)",
       "Requirements tracker",
-      "Dynamic requirements board",
+      "Dynamic requirements canvas",
     ]);
   });
 

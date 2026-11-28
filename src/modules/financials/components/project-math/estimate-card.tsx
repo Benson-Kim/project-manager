@@ -19,6 +19,8 @@ import {
   PipeButton,
   Rows,
   StaticField,
+  useReportValues,
+  useStartValues,
 } from "./card-ui";
 
 const M = messages.financials.projectMath.estimate;
@@ -27,14 +29,16 @@ function range(low: number | null, high: number | null) {
   return `${formatDecimal(low, 1)} – ${formatDecimal(high, 1)}`;
 }
 
-export function EstimateCard({ onUse }: CardProps) {
-  const [form, setForm] = useState({
+export function EstimateCard({ onUse, initial: saved, onChange }: CardProps) {
+  const startWith = useStartValues(saved, {
     optimistic: "5",
     mostLikely: "8",
     pessimistic: "14",
     unit: M.initialUnit,
     target: "12",
   });
+  const [form, setForm] = useState(startWith);
+  useReportValues(onChange, form);
   const set = (key: keyof typeof form) => (value: string) =>
     setForm((previous) => ({ ...previous, [key]: value }));
 

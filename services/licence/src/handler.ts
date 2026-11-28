@@ -271,10 +271,22 @@ export function createHandler(deps: HandlerDeps): (request: Request) => Promise<
     return response;
   }
 
+  async function health(method: string): Promise<Response> {
+    if (method !== "GET") return json(405, { error: "method_not_allowed" });
+    try {
+      await service.checkHealth();
+      return json(200, { status: "ok" });
+    } catch (error) {
+      log({ event: "health_failed", error: error instanceof Error ? error.name : "unknown" });
+      return json(503, { status: "unavailable" });
+    }
+  }
+
   return async function handle(request: Request): Promise<Response> {
     const { pathname } = new URL(request.url);
     const client = request.headers.get("cf-connecting-ip");
     try {
+      if (pathname === "/health") return await health(request.method);
       if (request.method === "GET" && pathname === "/admin")
         return adminAsset(deps.adminPage.html, "text/html");
       if (request.method === "GET" && pathname === "/admin.js") {

@@ -32,6 +32,7 @@ import {
   deleteLineAction,
   deleteTemplateAction,
   deleteTransactionAction,
+  importWbsAction,
   moveLineAction,
   saveTemplateAction,
   setTaxProfilesAction,
@@ -201,5 +202,28 @@ describe("financials actions", () => {
       ok: false,
       error: { code: "FORBIDDEN_ROW" },
     });
+  });
+});
+
+describe("importWbsAction", () => {
+  beforeEach(() => {
+    execProc.mockReset();
+    session = { userId: 7, username: "pm", role: "User" };
+  });
+
+  it("runs the import proc as the signed-in user and returns the counts", async () => {
+    execProc.mockResolvedValue([{ Added: 10, AlreadyThere: 2 }]);
+    const result = await importWbsAction({ financialId: 4 });
+    expect(result).toEqual({ ok: true, data: { added: 10, alreadyThere: 2 } });
+    expect(execProc).toHaveBeenCalledWith("usp_FinancialLine_ImportWbs", {
+      FinancialId: 4,
+      ActorUserId: 7,
+    });
+  });
+
+  it("rejects a missing financial id without calling the database", async () => {
+    const result = await importWbsAction({ financialId: 0 });
+    expect(result.ok).toBe(false);
+    expect(execProc).not.toHaveBeenCalled();
   });
 });

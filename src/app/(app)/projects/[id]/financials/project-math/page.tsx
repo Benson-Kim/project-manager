@@ -8,6 +8,8 @@ import { messages } from "@/lib/messages";
 import { orNotFound } from "@/lib/row-access";
 import { ProjectMath } from "@/modules/financials/components/project-math/project-math";
 import { listFinancials } from "@/modules/financials/repository/financials";
+import { getProjectMathState } from "@/modules/financials/repository/project-math-state";
+import { getProjectPermissions } from "@/modules/projects/repository/project-access";
 import { parseProjectId } from "../../project-id";
 
 export const metadata: Metadata = {
@@ -30,9 +32,11 @@ export default async function ProjectMathPage({
   const raw = (await searchParams).f;
   const picked = idSchema.safeParse(Array.isArray(raw) ? raw[0] : raw);
 
-  const rows = await orNotFound(
-    listFinancials(listParamsSchema.parse({}), session.userId, projectId, 100),
-  );
+  const [rows, saved, allows] = await Promise.all([
+    orNotFound(listFinancials(listParamsSchema.parse({}), session.userId, projectId, 100)),
+    getProjectMathState(projectId, session.userId),
+    getProjectPermissions(projectId, session.userId),
+  ]);
   const currencies = rows.map((row) => ({
     id: row.FinancialId,
     currency: currencyOrNone(row.CurrencyCode),
@@ -43,5 +47,12 @@ export default async function ProjectMathPage({
     currencies.find((row) => row.currency !== NO_CURRENCY)?.currency ||
     NO_CURRENCY;
 
-  return <ProjectMath currency={currency} />;
+  return (
+    <ProjectMath
+      projectId={projectId}
+      currency={currency}
+      saved={saved}
+      canSave={allows("financials:update")}
+    />
+  );
 }

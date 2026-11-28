@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Locator } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 import { caretAt } from "./support/editor";
 
@@ -424,4 +424,125 @@ test("axe: the notes list has no serious or critical violations", async ({ page 
 test("axe: the notebook workspace has no serious or critical violations", async ({ page }) => {
   await newNotebook(page);
   expect(await axeClean(page)).toEqual([]);
+});
+
+test("pasting a PNG into a note page uploads it and keeps the image on reload", async ({
+  page,
+}) => {
+  await newNotebook(page);
+  const ed = editor(page);
+  await ed.click();
+  await ed.evaluate((el) => {
+    const png = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44,
+      0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f,
+      0x15, 0xc4, 0x89, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00,
+      0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49,
+      0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+    ]);
+    const dt = new DataTransfer();
+    dt.items.add(new File([png], "screenshot.png", { type: "image/png" }));
+    el.dispatchEvent(
+      new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }),
+    );
+  });
+
+  const img = ed.locator('img[src^="/api/files/"][src$="owner=note"]').first();
+  await expect(img).toBeVisible({ timeout: 15_000 });
+  await expect
+    .poll(() => img.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0))
+    .toBe(true);
+
+  await savePage(page, "With screenshot");
+  await expect(
+    page.getByTestId("toast-success").filter({ hasText: messages.feedback.saved }).first(),
+  ).toBeVisible({ timeout: 15_000 });
+
+  await page.reload();
+  await expect(editor(page)).toBeVisible({ timeout: 15_000 });
+  const reloadedImg = editor(page).locator('img[src^="/api/files/"][src$="owner=note"]').first();
+  await expect(reloadedImg).toBeVisible({ timeout: 15_000 });
+  await expect
+    .poll(() => reloadedImg.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0))
+    .toBe(true);
+});
+
+async function pastePng(target: Locator) {
+  await target.evaluate((el) => {
+    const base64 =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==";
+    const png = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    const dt = new DataTransfer();
+    dt.items.add(new File([png], "screenshot.png", { type: "image/png" }));
+    el.dispatchEvent(
+      new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }),
+    );
+  });
+}
+
+async function statusOf(page: Page, url: string) {
+  return page.evaluate(async (u) => (await fetch(u, { cache: "no-store" })).status, url);
+}
+
+async function deleteNotebook(page: Page) {
+  await page.getByTestId("note-delete").click();
+  const dialog = page.getByRole("dialog", { name: messages.notes.deleteNote });
+  await dialog.getByRole("button", { name: messages.actions.delete }).click();
+  await page.waitForURL(/\/notes$/);
+}
+
+function uploadStatus(page: Page, noteId: string, size: number) {
+  return page.evaluate(
+    async ({ noteId, size }) => {
+      const url = `/api/files?owner=note&ownerId=${noteId}&name=picture.png`;
+      const signal = AbortSignal.timeout(30_000);
+      try {
+        return (await fetch(url, { method: "POST", body: new Uint8Array(size), signal })).status;
+      } catch {
+        // An early refusal can cut the connection before the browser reads the reply.
+        return 0;
+      }
+    },
+    { noteId, size },
+  );
+}
+
+test("a note picture over 10 MB is refused, and deleting the notebook removes its pictures", async ({
+  page,
+}) => {
+  const title = `Pictures ${Date.now()}`;
+  await newNotebook(page);
+  const noteId = new URL(page.url()).pathname.split("/").pop()!;
+  await rename(page, title);
+
+  expect([413, 0]).toContain(await uploadStatus(page, noteId, 10 * 1024 * 1024 + 1));
+
+  await editor(page).click();
+  await pastePng(editor(page));
+  const img = editor(page).locator('img[src^="/api/files/"][src$="owner=note"]').first();
+  await expect(img).toBeVisible({ timeout: 15_000 });
+  const src = (await img.getAttribute("src"))!;
+  await savePage(page, "With picture");
+  expect(await statusOf(page, src)).toBe(200);
+
+  await deleteNotebook(page);
+  expect(await statusOf(page, src)).toBe(404);
+});
+
+test("a Viewer can neither paste nor upload a note picture", async ({ page, browser }) => {
+  const title = `Viewer pictures ${Date.now()}`;
+  await newNotebook(page);
+  const url = page.url();
+  const noteId = new URL(url).pathname.split("/").pop()!;
+  await rename(page, title);
+
+  const viewer = await browser.newContext({ storageState: "e2e/.auth/viewer.json" });
+  const viewerPage = await viewer.newPage();
+  await viewerPage.goto(url);
+  await expect(viewerPage.getByTestId("note-title")).toHaveValue(title, { timeout: 15_000 });
+  await expect(viewerPage.locator('[contenteditable="true"]')).toHaveCount(0);
+  expect([403, 404]).toContain(await uploadStatus(viewerPage, noteId, 8));
+  await viewer.close();
+
+  await deleteNotebook(page);
 });

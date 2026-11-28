@@ -1,4 +1,4 @@
--- usp_Supplier_List — paged/filtered list per ADR-0016. Search columns: SupplierName, ContactPerson, City.
+-- usp_Supplier_List — paged/filtered list per ADR-0016. Search columns: SupplierName, ContactPerson, EmailAddress, City.
 -- Sort whitelist: SupplierName, ContractStartDate, ContractEndDate, Rating.
 -- @Rating filter: when supplied, restricts rows to the matching rating value.
 -- Row-level access: a supplied @ProjectId must be accessible (dbo.usp_Project_AssertAccess ->
@@ -11,6 +11,8 @@
 -- Entity app.Supplier (source: tbl3rdPartySupplier). Module: suppliers (#7).
 -- ActorGrants / ActorRevokes (ADR-0024): the actor's per-person overrides of 'suppliers' in the
 --   row's project (dbo.ufn_Permission_Overrides), so the datasheet gates cells as the procs do.
+-- CustomCellsJson: on one project's list, each row's values in the columns that project added
+--   (ufn_Supplier_CustomCells); NULL on the cross-project list, which shows no added columns.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Supplier_List
@@ -38,8 +40,9 @@ BEGIN
         EXEC dbo.usp_Project_AssertAccess
              @ProjectId = @ProjectId, @ActorUserId = @ActorUserId, @MinLevel = N'Viewer';
 
-    IF @Search IS NOT NULL
-        SET @Search = REPLACE(REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'), N'_', N'\_'), N'[', N'\[');
+    DECLARE @Escaped NVARCHAR(200) = CASE
+        WHEN @Search IS NOT NULL THEN REPLACE(REPLACE(REPLACE(REPLACE(@Search, N'\', N'\\'), N'%', N'\%'), N'_', N'\_'), N'[', N'\[')
+    END;
 
     SELECT SupplierId,
            [ProjectId],
@@ -57,6 +60,7 @@ BEGIN
            CreatedAtUtc,
            UpdatedAtUtc,
            CAST(RowVer AS BIGINT) AS RowVer,
+           CASE WHEN @ProjectId IS NOT NULL THEN dbo.ufn_Supplier_CustomCells(s.SupplierId) END AS CustomCellsJson,
            acc.AccessLevel AS ActorAccess,
            ov.Grants AS ActorGrants,
            ov.Revokes AS ActorRevokes,
@@ -67,9 +71,11 @@ BEGIN
     WHERE s.IsDeleted = 0
       AND (@ProjectId IS NULL OR s.ProjectId = @ProjectId)
       AND (@Rating IS NULL OR s.[Rating] = @Rating)
-      AND (@Search IS NULL OR s.[SupplierName] LIKE N'%' + @Search + N'%' ESCAPE N'\'
-           OR s.[ContactPerson] LIKE N'%' + @Search + N'%' ESCAPE N'\'
-           OR s.[City] LIKE N'%' + @Search + N'%' ESCAPE N'\')
+      AND (@Search IS NULL
+           OR s.[SupplierName] LIKE N'%' + @Escaped + N'%' ESCAPE N'\'
+           OR s.[ContactPerson] LIKE N'%' + @Escaped + N'%' ESCAPE N'\'
+           OR s.[EmailAddress] LIKE N'%' + @Escaped + N'%' ESCAPE N'\'
+           OR s.[City] LIKE N'%' + @Escaped + N'%' ESCAPE N'\')
       AND (@ProjectId IS NOT NULL OR acc.AccessLevel IS NOT NULL)
     ORDER BY
         CASE WHEN @SortBy = N'SupplierName' AND @SortDir = 'asc'  THEN [SupplierName] END ASC,

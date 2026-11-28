@@ -19,6 +19,7 @@ import { useAnnouncer } from "../announcer";
 import { useLookupLists } from "../lookup-lists";
 import { EmptyState } from "../states";
 import { useToast } from "../toast";
+import { AnchorSlot } from "@/modules/cross-links/components/anchor-slot";
 import { TONES } from "../tones";
 import { TableLayoutDialog } from "./table-layout-dialog";
 import {
@@ -530,13 +531,25 @@ export function DataView<Row>({
             >
               {shownRows.map((row, index) => {
                 const id = getRowId(row);
+                const numericId =
+                  typeof id === "number" ? id : /^[1-9]\d*$/.test(String(id)) ? Number(id) : null;
+                const anchorKey = numericId !== null ? `row:${numericId}` : null;
+                const anchorLabel = rowSelectionLabel(row, getRowLabel) ?? String(id);
                 return (
-                  <li key={id} data-active={index === activeIndex || undefined}>
+                  <li
+                    key={id}
+                    id={anchorKey ? `cl-${anchorKey}` : undefined}
+                    data-active={index === activeIndex || undefined}
+                    data-cl-anchor={anchorKey ? "record" : undefined}
+                    data-cl-anchor-key={anchorKey ?? undefined}
+                    data-cl-entity-id={numericId ?? undefined}
+                    data-cl-anchor-label={anchorKey ? anchorLabel : undefined}
+                  >
                     <DataRowShell
                       index={index}
                       activeIndex={activeIndex}
                       selectable={Boolean(bulkActions)}
-                      selectLabel={rowSelectionLabel(row, getRowLabel) ?? String(id)}
+                      selectLabel={anchorLabel}
                       selected={selected.includes(id)}
                       onToggleSelect={() => toggleSelected(id)}
                       onOpen={onOpen ? () => onOpen(row) : undefined}
@@ -544,6 +557,14 @@ export function DataView<Row>({
                       className="rounded-lg border border-line bg-surface-raised p-4"
                     >
                       {renderCard(row)}
+                      {anchorKey ? (
+                        <AnchorSlot
+                          anchorKind="record"
+                          anchorKey={anchorKey}
+                          entityId={numericId}
+                          className="mt-2"
+                        />
+                      ) : null}
                     </DataRowShell>
                   </li>
                 );
@@ -655,10 +676,23 @@ export function DataView<Row>({
                             className={`absolute left-0 z-10 w-full cursor-row-resize ${lastRow ? "bottom-0 h-1" : "-bottom-1 h-2"}`}
                           />
                         );
+                        const numericId =
+                          typeof id === "number"
+                            ? id
+                            : /^[1-9]\d*$/.test(String(id))
+                              ? Number(id)
+                              : null;
+                        const anchorKey = numericId !== null ? `row:${numericId}` : null;
+                        const anchorLabel = rowSelectionLabel(row, getRowLabel) ?? String(id);
                         return (
                           <tr
                             key={id}
+                            id={anchorKey ? `cl-${anchorKey}` : undefined}
                             data-active={index === activeIndex || undefined}
+                            data-cl-anchor={anchorKey ? "record" : undefined}
+                            data-cl-anchor-key={anchorKey ?? undefined}
+                            data-cl-entity-id={numericId ?? undefined}
+                            data-cl-anchor-label={anchorKey ? anchorLabel : undefined}
                             tabIndex={index === activeIndex ? 0 : -1}
                             onFocus={() => setActiveIndex(index)}
                             onClick={
@@ -676,7 +710,7 @@ export function DataView<Row>({
                               <td className={`relative w-11 ${cellClass} px-2 print:hidden`}>
                                 <input
                                   type="checkbox"
-                                  aria-label={rowSelectionLabel(row, getRowLabel) ?? String(id)}
+                                  aria-label={anchorLabel}
                                   checked={selected.includes(id)}
                                   onClick={(e) => e.stopPropagation()}
                                   onChange={() => toggleSelected(id)}
@@ -689,6 +723,15 @@ export function DataView<Row>({
                               const handle = !bulkActions && colIndex === 0 ? rowHandle : null;
                               const style = columnStyle(col);
                               const rendered = col.render(row);
+                              const slotNode =
+                                colIndex === 0 && anchorKey ? (
+                                  <AnchorSlot
+                                    anchorKind="record"
+                                    anchorKey={anchorKey}
+                                    entityId={numericId}
+                                    className="mt-1"
+                                  />
+                                ) : null;
                               return editable && col.edit && (col.edit.editable?.(row) ?? true) ? (
                                 <td
                                   key={col.key}
@@ -707,6 +750,7 @@ export function DataView<Row>({
                                         : undefined
                                     }
                                   />
+                                  {slotNode}
                                   {handle}
                                 </td>
                               ) : (
@@ -721,6 +765,7 @@ export function DataView<Row>({
                                   ) : (
                                     rendered
                                   )}
+                                  {slotNode}
                                   {handle}
                                 </td>
                               );

@@ -298,7 +298,14 @@ export function DailyActivitySheet({
               name="comments"
               errors={form.errors.comments}
             >
-              <RichTextEditor name="comments" defaultValue={activity?.Comments} />
+              <RichTextEditor
+                name="comments"
+                defaultValue={activity?.Comments}
+                imageUpload={{
+                  owner: "daily-activity",
+                  ownerId: activity?.DailyActivityId ?? null,
+                }}
+              />
             </Field>
           </section>
 

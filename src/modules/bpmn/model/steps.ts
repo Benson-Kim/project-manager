@@ -1,3 +1,4 @@
+import { groupInOrder } from "@/lib/group-in-order";
 import type { BpmnDiagram, BpmnShape } from "./diagram";
 import { centre, laneAt } from "./edit";
 
@@ -32,13 +33,7 @@ export function diagramSteps(diagram: BpmnDiagram): StepRow[] {
 export function stepsByRole(
   steps: readonly StepRow[],
 ): { role: string | null; steps: StepRow[] }[] {
-  const groups = new Map<string | null, StepRow[]>();
-  for (const step of steps) {
-    const group = groups.get(step.role);
-    if (group) group.push(step);
-    else groups.set(step.role, [step]);
-  }
-  return [...groups]
-    .map(([role, rows]) => ({ role, steps: rows }))
+  return groupInOrder(steps, (step) => step.role)
+    .map((group) => ({ role: group.key, steps: group.rows }))
     .sort((a, b) => Number(a.role === null) - Number(b.role === null));
 }

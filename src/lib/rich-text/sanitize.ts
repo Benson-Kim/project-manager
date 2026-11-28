@@ -9,7 +9,8 @@ import {
   nearestColor,
   numberingCss,
 } from "./formats";
-import { isAllowedLinkHref } from "./links";
+import { isAllowedImageSrc } from "./images";
+import { isAllowedLinkHref, isAllowedLocalPath, LOCAL_PATH_LINK_ATTRIBUTES } from "./links";
 import { installRichTextSanitizer } from "./schema";
 
 /**
@@ -126,9 +127,13 @@ function legacyFont(_tagName: string, attribs: sanitizeHtml.Attributes): sanitiz
 /** Only http/https/mailto links survive, always with rel; anything else keeps its text. */
 function link(_tagName: string, attribs: sanitizeHtml.Attributes): sanitizeHtml.Tag {
   const href = attribs.href?.trim() ?? "";
-  return isAllowedLinkHref(href)
-    ? { tagName: "a", attribs: { href, rel: "noopener noreferrer" } }
-    : { tagName: "span", attribs: {} };
+  if (isAllowedLinkHref(href))
+    return { tagName: "a", attribs: { href, rel: "noopener noreferrer" } };
+  // A local folder link (ADR-0075) keeps data-local-path and never an href.
+  const path = attribs["data-local-path"]?.trim() ?? "";
+  if (!href && isAllowedLocalPath(path))
+    return { tagName: "a", attribs: { "data-local-path": path, ...LOCAL_PATH_LINK_ATTRIBUTES } };
+  return { tagName: "span", attribs: {} };
 }
 
 const OPTIONS: sanitizeHtml.IOptions = {
@@ -151,13 +156,15 @@ const OPTIONS: sanitizeHtml.IOptions = {
     "th",
     "td",
     "a",
+    "img",
     "span",
     "mark",
     "hr",
   ],
   // The transforms below check every value; these lists only name what may stay.
   allowedAttributes: {
-    a: ["href", "rel"],
+    a: ["href", "rel", "data-local-path", ...Object.keys(LOCAL_PATH_LINK_ATTRIBUTES)],
+    img: ["src", "alt"],
     td: ["colspan", "rowspan", "data-shade"],
     th: ["colspan", "rowspan", "data-shade"],
     span: ["style", "data-color"],
@@ -182,6 +189,7 @@ const OPTIONS: sanitizeHtml.IOptions = {
   allowedSchemesAppliedToAttributes: ["href"],
   allowProtocolRelative: false,
   disallowedTagsMode: "discard",
+  exclusiveFilter: (frame) => frame.tag === "img" && !isAllowedImageSrc(frame.attribs.src),
   // Their text is dropped with the tag (the rest keep their text).
   nonTextTags: [
     "script",

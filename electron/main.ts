@@ -37,10 +37,17 @@ import { applyDatabaseSchema } from "./db-apply";
 import { createDbWatchdog } from "./db-watchdog";
 import { createDatabaseRecovery, type DatabaseRecovery } from "./db-recovery";
 import { registerDatabaseIpc } from "./database-ipc";
-import { contextMenuTemplate } from "./context-menu";
+import { registerLocalPathIpc } from "./local-path";
+import { contextMenuTemplate, type ContextMenuPageExtras } from "./context-menu";
 import { createExclusive } from "./exclusive";
 import { GrammarChecker } from "./grammar";
-import { PRINT_PREVIEW_CHANNEL, SAVE_WORK_CHANNEL } from "./ipc-channels";
+import {
+  CROSS_LINK_COMPLETE_CHANNEL,
+  CROSS_LINK_START_CHANNEL,
+  PAGE_NOTE_OPEN_CHANNEL,
+  PRINT_PREVIEW_CHANNEL,
+  SAVE_WORK_CHANNEL,
+} from "./ipc-channels";
 import { registerLicenceIpc } from "./licence/ipc";
 import type { LicenceStatus } from "./licence/policy";
 import { startLicence, type LicenceSetup } from "./licence/start";
@@ -261,10 +268,32 @@ function inPage(contents: WebContents, select: Parameters<typeof paragraphAtCare
   ) as Promise<ReturnType<typeof paragraphAtCaret>>;
 }
 
+async function readPageContextExtras(contents: WebContents): Promise<ContextMenuPageExtras | null> {
+  if (contents.isDestroyed()) return null;
+  try {
+    const raw = await contents.executeJavaScript(
+      "document.documentElement?.dataset?.pmContextMenu ?? null",
+    );
+    if (typeof raw !== "string" || !raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return {
+      canAddNote: parsed.canAddNote === true,
+      canAddLink: parsed.canAddLink === true,
+      canCompleteLink: parsed.canCompleteLink === true,
+      pendingLabel:
+        typeof parsed.pendingLabel === "string" ? parsed.pendingLabel.slice(0, 40) : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Electron has no right-click menu of its own; this one adds spelling and grammar (ADR-0049). */
 async function showContextMenu(contents: WebContents, params: ContextMenuParams): Promise<void> {
   const checking = settings.get().checkSpelling;
+  const appPage = isAppPage(contents);
   const paragraph = params.isEditable ? ((await inPage(contents, null)) as Paragraph | null) : null;
+  const pageExtras = !params.isEditable && appPage ? await readPageContextExtras(contents) : null;
   let fixes: { label: string; apply(): void }[] | "loading" = [];
   if (paragraph && checking) {
     const issues = paragraph.text.trim() ? await grammar.check(paragraph.text) : [];
@@ -295,7 +324,8 @@ async function showContextMenu(contents: WebContents, params: ContextMenuParams)
       editFlags: params.editFlags,
       checking,
       grammar: fixes,
-      appPage: isAppPage(contents),
+      appPage,
+      pageExtras,
     },
     {
       replaceMisspelling: (word) => contents.replaceMisspelling(word),
@@ -316,6 +346,15 @@ async function showContextMenu(contents: WebContents, params: ContextMenuParams)
         void savePage(contents, BrowserWindow.fromWebContents(contents) ?? undefined).catch((err) =>
           pageFailed("save", err),
         ),
+      addPageNote: () => {
+        if (!contents.isDestroyed()) contents.send(PAGE_NOTE_OPEN_CHANNEL);
+      },
+      addCrossLink: () => {
+        if (!contents.isDestroyed()) contents.send(CROSS_LINK_START_CHANNEL);
+      },
+      completeCrossLink: () => {
+        if (!contents.isDestroyed()) contents.send(CROSS_LINK_COMPLETE_CHANNEL);
+      },
     },
   );
   if (template.length && !contents.isDestroyed()) Menu.buildFromTemplate(template).popup();
@@ -1104,6 +1143,12 @@ if (!app.requestSingleInstanceLock()) {
     handle: (channel, handler) => ipcMain.handle(channel, handler),
     serverUrl: () => server?.url,
     ensureReady: ensureRuntimeDatabase,
+  });
+  registerLocalPathIpc({
+    handle: (channel, handler) => ipcMain.handle(channel, handler),
+    serverUrl: () => server?.url,
+    isDirectory: (folder) => fs.statSync(folder, { throwIfNoEntry: false })?.isDirectory() ?? false,
+    openPath: (folder) => shell.openPath(folder),
   });
   app.whenReady().then(bootstrap);
 }

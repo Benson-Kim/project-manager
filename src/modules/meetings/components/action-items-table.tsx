@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { formatDate } from "@/lib/format";
 import { messages } from "@/lib/messages";
-import { PANEL_SHELL } from "@/components/ui/panel-styles";
 import type { WorkspaceActionItem } from "../schemas/meeting";
 import { isOverdue, itemName } from "../schemas/minutes";
 import { ActionLogLinks } from "./action-log-links";
@@ -43,18 +42,20 @@ function ActionItemRow({ action, index }: { action: WorkspaceActionItem; index: 
   }
 
   // Row status indicator styling matching prototype
-  const borderTone = isCompleted
-    ? "border-l-4 border-l-success/60 bg-surface/50 opacity-80"
+  const [rowTone, barTone] = isCompleted
+    ? ["bg-surface/50 opacity-80", "before:bg-success/60"]
     : overdue
-      ? "border-l-4 border-l-danger bg-danger-soft/10"
+      ? ["bg-danger-soft/10", "before:bg-danger"]
       : action.Status === "on-hold"
-        ? "border-l-4 border-l-warning bg-warning-soft/10"
-        : "border-l-4 border-l-transparent hover:border-l-accent hover:bg-surface-raised/40";
+        ? ["bg-warning-soft/10", "before:bg-warning"]
+        : ["hover:bg-surface-raised/40", "group-hover:before:bg-accent"];
 
   return (
-    <tr data-testid="action-table-row" className={`group transition-colors ${borderTone}`}>
+    <tr data-testid="action-table-row" className={`group transition-colors ${rowTone}`}>
       {/* Index */}
-      <td className={`${tdStyle} w-10 text-center font-mono text-xs text-ink-muted`}>
+      <td
+        className={`${tdStyle} relative w-10 text-center font-mono text-xs text-ink-muted before:absolute before:inset-y-0 before:left-0 before:w-1 before:content-[''] ${barTone}`}
+      >
         {isCompleted ? (
           <span className="font-semibold text-success">✓{index + 1}</span>
         ) : (
@@ -150,7 +151,7 @@ export function ActionItemsTable({ actions }: { actions: WorkspaceActionItem[] }
     <section
       aria-labelledby="action-items-heading"
       data-testid="action-items-table"
-      className={PANEL_SHELL}
+      className="flex min-w-0 flex-col gap-4 rounded-lg border border-success bg-success-soft shadow-sm"
     >
       {/* Header bar matching Project Overview */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3.5">
@@ -209,7 +210,7 @@ export function ActionItemsTable({ actions }: { actions: WorkspaceActionItem[] }
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-b-lg">
           <table className="w-full border-collapse">
             <thead className="bg-surface-sunken/60 text-left border-b border-line">
               <tr>

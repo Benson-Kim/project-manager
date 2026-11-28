@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useOptimistic, useTransition } from "react";
+import { useOptimistic, useRef, useState, useTransition } from "react";
 import { AddColumnButton, ColumnsButton } from "@/components/custom-columns/column-dialogs";
 import { customColumn } from "@/components/custom-columns/custom-column";
 import {
@@ -51,6 +51,8 @@ import {
   type ChecklistItemListRow,
 } from "../schemas/checklist";
 import { ChecklistMenu } from "./checklist-menu";
+import { nameItems, splitAddOutcome } from "./add-to-todo";
+import { useFocusFirstInvalid } from "@/components/ui/form/use-focus-first-invalid";
 import { notifySaved } from "@/lib/cross-window";
 
 type Row = WithRichViews<ChecklistItemListRow, "Notes">;
@@ -71,6 +73,30 @@ const detailValue = (field: string, value: string) =>
 
 const cellOf = (row: ChecklistItem, columnId: number) =>
   row.Cells.find((cell) => cell.columnId === columnId);
+
+/** Highlights the column's cell on rows that still need it: the sheet's input and the table's text. */
+function markMissing(
+  column: DataViewColumn<Row>,
+  missing: (row: Row) => boolean,
+): DataViewColumn<Row> {
+  return {
+    ...column,
+    render: (row) =>
+      missing(row) ? (
+        <span
+          data-invalid
+          tabIndex={-1}
+          title={M.dueDateMissing}
+          className="block min-h-5 rounded bg-danger-soft px-1"
+        >
+          {column.render(row)}
+        </span>
+      ) : (
+        column.render(row)
+      ),
+    edit: column.edit && { ...column.edit, invalid: missing },
+  };
+}
 
 /**
  * The done tick: who ticked it and when are on its title. It shows the change at once and goes
@@ -139,6 +165,33 @@ export function ChecklistView({
 }) {
   const router = useRouter();
   const { toast } = useToast();
+  /** Items the last "Add to to-do list" turned back for having no dates; their Due date is marked. */
+  const [undated, setUndated] = useState<ReadonlySet<number>>(new Set());
+  const viewRef = useRef<HTMLDivElement>(null);
+  const focusInvalid = useFocusFirstInvalid(viewRef);
+  const needsDueDate = (row: Row) =>
+    undated.has(row.ChecklistItemId) && !row.StartDate && !row.DueDate;
+
+  const addToTodoList = async (selectedIds: readonly (string | number)[], clear: () => void) => {
+    const result = await addItemsToCalendarAction({ itemIds: selectedIds.map(Number) });
+    if (!result.ok) {
+      toast({ variant: "error", title: failureMessage(result.error) });
+      return;
+    }
+    const outcome = splitAddOutcome(result.data);
+    setUndated(new Set(outcome.undated.map((row) => row.ChecklistItemId)));
+    if (outcome.added.length > 0) toast({ variant: "success", title: M.addedToCalendar });
+    if (outcome.already.length > 0)
+      toast({ variant: "info", title: M.alreadyOnTodoList(nameItems(outcome.already)) });
+    if (outcome.undated.length > 0) {
+      toast({ variant: "error", title: M.needsDueDate(nameItems(outcome.undated)) });
+      focusInvalid();
+    } else {
+      clear();
+    }
+    router.refresh();
+    if (outcome.added.length > 0) notifySaved();
+  };
 
   /** Runs a write and refreshes the page when it lands. */
   const refreshing =
@@ -198,15 +251,18 @@ export function ChecklistView({
       placeholder: messages.todoItems.placeholders.startDate,
       editable: canEditRow,
     }),
-    dateColumn<Row>({
-      key: "DueDate",
-      header: messages.todoItems.dueDate,
-      priority: 2,
-      field: "dueDate",
-      value: (row) => (row.DueDate ? new Date(`${row.DueDate}T00:00:00Z`) : null),
-      placeholder: messages.todoItems.placeholders.dueDate,
-      editable: canEditRow,
-    }),
+    markMissing(
+      dateColumn<Row>({
+        key: "DueDate",
+        header: messages.todoItems.dueDate,
+        priority: 2,
+        field: "dueDate",
+        value: (row) => (row.DueDate ? new Date(`${row.DueDate}T00:00:00Z`) : null),
+        placeholder: messages.todoItems.placeholders.dueDate,
+        editable: canEditRow,
+      }),
+      needsDueDate,
+    ),
     listColumn<Row>({
       key: "Priority",
       header: messages.todoItems.priority,
@@ -347,105 +403,100 @@ export function ChecklistView({
   }));
 
   return (
-    <DataView
-      moduleKey="checklists"
-      rows={rows}
-      totalCount={totalCount}
-      page={page}
-      initialView={initialView}
-      initialLayout={layout}
-      getRowId={(row) => row.ChecklistItemId}
-      getRowLabel={(row) => row.Title}
-      renderCard={(row) => (
-        <div className="flex items-start gap-2">
-          <DoneTick row={row} onChange={(done) => setDone(row, done)} />
-          <p className="text-sm font-semibold text-ink">{row.Title}</p>
-        </div>
-      )}
-      columns={viewColumns}
-      sort={CHECKLIST_ITEM_SORT}
-      datasheet={{
-        canEditRow,
-        saveCell,
-        addRow: can.create
-          ? {
-              add: addRow,
-              undo: addUndo(
-                (row: ChecklistItem) => row.ChecklistItemId,
-                (row) => deleteItemAction({ itemId: row.ChecklistItemId, rowVer: row.RowVer }),
-              ),
-            }
-          : undefined,
-      }}
-      bulkActions={
-        can.makeTodo
-          ? (selectedIds, clear) => (
-              <Button
-                data-testid="checklist-add-to-calendar"
-                onClick={async () => {
-                  const result = await addItemsToCalendarAction({
-                    itemIds: selectedIds.map(Number),
-                  });
-                  if (!result.ok) {
-                    toast({ variant: "error", title: failureMessage(result.error) });
-                    return;
-                  }
-                  toast({ variant: "success", title: M.addedToCalendar });
-                  clear();
-                  router.refresh();
-                  notifySaved();
-                }}
-              >
-                {M.addToCalendar}
-              </Button>
-            )
-          : undefined
-      }
-      renderToolbar={(viewToggle) => (
-        <Toolbar>
-          <ChecklistMenu
-            projectId={projectId}
-            checklists={checklists}
-            current={checklist}
-            can={can}
-          />
-          <SearchInput testId="checklist-search" />
-          {can.create ? (
-            <AddColumnButton
-              kinds={CHECKLIST_KINDS}
-              onAdd={(column) =>
-                refreshing(() =>
-                  createColumnAction({ checklistId: checklist.ChecklistId, ...column }),
-                )()
+    <div
+      ref={viewRef}
+      data-cl-page-entity={checklist.ChecklistId}
+      data-cl-page-label={checklist.Name}
+      className="contents"
+    >
+      <DataView
+        moduleKey="checklists"
+        rows={rows}
+        totalCount={totalCount}
+        page={page}
+        initialView={initialView}
+        initialLayout={layout}
+        getRowId={(row) => row.ChecklistItemId}
+        getRowLabel={(row) => row.Title}
+        renderCard={(row) => (
+          <div className="flex items-start gap-2">
+            <DoneTick row={row} onChange={(done) => setDone(row, done)} />
+            <p className="text-sm font-semibold text-ink">{row.Title}</p>
+          </div>
+        )}
+        columns={viewColumns}
+        sort={CHECKLIST_ITEM_SORT}
+        datasheet={{
+          canEditRow,
+          saveCell,
+          addRow: can.create
+            ? {
+                add: addRow,
+                undo: addUndo(
+                  (row: ChecklistItem) => row.ChecklistItemId,
+                  (row) => deleteItemAction({ itemId: row.ChecklistItemId, rowVer: row.RowVer }),
+                ),
               }
+            : undefined,
+        }}
+        bulkActions={
+          can.makeTodo
+            ? (selectedIds, clear) => (
+                <Button
+                  data-testid="checklist-add-to-calendar"
+                  onClick={() => addToTodoList(selectedIds, clear)}
+                >
+                  {M.addToCalendar}
+                </Button>
+              )
+            : undefined
+        }
+        renderToolbar={(viewToggle) => (
+          <Toolbar>
+            <ChecklistMenu
+              projectId={projectId}
+              checklists={checklists}
+              current={checklist}
+              can={can}
             />
-          ) : null}
-          {can.update && columns.length > 0 ? (
-            <ColumnsButton
-              columns={managed}
-              canDelete={can.delete}
-              onRename={(column, name) =>
-                refreshing(() =>
-                  renameColumnAction({ columnId: column.id, name, rowVer: column.rowVer }),
-                )()
-              }
-              onMove={(column, direction) =>
-                refreshing(() =>
-                  moveColumnAction({ columnId: column.id, direction, rowVer: column.rowVer }),
-                )()
-              }
-              onDelete={(column) =>
-                refreshing(() =>
-                  deleteColumnAction({ columnId: column.id, rowVer: column.rowVer }),
-                )()
-              }
-            />
-          ) : null}
-          {viewToggle}
-        </Toolbar>
-      )}
-      filtersActive={filtersActive}
-      empty={listEmptyState(filtersActive, M.emptyBody)}
-    />
+            <SearchInput testId="checklist-search" />
+            {can.create ? (
+              <AddColumnButton
+                kinds={CHECKLIST_KINDS}
+                onAdd={(column) =>
+                  refreshing(() =>
+                    createColumnAction({ checklistId: checklist.ChecklistId, ...column }),
+                  )()
+                }
+              />
+            ) : null}
+            {can.update && columns.length > 0 ? (
+              <ColumnsButton
+                columns={managed}
+                canDelete={can.delete}
+                onRename={(column, name) =>
+                  refreshing(() =>
+                    renameColumnAction({ columnId: column.id, name, rowVer: column.rowVer }),
+                  )()
+                }
+                onMove={(column, direction) =>
+                  refreshing(() =>
+                    moveColumnAction({ columnId: column.id, direction, rowVer: column.rowVer }),
+                  )()
+                }
+                onDelete={(column) =>
+                  refreshing(() =>
+                    deleteColumnAction({ columnId: column.id, rowVer: column.rowVer }),
+                  )()
+                }
+              />
+            ) : null}
+            {viewToggle}
+          </Toolbar>
+        )}
+        filtersActive={filtersActive}
+        empty={listEmptyState(filtersActive, M.emptyBody)}
+      />
+    </div>
   );
 }

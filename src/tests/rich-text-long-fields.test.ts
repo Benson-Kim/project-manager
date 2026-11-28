@@ -34,7 +34,8 @@ const LONG_FIELDS: [form: string, field: string][] = [
 describe("long text fields take rich text", () => {
   it.each(LONG_FIELDS)("%s edits %s with the rich-text editor", (form, field) => {
     const source = readFileSync(form, "utf-8");
-    expect(source).toContain(`<RichTextEditor name="${field}"`);
+    // The editor's props may wrap onto their own lines, so the name follows any whitespace.
+    expect(source).toMatch(new RegExp(`<RichTextEditor\\s+name="${field}"`));
     expect(source).not.toMatch(new RegExp(`<Textarea[^>]*name="${field}"`));
   });
 });

@@ -42,9 +42,11 @@ import {
   slotTimes,
   toMinutes,
   typedSlot,
+  withHeld,
+  type HeldEntry,
   type Slot,
 } from "../planner";
-import type { TodoPlannerData } from "../queries/load-todo-planner";
+import type { TodoPlannerData, UnplacedTodo } from "../queries/load-todo-planner";
 import { slotProblem } from "../schemas/todo-schedule";
 import type { PlannerBlock as PlannerEntry } from "../planner";
 import { CalendarModeSwitch } from "./calendar-mode-switch";
@@ -193,6 +195,7 @@ export function TodoPlanner({
   const [placeDraft, setPlaceDraft] = useState<Draft>(() => draftAt(firstDay, 9 * 60));
   const [saved, setSaved] = useState<Record<number, Slot & { until?: number }>>({});
   const [preview, setPreview] = useState<{ id: number; slot: Slot } | null>(null);
+  const [held, setHeld] = useState<Record<number, HeldEntry<PlannerEntry>>>({});
   const versions = useRef(new Map<number, number>());
   const saving = useRef(new Map<number, Promise<unknown>>());
   const gesture = useRef<Gesture | null>(null);
@@ -204,7 +207,7 @@ export function TodoPlanner({
     if (scroller.current) scroller.current.scrollTop = minutesToPx(OPEN_AT_MINUTES);
   }, []);
 
-  const shown = data.entries.map((entry) => {
+  const shown = withHeld(data.entries, data.unplaced, Object.values(held)).map((entry) => {
     if (entry.occursAt) return entry;
     if (preview?.id === entry.todoItemId) return { ...entry, ...preview.slot };
     const slot = saved[entry.todoItemId];
@@ -217,6 +220,25 @@ export function TodoPlanner({
     !entry.occursAt && canEdit && canInProject(entry.actorAccess, "todo-items:update");
   const deletable = (entry: PlannerEntry) =>
     !entry.occursAt && canDelete && canInProject(entry.actorAccess, "todo-items:delete");
+  const waiting = ({ todoItemId }: { todoItemId: number }) =>
+    held[todoItemId] !== undefined &&
+    held[todoItemId].until === undefined &&
+    !data.entries.some((entry) => entry.todoItemId === todoItemId);
+
+  function hold(todo: UnplacedTodo, slot: Slot): PlannerEntry {
+    const entry = { ...todo, start: slot.start, end: slot.end };
+    setHeld((all) => ({ ...all, [todo.todoItemId]: { entry } }));
+    return entry;
+  }
+
+  function release(todoItemId: number) {
+    setHeld((all) => {
+      if (!all[todoItemId]) return all;
+      const next = { ...all };
+      delete next[todoItemId];
+      return next;
+    });
+  }
 
   function run(work: () => Promise<Outcome>, undo?: () => void, done?: () => void) {
     startTransition(async () => {
@@ -242,15 +264,22 @@ export function TodoPlanner({
     todo: { todoItemId: number; rowVer: number; start?: string },
     slot: Slot,
     done?: () => void,
-  ) {
-    const { todoItemId, rowVer, start: startWas } = todo;
+    refused?: () => void,
+  ): boolean {
+    const { todoItemId, rowVer } = todo;
+    const startWas = waiting(todo) ? undefined : todo.start;
     const problem = slotProblem(slot.start, slot.end, { now: userNow(null), startWas });
     if (problem) {
       setError(P[problem]);
-      return;
+      return false;
     }
-    const mark: Slot & { until?: number } = { ...slot };
+    const mark: Slot & { until?: number } = { start: slot.start, end: slot.end };
     setSaved((all) => ({ ...all, [todoItemId]: mark }));
+    setHeld((all) =>
+      all[todoItemId]
+        ? { ...all, [todoItemId]: { entry: { ...all[todoItemId].entry, ...mark } } }
+        : all,
+    );
     const save = (saving.current.get(todoItemId) ?? Promise.resolve()).then(async () => {
       const result = await scheduleTodoItemAction({
         todoItemId,
@@ -267,6 +296,11 @@ export function TodoPlanner({
             ? { ...all, [todoItemId]: { ...mark, until: result.data.rowVer } }
             : all,
         );
+        setHeld((all) =>
+          all[todoItemId] && all[todoItemId].until === undefined
+            ? { ...all, [todoItemId]: { ...all[todoItemId], until: result.data.rowVer } }
+            : all,
+        );
       }
       return result;
     });
@@ -276,15 +310,18 @@ export function TodoPlanner({
     );
     run(
       () => save,
-      () =>
+      () => {
         setSaved((all) => {
           if (all[todoItemId] !== mark) return all;
           const next = { ...all };
           delete next[todoItemId];
           return next;
-        }),
+        });
+        refused?.();
+      },
       done,
     );
+    return true;
   }
 
   function select(entry: PlannerEntry) {
@@ -410,10 +447,12 @@ export function TodoPlanner({
     if (!todo) return;
     e.preventDefault();
     const start = minuteAt(e.clientY, e.currentTarget);
-    schedule(todo, {
+    const slot = {
       start: fromMinutes(day, start),
       end: fromMinutes(day, Math.min(start + 60, DAY_MINUTES)),
-    });
+    };
+    const entry = hold(todo, slot);
+    if (!schedule(todo, slot, undefined, () => select(entry))) select(entry);
   }
 
   function saveNewEntry() {
@@ -443,7 +482,7 @@ export function TodoPlanner({
 
   function saveSelected() {
     if (!selected || !selectedDraft) return;
-    const read = readDraft(selectedDraft, selected.start);
+    const read = readDraft(selectedDraft, waiting(selected) ? undefined : selected.start);
     if ("problem" in read) {
       setError(read.problem);
       return;
@@ -459,7 +498,21 @@ export function TodoPlanner({
       setError(read.problem);
       return;
     }
-    schedule(todo, read.slot, () => setPlaceId(""));
+    hold(todo, read.slot);
+    schedule(
+      todo,
+      read.slot,
+      () => setPlaceId(""),
+      () => release(todo.todoItemId),
+    );
+  }
+
+  function closeSelected() {
+    if (selected && waiting(selected)) {
+      release(selected.todoItemId);
+      setError(null);
+    }
+    setSelectedId(null);
   }
 
   function unschedule() {
@@ -486,6 +539,7 @@ export function TodoPlanner({
       undefined,
       () => {
         setConfirmDelete(false);
+        release(input.todoItemId);
         setSelectedId(null);
       },
     );
@@ -605,6 +659,11 @@ export function TodoPlanner({
           }}
         >
           <p className="w-full truncate text-sm font-medium text-ink">{selected.title}</p>
+          {waiting(selected) ? (
+            <p data-testid="planner-held-hint" className="w-full text-xs text-ink-muted">
+              {P.heldHint}
+            </p>
+          ) : null}
           <SlotFields days={days} draft={selectedDraft} onChange={setSelectedDraft} />
           <button type="submit" className={accentButton} disabled={pending || !editable(selected)}>
             {P.save}
@@ -616,14 +675,16 @@ export function TodoPlanner({
           >
             {P.open}
           </button>
-          <button
-            type="button"
-            className={navButton}
-            disabled={pending || !editable(selected)}
-            onClick={unschedule}
-          >
-            {P.unschedule}
-          </button>
+          {waiting(selected) ? null : (
+            <button
+              type="button"
+              className={navButton}
+              disabled={pending || !editable(selected)}
+              onClick={unschedule}
+            >
+              {P.unschedule}
+            </button>
+          )}
           {deletable(selected) ? (
             <button
               type="button"
@@ -634,7 +695,7 @@ export function TodoPlanner({
               {messages.actions.delete}
             </button>
           ) : null}
-          <button type="button" className={navButton} onClick={() => setSelectedId(null)}>
+          <button type="button" className={navButton} onClick={closeSelected}>
             {P.cancel}
           </button>
         </form>
@@ -727,9 +788,10 @@ export function TodoPlanner({
                         data-testid="planner-entry"
                         data-todo-id={entry.todoItemId}
                         data-status={entry.status ?? ""}
+                        data-held={waiting(entry) ? "true" : undefined}
                         className={`absolute ${editable(entry) ? "cursor-grab" : "cursor-pointer"} touch-none select-none overflow-hidden rounded-md border px-1.5 py-0.5 text-xs ${statusClass(entry.status)} ${
-                          selectedId === entry.todoItemId ? "ring-2 ring-accent" : ""
-                        }`}
+                          waiting(entry) ? "border-dashed" : ""
+                        } ${selectedId === entry.todoItemId ? "ring-2 ring-accent" : ""}`}
                         style={{
                           top: minutesToPx(top),
                           height: Math.max(minutesToPx(bottom - top), 16),

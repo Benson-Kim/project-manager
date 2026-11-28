@@ -3,11 +3,9 @@
 import { useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
 import { messages } from "@/lib/messages";
-import { formToSave, isSaveShortcut, type SaveCandidates } from "./save-work";
+import { DIALOG, formToSave, isSaveShortcut, isWorkForm, type SaveCandidates } from "./save-work";
 
 type DesktopBridge = { onSaveWork?: (listener: () => void) => () => void };
-
-const DIALOG = '[role="dialog"], [role="alertdialog"], dialog[open]';
 
 function shown(el: Element): boolean {
   return el.getClientRects().length > 0;
@@ -27,7 +25,7 @@ function saveButton(form: HTMLFormElement): HTMLButtonElement | HTMLInputElement
 }
 
 function savable(forms: Iterable<HTMLFormElement>): HTMLFormElement[] {
-  return Array.from(forms).filter((f) => !f.matches('[role="search"]') && saveButton(f));
+  return Array.from(forms).filter((f) => isWorkForm(f) && saveButton(f));
 }
 
 function candidates(from: Element | null): SaveCandidates<HTMLFormElement> {

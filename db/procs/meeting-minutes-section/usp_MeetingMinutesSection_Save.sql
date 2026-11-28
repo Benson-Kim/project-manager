@@ -35,7 +35,7 @@ BEGIN
     IF NULLIF(TRIM(@Title), N'') IS NULL
         THROW 50004, N'VALIDATION:Title is required', 1;
     IF @SectionKey IS NOT NULL
-       AND @SectionKey NOT IN (N'CarryOver', N'Agenda')
+       AND @SectionKey NOT IN (N'CarryOver', N'Agenda', N'Summary', N'Conclusion')
         THROW 50004, N'VALIDATION:Unknown section', 1;
 
     DECLARE @Now DATETIME2 = SYSUTCDATETIME();

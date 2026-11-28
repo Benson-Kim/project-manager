@@ -56,6 +56,16 @@ test("viewer reads the document checklist without write controls", async ({ page
   await expect(page.getByTestId("financial-print")).toBeVisible();
 });
 
+test("viewer reads project math without Save or Reset", async ({ page }) => {
+  const PM = M.projectMath;
+  await page.goto("/projects/2/financials/project-math");
+  await expect(page.getByRole("region", { name: PM.earnedValue.name, exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: PM.reset, exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: messages.actions.save, exact: true })).toHaveCount(
+    0,
+  );
+});
+
 test("viewer reads templates but cannot create one", async ({ page }) => {
   await page.goto("/settings/financial-templates");
   await expect(page.getByTestId("new-template")).toHaveCount(0);

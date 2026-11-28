@@ -371,6 +371,35 @@ describe("licence service", () => {
 });
 
 describe("licence service HTTP surface", () => {
+  const health = (t: Awaited<ReturnType<typeof setup>>, method = "GET") =>
+    t.handle(new Request("https://licence.test/health", { method }));
+
+  it("answers GET /health with ok and no caching", async () => {
+    const t = await setup();
+    const response = await health(t);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toEqual({ status: "ok" });
+  });
+
+  it("refuses other methods on /health", async () => {
+    const t = await setup();
+    expect((await health(t, "POST")).status).toBe(405);
+  });
+
+  it("reports 503 without the database error text when the store fails", async () => {
+    const t = await setup();
+    t.store.ping = async () => {
+      throw new Error("D1_ERROR: no such table: licence");
+    };
+    const response = await health(t);
+    const text = await response.text();
+    expect(response.status).toBe(503);
+    expect(JSON.parse(text)).toEqual({ status: "unavailable" });
+    expect(t.logged).toContainEqual({ event: "health_failed", error: "Error" });
+    expect(text + JSON.stringify(t.logged)).not.toContain("no such table");
+  });
+
   it("requires the admin token on every admin route", async () => {
     const t = await setup();
     for (const path of [

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { Field } from "@/components/ui/form/field";
 import { Input } from "@/components/ui/form/inputs";
+import { PasswordInput } from "@/components/ui/form/password-input";
 import { useZodForm } from "@/components/ui/form/use-zod-form";
 import { messages } from "@/lib/messages";
 import type { ActionResult } from "@/lib/action";
@@ -71,9 +72,8 @@ export function LoginForm() {
         />
       </Field>
       <Field label={messages.auth.password} name="password" errors={form.errors.password}>
-        <Input
+        <PasswordInput
           name="password"
-          type="password"
           value={password}
           onChange={(e) => setPassword(e.currentTarget.value)}
           readOnly={pending}

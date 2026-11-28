@@ -74,6 +74,8 @@ export interface StoredFileInput {
   sizeBytes: number;
   sha256: string;
   storagePath: string;
+  /** A picture pasted into the text: kept out of the attachment list where the owner supports it. */
+  inline?: boolean;
 }
 
 /** Record an uploaded file; the proc re-checks access and enforces the quota (QUOTA_EXCEEDED). */
@@ -95,6 +97,7 @@ export async function addFileAttachment(
     StorageLocation: null,
     QuotaBytes: quotaBytes,
     ActorUserId: actorUserId,
+    ...(config.inlineFiles ? { IsInline: file.inline === true } : {}),
   });
   return attachmentRowSchema.parse(first(rows, "Attachment"));
 }

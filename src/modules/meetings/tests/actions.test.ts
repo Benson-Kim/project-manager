@@ -436,6 +436,34 @@ describe("meetings actions", () => {
     ]);
   });
 
+  it("keeps a box's formatting but strips scripts from its body", async () => {
+    answerProcs();
+    await saveMinutesSectionAction({
+      meetingId: 3,
+      meetingMinutesSectionId: null,
+      sectionKey: null,
+      title: "Risks",
+      body: '<p><strong>Late</strong> supplier<script>alert(1)</script><img src=x onerror="alert(1)"></p>',
+      rowVer: null,
+    });
+    expect(execProc.mock.calls[0]?.[1]).toMatchObject({
+      Body: "<p><strong>Late</strong> supplier</p>",
+    });
+  });
+
+  it.each(["Summary", "Conclusion"])("renames the built-in %s section", async (sectionKey) => {
+    answerProcs();
+    await saveMinutesSectionAction({
+      meetingId: 3,
+      meetingMinutesSectionId: null,
+      sectionKey,
+      title: "Outcome",
+      body: null,
+      rowVer: null,
+    });
+    expect(execProc.mock.calls[0]?.[1]).toMatchObject({ SectionKey: sectionKey, Title: "Outcome" });
+  });
+
   it("refuses an unknown section or a blank title before reaching the proc", async () => {
     const unknown = await saveMinutesSectionAction({
       meetingId: 3,

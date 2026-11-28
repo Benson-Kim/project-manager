@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  CustomColumnsButton,
+  type CustomColumnActionSet,
+} from "@/components/custom-columns/custom-columns-dialog";
+import { useCustomColumns } from "@/components/custom-columns/use-custom-columns";
 import { Badge } from "@/components/ui/badge";
 import { dateColumn, listColumn, textColumn } from "@/components/ui/data-view/columns";
 import { DataView } from "@/components/ui/data-view/data-view";
@@ -9,12 +14,27 @@ import { useListUrlState } from "@/components/ui/data-view/use-list-url-state";
 import { listEmptyState } from "@/components/ui/states";
 
 import { rowAllows } from "@/lib/auth/actor-access";
+import type { ColumnLabel, RegisterColumn } from "@/lib/custom-columns/register";
 import type { ListLayout } from "@/lib/list-layout";
 import type { ViewMode } from "@/lib/list-params";
 import { messages } from "@/lib/messages";
 import { formatDate } from "@/lib/format";
 
 import { createSupplierAction, updateSupplierAction } from "../actions";
+import {
+  clearSupplierColumnLabelAction,
+  createSupplierChoiceAction,
+  createSupplierColumnAction,
+  deleteSupplierChoiceAction,
+  deleteSupplierColumnAction,
+  moveSupplierColumnAction,
+  renameSupplierChoiceAction,
+  renameSupplierColumnAction,
+  setSupplierCellAction,
+  setSupplierColumnKindAction,
+  setSupplierColumnLabelAction,
+} from "../actions/columns";
+import { SUPPLIER_BUILT_IN_COLUMNS } from "../schemas/columns";
 import type { SupplierListRow, SupplierRow } from "../schemas/supplier";
 import { supplierFormValues } from "../schemas/supplier-form";
 
@@ -91,8 +111,23 @@ const columns: DataViewColumn<Row>[] = [
 ];
 
 /** Datasheet edits go through the same update action as the Sheet (ADR-0023). */
-const saveCell = formCellSaver<Row, SupplierRow>(supplierFormValues, updateSupplierAction);
+const saveFormCell = formCellSaver<Row, SupplierRow>(supplierFormValues, updateSupplierAction);
 const canEditRow = rowAllows("suppliers:update");
+const supplierId = (row: Row) => row.SupplierId;
+const NO_COLUMNS = { create: false, update: false, delete: false };
+
+const columnActions: CustomColumnActionSet = {
+  setLabel: setSupplierColumnLabelAction,
+  clearLabel: clearSupplierColumnLabelAction,
+  createColumn: createSupplierColumnAction,
+  renameColumn: renameSupplierColumnAction,
+  moveColumn: moveSupplierColumnAction,
+  setColumnKind: setSupplierColumnKindAction,
+  deleteColumn: deleteSupplierColumnAction,
+  createChoice: createSupplierChoiceAction,
+  renameChoice: renameSupplierChoiceAction,
+  deleteChoice: deleteSupplierChoiceAction,
+};
 
 /**
  * Suppliers list (module #7): DataView; opening a row syncs ?id=. List view is
@@ -106,6 +141,9 @@ export function SuppliersView({
   layout,
   filtersActive,
   projectId,
+  labels = [],
+  addedColumns = [],
+  canManageColumns = NO_COLUMNS,
   canCreate,
   newSupplierAction,
 }: {
@@ -119,13 +157,27 @@ export function SuppliersView({
   /** The user's saved datasheet layout (DataView initialLayout). */
   layout?: ListLayout | null;
   filtersActive: boolean;
+  /** The project's renamed headings and added columns. */
+  labels?: readonly ColumnLabel[];
+  addedColumns?: readonly RegisterColumn[];
+  canManageColumns?: { create: boolean; update: boolean; delete: boolean };
   newSupplierAction?: React.ReactNode;
 }) {
   const { update } = useListUrlState();
+  const { shownColumns, saveCell } = useCustomColumns<Row>({
+    columns,
+    labels,
+    added: addedColumns,
+    canEdit: canEditRow,
+    rowId: supplierId,
+    setCell: setSupplierCellAction,
+    fallback: saveFormCell,
+  });
 
   return (
     <DataView
       moduleKey="suppliers"
+      fullscreen
       rows={rows}
       totalCount={totalCount}
       page={page}
@@ -146,7 +198,7 @@ export function SuppliersView({
           ) : null}
         </div>
       )}
-      columns={columns}
+      columns={shownColumns}
       sort={SUPPLIER_SORT}
       datasheet={{
         canEditRow,
@@ -155,7 +207,20 @@ export function SuppliersView({
           ? { add: (values) => createSupplierAction({ ...values, projectId: String(projectId) }) }
           : undefined,
       }}
-      renderToolbar={(viewToggle) => <SuppliersToolbar>{viewToggle}</SuppliersToolbar>}
+      renderToolbar={(viewToggle) => (
+        <SuppliersToolbar>
+          <CustomColumnsButton
+            projectId={projectId}
+            labels={labels}
+            columns={addedColumns}
+            can={canManageColumns}
+            builtIns={SUPPLIER_BUILT_IN_COLUMNS}
+            actions={columnActions}
+            title={messages.customColumns.supplierTitle}
+          />
+          {viewToggle}
+        </SuppliersToolbar>
+      )}
       empty={listEmptyState(filtersActive, messages.suppliers.emptyBody, newSupplierAction)}
     />
   );

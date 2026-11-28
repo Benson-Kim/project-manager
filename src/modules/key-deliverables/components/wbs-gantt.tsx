@@ -71,6 +71,7 @@ import { GanttRequirementsPanel } from "./gantt-requirements-panel";
 import { ganttSummary } from "./gantt-summary";
 import { GanttTools } from "./gantt-tools";
 import { useGanttDisplay } from "./use-gantt-display";
+import { criticalPath, type CriticalPath } from "../schemas/critical-path";
 import type { Span } from "./gantt-span";
 import {
   WbsContextMenu,
@@ -144,6 +145,7 @@ const LINK_REFUSALS: Record<LinkRefusal, string> = {
 const NUDGE_SAVE_MS = 600;
 
 const NOTHING: ReadonlySet<number> = new Set();
+const EMPTY_CRITICAL: CriticalPath = { itemIds: NOTHING, linkIds: NOTHING };
 
 interface PendingOp {
   key: number;
@@ -320,6 +322,18 @@ export function WbsGantt({
   const timeline = useMemo(() => makeTimeline(scale, bounds, today), [scale, bounds, today]);
   const progress = useMemo(() => itemProgress(shown), [shown]);
   const [display, changeDisplay] = useGanttDisplay();
+  const critical = useMemo(
+    () => (display.criticalPath ? criticalPath(shown, links) : EMPTY_CRITICAL),
+    [display.criticalPath, shown, links],
+  );
+  const criticalUndated = useMemo(() => {
+    if (!display.criticalPath) return 0;
+    let count = 0;
+    for (const node of shown.nodes.values()) {
+      if (!node.start || !node.end) count += 1;
+    }
+    return count;
+  }, [display.criticalPath, shown]);
   /** The card whose requirements show in the panel under the Gantt. */
   const [listingId, setListingId] = useState<number | null>(null);
 
@@ -1322,6 +1336,8 @@ export function WbsGantt({
               display={display}
               progress={progress}
               milestones={milestoneChips}
+              criticalIds={critical.itemIds}
+              criticalLinkIds={critical.linkIds}
               selectedId={selectedId}
               listingId={listingId}
               on={boardHandlers}
@@ -1332,6 +1348,7 @@ export function WbsGantt({
                   onCopySummary={() => void copySummary()}
                   display={display}
                   onDisplay={changeDisplay}
+                  undatedCount={criticalUndated}
                 />
               }
             />

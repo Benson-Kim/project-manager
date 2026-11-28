@@ -3,6 +3,7 @@ import { existsSync } from "fs";
 import net from "net";
 import path from "path";
 import { promisify } from "util";
+import { APP_BETA } from "./app-folders";
 import { describeError } from "./describe-error";
 import type { Logger } from "./log";
 
@@ -69,8 +70,9 @@ export async function runElevatedRepair(
   scriptPath: string,
   sqlInstaller: string,
   log: Logger,
+  beta = APP_BETA,
 ): Promise<number> {
-  return runProvisioning(scriptPath, sqlInstaller, log);
+  return runProvisioning(scriptPath, sqlInstaller, log, beta);
 }
 
 /** Repairs the existing service only; never resets SQL logins or machine.json. */
@@ -79,6 +81,7 @@ export async function runElevatedServiceRepair(
   sqlInstaller: string,
   target: { instanceName: string; port: number; dataRoot: string },
   log: Logger,
+  beta = APP_BETA,
 ): Promise<number> {
   serviceName(target.instanceName);
   if (!Number.isInteger(target.port) || target.port < 1 || target.port > 65535) {
@@ -91,6 +94,7 @@ export async function runElevatedServiceRepair(
     scriptPath,
     sqlInstaller,
     log,
+    beta,
     ` -ServiceOnly -InstanceName ${target.instanceName} -Port ${target.port} -DataRoot "${target.dataRoot}"`,
   );
 }
@@ -99,11 +103,12 @@ async function runProvisioning(
   scriptPath: string,
   sqlInstaller: string,
   log: Logger,
+  beta: boolean,
   extraArguments = "",
 ): Promise<number> {
   const esc = (s: string) => s.replace(/'/g, "''");
   const installer = existsSync(sqlInstaller) ? ` -SqlInstaller "${sqlInstaller}"` : "";
-  const inner = `-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${scriptPath}"${installer}${extraArguments}`;
+  const inner = `-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${scriptPath}"${installer}${beta ? " -Beta" : ""}${extraArguments}`;
   const command =
     "$ErrorActionPreference = 'Stop'; " +
     `$p = Start-Process -FilePath '${esc(powershellPath())}' -ArgumentList '${esc(inner)}' ` +

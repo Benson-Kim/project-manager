@@ -320,7 +320,7 @@ export function DatasheetCell<Row>({
         value={value}
         label={label}
         header={header}
-        invalid={failed}
+        invalid={failed || (editor.invalid?.(row) ?? false)}
         display={value === original ? editor.display?.(row) : previewText(value)}
         onCommitRich={commitRich}
         pending={pending}

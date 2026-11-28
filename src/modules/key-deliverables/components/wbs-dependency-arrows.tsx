@@ -59,12 +59,35 @@ export function dependencyLine(type: DependencyType, from: GanttBar, to: GanttBa
   return { d, head };
 }
 
+export function dependencyArrowStyle(
+  satisfied: boolean,
+  critical: boolean,
+): {
+  className: string;
+  strokeWidth: number;
+  strokeDasharray: string | undefined;
+} {
+  if (critical) {
+    return {
+      className: "stroke-danger",
+      strokeWidth: 2.75,
+      strokeDasharray: satisfied ? undefined : "6 2",
+    };
+  }
+  return {
+    className: satisfied ? "stroke-ink-muted" : "stroke-danger",
+    strokeWidth: 1.5,
+    strokeDasharray: satisfied ? undefined : "3 2",
+  };
+}
+
 export function WbsDependencyArrows({
   scrollRef,
   links,
   wbs,
   geometryKey,
   anchorOf,
+  criticalLinkIds,
 }: {
   scrollRef: RefObject<HTMLDivElement | null>;
   links: readonly WbsLink[];
@@ -73,6 +96,7 @@ export function WbsDependencyArrows({
   geometryKey: string;
   /** For an item with no bar on screen, the item whose bar stands for it (null: none). */
   anchorOf?: (id: number) => number | null;
+  criticalLinkIds?: ReadonlySet<number>;
 }) {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
@@ -138,6 +162,10 @@ export function WbsDependencyArrows({
 
   if (segments.length === 0 || !size) return null;
 
+  const normal = segments.filter((s) => !criticalLinkIds?.has(s.id));
+  const critical = segments.filter((s) => criticalLinkIds?.has(s.id));
+  const ordered = [...normal, ...critical];
+
   return (
     <svg
       aria-hidden="true"
@@ -145,19 +173,25 @@ export function WbsDependencyArrows({
       width={size.width}
       height={size.height}
     >
-      {segments.map((segment) => (
-        <g
-          key={segment.id}
-          data-gantt-dependency-from={segment.predecessorId}
-          data-gantt-dependency-to={segment.successorId}
-          className={segment.satisfied ? "stroke-ink-muted" : "stroke-danger"}
-          fill="none"
-          strokeWidth={1.5}
-        >
-          <path d={segment.d} strokeDasharray={segment.satisfied ? undefined : "3 2"} />
-          <path d={segment.head} />
-        </g>
-      ))}
+      {ordered.map((segment) => {
+        const isCritical = criticalLinkIds?.has(segment.id) ?? false;
+        const style = dependencyArrowStyle(segment.satisfied, isCritical);
+        return (
+          <g
+            key={segment.id}
+            data-gantt-dependency-from={segment.predecessorId}
+            data-gantt-dependency-to={segment.successorId}
+            data-critical={isCritical ? "true" : undefined}
+            data-violated={segment.satisfied ? undefined : "true"}
+            className={style.className}
+            fill="none"
+            strokeWidth={style.strokeWidth}
+          >
+            <path d={segment.d} strokeDasharray={style.strokeDasharray} />
+            <path d={segment.head} />
+          </g>
+        );
+      })}
     </svg>
   );
 }

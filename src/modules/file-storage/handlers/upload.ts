@@ -1,5 +1,6 @@
 import type { Session } from "@/lib/auth/types";
 import { AppError, type AppErrorCode } from "@/lib/errors";
+import { extensionOf } from "@/lib/file-names";
 import { json } from "@/lib/files/http";
 import type { ScanResult } from "@/lib/files/scan";
 import type { SniffResult } from "@/lib/files/sniff";
@@ -14,8 +15,13 @@ import { messages } from "@/lib/messages";
 import { errorMessage } from "@/lib/licence/messages";
 import type { AttachmentQuota, StoredFileInput } from "../repository/attachments";
 import {
-  MAX_UPLOAD_BYTES,
+  acceptsExtension,
+  acceptsMimeType,
+  IMAGE_MIME_TYPES,
+  isImageOnly,
+  uploadLimitLabel,
   uploadQuerySchema,
+  type AttachmentAcceptPolicy,
   type AttachmentOwner,
   type AttachmentRow,
 } from "../schemas/attachment";
@@ -25,9 +31,10 @@ import {
  * the file itself (ADR-0026 §3). Answers the ActionResult shape as JSON.
  *
  * Order matters. fileRoute has already checked same-origin and the session.
- * Then: uploads on, query, declared size, the OWNER's access pre-check, the
- * disk's free-space floor — all before a single byte of the body is read —
- * then stream to a temp file (hash + 25 MB cap), sniff, scan, store under the
+ * Then: uploads on, query, owner accept policy, declared size, extension, the
+ * OWNER's access pre-check, the disk's free-space floor — all before a single
+ * byte of the body is read — then stream to a temp file (hash + owner's cap),
+ * sniff, verify sniffed MIME against the owner's policy, scan, store under the
  * hash, and record it through the owner's AddFile proc (authoritative access
  * and quota). Server only; the route file wires the real dependencies.
  */
@@ -39,6 +46,7 @@ export interface UploadDeps {
   /** Free space an upload must leave on the uploads disk (0: no check). */
   minFreeBytes(): number;
   freeBytes(root: string): Promise<number>;
+  acceptPolicy(owner: AttachmentOwner): AttachmentAcceptPolicy;
   checkCanAdd(owner: AttachmentOwner, ownerId: number, actor: number): Promise<AttachmentQuota>;
   addFile(
     owner: AttachmentOwner,
@@ -97,14 +105,22 @@ export async function handleUpload(
     Object.fromEntries(new URL(request.url).searchParams.entries()),
   );
   if (!query.success) return fail(400, "VALIDATION");
-  const { owner, ownerId, name } = query.data;
+  const { owner, ownerId, name, inline } = query.data;
+  const policy = deps.acceptPolicy(owner);
+  const tooLargeMessage = messages.attachments.errors.tooLargeAt(uploadLimitLabel(policy.maxBytes));
+  const typeNotAllowedMessage = isImageOnly(policy)
+    ? messages.attachments.errors.imagesOnly
+    : messages.attachments.errors.typeNotAllowed;
 
   const declared = Number(request.headers.get("content-length") ?? Number.NaN);
-  if (declared > MAX_UPLOAD_BYTES) {
-    return fail(413, "VALIDATION", messages.attachments.errors.tooLarge);
+  if (declared > policy.maxBytes) {
+    return fail(413, "VALIDATION", tooLargeMessage);
   }
   if (declared === 0 || !request.body) {
     return fail(400, "VALIDATION", messages.attachments.errors.empty);
+  }
+  if (!acceptsExtension(policy, extensionOf(name))) {
+    return fail(415, "VALIDATION", typeNotAllowedMessage);
   }
 
   const quotaBytes = deps.quotaBytes();
@@ -120,7 +136,7 @@ export async function handleUpload(
     const minFree = deps.minFreeBytes();
     if (minFree > 0) {
       // Only a positive whole size counts: a negative one would shrink everyone's reservation.
-      const incoming = Number.isInteger(declared) && declared > 0 ? declared : MAX_UPLOAD_BYTES;
+      const incoming = Number.isInteger(declared) && declared > 0 ? declared : policy.maxBytes;
       const free = await deps.freeBytes(root);
       // No await from this check to the reservation: a parallel upload sees it.
       if (free - reservedBytes - incoming < minFree) {
@@ -132,13 +148,19 @@ export async function handleUpload(
       reserved = incoming;
       reservedBytes += reserved;
     }
-    pending = await receiveUpload(request.body, root, MAX_UPLOAD_BYTES);
+    pending = await receiveUpload(request.body, root, policy.maxBytes);
 
     const sniffed = await deps.sniff(pending.tempPath, name);
     if (!sniffed.ok) {
       return sniffed.reason === "empty"
         ? fail(400, "VALIDATION", messages.attachments.errors.empty)
-        : fail(415, "VALIDATION", messages.attachments.errors.typeNotAllowed);
+        : fail(415, "VALIDATION", typeNotAllowedMessage);
+    }
+    if (!acceptsMimeType(policy, sniffed.contentType)) {
+      return fail(415, "VALIDATION", typeNotAllowedMessage);
+    }
+    if (inline && !(IMAGE_MIME_TYPES as readonly string[]).includes(sniffed.contentType)) {
+      return fail(415, "VALIDATION", messages.attachments.errors.imagesOnly);
     }
     const scan = await deps.scan(pending.tempPath);
     if (!scan.clean) {
@@ -158,6 +180,7 @@ export async function handleUpload(
         sizeBytes: stored.size,
         sha256: stored.sha256,
         storagePath,
+        inline,
       },
       quotaBytes,
       session.userId,
@@ -165,7 +188,7 @@ export async function handleUpload(
     return json({ ok: true, data: row }, 201);
   } catch (err) {
     if (err instanceof UploadTooLargeError) {
-      return fail(413, "VALIDATION", messages.attachments.errors.tooLarge);
+      return fail(413, "VALIDATION", tooLargeMessage);
     }
     if (err instanceof AppError) return failFromAppError(err);
     console.error("[files.upload] failed:", err);

@@ -1,14 +1,16 @@
 -- usp_ChecklistItem_AddToCalendar — puts one or more checklist items on the to-do calendar.
 -- @ChecklistItemIdsJson is a JSON array of item ids (1..200), all from one project.
 -- Each item gets one to-do (title, StartDate, DueDate, the checklist's project), linked through
---   ChecklistItem.TodoItemId; an item whose linked to-do is still live keeps it. Each to-do gets one
+--   ChecklistItem.TodoItemId; an item whose linked to-do is still open keeps it, and one whose to-do is
+--   Completed or Cancelled gets a new to-do, relinked. Each to-do gets one
 --   all-day alert on its due date (or else its start date) for the assignee: the active user whose
 --   email matches the assignee stakeholder and who can reach the project, or else the actor.
 -- Access: Contributor + checklists:update and todo-items:create on the project.
 -- THROW 50001 NOT_FOUND  : an item is gone.
--- THROW 50004 VALIDATION : no ids, more than 200, items from more than one project, or an item
---   with neither a start nor a due date.
--- Answers with the items (ufn_ChecklistItem_Row). Audits every row it writes.
+-- An item with neither a start nor a due date is skipped.
+-- THROW 50004 VALIDATION : no ids, more than 200, or items from more than one project.
+-- Answers with the items (ufn_ChecklistItem_Row) plus Outcome: 'added' (a new to-do now),
+--   'already' (its open to-do kept) or 'undated' (skipped). Audits every row it writes.
 USE ProjectManager;
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_ChecklistItem_AddToCalendar
@@ -19,7 +21,8 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    DECLARE @Ids TABLE (Seq INT IDENTITY(1, 1) PRIMARY KEY, ChecklistItemId INT NOT NULL UNIQUE);
+    DECLARE @Ids TABLE (Seq INT IDENTITY(1, 1) PRIMARY KEY, ChecklistItemId INT NOT NULL UNIQUE,
+                        Outcome NVARCHAR(10) NULL);
     IF ISJSON(@ChecklistItemIdsJson) = 1
         INSERT INTO @Ids (ChecklistItemId)
         SELECT DISTINCT TRY_CAST(j.[value] AS INT)
@@ -51,10 +54,10 @@ BEGIN
 
     BEGIN TRAN;
 
-    IF EXISTS (SELECT 1 FROM app.ChecklistItem i WITH (UPDLOCK, HOLDLOCK)
-               JOIN @Ids x ON x.ChecklistItemId = i.ChecklistItemId
-               WHERE i.IsDeleted = 0 AND i.StartDate IS NULL AND i.DueDate IS NULL)
-        THROW 50004, N'VALIDATION:Give each item a start or due date first', 1;
+    UPDATE x SET Outcome = N'undated'
+    FROM @Ids x
+    JOIN app.ChecklistItem i WITH (UPDLOCK, HOLDLOCK) ON i.ChecklistItemId = x.ChecklistItemId
+    WHERE i.IsDeleted = 0 AND i.StartDate IS NULL AND i.DueDate IS NULL;
 
     DECLARE @Seq INT = 1, @ItemId INT, @Title NVARCHAR(400), @Start DATE, @Due DATE,
             @StakeholderId INT, @TodoId INT, @Recipient INT;
@@ -67,9 +70,16 @@ BEGIN
         FROM @Ids x
         JOIN app.ChecklistItem i ON i.ChecklistItemId = x.ChecklistItemId AND i.IsDeleted = 0
         LEFT JOIN app.TodoItem t ON t.TodoItemId = i.TodoItemId AND t.IsDeleted = 0
+                                AND t.[Status] NOT IN (N'Completed', N'Cancelled')
         WHERE x.Seq = @Seq;
         IF @ItemId IS NULL
             THROW 50001, N'NOT_FOUND:Item not found', 1;
+        IF @Start IS NULL AND @Due IS NULL
+        BEGIN
+            SELECT @ItemId = NULL, @TodoId = NULL, @Seq = @Seq + 1;
+            CONTINUE;
+        END;
+        UPDATE @Ids SET Outcome = IIF(@TodoId IS NULL, N'added', N'already') WHERE Seq = @Seq;
 
         SET @Recipient = (
             SELECT TOP (1) u.UserId
@@ -119,7 +129,7 @@ BEGIN
 
     DECLARE @ActorRole NVARCHAR(50);
     EXEC dbo.usp_User_GetActorRole @UserId = @ActorUserId, @Role = @ActorRole OUTPUT;
-    SELECT r.*
+    SELECT r.*, x.Outcome
     FROM @Ids x
     CROSS APPLY dbo.ufn_ChecklistItem_Row(@ActorRole, @ActorUserId, x.ChecklistItemId) r
     ORDER BY x.Seq;

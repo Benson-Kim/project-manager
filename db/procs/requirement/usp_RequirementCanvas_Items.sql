@@ -30,13 +30,15 @@ BEGIN
            CAST(CASE WHEN n.RequirementCanvasNodeId IS NULL THEN 0 ELSE 1 END AS BIT) AS OnCanvas,
            n.X,
            n.Y,
-           ISNULL(n.IsCollapsed, CAST(0 AS BIT)) AS IsCollapsed
+           ISNULL(n.IsCollapsed, CAST(0 AS BIT)) AS IsCollapsed,
+           i.OwnerName
     FROM (
         SELECT 'Wbs' AS Kind, kd.KeyDeliverableId AS ItemId, ISNULL(w.WbsCode, N'') AS Ref,
                'WBS' AS [Type], LEFT(ISNULL(kd.KeyRequirement, N''), 400) AS Title,
                LEFT(kd.Note, 400) AS Summary, kd.[Status], p.KeyDeliverableId AS ParentId,
                0 AS TypeOrder, ISNULL(w.WbsKey, N'') AS SortPath,
-               NULL AS RequirementId, kd.KeyDeliverableId AS KeyDeliverableId
+               NULL AS RequirementId, kd.KeyDeliverableId AS KeyDeliverableId,
+               CAST(NULL AS NVARCHAR(200)) AS OwnerName
         FROM app.KeyDeliverable AS kd
         LEFT JOIN dbo.ufn_KeyDeliverable_WbsCode(@RowProjectId) AS w
             ON w.KeyDeliverableId = kd.KeyDeliverableId
@@ -50,9 +52,12 @@ BEGIN
                CASE r.RequirementType
                    WHEN 'BR' THEN 1 WHEN 'SR' THEN 2 WHEN 'FR' THEN 3
                    WHEN 'NFR' THEN 4 WHEN 'TR' THEN 5 WHEN 'TC' THEN 6 END,
-               ap.SortPath, r.RequirementId, NULL
+               ap.SortPath, r.RequirementId, NULL, NULLIF(o.OwnerName, N'')
         FROM app.Requirement AS r
         CROSS APPLY dbo.ufn_Requirement_AncestorPath(r.RequirementId) AS ap
+        OUTER APPLY (SELECT LTRIM(RTRIM(CONCAT(ISNULL(s.FirstName, N''), N' ', ISNULL(s.LastName, N'')))) AS OwnerName
+                     FROM app.Stakeholder AS s
+                     WHERE s.StakeholderId = r.OwnerStakeholderId AND s.IsDeleted = 0) AS o
         LEFT JOIN app.Requirement AS p
             ON p.RequirementId = r.ParentRequirementId AND p.IsDeleted = 0
         WHERE r.ProjectId = @RowProjectId AND r.IsDeleted = 0

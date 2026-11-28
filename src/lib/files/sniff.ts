@@ -41,6 +41,10 @@ const TEXT = {
 const PDF = [0x25, 0x50, 0x44, 0x46, 0x2d]; // %PDF-
 const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const JPEG = [0xff, 0xd8, 0xff];
+const GIF87 = [0x47, 0x49, 0x46, 0x38, 0x37, 0x61]; // GIF87a
+const GIF89 = [0x47, 0x49, 0x46, 0x38, 0x39, 0x61]; // GIF89a
+const RIFF = [0x52, 0x49, 0x46, 0x46]; // RIFF
+const WEBP = [0x57, 0x45, 0x42, 0x50]; // WEBP, after the RIFF size
 const ZIP = [0x50, 0x4b, 0x03, 0x04]; // PK\x03\x04
 const CFB = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]; // OLE compound file (.msg)
 
@@ -59,6 +63,12 @@ export async function sniff(source: ByteSource, fileName: string): Promise<Sniff
   if (startsWith(head, PNG)) return ext === ".png" ? accept("image/png") : REFUSED;
   if (startsWith(head, JPEG)) {
     return ext === ".jpg" || ext === ".jpeg" ? accept("image/jpeg") : REFUSED;
+  }
+  if (startsWith(head, GIF87) || startsWith(head, GIF89)) {
+    return ext === ".gif" ? accept("image/gif") : REFUSED;
+  }
+  if (head.length >= 12 && startsWith(head, RIFF) && startsWith(head.subarray(8), WEBP)) {
+    return ext === ".webp" ? accept("image/webp") : REFUSED;
   }
   if (startsWith(head, ZIP)) {
     if (!(ext in OFFICE)) return REFUSED;

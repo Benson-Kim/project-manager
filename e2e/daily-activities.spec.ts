@@ -1,8 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { messages } from "../src/lib/messages";
 import { closeAlarmToast } from "./support/alarms";
-import { expectListed } from "./support/datasheet";
+import { expectListed, openListed } from "./support/datasheet";
 import { expectFocusOnInvalid } from "./support/form";
 
 /**
@@ -62,6 +62,15 @@ test("status filter narrows the list", async ({ page }) => {
   await expect(page.getByTestId("filter-task-type")).toHaveValue("Technical");
 });
 
+test("the toolbar says how the list is sorted and follows the sort", async ({ page }) => {
+  const M = messages.dailyActivities;
+  const note = page.getByTestId("daily-activities-sort-note");
+  await page.goto("/projects/2/daily-activities");
+  await expect(note).toHaveText(M.sortNote(M.requestDate, "desc", true));
+  await page.goto("/projects/2/daily-activities?sort=ActivityDate&dir=asc");
+  await expect(note).toHaveText(M.sortNote(M.columns.activityDate, "asc", true));
+});
+
 test("build to-do from daily activity — creates a to-do linked to the activity", async ({
   page,
 }) => {
@@ -106,4 +115,163 @@ test("axe scan on the daily activity sheet has no serious or critical violations
     ["serious", "critical"].includes(v.impact ?? ""),
   );
   expect(serious).toEqual([]);
+});
+
+test("pasting a PNG into an existing daily activity uploads it and keeps it on reload", async ({
+  page,
+}) => {
+  const task = `E2E paste activity ${Date.now()}`;
+  await page.goto("/projects/2/daily-activities?id=new");
+  const form = page.getByTestId("daily-activity-form");
+  await expect(form).toBeVisible();
+  await form.getByLabel(messages.dailyActivities.task, { exact: true }).fill(task);
+  await page.getByTestId("daily-activity-save").click();
+  await expect(
+    page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
+  ).toBeVisible({ timeout: 15_000 });
+
+  await page.goto(`/projects/2/daily-activities?q=${encodeURIComponent(task)}`);
+  await openListed(page, task);
+  await expect(form).toBeVisible();
+  const ed = form.locator('[contenteditable="true"]').first();
+  await expect(ed).toBeVisible({ timeout: 15_000 });
+  await ed.click();
+  await ed.evaluate((el) => {
+    const png = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44,
+      0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f,
+      0x15, 0xc4, 0x89, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00,
+      0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49,
+      0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+    ]);
+    const dt = new DataTransfer();
+    dt.items.add(new File([png], "screenshot.png", { type: "image/png" }));
+    el.dispatchEvent(
+      new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }),
+    );
+  });
+
+  const img = ed.locator('img[src^="/api/files/"][src$="owner=daily-activity"]').first();
+  await expect(img).toBeVisible({ timeout: 15_000 });
+  await expect
+    .poll(() => img.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0))
+    .toBe(true);
+
+  await page.getByTestId("daily-activity-save").click();
+  await expect(
+    page.getByTestId("toast-success").filter({ hasText: messages.feedback.saved }).first(),
+  ).toBeVisible({ timeout: 15_000 });
+
+  await page.goto(`/projects/2/daily-activities?q=${encodeURIComponent(task)}`);
+  await openListed(page, task);
+  await expect(form).toBeVisible();
+  const reloadedImg = form
+    .locator('[contenteditable="true"]')
+    .first()
+    .locator('img[src^="/api/files/"][src$="owner=daily-activity"]')
+    .first();
+  await expect(reloadedImg).toBeVisible({ timeout: 15_000 });
+  await expect
+    .poll(() => reloadedImg.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0))
+    .toBe(true);
+});
+
+test("pasting an image into an unsaved daily activity asks to save first", async ({ page }) => {
+  await page.goto("/projects/2/daily-activities?id=new");
+  const form = page.getByTestId("daily-activity-form");
+  await expect(form).toBeVisible();
+  const ed = form.locator('[contenteditable="true"]').first();
+  await expect(ed).toBeVisible({ timeout: 15_000 });
+  await ed.click();
+  await ed.evaluate((el) => {
+    const png = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44,
+      0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f,
+      0x15, 0xc4, 0x89, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00,
+      0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49,
+      0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+    ]);
+    const dt = new DataTransfer();
+    dt.items.add(new File([png], "screenshot.png", { type: "image/png" }));
+    el.dispatchEvent(
+      new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }),
+    );
+  });
+
+  await expect(
+    page.getByTestId("toast-info").filter({ hasText: messages.richText.saveEntryFirst }).first(),
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(ed.locator("img")).toHaveCount(0);
+});
+
+async function pastePng(target: Locator) {
+  await target.evaluate((el) => {
+    const base64 =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==";
+    const png = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    const dt = new DataTransfer();
+    dt.items.add(new File([png], "screenshot.png", { type: "image/png" }));
+    el.dispatchEvent(
+      new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }),
+    );
+  });
+}
+
+async function statusOf(page: Page, url: string) {
+  return page.evaluate(async (u) => (await fetch(u, { cache: "no-store" })).status, url);
+}
+
+test("a pasted comment picture stays out of Attachments and is removed once the comment drops it", async ({
+  page,
+}) => {
+  const task = `E2E inline picture ${Date.now()}`;
+  await page.goto("/projects/2/daily-activities?id=new");
+  const form = page.getByTestId("daily-activity-form");
+  await form.getByLabel(messages.dailyActivities.task, { exact: true }).fill(task);
+  await page.getByTestId("daily-activity-save").click();
+  await expect(
+    page.getByTestId("toast-success").filter({ hasText: messages.feedback.created }).first(),
+  ).toBeVisible({ timeout: 15_000 });
+
+  const open = async () => {
+    await page.goto(`/projects/2/daily-activities?q=${encodeURIComponent(task)}`);
+    await openListed(page, task);
+    await expect(form).toBeVisible();
+  };
+  const save = async () => {
+    await page.getByTestId("daily-activity-save").click();
+    await expect(
+      page.getByTestId("toast-success").filter({ hasText: messages.feedback.saved }).first(),
+    ).toBeVisible({ timeout: 15_000 });
+  };
+  const ed = form.locator('[contenteditable="true"]').first();
+  const img = ed.locator('img[src^="/api/files/"][src$="owner=daily-activity"]');
+
+  await open();
+  await ed.click();
+  await pastePng(ed);
+  await expect(img).toBeVisible({ timeout: 15_000 });
+  const src = (await img.getAttribute("src"))!;
+  await save();
+
+  await open();
+  await expect(img).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("attachments")).toBeVisible();
+  await expect(page.getByTestId("attachment")).toHaveCount(0);
+  expect(await statusOf(page, src)).toBe(200);
+
+  await ed.click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.type("Picture removed");
+  await save();
+  expect(await statusOf(page, src)).toBe(404);
+
+  await open();
+  await page.getByTestId("daily-activity-delete").click();
+  const confirmTitle = messages.confirmDelete.title(messages.dailyActivities.entity, task);
+  await page
+    .getByRole("dialog", { name: confirmTitle })
+    .getByRole("button", { name: messages.actions.delete, exact: true })
+    .click();
+  await expect(page.getByRole("row").filter({ hasText: task })).toHaveCount(0);
 });

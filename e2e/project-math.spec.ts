@@ -90,6 +90,32 @@ test("a filtered-out card keeps what was typed", async ({ page }) => {
   await expect(ev.getByLabel(EV.bac)).toHaveValue("260000");
 });
 
+test("saved figures come back after a reload, and reset brings back the examples", async ({
+  page,
+}) => {
+  const bac = () => card(page, EV.name).getByLabel(EV.bac);
+  const form = page.locator("form").filter({ hasText: M.reset });
+  const saveAndReload = async () => {
+    await form.getByRole("button", { name: messages.actions.save, exact: true }).click();
+    await expect(page.getByTestId("toast-success").filter({ hasText: M.saved })).toBeVisible();
+    await page.reload();
+  };
+
+  await page.goto(URL);
+  await bac().fill("263000");
+  await saveAndReload();
+  await expect(bac()).toHaveValue("263000");
+
+  const reset = form.getByRole("button", { name: M.reset, exact: true });
+  // A click before hydration does nothing, so it is retried until the examples come back.
+  await expect(async () => {
+    await reset.click();
+    await expect(bac()).toHaveValue("250000", { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await saveAndReload();
+  await expect(bac()).toHaveValue("250000");
+});
+
 test("a picked currency shows its symbol on the figures", async ({ page }) => {
   await page.goto(URL);
   const currency = page.getByRole("group", { name: M.currency, exact: true });

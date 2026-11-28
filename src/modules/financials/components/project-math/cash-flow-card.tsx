@@ -20,6 +20,8 @@ import {
   Rows,
   SectionLabel,
   useRowList,
+  useReportValues,
+  useStartValues,
 } from "./card-ui";
 
 const M = messages.financials.projectMath.cashFlow;
@@ -33,9 +35,11 @@ const SEED: CashPeriod[] = [
   { id: 6, inflow: "50000", outflow: "9000" },
 ];
 
-export function CashFlowCard({ onUse, currency }: CardProps) {
-  const [initial, setInitial] = useState("120000");
-  const { rows: periods, update, add, remove } = useRowList(SEED);
+export function CashFlowCard({ onUse, currency, initial: saved, onChange }: CardProps) {
+  const startWith = useStartValues(saved, { initial: "120000", rows: SEED });
+  const [initial, setInitial] = useState(startWith.initial);
+  const { rows: periods, update, add, remove } = useRowList(startWith.rows);
+  useReportValues(onChange, { initial, rows: periods });
 
   const flow = useMemo(() => cashFlowRoi({ initial, rows: periods }), [initial, periods]);
   const money = (value: number | null) => formatCurrency(value, { symbol: currency });

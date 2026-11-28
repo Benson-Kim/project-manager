@@ -410,6 +410,13 @@ export type UpdateLineInput = z.input<typeof updateLineInput>;
 
 export const deleteLineInput = z.object({ lineId: id, rowVer: rowVerSchema });
 
+export const importWbsInput = z.object({ financialId: id });
+
+export const importWbsResultSchema = z.object({
+  Added: z.number().int().nonnegative(),
+  AlreadyThere: z.number().int().nonnegative(),
+});
+
 export const moveLineInput = z.object({
   lineId: id,
   direction: z.enum(["up", "down"]),

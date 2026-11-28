@@ -12,6 +12,7 @@ import { getProjectPermissions } from "@/modules/projects/repository/project-acc
 import { KeywordSheet } from "@/modules/keywords/components/keyword-sheet";
 import { KeywordsView } from "@/modules/keywords/components/keywords-view";
 import { listKeywords, getKeywordById } from "@/modules/keywords/repository/keywords";
+import { keywordColumns } from "@/modules/keywords/repository/columns";
 import { buildNewEntityHref, guardProjectScope } from "@/lib/project-page-helpers";
 import { parseProjectId } from "../project-id";
 import { KEYWORD_SORT } from "@/modules/keywords/schemas/keyword";
@@ -45,7 +46,7 @@ export default async function KeywordsPage({
   const isNew = flat.id === "new";
   const selectedId = !isNew && flat.id ? Number(flat.id) : null;
 
-  const [rows, preference, selectedRaw, allows] = await Promise.all([
+  const [rows, preference, selectedRaw, allows, labels, addedColumns] = await Promise.all([
     orNotFound(
       listForView(effectiveParams, (p, size) => listKeywords(p, session.userId, projectId, size)),
     ),
@@ -54,6 +55,8 @@ export default async function KeywordsPage({
       ? orNull(getKeywordById(selectedId, session.userId))
       : null,
     getProjectPermissions(projectId, session.userId),
+    orNotFound(keywordColumns.listLabels(projectId, session.userId)),
+    orNotFound(keywordColumns.listColumns(projectId, session.userId)),
   ]);
 
   // A deep link to a keyword from another project is treated as not found.
@@ -88,6 +91,9 @@ export default async function KeywordsPage({
           initialView={initialViewOf(effectiveParams.view, preference?.viewMode)}
           layout={preference?.layout}
           filtersActive={filtersActive}
+          labels={labels}
+          addedColumns={addedColumns}
+          canManageColumns={{ create: canCreate, update: canEdit, delete: canDelete }}
           newKeywordAction={canCreate ? newKeywordLink : undefined}
         />
       </div>

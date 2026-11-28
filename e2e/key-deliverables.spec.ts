@@ -1943,3 +1943,99 @@ test("Deliverable assignees: several stakeholders are picked one after another, 
     page.getByTestId("toast-success").filter({ hasText: messages.feedback.deleted }).first(),
   ).toBeVisible({ timeout: 15_000 });
 });
+
+test("Gantt critical path: highlights critical chain and arrow, leaves slack out, and persists", async ({
+  page,
+}) => {
+  test.slow();
+  const stamp = Date.now();
+  await page.goto("/projects/2/deliverables/gantt?view=gantt&scale=day");
+  await expect(page.getByTestId("gantt-board")).toBeVisible();
+  await closeAlarmToast(page);
+
+  const firstId = await addInGantt(page, `E2E crit A ${stamp}`);
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+  const secondId = await addInGantt(page, `E2E crit B ${stamp}`);
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+  const slackId = await addInGantt(page, `E2E slack ${stamp}`);
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+
+  const startField = page.getByTestId("wbs-details-start");
+  const endField = page.getByTestId("wbs-details-end");
+
+  const setDates = async (id: string, start: string, end: string) => {
+    await selectCard(page, id);
+    await startField.fill(start);
+    await startField.blur();
+    await endField.fill(end);
+    await endField.blur();
+    await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+  };
+
+  // The chain starts after the latest dated day on the project, so no other item ends later.
+  const shownDates = await page
+    .getByTestId("gantt-board")
+    .locator(
+      '[data-testid^="gantt-card-"][data-testid$="-dates"], [data-testid^="gantt-milestone-"] button',
+    )
+    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("title") ?? node.textContent));
+  const lastDay = shownDates
+    .join(" ")
+    .match(/\d{4}-\d{2}-\d{2}/g)
+    ?.sort()
+    .pop();
+  const base = plusDays(lastDay ?? new Date().toISOString().slice(0, 10), 7);
+  await setDates(firstId, base, plusDays(base, 4));
+  await setDates(secondId, plusDays(base, 5), plusDays(base, 9));
+  await setDates(slackId, base, plusDays(base, 2));
+
+  const secondName = page.getByTestId(`gantt-card-${secondId}-name`);
+  const panel = page.getByTestId("wbs-dependencies");
+  await pickFromGanttMenu(page, secondName, "wbs-menu-dependencies", panel);
+  await panel.getByRole("combobox", { name: W.dependencyPredecessor }).fill(`E2E crit A ${stamp}`);
+  await page.getByRole("option", { name: new RegExp(escapeRegExp(`E2E crit A ${stamp}`)) }).click();
+  await page.getByTestId("wbs-dependency-submit").click();
+  await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+
+  const toggle = page.getByTestId("gantt-tools-critical-path");
+  await turnOn(toggle);
+
+  await expect(page.getByTestId(`gantt-card-${firstId}`)).toHaveAttribute("data-critical", "true");
+  await expect(page.getByTestId(`gantt-card-${firstId}-name`)).toHaveAttribute(
+    "aria-label",
+    /on a critical path/,
+  );
+  await expect(page.getByTestId(`gantt-card-${secondId}`)).toHaveAttribute("data-critical", "true");
+  await expect(secondName).toHaveAttribute("aria-label", /on a critical path/);
+  await expect(
+    page.locator(
+      `[data-gantt-dependency-from="${firstId}"][data-gantt-dependency-to="${secondId}"]`,
+    ),
+  ).toHaveAttribute("data-critical", "true");
+  await expect(page.getByTestId(`gantt-card-${slackId}`)).not.toHaveAttribute(
+    "data-critical",
+    "true",
+  );
+
+  await page.reload();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId(`gantt-card-${firstId}`)).toHaveAttribute("data-critical", "true");
+
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+
+  const confirm = page.getByRole("dialog").filter({ hasText: W.deleteBody });
+  for (const id of [firstId, secondId, slackId]) {
+    await pickFromGanttMenu(
+      page,
+      page.getByTestId(`gantt-card-${id}-name`),
+      "wbs-menu-delete",
+      confirm,
+    );
+    await page.getByRole("button", { name: W.delete, exact: true }).last().click();
+    await expect(page.getByTestId(`gantt-card-${id}`)).toHaveCount(0);
+    await expect(page.getByTestId("wbs-saving")).toBeHidden({ timeout: 15_000 });
+  }
+});

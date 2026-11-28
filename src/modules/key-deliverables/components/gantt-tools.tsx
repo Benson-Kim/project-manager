@@ -3,6 +3,7 @@
 import { Menu, MenuButton, MenuCheckbox } from "@/components/ui/menu";
 import { messages } from "@/lib/messages";
 import type { GanttDisplay } from "./gantt-layout";
+import type { GanttDisplaySettings } from "./use-gantt-display";
 import type { ToolbarCommand } from "./wbs-toolbar";
 
 const W = messages.keyDeliverables.wbs;
@@ -21,8 +22,9 @@ export interface GanttToolsProps {
   addItem: ToolbarCommand;
   addMilestone: ToolbarCommand;
   onCopySummary(): void;
-  display: GanttDisplay;
-  onDisplay(change: Partial<GanttDisplay>): void;
+  display: GanttDisplaySettings;
+  onDisplay(change: Partial<GanttDisplaySettings>): void;
+  undatedCount?: number;
 }
 
 const iconButton =
@@ -32,7 +34,7 @@ const icon =
 
 /**
  * The bar under the Gantt: Add (an item or a milestone), copy a text summary
- * of the plan, and the Display menu of what the cards and chart show.
+ * of the plan, the Critical path toggle, and the Display menu of what the cards and chart show.
  */
 export function GanttTools({
   addItem,
@@ -40,13 +42,14 @@ export function GanttTools({
   onCopySummary,
   display,
   onDisplay,
+  undatedCount = 0,
 }: GanttToolsProps) {
   return (
     <div
       role="group"
       aria-label={B.tools}
       data-testid="gantt-tools"
-      className="flex h-12 items-center gap-1 rounded-xl border border-line bg-surface px-2 shadow-lg print:hidden"
+      className="flex h-auto min-h-12 max-w-full flex-wrap items-center gap-1 rounded-xl border border-line bg-surface px-2 py-1.5 shadow-lg print:hidden"
     >
       {addItem.hidden ? null : (
         <Menu
@@ -102,6 +105,31 @@ export function GanttTools({
           </MenuCheckbox>
         ))}
       </Menu>
+      <button
+        type="button"
+        aria-pressed={display.criticalPath}
+        data-testid="gantt-tools-critical-path"
+        onClick={() => onDisplay({ criticalPath: !display.criticalPath })}
+        className={`flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 text-xs focus-visible:outline-2 focus-visible:outline-coral ${
+          display.criticalPath
+            ? "border-danger bg-danger-soft font-semibold text-danger"
+            : "border-transparent text-ink hover:bg-surface-raised"
+        }`}
+      >
+        <svg viewBox="0 0 16 16" className={icon} aria-hidden="true">
+          <path d="M2 12h4l2-8 2 8h4" />
+        </svg>
+        {B.criticalPath}
+      </button>
+      {display.criticalPath && undatedCount > 0 ? (
+        <span
+          data-testid="gantt-critical-path-undated"
+          role="status"
+          className="px-1.5 text-xs text-ink-muted"
+        >
+          {B.criticalUndated(undatedCount)}
+        </span>
+      ) : null}
     </div>
   );
 }

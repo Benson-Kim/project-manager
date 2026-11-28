@@ -29,6 +29,10 @@ const COMPONENTS: [string, string][] = [
   ["src/modules/key-deliverables/components/deliverable-form.tsx", "canAdd={canAddStakeholder}"],
   ["src/modules/meetings/components/minutes-forms.tsx", "canAdd={canAddStakeholder}"],
   [
+    "src/modules/meetings/components/participants-panel.tsx",
+    "const canAddMember = canEdit && canAddStakeholder;",
+  ],
+  [
     "src/modules/stakeholders/components/responsibility-view.tsx",
     "useStakeholderQuickCreate(canCreate)",
   ],

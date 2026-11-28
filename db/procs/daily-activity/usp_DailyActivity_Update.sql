@@ -10,6 +10,8 @@
 --   With @QuotaBytes set, their bytes must fit there (QUOTA_EXCEEDED 50006), checked under the
 --   destination's quota lock after the row's, the order usp_DailyActivity_AddFile takes them in.
 --   NULL (an app from before this check) moves them unchecked.
+-- Pictures pasted into the comments (IsInline = 1) whose link is no longer in @Comments are
+--   removed and audited, freeing their quota; uploaded attachments are never touched.
 -- Returns ActivityStatus, the status option's label (live or retired), with the row.
 -- Entity app.DailyActivity (source: tblDailyActivityList). Module: database-schema-and-procs (#3).
 -- Dates in order (VALIDATION 50004) only when one of the pair changes: a record saved with them
@@ -154,6 +156,26 @@ BEGIN
       AND (f.ProjectId <> @ProjectId
            OR (f.ProjectId IS NULL AND @ProjectId IS NOT NULL)
            OR (f.ProjectId IS NOT NULL AND @ProjectId IS NULL));
+
+    DECLARE @Unshown TABLE (FileAttachmentId INT PRIMARY KEY);
+    UPDATE f SET
+        IsDeleted    = 1,
+        DeletedAtUtc = SYSUTCDATETIME(),
+        DeletedBy    = @ActorUserId
+    OUTPUT inserted.FileAttachmentId INTO @Unshown
+    FROM app.FileAttachment f
+    JOIN app.DailyActivityFile l ON l.FileAttachmentId = f.FileAttachmentId
+    WHERE l.DailyActivityId = @DailyActivityId AND l.IsInline = 1 AND f.IsDeleted = 0
+      AND CHARINDEX(N'/api/files/' + CAST(f.FileAttachmentId AS NVARCHAR(12)) + N'?owner=daily-activity',
+                    ISNULL(@Comments, N'')) = 0;
+
+    INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson)
+    SELECT @ActorUserId, N'Delete', N'app.FileAttachment', CAST(r.FileAttachmentId AS NVARCHAR(64)),
+           (SELECT f.FileAttachmentId, @DailyActivityId AS DailyActivityId, f.ProjectId, f.FileName,
+                   f.ContentType, f.SizeBytes, f.Sha256, CAST(1 AS BIT) AS IsInline
+            FROM app.FileAttachment f WHERE f.FileAttachmentId = r.FileAttachmentId
+            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+    FROM @Unshown r;
 
     INSERT INTO audit.AuditLog (ActorUserId, Action, EntityName, EntityId, BeforeJson, AfterJson)
     VALUES (@ActorUserId, N'Update', N'app.DailyActivity', CAST(@DailyActivityId AS NVARCHAR(64)), @Before,

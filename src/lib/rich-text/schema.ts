@@ -36,7 +36,7 @@ function currentSanitizer(): RichTextSanitizer {
  * "<h2></h2>", which is empty too.
  */
 export function isEmptyRichText(html: string): boolean {
-  if (/<(?:table|li)\b/i.test(html)) return false;
+  if (/<(?:table|li|img)\b/i.test(html)) return false;
   return html.replace(/<[^>]*>|&nbsp;|\s/gi, "") === "";
 }
 

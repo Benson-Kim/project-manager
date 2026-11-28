@@ -25,6 +25,7 @@ const ALLOWED_TAGS = new Set([
   "th",
   "td",
   "a",
+  "img",
   "span",
   "mark",
   "hr",
@@ -32,6 +33,8 @@ const ALLOWED_TAGS = new Set([
 const ALLOWED_ATTRIBUTES = new Set([
   "href",
   "rel",
+  "src",
+  "alt",
   "style",
   "colspan",
   "rowspan",
@@ -166,6 +169,50 @@ describe("sanitizeRichText — XSS corpus", () => {
     expect(sanitizeRichText("<p>1 &lt; 2 &amp;&amp; 3 &gt; 2</p>")).toBe(
       "<p>1 &lt; 2 &amp;&amp; 3 &gt; 2</p>",
     );
+  });
+});
+
+describe("sanitizeRichText — pasted images", () => {
+  it.each([
+    '<img src="/api/files/1?owner=note" alt="" />',
+    '<p><img src="/api/files/42?owner=daily-activity" alt="Screenshot" /></p>',
+    '<img src="/api/files/999?owner=note" />',
+  ])("keeps allowed image %s", (html) => {
+    expect(sanitizeRichText(html)).toBe(html);
+  });
+
+  it("drops disallowed attributes from allowed images", () => {
+    expect(
+      sanitizeRichText(
+        '<img src="/api/files/5?owner=note" alt="shot" onerror="alert(1)" style="width:999px" srcset="https://evil.example/x.png" width="100" height="100" class="x" />',
+      ),
+    ).toBe('<img src="/api/files/5?owner=note" alt="shot" />');
+  });
+
+  it.each([
+    '<img src="https://evil.example/x.png" alt="" />',
+    '<img src="http://evil.example/x.png" />',
+    '<img src="data:image/png;base64,iVBORw0KGgo=" />',
+    '<img src="data:image/svg+xml;utf8,<svg/>" />',
+    '<img src="javascript:alert(1)" />',
+    '<img src="//evil.example/x.png" />',
+    '<img src="x" onerror="alert(1)" />',
+    '<IMG SRC="https://evil.example/x.png" />',
+    '<img src="&#x6a;avascript:alert(1)" />',
+    '<img src="/api/files/0?owner=note" />',
+    '<img src="/api/files/01?owner=note" />',
+    '<img src="/api/files/-5?owner=note" />',
+    '<img src="/api/files/abc?owner=note" />',
+    '<img src="/api/files/5?owner=requirement" />',
+    '<img src="/api/files/5?owner=financial-document" />',
+    '<img src="/api/files/5?owner=note&extra=1" />',
+    '<img src="/api/files/5?owner=note#fragment" />',
+    '<img src=" /api/files/5?owner=note " />',
+    "<img />",
+  ])("removes disallowed image %s completely", (vector) => {
+    const clean = sanitizeRichText(vector);
+    expect(clean).toBe("");
+    expect(clean).not.toMatch(/<\s*img\b/i);
   });
 });
 

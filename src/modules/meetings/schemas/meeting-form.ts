@@ -398,9 +398,7 @@ export const saveMinutesSectionSchema = z.object({
   meetingMinutesSectionId: blankAsNull(id),
   sectionKey: blankAsNull(minutesSectionKeySchema),
   title: z.string().trim().min(1, M.sectionTitleRequired).max(MINUTES_SECTION_TITLE_MAX),
-  body: blankAsNull(z.string().max(MINUTES_SECTION_BODY_MAX)).transform((body) =>
-    body && body.trim() ? body : null,
-  ),
+  body: richTextSchema({ max: MINUTES_SECTION_BODY_MAX }),
   rowVer: blankAsNull(rowVerSchema),
 });
 export const deleteMinutesSectionSchema = z.object({

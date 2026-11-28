@@ -8,6 +8,7 @@ import type {
   MeetingWorkspace,
   WorkspaceActionItem,
   WorkspaceDiscussionPoint,
+  WorkspaceSection,
 } from "../schemas/meeting";
 import type { Sibling } from "../schemas/minutes";
 import type { StakeholderOption } from "@/modules/stakeholders/repository/stakeholder-options";
@@ -51,6 +52,9 @@ export interface MinutesContextValue {
   /** Focuses the element with this data-focus-key once the next render lands. */
   focusSoon: (key: string) => void;
   pointView: (point: WorkspaceDiscussionPoint) => React.ReactNode;
+  sectionView: (section: WorkspaceSection) => React.ReactNode;
+  /** The renamed built-in sections and the boxes users added. */
+  sections: readonly WorkspaceSection[];
   people: (current?: PickedPerson) => StakeholderOption[];
   /**
    * Moves one action to a status (ADR-0043), from its own row or a carried-over

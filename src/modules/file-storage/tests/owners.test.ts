@@ -2,8 +2,17 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { requiredLevel } from "@/lib/auth/rbac";
-import { ATTACHMENT_OWNER_CONFIG, ownerConfig } from "../repository/owners";
-import { ATTACHMENT_OWNERS } from "../schemas/attachment";
+import { ATTACHMENT_OWNER_CONFIG, ownerAcceptPolicy, ownerConfig } from "../repository/owners";
+import {
+  ACCEPTED_EXTENSIONS,
+  ACCEPTED_MIME_TYPES,
+  ATTACHMENT_OWNERS,
+  IMAGE_EXTENSIONS,
+  IMAGE_MIME_TYPES,
+  MAX_UPLOAD_BYTES,
+  NOTE_MAX_UPLOAD_BYTES,
+  resolveAcceptPolicy,
+} from "../schemas/attachment";
 
 /**
  * The owner registry must match the database and the access guardrail
@@ -62,4 +71,39 @@ describe.each(ATTACHMENT_OWNERS.map((owner) => [owner, ownerConfig(owner)] as co
 
 it("every owner key has exactly one registry entry", () => {
   expect(Object.keys(ATTACHMENT_OWNER_CONFIG).sort()).toEqual([...ATTACHMENT_OWNERS].sort());
+});
+
+describe("owner accept policies", () => {
+  it("restricts note attachments to images at 10 MB", () => {
+    expect(ownerAcceptPolicy("note")).toEqual({
+      extensions: IMAGE_EXTENSIONS,
+      mimeTypes: IMAGE_MIME_TYPES,
+      maxBytes: NOTE_MAX_UPLOAD_BYTES,
+    });
+    expect(NOTE_MAX_UPLOAD_BYTES).toBe(10 * 1024 * 1024);
+    expect(IMAGE_EXTENSIONS).toEqual([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
+    expect(IMAGE_MIME_TYPES).toEqual(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+  });
+
+  it.each(["daily-activity", "financial-document"] as const)(
+    "uses the default 25 MB policy including GIF and WebP for %s",
+    (owner) => {
+      const policy = ownerAcceptPolicy(owner);
+      expect(policy.maxBytes).toBe(MAX_UPLOAD_BYTES);
+      expect(policy.extensions).toEqual(ACCEPTED_EXTENSIONS);
+      expect(policy.mimeTypes).toEqual(ACCEPTED_MIME_TYPES);
+      expect(policy.extensions).toContain(".gif");
+      expect(policy.extensions).toContain(".webp");
+      expect(policy.mimeTypes).toContain("image/gif");
+      expect(policy.mimeTypes).toContain("image/webp");
+    },
+  );
+
+  it("fills omitted fields from the default policy", () => {
+    expect(resolveAcceptPolicy({ maxBytes: 1024 })).toEqual({
+      extensions: ACCEPTED_EXTENSIONS,
+      mimeTypes: ACCEPTED_MIME_TYPES,
+      maxBytes: 1024,
+    });
+  });
 });

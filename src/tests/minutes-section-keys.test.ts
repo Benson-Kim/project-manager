@@ -11,7 +11,7 @@ describe("minutes section keys stay in step", () => {
 
   it("matches the CHECK on app.MeetingMinutesSection", () => {
     const check = /CHECK \(SectionKey IN \(([^)]*)\)\)/.exec(
-      read("db/migrations/087_meeting_minutes_sections.sql"),
+      read("db/migrations/093_minutes_summary_conclusion_titles.sql"),
     );
     expect(check).not.toBeNull();
     expect(keysIn(check![1])).toEqual(registry);

@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import { sha256, verifySqlMedia } from "./fetch-sql-express.mjs";
 import { licensingConfig } from "./licensing.cjs";
+import { channelConfig } from "./channel.cjs";
 import { assertStandaloneEntries } from "./standalone-check.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -35,6 +36,7 @@ const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf-8"));
 const version = process.env.PM_VERSION || pkg.version;
 if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`Invalid version "${version}" (expected x.y.z)`);
 const licensing = licensingConfig(process.env);
+const channel = channelConfig(process.env, { enforce: licensing.enforce, version, full });
 
 const step = (m) => console.log(`\n▶ ${m}`);
 const SIGNING_SECRETS = ["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET", "CSC_LINK", "CSC_KEY_PASSWORD", "WIN_CSC_LINK", "WIN_CSC_KEY_PASSWORD"];
@@ -137,13 +139,14 @@ if (!packageOnly) {
     JSON.stringify(
       {
         name: pkg.name,
-        productName: "Modulus",
+        productName: channel.productName,
         version,
         description: "Modulus desktop edition",
         author: pkg.author,
         main: "main.js",
         private: true,
         ...(licensing.enforce ? { licensing: "enforce" } : {}),
+        ...channel.manifest,
         buildInfo: { commit, dirty, builtAt: new Date().toISOString() },
       },
       null,
@@ -160,7 +163,7 @@ if (stageOnly) process.exit(0);
 step(dirOnly ? "Packaging (unpacked directory)" : "Packaging the installer");
 run(
   `npx electron-builder --win --x64 --projectDir "${appDir}" --config "${join(root, "electron-builder.config.cjs")}" ` +
-    `--publish never${dirOnly ? " --dir" : ""}`,
+    `--publish never${dirOnly ? " --dir" : ""}${channel.builderArgs.map((a) => ` ${a}`).join("")}`,
   { signing: true },
 );
 
@@ -209,7 +212,7 @@ if (hasFeed && !dirOnly && !existsSync(join(unpacked, "app-update.yml"))) proble
 if (problems.length) throw new Error(`Package check failed:\n  - ${problems.join("\n  - ")}`);
 console.log(`  app.asar ${(statSync(join(unpacked, "app.asar")).size / 1024).toFixed(0)} KB; server, db scripts, ${full ? "SQL media, " : ""}provisioning present; no .env files`);
 if (!dirOnly) {
-  const exe = join(out, `Modulus-Setup-${full ? "Full-" : ""}${version}.exe`);
+  const exe = join(out, channel.installerName);
   console.log(`\n✔ ${exe}`);
   const hash = await sha256(exe);
   // Ship this next to the installer so a copy (USB, download) can be checked on
@@ -218,13 +221,13 @@ if (!dirOnly) {
   console.log(`  size   ${(statSync(exe).size / 1048576).toFixed(1)} MB`);
   console.log(`  sha256 ${hash}  (also in ${basename(exe)}.sha256)`);
   if (hasFeed && !full) {
-    // What the release workflow publishes: latest.yml tells installed apps about
+    // What gets published: the feed file tells installed apps about
     // this version, the .blockmap lets them download only the changed blocks.
-    const feed = join(root, "dist-installer", "latest.yml");
+    const feed = join(root, "dist-installer", channel.feedFile);
     if (!existsSync(feed) || !readFileSync(feed, "utf-8").includes(`version: ${version}`)) {
-      throw new Error("dist-installer/latest.yml is missing or describes another version");
+      throw new Error(`dist-installer/${channel.feedFile} is missing or describes another version`);
     }
     if (!existsSync(`${exe}.blockmap`)) throw new Error(`${basename(exe)}.blockmap is missing`);
-    console.log(`  update feed files: latest.yml, ${basename(exe)}.blockmap`);
+    console.log(`  update feed files: ${channel.feedFile}, ${basename(exe)}.blockmap`);
   }
 }

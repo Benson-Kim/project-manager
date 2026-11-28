@@ -16,15 +16,23 @@ import {
   Note,
   PipeButton,
   Rows,
+  useReportValues,
+  useStartValues,
 } from "./card-ui";
 
 const M = messages.financials.projectMath.businessCase;
 const YEARS = [1, 2, 3, 4, 5] as const;
 
-export function BusinessCaseCard({ onUse, currency }: CardProps) {
-  const [initial, setInitial] = useState("120000");
-  const [rate, setRate] = useState("10");
-  const [flows, setFlows] = useState(["35000", "40000", "45000", "30000", "25000"]);
+export function BusinessCaseCard({ onUse, currency, initial: saved, onChange }: CardProps) {
+  const startWith = useStartValues(saved, {
+    initial: "120000",
+    rate: "10",
+    flows: ["35000", "40000", "45000", "30000", "25000"],
+  });
+  const [initial, setInitial] = useState(startWith.initial);
+  const [rate, setRate] = useState(startWith.rate);
+  const [flows, setFlows] = useState(startWith.flows);
+  useReportValues(onChange, { initial, rate, flows });
 
   const result = useMemo(() => businessCase({ initial, rate, flows }), [initial, rate, flows]);
   const money = (value: number | null) => formatCurrency(value, { symbol: currency });

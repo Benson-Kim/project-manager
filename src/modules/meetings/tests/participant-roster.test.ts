@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { RosterEntry, WorkspaceParticipant } from "../schemas/meeting";
 import { setParticipantsSchema } from "../schemas/meeting-form";
 import {
+  attendNewMember,
   attendanceCounts,
   attendanceOf,
   choicesAfterSave,
@@ -308,5 +309,23 @@ describe("participant roster: after a save", () => {
     const ada = guestEntry("Ada", "");
     const current = choose(sent, ada, "apology");
     expect([...choicesAfterSave(roster, after, sent, current)]).toEqual([[key(ada), "apology"]]);
+  });
+});
+
+describe("a member added from the minutes page", () => {
+  it("waits while the refreshed roster does not list them yet", () => {
+    expect(attendNewMember(roster, none, 9)).toBeNull();
+  });
+
+  it("joins as attended, unsaved, once the roster lists them", () => {
+    const next = attendNewMember(roster, none, 2);
+    expect(next && attendanceOf(lucy, next)).toBe("attended");
+    expect(next && hasChanges(roster, next)).toBe(true);
+  });
+
+  it("keeps the other unsaved picks", () => {
+    const picked = choose(none, gary, "apology");
+    const next = attendNewMember(roster, picked, 2);
+    expect(next && attendanceOf(gary, next)).toBe("apology");
   });
 });

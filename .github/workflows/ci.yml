@@ -295,6 +295,8 @@ jobs:
           node db/tests/todo-schedule-procs.cjs
           node db/tests/stakeholder-matrix-procs.cjs
           node db/tests/responsibility-matrix-procs.cjs
+          node db/tests/global-search-procs.cjs
+          node db/tests/cross-links-procs.cjs
 
   e2e-tests:
     name: Playwright E2E Smoke Tests

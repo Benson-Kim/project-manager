@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/shell/app-shell";
 import type { ShellAlert } from "@/components/shell/header-actions";
+import { LocalPathLinkHandler } from "@/components/ui/rich-text/local-path-view";
 import { DEFAULT_IDLE_TIMEOUT_MINUTES } from "@/lib/auth/idle-timeout";
 import { auth } from "@/lib/auth/provider";
 import { can } from "@/lib/auth/rbac";
@@ -41,6 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <AppShell
       username={session?.username ?? ""}
+      currentUserId={session?.userId ?? null}
       canCreateProject={canCreateProject}
       canCreateDailyActivity={canCreateDailyActivity}
       canCreateTodo={canCreateTodo}
@@ -49,6 +51,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     >
       {session ? <IdleSignOut idleTimeoutMinutes={idleTimeoutMinutes} /> : null}
       {children}
+      <LocalPathLinkHandler />
     </AppShell>
   );
 }

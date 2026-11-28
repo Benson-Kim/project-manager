@@ -110,6 +110,8 @@ export function GanttBoard({
   display,
   progress,
   milestones,
+  criticalIds,
+  criticalLinkIds,
   selectedId,
   listingId,
   on,
@@ -125,6 +127,8 @@ export function GanttBoard({
   display: GanttDisplay;
   progress: ReadonlyMap<number, number>;
   milestones: readonly MilestoneChip[];
+  criticalIds?: ReadonlySet<number>;
+  criticalLinkIds?: ReadonlySet<number>;
   selectedId: number | null;
   /** The card whose requirements the panel under the chart shows. */
   listingId: number | null;
@@ -231,9 +235,19 @@ export function GanttBoard({
               type="button"
               data-gantt-item={label.item.id}
               data-testid={`gantt-lane-${label.item.id}-label`}
+              data-critical={criticalIds?.has(label.item.id) ? "true" : undefined}
+              aria-label={
+                criticalIds?.has(label.item.id)
+                  ? `${label.code} ${nameOf(label)}, ${W.card.criticalPath}`
+                  : undefined
+              }
               title={nameOf(label)}
               onClick={() => on.select(label.item.id)}
-              className={`line-clamp-3 w-full cursor-pointer rounded-sm bg-level-2 px-2 py-1 text-left text-xs leading-snug font-medium text-level-ink hover:brightness-95 focus-visible:outline-2 focus-visible:outline-focus print:[print-color-adjust:exact] ${ring(label.item.id)}`}
+              className={`line-clamp-3 w-full cursor-pointer rounded-sm bg-level-2 px-2 py-1 text-left text-xs leading-snug font-medium text-level-ink hover:brightness-95 focus-visible:outline-2 focus-visible:outline-focus print:[print-color-adjust:exact] ${
+                criticalIds?.has(label.item.id)
+                  ? "border-2 border-danger outline-2 outline-offset-1 outline-danger"
+                  : ""
+              } ${ring(label.item.id)}`}
             >
               <span className="mr-1 text-[10px] opacity-70 tabular-nums">{label.code}</span>
               {nameOf(label)}
@@ -255,6 +269,7 @@ export function GanttBoard({
                         node={node}
                         reached={reached.get(entry.id) ?? false}
                         selected={entry.id === selectedId}
+                        critical={criticalIds?.has(entry.id) ?? false}
                         style={style}
                         onSelect={() => on.select(entry.id)}
                       />
@@ -277,6 +292,8 @@ export function GanttBoard({
                       display={display}
                       open={open.has(id)}
                       selected={id === selectedId}
+                      critical={criticalIds?.has(id) ?? false}
+                      criticalIds={criticalIds}
                       listing={id === listingId}
                       resizable={
                         on.drag !== undefined &&
@@ -464,9 +481,19 @@ export function GanttBoard({
                           type="button"
                           data-gantt-item={pill.item.id}
                           data-testid={`gantt-group-${pill.item.id}-pill`}
+                          data-critical={criticalIds?.has(pill.item.id) ? "true" : undefined}
+                          aria-label={
+                            criticalIds?.has(pill.item.id)
+                              ? `${pill.code} ${nameOf(pill)}, ${W.card.criticalPath}`
+                              : undefined
+                          }
                           title={`${pill.code} ${nameOf(pill)}`}
                           onClick={() => on.select(pill.item.id)}
-                          className={`relative min-h-28 w-[26px] cursor-pointer rounded-full bg-level-1 text-level-ink hover:brightness-95 focus-visible:outline-2 focus-visible:outline-focus print:[print-color-adjust:exact] ${ring(pill.item.id)}`}
+                          className={`relative min-h-28 w-[26px] cursor-pointer rounded-full bg-level-1 text-level-ink hover:brightness-95 focus-visible:outline-2 focus-visible:outline-focus print:[print-color-adjust:exact] ${
+                            criticalIds?.has(pill.item.id)
+                              ? "border-2 border-danger outline-2 outline-offset-1 outline-danger"
+                              : ""
+                          } ${ring(pill.item.id)}`}
                         >
                           <span className="absolute top-1/2 left-1/2 max-h-[calc(100%-2.75rem)] -translate-x-1/2 -translate-y-1/2 rotate-180 truncate text-[11px] font-semibold [writing-mode:vertical-rl]">
                             {pill.code} {nameOf(pill)}
@@ -495,6 +522,7 @@ export function GanttBoard({
             wbs={wbs}
             geometryKey={geometryKey}
             anchorOf={anchorOf}
+            criticalLinkIds={criticalLinkIds}
           />
         </div>
       </div>

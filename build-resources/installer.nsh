@@ -19,6 +19,15 @@
   !define MUI_FINISHPAGE_TEXT "Click Finish to close Setup."
 !endif
 
+!if "${PRODUCT_NAME}" == "Modulus Beta"
+  !define PM_BETA
+  !define PM_DATA_FOLDER "Modulus Beta"
+  !define PM_SETUP_ARGS " -Beta"
+!else
+  !define PM_DATA_FOLDER "Modulus"
+  !define PM_SETUP_ARGS ""
+!endif
+
 !macro customPageAfterChangeDir
   !define MUI_PAGE_HEADER_SUBTEXT "This can take a few minutes."
 !macroend
@@ -83,6 +92,11 @@
   pm_ps_found:
   ReadEnvStr $R2 PROGRAMDATA
 
+  ; A beta copy sits beside the real app, so it never removes an installed version of it.
+  !ifdef PM_BETA
+    Goto pm_legacy_done
+  !endif
+
   ; 1. Versions before 1.0.0 were installed for all users (C:\Program Files).
   ;    Remove that copy so this one is the only one. Data is kept.
   ReadRegStr $R3 HKLM "${INSTALL_REGISTRY_KEY}" InstallLocation
@@ -110,8 +124,12 @@
   pm_legacy_done:
 
   ; 3. Database engine: once per PC. A PC set up before the rename keeps its old folder.
-  IfFileExists "$R2\Modulus\machine.json" pm_db_ready 0
-  IfFileExists "$R2\Project Manager\machine.json" 0 pm_provision
+  !ifdef PM_BETA
+    IfFileExists "$R2\${PM_DATA_FOLDER}\machine.json" pm_db_ready pm_provision
+  !else
+    IfFileExists "$R2\Modulus\machine.json" pm_db_ready 0
+    IfFileExists "$R2\Project Manager\machine.json" 0 pm_provision
+  !endif
   pm_db_ready:
     DetailPrint "The database engine is already set up on this PC."
     Goto pm_db_ok
@@ -121,14 +139,14 @@
   StrCpy $R3 ""
   IfFileExists "$INSTDIR\resources\sql-express\SQLEXPR_x64_ENU.exe" 0 +2
     StrCpy $R3 ' -SqlInstaller "$INSTDIR\resources\sql-express\SQLEXPR_x64_ENU.exe"'
-  nsExec::ExecToLog '"$R1" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\resources\setup\provision.ps1"$R3'
+  nsExec::ExecToLog '"$R1" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\resources\setup\provision.ps1"$R3${PM_SETUP_ARGS}'
   Pop $R0
   StrCmp $R0 "0" pm_db_ok
   StrCmp $R0 "11" 0 pm_db_failed
     MessageBox MB_OK|MB_ICONEXCLAMATION "The database engine was not set up because administrator approval was not given.$\r$\n$\r$\nOpen Modulus and choose Repair, then approve the Windows prompt." /SD IDOK
     Goto pm_db_ok
   pm_db_failed:
-    MessageBox MB_OK|MB_ICONEXCLAMATION "The database engine could not be set up (code $R0).$\r$\n$\r$\nModulus will offer to repair it when you open it.$\r$\nDetails: $R2\Modulus\logs\provision.log" /SD IDOK
+    MessageBox MB_OK|MB_ICONEXCLAMATION "The database engine could not be set up (code $R0).$\r$\n$\r$\nModulus will offer to repair it when you open it.$\r$\nDetails: $R2\${PM_DATA_FOLDER}\logs\provision.log" /SD IDOK
   pm_db_ok:
 !macroend
 

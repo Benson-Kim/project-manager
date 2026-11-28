@@ -5,15 +5,18 @@ import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 import { useAnnouncer } from "@/components/ui/announcer";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { ErrorSummary } from "@/components/ui/form/error-summary";
 import { useUnsavedPart } from "@/components/ui/form/unsaved-scope";
 import { useToast } from "@/components/ui/toast";
 import { PANEL_BODY, PANEL_SHELL } from "@/components/ui/panel-styles";
 import { messages } from "@/lib/messages";
+import { StakeholderQuickCreate } from "@/modules/stakeholders/components/stakeholder-quick-create";
 import { getLastMeetingAttendeesAction, setParticipantsAction } from "../actions";
 import type { MeetingRoster, RosterEntry } from "../schemas/meeting";
 import {
   ATTENDANCE,
+  attendNewMember,
   attendanceCounts,
   attendanceOf,
   choicesAfterSave,
@@ -49,18 +52,23 @@ const INPUT = "min-h-11 w-full rounded-md border border-line bg-surface px-3 tex
  * name and organization and joins the list as attended, unsaved, until Save
  * stores them. Not invited drops an unsaved guest and uninvites a saved one,
  * whose row Set removes.
+ *
+ * Add member makes a new stakeholder in a pop-up on this page; they join the list as attended,
+ * unsaved, once the refreshed roster lists them.
  */
 export function ParticipantsPanel({
   meetingId,
   projectId,
   roster,
   canEdit,
+  canAddStakeholder,
   headingId,
 }: {
   meetingId: number;
   projectId: number;
   roster: MeetingRoster;
   canEdit: boolean;
+  canAddStakeholder: boolean;
   headingId: string;
 }) {
   const router = useRouter();
@@ -75,6 +83,9 @@ export function ParticipantsPanel({
   const [conflict, setConflict] = useState(false);
   const [pending, startTransition] = useTransition();
   const [importPending, setImportPending] = useState(false);
+  const [addingMember, setAddingMember] = useState(false);
+  const [newMember, setNewMember] = useState<number | null>(null);
+  const canAddMember = canEdit && canAddStakeholder;
   const entries = drafts.length === 0 ? base.entries : [...base.entries, ...drafts];
   const dirty = canEdit && hasChanges(entries, choices);
   const { markClean } = useUnsavedPart("meeting-participants", dirty);
@@ -90,6 +101,14 @@ export function ParticipantsPanel({
     } else if (roster.stamp > base.stamp && !dirty) {
       setBase(roster);
       setChoices(NO_CHOICES);
+    }
+  }
+
+  if (newMember !== null) {
+    const attended = attendNewMember(entries, choices, newMember);
+    if (attended) {
+      setNewMember(null);
+      setChoices(attended);
     }
   }
 
@@ -276,15 +295,40 @@ export function ParticipantsPanel({
             >
               + {M.guest.split(",")[0]}
             </Button>
-            <Link
-              href={`/projects/${projectId}/stakeholders`}
-              className="inline-flex min-h-7 items-center rounded-md border border-line bg-surface px-2.5 py-0.5 text-xs font-semibold text-ink transition-colors hover:bg-surface-soft"
-            >
-              + {M.member}
-            </Link>
+            {canAddMember ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setAddingMember(true)}
+                data-testid="participants-add-member"
+                className="min-h-7 px-2.5 py-0.5 text-xs font-semibold"
+              >
+                + {M.member}
+              </Button>
+            ) : (
+              <Link
+                href={`/projects/${projectId}/stakeholders`}
+                className="inline-flex min-h-7 items-center rounded-md border border-line bg-surface px-2.5 py-0.5 text-xs font-semibold text-ink transition-colors hover:bg-surface-soft"
+              >
+                + {M.member}
+              </Link>
+            )}
           </div>
         ) : null}
       </div>
+      {canAddMember ? (
+        <Dialog open={addingMember} onOpenChange={setAddingMember} title={M.addMember}>
+          <StakeholderQuickCreate
+            projectId={projectId}
+            typed=""
+            onCreated={(option) => {
+              setAddingMember(false);
+              setNewMember(option.stakeholderId);
+            }}
+            onCancel={() => setAddingMember(false)}
+          />
+        </Dialog>
+      ) : null}
 
       <div className={PANEL_BODY}>
         <ErrorSummary message={summary} />

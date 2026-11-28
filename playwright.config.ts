@@ -21,8 +21,8 @@ export default defineConfig({
     {
       name: "app",
       testMatch:
-        /(home|kitchen-sink|projects|bpmn|checklists|checklist-board|cross-window|key-deliverables|shell|stakeholders|stakeholder-matrix|stakeholder-picker|responsibility-matrix|suppliers|daily-activities|todo-items|todo-planner|questions-answers|parking-lot|assumptions-constraints|datasheet|rich-text|file-storage|financials|financial-documents|project-math|meetings|meeting-minutes|requirements|requirements-canvas|risks-issues|notes|boards|decisions|settings|admin-users|page-undo|whiteboard|list-print|custom-columns)\.spec\.ts/,
-      dependencies: ["setup"],
+        /(home|search|cross-links|kitchen-sink|projects|bpmn|checklists|checklist-board|cross-window|key-deliverables|shell|stakeholders|stakeholder-matrix|stakeholder-picker|responsibility-matrix|suppliers|daily-activities|todo-items|todo-planner|questions-answers|parking-lot|assumptions-constraints|datasheet|rich-text|file-storage|financials|financial-documents|project-math|meetings|meeting-minutes|requirements|requirements-canvas|risks-issues|notes|boards|decisions|settings|admin-users|page-undo|whiteboard|list-print|custom-columns|local-folder-links)\.spec\.ts/,
+      dependencies: ["setup", "viewer-setup"],
       use: { storageState: "e2e/.auth/pm.json" },
     },
     {
@@ -40,6 +40,11 @@ export default defineConfig({
     timeout: 180_000,
     // E2E=1 keeps the /kitchen-sink gallery reachable in the production build
     // used for tests (it 404s in real production).
-    env: { E2E: "1" },
+    //
+    // The whole suite drives one signed-in user at machine speed, so it sits on top of
+    // the per-user action limit (240 a minute, src/lib/rate-limit.ts) and saves start
+    // coming back refused. The limit guards real people, not a harness, so the harness
+    // raises its own ceiling; the shipped default and its unit tests are untouched.
+    env: { E2E: "1", RATE_LIMIT_ACTIONS_PER_MINUTE: "20000" },
   },
 });

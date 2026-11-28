@@ -176,6 +176,31 @@ export type PlannerBlock = PlannerEntry & {
   occursAt?: string;
 };
 
+/** A to-do dragged onto the planner; `until` is the version its confirmed booking was saved at. */
+export interface HeldEntry<T> {
+  entry: T;
+  until?: number;
+}
+
+/**
+ * The planner's entries plus each dragged to-do where it was dropped, until the server's entries
+ * carry it: while its booking is unconfirmed, and after that until the to-do list catches up.
+ */
+export function withHeld<T extends { todoItemId: number }>(
+  entries: readonly T[],
+  unplaced: readonly { todoItemId: number; rowVer: number }[],
+  held: readonly HeldEntry<T>[],
+): T[] {
+  const placed = new Set(entries.map((entry) => entry.todoItemId));
+  const waiting = held.filter(({ entry, until }) => {
+    if (placed.has(entry.todoItemId)) return false;
+    if (until === undefined) return true;
+    const todo = unplaced.find((item) => item.todoItemId === entry.todoItemId);
+    return todo !== undefined && todo.rowVer < until;
+  });
+  return [...entries, ...waiting.map(({ entry }) => entry)];
+}
+
 const minutesBetween = (slot: Slot) =>
   (Date.parse(`${slot.end}:00Z`) - Date.parse(`${slot.start}:00Z`)) / 60_000;
 

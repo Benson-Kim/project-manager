@@ -32,6 +32,7 @@ import type {
   RosterEntry,
   WorkspaceActionItem,
   WorkspaceDiscussionPoint,
+  WorkspaceSection,
 } from "../schemas/meeting";
 import {
   agendaSiblings,
@@ -122,6 +123,7 @@ const DELETE_BODY = {
 export function MinutesEditor({
   workspace,
   pointViews,
+  sectionViews,
   roster,
   today,
   meetingsHref,
@@ -141,6 +143,8 @@ export function MinutesEditor({
   workspace: MeetingWorkspace;
   /** Each discussion point's formatted view, rendered on the server (RichTextView). */
   pointViews: Record<number, RichCellView>;
+  /** Each added section's formatted body, rendered on the server. */
+  sectionViews: Record<number, RichCellView>;
   roster: RosterEntry[];
   today: string;
   /** The project's meetings list route; a carried-over action links to its own meeting under it. */
@@ -402,6 +406,14 @@ export function MinutesEditor({
     },
     [pointViews],
   );
+  const sectionView = useCallback(
+    (section: WorkspaceSection) => {
+      const view = sectionViews[section.MeetingMinutesSectionId];
+      if (view && view.html === section.Body) return view.node;
+      return <p>{previewText(section.Body)}</p>;
+    },
+    [sectionViews],
+  );
 
   const context: MinutesContextValue = {
     meetingId,
@@ -419,6 +431,8 @@ export function MinutesEditor({
     },
     focusSoon,
     pointView,
+    sectionView,
+    sections: shown.sections,
     people,
     setStatus,
     canLogDecision,
@@ -482,68 +496,10 @@ export function MinutesEditor({
           )}
         </section>
 
-        <section
-          aria-labelledby="carried-over-heading"
-          data-testid="carried-over"
-          className="flex flex-col gap-2 rounded-md border border-line p-4"
-        >
-          <div className="flex flex-col gap-0.5">
-            <SectionHeading
-              sectionKey="CarryOver"
-              fallback={M.carriedOver}
-              sections={shown.sections}
-              heading={(title) => (
-                <h3 id="carried-over-heading" className="text-sm font-medium text-ink">
-                  {title}
-                </h3>
-              )}
-            />
-            <p className="text-xs text-ink-muted">{M.carriedOverHint}</p>
-          </div>
-          {carried.length === 0 ? (
-            <p className="text-sm text-ink-muted">{M.noCarriedOver}</p>
-          ) : (
-            <ul className="flex flex-col divide-y divide-line">
-              {carried.map(({ action, overdue: late }) => {
-                const name = itemName(action.Action, M.action);
-                return (
-                  <li
-                    key={action.MeetingActionItemId}
-                    data-testid="carried-over-action"
-                    className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm"
-                  >
-                    <span className="min-w-0 grow basis-48 text-ink wrap-anywhere">
-                      {action.Action}
-                    </span>
-                    {action.AssigneeName ? (
-                      <span className="text-ink-muted">{action.AssigneeName}</span>
-                    ) : null}
-                    {action.DueDate ? (
-                      <span className="text-ink-muted tabular-nums">
-                        {formatDate(action.DueDate)}
-                      </span>
-                    ) : null}
-                    {late ? <OverdueBadge /> : null}
-                    <Link
-                      href={`${meetingsHref}/${action.FromMeetingId}`}
-                      aria-label={M.openCarriedMeeting(action.FromSubject ?? messages.app.untitled)}
-                      className="text-accent print:text-ink-muted"
-                    >
-                      {M.carriedFrom(action.FromSubject ?? messages.app.untitled)}
-                    </Link>
-                    <ActionStatusCell action={action} name={name} />
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-
         <section aria-labelledby="agenda-heading" className="flex flex-col gap-3">
           <SectionHeading
             sectionKey="Agenda"
             fallback={M.agenda}
-            sections={shown.sections}
             heading={(title) => (
               <h3
                 id="agenda-heading"
@@ -621,6 +577,62 @@ export function MinutesEditor({
         <CustomSections sections={shown.sections} />
 
         <ActionItemsTable actions={shown.actionItems} />
+
+        <section
+          aria-labelledby="carried-over-heading"
+          data-testid="carried-over"
+          className="flex flex-col gap-2 rounded-md border border-accent bg-accent-soft p-4"
+        >
+          <div className="flex flex-col gap-0.5">
+            <SectionHeading
+              sectionKey="CarryOver"
+              fallback={M.carriedOver}
+              heading={(title) => (
+                <h3 id="carried-over-heading" className="text-sm font-medium text-ink">
+                  {title}
+                </h3>
+              )}
+            />
+            <p className="text-xs text-ink-muted">{M.carriedOverHint}</p>
+          </div>
+          {carried.length === 0 ? (
+            <p className="text-sm text-ink-muted">{M.noCarriedOver}</p>
+          ) : (
+            <ul className="flex flex-col divide-y divide-line">
+              {carried.map(({ action, overdue: late }) => {
+                const name = itemName(action.Action, M.action);
+                return (
+                  <li
+                    key={action.MeetingActionItemId}
+                    data-testid="carried-over-action"
+                    className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm"
+                  >
+                    <span className="min-w-0 grow basis-48 text-ink wrap-anywhere">
+                      {action.Action}
+                    </span>
+                    {action.AssigneeName ? (
+                      <span className="text-ink-muted">{action.AssigneeName}</span>
+                    ) : null}
+                    {action.DueDate ? (
+                      <span className="text-ink-muted tabular-nums">
+                        {formatDate(action.DueDate)}
+                      </span>
+                    ) : null}
+                    {late ? <OverdueBadge /> : null}
+                    <Link
+                      href={`${meetingsHref}/${action.FromMeetingId}`}
+                      aria-label={M.openCarriedMeeting(action.FromSubject ?? messages.app.untitled)}
+                      className="text-accent print:text-ink-muted"
+                    >
+                      {M.carriedFrom(action.FromSubject ?? messages.app.untitled)}
+                    </Link>
+                    <ActionStatusCell action={action} name={name} />
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
       </div>
 
       <ConfirmDialog

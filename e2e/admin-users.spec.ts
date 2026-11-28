@@ -26,7 +26,7 @@ async function signInAsAdmin(page: Page) {
   if (!password) throw new Error("E2E_USER_PASSWORD must be set for the e2e suite");
   await page.goto("/login");
   await page.getByLabel(messages.auth.username).fill("e2e-admin");
-  await page.getByLabel(messages.auth.password).fill(password);
+  await page.getByLabel(messages.auth.password, { exact: true }).fill(password);
   await page.getByRole("button", { name: messages.auth.signIn }).click();
   await page.waitForURL("/");
 }
