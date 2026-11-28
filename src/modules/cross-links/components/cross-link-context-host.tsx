@@ -73,6 +73,17 @@ type LinkDialogState =
 type DeleteConfirmState =
   { kind: "link"; link: CrossLinkItem } | { kind: "note"; note: PageNoteItem } | null;
 
+function SearchStringReporter({ onChange }: { onChange: (value: string) => void }) {
+  const searchParams = useSearchParams();
+  const search = searchParams.toString();
+
+  useEffect(() => {
+    onChange(search);
+  }, [onChange, search]);
+
+  return null;
+}
+
 function CrossLinkContextHostInner({
   currentUserId,
   children,
@@ -81,8 +92,7 @@ function CrossLinkContextHostInner({
   children: ReactNode;
 }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const search = searchParams.toString();
+  const [search, setSearch] = useState("");
   const { toast } = useToast();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -572,6 +582,9 @@ function CrossLinkContextHostInner({
 
   return (
     <CrossLinkMenuContext.Provider value={contextValue}>
+      <Suspense fallback={null}>
+        <SearchStringReporter onChange={setSearch} />
+      </Suspense>
       <div
         ref={containerRef}
         onContextMenuCapture={handleContextMenuCapture}
@@ -714,10 +727,6 @@ export function CrossLinkContextHost({
   children: ReactNode;
 }) {
   return (
-    <Suspense fallback={children}>
-      <CrossLinkContextHostInner currentUserId={currentUserId}>
-        {children}
-      </CrossLinkContextHostInner>
-    </Suspense>
+    <CrossLinkContextHostInner currentUserId={currentUserId}>{children}</CrossLinkContextHostInner>
   );
 }
